@@ -1,0 +1,27 @@
+@import "tailwindcss";
+@import "@fontsource-variable/manrope";
+
+@theme {
+  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+}
+
+html,
+body {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+/* Telegram fon naqshi (telefon maketi) */
+.tg-wallpaper {
+  background-color: #d9e4d0;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.35) 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.3) 0 2px, transparent 3px);
+  background-size: 38px 38px, 52px 52px;
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.animate-pop { animation: pop-in 0.22s ease-out both; }
