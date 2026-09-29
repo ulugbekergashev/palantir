@@ -6,8 +6,15 @@
 
 export const FONT_FAMILY = '"Manrope Variable", Manrope, "Segoe UI", Arial, sans-serif';
 
+type Measure = (text: string, size: number, weight: number) => number;
+
+/** Serverda (Telegramga rasm yuborishda) brauzer yo'q — o'lchagich tashqaridan beriladi */
+let external: Measure | null = null;
+export const setTextMeasurer = (m: Measure) => { external = m; };
+
 let ctx: CanvasRenderingContext2D | null = null;
 export const textWidth = (text: string, size: number, weight: number): number => {
+  if (external) return external(text, size, weight);
   if (typeof document === 'undefined') return text.length * size * 0.55;
   ctx ??= document.createElement('canvas').getContext('2d');
   if (!ctx) return text.length * size * 0.55;

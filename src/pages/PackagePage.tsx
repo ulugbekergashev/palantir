@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, Loader2, Send, Target } from 'lucide-react';
-import type { Clinic, ContentItem, ItemStatus, Lang } from '../types';
+import { ChevronLeft, ChevronRight, Download, Loader2, Send, Sparkles, Target } from 'lucide-react';
+import type { Clinic, ContentItem, ItemMeta, ItemStatus, Lang } from '../types';
 import { ItemCard, type ItemAction } from '../components/ItemCard';
 import { TelegramPhone, type ChatMsg } from '../components/TelegramPhone';
 import { WeekStrip } from '../components/WeekStrip';
@@ -15,6 +15,9 @@ export function PackagePage(props: {
   onDownload: (item: ContentItem) => Promise<void>; onDownloadAll: () => Promise<void>;
   registerSvg: (id: string, el: SVGSVGElement | null) => void; onPublishAll: () => void;
   chat: ChatMsg[]; onAsk: (text: string) => void; goToSetup: () => void;
+  /** To'liq versiya: serverdagi holat va AI yozayotgani */
+  metaOf?: (item: ContentItem) => ItemMeta | undefined;
+  aiPending?: boolean;
 }) {
   const { items, monday, weekOffset, setWeekOffset, lang, setLang, clinic, now, statusOf } = props;
   const [zipping, setZipping] = useState(false);
@@ -38,6 +41,7 @@ export function PackagePage(props: {
       clinic={clinic}
       status={statusOf(item)}
       now={now}
+      meta={props.metaOf?.(item)}
       onAction={props.onAction}
       onDownload={props.onDownload}
       registerSvg={props.registerSvg}
@@ -84,6 +88,12 @@ export function PackagePage(props: {
           </Button>
         </div>
       </div>
+
+      {props.aiPending && (
+        <p role="status" className="flex items-center gap-2 rounded-xl bg-violet-50 px-3.5 py-2.5 text-sm font-medium text-violet-800">
+          <Sparkles className="h-4 w-4 animate-pulse" /> AI shu hafta uchun matn yozmoqda — tayyor bo'lgach kartochkalar o'zi yangilanadi.
+        </p>
+      )}
 
       <WeekStrip monday={monday} items={items} statusOf={statusOf} today={iso(now)} />
 

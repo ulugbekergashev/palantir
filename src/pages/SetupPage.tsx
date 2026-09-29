@@ -33,7 +33,13 @@ function Upload1({ label, onFile }: { label: string; onFile: (f: File) => void }
  * Onboarding: klinika haqida bir marta kiritiladigan ma'lumot. AI postlarni faqat
  * shu yerdagi faktlardan yozadi (xizmat, narx, shifokor, aksiya) — o'zidan qo'shmaydi.
  */
-export function SetupPage({ clinic, onChange, onReset, now }: { clinic: Clinic; onChange: (c: Clinic) => void; onReset: () => void; now: Date }) {
+export function SetupPage({ clinic, onChange, onReset, now, saveNote }: {
+  clinic: Clinic; onChange: (c: Clinic) => void; now: Date;
+  /** Demo: namuna klinikani tiklash (to'liq versiyada yo'q) */
+  onReset?: () => void;
+  /** To'liq versiya: "Saqlanmoqda…" / "Saqlandi" / xato */
+  saveNote?: { text: string; error?: boolean };
+}) {
   const up = (patch: Partial<Clinic>) => onChange({ ...clinic, ...patch });
   const upGoal = (patch: Partial<WeeklyGoal>) => up({ goal: { ...clinic.goal, ...patch } });
   const upService = (id: string, patch: Partial<Service>) => up({ services: clinic.services.map(s => (s.id === id ? { ...s, ...patch } : s)) });
@@ -49,7 +55,8 @@ export function SetupPage({ clinic, onChange, onReset, now }: { clinic: Clinic; 
           <h1 className="text-2xl font-extrabold tracking-tight">Klinika va brend</h1>
           <p className="text-sm text-slate-500">Bir marta to'ldiriladi (~15 daqiqa). Postlar faqat shu ma'lumotdan yoziladi — o'zidan chegirma yoki da'vo qo'shilmaydi.</p>
         </div>
-        <Button onClick={onReset}><RotateCcw className="h-4 w-4" /> Namuna klinikani tiklash</Button>
+        {saveNote && <span role="status" className={`text-sm font-semibold ${saveNote.error ? 'text-rose-600' : 'text-slate-500'}`}>{saveNote.text}</span>}
+        {onReset && <Button onClick={onReset}><RotateCcw className="h-4 w-4" /> Namuna klinikani tiklash</Button>}
       </header>
 
       <div className="grid gap-5 xl:grid-cols-2">
@@ -61,11 +68,19 @@ export function SetupPage({ clinic, onChange, onReset, now }: { clinic: Clinic; 
             <Field label="Instagram"><TextInput value={clinic.instagram || ''} placeholder="@klinika" onChange={e => up({ instagram: e.target.value })} /></Field>
             <Field label="Manzil"><TextInput value={clinic.address} onChange={e => up({ address: e.target.value })} /></Field>
             <Field label="Manzil (ruscha)"><TextInput value={clinic.addressRu || ''} onChange={e => up({ addressRu: e.target.value })} /></Field>
-            <Field label="Yozilish boti" hint="Postdagi havola — lid shu orqali o'lchanadi"><TextInput value={clinic.telegramBot || ''} placeholder="@klinika_bot" onChange={e => up({ telegramBot: e.target.value })} /></Field>
+            <Field label="Yozilish boti" hint="Rasmga yoziladi (bo'sh bo'lsa — telefon)"><TextInput value={clinic.telegramBot || ''} placeholder="@klinika_bot" onChange={e => up({ telegramBot: e.target.value })} /></Field>
             <Field label="Telegram kanal"><TextInput value={clinic.telegramChannel || ''} placeholder="@klinika" onChange={e => up({ telegramChannel: e.target.value })} /></Field>
-            <Field label="Obunachilar (Instagram + kanal)" hint="Natijani taxmin qilish uchun">
-              <TextInput type="number" min={0} step={100} value={clinic.followers} onChange={e => up({ followers: Math.max(0, Number(e.target.value) || 0) })} />
+            <Field label="Kanal tili" hint="Postlar kanalga shu tilda chiqadi">
+              <select className={inputClass} value={clinic.contentLang ?? 'uz'} onChange={e => up({ contentLang: e.target.value === 'ru' ? 'ru' : 'uz' })}>
+                <option value="uz">O'zbekcha</option>
+                <option value="ru">Русский</option>
+              </select>
             </Field>
+            {!saveNote && (
+              <Field label="Obunachilar (Instagram + kanal)" hint="Demo natijalarni taxmin qilish uchun">
+                <TextInput type="number" min={0} step={100} value={clinic.followers} onChange={e => up({ followers: Math.max(0, Number(e.target.value) || 0) })} />
+              </Field>
+            )}
           </div>
         </Card>
 

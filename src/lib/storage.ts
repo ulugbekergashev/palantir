@@ -2,7 +2,7 @@ import type { Clinic, PackState } from '../types';
 import { sampleClinic } from '../data/sampleClinic';
 
 /** Demo ma'lumot faqat shu brauzerda saqlanadi */
-const KEY = 'dentagrow_v1';
+const KEY = 'cerebro_v1';
 
 export interface Store {
   clinic: Clinic;

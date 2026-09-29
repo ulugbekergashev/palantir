@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, MoreVertical, SendHorizontal } from 'lucide-react';
+import { ArrowLeft, Brain, MoreVertical, SendHorizontal } from 'lucide-react';
 import type { Clinic, ContentItem, ItemStatus, Lang } from '../types';
 import { Artboard } from '../templates/Artboard';
 import { isPast } from '../lib/generator';
@@ -67,9 +67,9 @@ export function TelegramPhone({ items, statusOf, lang, clinic, now, weekLabel, c
     <div className={`mx-auto flex w-[360px] max-w-full flex-col overflow-hidden rounded-[44px] border-[10px] border-slate-900 bg-slate-900 shadow-2xl ${className}`}>
       <div className="flex items-center gap-3 bg-[#517DA2] px-3 py-2.5 text-white">
         <ArrowLeft className="h-5 w-5 opacity-80" />
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-600 text-sm font-bold">DG</div>
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-600"><Brain className="h-5 w-5" /></div>
         <div className="min-w-0 flex-1 leading-tight">
-          <div className="truncate text-sm font-bold">DentaGrow</div>
+          <div className="truncate text-sm font-bold">Cerebro</div>
           <div className="text-[11px] opacity-80">bot</div>
         </div>
         <MoreVertical className="h-5 w-5 opacity-80" />
