@@ -6,6 +6,12 @@ const image = (maxChars: number) => z.string().max(maxChars).regex(/^data:image\
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const text = (max: number) => z.string().trim().max(max);
 
+export const AutoReplySchema = z.object({
+  mode: z.enum(['off', 'draft', 'auto']),
+  contacts: z.boolean(),
+  delayMin: z.number().int().min(0).max(120),
+});
+
 export const BusinessSchema = z.object({
   name: text(60).min(1),
   ownerName: text(60),
@@ -19,6 +25,7 @@ export const BusinessSchema = z.object({
   website: text(120).optional(),
   contentLang: z.enum(['uz', 'ru']).optional(),
   morningBrief: z.boolean().optional(),
+  autoReply: AutoReplySchema.optional(),
   brand: z.object({ primary: hex, accent: hex, logo: image(600_000).optional() }),
   offerings: z.array(z.object({
     id: text(40).min(1),
@@ -45,6 +52,7 @@ export const emptyBusiness = (name: string, industry = ''): Business => ({
   address: '',
   contentLang: 'uz',
   morningBrief: true,
+  autoReply: { mode: 'draft', contacts: false, delayMin: 2 },
   brand: { primary: '#4F46E5', accent: '#F59E0B' },
   offerings: [],
   team: [],

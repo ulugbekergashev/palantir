@@ -6,14 +6,15 @@
  */
 process.env.TZ = 'Asia/Tashkent';
 import { spawn } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Business } from '../src/types';
 import { iso, stamp } from '../src/lib/week';
 import {
-  CHANNEL, CUSTOMER, OWNER, VOICE_BYTES, addedToChannel, ai, aiServer, listen, press, say, sendVoice, sent, shareContact, sleep, stt, sttServer,
-  tgServer, waitFor, type Sent,
+  CHANNEL, CUSTOMER, IG_ACCOUNT, OWNER, TG_SESSION, VOICE_BYTES, addedToChannel, ai, aiServer, ig, igServer, listen, press, say, sendVoice, sent,
+  shareContact, sleep, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, type Sent,
 } from './fakes';
 
 const results: boolean[] = [];
@@ -25,6 +26,8 @@ const ok = (name: string, cond: unknown, info = '') => {
 const tgPort = await listen(tgServer);
 const aiPort = await listen(aiServer);
 const sttPort = await listen(sttServer);
+const tgUserPort = await listen(tgUserServer);
+const igPort = await listen(igServer);
 const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-e2e-'));
 const PORT = 3290;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
@@ -33,6 +36,9 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700',
     GEMINI_API_KEY: 'g-test', GROQ_API_KEY: 'q-test', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, GROQ_STT_URL: `http://127.0.0.1:${sttPort}/groq`,
     MORNING_HOUR: String(new Date().getHours()), WEB_SEARCH: '1', SESSION_SECRET: 'e2e-secret',
+    INBOX_DEBOUNCE_MS: '300', MINUTE_MS: '1500', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
+    IG_APP_ID: 'ig-app', IG_APP_SECRET: 'ig-secret', IG_WEBHOOK_VERIFY_TOKEN: 'verify-me', PUBLIC_URL: 'https://cerebro.test',
+    IG_GRAPH_URL: `http://127.0.0.1:${igPort}`, IG_TOKEN_URL: `http://127.0.0.1:${igPort}/oauth/access_token`, IG_OAUTH_URL: 'https://www.instagram.com/oauth/authorize', IG_POLL_MS: '700',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -242,6 +248,138 @@ try {
   ok("Gemini ishlamasa — Groq'ga o'tadi", await waitFor('zaxira', () => after(mark, OWNER, has('🎙'))) && stt.groq === groqBefore + 1);
   stt.geminiFails = false;
 
+  console.log('\n# Shaxsiy Telegram: kirish');
+  let st = (await api('/api/me', { token })).json.status;
+  ok('holat: shaxsiy Telegram mavjud, hali ulanmagan', st.telegramUser.available && !st.telegramUser.account);
+  ok("noto'g'ri raqam — 400", (await api('/api/telegram-user/start', { token, body: { phone: '12' } })).status === 400);
+  ok('kod yuborildi', (await api('/api/telegram-user/start', { token, body: { phone: '+998 90 111 22 33' } })).status === 200 && tgUser.codes.includes('+998901112233'));
+  const badCode = await api('/api/telegram-user/code', { token, body: { code: '99999' } });
+  ok("noto'g'ri kod — tushunarli xato", badCode.status === 400 && badCode.json.error === "Kod noto'g'ri");
+  ok('ikki bosqichli parol so\'raladi', (await api('/api/telegram-user/code', { token, body: { code: '22222' } })).json.password === true);
+  ok("noto'g'ri parol — tushunarli xato", (await api('/api/telegram-user/password', { token, body: { password: 'xato' } })).json.error === "Parol noto'g'ri");
+  const logged = await api('/api/telegram-user/password', { token, body: { password: 'parol123' } });
+  ok('ulandi', logged.json.account === 'Aziz Egasi · @aziz_owner');
+  ok('holatda akkaunt', (await api('/api/me', { token })).json.status.telegramUser.account === 'Aziz Egasi · @aziz_owner');
+
+  console.log('\n# Shaxsiy Telegram: mijozlarga javob (tasdiq bilan)');
+  const leadsNow = async () => (await api('/api/leads', { token })).json.leads as { id: string; name: string; channel: string; reachable: boolean; phone: string | null }[];
+  mark = sent.length;
+  tgUser.incoming(TG_SESSION, '7777', 'Salom, kechqurun uchrashamizmi?', { name: 'Akam', isContact: true });
+  await sleep(1200);
+  ok("kontaktdagi odam (tanish) — tegilmaydi", !after(mark, OWNER, has('Akam')) && !(await leadsNow()).some(l => l.name === 'Akam'));
+  tgUser.incoming(TG_SESSION, '6001', 'Stol narxi qancha?', { name: 'Bobur', username: 'bobur_t' });
+  const tgCard = await waitFor('Telegram karta', () => after(mark, OWNER, has('Bobur')));
+  ok('egasiga karta: mijoz gapi va javob taklifi', tgCard && textOf(tgCard).includes('· Telegram') && textOf(tgCard).includes('Javob taklifi') && textOf(tgCard).includes("1 500 000 so'm"));
+  ok('mijozlar ro\'yxatida: Telegram, yozsa bo\'ladi', (await leadsNow()).some(l => l.name === 'Bobur' && l.channel === 'telegram' && l.reachable));
+  ok('tasdiqsiz hech narsa ketmadi', !tgUser.sent.some(m => m.to.userId === '6001'));
+  const approveBtn = buttons(tgCard).find(b => b.callback_data?.startsWith('ra|'));
+  mark = sent.length;
+  press(OWNER, approveBtn!.callback_data!, tgCard!.id!);
+  ok("«Yuborish»: egasining Telegrami orqali ketdi", await waitFor('yuborildi', () => tgUser.sent.find(m => m.to.userId === '6001' && m.text.includes("1 500 000 so'm"))));
+  await waitFor('karta yangilandi', () => after(mark, OWNER, s => s.method === 'editMessageText' && textOf(s).includes('Yuborildi')));
+  const bobur = (await leadsNow()).find(l => l.name === 'Bobur')!;
+  await sleep(600);
+  let thread = (await api(`/api/inbox/${bobur.id}`, { token })).json.messages as { direction: string; by: string; text: string }[];
+  ok("yozishmada: mijoz gapi va Cerebro javobi (qaytib kelgan nusxa egasiniki deb yozilmadi)",
+    thread.length === 2 && thread[1].by === 'cerebro' && !thread.some(m => m.by === 'owner'));
+
+  mark = sent.length;
+  tgUser.incoming(TG_SESSION, '6001', 'Chegirma bormi?');
+  const discount = await waitFor('chegirma kartasi', () => after(mark, OWNER, has('Chegirma bormi?')));
+  ok("bilmagan narsasi — egasidan so'raydi", discount && textOf(discount).includes('berasizmi'));
+  mark = sent.length;
+  tgUser.ownerTyped(TG_SESSION, '6001', '5% chegirma qilamiz');
+  ok("egasi o'zi yozsa — taklif bekor", await waitFor('bekor', () => after(mark, OWNER, s => s.method === 'editMessageText' && textOf(s).includes("O'zingiz javob berdingiz"))));
+  mark = sent.length;
+  press(OWNER, buttons(discount).find(b => b.callback_data?.startsWith('ra|'))!.callback_data!, discount!.id!);
+  const stale = await waitFor('eskirgan', () => sent.slice(mark).find(s => s.method === 'answerCallbackQuery'));
+  ok('eskirgan taklifni yuborib bo\'lmaydi', String(stale?.params.text).includes('eskirgan') && !tgUser.sent.some(m => m.text.includes('Aniqlab')));
+  thread = (await api(`/api/inbox/${bobur.id}`, { token })).json.messages;
+  ok("egasining o'z javobi yozishmada", thread.some(m => m.by === 'owner' && m.text === '5% chegirma qilamiz'));
+
+  console.log("\n# Shaxsiy Telegram: o'zi javob beradi");
+  ok("rejim: noto'g'ri qiymat — 400", (await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'tez', contacts: false, delayMin: 1 } })).status === 400);
+  ok('rejim: «o\'zi javob bersin», 1 daqiqa kutib', (await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'auto', contacts: false, delayMin: 1 } })).json.business?.autoReply?.mode === 'auto');
+  mark = sent.length;
+  const tAuto = Date.now();
+  tgUser.incoming(TG_SESSION, '6002', 'Ish vaqtingiz qanday?', { name: 'Sardor' });
+  await sleep(900);
+  ok('kutish vaqtida — hali yubormaydi (egasiga imkon)', !tgUser.sent.some(m => m.to.userId === '6002'));
+  const auto = await waitFor('avto javob', () => tgUser.sent.find(m => m.to.userId === '6002'));
+  ok("egasi yozmadi — Cerebro o'zi javob berdi", auto?.text.includes('10:00') && Date.now() - tAuto >= 1500, `${Date.now() - tAuto} ms`);
+  ok('egasiga: «javob berdim»', await waitFor('xabar', () => after(mark, OWNER, s => textOf(s).includes('🤖') && textOf(s).includes('Sardor'))));
+  tgUser.incoming(TG_SESSION, '6003', 'Ish vaqtingiz?', { name: 'Kamola' });
+  await sleep(700);
+  tgUser.ownerTyped(TG_SESSION, '6003', 'Hozir aytaman');
+  await sleep(2500);
+  ok("egasi kutish vaqtida o'zi yozsa — Cerebro yozmaydi", !tgUser.sent.some(m => m.to.userId === '6003'));
+  mark = sent.length;
+  tgUser.incoming(TG_SESSION, '6004', 'Chegirma bormi?', { name: 'Jamshid' });
+  ok("o'zi rejimida ham bilmagan narsasini egasidan so'raydi", await waitFor('karta', () => after(mark, OWNER, s => has('Jamshid')(s) && buttons(s).length === 2)));
+  await sleep(2000);
+  ok('...va o\'zicha yubormaydi', !tgUser.sent.some(m => m.to.userId === '6004'));
+  mark = sent.length;
+  tgUser.incoming(TG_SESSION, '6005', 'Eng arzon stol qaysi?', { name: 'Rustam' });
+  const flagged = await waitFor('filtr', () => after(mark, OWNER, has('Rustam')));
+  ok("reklama filtriga tushgan javob — o'zi yubormaydi, egasiga", flagged && textOf(flagged).includes('filtr') && !tgUser.sent.some(m => m.to.userId === '6005'));
+
+  console.log('\n# Shaxsiy Telegram: egasining topshirig\'i va panel');
+  const fu2 = await api('/api/chat', { token, body: { text: 'Oxirgi hafta yozgan mijozlarga rahmat xabarini tayyorla' } });
+  const out2 = fu2.json.entries?.[1]?.artifacts?.find((a: { type: string }) => a.type === 'outbound')?.outbound;
+  ok("xabar: Telegram'dagi va qo'lda qo'shilgan (telefoni bor) mijozlarga ham yetadi", out2 && out2.reachable >= 5, `${out2?.reachable} ta`);
+  const sendRes = await api(`/api/followups/${out2.id}/send`, { token, body: {} });
+  ok('yuborildi: har biri o\'z kanali orqali', sendRes.json.sent === out2.reachable && tgUser.sent.some(m => m.to.phone === '+998901234567' && m.text.includes('rahmat')),
+    `${sendRes.json.sent} ta, ${sendRes.json.failed} xato`);
+  const threads = (await api('/api/inbox', { token })).json.threads as { lead: { name: string; channel: string }; pending: number }[];
+  ok("«Suhbatlar»: kanal bilan, kutayotgan javob belgisi", threads.some(t => t.lead.name === 'Bobur' && t.lead.channel === 'telegram') && threads.some(t => t.lead.name === 'Jamshid' && t.pending === 1));
+  const manual = await api(`/api/inbox/${bobur.id}/send`, { token, body: { text: 'Panel orqali javob' } });
+  ok('panel orqali yozish — egasining Telegrami orqali', manual.status === 200 && tgUser.sent.some(m => m.to.userId === '6001' && m.text === 'Panel orqali javob'));
+  ok('boshqa biznes: yozishmani ko\'ra olmaydi', (await api(`/api/inbox/${bobur.id}`, { token: otherToken })).status === 404);
+
+  console.log('\n# Instagram');
+  st = (await api('/api/me', { token })).json.status;
+  ok('holat: Instagram mavjud, hali ulanmagan', st.instagram.available && !st.instagram.account);
+  const connect = (await api('/api/instagram/connect', { token })).json.url as string;
+  const cu = new URL(connect);
+  ok('«Instagram bilan kirish» havolasi (rasmiy, parolsiz)', cu.origin === 'https://www.instagram.com' && cu.searchParams.get('client_id') === 'ig-app'
+    && cu.searchParams.get('redirect_uri') === 'https://cerebro.test/api/instagram/callback' && cu.searchParams.get('scope')!.includes('instagram_business_manage_messages'));
+  const cb = (q: string) => fetch(`${base}/api/instagram/callback?${q}`, { redirect: 'manual' });
+  ok("soxta «state» — ulanmaydi", (await cb('code=ig-code&state=xxx.yyy')).headers.get('location')?.includes('ig=error'));
+  const okCb = await cb(`code=ig-code&state=${encodeURIComponent(cu.searchParams.get('state')!)}`);
+  ok('ulandi va panelga qaytdi', okCb.status === 302 && okCb.headers.get('location') === 'https://cerebro.test/#/telegram?ig=ok', okCb.headers.get('location') ?? '');
+  ok('holatda: @mebel_uyi, webhook obunasi', (await api('/api/me', { token })).json.status.instagram.account === '@mebel_uyi' && ig.subscribed === 1);
+  ok('webhook tasdiqlash (Meta)', await (await fetch(`${base}/api/instagram/webhook?hub.mode=subscribe&hub.verify_token=verify-me&hub.challenge=4242`)).text() === '4242');
+  ok("webhook: noto'g'ri token — 403", (await fetch(`${base}/api/instagram/webhook?hub.mode=subscribe&hub.verify_token=x&hub.challenge=1`)).status === 403);
+  const hook = (payload: unknown, secret = 'ig-secret') => {
+    const raw = JSON.stringify(payload);
+    return fetch(`${base}/api/instagram/webhook`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-signature-256': `sha256=${createHmac('sha256', secret).update(raw).digest('hex')}` }, body: raw });
+  };
+  const msgEvent = (sender: string, recipient: string, mid: string, text: string, echo = false) =>
+    ({ object: 'instagram', entry: [{ id: IG_ACCOUNT, time: Date.now(), messaging: [{ sender: { id: sender }, recipient: { id: recipient }, timestamp: Date.now(), message: { mid, text, ...(echo ? { is_echo: true } : {}) } }] }] });
+  ok("webhook: imzosiz/soxta imzo — 403", (await hook(msgEvent('igsid_1', IG_ACCOUNT, 'mx', 'hack'), 'wrong')).status === 403);
+  mark = sent.length;
+  ok('webhook: xabar qabul qilindi', (await hook(msgEvent('igsid_1', IG_ACCOUNT, 'mid_1', 'Stol narxi qancha?'))).status === 200);
+  const igAuto = await waitFor('IG avto javob', () => ig.sent.find(m => m.recipient === 'igsid_1'));
+  ok("Instagram'da o'zi javob berdi (Direct orqali)", igAuto?.text.includes("1 500 000 so'm") && igAuto.auth === 'Bearer long-tok');
+  const dilnoza = (await leadsNow()).find(l => l.name === 'Dilnoza Karimova');
+  ok('mijoz: ismi Instagram profilidan, kanal — Instagram', dilnoza?.channel === 'instagram' && dilnoza.reachable);
+  await hook(msgEvent(IG_ACCOUNT, 'igsid_1', 'm_out_x', igAuto!.text, true));
+  await hook(msgEvent(IG_ACCOUNT, 'igsid_1', 'mid_owner', "Qo'shimcha: yetkazib berish bepul", true));
+  await hook(msgEvent('igsid_1', IG_ACCOUNT, 'mid_1', 'Stol narxi qancha?'));
+  await sleep(800);
+  thread = (await api(`/api/inbox/${dilnoza!.id}`, { token })).json.messages;
+  ok("qaytib kelgan nusxa va takroriy webhook — ikki marta yozilmadi; egasining Instagram'dagi javobi yozildi",
+    thread.filter(m => m.direction === 'in').length === 1 && thread.filter(m => m.by === 'cerebro').length === 1 && thread.some(m => m.by === 'owner' && m.text.startsWith("Qo'shimcha")),
+    thread.map(m => `${m.by}:${m.text.slice(0, 12)}`).join(' | '));
+  mark = sent.length;
+  ig.addMessage('conv_2', 'igsid_2', 'Chegirma bormi?', 'ali_ig');
+  const polled = await waitFor('tekshiruv', () => after(mark, OWNER, has('Chegirma bormi?')));
+  ok('webhook bo\'lmasa ham: suhbatlarni tekshirib oladi', polled && textOf(polled).includes('· Instagram'));
+  ok('Instagram mijozi ro\'yxatda', (await leadsNow()).some(l => l.channel === 'instagram' && l.name === 'Dilnoza Karimova'));
+  ok('Instagram uzildi', (await api('/api/instagram', { method: 'DELETE', token })).json.status?.instagram?.account === null);
+  ok('shaxsiy Telegram uzildi', (await api('/api/telegram-user', { method: 'DELETE', token })).json.status?.telegramUser?.account === null);
+  await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'draft', contacts: false, delayMin: 2 } });
+
   console.log('\n# Panel: suhbat');
   const chat1 = await api('/api/chat', { token, body: { text: 'Salom' } });
   ok('panel: javob keldi', chat1.json.entries?.[1]?.text === 'Tushundim: salom' && chat1.json.entries[0].channel === 'web');
@@ -300,6 +438,8 @@ try {
   tgServer.close();
   aiServer.close();
   sttServer.close();
+  tgUserServer.close();
+  igServer.close();
   await sleep(300);
   try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* Windows fayl band */ }
 }

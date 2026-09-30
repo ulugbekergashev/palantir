@@ -101,6 +101,104 @@ export async function waitFor<T>(what: string, fn: () => T | undefined | false, 
   return undefined;
 }
 
+// ─── Soxta shaxsiy Telegram akkaunti (TG_USER_FAKE_URL) ──────────────────────
+export interface TgEv { out: boolean; userId: string; accessHash: string | null; name: string | null; username: string | null; phone: string | null; isContact: boolean; isBot: boolean; text: string; msgId: string }
+export const tgUser = {
+  codes: [] as string[],
+  sent: [] as { session: string; to: Record<string, string | null>; text: string; msgId: string }[],
+  queues: new Map<string, TgEv[]>(),
+  seq: 5000,
+  push(session: string, e: Omit<TgEv, 'msgId' | 'accessHash' | 'isBot' | 'phone'> & Partial<TgEv>) {
+    const ev: TgEv = { accessHash: `h${e.userId}`, isBot: false, phone: null, msgId: String(++tgUser.seq), ...e };
+    (tgUser.queues.get(session) ?? tgUser.queues.set(session, []).get(session)!).push(ev);
+    return ev;
+  },
+  /** Mijoz egasining shaxsiy Telegramiga yozdi */
+  incoming(session: string, userId: string, text: string, opts: { name?: string; username?: string; isContact?: boolean } = {}) {
+    return tgUser.push(session, { out: false, userId, name: opts.name ?? null, username: opts.username ?? null, isContact: !!opts.isContact, text });
+  },
+  /** Egasi telefonidan o'zi yozdi */
+  ownerTyped(session: string, userId: string, text: string) {
+    return tgUser.push(session, { out: true, userId, name: null, username: null, isContact: false, text });
+  },
+};
+export const TG_SESSION = 'sess-+998901112233';
+export const tgUserServer = createServer(async (req, res) => {
+  const body = JSON.parse((await readBody(req)).toString() || '{}');
+  const account = { id: '9000', name: 'Aziz Egasi', username: 'aziz_owner', phone: String(body.phone ?? '') };
+  switch (req.url) {
+    case '/code': tgUser.codes.push(body.phone); return json(res, { ok: true });
+    case '/sign':
+      if (body.code === '22222') return json(res, { password: true });
+      if (body.code === '12345') return json(res, { session: `sess-${body.phone}`, account });
+      return json(res, { error: 'PHONE_CODE_INVALID' }, 400);
+    case '/password':
+      return body.password === 'parol123' ? json(res, { session: `sess-${body.phone}`, account }) : json(res, { error: 'PASSWORD_HASH_INVALID' }, 400);
+    case '/updates': {
+      for (let i = 0; i < 10 && !(tgUser.queues.get(body.session)?.length); i++) await sleep(50);
+      const events = tgUser.queues.get(body.session) ?? [];
+      tgUser.queues.set(body.session, []);
+      return json(res, { events });
+    }
+    case '/send': {
+      const to = body.to as Record<string, string | null>;
+      const userId = to.userId ?? `88${++tgUser.seq}`;
+      const msgId = String(++tgUser.seq);
+      tgUser.sent.push({ session: body.session, to, text: body.text, msgId });
+      // Haqiqiy Telegram kabi: yuborilgan xabar "chiquvchi" bo'lib qaytib keladi
+      tgUser.push(body.session, { out: true, userId, name: null, username: null, isContact: false, text: body.text, msgId });
+      return json(res, { msgId, userId, accessHash: `h${userId}` });
+    }
+    default: return json(res, { error: 'NOT_FOUND' }, 404);
+  }
+});
+
+// ─── Soxta Instagram (Graph API) ──────────────────────────────────────────────
+export const IG_ACCOUNT = '17841000';
+export const ig = {
+  sent: [] as { recipient: string; text: string; auth: string }[],
+  calls: [] as string[],
+  subscribed: 0,
+  conversations: new Map<string, { updated: number; messages: { id: string; created_time: string; message: string; from: { id: string; username?: string }; to: { data: { id: string }[] } }[] }>(),
+  seq: 0,
+  /** Suhbatga yangi xabar (tekshiruv orqali olinadi) */
+  addMessage(convId: string, fromId: string, text: string, username?: string) {
+    const c = ig.conversations.get(convId) ?? ig.conversations.set(convId, { updated: 0, messages: [] }).get(convId)!;
+    const now = Date.now();
+    c.updated = Math.floor(now / 1000) + 1;
+    const toId = fromId === IG_ACCOUNT ? 'igsid_1' : IG_ACCOUNT;
+    c.messages.unshift({ id: `m_${++ig.seq}`, created_time: new Date(now + 1000).toISOString().replace('Z', '+0000').replace(/\.\d{3}/, ''), message: text, from: { id: fromId, username }, to: { data: [{ id: toId }] } });
+  },
+};
+export const igServer = createServer(async (req, res) => {
+  const url = new URL(req.url ?? '/', 'http://x');
+  const body = await readBody(req);
+  ig.calls.push(`${req.method} ${url.pathname}`);
+  const path = url.pathname.replace(/^\/v\d+\.\d+/, '');
+  if (url.pathname === '/oauth/access_token') {
+    const form = await new Request('http://x', { method: 'POST', headers: { 'content-type': String(req.headers['content-type']) }, body: new Uint8Array(body) }).formData();
+    return form.get('code') === 'ig-code' && form.get('client_secret') === 'ig-secret'
+      ? json(res, { access_token: 'short-tok', user_id: IG_ACCOUNT, permissions: 'instagram_business_basic,instagram_business_manage_messages' })
+      : json(res, { error_type: 'OAuthException', code: 400, error_message: 'Matching code was not found or was already used' }, 400);
+  }
+  if (url.pathname === '/access_token') return json(res, { access_token: 'long-tok', token_type: 'bearer', expires_in: 5_184_000 });
+  if (url.pathname === '/refresh_access_token') return json(res, { access_token: 'long-tok-2', token_type: 'bearer', expires_in: 5_184_000 });
+  const token = url.searchParams.get('access_token') ?? String(req.headers.authorization ?? '').replace('Bearer ', '');
+  if (!token.startsWith('long-tok')) return json(res, { error: { message: 'Invalid OAuth access token', code: 190 } }, 400);
+  if (path === '/me' && req.method === 'GET') return json(res, { user_id: IG_ACCOUNT, username: 'mebel_uyi' });
+  if (path === '/me/subscribed_apps') { ig.subscribed++; return json(res, { success: true }); }
+  if (path === '/me/messages' && req.method === 'POST') {
+    const b = JSON.parse(body.toString());
+    ig.sent.push({ recipient: b.recipient.id, text: b.message.text, auth: String(req.headers.authorization) });
+    return json(res, { recipient_id: b.recipient.id, message_id: `m_out_${++ig.seq}` });
+  }
+  if (path === '/me/conversations') return json(res, { data: [...ig.conversations].map(([id, c]) => ({ id, updated_time: c.updated })) });
+  const id = path.slice(1);
+  if (ig.conversations.has(id)) return json(res, { id, messages: { data: ig.conversations.get(id)!.messages } });
+  if (id.startsWith('igsid')) return json(res, { name: 'Dilnoza Karimova', username: 'dilnoza_97' });
+  return json(res, { error: { message: 'Unknown path', code: 100 } }, 400);
+});
+
 // ─── Soxta ovoz xizmati ───────────────────────────────────────────────────────
 export const stt = { text: 'Bugun nima qilishim kerak?', geminiFails: false, gemini: 0, groq: 0, lastAudio: Buffer.alloc(0), lastMime: '' };
 export const sttServer = createServer(async (req, res) => {
@@ -120,7 +218,28 @@ export const sttServer = createServer(async (req, res) => {
 // ─── Soxta Claude ─────────────────────────────────────────────────────────────
 type Block = Record<string, any>;
 type Msg = { role: 'user' | 'assistant'; content: string | Block[] };
-export const ai = { calls: 0, requests: [] as { system: string; messages: Msg[]; tools: Block[]; beta: string; thinking: unknown }[], violations: [] as string[] };
+export const ai = {
+  calls: 0,
+  requests: [] as { system: string; messages: Msg[]; tools: Block[]; beta: string; thinking: unknown }[],
+  violations: [] as string[],
+  /** Mijozga javob so'rovlari (Cerebro biznes nomidan yozadi) */
+  replier: [] as { user: string; format: unknown }[],
+};
+
+/** Mijozning oxirgi gapiga qarab: javob, egasidan so'rash yoki e'tiborsiz */
+function customerDecision(user: string) {
+  const lines = user.split('\n').filter(l => / Customer: /.test(l));
+  const last = (lines.at(-1) ?? '').replace(/^.*? Customer: /, '').toLowerCase();
+  const d = (action: string, reply: string, note = '', extra: Record<string, string> = {}) =>
+    ({ action, reply, note_for_owner: note, lead_note: extra.lead_note ?? '', customer_name: extra.customer_name ?? '', customer_phone: extra.customer_phone ?? '' });
+  if (last.includes('chegirma')) return d('ask_owner', "Savolingiz uchun rahmat! Aniqlab, tez orada javob beraman.", "Chegirma so'rayapti — berasizmi?", { lead_note: "Chegirma so'radi" });
+  if (last.includes('narx') || last.includes('qancha')) return d('reply', "Stol narxi 1 500 000 so'm. Yana savolingiz bo'lsa, yozing!", '', { lead_note: "Stol narxini so'radi" });
+  if (last.includes('ish vaqt')) return d('reply', 'Har kuni 10:00 dan 20:00 gacha ishlaymiz.');
+  if (last.includes('ismim')) return d('reply', 'Tanishganimdan xursandman!', '', { customer_name: 'Dilnoza' });
+  if (last.includes("do'stim") || last === 'ok') return d('ignore', '');
+  if (last.includes('eng arzon')) return d('reply', "Bizda shahardagi eng yaxshi narxlar!");
+  return d('ask_owner', "Savolingizni oldim, tez orada javob beramiz.", 'Mijoz savoliga javob bering');
+}
 
 /** Tarix tekshiruvi uchun: biznes → oxirgi so'rov+javob va oxirgi tugagan suhbat */
 const sessions = new Map<string, { system: string; last: Msg[]; committed: Msg[] }>();
@@ -201,6 +320,13 @@ export const aiServer = createServer(async (req, res) => {
   const beta = String(req.headers['anthropic-beta'] ?? '');
   ai.requests.push({ system: body.system, messages: body.messages, tools: body.tools, beta, thinking: body.thinking });
   const fail = (why: string) => { ai.violations.push(why); return json(res, { type: 'error', error: { type: 'invalid_request_error', message: why } }, 400); };
+
+  if (String(body.system).startsWith('You answer customer messages')) {
+    const user = String(body.messages[0]?.content ?? '');
+    ai.replier.push({ user, format: (body as { output_config?: { format?: unknown } }).output_config?.format });
+    const text = JSON.stringify(customerDecision(user));
+    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 20 } });
+  }
 
   // Asbob chaqiruvlarining hammasiga natija bormi (keyingi xabarda, bittadan)
   for (let i = 0; i < body.messages.length; i++) {

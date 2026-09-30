@@ -9,13 +9,14 @@ import { iso } from './lib/week';
 import { BusinessPage } from './pages/BusinessPage';
 import { ChatPage } from './pages/ChatPage';
 import { LeadsPage } from './pages/LeadsPage';
+import { InboxPage } from './pages/InboxPage';
 import { DocumentsPage, PostsPage } from './pages/LibraryPages';
 import { TasksPage } from './pages/TasksPage';
 import { TelegramPage } from './pages/TelegramPage';
 
 /** Manzildagi bo'lim: #/tasks, #/leads… (bo'lmasa — yordamchi) */
 const pageFromHash = (): Page => {
-  const p = window.location.hash.replace(/^#\/?/, '').split('/')[0] as Page;
+  const p = window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0] as Page;
   return PAGES.includes(p) ? p : 'chat';
 };
 
@@ -28,6 +29,7 @@ export default function LiveApp() {
   const [status, setStatus] = useState<LiveStatus | null>(null);
   const [error, setError] = useState('');
   const [dueToday, setDueToday] = useState(0);
+  const [waiting, setWaiting] = useState(0);
 
   const notify = (text: string, isError = false) => setToast({ text, error: isError });
   const setPage = (p: Page) => { window.location.hash = `#/${p}`; };
@@ -46,6 +48,7 @@ export default function LiveApp() {
   useEffect(() => {
     const today = `${iso(new Date())}T23:59`;
     api.tasks('open').then(r => setDueToday(r.tasks.filter(t => t.dueAt && t.dueAt <= today).length)).catch(() => {});
+    api.inbox().then(r => setWaiting(r.threads.reduce((n, t) => n + t.pending, 0))).catch(() => {});
   }, [page]);
 
   const logout = () => { session.set(null); window.location.hash = ''; window.location.reload(); };
@@ -60,7 +63,7 @@ export default function LiveApp() {
   }
   if (!biz || !status) return <div className="flex min-h-screen items-center justify-center text-slate-400"><Loader2 className="h-7 w-7 animate-spin" /></div>;
 
-  const badges = { tasks: dueToday };
+  const badges = { tasks: dueToday, inbox: waiting };
   const logoutButton = <Button variant="ghost" size="sm" onClick={logout}><LogOut className="h-4 w-4" /> Chiqish</Button>;
 
   return (
@@ -70,12 +73,13 @@ export default function LiveApp() {
         <MobileNav page={page} setPage={setPage} right={logoutButton} badges={badges} />
         <main className={`mx-auto w-full p-4 sm:p-6 lg:p-8 ${page === 'chat' ? 'max-w-5xl' : 'max-w-6xl'}`}>
           {page === 'chat' && <ChatPage biz={biz} status={status} notify={notify} now={now} />}
+          {page === 'inbox' && <InboxPage notify={notify} />}
           {page === 'tasks' && <TasksPage now={now} notify={notify} />}
           {page === 'leads' && <LeadsPage status={status} notify={notify} />}
           {page === 'documents' && <DocumentsPage notify={notify} />}
           {page === 'posts' && <PostsPage biz={biz} status={status} notify={notify} />}
           {page === 'business' && <BusinessPage biz={biz} onSaved={setBiz} notify={notify} />}
-          {page === 'telegram' && <TelegramPage status={status} onStatus={setStatus} notify={notify} />}
+          {page === 'telegram' && <TelegramPage status={status} onStatus={setStatus} biz={biz} onBiz={setBiz} notify={notify} />}
         </main>
       </div>
       {toast && (

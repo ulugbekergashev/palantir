@@ -5,6 +5,7 @@ import { api } from '../data/api';
 import { FollowupCard, type Notify } from '../components/Artifacts';
 import { Button, Card, TextInput, controlClass } from '../components/ui';
 import { shortDate } from '../lib/week';
+import { ChannelBadge } from './InboxPage';
 
 export const STAGES: Record<LeadStage, { label: string; cls: string }> = {
   new: { label: 'Yangi', cls: 'bg-amber-100 text-amber-800' },
@@ -25,7 +26,8 @@ function LeadRow({ lead, onChange, notify }: { lead: Lead; onChange: (l: Lead) =
         <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
           {lead.phone && <a href={`tel:${lead.phone.replace(/[^\d+]/g, '')}`} className="inline-flex items-center gap-1 hover:text-indigo-700"><Phone className="h-3 w-3" />{lead.phone}</a>}
           {lead.username && <a href={`https://t.me/${lead.username}`} target="_blank" rel="noreferrer" className="hover:text-indigo-700">@{lead.username}</a>}
-          {lead.reachable && <span className="inline-flex items-center gap-1 text-indigo-700" title="Cerebro bu mijozga Telegram orqali yoza oladi"><MessageCircle className="h-3 w-3" />botda</span>}
+          {lead.channel !== 'manual' && <ChannelBadge channel={lead.channel} />}
+          {lead.reachable && <a href="#/inbox" className="inline-flex items-center gap-1 text-indigo-700" title="Cerebro bu mijozga yoza oladi"><MessageCircle className="h-3 w-3" />yozish mumkin</a>}
         </div>
       </div>
       <div className="text-xs text-slate-500">{lead.source ?? '—'} · {shortDate(lead.createdAt)}</div>
@@ -76,7 +78,7 @@ export function LeadsPage({ status, notify }: { status: LiveStatus; notify: Noti
       <header>
         <h1 className="text-2xl font-extrabold tracking-tight">Mijozlar</h1>
         <p className="text-sm text-slate-500">
-          Havolangizni bosganlar o'zi tushadi{status.generalLink ? '' : ' (Telegram bot ulangach)'}. Yordamchiga «oxirgi hafta yozganlarga rahmat xabarini tayyorla» desangiz — tasdiqlash uchun shu yerga chiqadi.
+          Yozgan mijozlar (bot, shaxsiy Telegram, Instagram) o'zi tushadi{status.generalLink ? '' : ' (ulangach)'}. Yordamchiga «oxirgi hafta yozganlarga rahmat xabarini tayyorla» desangiz — tasdiqlash uchun shu yerga chiqadi.
         </p>
       </header>
 

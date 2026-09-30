@@ -15,11 +15,12 @@ import type { InlineKeyboardMarkup } from 'telegraf/types';
 import type { Artifact, Lang, Outbound, Post, Task } from '../src/types';
 import { addDays, dueLabel, iso, stamp } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
-import { businesses, leads, outbound, posts, relays, tasks, type BusinessRow, type LeadRow } from './db';
+import { businesses, inbox, leads, outbound, posts, relays, tasks, type BusinessRow, type LeadRow } from './db';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
 import { renderPng } from './render';
 import { SilenceError, transcribe } from './stt';
+import { approveReply, dismissReply, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
 export interface BotService {
   enabled: boolean;
@@ -255,9 +256,21 @@ export function createBot(): BotService {
   async function customerMessage(ctx: Context, lead: LeadRow, text: string | null) {
     const biz = businesses.byId(lead.businessId);
     if (!biz?.active) return;
-    const who = `${esc(personName(lead))}${lead.username && lead.name ? ` (@${esc(lead.username)})` : ''}${lead.phone ? ` · ${esc(lead.phone)}` : ''}`;
-    await toOwner(biz, lead, text ? `💬 <b>${who}</b>\n${esc(cut(text, 3000))}` : `💬 <b>${who}</b> yubordi:`,
-      text ? undefined : { chat: ctx.chat!.id, message: ctx.message!.message_id });
+    const from = ctx.from!;
+    if (text) {
+      onIncoming(biz, {
+        channel: 'bot',
+        person: { tgUserId: String(from.id), name: [from.first_name, from.last_name].filter(Boolean).join(' ') || null, username: from.username ?? null },
+        text, extId: `b${ctx.message!.message_id}`, source: lead.source ?? 'Telegram havola',
+      });
+    } else {
+      // Rasm yoki fayl: egasiga asl nusxasi (Cerebro rasmni o'qimaydi)
+      inbox.add(biz.id, { leadId: lead.id, channel: 'bot', direction: 'in', by: 'customer', text: '[rasm yoki fayl]', extId: `b${ctx.message!.message_id}` });
+      const who = `${esc(personName(lead))}${lead.username && lead.name ? ` (@${esc(lead.username)})` : ''}${lead.phone ? ` · ${esc(lead.phone)}` : ''}`;
+      await toOwner(biz, lead, `💬 <b>${who}</b> yubordi:`, { chat: ctx.chat!.id, message: ctx.message!.message_id });
+    }
+    // "O'zi javob bersin" rejimida javobning o'zi keladi; qolganida — yetkazilgani haqida (soatiga bir marta)
+    if (replySettings(biz).mode === 'auto' && text) return;
     const last = acked.get(lead.id) ?? 0;
     if (Date.now() - last > 3600_000) {
       acked.set(lead.id, Date.now());
@@ -361,6 +374,19 @@ export function createBot(): BotService {
       return;
     }
 
+    if (code === 'ra' || code === 'rx') {
+      try {
+        if (code === 'ra') {
+          await approveReply(biz, id);
+          return ctx.answerCbQuery('✅ Yuborildi');
+        }
+        await dismissReply(biz, id);
+        return ctx.answerCbQuery('Yuborilmadi');
+      } catch (e) {
+        return ctx.answerCbQuery(cut((e as Error).message, 190), { show_alert: true });
+      }
+    }
+
     if (code === 'td' || code === 'ts' || code === 'tt') {
       const t = tasks.get(biz.id, id);
       if (!t) return ctx.answerCbQuery('Vazifa topilmadi');
@@ -447,10 +473,9 @@ export function createBot(): BotService {
       const leadId = replyTo ? relays.leadFor(chatId, replyTo) : undefined;
       if (leadId) {
         const lead = leads.get(biz.id, leadId);
-        if (!lead?.tgUserId) return ctx.reply("Bu mijozga Telegram orqali yozib bo'lmaydi.");
+        if (!lead) return ctx.reply('Mijoz topilmadi.');
         try {
-          await tg.sendMessage(lead.tgUserId, text);
-          if (lead.stage === 'new') leads.update(biz.id, lead.id, { stage: 'contacted' });
+          await ownerWrites(biz, lead, text);
           return ctx.reply(`✅ ${personName(lead)}ga yuborildi.`);
         } catch (e) {
           return ctx.reply(`⚠️ Yuborilmadi: ${(e as Error).message}`);
@@ -534,11 +559,10 @@ export function createBot(): BotService {
     let failed = 0;
     for (const lid of o.leadIds) {
       const l = leads.get(biz.id, lid);
-      if (!l?.tgUserId) continue;
+      if (!l?.reachable) continue;
       try {
-        await tg.sendMessage(l.tgUserId, o.text);
+        await sendToLead(biz, l, o.text, 'cerebro');
         sent++;
-        if (l.stage === 'new') leads.update(biz.id, l.id, { stage: 'contacted' });
       } catch (e) {
         failed++;
         console.warn('[bot] mijozga yetmadi:', l.id, (e as Error).message);
@@ -556,6 +580,25 @@ export function createBot(): BotService {
     if (!outbound.finish(biz.id, id, 'cancelled')) throw new Error(o.status === 'sent' ? 'Allaqachon yuborilgan' : 'Bekor qilingan');
     await refreshFollowup(biz.id, id);
   }
+
+  registerSender('bot', {
+    can: (_biz, lead) => lead.botStarted && !!lead.tgUserId,
+    async send(_biz, lead, text) {
+      const m = await tg.sendMessage(lead.tgUserId!, text);
+      return `b${m.message_id}`;
+    },
+  });
+  setOwnerOutlet({
+    async notify(biz, html, keyboard) {
+      if (!biz.ownerChatId) return null;
+      const m = await tg.sendMessage(biz.ownerChatId, html, { parse_mode: 'HTML', link_preview_options: { is_disabled: true }, reply_markup: keyboard });
+      return m.message_id;
+    },
+    async edit(biz, messageId, html) {
+      if (!biz.ownerChatId) return;
+      await tg.editMessageText(biz.ownerChatId, messageId, undefined, html, { parse_mode: 'HTML' }).catch(ignoreUnchanged);
+    },
+  });
 
   return {
     enabled: true,

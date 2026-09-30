@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CUSTOMER, aiServer, listen, say, sent, shareContact, sleep, stt, sttServer, tgServer, waitFor } from './fakes';
+import { CUSTOMER, TG_SESSION, aiServer, ig, igServer, listen, say, sent, shareContact, sleep, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor } from './fakes';
 
 const OUT = process.argv[2] || join(tmpdir(), 'cerebro-ui');
 mkdirSync(OUT, { recursive: true });
@@ -24,6 +24,8 @@ const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); c
 const tgPort = await listen(tgServer);
 const aiPort = await listen(aiServer);
 const sttPort = await listen(sttServer);
+const tgUserPort = await listen(tgUserServer);
+const igPort = await listen(igServer);
 const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-ui-'));
 const PORT = 3291;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
@@ -31,6 +33,9 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     ...process.env, PORT: String(PORT), DATA_DIR: dataDir, BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700',
     GEMINI_API_KEY: 'g-test', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, SESSION_SECRET: 'ui-secret', MORNING_HOUR: '0',
+    INBOX_DEBOUNCE_MS: '300', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_POLL_MS: '700',
+    IG_APP_ID: 'ig-app', IG_APP_SECRET: 'ig-secret', PUBLIC_URL: `http://127.0.0.1:${PORT}`,
+    IG_GRAPH_URL: `http://127.0.0.1:${igPort}`, IG_TOKEN_URL: `http://127.0.0.1:${igPort}/oauth/access_token`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -164,7 +169,7 @@ try {
   await page.getByText('tanlaganingiz uchun rahmat').first().waitFor({ timeout: 15000 });
   await nav('Mijozlar');
   await page.getByText('Yuborishni kutayotgan xabarlar').waitFor();
-  ok("mijozlar: Telegram'dan kelgan mijoz «botda»", await page.getByText('botda').isVisible());
+  ok("mijozlar: botdan kelgan mijoz — kanal belgisi, yozish mumkin", await page.getByText('Bot', { exact: true }).first().isVisible() && await page.getByText('yozish mumkin').first().isVisible());
   await shot('06-leads');
   await page.getByRole('button', { name: /Yuborish \(1\)/ }).click();
   await page.getByText('Yuborildi: 1 ta').first().waitFor({ timeout: 10000 });
@@ -177,8 +182,8 @@ try {
   const publish = page.getByRole('button', { name: 'Kanalga joylash' });
   ok('postlar: kanal ulanmagan — joylash tugmasi o\'chiq', await publish.isDisabled());
 
-  console.log('\n# Telegram');
-  await nav('Telegram');
+  console.log('\n# Ulanishlar');
+  await nav('Ulanishlar');
   ok('ulash havolasi', (await page.getByRole('link', { name: "Telegram'da ochish" }).getAttribute('href'))?.includes('start=o-'));
   await page.getByLabel('Kanal manzili').fill('@test_channel');
   await page.getByRole('button', { name: 'Ulash' }).click();
@@ -191,6 +196,47 @@ try {
   ok('post kanalga joylandi', !!sent.find(s => s.method === 'sendPhoto' && Number(s.params.chat_id) < 0));
   await shot('08-posts');
 
+  console.log('\n# Shaxsiy Telegram va Instagram');
+  await nav('Ulanishlar');
+  await page.getByLabel('Telefon raqamingiz').fill('+998 90 111 22 33');
+  await page.getByRole('button', { name: 'Kod olish' }).click();
+  await page.getByLabel("Telegram'ga kelgan kod").fill('12345');
+  await page.getByRole('button', { name: 'Kirish', exact: true }).click();
+  await page.getByText('Aziz Egasi · @aziz_owner').waitFor({ timeout: 10000 });
+  ok('shaxsiy Telegram: kod bilan kirildi', true);
+  // Instagram sahifasi o'rniga (sinovda tashqariga chiqilmaydi)
+  await page.route('https://www.instagram.com/**', (route: { fulfill: (r: unknown) => Promise<void> }) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>Instagram</p>' }));
+  const [igReq] = await Promise.all([
+    page.waitForRequest((r: { url: () => string }) => r.url().startsWith('https://www.instagram.com/oauth/authorize')),
+    page.getByRole('button', { name: 'Instagram bilan kirish' }).click(),
+  ]);
+  const state = new URL(igReq.url()).searchParams.get('state')!;
+  await page.goto(`${base}/api/instagram/callback?code=ig-code&state=${encodeURIComponent(state)}`);
+  await page.getByText('Instagram ulandi').waitFor({ timeout: 10000 });
+  ok("Instagram: rasmiy kirishdan qaytdi, ulandi", await page.getByText('@mebel_uyi').isVisible() && ig.subscribed === 1);
+  await page.getByRole('radio', { name: /O'zi javob bersin/ }).click();
+  await page.getByLabel('Kutish vaqti').waitFor();
+  ok("javob rejimi: «O'zi javob bersin» tanlandi", await page.getByRole('radio', { name: /O'zi javob bersin/ }).getAttribute('aria-checked') === 'true');
+  await page.getByRole('radio', { name: /Men tasdiqlayman/ }).click();
+  await sleep(500);
+  await shot('11-connections', true);
+
+  console.log('\n# Suhbatlar');
+  tgUser.incoming(TG_SESSION, '6001', 'Stol narxi qancha?', { name: 'Bobur', username: 'bobur_t' });
+  await sleep(1500);
+  await nav('Suhbatlar');
+  await page.getByRole('button', { name: /Bobur/ }).click();
+  await page.getByText('Javob taklifi — tasdiqlaysizmi?').waitFor({ timeout: 10000 });
+  ok("suhbat: mijoz gapi va Cerebro taklifi ko'rinadi", await page.getByText('Stol narxi qancha?').last().isVisible());
+  await shot('12-inbox');
+  await page.getByRole('button', { name: 'Yuborish', exact: true }).click();
+  await page.getByText('Yuborildi').first().waitFor({ timeout: 10000 });
+  ok("taklif tasdiqlandi — egasining Telegrami orqali ketdi", !!tgUser.sent.find(m => m.to.userId === '6001' && m.text.includes("1 500 000")));
+  await page.getByLabel('Mijozga xabar').fill("Yetkazib berish ham bepul");
+  await page.getByRole('button', { name: 'Mijozga yuborish' }).click();
+  await waitFor('panel xabari', () => tgUser.sent.find(m => m.text === 'Yetkazib berish ham bepul'));
+  ok('panel orqali mijozga yozildi', !!tgUser.sent.find(m => m.text === 'Yetkazib berish ham bepul'));
+
   console.log('\n# Telefon ekrani');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}/#/chat`, { waitUntil: 'networkidle' });
@@ -198,12 +244,13 @@ try {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   ok("telefon: gorizontal siljish yo'q", overflow <= 0, `${overflow}px`);
   await shot('09-mobile-chat');
-  for (const p of ['tasks', 'leads', 'business', 'telegram']) {
+  for (const p of ['inbox', 'tasks', 'leads', 'business', 'telegram']) {
     await page.goto(`${base}/#/${p}`, { waitUntil: 'networkidle' });
     await sleep(300);
     const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     ok(`telefon: ${p} — sig'adi`, o <= 0, `${o}px`);
     if (p === 'leads') await shot('10-mobile-leads');
+    if (p === 'inbox') await shot('13-mobile-inbox');
   }
 
   ok("brauzerda xato yo'q", errors.length === 0, errors.slice(0, 3).join(' | '));
@@ -217,6 +264,8 @@ try {
   tgServer.close();
   aiServer.close();
   sttServer.close();
+  tgUserServer.close();
+  igServer.close();
   await sleep(300);
   try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* Windows fayl band */ }
 }

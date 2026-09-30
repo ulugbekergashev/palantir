@@ -12,7 +12,7 @@ import type { Artifact, ContentItem, Design, LeadStage, Task, TemplateId } from 
 import { check, isMedical } from '../src/lib/compliance';
 import { upcomingOccasions } from '../src/lib/occasions';
 import { iso, stamp } from '../src/lib/week';
-import { documents, leads, newId, notes, outbound, posts, tasks, type BusinessRow } from './db';
+import { documents, inbox, leads, newId, notes, outbound, posts, replies, tasks, type BusinessRow } from './db';
 
 export interface ToolCtx {
   biz: BusinessRow;
@@ -37,7 +37,7 @@ const clean = (s: string | null | undefined) => (s?.trim() ? s.trim() : null);
 const taskView = (t: Task) => ({ id: t.id, title: t.title, due_at: t.dueAt, status: t.status, notes: t.notes });
 const leadView = (l: ReturnType<typeof leads.list>[number]) => ({
   id: l.id, name: l.name, phone: l.phone, username: l.username, stage: l.stage, note: l.note, source: l.source,
-  telegram: l.reachable, created: l.createdAt.slice(0, 10),
+  channel: l.channel, reachable: l.reachable, created: l.createdAt.slice(0, 10),
 });
 
 // ─── Post shablonlari: qaysi maydon qancha sig'adi ────────────────────────────
@@ -124,24 +124,26 @@ const DEFS = {
   }),
 
   save_lead: def({
-    description: 'Save a customer or prospect the owner tells you about (name and/or phone). People who press the business\'s Telegram link are saved automatically — do not add them again.',
+    description: 'Save a customer or prospect the owner tells you about (name, phone and/or Telegram username). People who write to the business (bot, the owner\'s Telegram, Instagram) are saved automatically — do not add them again.',
     input: z.object({
       name: opt(80),
       phone: opt(40),
+      telegram_username: opt(40).describe('Without @'),
       note: opt(500).describe('What they want, what was agreed'),
       source: opt(80).describe('Where they came from, e.g. "Instagram", "tanish orqali"'),
     }),
     run: (i, ctx) => {
       const name = clean(i.name);
       const phone = clean(i.phone);
-      if (!name && !phone) throw new ToolError('Ism yoki telefon kerak');
-      const l = leads.add(ctx.biz.id, { name, phone, note: clean(i.note), source: clean(i.source) ?? "qo'lda" });
+      const username = clean(i.telegram_username)?.replace(/^@/, '') ?? null;
+      if (!name && !phone && !username) throw new ToolError('Ism, telefon yoki username kerak');
+      const l = leads.add(ctx.biz.id, { name, phone, username, note: clean(i.note), source: clean(i.source) ?? "qo'lda" });
       return { saved: leadView(l) };
     },
   }),
 
   list_leads: def({
-    description: 'List customers and prospects with their ids. "telegram": true means Cerebro can message them in Telegram (they talked to the bot).',
+    description: 'List customers and prospects with their ids. "channel" is where they talk to the business (bot, telegram = the owner\'s own Telegram, instagram, manual). "reachable": true means Cerebro can message them now.',
     input: z.object({
       stage: z.enum(['all', 'new', 'contacted', 'won', 'lost']).optional().describe('Default: all'),
       days: z.number().int().min(1).max(365).optional().describe('Only those added in the last N days'),
@@ -178,7 +180,7 @@ const DEFS = {
   }),
 
   draft_followup: def({
-    description: 'Prepare a follow-up message to one or more customers. Nothing is sent yet: the owner sees the text with a "Send" button and decides. Only customers with telegram: true can receive it; for the others the result lists phones so the owner can call. Write the text exactly as the customer will read it, in the customer\'s language, polite and short, signed with the business name when natural.',
+    description: 'Prepare a message to one or more customers. Nothing is sent yet: the owner sees the text with a "Send" button and decides. Each customer gets it where they talk to the business (bot, the owner\'s Telegram, Instagram). Only customers with reachable: true can receive it; for the others the result lists phones so the owner can call. Instagram allows answering only within 24 hours of the customer\'s last message. Write the text exactly as the customer will read it, in the customer\'s language, polite and short.',
     input: z.object({
       lead_ids: z.array(short(20)).min(1).max(200),
       text: short(1500),
@@ -268,6 +270,35 @@ Use only facts from the profile or from the owner (prices, discounts, dates): ne
       const p = posts.create(ctx.biz.id, item);
       ctx.artifacts.push({ type: 'post', post: p });
       return { post_id: p.id, status: 'draft — the picture is shown to the owner with a Publish button' };
+    },
+  }),
+
+  recent_conversations: def({
+    description: 'Customers who wrote recently (bot, the owner\'s Telegram, Instagram) with their last message and whether a reply is waiting for the owner\'s approval. Use for "who wrote today", "any unanswered messages", "what did customers ask".',
+    input: z.object({ limit: z.number().int().min(1).max(50).optional() }),
+    run: (i, ctx) => ({
+      conversations: inbox.threads(ctx.biz.id, i.limit ?? 20).map(id => {
+        const l = leads.get(ctx.biz.id, id);
+        const last = inbox.last(ctx.biz.id, id);
+        return l && last ? {
+          lead_id: l.id, name: l.name ?? l.username, channel: l.channel, stage: l.stage,
+          last: { from: last.direction === 'in' ? 'customer' : last.by, text: last.text.slice(0, 300), at: last.createdAt },
+          reply_waiting_for_owner: replies.countPending(ctx.biz.id, id) > 0,
+        } : null;
+      }).filter(Boolean),
+    }),
+  }),
+
+  read_conversation: def({
+    description: 'The recent messages between the business and one customer (lead_id from list_leads or recent_conversations).',
+    input: z.object({ lead_id: short(20) }),
+    run: (i, ctx) => {
+      const l = leads.get(ctx.biz.id, i.lead_id);
+      if (!l) throw new ToolError(`Mijoz topilmadi: ${i.lead_id}`);
+      return {
+        customer: leadView(l),
+        messages: inbox.thread(ctx.biz.id, l.id, 40).map(m => ({ from: m.direction === 'in' ? 'customer' : m.by, text: m.text, at: m.createdAt })),
+      };
     },
   }),
 

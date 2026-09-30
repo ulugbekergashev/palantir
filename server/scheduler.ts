@@ -11,6 +11,8 @@ import { dayLong, dueLabel, fromIso, iso, stamp } from '../src/lib/week';
 import type { BotService } from './bot';
 import { businesses, leads, outbound, posts, tasks, type BusinessRow } from './db';
 import { env } from './env';
+import { flushDue } from './inbox/core';
+import { pollInstagram, refreshInstagramTokens } from './inbox/instagram';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -44,8 +46,37 @@ export function morningBrief(biz: BusinessRow, now = new Date()): string | null 
   return out.join('\n');
 }
 
+/** Mijozlarga javob: vaqti kelgan "o'zi javob bersin" javoblari, Instagram tekshiruvi, token yangilash */
+function startInbox(): () => void {
+  let busy = false;
+  let lastRefresh = 0;
+  const tick = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      await flushDue();
+      if (Date.now() - lastRefresh > 3600_000) {
+        lastRefresh = Date.now();
+        await refreshInstagramTokens();
+      }
+    } finally {
+      busy = false;
+    }
+  };
+  let polling = false;
+  const poll = async () => {
+    if (polling) return;
+    polling = true;
+    try { await pollInstagram(); } finally { polling = false; }
+  };
+  const t1 = setInterval(() => { void tick(); }, Math.min(env.tickMs, 5_000));
+  const t2 = setInterval(() => { void poll(); }, env.igPollMs);
+  return () => { clearInterval(t1); clearInterval(t2); };
+}
+
 export function startScheduler(bot: BotService): () => void {
-  if (!bot.enabled) return () => {};
+  const stopInbox = startInbox();
+  if (!bot.enabled) return stopInbox;
   let running = false;
   const tick = async () => {
     if (running) return;
@@ -80,5 +111,5 @@ export function startScheduler(bot: BotService): () => void {
   };
   const timer = setInterval(() => { void tick(); }, env.tickMs);
   void tick();
-  return () => clearInterval(timer);
+  return () => { clearInterval(timer); stopInbox(); };
 }

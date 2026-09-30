@@ -18,16 +18,12 @@ import { upcomingOccasions } from '../src/lib/occasions';
 import { DAYS, iso, stamp, weekday } from '../src/lib/week';
 import { businesses, chatLog, conversations, notes, type BusinessRow } from './db';
 import { env } from './env';
+import { FALLBACK, claude, profileText } from './claude';
 import { runTool, toolDefinitions, type ToolCtx } from './tools';
 
 type Msg = Anthropic.Beta.BetaMessageParam;
 type Block = Anthropic.Beta.BetaContentBlockParam;
 
-let client: Anthropic | null = null;
-const api = () => (client ??= new Anthropic({ maxRetries: 2, timeout: 600_000 }));
-
-// Model rad etsa yoki band bo'lsa — so'rov server tomonda zaxira modelda bajariladi
-const FALLBACK: { betas: Anthropic.Beta.AnthropicBeta[]; fallbacks: 'default' } = { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' };
 
 const MAX_STEPS = 10;
 const IDLE_MS = 6 * 3600_000;
@@ -47,6 +43,7 @@ How you work
 - For questions that need current outside information (prices, exchange rates, laws, news, suppliers, competitors), use web search and name the source briefly.
 - Posts and customer messages are always drafts: the owner gets a Publish or Send button. Never say something was sent or published; say it is ready for their tap.
 - Times are local (Asia/Tashkent). Each owner message starts with the current date and time in brackets; resolve "ertaga", "juma kuni", "2 soatdan keyin" against it.
+- Customers who write to the business (the Cerebro bot, the owner's own Telegram, Instagram) are answered by Cerebro separately, following the owner's reply setting; the owner approves or edits those replies in Telegram. Use recent_conversations and read_conversation when the owner asks who wrote or what customers asked.
 - Tools return ids. Keep them to yourself: the owner never needs to see an id.
 
 Facts and honesty
@@ -57,26 +54,6 @@ Replies
 - Reply in the owner's language: Uzbek in Latin script (plain apostrophe in o', g') or Russian — match their message.
 - Be brief: this is a phone chat. No preamble and no restating the request. Short "-" lists when listing several items, **bold** sparingly, no tables and no headings in chat.
 - Warm and respectful, like a trusted colleague. Use the owner's name now and then, not in every message.`;
-
-function profileText(b: BusinessRow): string {
-  const p = b.profile;
-  const lines = [
-    `Name: ${p.name}`,
-    p.ownerName && `Owner: ${p.ownerName}`,
-    `Industry: ${p.industry || 'not set'}`,
-    p.description && `About: ${p.description}`,
-    p.phone && `Phone: ${p.phone}`,
-    p.address && `Address: ${p.address}`,
-    p.hours && `Hours: ${p.hours}`,
-    p.instagram && `Instagram: ${p.instagram}`,
-    p.website && `Website: ${p.website}`,
-    `Post language: ${p.contentLang === 'ru' ? 'Russian' : 'Uzbek'}`,
-    `Telegram channel for posts: ${b.channelTitle ?? 'not connected'}`,
-    p.offerings.length ? `Products and services (price in so'm, 0 = not given):\n${p.offerings.map(o => `- ${o.name}${o.nameRu ? ` / ${o.nameRu}` : ''}: ${o.price || 0}`).join('\n')}` : 'Products and services: not listed yet',
-    p.team.length ? `Team:\n${p.team.map(m => `- ${m.name} — ${m.role}${m.years ? `, ${m.years} years` : ''} (member_id: ${m.id})`).join('\n')}` : '',
-  ];
-  return lines.filter(Boolean).join('\n');
-}
 
 function buildSystem(b: BusinessRow): string {
   const now = new Date();
@@ -198,7 +175,7 @@ async function run(biz: BusinessRow, session: { system: string; startedAt: strin
   for (let step = 0; step < MAX_STEPS; step++) {
     let res: Anthropic.Beta.BetaMessage;
     try {
-      res = await api().beta.messages.create({
+      res = await claude().beta.messages.create({
         model: env.aiModel,
         max_tokens: 16_000,
         system: session.system,

@@ -6,7 +6,10 @@
  */
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { randomBytes } from 'node:crypto';
-import type { Artifact, Business, ChatEntry, ContentItem, Doc, Lead, LeadStage, Note, Outbound, OutboundStatus, Post, PostStatus, Task, TaskStatus } from '../src/types';
+import type {
+  Artifact, Business, ChatEntry, ContentItem, Doc, InboxMessage, Lead, LeadChannel, LeadStage, Note, Outbound, OutboundStatus, Post, PostStatus,
+  ReplyDraft, ReplyStatus, Task, TaskStatus,
+} from '../src/types';
 import { env } from './env';
 
 const db = new DatabaseSync(env.dbFile);
@@ -55,7 +58,31 @@ CREATE TABLE IF NOT EXISTS chat_log (
   text TEXT NOT NULL, artifacts TEXT, created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS chat_log_biz ON chat_log (business_id, created_at);
+CREATE TABLE IF NOT EXISTS connections (
+  business_id TEXT NOT NULL, kind TEXT NOT NULL, secret TEXT NOT NULL, account TEXT NOT NULL, meta TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL, PRIMARY KEY (business_id, kind)
+);
+CREATE TABLE IF NOT EXISTS inbox (
+  id TEXT PRIMARY KEY, business_id TEXT NOT NULL, lead_id TEXT NOT NULL, channel TEXT NOT NULL, direction TEXT NOT NULL,
+  author TEXT NOT NULL, text TEXT NOT NULL, ext_id TEXT, created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS inbox_lead ON inbox (lead_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS inbox_ext ON inbox (business_id, channel, ext_id);
+CREATE TABLE IF NOT EXISTS replies (
+  id TEXT PRIMARY KEY, business_id TEXT NOT NULL, lead_id TEXT NOT NULL, channel TEXT NOT NULL, text TEXT NOT NULL,
+  status TEXT NOT NULL, note TEXT, due_at TEXT, owner_message_id INTEGER, created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS replies_due ON replies (status, due_at);
 `);
+
+/** Eski bazaga yangi ustunlar (jadval allaqachon bor bo'lsa CREATE ularni qo'shmaydi) */
+function ensureColumns(table: string, columns: Record<string, string>): void {
+  const have = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(c => c.name));
+  for (const [name, type] of Object.entries(columns)) if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+}
+ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', last_inbound_at: 'TEXT' });
+db.exec(`UPDATE leads SET channel = 'bot', bot_started = 1 WHERE tg_user_id IS NOT NULL AND channel = 'manual' AND ig_user_id IS NULL AND tg_access_hash IS NULL`);
+db.exec('CREATE INDEX IF NOT EXISTS leads_ig ON leads (business_id, ig_user_id)');
 
 const ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
 /** Qisqa id: faqat harf va raqam (Telegram havolasi va tugmalarida ishlatiladi) */
@@ -175,46 +202,113 @@ export const tasks = {
 
 // ─── Mijozlar (lidlar) ────────────────────────────────────────────────────────
 
-export interface LeadRow extends Lead { businessId: string; tgUserId: string | null; postId: string | null }
+export interface LeadRow extends Lead {
+  businessId: string;
+  tgUserId: string | null;
+  tgAccessHash: string | null;
+  igUserId: string | null;
+  /** Cerebro botida /start bosgan — bot unga yoza oladi */
+  botStarted: boolean;
+  postId: string | null;
+}
 
-const toLead = (r: Raw): LeadRow => ({
-  id: String(r.id),
-  businessId: String(r.business_id),
-  name: str(r.name),
-  phone: str(r.phone),
-  username: str(r.username),
-  tgUserId: str(r.tg_user_id),
-  reachable: !!r.tg_user_id,
-  stage: String(r.stage) as LeadStage,
-  note: str(r.note),
-  source: str(r.source),
-  postId: str(r.post_id),
-  createdAt: String(r.created_at),
+/** Instagram: mijoz oxirgi yozganidan 24 soat ichida javob berish mumkin */
+export const IG_WINDOW_MS = 24 * 3600_000;
+const connected = (businessId: string, kind: string) => !!db.prepare('SELECT 1 FROM connections WHERE business_id = ? AND kind = ?').get(businessId, kind);
+
+const toLead = (r: Raw): LeadRow => {
+  const businessId = String(r.business_id);
+  const channel = String(r.channel) as LeadChannel;
+  const lastInboundAt = str(r.last_inbound_at);
+  const botStarted = Number(r.bot_started) === 1;
+  const viaTelegram = (channel === 'telegram' || channel === 'manual') && !!((r.tg_user_id && r.tg_access_hash) || r.username || r.phone)
+    && connected(businessId, 'telegram');
+  const viaInstagram = channel === 'instagram' && !!r.ig_user_id && !!lastInboundAt
+    && Date.now() - Date.parse(lastInboundAt) < IG_WINDOW_MS && connected(businessId, 'instagram');
+  return {
+    id: String(r.id),
+    businessId,
+    name: str(r.name),
+    phone: str(r.phone),
+    username: str(r.username),
+    tgUserId: str(r.tg_user_id),
+    tgAccessHash: str(r.tg_access_hash),
+    igUserId: str(r.ig_user_id),
+    botStarted,
+    reachable: botStarted || viaTelegram || viaInstagram,
+    channel,
+    lastInboundAt,
+    stage: String(r.stage) as LeadStage,
+    note: str(r.note),
+    source: str(r.source),
+    postId: str(r.post_id),
+    createdAt: String(r.created_at),
+  };
+};
+
+/** Panelga ko'rsatiladigan qismi (ichki id va kalitlarsiz) */
+export const publicLead = (l: LeadRow): Lead => ({
+  id: l.id, name: l.name, phone: l.phone, username: l.username, reachable: l.reachable, channel: l.channel, lastInboundAt: l.lastInboundAt,
+  stage: l.stage, note: l.note, source: l.source, createdAt: l.createdAt,
 });
+
+export interface ChannelPerson {
+  tgUserId?: string;
+  tgAccessHash?: string;
+  igUserId?: string;
+  name: string | null;
+  username: string | null;
+  phone?: string | null;
+}
 
 export const leads = {
   /** Qo'lda qo'shilgan (egasi aytdi) */
-  add(businessId: string, v: { name: string | null; phone: string | null; note: string | null; source: string | null }): LeadRow {
+  add(businessId: string, v: { name: string | null; phone: string | null; note: string | null; source: string | null; username?: string | null }): LeadRow {
     const id = newId(10);
-    run('INSERT INTO leads (id, business_id, name, phone, note, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      id, businessId, v.name, v.phone, v.note, v.source, nowIso(), nowIso());
+    run('INSERT INTO leads (id, business_id, name, phone, username, note, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      id, businessId, v.name, v.phone, v.username ?? null, v.note, v.source, nowIso(), nowIso());
     return leads.get(businessId, id)!;
   },
   /** Havola orqali botga kelgan odam: bir biznesda bir odam — bitta yozuv */
   fromTelegram(businessId: string, tgUserId: string, name: string | null, username: string | null, source: string | null, postId: string | null): LeadRow {
     const existing = one('SELECT * FROM leads WHERE business_id = ? AND tg_user_id = ?', toLead, businessId, tgUserId);
     if (existing) {
-      run('UPDATE leads SET updated_at = ? WHERE id = ?', nowIso(), existing.id);
-      return existing;
+      run('UPDATE leads SET bot_started = 1, updated_at = ? WHERE id = ?', nowIso(), existing.id);
+      return leads.get(businessId, existing.id)!;
     }
     const id = newId(10);
-    run('INSERT INTO leads (id, business_id, name, username, tg_user_id, source, post_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    run(`INSERT INTO leads (id, business_id, name, username, tg_user_id, source, post_id, channel, bot_started, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'bot', 1, ?, ?)`,
       id, businessId, name, username, tgUserId, source, postId, nowIso(), nowIso());
     return leads.get(businessId, id)!;
   },
+  /** Bot, shaxsiy Telegram yoki Instagram'da yozgan odam: topiladi yoki yaratiladi; oxirgi yozgan kanali belgilanadi */
+  fromChannel(businessId: string, channel: 'telegram' | 'instagram' | 'bot', p: ChannelPerson, source: string): { lead: LeadRow; created: boolean } {
+    const existing = p.igUserId
+      ? one('SELECT * FROM leads WHERE business_id = ? AND ig_user_id = ?', toLead, businessId, p.igUserId)
+      : p.tgUserId ? one('SELECT * FROM leads WHERE business_id = ? AND tg_user_id = ?', toLead, businessId, p.tgUserId) : undefined;
+    const now = nowIso();
+    if (existing) {
+      run(`UPDATE leads SET channel = ?, last_inbound_at = ?, updated_at = ?, name = COALESCE(name, ?), username = COALESCE(username, ?),
+        phone = COALESCE(phone, ?), tg_access_hash = COALESCE(?, tg_access_hash) WHERE id = ?`,
+        channel, now, now, p.name, p.username, p.phone ?? null, p.tgAccessHash ?? null, existing.id);
+      return { lead: leads.get(businessId, existing.id)!, created: false };
+    }
+    const id = newId(10);
+    run(`INSERT INTO leads (id, business_id, name, username, phone, tg_user_id, tg_access_hash, ig_user_id, channel, source, last_inbound_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, businessId, p.name, p.username, p.phone ?? null, p.tgUserId ?? null, p.tgAccessHash ?? null, p.igUserId ?? null, channel, source, now, now, now);
+    return { lead: leads.get(businessId, id)!, created: true };
+  },
+  /** Egasi birinchi yozgan odam (Cerebro Telegram'da topib yozdi) — Telegram id'si saqlanadi */
+  setTelegramPeer: (businessId: string, id: string, tgUserId: string, accessHash: string) =>
+    run("UPDATE leads SET tg_user_id = ?, tg_access_hash = ?, channel = CASE WHEN channel = 'manual' THEN 'telegram' ELSE channel END WHERE business_id = ? AND id = ?",
+      tgUserId, accessHash, businessId, id),
   get: (businessId: string, id: string) => one('SELECT * FROM leads WHERE business_id = ? AND id = ?', toLead, businessId, id),
-  /** Shu Telegram foydalanuvchisining oxirgi yozuvi (qaysi biznesga yozayotganini bilish uchun) */
-  latestForUser: (tgUserId: string) => one('SELECT * FROM leads WHERE tg_user_id = ? ORDER BY updated_at DESC LIMIT 1', toLead, tgUserId),
+  byTelegram: (businessId: string, tgUserId: string) => one('SELECT * FROM leads WHERE business_id = ? AND tg_user_id = ?', toLead, businessId, tgUserId),
+  byInstagram: (businessId: string, igUserId: string) => one('SELECT * FROM leads WHERE business_id = ? AND ig_user_id = ?', toLead, businessId, igUserId),
+  /** Botga yozayotgan odam qaysi biznes mijozi (oxirgi bosgan havolasi bo'yicha) */
+  latestForUser: (tgUserId: string) => one('SELECT * FROM leads WHERE tg_user_id = ? AND bot_started = 1 ORDER BY updated_at DESC LIMIT 1', toLead, tgUserId),
   list: (businessId: string, stage: LeadStage | 'all' = 'all', sinceIso?: string, limit = 300) =>
     many(`SELECT * FROM leads WHERE business_id = ? AND (? = 'all' OR stage = ?) AND created_at >= ? ORDER BY created_at DESC LIMIT ?`,
       toLead, businessId, stage, stage, sinceIso ?? '0000', limit),
@@ -226,6 +320,88 @@ export const leads = {
       patch.name !== undefined ? patch.name : cur.name, nowIso(), businessId, id);
     return leads.get(businessId, id);
   },
+  markInbound: (id: string) => run('UPDATE leads SET last_inbound_at = ?, updated_at = ? WHERE id = ?', nowIso(), nowIso(), id),
+};
+
+// ─── Ulanishlar: shaxsiy Telegram, Instagram (maxfiy qismi shifrlangan) ──────
+
+export type ConnectionKind = 'telegram' | 'instagram';
+export interface ConnectionRow { businessId: string; kind: ConnectionKind; secret: string; account: Record<string, string>; meta: Record<string, string>; updatedAt: string }
+
+const toConnection = (r: Raw): ConnectionRow => ({
+  businessId: String(r.business_id), kind: String(r.kind) as ConnectionKind, secret: String(r.secret),
+  account: JSON.parse(String(r.account)), meta: JSON.parse(String(r.meta)), updatedAt: String(r.updated_at),
+});
+
+export const connections = {
+  get: (businessId: string, kind: ConnectionKind) => one('SELECT * FROM connections WHERE business_id = ? AND kind = ?', toConnection, businessId, kind),
+  all: (kind: ConnectionKind) => many('SELECT * FROM connections WHERE kind = ?', toConnection, kind),
+  byAccount: (kind: ConnectionKind, accountId: string) =>
+    one("SELECT * FROM connections WHERE kind = ? AND json_extract(account, '$.id') = ?", toConnection, kind, accountId),
+  save(businessId: string, kind: ConnectionKind, secret: string, account: Record<string, string>, meta: Record<string, string> = {}): void {
+    run(`INSERT INTO connections (business_id, kind, secret, account, meta, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT (business_id, kind) DO UPDATE SET secret = excluded.secret, account = excluded.account, meta = excluded.meta, updated_at = excluded.updated_at`,
+      businessId, kind, secret, JSON.stringify(account), JSON.stringify(meta), nowIso());
+  },
+  setMeta: (businessId: string, kind: ConnectionKind, meta: Record<string, string>) =>
+    run('UPDATE connections SET meta = ? WHERE business_id = ? AND kind = ?', JSON.stringify(meta), businessId, kind),
+  setSecret: (businessId: string, kind: ConnectionKind, secret: string) =>
+    run('UPDATE connections SET secret = ?, updated_at = ? WHERE business_id = ? AND kind = ?', secret, nowIso(), businessId, kind),
+  remove: (businessId: string, kind: ConnectionKind) => run('DELETE FROM connections WHERE business_id = ? AND kind = ?', businessId, kind),
+};
+
+// ─── Mijozlar bilan yozishma va javoblar ──────────────────────────────────────
+
+const toInbox = (r: Raw): InboxMessage => ({
+  id: String(r.id), leadId: String(r.lead_id), channel: String(r.channel) as LeadChannel, direction: String(r.direction) as InboxMessage['direction'],
+  by: String(r.author) as InboxMessage['by'], text: String(r.text), createdAt: String(r.created_at),
+});
+
+export const inbox = {
+  /** Qo'shadi; shu xabar (ext_id) allaqachon bo'lsa — null (webhook qayta yuborsa ikki marta ishlanmaydi) */
+  add(businessId: string, m: { leadId: string; channel: LeadChannel; direction: 'in' | 'out'; by: InboxMessage['by']; text: string; extId?: string | null; at?: string }): InboxMessage | null {
+    const id = newId(12);
+    const r = run('INSERT OR IGNORE INTO inbox (id, business_id, lead_id, channel, direction, author, text, ext_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      id, businessId, m.leadId, m.channel, m.direction, m.by, m.text, m.extId ?? null, m.at ?? nowIso());
+    return Number(r.changes) ? one('SELECT * FROM inbox WHERE id = ?', toInbox, id)! : null;
+  },
+  has: (businessId: string, channel: LeadChannel, extId: string) =>
+    !!db.prepare('SELECT 1 FROM inbox WHERE business_id = ? AND channel = ? AND ext_id = ?').get(businessId, channel, extId),
+  thread: (businessId: string, leadId: string, limit = 30) =>
+    many('SELECT * FROM (SELECT *, rowid AS rn FROM inbox WHERE business_id = ? AND lead_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?) ORDER BY created_at, rn',
+      toInbox, businessId, leadId, limit),
+  last: (businessId: string, leadId: string) =>
+    one('SELECT * FROM inbox WHERE business_id = ? AND lead_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1', toInbox, businessId, leadId),
+  /** Yozishmasi bor mijozlar, oxirgi xabar bo'yicha */
+  threads: (businessId: string, limit = 100) =>
+    many('SELECT lead_id, MAX(created_at) AS at FROM inbox WHERE business_id = ? GROUP BY lead_id ORDER BY at DESC LIMIT ?', r => String(r.lead_id), businessId, limit),
+};
+
+export type ReplyRow = ReplyDraft & { businessId: string; ownerMessageId: number | null };
+
+const toReply = (r: Raw): ReplyRow => ({
+  id: String(r.id), businessId: String(r.business_id), leadId: String(r.lead_id), channel: String(r.channel) as LeadChannel, text: String(r.text),
+  status: String(r.status) as ReplyStatus, note: str(r.note), dueAt: str(r.due_at), ownerMessageId: num(r.owner_message_id), createdAt: String(r.created_at),
+});
+
+export const replies = {
+  create(businessId: string, v: { leadId: string; channel: LeadChannel; text: string; status: 'pending' | 'scheduled'; note: string | null; dueAt: string | null }): ReplyRow {
+    const id = newId(10);
+    run('INSERT INTO replies (id, business_id, lead_id, channel, text, status, note, due_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      id, businessId, v.leadId, v.channel, v.text, v.status, v.note, v.dueAt, nowIso());
+    return replies.get(businessId, id)!;
+  },
+  get: (businessId: string, id: string) => one('SELECT * FROM replies WHERE business_id = ? AND id = ?', toReply, businessId, id),
+  open: (businessId: string, leadId: string) =>
+    many("SELECT * FROM replies WHERE business_id = ? AND lead_id = ? AND status IN ('pending', 'scheduled') ORDER BY created_at", toReply, businessId, leadId),
+  countPending: (businessId: string, leadId: string) =>
+    Number((db.prepare("SELECT COUNT(*) n FROM replies WHERE business_id = ? AND lead_id = ? AND status = 'pending'").get(businessId, leadId) as Raw).n),
+  due: (nowIsoStr: string) => many("SELECT * FROM replies WHERE status = 'scheduled' AND due_at <= ?", toReply, nowIsoStr),
+  /** Holatni o'zgartiradi, faqat kutilgan holatdan (ikki marta yuborilmasin) — o'zgargan bo'lsa true */
+  move: (businessId: string, id: string, from: ReplyStatus[], to: ReplyStatus) =>
+    Number(run(`UPDATE replies SET status = ? WHERE business_id = ? AND id = ? AND status IN (${from.map(() => '?').join(',')})`, to, businessId, id, ...from).changes) > 0,
+  setOwnerMessage: (businessId: string, id: string, messageId: number) =>
+    run('UPDATE replies SET owner_message_id = ? WHERE business_id = ? AND id = ?', messageId, businessId, id),
 };
 
 // ─── Hujjatlar ────────────────────────────────────────────────────────────────
@@ -279,9 +455,8 @@ export interface OutboundRow extends Outbound { businessId: string; ownerMessage
 
 const toOutbound = (r: Raw): OutboundRow => {
   const ids = JSON.parse(String(r.lead_ids)) as string[];
-  const reachable = ids.length
-    ? Number((db.prepare(`SELECT COUNT(*) n FROM leads WHERE business_id = ? AND tg_user_id IS NOT NULL AND id IN (${ids.map(() => '?').join(',')})`).get(String(r.business_id), ...ids) as Raw).n)
-    : 0;
+  // Cerebro yoza oladiganlar: botga yozgan, shaxsiy Telegram yoki Instagram orqali yozishgan
+  const reachable = ids.filter(id => leads.get(String(r.business_id), id)?.reachable).length;
   return {
     id: String(r.id), businessId: String(r.business_id), text: String(r.text), leadIds: ids, reachable,
     status: String(r.status) as OutboundStatus, sentCount: Number(r.sent_count), ownerMessageId: num(r.owner_message_id), createdAt: String(r.created_at),

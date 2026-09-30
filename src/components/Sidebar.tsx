@@ -1,18 +1,19 @@
 import type { ReactNode } from 'react';
-import { Brain, Building2, CheckSquare, FileText, Image, MessageCircle, Send, Users, type LucideIcon } from 'lucide-react';
+import { Brain, Building2, CheckSquare, FileText, Image, MessageCircle, MessagesSquare, Plug, Users, type LucideIcon } from 'lucide-react';
 import type { Business } from '../types';
 import { initials } from '../lib/text';
 
-export type Page = 'chat' | 'tasks' | 'leads' | 'documents' | 'posts' | 'business' | 'telegram';
+export type Page = 'chat' | 'inbox' | 'tasks' | 'leads' | 'documents' | 'posts' | 'business' | 'telegram';
 
 const NAV: Record<Page, { label: string; icon: LucideIcon }> = {
   chat: { label: 'Yordamchi', icon: MessageCircle },
+  inbox: { label: 'Suhbatlar', icon: MessagesSquare },
   tasks: { label: 'Vazifalar', icon: CheckSquare },
   leads: { label: 'Mijozlar', icon: Users },
   documents: { label: 'Hujjatlar', icon: FileText },
   posts: { label: 'Postlar', icon: Image },
   business: { label: 'Biznes profili', icon: Building2 },
-  telegram: { label: 'Telegram', icon: Send },
+  telegram: { label: 'Ulanishlar', icon: Plug },
 };
 
 export const PAGES = Object.keys(NAV) as Page[];

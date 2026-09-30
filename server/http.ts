@@ -2,15 +2,18 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import type { Artifact, LiveStatus } from '../src/types';
+import type { Artifact, InboxThread, LiveStatus } from '../src/types';
 import { ask, resetConversation } from './agent';
 import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword } from './auth';
 import type { BotService } from './bot';
-import { businesses, chatLog, documents, leads, notes, outbound, posts, tasks, type BusinessRow } from './db';
+import { businesses, chatLog, documents, inbox, leads, notes, outbound, posts, publicLead, replies, tasks, type BusinessRow } from './db';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
 import { SilenceError, transcribe } from './stt';
-import { BusinessSchema, emptyBusiness } from './validate';
+import { approveReply, dismissReply, ownerWrites, replySettings } from './inbox/core';
+import { authorizeUrl, disconnectInstagram, handleCallback, handleWebhook, instagramAccount, instagramAvailable, verifySignature } from './inbox/instagram';
+import { disconnectTelegramUser, loginCode, loginPassword, loginStart, telegramUserAccount, telegramUserAvailable } from './inbox/telegramUser';
+import { AutoReplySchema, BusinessSchema, emptyBusiness } from './validate';
 
 type Handler = (req: Request, res: Response) => unknown;
 
@@ -24,6 +27,8 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
     linkUrl: username ? `https://t.me/${username}?start=o-${biz.linkCode}` : null,
     channel: biz.channelId ? { id: biz.channelId, title: biz.channelTitle } : null,
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
+    telegramUser: { available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
+    instagram: { available: instagramAvailable(), account: instagramAccount(biz.id) },
   };
 }
 
@@ -53,7 +58,7 @@ export function createApp(bot: BotService) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
-  app.use(express.json({ limit: '8mb' }));
+  app.use(express.json({ limit: '8mb', verify: (req, _res, buf) => { (req as Request & { rawBody?: Buffer }).rawBody = buf; } }));
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -157,7 +162,7 @@ export function createApp(bot: BotService) {
   }));
 
   // ─── Mijozlar va ularga xabarlar ───────────────────────────────────────────
-  app.get('/api/leads', asBiz((_req, res, biz) => { res.json({ leads: leads.list(biz.id, 'all', undefined, 1000) }); }));
+  app.get('/api/leads', asBiz((_req, res, biz) => { res.json({ leads: leads.list(biz.id, 'all', undefined, 1000).map(publicLead) }); }));
 
   app.post('/api/leads', asBiz((req, res, biz) => {
     const p = LeadCreate.safeParse(req.body);
@@ -165,7 +170,7 @@ export function createApp(bot: BotService) {
     const name = orNull(p.data.name) ?? null;
     const phone = orNull(p.data.phone) ?? null;
     if (!name && !phone) return res.status(400).json({ error: 'Ism yoki telefon kiriting' });
-    res.json({ lead: leads.add(biz.id, { name, phone, note: orNull(p.data.note) ?? null, source: orNull(p.data.source) ?? "qo'lda" }) });
+    res.json({ lead: publicLead(leads.add(biz.id, { name, phone, note: orNull(p.data.note) ?? null, source: orNull(p.data.source) ?? "qo'lda" })) });
   }));
 
   app.patch('/api/leads/:id', asBiz((req, res, biz) => {
@@ -173,7 +178,7 @@ export function createApp(bot: BotService) {
     if (!p.success) return bad(res, p.error);
     const l = leads.update(biz.id, String(req.params.id), { stage: p.data.stage, note: orNull(p.data.note), phone: orNull(p.data.phone), name: orNull(p.data.name) });
     if (!l) return res.status(404).json({ error: 'Topilmadi' });
-    res.json({ lead: l });
+    res.json({ lead: publicLead(l) });
   }));
 
   app.get('/api/followups', asBiz((_req, res, biz) => { res.json({ followups: outbound.list(biz.id, 100) }); }));
@@ -254,6 +259,97 @@ export function createApp(bot: BotService) {
   app.delete('/api/channel', asBiz((_req, res, biz) => {
     businesses.update(biz.id, { channelId: null, channelTitle: null });
     res.json({ status: status(businesses.byId(biz.id)!, bot) });
+  }));
+
+  // ─── Shaxsiy Telegram: kirish qadamlari ────────────────────────────────────
+  const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  app.post('/api/telegram-user/start', asBiz(async (req, res, biz) => {
+    try { await loginStart(biz, text(req.body?.phone, 30)); res.json({ ok: true }); } catch (e) { fail(res, e, 400); }
+  }));
+  app.post('/api/telegram-user/code', asBiz(async (req, res, biz) => {
+    try { res.json(await loginCode(biz, text(req.body?.code, 12))); } catch (e) { fail(res, e, 400); }
+  }));
+  app.post('/api/telegram-user/password', asBiz(async (req, res, biz) => {
+    try { res.json(await loginPassword(biz, typeof req.body?.password === 'string' ? req.body.password.slice(0, 200) : '')); } catch (e) { fail(res, e, 400); }
+  }));
+  app.delete('/api/telegram-user', asBiz(async (_req, res, biz) => {
+    await disconnectTelegramUser(biz);
+    res.json({ status: status(businesses.byId(biz.id)!, bot) });
+  }));
+
+  // ─── Instagram ─────────────────────────────────────────────────────────────
+  app.get('/api/instagram/connect', asBiz((_req, res, biz) => {
+    try { res.json({ url: authorizeUrl(biz) }); } catch (e) { fail(res, e, 400); }
+  }));
+  // Instagram shu yerga qaytaradi (brauzer orqali, tokensiz — "state" imzolangan)
+  app.get('/api/instagram/callback', async (req, res) => {
+    const back = (q: string) => res.redirect(`${env.publicUrl || ''}/#/telegram?${q}`);
+    if (req.query.error || typeof req.query.code !== 'string' || typeof req.query.state !== 'string') return back('ig=cancel');
+    try {
+      await handleCallback(req.query.code, req.query.state);
+      back('ig=ok');
+    } catch (e) {
+      console.error('[instagram] ulanmadi:', (e as Error).message);
+      back(`ig=error&why=${encodeURIComponent((e as Error).message.slice(0, 200))}`);
+    }
+  });
+  app.delete('/api/instagram', asBiz((_req, res, biz) => {
+    disconnectInstagram(biz);
+    res.json({ status: status(businesses.byId(biz.id)!, bot) });
+  }));
+  app.get('/api/instagram/webhook', (req, res) => {
+    if (req.query['hub.mode'] === 'subscribe' && env.igVerifyToken && req.query['hub.verify_token'] === env.igVerifyToken) {
+      return res.type('text/plain').send(String(req.query['hub.challenge'] ?? ''));
+    }
+    res.sendStatus(403);
+  });
+  app.post('/api/instagram/webhook', (req, res) => {
+    if (!verifySignature((req as Request & { rawBody?: Buffer }).rawBody, req.get('x-hub-signature-256'))) return res.sendStatus(403);
+    // Meta tez javob kutadi — ish fonda
+    res.sendStatus(200);
+    handleWebhook(req.body).catch(e => console.error('[instagram] webhook:', (e as Error).message));
+  });
+
+  // ─── Mijozlarga javob: rejim va yozishmalar ────────────────────────────────
+  app.put('/api/business/auto-reply', asBiz((req, res, biz) => {
+    const p = AutoReplySchema.safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    const profile = { ...biz.profile, autoReply: p.data };
+    businesses.update(biz.id, { profile });
+    res.json({ business: profile });
+  }));
+
+  app.get('/api/inbox', asBiz((_req, res, biz) => {
+    const threads: InboxThread[] = [];
+    for (const id of inbox.threads(biz.id, 200)) {
+      const lead = leads.get(biz.id, id);
+      if (lead) threads.push({ lead: publicLead(lead), last: inbox.last(biz.id, id) ?? null, pending: replies.countPending(biz.id, id) });
+    }
+    res.json({ threads, settings: replySettings(biz) });
+  }));
+
+  app.get('/api/inbox/:leadId', asBiz((req, res, biz) => {
+    const lead = leads.get(biz.id, String(req.params.leadId));
+    if (!lead) return res.status(404).json({ error: 'Topilmadi' });
+    res.json({ lead: publicLead(lead), messages: inbox.thread(biz.id, lead.id, 100), replies: replies.open(biz.id, lead.id) });
+  }));
+
+  app.post('/api/inbox/:leadId/send', asBiz(async (req, res, biz) => {
+    const lead = leads.get(biz.id, String(req.params.leadId));
+    if (!lead) return res.status(404).json({ error: 'Topilmadi' });
+    const t = text(req.body?.text, 4000);
+    if (!t) return res.status(400).json({ error: "Xabar bo'sh" });
+    try {
+      await ownerWrites(biz, lead, t);
+      res.json({ messages: inbox.thread(biz.id, lead.id, 100), replies: replies.open(biz.id, lead.id) });
+    } catch (e) { fail(res, e); }
+  }));
+
+  app.post('/api/replies/:id/send', asBiz(async (req, res, biz) => {
+    try { await approveReply(biz, String(req.params.id)); res.json({ ok: true }); } catch (e) { fail(res, e); }
+  }));
+  app.post('/api/replies/:id/dismiss', asBiz(async (req, res, biz) => {
+    try { await dismissReply(biz, String(req.params.id)); res.json({ ok: true }); } catch (e) { fail(res, e); }
   }));
 
   // ─── Admin: bizneslar ──────────────────────────────────────────────────────
