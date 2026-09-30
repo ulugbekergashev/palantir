@@ -1,8 +1,8 @@
 import { alpha, deepen, mix, onColor } from '../lib/color';
 import { fit, initials, wrap } from '../lib/text';
-import { BrandMark, Lines, Pill, Tooth, W, isStory, type TplProps } from './parts';
+import { BrandMark, Lines, Pill, Mark, W, isStory, type TplProps } from './parts';
 
-/** Shifokor surati yoki (surat yo'q bo'lsa) bosh harflari */
+/** Jamoa a'zosining surati yoki (surat yo'q bo'lsa) bosh harflari */
 function Portrait({ x, y, w, h, round, photo, name, primary, uid }: {
   x: number; y: number; w: number; h: number; round: boolean; photo?: string; name: string; primary: string; uid: string;
 }) {
@@ -21,7 +21,7 @@ function Portrait({ x, y, w, h, round, photo, name, primary, uid }: {
           <image href={photo} x={x} y={y} width={w} height={h} preserveAspectRatio="xMidYMid slice" />
         ) : (
           <>
-            <Tooth x={x + w * 0.18} y={y + h * 0.5 - w * 0.34} size={w * 0.64} fill={alpha(primary, 0.1)} />
+            <Mark x={x + w * 0.18} y={y + h * 0.5 - w * 0.34} size={w * 0.64} fill={alpha(primary, 0.1)} />
             <text x={x + w / 2} y={y + h / 2 + w * 0.12} textAnchor="middle" fontSize={w * 0.32} fontWeight={800} fill={deepen(primary)}>{letters}</text>
           </>
         )}
@@ -31,16 +31,16 @@ function Portrait({ x, y, w, h, round, photo, name, primary, uid }: {
 }
 
 /**
- * Shifokor bilan tanishuv. Uslub 0 — surat yarim ekran (post: chapda, storis: tepada),
+ * Jamoa a'zosi bilan tanishuv. Uslub 0 — surat yarim ekran (post: chapda, storis: tepada),
  * uslub 1 — dumaloq surat markazda.
  */
-export function DoctorArt({ d, clinic, style, H, uid, doctor }: TplProps) {
-  const { primary, accent } = clinic.brand;
+export function TeamArt({ d, biz, style, H, uid, member }: TplProps) {
+  const { primary, accent } = biz.brand;
   const story = isStory(H);
   const pad = 80;
   const ink = '#0F172A';
   const [specialty = '', exp = '', intro = ''] = d.lines;
-  const photo = doctor?.photo;
+  const photo = member?.photo;
 
   if (style === 0 && !story) {
     const x0 = 500;
@@ -59,7 +59,7 @@ export function DoctorArt({ d, clinic, style, H, uid, doctor }: TplProps) {
         <text x={x0} y={specY} fontSize={36} fontWeight={700} fill={deepen(primary)}>{specialty}</text>
         {exp && <Pill x={x0} y={specY + 30} h={58} text={exp} size={26} padX={24} bg={mix(accent, '#FFFFFF', 0.72)} fg={mix(accent, ink, 0.7)} weight={700} />}
         <Lines lines={introLines} x={x0} y={specY + (exp ? 150 : 70)} size={30} lh={1.35} fill="#475569" />
-        <BrandMark clinic={clinic} x={x0} y={H - 170} size={58} uid={uid} nameFill={ink} nameSize={26} />
+        <BrandMark biz={biz} x={x0} y={H - 170} size={58} uid={uid} nameFill={ink} nameSize={26} />
         <text x={x0} y={H - 64} fontSize={28} fontWeight={800} fill={deepen(primary)}>{d.cta}</text>
       </g>
     );
@@ -92,14 +92,14 @@ export function DoctorArt({ d, clinic, style, H, uid, doctor }: TplProps) {
           <rect y={0} width={W} height={ph} fill={`url(#${bgId})`} />
         </>
       )}
-      {(story || style === 1) && <BrandMark clinic={clinic} x={W / 2} y={story ? (round ? 120 : 1040) : 56} size={story ? 84 : 60} uid={uid} nameFill={ink} anchor="middle" nameSize={story ? 36 : 26} />}
+      {(story || style === 1) && <BrandMark biz={biz} x={W / 2} y={story ? (round ? 120 : 1040) : 56} size={story ? 84 : 60} uid={uid} nameFill={ink} anchor="middle" nameSize={story ? 36 : 26} />}
       <Pill x={W / 2} y={photoTop + ph - (story ? 36 : 28)} h={story ? 72 : 56} text={d.kicker.toUpperCase()} size={story ? 30 : 24} padX={story ? 32 : 26} bg={primary} fg={onColor(primary)} anchor="middle" spacing={2} />
       <Lines lines={name.lines} x={W / 2} y={nameY} size={name.size} lh={1.08} weight={800} fill={ink} anchor="middle" />
       <text x={W / 2} y={specY} textAnchor="middle" fontSize={story ? 48 : 34} fontWeight={700} fill={deepen(primary)}>
         {exp ? `${specialty} · ${exp}` : specialty}
       </text>
       <Lines lines={introLines} x={W / 2} y={specY + (story ? 90 : 60)} size={story ? 40 : 28} lh={1.35} fill="#475569" anchor="middle" />
-      <Pill x={W / 2} y={H - (story ? 280 : 116)} h={story ? 120 : 70} text={d.cta || clinic.phone} size={story ? 44 : 28} padX={story ? 60 : 36} bg={primary} fg={onColor(primary)} anchor="middle" />
+      {(d.cta || biz.phone) && <Pill x={W / 2} y={H - (story ? 280 : 116)} h={story ? 120 : 70} text={d.cta || biz.phone} size={story ? 44 : 28} padX={story ? 60 : 36} bg={primary} fg={onColor(primary)} anchor="middle" />}
     </g>
   );
 }

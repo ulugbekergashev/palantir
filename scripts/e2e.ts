@@ -1,33 +1,38 @@
 /**
  * To'liq oqim sinovi — haqiqiy token va pulsiz:
- *   soxta Telegram API (getUpdates orqali xabar beradi, yuborilganlarni yozib boradi)
- *   soxta Claude API (JSON matn qaytaradi; bittasi ataylab qoidani buzadi)
+ *   soxta Telegram, soxta Claude (asbob chaqiradi, tarixni tekshiradi), soxta ovoz xizmati;
  *   server — alohida jarayon, vaqtinchalik bazada.
  * Ishga tushirish: npm test
  */
+process.env.TZ = 'Asia/Tashkent';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { sampleClinic } from '../src/data/sampleClinic';
-import type { ContentItem } from '../src/types';
-import { CHANNEL, OWNER, PATIENT, ai, aiServer, listen, press, say, sent, shareContact, sleep, tgServer, waitFor } from './fakes';
+import type { Business } from '../src/types';
+import { iso, stamp } from '../src/lib/week';
+import {
+  CHANNEL, CUSTOMER, OWNER, VOICE_BYTES, addedToChannel, ai, aiServer, listen, press, say, sendVoice, sent, shareContact, sleep, stt, sttServer,
+  tgServer, waitFor, type Sent,
+} from './fakes';
 
-const OUT = process.env.E2E_OUT;
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => {
   results.push(!!cond);
   console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`);
 };
-// ─── Server ───────────────────────────────────────────────────────────────────
+
 const tgPort = await listen(tgServer);
 const aiPort = await listen(aiServer);
+const sttPort = await listen(sttServer);
 const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-e2e-'));
 const PORT = 3290;
-const server = spawn(process.execPath, ['--import', 'tsx', 'server/index.ts'], {
+const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
     ...process.env, PORT: String(PORT), DATA_DIR: dataDir, BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700',
+    GEMINI_API_KEY: 'g-test', GROQ_API_KEY: 'q-test', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, GROQ_STT_URL: `http://127.0.0.1:${sttPort}/groq`,
+    MORNING_HOUR: String(new Date().getHours()), WEB_SEARCH: '1', SESSION_SECRET: 'e2e-secret',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -42,154 +47,267 @@ async function api(path: string, opts: { method?: string; token?: string; body?:
     headers: { 'content-type': 'application/json', ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}) },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  return { status: r.status, json: await r.json().catch(() => ({})) };
+  return { status: r.status, json: await r.json().catch(() => ({})) as any };
 }
+/** mark dan keyin chatga ketgan xabar (matni yoki izohi bo'yicha) */
+const after = (mark: number, chat: number, pred: (s: Sent) => boolean) => sent.slice(mark).find(s => Number(s.params.chat_id) === chat && pred(s));
+const textOf = (s: Sent) => String(s.params.text ?? s.params.caption ?? '');
+const has = (needle: string) => (s: Sent) => textOf(s).includes(needle);
+const buttons = (s: Sent | undefined) => ((s?.params.reply_markup as { inline_keyboard?: { callback_data?: string; text: string }[][] })?.inline_keyboard ?? []).flat();
 
 try {
-  for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali ishga tushmadi */ } await sleep(250); }
+  for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali ishga tushmadi */ } await sleep(250); }
 
   console.log('\n# Admin va kirish');
-  const bad = await api('/api/admin/login', { body: { password: 'xato' } });
-  ok("admin: noto'g'ri parol — 401", bad.status === 401);
+  ok("admin: noto'g'ri parol — 401", (await api('/api/admin/login', { body: { password: 'xato' } })).status === 401);
   const admin = (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token;
   ok('admin: kirdi', !!admin);
-  const created = await api('/api/admin/clinics', { token: admin, body: { name: 'Marvarid Dent', login: 'Marvarid', password: 'secret12' } });
-  ok('admin: klinika yaratildi', created.status === 200, created.json.id);
-  const dup = await api('/api/admin/clinics', { token: admin, body: { name: 'X', login: 'marvarid', password: 'secret12' } });
-  ok('admin: band login — 409', dup.status === 409);
-  const other = await api('/api/admin/clinics', { token: admin, body: { name: 'Boshqa', login: 'boshqa', password: 'secret34' } });
+  const created = await api('/api/admin/businesses', { token: admin, body: { name: 'Mebel Uyi', industry: "mebel do'koni", login: 'Mebel', password: 'secret12' } });
+  ok('admin: biznes yaratildi', created.status === 200, created.json.id);
+  ok('admin: band login — 409', (await api('/api/admin/businesses', { token: admin, body: { name: 'X', login: 'mebel', password: 'secret12' } })).status === 409);
+  await api('/api/admin/businesses', { token: admin, body: { name: 'Boshqa', login: 'boshqa', password: 'secret34' } });
+  const list = (await api('/api/admin/businesses', { token: admin })).json.businesses;
+  ok("admin: ro'yxatda 2 ta biznes", list?.length === 2);
 
-  ok('klinika: tokensiz — 401', (await api('/api/me')).status === 401);
-  ok("klinika: noto'g'ri parol — 401", (await api('/api/login', { body: { login: 'marvarid', password: 'x' } })).status === 401);
-  const token = (await api('/api/login', { body: { login: 'marvarid', password: 'secret12' } })).json.token;
+  ok('kabinet: tokensiz — 401', (await api('/api/me')).status === 401);
+  ok("kabinet: noto'g'ri parol — 401", (await api('/api/login', { body: { login: 'mebel', password: 'x' } })).status === 401);
+  const token = (await api('/api/login', { body: { login: 'mebel', password: 'secret12' } })).json.token;
   const otherToken = (await api('/api/login', { body: { login: 'boshqa', password: 'secret34' } })).json.token;
-  ok('klinika: kirdi', !!token && !!otherToken && !!other.json.id);
+  ok('kabinet: ikkala biznes kirdi', !!token && !!otherToken);
 
   console.log('\n# Profil');
-  const badProfile = await api('/api/clinic', { method: 'PUT', token, body: { ...sampleClinic(), brand: { primary: 'red', accent: '#000000' } } });
+  const profile: Business = {
+    name: 'Mebel Uyi', ownerName: 'Aziz', industry: "mebel do'koni", description: 'Uy va ofis mebeli, buyurtma asosida',
+    phone: '+998 90 000 00 00', address: "Toshkent, Chilonzor", hours: 'Du–Sh 9:00–19:00', contentLang: 'uz', morningBrief: true,
+    brand: { primary: '#1D4ED8', accent: '#F59E0B' },
+    offerings: [{ id: 'o1', name: 'Stol', price: 1_500_000 }, { id: 'o2', name: 'Shkaf', price: 0 }],
+    team: [{ id: 'm1', name: 'Jasur Aliyev', role: 'Sotuvchi', years: 5 }],
+  };
+  const badProfile = await api('/api/business', { method: 'PUT', token, body: { ...profile, brand: { primary: 'red', accent: '#000000' } } });
   ok("profil: noto'g'ri rang — 400", badProfile.status === 400, badProfile.json.details?.[0]);
-  const saved = await api('/api/clinic', { method: 'PUT', token, body: { ...sampleClinic(), contentLang: 'uz' } });
-  ok('profil: saqlandi', saved.status === 200);
+  ok('profil: saqlandi', (await api('/api/business', { method: 'PUT', token, body: profile })).status === 200);
   const me = (await api('/api/me', { token })).json;
-  ok('holat: bot va AI yoqilgan, egasi hali ulanmagan', me.status.bot === 'cerebro_test_bot' && me.status.ai && !me.status.ownerLinked, me.status.linkUrl);
+  ok('holat: bot, AI, ovoz yoqilgan; egasi hali ulanmagan', me.status.bot === 'cerebro_test_bot' && me.status.ai && me.status.voice && !me.status.ownerLinked);
+  const bizId = created.json.id as string;
+  ok('holat: mijozlar havolasi', me.status.generalLink === `https://t.me/cerebro_test_bot?start=l-${bizId}`);
 
-  console.log('\n# Haftalik paket va AI');
-  const monday = (await import('../src/lib/week')).iso((await import('../src/lib/week')).mondayOf(new Date()));
-  let week = (await api(`/api/weeks/${monday}`, { token })).json;
-  ok('hafta: 5 ta material', week.items?.length === 5);
-  ok('AI orqa fonda yozmoqda (panel kutmaydi)', week.aiPending === true);
-  for (let i = 0; i < 40 && week.aiPending; i++) { await sleep(250); week = (await api(`/api/weeks/${monday}`, { token })).json; }
-  const byTpl = (t: string) => (week.items as ContentItem[]).find(i => i.template === t);
-  const promo = byTpl('promo')!;
-  ok('AI: aksiya matnini AI yozdi', promo.ai && promo.caption.uz.startsWith('Tabassumingizni qaytarish vaqti keldi.'));
-  const doctor = byTpl('doctor');
-  ok("AI: qoidani buzgan matn rad etildi (bank ishlatildi)", doctor && !doctor.ai && !doctor.caption.uz.includes('kafolat'));
-  ok('AI: postda bot havolasi bor', promo.caption.uz.includes(`https://t.me/cerebro_test_bot?start=l-${created.json.id}-`));
-  const otherWeek = (await api(`/api/weeks/${monday}`, { token: otherToken })).json;
-  ok("boshqa klinikaning paketi — o'z nomi bilan", otherWeek.items[0].caption.uz.includes('#boshqa') && !otherWeek.items[0].caption.uz.includes('Marvarid'));
+  console.log('\n# Vazifalar (panel)');
+  const today = iso(new Date());
+  ok("vazifa: noto'g'ri muddat — 400", (await api('/api/tasks', { token, body: { title: 'X', dueAt: 'ertaga' } })).status === 400);
+  const todayTask = (await api('/api/tasks', { token, body: { title: 'Hisobotni topshirish', dueAt: `${today}T23:59` } })).json.task;
+  ok("vazifa: qo'shildi", todayTask?.dueAt === `${today}T23:59`);
 
-  console.log('\n# Egasi Telegramni ulaydi');
-  say(OWNER, `/start o-${new URL(me.status.linkUrl).searchParams.get('start')!.slice(2)}`);
-  const photos = await waitFor('5 ta rasm', () => { const p = sent.filter(s => s.method === 'sendPhoto' && Number(s.params.chat_id) === OWNER); return p.length >= 5 && p; });
-  ok('ulandi va paket keldi (5 rasm)', photos?.length === 5);
-  const photo = photos?.[0];
-  ok('rasm — PNG, serverda chizilgan', photo?.file && photo.file.subarray(1, 4).toString() === 'PNG' && photo.file.length > 20000, `${photo?.file?.length} bayt`);
-  if (OUT && photo?.file) writeFileSync(join(OUT, 'e2e-owner-photo.png'), photo.file);
-  const kb = (photo?.params.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] })?.inline_keyboard;
-  ok('tugmalar: Joylash / Boshqa variant / Tahrirlash / Kerak emas', kb?.flat().map(b => b.text).join(',') === '✅ Joylash,🔄 Boshqa variant,✏️ Tahrirlash,❌ Kerak emas');
-  ok('egasi uchun matn 1024 belgidan oshmaydi', photos?.every(p => String(p.params.caption).length <= 1024));
-  ok('holat: egasi ulangan', (await api('/api/me', { token })).json.status.ownerLinked);
+  console.log('\n# Telegram: egasi ulanadi, ertalabki xulosa');
+  let mark = sent.length;
+  const code = String(me.status.linkUrl).split('start=o-')[1];
+  say(OWNER, `/start o-${code}`);
+  ok('ulandi: salom xabari', await waitFor('ulanish', () => after(mark, OWNER, has('Ulandi'))));
+  ok('panelda: egasi ulangan', (await api('/api/me', { token })).json.status.ownerLinked);
+  const brief = await waitFor('xulosa', () => after(mark, OWNER, has('Xayrli tong')));
+  ok('ertalabki xulosa: bugungi vazifa bilan', brief && textOf(brief).includes('Hisobotni topshirish'));
+
+  console.log('\n# Yordamchi: eslatma');
+  mark = sent.length;
+  say(OWNER, 'Ertaga soat 10 da bankka borishni eslat');
+  ok('javob keldi', await waitFor('javob', () => after(mark, OWNER, has('Bajarildi'))));
+  const tomorrow = iso(new Date(Date.now() + 86_400_000));
+  const tasksNow = (await api('/api/tasks?status=open', { token })).json.tasks as { title: string; dueAt: string }[];
+  ok('vazifa yaratildi: ertaga 10:00', tasksNow.some(t => t.title === 'Bankka borish' && t.dueAt === `${tomorrow}T10:00`));
+  const req1 = ai.requests.find(r => JSON.stringify(r.messages).includes('bankka'))!;
+  ok("Claude'ga: biznes profili tizim ko'rsatmasida", req1?.system.includes('Mebel Uyi') && req1.system.includes("mebel do'koni") && req1.system.includes('Stol: 1500000'));
+  ok("Claude'ga: joriy vaqt xabar boshida", /^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}, \w+ · Telegram\]/.test(String(req1?.messages.at(-1)?.content)));
+  ok("Claude'ga: asboblar, internet qidiruvi, zaxira model, adaptive fikrlash",
+    req1?.tools.some(t => t.name === 'create_task') && req1.tools.some(t => t.type === 'web_search_20260209')
+    && req1.beta.includes('server-side-fallback-2026-07-01') && (req1.thinking as { type: string })?.type === 'adaptive');
+
+  console.log('\n# Eslatma vaqti keldi');
+  mark = sent.length;
+  const dueNow = stamp(new Date(Date.now() - 60_000));
+  const rt = (await api('/api/tasks', { token, body: { title: "Yetkazib beruvchiga qo'ng'iroq", dueAt: dueNow } })).json.task;
+  const reminder = await waitFor('eslatma', () => after(mark, OWNER, has("Yetkazib beruvchiga qo'ng'iroq")));
+  ok('eslatma keldi: tugmalar bilan', buttons(reminder).some(b => b.callback_data === `td|${rt.id}`) && buttons(reminder).some(b => b.callback_data === `ts|${rt.id}`));
+  mark = sent.length;
+  press(OWNER, `ts|${rt.id}`, reminder!.id!, textOf(reminder!));
+  await waitFor('keyinroq', () => after(mark, OWNER, s => s.method === 'editMessageText'));
+  const snoozed = ((await api('/api/tasks?status=open', { token })).json.tasks as { id: string; dueAt: string }[]).find(t => t.id === rt.id);
+  ok('«1 soatdan keyin»: muddat surildi', !!snoozed && snoozed.dueAt > stamp(new Date(Date.now() + 50 * 60_000)));
+  mark = sent.length;
+  press(OWNER, `td|${rt.id}`, reminder!.id!, textOf(reminder!));
+  await waitFor('bajarildi', () => after(mark, OWNER, s => s.method === 'editMessageText' && textOf(s).includes('Bajarildi')));
+  ok('«Bajarildi»: holat done', ((await api('/api/tasks?status=done', { token })).json.tasks as { id: string }[]).some(t => t.id === rt.id));
+
+  console.log("\n# Yordamchi: mijoz qo'shish");
+  mark = sent.length;
+  say(OWNER, "Yangi mijoz qo'sh: Aziz Karimov, +998 90 123 45 67, 2 ta stol so'radi");
+  await waitFor('javob', () => after(mark, OWNER, has('Bajarildi')));
+  let leads = (await api('/api/leads', { token })).json.leads as { id: string; name: string; phone: string; reachable: boolean; stage: string }[];
+  ok('mijoz saqlandi', leads.some(l => l.name === 'Aziz Karimov' && l.phone === '+998901234567' && !l.reachable));
+
+  console.log('\n# Mijoz havola orqali keladi');
+  mark = sent.length;
+  say(CUSTOMER, `/start l-${bizId}`);
+  const greet = await waitFor('mijozga salom', () => after(mark, CUSTOMER, has('Mebel Uyi')));
+  ok('mijozga: raqam so\'raldi', JSON.stringify(greet?.params.reply_markup ?? '').includes('request_contact'));
+  shareContact(CUSTOMER, '998911112233');
+  const newLead = await waitFor('egasiga yangi mijoz', () => after(mark, OWNER, has('Yangi mijoz')));
+  ok('egasiga: yangi mijoz raqami bilan', newLead && textOf(newLead).includes('+998911112233'));
+  mark = sent.length;
+  say(CUSTOMER, 'Stol narxi qancha?');
+  const question = await waitFor('savol egasiga', () => after(mark, OWNER, has('Stol narxi qancha?')));
+  ok('mijoz savoli egasiga yetdi', !!question);
+  ok('mijozga: «yetkazildi» javobi', await waitFor('yetkazildi', () => after(mark, CUSTOMER, has('yetkazildi'))));
+  mark = sent.length;
+  say(OWNER, "1 500 000 so'm, yetkazib berish bepul", question!.id);
+  ok('egasining javobi mijozga ketdi', await waitFor('javob mijozga', () => after(mark, CUSTOMER, has("1 500 000 so'm"))));
+  await waitFor('tasdiq', () => after(mark, OWNER, has('yuborildi')));
+  leads = (await api('/api/leads', { token })).json.leads;
+  ok("mijoz holati: «bog'lanildi»", leads.some(l => l.phone === '+998911112233' && l.reachable && l.stage === 'contacted'));
+
+  mark = sent.length;
+  say(OWNER, 'Bu sekin ish');
+  await sleep(300);
+  const t0 = Date.now();
+  say(CUSTOMER, 'Yetkazib berasizmi?');
+  const fast = await waitFor('AI kutayotganda mijoz', () => after(mark, OWNER, has('Yetkazib berasizmi?')));
+  const waited = Date.now() - t0;
+  ok("AI o'ylayotganda ham bot boshqa xabarlarni kutdirmaydi", fast && waited < 2000 && !after(mark, OWNER, has('Tushundim')), `${waited} ms`);
+  await waitFor('sekin javob', () => after(mark, OWNER, has('Tushundim')));
+
+  console.log('\n# Yordamchi: mijozlarga xabar (tasdiq bilan)');
+  mark = sent.length;
+  say(OWNER, 'Oxirgi hafta yozgan mijozlarga rahmat xabarini tayyorla');
+  const draft = await waitFor('qoralama', () => after(mark, OWNER, has('Mijozlarga xabar')));
+  const sendBtn = buttons(draft).find(b => b.callback_data?.startsWith('fs|'));
+  ok('qoralama: «Yuborish (1)» tugmasi', sendBtn?.text.includes('(1)'));
+  ok("qoralama: qo'ng'iroq qilinadiganlar ro'yxati", draft && textOf(draft).includes('Aziz Karimov'));
+  ok('tasdiqsiz hech narsa ketmadi', !after(mark, CUSTOMER, has('rahmat')));
+  mark = sent.length;
+  press(OWNER, sendBtn!.callback_data!, draft!.id!);
+  ok('«Yuborish»: mijozga yetdi', await waitFor('xabar mijozga', () => after(mark, CUSTOMER, has('tanlaganingiz uchun rahmat'))));
+  await waitFor('holat', () => after(mark, OWNER, s => s.method === 'editMessageText' && textOf(s).includes('Yuborildi: 1')));
+  const fu = (await api('/api/followups', { token })).json.followups[0];
+  ok('holat: yuborildi (1 ta)', fu?.status === 'sent' && fu.sentCount === 1);
+  mark = sent.length;
+  press(OWNER, sendBtn!.callback_data!, draft!.id!);
+  const again = await waitFor('qayta bosish', () => sent.slice(mark).find(s => s.method === 'answerCallbackQuery'));
+  ok('ikkinchi bosish: qayta yuborilmaydi', String(again?.params.text).includes('Allaqachon') && !after(mark, CUSTOMER, () => true));
+
+  console.log('\n# Yordamchi: hujjat');
+  mark = sent.length;
+  say(OWNER, 'Aliyevga tijorat taklifi tayyorla');
+  const docMsg = await waitFor('hujjat', () => after(mark, OWNER, s => s.method === 'sendDocument'));
+  ok('Telegram: .docx fayl keldi', docMsg?.file?.subarray(0, 2).toString() === 'PK' && textOf(docMsg).includes('Tijorat taklifi'));
+  const docs = (await api('/api/documents', { token })).json.documents;
+  const dl = await fetch(`${base}/api/documents/${docs?.[0]?.id}/docx`, { headers: { authorization: `Bearer ${token}` } });
+  const docBuf = Buffer.from(await dl.arrayBuffer());
+  ok('panel: Word fayl yuklanadi', dl.status === 200 && dl.headers.get('content-type')?.includes('wordprocessingml') && docBuf.includes('word/document.xml'));
+  ok('boshqa biznes: hujjatni ololmaydi', (await fetch(`${base}/api/documents/${docs?.[0]?.id}/docx`, { headers: { authorization: `Bearer ${otherToken}` } })).status === 404);
+
+  console.log('\n# Yordamchi: post (reklama filtri bilan)');
+  mark = sent.length;
+  say(OWNER, 'Dam olish kunlari aksiyasi haqida post qil');
+  const photo = await waitFor('post rasmi', () => after(mark, OWNER, s => s.method === 'sendPhoto'));
+  ok('Telegram: PNG rasm keldi', photo?.file?.subarray(1, 4).toString() === 'PNG' && textOf(photo).includes('Dam olish kunlari'));
+  ok('kanal ulanmagan: faqat «O\'chirish» tugmasi', buttons(photo).length === 1 && buttons(photo)[0].callback_data?.startsWith('pd|'));
+  const rejected = ai.requests.some(r => JSON.stringify(r.messages.at(-1)).includes('is_error') && JSON.stringify(r.messages.at(-1)).includes('eng yaxshi'));
+  ok("«eng yaxshi» filtrdan o'tmadi — Claude qayta yozdi", rejected);
+  const postsNow = (await api('/api/posts', { token })).json.posts;
+  ok('panel: post qoralamasi', postsNow?.length === 1 && postsNow[0].status === 'draft' && postsNow[0].item.design.uz.badge === '-15%');
 
   console.log('\n# Kanal');
-  const chBad = await api('/api/channel', { token, body: { channel: '@yoq_kanal' } });
-  ok("kanal: topilmasa — tushunarli xato", chBad.status === 400 && /topilmadi/.test(chBad.json.error), chBad.json.error);
-  const ch = await api('/api/channel', { token, body: { channel: 'https://t.me/test_channel' } });
-  ok('kanal: ulandi', ch.status === 200 && ch.json.status.channel?.title === 'Test kanal');
+  ok("noto'g'ri kanal — 400", (await api('/api/channel', { token, body: { channel: '@nope' } })).status === 400);
+  const ch = await api('/api/channel', { token, body: { channel: '@test_channel' } });
+  ok('kanal ulandi', ch.json.status?.channel?.title === 'Test kanal');
+  mark = sent.length;
+  const pub = await api(`/api/posts/${postsNow[0].id}/publish`, { token, body: {} });
+  const inChannel = after(mark, CHANNEL, s => s.method === 'sendPhoto');
+  ok('post kanalga joylandi', pub.status === 200 && pub.json.post.status === 'published' && !!inChannel);
+  ok('post ostida mijozlar havolasi (qaysi postdan kelgani bilan)', textOf(inChannel!).includes(`start=l-${bizId}-${postsNow[0].id}`));
+  ok('qayta joylash — 409', (await api(`/api/posts/${postsNow[0].id}/publish`, { token, body: {} })).status === 409);
+  mark = sent.length;
+  addedToChannel(OWNER);
+  ok('bot kanalga admin qilinsa — o\'zi ulanadi', await waitFor('kanal ulandi', () => after(mark, OWNER, has('Ikkinchi kanal'))));
 
-  console.log('\n# Tugmalar (Telegram)');
-  const before = sent.length;
-  press(OWNER, `p|${promo.id}`, 101);
-  const toChannel = await waitFor('kanalga joylash', () => sent.slice(before).find(s => s.method === 'sendPhoto' && Number(s.params.chat_id) === CHANNEL));
-  const promoIsPast = new Date(`${promo.date}T${promo.time}:00`) <= new Date();
-  if (promoIsPast) {
-    ok('«Joylash»: vaqti o\'tgan post darhol kanalga chiqdi', !!toChannel);
-    ok('kanaldagi matn — post matni', String(toChannel?.params.caption).startsWith('Tabassumingizni qaytarish'));
-    ok('egasiga Instagram uchun rasm va matn (hujjat)', !!await waitFor('hujjat', () => sent.slice(before).find(s => s.method === 'sendDocument' && Number(s.params.chat_id) === OWNER)));
-  } else ok("«Joylash»: vaqti kelmagan post rejaga qo'yildi", !toChannel);
-  ok('egasining xabari yangilandi', !!await waitFor('caption edit', () => sent.slice(before).find(s => s.method === 'editMessageCaption')));
+  console.log('\n# Ovozli xabar');
+  mark = sent.length;
+  const geminiBefore = stt.gemini;
+  sendVoice(OWNER);
+  const voiceReply = await waitFor('ovozga javob', () => after(mark, OWNER, has('🎙')));
+  ok('ovoz → Gemini → matn → yordamchi', stt.gemini === geminiBefore + 1 && stt.lastAudio.equals(VOICE_BYTES) && stt.lastMime === 'audio/ogg');
+  ok('javobda eshitilgani va xulosa', voiceReply && textOf(voiceReply).includes('Bugun nima qilishim kerak?') && textOf(voiceReply).includes('Bugun:'));
+  stt.geminiFails = true;
+  mark = sent.length;
+  const groqBefore = stt.groq;
+  sendVoice(OWNER);
+  ok("Gemini ishlamasa — Groq'ga o'tadi", await waitFor('zaxira', () => after(mark, OWNER, has('🎙'))) && stt.groq === groqBefore + 1);
+  stt.geminiFails = false;
 
-  const tipOrHoliday = (week.items as ContentItem[]).find(i => i.slot === 1)!;
-  const b2 = sent.length;
-  press(OWNER, `v|${tipOrHoliday.id}`, 102);
-  ok('«Boshqa variant»: rasm almashtirildi', !!await waitFor('editMessageMedia', () => sent.slice(b2).find(s => s.method === 'editMessageMedia' && s.file)));
+  console.log('\n# Panel: suhbat');
+  const chat1 = await api('/api/chat', { token, body: { text: 'Salom' } });
+  ok('panel: javob keldi', chat1.json.entries?.[1]?.text === 'Tushundim: salom' && chat1.json.entries[0].channel === 'web');
+  const log = (await api('/api/chat', { token })).json.entries as { channel: string; artifacts: { type: string; post?: { status: string } }[] }[];
+  ok("panel: Telegram'dagi suhbat ham ko'rinadi", log.some(e => e.channel === 'telegram') && log.some(e => e.artifacts.some(a => a.type === 'document')));
+  ok('panel: post holati yangilangan (joylangan)', log.some(e => e.artifacts.some(a => a.type === 'post' && a.post?.status === 'published')));
+  const wav = await fetch(`${base}/api/chat/voice`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'audio/wav' }, body: new Uint8Array(4000) });
+  const wavJson = await wav.json() as { entries: { text: string }[] };
+  ok('panel mikrofoni: WAV → matn → javob', wav.status === 200 && wavJson.entries?.[0]?.text.startsWith('🎙') && stt.lastMime === 'audio/wav');
+  await api('/api/chat', { token, body: { text: "Buni eslab qol: 500 mingdan yuqori buyurtmaga yetkazish bepul" } });
+  ok('yordamchi eslab qoldi', ((await api('/api/notes', { token })).json.notes as { text: string }[]).some(n => n.text.includes('yetkazish bepul')));
 
-  const b3 = sent.length;
-  press(OWNER, `e|${doctor!.id}`, 103);
-  await waitFor('tahrir so\'rovi', () => sent.slice(b3).find(s => s.method === 'sendMessage' && /Yangi matnni yuboring/.test(String(s.params.text))));
-  say(OWNER, 'Shifokorimiz sizni kutadi. 100% natija!');
-  const warn = await waitFor('tahrir javobi', () => sent.slice(b3).find(s => s.method === 'sendMessage' && /Saqlandi/.test(String(s.params.text))));
-  ok('«Tahrirlash»: saqlandi va filtr ogohlantirdi', !!warn && /tekshiring/.test(String(warn.params.text)));
-  week = (await api(`/api/weeks/${monday}`, { token })).json;
-  ok('tahrir panelda ham ko\'rinadi', (week.items as ContentItem[]).find(i => i.id === doctor!.id)?.caption.uz === 'Shifokorimiz sizni kutadi. 100% natija!');
+  console.log('\n# Maxsus holatlar');
+  const refused = await api('/api/chat', { token, body: { text: 'Buni rad et' } });
+  ok("rad etsa: tushunarli javob", refused.json.entries?.[1]?.text.includes('bajara olmayman'));
+  ok('rad etishdan keyin suhbat buzilmaydi', (await api('/api/chat', { token, body: { text: 'Salom yana' } })).json.entries?.[1]?.text === 'Tushundim: salom yana');
+  const paused = await api('/api/chat', { token, body: { text: 'internetdan dollar kursini qidir' } });
+  ok('internet qidiruvi to\'xtab davom etsa (pause_turn)', paused.json.entries?.[1]?.text.includes('Dollar kursi'));
+  const broken = await api('/api/chat', { token, body: { text: 'buzuq suhbat' } });
+  const lastReq = ai.requests.at(-1)!;
+  ok("eski suhbat API'ga yoqmasa — yangi sessiya bilan qayta", broken.json.entries?.[1]?.text.startsWith('Tushundim') && lastReq.messages.length === 1 && lastReq.system.includes('<previous_session>'));
+  mark = sent.length;
+  say(OWNER, '/yangi');
+  await waitFor('yangi suhbat', () => after(mark, OWNER, has('Yangi suhbat')));
+  await api('/api/chat', { token, body: { text: 'Keyingi gap' } });
+  ok('/yangi: suhbat yangidan boshlanadi', ai.requests.at(-1)!.messages.length === 1);
+  await api('/api/chat', { token, body: { text: 'Yana bir gap' } });
+  ok('sessiya ichida suhbat davom etadi', ai.requests.at(-1)!.messages.length === 3);
+  await api('/api/business', { method: 'PUT', token, body: { ...profile, hours: 'Har kuni 10:00–20:00' } });
+  await api('/api/chat', { token, body: { text: 'Profil yangilandi' } });
+  ok('profil o\'zgarsa — yordamchi yangisini biladi', ai.requests.at(-1)!.messages.length === 1 && ai.requests.at(-1)!.system.includes('Har kuni 10:00–20:00'));
 
-  press(OWNER, `r|${(week.items as ContentItem[])[4].id}`, 104);
-  await sleep(600);
-  week = (await api(`/api/weeks/${monday}`, { token })).json;
-  ok('«Kerak emas»: holat saqlandi', week.status[(week.items as ContentItem[])[4].id] === 'rejected');
+  console.log('\n# Bizneslar bir-birini ko\'rmaydi');
+  ok('boshqa biznes: vazifani o\'zgartira olmaydi', (await api(`/api/tasks/${todayTask.id}`, { method: 'PATCH', token: otherToken, body: { status: 'done' } })).status === 404);
+  ok("boshqa biznes: mijozlar ro'yxati bo'sh", ((await api('/api/leads', { token: otherToken })).json.leads as unknown[]).length === 0);
+  ok('boshqa biznes: postni joylay olmaydi', (await api(`/api/posts/${postsNow[0].id}/publish`, { token: otherToken, body: {} })).status === 409);
+  ok("boshqa biznes: suhbati bo'sh", ((await api('/api/chat', { token: otherToken })).json.entries as unknown[]).length === 0);
 
-  console.log('\n# Bemor postdagi havolani bosadi');
-  const code = promo.id.replace(/-/g, '');
-  const b4 = sent.length;
-  say(PATIENT, `/start l-${created.json.id}-${code}`);
-  const ask = await waitFor('raqam so\'rovi', () => sent.slice(b4).find(s => s.method === 'sendMessage' && Number(s.params.chat_id) === PATIENT));
-  ok('bemordan raqam so\'raldi (tugma bilan)', JSON.stringify(ask?.params.reply_markup ?? '').includes('request_contact'));
-  shareContact(PATIENT, '998001112233');
-  const notify = await waitFor('egasiga murojaat', () => sent.slice(b4).find(s => s.method === 'sendMessage' && Number(s.params.chat_id) === OWNER && /Yangi murojaat/.test(String(s.params.text))));
-  ok('egasiga «Yangi murojaat» keldi, manbasi bilan', !!notify && /\+998001112233/.test(String(notify.params.text)) && /Aksiya/.test(String(notify.params.text)));
-  const leadList = (await api('/api/leads', { token })).json.leads;
-  ok('panel: murojaat ro\'yxatda, manbasi bilan', leadList?.length === 1 && leadList[0].phone === '+998001112233' && /Aksiya/.test(leadList[0].source));
-  ok('panel: boshqa klinika bu murojaatni ko\'rmaydi', (await api('/api/leads', { token: otherToken })).json.leads.length === 0);
-  const report = (await api(`/api/weeks/${monday}/report`, { token })).json;
-  ok('natija: postdan 1 bosish, 1 raqam', report.counts?.[promo.id]?.clicks === 1 && report.counts[promo.id].contacts === 1);
-  const called = await api(`/api/leads/${leadList[0].id}`, { method: 'PATCH', token, body: { stage: 'called' } });
-  ok("murojaat: «qo'ng'iroq qilindi» belgilandi", called.status === 200);
+  console.log('\n# Buyruqlar va begona foydalanuvchi');
+  mark = sent.length;
+  say(OWNER, '/vazifalar');
+  const tl = await waitFor('vazifalar', () => after(mark, OWNER, has('Ochiq vazifalar')));
+  ok("/vazifalar: ro'yxat va tugmalar", tl && textOf(tl).includes('Bankka borish') && buttons(tl).length >= 2);
+  mark = sent.length;
+  say(8008, 'Salom');
+  ok('begona odam: tushuntirish oladi', await waitFor('begona', () => after(mark, 8008, has('Cerebro'))));
 
-  console.log('\n# Savol-javob');
-  const b5 = sent.length;
-  say(OWNER, 'Nechta odam yozildi?');
-  const answer = await waitFor('javob', () => sent.slice(b5).find(s => s.method === 'sendMessage' && Number(s.params.chat_id) === OWNER && /AI javobi/.test(String(s.params.text))));
-  ok('egasi savol berdi — AI javob berdi', !!answer);
-  const webAsk = await api('/api/ask', { token, body: { text: 'Qaysi post yaxshi ishladi?' } });
-  ok('paneldan savol ham ishlaydi', /AI javobi/.test(webAsk.json.answer ?? ''));
-
-  console.log('\n# Paneldagi amallar Telegramga tushadi');
-  const b6 = sent.length;
-  const slotItem = (week.items as ContentItem[])[3];
-  const pv = await api(`/api/items/${slotItem.id}/action`, { token, body: { action: 'variant' } });
-  ok('panel: variant', pv.status === 200);
-  ok('panel: variant — egasining xabaridagi rasm ham almashdi', !!await waitFor('media', () => sent.slice(b6).find(s => s.method === 'editMessageMedia')));
-  const pa = await api(`/api/weeks/${monday}/publish-all`, { token, body: {} });
-  ok('panel: hammasini joylash', pa.status === 200 && pa.json.count >= 1, `${pa.json.count} ta`);
-  const blocked = await api(`/api/items/${promo.id}/action`, { token, body: { action: 'undo' } });
-  ok("chiqqan postni qaytarib bo'lmaydi — 409", !promoIsPast || blocked.status === 409, blocked.json.error);
-  ok("boshqa klinika bu postni o'zgartira olmaydi", (await api(`/api/items/${promo.id}/action`, { token: otherToken, body: { action: 'reject' } })).status === 200
-    && (await api(`/api/weeks/${monday}`, { token })).json.status[promo.id] === 'published');
-
-  console.log('\n# Qayta ishga tushirish');
-  const beforeRestart = sent.filter(s => s.method === 'sendPhoto' && Number(s.params.chat_id) === OWNER).length;
-  await sleep(1500);
-  const after = sent.filter(s => s.method === 'sendPhoto' && Number(s.params.chat_id) === OWNER).length;
-  ok('paket qayta yuborilmaydi (bir hafta — bir marta)', after === beforeRestart);
-  ok('AI so\'rovlari soni me\'yorida', ai.calls <= 6, `${ai.calls} ta`);
+  console.log('\n# Suhbat tarixi butunligi');
+  ok("Claude'ga har doim to'g'ri tarix ketdi (faqat oxiriga qo'shildi, asbob natijalari joyida)", ai.violations.length === 0, ai.violations.join('; '));
+  ok('serverda kutilmagan xato yo\'q', !/\[(http|bot|ai|asbob)\]/.test(serverLog.replace(/\[ai\] (BadRequestError|Error): 400[^\n]*/g, '')), serverLog.split('\n').filter(l => /\[(http|bot|ai|asbob)\]/.test(l)).slice(0, 3).join(' | '));
+} catch (e) {
+  console.error(e);
+  results.push(false);
 } finally {
   server.kill();
   tgServer.close();
   aiServer.close();
+  sttServer.close();
   await sleep(300);
-  try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* Windows fayl qulfi */ }
+  try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* Windows fayl band */ }
 }
 
-const failed = results.filter(r => !r).length;
-if (failed) console.log(`\n--- server jurnali ---\n${serverLog.slice(-3000)}`);
-console.log(`\nNatija: ${results.length - failed}/${results.length} OK`);
-process.exit(failed ? 1 : 0);
+const passed = results.filter(Boolean).length;
+console.log(`\n${passed}/${results.length} o'tdi`);
+if (passed !== results.length) {
+  console.log('\n--- server log ---\n' + serverLog.slice(-4000));
+  process.exit(1);
+}
+process.exit(0);

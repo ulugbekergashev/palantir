@@ -1,25 +1,26 @@
 # Cerebro
 
-Stomatologiya klinikalari uchun AI marketolog va dizayner. Har dushanba klinika egasining Telegramiga haftalik paket keladi: 3 ta post va 2 ta storis, klinika brendida tayyor rasm va matn bilan. Egasi tugma bosib tasdiqlaydi — post belgilangan vaqtda Telegram kanalga chiqadi. Postdagi yozilish havolasi orqali kelgan bemorlar (raqami bilan) egasiga yuboriladi va panelda sanaladi.
+Har qanday biznes uchun AI yordamchi — Telegram'da yashaydigan shaxsiy "Jarvis". Biznes egasi yozadi yoki ovozli xabar yuboradi, Cerebro bajaradi: eslatma qo'yadi, mijozni yozib oladi, mijozlarga xabar tayyorlaydi, shartnoma va tijorat taklifini Word faylda beradi, brend rangida post chizadi, internetdan kerakli ma'lumotni topadi. Tashqariga chiqadigan hamma narsa (kanalga post, mijozga xabar) faqat egasi tugmani bosgandan keyin ketadi.
 
 DentaCRM'dan alohida mahsulot.
 
-## Nima bor
+## Nima qila oladi
 
-| Qism | Nima qiladi |
+| Imkoniyat | Qanday ishlaydi |
 |---|---|
-| **Panel** (klinika kabineti) | Haftalik paket (ko'rish, tasdiqlash, boshqa variant, tahrirlash, PNG), Telegram va kanalni ulash, murojaatlar, natijalar, klinika va brend (onboarding) |
-| **Telegram bot** (hamma klinikalar uchun bitta) | Egasiga paket; tugmalar: ✅ Joylash · 🔄 Boshqa variant · ✏️ Tahrirlash · ❌ Kerak emas; savollarga javob («Nechta odam yozildi?»); bemordan raqam olib egasiga yuborish |
-| **Jadval** | Dushanba 09:00 — paket; vaqti kelgan tasdiqlangan post — kanalga, rasm va matn — egasiga (Instagram uchun) |
-| **AI** (Claude) | Haftaning matnlarini klinika faktlaridan yozadi; har matn tekshiriladi, o'tmasa — tayyor namuna |
-| **Admin** (`#/admin`) | Klinika qo'shish (login/parol), bloklash, parolni tiklash |
-| **Demo** (`#/demo`) | Sotuv uchun: serversiz, namuna klinika bilan |
+| **Ovozli buyruq** | Telegram'da ovozli xabar yoki paneldagi mikrofon → matn (Gemini, zaxira — Groq Whisper) → yordamchi. Javob boshida nima eshitilgani ko'rsatiladi |
+| **Eslatma va vazifalar** | «Ertaga 10 da bankka borishni eslat» → vazifa; vaqti kelganda Telegram'ga eslatma: ✅ Bajarildi · ⏰ 1 soatdan keyin · 📅 Ertaga. Har kuni ertalab qisqa xulosa: bugungi va kechikkan vazifalar, yangi mijozlar, yaqin bayramlar |
+| **Hujjat tayyorlash** | Shartnoma, tijorat taklifi, hisob, narxlar ro'yxati, xat, reja — Word (.docx) fayl Telegram'ga keladi va panelda saqlanadi. Noma'lum joylar «________» bo'lib qoladi, o'ylab topilmaydi |
+| **Mijozlar va follow-up** | Egasi aytgan mijozlar yoziladi; havolani bosganlar o'zi tushadi (raqam yoki savol qoldiradi). Mijoz yozsa — egasiga keladi, egasi «Reply» qilsa — javob mijozga ketadi. «Kecha yozganlarga rahmat xabarini tayyorla» → qoralama + «Yuborish» tugmasi |
+| **Postlar** | Brend rangi va logosi bilan rasm (6 shablon) va matn → «Kanalga joylash». Post ostiga mijozlar havolasi qo'shiladi — kim qaysi postdan kelgani ko'rinadi |
+| **Internetdan qidirish** | Kurs, narx, qonun, yetkazib beruvchi — manbasi bilan |
+| **Eslab qolish** | «Eslab qol: 500 mingdan yuqori buyurtmaga yetkazish bepul» — hujjat va javoblarda ishlatiladi |
 
 ### Qoidalar (kodda)
-- **Klinika aytmagan narsa yozilmaydi.** AI faqat kiritilgan faktlardan yozadi; aksiya, shifokor va bayram postlarida AI yozgan matndagi har bir raqam faktlarda bo'lishi shart, aks holda matn rad etiladi.
-- **Tibbiy reklama filtri** (`src/lib/compliance.ts`): «kafolat», «100%», «og'riqsiz», «eng yaxshi», «гарантия»… AI matni ham, egasining tahriri ham tekshiriladi. Ro'yxat dastlabki — yurist bilan tasdiqlanadi.
-- **Egasi tasdiqlamaguncha hech narsa chiqmaydi.** Kanalga chiqqan postni panel ham, bot ham o'zgartirmaydi.
-- Klinikalar bir-birining ma'lumotini ko'rmaydi (har so'rov tokendagi klinikaga bog'langan).
+- **Aytilmagan narsa yozilmaydi.** Yordamchi faqat profil, eslab qolingan faktlar va egasining gapidan foydalanadi; narx, chegirma, raqam o'ylab topilmaydi.
+- **Reklama filtri** (`src/lib/compliance.ts`): «eng yaxshi», «100%», «№1», «abadiy»… Tibbiyot sohasida qo'shimcha: natija kafolati, «og'riqsiz». Post va mijozlarga xabar filtrdan o'tmasa, yordamchi qayta yozadi.
+- **Egasi tasdiqlamaguncha hech narsa tashqariga chiqmaydi** (kanal, mijozlar). Ikki marta bosilsa ham bir marta ketadi.
+- Bizneslar bir-birining ma'lumotini ko'rmaydi (har so'rov tokendagi biznesga bog'langan).
 
 ## Ishga tushirish (kompyuterda)
 
@@ -27,16 +28,14 @@ Node.js 24+ kerak.
 
 ```bash
 npm install
-cp .env.example .env      # ADMIN_PASSWORD, keyin BOT_TOKEN va ANTHROPIC_API_KEY ni yozing
+cp .env.example .env      # ADMIN_PASSWORD, BOT_TOKEN, ANTHROPIC_API_KEY, GEMINI_API_KEY
 npm run dev               # panel: http://localhost:3100, server: 3200
 ```
 
-1. `http://localhost:3100/#/admin` → admin paroli → klinika qo'shing (login va parol).
-2. `http://localhost:3100` → shu login bilan kiring → «Klinika va brend»ni to'ldiring.
-3. «Telegram bot» → «Telegramni ulash» → botda «Start». Shu zahoti shu haftaning paketi keladi.
-4. Kanal: botni kanalga admin qiling («xabar joylash» ruxsati) → panelda kanal manzilini kiriting.
-
-Kalitlarsiz ham ishlaydi: `BOT_TOKEN` bo'lmasa — bot o'chiq, `ANTHROPIC_API_KEY` bo'lmasa — matn tayyor namunalardan.
+1. `http://localhost:3100/#/admin` → admin paroli → biznes qo'shing (nomi, sohasi, login, parol).
+2. `http://localhost:3100` → shu login bilan kiring → «Biznes profili»ni to'ldiring.
+3. «Telegram» → «Telegram'da ochish» → botda «Start». Shundan keyin yozing yoki ovozli xabar yuboring.
+4. Kanal (ixtiyoriy): botni kanalga admin qiling («xabar joylash» ruxsati) — o'zi ulanadi.
 
 ## Serverga qo'yish (masalan, Railway)
 
@@ -48,40 +47,36 @@ Kalitlarsiz ham ishlaydi: `BOT_TOKEN` bo'lmasa — bot o'chiq, `ANTHROPIC_API_KE
 
 ```bash
 npm run typecheck
-npm test            # to'liq oqim: soxta Telegram va Claude bilan
+npm test                           # to'liq oqim: soxta Telegram, Claude va ovoz xizmati bilan
 npm run build && npm run test:ui   # brauzerda panel (Chrome va playwright-core kerak)
 ```
 
-Sinovlar haqiqiy Telegram yoki Claude'ga so'rov yubormaydi va pul sarflamaydi.
+Sinovlar haqiqiy Telegram, Claude yoki Gemini'ga so'rov yubormaydi va pul sarflamaydi. Soxta Claude har so'rovda suhbat tarixini ham tekshiradi: faqat oxiriga qo'shilganmi, har asbob chaqiruvining natijasi joyidami.
 
 ## Tuzilma
 
 ```
 server/
-  index.ts        kirish nuqtasi (bot + API + jadval)
-  http.ts         API: kirish, profil, haftalik paket, amallar, murojaatlar, kanal, admin
-  bot.ts          Telegram bot: egasi, bemor (lid), kanalga joylash
-  scheduler.ts    har daqiqa: paket yuborish va joylash
-  content.ts      haftalik paket = generator rejasi + bazadagi holat/variant/tahrir/AI matni
-  ai.ts           Claude: matn yozish (JSON sxema) va savolga javob; tekshiruvlar
-  render.ts       SVG shablon → PNG (resvg, server/fonts dagi Manrope)
-  db.ts           SQLite (node:sqlite): klinikalar, postlar, murojaatlar
-  actions.ts qa.ts auth.ts validate.ts env.ts
+  index.ts       kirish nuqtasi (bot + API + jadval)
+  agent.ts       yordamchi: Claude bilan suhbat, asboblarni chaqirish sikli, sessiyalar
+  tools.ts       asboblar: vazifa, mijoz, xabar qoralamasi, hujjat, post, eslab qolish, xulosa
+  bot.ts         Telegram: egasi (matn, ovoz, tugmalar), mijozlar, kanal
+  scheduler.ts   eslatmalar va ertalabki xulosa
+  http.ts        panel API
+  stt.ts         ovoz → matn (Gemini, zaxira Groq)
+  docx.ts        Markdown → Word
+  render.ts      post shabloni (SVG) → PNG
+  db.ts          SQLite (node:sqlite)
+  auth.ts validate.ts env.ts tz.ts
 src/
-  lib/generator.ts   haftaning 5 o'rni: nima, qachon, kim haqida; tayyor post
-  lib/content.ts     namuna matnlar banki (uz/ru) — AI bo'lmaganda va rad etilganda
-  lib/compliance.ts  tibbiy reklama filtri
-  templates/         rasm shablonlari (SVG) — panelda, PNG'da va Telegramda bir xil
-  LiveApp.tsx        klinika kabineti · DemoApp.tsx — sotuv demosi · pages/AdminPage.tsx
+  LiveApp.tsx    kabinet: Yordamchi, Vazifalar, Mijozlar, Hujjatlar, Postlar, Biznes profili, Telegram
+  templates/     post shablonlari — panelda, PNG'da va Telegramda bir xil
+  lib/compliance.ts  reklama filtri · lib/occasions.ts  bayramlar · lib/recorder.ts  mikrofon → WAV
 scripts/
   e2e.ts ui-live.ts fakes.ts   sinovlar
 ```
 
 ## Cheklovlar va keyingi qadamlar
-
-- **Instagram'ga avtomatik joylash** — Meta ruxsatidan keyin. Hozir: post chiqqan zahoti rasm (asl sifat) va matn egasining Telegramiga keladi.
-- **Storislar** Telegram kanalga chiqmaydi (Bot API ruxsat bermaydi) — vaqti kelganda rasm egasiga yuboriladi.
-- **Ko'rishlar soni** Bot API orqali berilmaydi — «Natijalar» haqiqiy bosish va raqam qoldirganlarni ko'rsatadi.
-- Keyin: to'lov va obuna, reaktivatsiya (bemorlar ro'yxati yoki DentaCRM API orqali), klinikaning o'z boti.
-
-Manrope shrifti — SIL Open Font License (`server/fonts/OFL.txt`).
+- Mijozga Telegram orqali faqat botga yozgan (havolani bosgan) odamga xabar yuborish mumkin — bu Telegram qoidasi. Qolganlari uchun yordamchi qo'ng'iroq ro'yxatini beradi.
+- Instagram'ga avtomatik joylash yo'q (Meta ruxsati kerak) — PNG va matnni yuklab olib joylanadi.
+- Google Calendar, SMS va to'lov tizimlari bilan bog'lanish — keyingi bosqich.

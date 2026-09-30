@@ -41,3 +41,25 @@ export const weekRange = (lang: Lang, monday: Date): string => {
 /** "Seshanba, 10:00" */
 export const whenLabel = (lang: Lang, dateKey: string, time: string): string =>
   `${DAYS[lang][weekday(fromIso(dateKey))]}, ${time}`;
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** Mahalliy vaqt → "YYYY-MM-DDTHH:MM" (vazifa muddati shu ko'rinishda saqlanadi) */
+export const stamp = (d: Date): string => `${iso(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
+/** "YYYY-MM-DDTHH:MM" → mahalliy vaqt */
+export const fromStamp = (s: string): Date => new Date(`${s}:00`);
+
+/** ISO vaqt → "30-sentabr" (brauzerning uz-UZ formati "M09 30" chiqaradi) */
+export const shortDate = (isoTime: string): string => dayLong('uz', new Date(isoTime));
+
+/** "Bugun 14:00", "Ertaga 09:30", "5-oktabr, 10:00" */
+export function dueLabel(lang: Lang, due: string, now: Date): string {
+  const d = fromStamp(due);
+  const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const day = iso(d);
+  if (day === iso(now)) return `${lang === 'ru' ? 'Сегодня' : 'Bugun'} ${time}`;
+  if (day === iso(addDays(now, 1))) return `${lang === 'ru' ? 'Завтра' : 'Ertaga'} ${time}`;
+  if (day === iso(addDays(now, -1))) return `${lang === 'ru' ? 'Вчера' : 'Kecha'} ${time}`;
+  return `${dayLong(lang, d)}, ${time}`;
+}

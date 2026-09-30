@@ -1,7 +1,10 @@
-/** Kontent tili: postlar o'zbek va rus tilida tayyorlanadi */
+/** Kontent tili */
 export type Lang = 'uz' | 'ru';
 
-export interface Service {
+// ─── Biznes profili ──────────────────────────────────────────────────────────
+
+/** Mahsulot yoki xizmat */
+export interface Offering {
   id: string;
   name: string;
   nameRu?: string;
@@ -9,11 +12,12 @@ export interface Service {
   price: number;
 }
 
-export interface Doctor {
+/** Jamoa a'zosi (post rasmida ham ishlatiladi) */
+export interface Member {
   id: string;
   name: string;
-  specialty: string;
-  specialtyRu?: string;
+  role: string;
+  roleRu?: string;
   /** Tajriba, yil */
   years?: number;
   /** Surat (data URL, kichraytirilgan) */
@@ -23,50 +27,37 @@ export interface Doctor {
 export interface Brand {
   primary: string;
   accent: string;
-  /** Logo (data URL). Bo'lmasa — klinika nomining bosh harflari */
+  /** Logo (data URL). Bo'lmasa — nomning bosh harflari */
   logo?: string;
 }
 
-/** Bo'sh vaqt: hafta kuni (0 — dushanba) va soat */
-export interface FreeSlot {
-  day: number;
-  time: string;
-}
-
-/** Egasi har hafta (yoki bir marta) belgilaydigan maqsad */
-export interface WeeklyGoal {
-  /** Qaysi xizmatni ko'proq sotmoqchi */
-  focusServiceId?: string;
-  /** Amaldagi aksiya matni. AI o'zidan chegirma o'ylab topmaydi — faqat shu yerdagisini ishlatadi */
-  promo?: string;
-  promoRu?: string;
-  /** Aksiya tugash sanasi (YYYY-MM-DD) */
-  promoUntil?: string;
-  freeSlots: FreeSlot[];
-}
-
-export interface Clinic {
+export interface Business {
   name: string;
   ownerName: string;
+  /** Soha: "stomatologiya", "restoran", "o'quv markazi"… */
+  industry: string;
+  /** Biznes haqida qisqacha (yordamchi shu orqali tushunadi) */
+  description?: string;
   phone: string;
   address: string;
   addressRu?: string;
+  /** Ish vaqti, erkin matn: "Du–Sh 9:00–20:00" */
+  hours?: string;
   instagram?: string;
-  telegramBot?: string;
-  telegramChannel?: string;
-  /** Instagram va Telegram kanaldagi obunachilar (natijani taxmin qilish uchun) */
-  followers: number;
-  /** Kanalga qaysi tilda chiqadi (bo'lmasa — o'zbekcha) */
+  website?: string;
+  /** Postlar va hujjatlar qaysi tilda (bo'lmasa — o'zbekcha) */
   contentLang?: Lang;
+  /** Ertalabki qisqa xulosa (bugungi vazifalar, yangi mijozlar) */
+  morningBrief?: boolean;
   brand: Brand;
-  services: Service[];
-  doctors: Doctor[];
-  goal: WeeklyGoal;
+  offerings: Offering[];
+  team: Member[];
 }
 
-export type TemplateId = 'promo' | 'tip' | 'doctor' | 'holiday' | 'slots' | 'poll';
+// ─── Post rasmi (shablon) ────────────────────────────────────────────────────
+
+export type TemplateId = 'promo' | 'tip' | 'team' | 'holiday' | 'list' | 'poll';
 export type ItemKind = 'post' | 'story';
-export type ItemStatus = 'pending' | 'published' | 'rejected';
 
 /** Rasmga tushadigan matnlar */
 export interface Design {
@@ -75,102 +66,123 @@ export interface Design {
   title: string;
   /** Katta belgi: "-20%", "Bepul" */
   badge?: string;
+  /** list shablonida har qator "chap|o'ng" */
   lines: string[];
-  /** Pastdagi chaqiruv: "Yozilish: @bot" */
+  /** Pastdagi chaqiruv: "Buyurtma: @bot" */
   cta?: string;
   footnote?: string;
 }
 
+/** Shablon chizadigan narsa (post, storis) */
 export interface ContentItem {
-  /** `${hafta dushanbasi}-${o'rin}` — hafta ichida o'zgarmas */
   id: string;
-  slot: number;
   kind: ItemKind;
   template: TemplateId;
-  /** "Aksiya", "Maslahat", "Bayram" — kartochkadagi yorliq */
-  topic: Record<Lang, string>;
-  /** Joylash sanasi (YYYY-MM-DD) va soati */
-  date: string;
-  time: string;
-  /** Variant raqami ("Boshqa variant" bosilganda o'zgaradi) */
-  seed: number;
   /** Dizayn uslubi: 0 — rangli fon, 1 — oq fon, 2 — gradient */
   style: number;
-  doctorId?: string;
-  /** Xotira kuni kabi sana — bezaksiz, sokin uslub */
+  seed: number;
+  memberId?: string;
+  /** Xotira kuni kabi — bezaksiz, sokin uslub */
   solemn?: boolean;
   design: Record<Lang, Design>;
   caption: Record<Lang, string>;
-  /** Matnni AI yozgan (aks holda — tayyor bankdan) */
-  ai?: boolean;
 }
 
-/** Egasining qo'lda o'zgartirgan matni (AI varianti ustidan) */
-export interface ItemEdit {
-  title?: string;
-  caption?: string;
-}
+// ─── Yordamchi ishlari ───────────────────────────────────────────────────────
 
-/**
- * AI yozgan matn (bir til uchun). Qaysi maydon ishlatilishi shablonga bog'liq:
- *   promo   — hook (kirish gapi), lines (2 afzallik)
- *   tip     — title, lines (3 band), closer (yakun)
- *   doctor  — closer (tanishtiruv gapi)
- *   holiday — lines (2 tabrik qatori)
- *   poll    — title (savol), lines (2 javob)
- */
-export interface AiLangText {
-  hook: string;
+export type TaskStatus = 'open' | 'done' | 'cancelled';
+
+export interface Task {
+  id: string;
   title: string;
-  lines: string[];
-  closer: string;
-}
-export type AiText = Record<Lang, AiLangText>;
-
-export interface PackState {
-  seeds: Record<string, number>;
-  status: Record<string, ItemStatus>;
-  edits: Record<string, Partial<Record<Lang, ItemEdit>>>;
+  notes: string | null;
+  /** Mahalliy vaqt "YYYY-MM-DDTHH:MM" yoki null (muddatsiz) */
+  dueAt: string | null;
+  status: TaskStatus;
+  remindedAt: string | null;
+  createdAt: string;
 }
 
-/** Post holati serverda (to'liq versiya) */
-export interface ItemMeta {
-  publishedAt: string | null;
-  error: string | null;
-  /** Kanalga chiqqan (egasi endi qaytara olmaydi) */
-  inChannel: boolean;
-}
-
-/** Bir haftalik paket (server javobi) */
-export interface WeekView {
-  monday: string;
-  /** Egasining tahriri bilan */
-  items: ContentItem[];
-  /** Tahrirsiz (AI yoki bank varianti) — "AI variantiga qaytarish" uchun */
-  base: ContentItem[];
-  status: Record<string, ItemStatus>;
-  meta: Record<string, ItemMeta>;
-  /** AI hali yozyapti — panel birozdan keyin qayta so'raydi */
-  aiPending: boolean;
-}
-
-/** Klinika sahifasidagi ulanishlar holati */
-export interface LiveStatus {
-  bot: string | null;
-  ai: boolean;
-  ownerLinked: boolean;
-  linkUrl: string | null;
-  channel: { id: string; title: string | null } | null;
-  generalLink: string | null;
-}
+export type LeadStage = 'new' | 'contacted' | 'won' | 'lost';
 
 export interface Lead {
   id: string;
-  itemId: string | null;
   name: string | null;
-  username: string | null;
   phone: string | null;
-  stage: 'clicked' | 'contact' | 'called';
-  createdAt: string;
+  username: string | null;
+  /** Telegram orqali yozish mumkinmi (bot bilan gaplashgan) */
+  reachable: boolean;
+  stage: LeadStage;
+  note: string | null;
+  /** Qayerdan: post nomi, "Instagram bio", "qo'lda" */
   source: string | null;
+  createdAt: string;
+}
+
+export interface Doc {
+  id: string;
+  title: string;
+  kind: string;
+  markdown: string;
+  createdAt: string;
+}
+
+export type PostStatus = 'draft' | 'published' | 'deleted';
+
+export interface Post {
+  id: string;
+  item: ContentItem;
+  status: PostStatus;
+  inChannel: boolean;
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+export type OutboundStatus = 'draft' | 'sent' | 'cancelled';
+
+/** Mijozlarga xabar (follow-up): egasi tasdiqlagach yuboriladi */
+export interface Outbound {
+  id: string;
+  text: string;
+  leadIds: string[];
+  /** Telegram orqali yetkaziladiganlar soni */
+  reachable: number;
+  status: OutboundStatus;
+  sentCount: number;
+  createdAt: string;
+}
+
+export interface Note {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
+/** Yordamchi javobi bilan birga yaratilgan narsa (panel va Telegramda ko'rsatiladi) */
+export type Artifact =
+  | { type: 'document'; doc: Doc }
+  | { type: 'post'; post: Post }
+  | { type: 'outbound'; outbound: Outbound }
+  | { type: 'task'; task: Task };
+
+/** Suhbat jurnali (panelda ko'rinadi) */
+export interface ChatEntry {
+  id: string;
+  role: 'owner' | 'assistant';
+  channel: 'telegram' | 'web';
+  text: string;
+  artifacts: Artifact[];
+  createdAt: string;
+}
+
+/** Kabinetdagi ulanishlar holati */
+export interface LiveStatus {
+  bot: string | null;
+  ai: boolean;
+  voice: boolean;
+  ownerLinked: boolean;
+  linkUrl: string | null;
+  channel: { id: string; title: string | null } | null;
+  /** Instagram bio va reklama uchun: bosgan odam botga tushadi, raqamini qoldiradi */
+  generalLink: string | null;
 }

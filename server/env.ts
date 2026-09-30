@@ -20,18 +20,28 @@ export const env = {
   port: Number(process.env.PORT) || 3200,
   dataDir,
   dbFile: process.env.DB_FILE || join(dataDir, 'cerebro.db'),
-  /** @BotFather tokeni. Bo'lmasa — panel ishlaydi, bot va avtomatik joylash o'chiq */
+  /** @BotFather tokeni. Bo'lmasa — panel ishlaydi, Telegram o'chiq */
   botToken: process.env.BOT_TOKEN || '',
   /** Faqat sinov uchun: soxta Telegram API manzili */
   telegramApiRoot: process.env.TELEGRAM_API_ROOT || undefined,
-  /** Claude kaliti bo'lsa matnni AI yozadi, bo'lmasa — tayyor bankdan */
+  /** Claude kaliti — yordamchining "miyasi" */
   aiEnabled: !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) && process.env.AI_DISABLED !== '1',
   aiModel: process.env.AI_MODEL || 'claude-opus-5-5',
-  /** Admin panel paroli (klinikalarni qo'shish). Bo'sh — admin kirishi yopiq */
+  /** Internetdan qidirish (Claude web search). 0 — o'chiq */
+  webSearch: process.env.WEB_SEARCH !== '0',
+  /** Ovozli xabar → matn: Gemini (o'zbekchani yaxshi taniydi), zaxira — Groq Whisper */
+  geminiKey: process.env.GEMINI_API_KEY || '',
+  groqKey: process.env.GROQ_API_KEY || '',
+  /** Faqat sinov uchun: soxta ovoz xizmati manzillari */
+  geminiSttUrl: process.env.GEMINI_STT_URL || 'https://generativelanguage.googleapis.com/v1beta/interactions',
+  groqSttUrl: process.env.GROQ_STT_URL || 'https://api.groq.com/openai/v1/audio/transcriptions',
+  /** Admin panel paroli (bizneslarni qo'shish). Bo'sh — admin kirishi yopiq */
   adminPassword: process.env.ADMIN_PASSWORD || '',
   sessionSecret: sessionSecret(),
-  /** Jadval tekshiruvi oralig'i (paket yuborish, joylash) */
-  tickMs: Number(process.env.TICK_MS) || 60_000,
-  /** Dushanba shu soatda paket yuboriladi */
-  sendHour: Number(process.env.SEND_HOUR) || 9,
+  /** Jadval tekshiruvi oralig'i (eslatmalar, ertalabki xulosa) */
+  tickMs: Number(process.env.TICK_MS) || 30_000,
+  /** Ertalabki xulosa soati (Toshkent vaqti) */
+  morningHour: process.env.MORNING_HOUR ? Number(process.env.MORNING_HOUR) : 8,
 };
+
+export const voiceEnabled = () => !!(env.geminiKey || env.groqKey);

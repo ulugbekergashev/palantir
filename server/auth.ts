@@ -23,9 +23,9 @@ export function samePassword(given: unknown, expected: string): boolean {
 }
 
 export interface Session {
-  /** Klinika id'si (admin uchun — "admin") */
+  /** Biznes id'si (admin uchun — "admin") */
   sub: string;
-  role: 'clinic' | 'admin';
+  role: 'business' | 'admin';
   /** Tugash vaqti (ms) */
   exp: number;
 }

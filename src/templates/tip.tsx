@@ -1,10 +1,10 @@
 import { alpha, deepen, mix, onColor } from '../lib/color';
 import { fit, wrap } from '../lib/text';
-import { BrandMark, Lines, Pill, Tooth, W, isStory, type TplProps } from './parts';
+import { BrandMark, Lines, Pill, Mark, W, isStory, type TplProps } from './parts';
 
 /** Foydali maslahat: yorliq, savol-sarlavha va 3 ta raqamlangan band */
-export function TipArt({ d, clinic, style, H, uid }: TplProps) {
-  const { primary, accent } = clinic.brand;
+export function TipArt({ d, biz, style, H, uid }: TplProps) {
+  const { primary, accent } = biz.brand;
   const story = isStory(H);
   const pad = 80;
   const ink = '#0F172A';
@@ -33,9 +33,9 @@ export function TipArt({ d, clinic, style, H, uid }: TplProps) {
       <rect width={W} height={H} fill={style === 1 ? '#FFFFFF' : mix(primary, '#FFFFFF', 0.94)} />
       {style === 1 && <rect width={24} height={H} fill={primary} />}
       <circle cx={W + 30} cy={story ? 180 : 60} r={story ? 260 : 190} fill={alpha(accent, 0.18)} />
-      <Tooth x={W - (story ? 300 : 230)} y={story ? 60 : 30} size={story ? 220 : 160} fill={alpha(primary, 0.1)} />
+      <Mark x={W - (story ? 300 : 230)} y={story ? 60 : 30} size={story ? 220 : 160} fill={alpha(primary, 0.1)} />
 
-      {story && <BrandMark clinic={clinic} x={x0} y={140} size={96} uid={uid} nameFill={ink} />}
+      {story && <BrandMark biz={biz} x={x0} y={140} size={96} uid={uid} nameFill={ink} />}
       <Pill x={x0} y={top} h={kickerH} text={d.kicker.toUpperCase()} size={story ? 30 : 24} padX={story ? 32 : 26} bg={primary} fg={onColor(primary)} spacing={2} />
       <Lines lines={title.lines} x={x0} y={titleY} size={title.size} lh={1.1} weight={800} fill={ink} spacing={-0.5} />
 
@@ -57,8 +57,8 @@ export function TipArt({ d, clinic, style, H, uid }: TplProps) {
         <text x={W / 2} y={footY + 110} textAnchor="middle" fontSize={44} fontWeight={800} fill={deepen(primary)}>{d.cta}</text>
       ) : (
         <>
-          <BrandMark clinic={clinic} x={x0} y={footY + 30} size={60} uid={uid} nameFill={ink} nameSize={28} />
-          <text x={W - pad} y={footY + 70} textAnchor="end" fontSize={28} fontWeight={700} fill={deepen(primary)}>{d.cta}</text>
+          <BrandMark biz={biz} x={x0} y={footY + 30} size={60} uid={uid} nameFill={ink} nameSize={28} />
+          <text x={W - pad} y={footY + 70} textAnchor="end" fontSize={28} fontWeight={700} fill={deepen(primary)}>{d.cta || biz.phone}</text>
         </>
       )}
     </g>

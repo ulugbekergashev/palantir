@@ -12,7 +12,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Resvg } from '@resvg/resvg-js';
 import opentype from 'opentype.js';
-import type { Clinic, ContentItem, Lang } from '../src/types';
+import type { Business, ContentItem, Lang } from '../src/types';
 import { Artboard, heightOf } from '../src/templates/Artboard';
 import { setTextMeasurer } from '../src/lib/text';
 
@@ -44,13 +44,13 @@ function init(): void {
   });
 }
 
-export function renderSvg(item: ContentItem, lang: Lang, clinic: Clinic): string {
+export function renderSvg(item: ContentItem, lang: Lang, biz: Business): string {
   init();
-  return renderToStaticMarkup(createElement(Artboard, { item, lang, clinic }));
+  return renderToStaticMarkup(createElement(Artboard, { item, lang, biz }));
 }
 
-export function renderPng(item: ContentItem, lang: Lang, clinic: Clinic): Buffer {
-  const svg = renderSvg(item, lang, clinic);
+export function renderPng(item: ContentItem, lang: Lang, biz: Business): Buffer {
+  const svg = renderSvg(item, lang, biz);
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'width', value: 1080 },
     font: { loadSystemFonts: false, fontFiles, defaultFontFamily: 'Manrope', sansSerifFamily: 'Manrope' },

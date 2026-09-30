@@ -1,7 +1,7 @@
 import './tz';
 import { createBot } from './bot';
 import { closeDb } from './db';
-import { env } from './env';
+import { env, voiceEnabled } from './env';
 import { createApp } from './http';
 import { startScheduler } from './scheduler';
 
@@ -15,7 +15,8 @@ const app = createApp(bot);
 const server = app.listen(env.port, () => {
   console.log(`Cerebro server: http://localhost:${env.port}`);
   console.log(`  bot:  ${bot.enabled && bot.username() ? `@${bot.username()}` : "o'chiq (BOT_TOKEN yo'q)"}`);
-  console.log(`  AI:   ${env.aiEnabled ? env.aiModel : "o'chiq — matn tayyor bankdan (ANTHROPIC_API_KEY yo'q)"}`);
+  console.log(`  AI:   ${env.aiEnabled ? `${env.aiModel}${env.webSearch ? ' + internetdan qidirish' : ''}` : "o'chiq (ANTHROPIC_API_KEY yo'q)"}`);
+  console.log(`  ovoz: ${voiceEnabled() ? [env.geminiKey && 'Gemini', env.groqKey && 'Groq'].filter(Boolean).join(' → ') : "o'chiq (GEMINI_API_KEY / GROQ_API_KEY yo'q)"}`);
   console.log(`  baza: ${env.dbFile}`);
 });
 const stopScheduler = startScheduler(bot);

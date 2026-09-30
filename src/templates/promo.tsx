@@ -1,14 +1,14 @@
 import { alpha, deepen, mix, onColor } from '../lib/color';
 import { fit, textWidth, wrap } from '../lib/text';
-import { BrandMark, Check, ContactBar, Lines, Pill, Tooth, W, isStory, type TplProps } from './parts';
+import { BrandMark, Check, ContactBar, Lines, Pill, Mark, W, isStory, type TplProps } from './parts';
 
 /**
  * Aksiya / xizmat posti. Uslublar: 0 — brend rangidagi fon, 1 — och fon, 2 — gradient.
  * Joylashuv: yuqorida belgi, yorliq va (bo'lsa) "-20%" doirasi, katta sarlavha,
  * aksiya matni, 2 ta afzallik, pastda yozilish paneli.
  */
-export function PromoArt({ d, clinic, style, H, uid }: TplProps) {
-  const { primary, accent } = clinic.brand;
+export function PromoArt({ d, biz, style, H, uid }: TplProps) {
+  const { primary, accent } = biz.brand;
   const story = isStory(H);
   const light = style === 1;
   const pad = 80;
@@ -61,9 +61,9 @@ export function PromoArt({ d, clinic, style, H, uid }: TplProps) {
           <circle cx={-120} cy={H + 80} r={story ? 420 : 330} fill={alpha('#FFFFFF', 0.07)} />
         </>
       )}
-      <Tooth x={W - (story ? 470 : 380)} y={barY - (story ? 560 : 330)} size={story ? 520 : 400} fill={alpha(light ? primary : fg, 0.07)} />
+      <Mark x={W - (story ? 470 : 380)} y={barY - (story ? 560 : 330)} size={story ? 520 : 400} fill={alpha(light ? primary : fg, 0.07)} />
 
-      <BrandMark clinic={clinic} x={pad} y={story ? 140 : 72} size={story ? 100 : 84} uid={uid} nameFill={light ? '#0F172A' : fg} inverse={!light} />
+      <BrandMark biz={biz} x={pad} y={story ? 140 : 72} size={story ? 100 : 84} uid={uid} nameFill={light ? '#0F172A' : fg} inverse={!light} />
 
       <Pill x={pad} y={top} h={kickerH} text={d.kicker.toUpperCase()} size={story ? 32 : 26} padX={story ? 34 : 28}
         bg={light ? primary : alpha('#FFFFFF', 0.18)} fg={light ? onColor(primary) : fg} spacing={2} />
@@ -88,7 +88,7 @@ export function PromoArt({ d, clinic, style, H, uid }: TplProps) {
       {d.footnote && (
         <text x={pad} y={barY - (story ? 40 : 26)} fontSize={story ? 32 : 26} fontWeight={600} fill={alpha(light ? '#0F172A' : fg, 0.7)}>{d.footnote}</text>
       )}
-      <ContactBar clinic={clinic} d={d} y={barY} h={barH} bg={light ? primary : '#FFFFFF'} fg={light ? onColor(primary) : deepen(primary)} story={story} />
+      <ContactBar biz={biz} d={d} y={barY} h={barH} bg={light ? primary : '#FFFFFF'} fg={light ? onColor(primary) : deepen(primary)} story={story} />
     </g>
   );
 }

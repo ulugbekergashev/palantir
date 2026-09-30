@@ -1,11 +1,11 @@
 import { alpha, mix } from '../lib/color';
 import { hash, rng } from '../lib/rng';
 import { fit, wrap } from '../lib/text';
-import { BrandMark, Lines, Pill, Tooth, W, isStory, type TplProps } from './parts';
+import { BrandMark, Lines, Pill, Mark, W, isStory, type TplProps } from './parts';
 
 /** Bayram tabrigi: gradient fon, konfetti, markazda sarlavha. Sokin sanalarda — bezaksiz, to'q fon */
-export function HolidayArt({ d, clinic, style, H, uid, seed, solemn }: TplProps) {
-  const { primary, accent } = clinic.brand;
+export function HolidayArt({ d, biz, style, H, uid, seed, solemn }: TplProps) {
+  const { primary, accent } = biz.brand;
   const story = isStory(H);
   const pad = 80;
   const fg = '#FFFFFF';
@@ -48,7 +48,7 @@ export function HolidayArt({ d, clinic, style, H, uid, seed, solemn }: TplProps)
         </linearGradient>
       </defs>
       <rect width={W} height={H} fill={`url(#${bgId})`} />
-      <Tooth x={W / 2 - (story ? 380 : 300)} y={titleY - (story ? 420 : 330)} size={story ? 760 : 600} fill={alpha(fg, 0.06)} />
+      <Mark x={W / 2 - (story ? 380 : 300)} y={titleY - (story ? 420 : 330)} size={story ? 760 : 600} fill={alpha(fg, 0.06)} />
       {confetti.map((c, i) => c.round
         ? <circle key={i} cx={c.x} cy={c.y} r={c.s / 2} fill={c.c} opacity={0.85} />
         : <rect key={i} x={c.x} y={c.y} width={c.s} height={c.s * 0.45} rx={c.s * 0.2} fill={c.c} opacity={0.85} transform={`rotate(${c.rot} ${c.x} ${c.y})`} />)}
@@ -63,7 +63,7 @@ export function HolidayArt({ d, clinic, style, H, uid, seed, solemn }: TplProps)
       <Lines lines={title.lines} x={W / 2} y={titleY} size={title.size} lh={1.08} weight={800} fill={fg} anchor="middle" spacing={-1} />
       <Lines lines={lines} x={W / 2} y={linesY} size={lineSize} lh={1.35} weight={500} fill={alpha(fg, 0.9)} anchor="middle" />
 
-      <BrandMark clinic={clinic} x={W / 2} y={brandY} size={story ? 96 : 76} uid={uid} nameFill={fg} inverse anchor="middle" nameSize={story ? 40 : 32} />
+      <BrandMark biz={biz} x={W / 2} y={brandY} size={story ? 96 : 76} uid={uid} nameFill={fg} inverse anchor="middle" nameSize={story ? 40 : 32} />
     </g>
   );
 }

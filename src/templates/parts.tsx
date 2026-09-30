@@ -1,4 +1,4 @@
-import type { Clinic, Design, Doctor } from '../types';
+import type { Business, Design, Member } from '../types';
 import { initials, textWidth } from '../lib/text';
 import { alpha, onColor } from '../lib/color';
 
@@ -7,13 +7,13 @@ export const W = 1080;
 
 export interface TplProps {
   d: Design;
-  clinic: Clinic;
+  biz: Business;
   style: number;
   H: number;
   /** Shu rasm ichidagi gradient va kesish id'lari uchun (sahifada bir nechta nusxa bor) */
   uid: string;
   seed: number;
-  doctor?: Doctor;
+  member?: Member;
   solemn?: boolean;
 }
 
@@ -48,11 +48,11 @@ export function Pill({ x, y, h, text, size, bg, fg, anchor = 'start', padX, weig
   );
 }
 
-/** 100×100 o'lchamdagi tish belgisi */
-const TOOTH = 'M30 8C18 8 10 18 10 32c0 16 6 26 10 40 3 12 5 22 12 22s8-14 12-24c2-6 4-8 6-8s4 2 6 8c4 10 5 24 12 24s9-10 12-22c4-14 10-24 10-40 0-14-8-24-20-24-8 0-12 5-20 5S38 8 30 8z';
+/** 100×100 o'lchamdagi to'rt qirrali uchqun — brend bezagi (har qanday soha uchun) */
+const SPARK = 'M50 0C54 34 66 46 100 50C66 54 54 66 50 100C46 66 34 54 0 50C34 46 46 34 50 0Z';
 
-export function Tooth({ x, y, size, fill, stroke, strokeWidth = 0 }: { x: number; y: number; size: number; fill: string; stroke?: string; strokeWidth?: number }) {
-  return <path d={TOOTH} transform={`translate(${x} ${y}) scale(${size / 100})`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
+export function Mark({ x, y, size, fill, stroke, strokeWidth = 0 }: { x: number; y: number; size: number; fill: string; stroke?: string; strokeWidth?: number }) {
+  return <path d={SPARK} transform={`translate(${x} ${y}) scale(${size / 100})`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
 }
 
 /** Belgi (✓) doira ichida */
@@ -67,17 +67,17 @@ export function Check({ cx, cy, r, bg, fg }: { cx: number; cy: number; r: number
 }
 
 /**
- * Klinika belgisi: logo (yuklangan bo'lsa) yoki bosh harflar kvadrati, yonida nomi.
+ * Biznes belgisi: logo (yuklangan bo'lsa) yoki bosh harflar kvadrati, yonida nomi.
  * inverse — rangli fonda: kvadrat oq, harflar brend rangida.
  */
-export function BrandMark({ clinic, x, y, size, uid, nameFill, inverse = false, showName = true, nameSize, anchor = 'start' }: {
-  clinic: Clinic; x: number; y: number; size: number; uid: string; nameFill: string;
+export function BrandMark({ biz, x, y, size, uid, nameFill, inverse = false, showName = true, nameSize, anchor = 'start' }: {
+  biz: Business; x: number; y: number; size: number; uid: string; nameFill: string;
   inverse?: boolean; showName?: boolean; nameSize?: number; anchor?: 'start' | 'middle';
 }) {
-  const { primary, logo } = clinic.brand;
+  const { primary, logo } = biz.brand;
   const ns = nameSize ?? size * 0.4;
   const gap = size * 0.24;
-  const total = showName ? size + gap + textWidth(clinic.name, ns, 800) : size;
+  const total = showName ? size + gap + textWidth(biz.name, ns, 800) : size;
   const left = anchor === 'middle' ? x - total / 2 : x;
   const r = size * 0.28;
   const clip = `${uid}-logo`;
@@ -96,31 +96,35 @@ export function BrandMark({ clinic, x, y, size, uid, nameFill, inverse = false, 
         <>
           <rect x={left} y={y} width={size} height={size} rx={r} fill={box} />
           <text x={left + size / 2} y={y + size * 0.64} textAnchor="middle" fontSize={size * 0.42} fontWeight={800} fill={inverse ? primary : onColor(primary)}>
-            {initials(clinic.name)}
+            {initials(biz.name)}
           </text>
         </>
       )}
       {showName && (
-        <text x={left + size + gap} y={y + size / 2 + ns * 0.36} fontSize={ns} fontWeight={800} fill={nameFill}>{clinic.name}</text>
+        <text x={left + size + gap} y={y + size / 2 + ns * 0.36} fontSize={ns} fontWeight={800} fill={nameFill}>{biz.name}</text>
       )}
     </g>
   );
 }
 
-/** Pastdagi aloqa paneli: yozilish (bot) va telefon */
-export function ContactBar({ clinic, d, y, h, bg, fg, story }: { clinic: Clinic; d: Design; y: number; h: number; bg: string; fg: string; story: boolean }) {
+/** Pastdagi aloqa paneli: chaqiruv va aloqa (telefon, Instagram…). Aytadigan narsa bo'lmasa — chizilmaydi */
+export function ContactBar({ biz, d, y, h, bg, fg, story }: { biz: Business; d: Design; y: number; h: number; bg: string; fg: string; story: boolean }) {
   const pad = 80;
   const main = story ? 44 : 36;
   const sub = story ? 32 : 26;
   const inner = pad + (story ? 52 : 44);
+  const contacts = [biz.phone, biz.instagram, biz.website, biz.address].map(c => c?.trim()).filter((c): c is string => !!c);
+  const first = d.cta || contacts[0];
+  const second = contacts.find(c => c !== first);
+  if (!first) return null;
   return (
     <g>
       <rect x={pad} y={y} width={W - pad * 2} height={h} rx={h * 0.3} fill={bg} />
-      <text x={inner} y={y + h * 0.46} fontSize={main} fontWeight={800} fill={fg}>{d.cta || clinic.phone}</text>
-      <text x={inner} y={y + h * 0.46 + sub * 1.45} fontSize={sub} fontWeight={600} fill={alpha(fg, 0.72)}>
-        {clinic.phone}
-      </text>
-      <Tooth x={W - pad - h * 0.9} y={y + h * 0.2} size={h * 0.6} fill={alpha(fg, 0.16)} />
+      <text x={inner} y={second ? y + h * 0.46 : y + h / 2 + main * 0.36} fontSize={main} fontWeight={800} fill={fg}>{first}</text>
+      {second && (
+        <text x={inner} y={y + h * 0.46 + sub * 1.45} fontSize={sub} fontWeight={600} fill={alpha(fg, 0.72)}>{second}</text>
+      )}
+      <Mark x={W - pad - h * 0.9} y={y + h * 0.2} size={h * 0.6} fill={alpha(fg, 0.16)} />
     </g>
   );
 }
