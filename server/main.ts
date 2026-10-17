@@ -1,0 +1,77 @@
+/** Serverning o'zi: tiklash → port → bot va kanallar (fonda). index.ts qulf olingach yuklaydi */
+import type { Server } from 'node:http';
+import type { Express } from 'express';
+import { startBackups } from './backup';
+import { createBot } from './bot';
+import { env, voiceEnabled } from './env';
+import { createApp } from './http';
+import { ffmpegAvailable, stopCameraEngine } from './camera/stream';
+import { recoverMoney } from './crm/actions';
+import { closeDb, notices } from './db';
+import { recoverBookings } from './inbox/core';
+import { instagramAvailable, startInstagram, stopInstagram } from './inbox/instagram';
+import { startTelegramUser, stopTelegramUser, telegramUserAvailable } from './inbox/telegramUser';
+import { startScheduler } from './scheduler';
+
+/** Bot nomini shuncha kutamiz; Telegram javob bermasa — server baribir ko'tariladi, bot fonda ulanadi */
+const BOT_WAIT_MS = 3_000;
+/** To'xtashda kanallar (brauzer, Telegram seansi) yopilishini shuncha kutamiz */
+const CLOSE_WAIT_MS = 4_000;
+
+/** Portni ochadi. Band bo'lsa — chiqadi: "ishladi" deb yozib, hech narsa tinglamay qolmasin */
+function listen(app: Express): Promise<Server> {
+  return new Promise(resolve => {
+    const ready = (err?: Error) => {
+      if (!err) return resolve(server);
+      console.error(`[server] ${env.listenHost || '*'}:${env.port} ochilmadi:`, err.message);
+      process.exit(1);
+    };
+    const server: Server = env.listenHost ? app.listen(env.port, env.listenHost, ready) : app.listen(env.port, ready);
+  });
+}
+
+const bot = createBot();
+// Tiklash — bot xabar qabul qila boshlashidan OLDIN: aks holda kutib turgan «Tasdiqlash» bosilishi endigina boshlangan yozuvni «to'xtab qolgan» deb belgilab qo'yardi.
+// Tarmoqqa chiqilmaydi: egasiga aytiladigan gaplar bazadagi navbatga yoziladi va bot ulangach yuboriladi (internet kech kelsa ham yo'qolmaydi)
+for (const r of recoverMoney()) notices.add(r.businessId, `⚠️ <b>${r.title}</b>\n${r.note ?? ''}`);
+recoverBookings();
+// Port — tarmoqqa bog'liq ishlardan oldin: internet bo'lmasa ham panel ochiladi, port band bo'lsa bot navbatiga tegilmaydi
+const server = await listen(createApp(bot));
+await Promise.race([bot.start(), new Promise(r => setTimeout(r, BOT_WAIT_MS))]);
+startInstagram();
+startTelegramUser();
+const stopScheduler = startScheduler(bot);
+const stopBackups = startBackups();
+
+const open = !env.listenHost || env.listenHost === '0.0.0.0' || env.listenHost === '::';
+console.log(`Cerebro server: http://localhost:${env.port}${open ? ' (hamma tarmoq interfeyslari)' : ` (${env.listenHost})`}`);
+console.log(`  bot:  ${!bot.enabled ? "o'chiq (BOT_TOKEN yo'q)" : bot.username() ? `@${bot.username()}` : "ulanmoqda (Telegram hozircha javob bermadi — o'zi qayta urinadi)"}`);
+console.log(`  AI:   ${env.aiEnabled ? `${env.aiModel}${env.webSearch ? ' + internetdan qidirish' : ''}` : "o'chiq (ANTHROPIC_API_KEY yo'q)"}`);
+console.log(`  ovoz: ${voiceEnabled() ? [env.voicelabKey && 'VoiceLab', env.geminiKey && 'Gemini', env.groqKey && 'Groq'].filter(Boolean).join(' → ') : "o'chiq (VOICELAB_API_KEY / GEMINI_API_KEY / GROQ_API_KEY yo'q)"}`);
+console.log(`  shaxsiy Telegram: ${telegramUserAvailable() ? 'yoqilgan' : "o'chiq (TG_API_ID / TG_API_HASH yo'q)"}`);
+console.log(`  Instagram: ${instagramAvailable() ? 'yoqilgan (brauzer orqali)' : "o'chiq (Chrome yoki Edge topilmadi — IG_BROWSER)"}`);
+console.log(`  IP kameralar: ${ffmpegAvailable() ? 'yoqilgan (ffmpeg bor)' : "o'chiq (ffmpeg topilmadi — FFMPEG_PATH)"}`);
+console.log(`  baza: ${env.dbFile}`);
+
+let stopping = false;
+const shutdown = () => {
+  if (stopping) return;
+  stopping = true;
+  stopScheduler();
+  stopBackups();
+  bot.stop();
+  stopCameraEngine();
+  // Brauzer (Instagram) va Telegram seansi yopilishi kutiladi: chala yopilgan brauzer keyingi ishga tushishda profilni band qilib turardi
+  const closed = Promise.race([Promise.allSettled([stopTelegramUser(), stopInstagram()]), new Promise(r => setTimeout(r, CLOSE_WAIT_MS))]);
+  server.close(() => {
+    void closed.then(() => {
+      closeDb();
+      process.exit(0);
+    });
+  });
+  setTimeout(() => process.exit(0), CLOSE_WAIT_MS + 2_000).unref();
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+// Nazoratchi (scripts/supervise.mjs) tinch to'xtatishni shu yo'l bilan so'raydi: Windows'da jarayonga signal yuborib bo'lmaydi
+process.on('message', m => { if (m === 'stop') shutdown(); });

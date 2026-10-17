@@ -1,19 +1,32 @@
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import type { Artifact, InboxThread, LiveStatus } from '../src/types';
+import { iso } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
 import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword } from './auth';
 import type { BotService } from './bot';
-import { businesses, chatLog, documents, inbox, leads, notes, outbound, posts, publicLead, replies, tasks, type BusinessRow } from './db';
+import { costUsd } from './claude';
+import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
+import { facts as notes, refresh as refreshVault } from './brain/vault';
+import { syncTasks } from './brain/mirror';
+import { aiUsage, businesses, chatLog, documents, inbox, leads, moneyEntries, outbound, posts, publicLead, replies, tasks, type BusinessRow } from './db';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
 import { SilenceError, transcribe } from './stt';
+import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index';
+import { INTERVIEW_START, interviewReply, interviewStart, interviewing } from './brain/interview';
 import { approveReply, dismissReply, ownerWrites, replySettings } from './inbox/core';
-import { authorizeUrl, disconnectInstagram, handleCallback, handleWebhook, instagramAccount, instagramAvailable, verifySignature } from './inbox/instagram';
+import { cancelInstagramLogin, disconnectInstagram, instagramAvailable, instagramStatus, startInstagramLogin } from './inbox/instagram';
 import { disconnectTelegramUser, loginCode, loginPassword, loginStart, telegramUserAccount, telegramUserAvailable } from './inbox/telegramUser';
 import { AutoReplySchema, BusinessSchema, emptyBusiness } from './validate';
+import { crmStatus } from './crm/index';
+import { mountCrm } from './crm/routes';
+import { mountBrain } from './brain/routes';
+import { mountCamera } from './camera/routes';
+import { mountVoice } from './voice/routes';
 
 type Handler = (req: Request, res: Response) => unknown;
 
@@ -28,7 +41,8 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
     channel: biz.channelId ? { id: biz.channelId, title: biz.channelTitle } : null,
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
     telegramUser: { available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
-    instagram: { available: instagramAvailable(), account: instagramAccount(biz.id) },
+    instagram: { available: instagramAvailable(), ...instagramStatus(biz.id) },
+    crm: crmStatus(biz.id),
   };
 }
 
@@ -38,12 +52,15 @@ function current(bizId: string, a: Artifact): Artifact {
     case 'post': { const p = posts.get(bizId, a.post.id); return p ? { type: 'post', post: p } : a; }
     case 'outbound': { const o = outbound.get(bizId, a.outbound.id); return o ? { type: 'outbound', outbound: o } : a; }
     case 'task': { const t = tasks.get(bizId, a.task.id); return t ? { type: 'task', task: t } : a; }
+    case 'money': { const m = moneyEntries.get(bizId, a.entry.id); return m ? { type: 'money', entry: entryView(m) } : a; }
     default: return a;
   }
 }
 
 const localTime = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
 const TaskCreate = z.object({ title: z.string().trim().min(1).max(200), dueAt: localTime.nullable().optional(), notes: z.string().trim().max(1000).nullable().optional() });
+/** call: true — eslatma vaqtida qo'ng'iroq qilinsin (Telegram orqali AI yoki ovozli xabar); faqat yangi vazifada */
+const TaskNew = TaskCreate.extend({ call: z.boolean().optional() });
 const TaskPatch = TaskCreate.partial().extend({ status: z.enum(['open', 'done', 'cancelled']).optional() });
 const LeadCreate = z.object({
   name: z.string().trim().max(80).nullable().optional(),
@@ -54,11 +71,48 @@ const LeadCreate = z.object({
 const LeadPatch = LeadCreate.omit({ source: true }).extend({ stage: z.enum(['new', 'contacted', 'won', 'lost']).optional() });
 const orNull = (s: string | null | undefined) => (s === undefined ? undefined : s?.trim() ? s.trim() : null);
 
+/** So'rov tanasini o'qiydi (JSON bo'lmagan yuklama uchun). Chegaradan oshsa — null: ortig'i xotiraga olinmaydi, lekin javob yuborish uchun oxirigacha kutiladi */
+function readBody(req: Request, max: number): Promise<Buffer | null> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (chunk: Buffer) => { size += chunk.length; if (size <= max) chunks.push(chunk); });
+    req.on('end', () => resolve(size > max ? null : Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+/** Faqat shu kompyuter uchun ochilgan server (LISTEN_HOST): begona sayt brauzer orqali unga o'z nomi bilan murojaat qila olmasin */
+const LOOPBACK = /^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|::1|localhost)$/;
+/** Kabinet parolining eng qisqa uzunligi (kabinetda mijozlar, pul va CRM bor) */
+const MIN_PASSWORD = 8;
+/** Admin panelida AI xarajati necha kun uchun ko'rsatiladi */
+const USAGE_DAYS = 7;
+
+/** So'rov tanasining qolgani o'qib tashlanguncha kutadi (xotiraga olinmaydi). Juda uzoq davom etsa — kutilmaydi */
+const DRAIN_MS = 60_000;
+function drained(req: Request): Promise<void> {
+  if (req.readableEnded) return Promise.resolve();
+  return new Promise(done => {
+    const timer = setTimeout(done, DRAIN_MS);
+    const end = () => { clearTimeout(timer); done(); };
+    req.once('end', end).once('error', end).once('close', end);
+    req.resume();
+  });
+}
+
 export function createApp(bot: BotService) {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
-  app.use(express.json({ limit: '8mb', verify: (req, _res, buf) => { (req as Request & { rawBody?: Buffer }).rawBody = buf; } }));
+  if (env.trustProxy) app.set('trust proxy', 1);
+  if (LOOPBACK.test(env.listenHost)) {
+    app.use((req, res, next) => {
+      const host = (req.headers.host ?? '').replace(/:\d+$/, '').toLowerCase();
+      if (host === 'localhost' || LOOPBACK.test(host) || host === '[::1]') return next();
+      res.status(421).json({ error: "Bu manzil orqali ochib bo'lmaydi" });
+    });
+  }
+  app.use(express.json({ limit: '8mb' }));
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -97,27 +151,46 @@ export function createApp(bot: BotService) {
     res.json({ token: issueToken(biz.id, 'business') });
   });
 
-  app.get('/api/me', asBiz((_req, res, biz) => res.json({ business: biz.profile, status: status(biz, bot) })));
+  /** Xizmatlar ro'yxatining «nusxa raqami»: panel qaysi nusxani tahrirlayotganini bildiradi */
+  const offeringsRev = (list: BusinessRow['profile']['offerings']) => createHash('sha256').update(JSON.stringify(list)).digest('hex').slice(0, 16);
+
+  app.get('/api/me', asBiz((_req, res, biz) => res.json({ business: biz.profile, status: status(biz, bot), offeringsRev: offeringsRev(biz.profile.offerings) })));
 
   app.put('/api/business', asBiz((req, res, biz) => {
     const parsed = BusinessSchema.safeParse(req.body);
     if (!parsed.success) return bad(res, parsed.error);
-    businesses.update(biz.id, { profile: parsed.data });
+    // Xizmatlar shu orada boshqa joyda o'zgargan bo'lsa (ikkinchi miyadagi narxlar, yordamchi yozgani, boshqa oyna) — eski nusxa ustidan yozilmaydi
+    const rev = typeof req.body?.offeringsRev === 'string' ? req.body.offeringsRev : null;
+    if (rev && rev !== offeringsRev(biz.profile.offerings)) return res.status(409).json({ error: "Xizmatlar va narxlar boshqa joyda o'zgargan — sahifani yangilab, o'zgartirishni qayta kiriting" });
+    // replyStyle — eski maydon (uslub endi papkadagi Uslub.md da): profil sahifasi uni o'zgartirmaydi
+    const profile = { ...parsed.data, replyStyle: biz.profile.replyStyle };
+    businesses.update(biz.id, { profile });
+    // Papkadagi mundarija va narxlar nusxasi yangi profil bilan
+    refreshVault(biz.id);
     // Yordamchi yangi profilni bilsin — keyingi gapdan yangi suhbat
     resetConversation(biz.id);
-    res.json({ business: parsed.data });
+    res.json({ business: profile, offeringsRev: offeringsRev(profile.offerings) });
   }));
 
   // ─── Suhbat ────────────────────────────────────────────────────────────────
   app.get('/api/chat', asBiz((_req, res, biz) => {
-    res.json({ entries: chatLog.recent(biz.id, 100).map(e => ({ ...e, artifacts: e.artifacts.map(a => current(biz.id, a)) })) });
+    res.json({ entries: chatLog.recent(biz.id, 100).map(e => ({ ...e, artifacts: e.artifacts.map(a => current(biz.id, a)) })), interview: interviewing(biz) });
   }));
+
+  /** Birinchi kun suhbati ochiq bo'lsa (yoki egasi «savollar» desa) — gap javob deb olinadi va yordamchiga ketmaydi. Aks holda null */
+  const interviewTurn = (biz: BusinessRow, text: string, shown = text) => {
+    const turn = INTERVIEW_START.test(text) ? interviewStart(biz) : interviewReply(biz, text);
+    return turn ? { entries: [chatLog.add(biz.id, 'web', 'owner', shown), chatLog.add(biz.id, 'web', 'assistant', turn.text)], interview: turn.open } : null;
+  };
 
   app.post('/api/chat', asBiz(async (req, res, biz) => {
     const text = typeof req.body?.text === 'string' ? req.body.text.trim().slice(0, 4000) : '';
     if (!text) return res.status(400).json({ error: "Xabar bo'sh" });
-    const reply = await ask(biz.id, 'web', text);
-    res.json({ entries: reply.entries });
+    const answered = interviewTurn(biz, text);
+    if (answered) return res.json(answered);
+    // phone: true — gap jonli qo'ng'iroqdan (D:\tgvoice\call.py): javob qisqa va ovozga mos bo'lsin
+    const reply = await ask(biz.id, 'web', text, { phone: req.body?.phone === true });
+    res.json({ entries: reply.entries, interview: false });
   }));
 
   // Panel mikrofoni: brauzer WAV yuboradi → matn → yordamchi
@@ -132,8 +205,32 @@ export function createApp(bot: BotService) {
     } catch (e) {
       return res.status(e instanceof SilenceError ? 400 : 502).json({ error: e instanceof SilenceError ? 'Hech narsa eshitilmadi' : "Ovozni tanib bo'lmadi" });
     }
+    const answered = interviewTurn(biz, text.trim(), `🎙 ${text.trim()}`);
+    if (answered) return res.json(answered);
     const reply = await ask(biz.id, 'web', text, { voice: true });
-    res.json({ entries: reply.entries });
+    res.json({ entries: reply.entries, interview: false });
+  }));
+
+  // Panel: egasi suhbatga fayl tashladi → o'qiladi, bilimga taklif bo'lib tushadi (model ishtirokisiz).
+  // Fayl tanasi kirish tekshirilgandan KEYIN o'qiladi: begona so'rov serverga megabaytlab ma'lumot yuklatib qo'ymasin
+  app.post('/api/chat/file', asBiz(async (req, res, biz) => {
+    const name = typeof req.query.name === 'string' ? req.query.name.trim().slice(0, 200) : '';
+    if (!name) return res.status(400).json({ error: 'Fayl nomi kerak' });
+    // Tana JSON deb yuborilsa, uni umumiy JSON o'quvchi allaqachon o'qib bo'lgan — bu yerda kutib qolinmaydi
+    if (req.readableEnded || req.is('application/json')) return res.status(400).json({ error: 'Fayl «application/octet-stream» ko\'rinishida yuborilishi kerak' });
+    // Ortiqcha tana xotiraga olinmaydi, lekin oxirigacha o'qib tashlanadi: ulanish uzib qo'yilsa, brauzer sababni emas, «aloqa yo'q»ni ko'radi
+    // Javob tana oxirigacha kelgandan KEYIN yuboriladi: yuklash hali ketayotganda javob berib ulanish yopilsa, brauzer 413 ni emas, uzilishni ko'radi
+    const tooBig = async () => { await drained(req); res.set('connection', 'close'); return res.status(413).json({ error: `Fayl ${MAX_FILE_BYTES / 1024 / 1024} MB dan katta — kichikroq qilib yuboring.` }); };
+    if (Number(req.get('content-length') ?? 0) > MAX_FILE_BYTES) return tooBig();
+    const bytes = await readBody(req, MAX_FILE_BYTES);
+    if (!bytes) return tooBig();
+    try {
+      const taken = await takeFile(biz, name, bytes);
+      res.json({ entries: [chatLog.add(biz.id, 'web', 'owner', `📎 ${taken.label}`), chatLog.add(biz.id, 'web', 'assistant', intakeText(taken))], suggestion: taken.suggestion.id });
+    } catch (e) {
+      if (e instanceof FileError) return res.status(400).json({ error: e.message });
+      fail(res, e);
+    }
   }));
 
   app.post('/api/chat/reset', asBiz((_req, res, biz) => {
@@ -142,22 +239,29 @@ export function createApp(bot: BotService) {
   }));
 
   // ─── Vazifalar ─────────────────────────────────────────────────────────────
+  // Obsidian'dagi Vazifalar.md bilan: avval egasining o'zgartirishlari olinadi, o'zgarishdan keyin fayl yangilanadi
   app.get('/api/tasks', asBiz((req, res, biz) => {
+    syncTasks(biz.id);
     const s = String(req.query.status ?? 'all');
     res.json({ tasks: tasks.list(biz.id, s === 'open' || s === 'done' ? s : 'all', 500) });
   }));
 
   app.post('/api/tasks', asBiz((req, res, biz) => {
-    const p = TaskCreate.safeParse(req.body);
+    const p = TaskNew.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
-    res.json({ task: tasks.create(biz.id, p.data.title, p.data.dueAt ?? null, orNull(p.data.notes) ?? null) });
+    syncTasks(biz.id);
+    const task = tasks.create(biz.id, p.data.title, p.data.dueAt ?? null, orNull(p.data.notes) ?? null, { spoken: !!p.data.call && !!p.data.dueAt });
+    syncTasks(biz.id);
+    res.json({ task });
   }));
 
   app.patch('/api/tasks/:id', asBiz((req, res, biz) => {
     const p = TaskPatch.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
+    syncTasks(biz.id);
     const t = tasks.update(biz.id, String(req.params.id), { ...p.data, notes: orNull(p.data.notes) });
     if (!t) return res.status(404).json({ error: 'Topilmadi' });
+    syncTasks(biz.id);
     res.json({ task: t });
   }));
 
@@ -179,6 +283,24 @@ export function createApp(bot: BotService) {
     const l = leads.update(biz.id, String(req.params.id), { stage: p.data.stage, note: orNull(p.data.note), phone: orNull(p.data.phone), name: orNull(p.data.name) });
     if (!l) return res.status(404).json({ error: 'Topilmadi' });
     res.json({ lead: publicLead(l) });
+  }));
+
+  // Pul yozuvi (DentaCRM): tasdiqlash, bekor qilish, shu kuni ortga qaytarish
+  app.post('/api/crm/money/:id/:verb', asBiz(async (req, res, biz) => {
+    const id = String(req.params.id);
+    const verb = String(req.params.verb);
+    try {
+      if (verb === 'confirm') await confirmEntry(biz, id);
+      else if (verb === 'cancel') cancelEntry(biz, id);
+      else if (verb === 'undo') await undoEntry(biz, id);
+      else return void res.status(404).json({ error: 'Topilmadi' });
+      res.json({ entry: entryView(moneyEntries.get(biz.id, id)!) });
+    } catch (e) {
+      const row = moneyEntries.get(biz.id, id);
+      res.status(409).json({ error: (e as Error).message, entry: row ? entryView(row) : null });
+    } finally {
+      void bot.refreshMoney(biz.id, id);
+    }
   }));
 
   app.get('/api/followups', asBiz((_req, res, biz) => { res.json({ followups: outbound.list(biz.id, 100) }); }));
@@ -213,12 +335,10 @@ export function createApp(bot: BotService) {
   // ─── Postlar ───────────────────────────────────────────────────────────────
   app.get('/api/posts', asBiz((_req, res, biz) => { res.json({ posts: posts.list(biz.id) }); }));
 
-  app.post('/api/posts/:id/publish', asBiz(async (req, res, biz) => {
-    try {
-      await bot.publishPost(biz, String(req.params.id));
-      res.json({ post: posts.get(biz.id, String(req.params.id)) });
-    } catch (e) { fail(res, e); }
-  }));
+  // Post yasash olib tashlangan: eski qoralamani ko'rish va o'chirish qoldi, joylash va kanal ulash yopiq.
+  // (Kanal ulashda faqat bot admin ekani tekshirilardi — boshqa biznes begona kanalga eski postini joylashi mumkin edi.)
+  const RETIRED = 'Post joylash va kanal ulash olib tashlangan';
+  app.post('/api/posts/:id/publish', asBiz((_req, res) => { res.status(410).json({ error: RETIRED }); }));
 
   app.delete('/api/posts/:id', asBiz((req, res, biz) => {
     const p = posts.get(biz.id, String(req.params.id));
@@ -246,15 +366,7 @@ export function createApp(bot: BotService) {
   }));
 
   // ─── Telegram kanal ────────────────────────────────────────────────────────
-  app.post('/api/channel', asBiz(async (req, res, biz) => {
-    const ref = typeof req.body?.channel === 'string' ? req.body.channel.slice(0, 100) : '';
-    if (!ref.trim()) return res.status(400).json({ error: 'Kanal manzilini kiriting' });
-    try {
-      const ch = await bot.verifyChannel(ref);
-      businesses.update(biz.id, { channelId: ch.id, channelTitle: ch.title });
-      res.json({ status: status(businesses.byId(biz.id)!, bot) });
-    } catch (e) { fail(res, e, 400); }
-  }));
+  app.post('/api/channel', asBiz((_req, res) => { res.status(410).json({ error: RETIRED }); }));
 
   app.delete('/api/channel', asBiz((_req, res, biz) => {
     businesses.update(biz.id, { channelId: null, channelTitle: null });
@@ -277,38 +389,23 @@ export function createApp(bot: BotService) {
     res.json({ status: status(businesses.byId(biz.id)!, bot) });
   }));
 
-  // ─── Instagram ─────────────────────────────────────────────────────────────
-  app.get('/api/instagram/connect', asBiz((_req, res, biz) => {
-    try { res.json({ url: authorizeUrl(biz) }); } catch (e) { fail(res, e, 400); }
+  // ─── Instagram: shu kompyuterda oyna ochiladi, egasi o'zi kiradi ───────────
+  app.post('/api/instagram/login', asBiz((_req, res, biz) => {
+    try { startInstagramLogin(biz); res.json({ status: status(biz, bot) }); } catch (e) { fail(res, e, 400); }
   }));
-  // Instagram shu yerga qaytaradi (brauzer orqali, tokensiz — "state" imzolangan)
-  app.get('/api/instagram/callback', async (req, res) => {
-    const back = (q: string) => res.redirect(`${env.publicUrl || ''}/#/telegram?${q}`);
-    if (req.query.error || typeof req.query.code !== 'string' || typeof req.query.state !== 'string') return back('ig=cancel');
-    try {
-      await handleCallback(req.query.code, req.query.state);
-      back('ig=ok');
-    } catch (e) {
-      console.error('[instagram] ulanmadi:', (e as Error).message);
-      back(`ig=error&why=${encodeURIComponent((e as Error).message.slice(0, 200))}`);
-    }
-  });
-  app.delete('/api/instagram', asBiz((_req, res, biz) => {
-    disconnectInstagram(biz);
+  app.post('/api/instagram/cancel', asBiz((_req, res, biz) => {
+    cancelInstagramLogin(biz);
+    res.json({ ok: true });
+  }));
+  app.delete('/api/instagram', asBiz(async (_req, res, biz) => {
+    await disconnectInstagram(biz);
     res.json({ status: status(businesses.byId(biz.id)!, bot) });
   }));
-  app.get('/api/instagram/webhook', (req, res) => {
-    if (req.query['hub.mode'] === 'subscribe' && env.igVerifyToken && req.query['hub.verify_token'] === env.igVerifyToken) {
-      return res.type('text/plain').send(String(req.query['hub.challenge'] ?? ''));
-    }
-    res.sendStatus(403);
-  });
-  app.post('/api/instagram/webhook', (req, res) => {
-    if (!verifySignature((req as Request & { rawBody?: Buffer }).rawBody, req.get('x-hub-signature-256'))) return res.sendStatus(403);
-    // Meta tez javob kutadi — ish fonda
-    res.sendStatus(200);
-    handleWebhook(req.body).catch(e => console.error('[instagram] webhook:', (e as Error).message));
-  });
+
+  mountCrm(app, { asBiz, bad, fail, statusOf: bizId => status(businesses.byId(bizId)!, bot) });
+  mountCamera(app, { asBiz, bad });
+  mountVoice(app, { asBiz, bad });
+  mountBrain(app, { asBiz, bad, fail });
 
   // ─── Mijozlarga javob: rejim va yozishmalar ────────────────────────────────
   app.put('/api/business/auto-reply', asBiz((req, res, biz) => {
@@ -319,13 +416,20 @@ export function createApp(bot: BotService) {
     res.json({ business: profile });
   }));
 
+  /** Bir so'rovda ko'rsatiladigan yozishmalar (va alohida — yozishmasiz mijozlar) chegarasi */
+  const INBOX_LIMIT = 200;
   app.get('/api/inbox', asBiz((_req, res, biz) => {
-    const threads: InboxThread[] = [];
-    for (const id of inbox.threads(biz.id, 200)) {
+    // Yozishmasi borlar to'liq olinadi: ro'yxatga sig'magan eski suhbat «yozishmasi yo'q» bo'lib ko'rinmasin (kutayotgan javobi yashirinib qoladi)
+    const everyone = inbox.threads(biz.id, 100_000);
+    const active = everyone.slice(0, INBOX_LIMIT);
+    const talking: InboxThread[] = active.flatMap(id => {
       const lead = leads.get(biz.id, id);
-      if (lead) threads.push({ lead: publicLead(lead), last: inbox.last(biz.id, id) ?? null, pending: replies.countPending(biz.id, id) });
-    }
-    res.json({ threads, settings: replySettings(biz) });
+      return lead ? [{ lead: publicLead(lead), last: inbox.last(biz.id, id) ?? null, pending: replies.countPending(biz.id, id) }] : [];
+    });
+    // «Mijozlar» bitta ro'yxat: yozishmasi yo'q mijozlar ham (qo'lda qo'shilgan, hali yozmagan) shu yerda, yozishganlardan keyin
+    const seen = new Set(everyone);
+    const silent: InboxThread[] = leads.list(biz.id, 'all', undefined, 1000).filter(l => !seen.has(l.id)).slice(0, INBOX_LIMIT).map(l => ({ lead: publicLead(l), last: null, pending: 0 }));
+    res.json({ threads: [...talking, ...silent], settings: replySettings(biz) });
   }));
 
   app.get('/api/inbox/:leadId', asBiz((req, res, biz) => {
@@ -340,7 +444,8 @@ export function createApp(bot: BotService) {
     const t = text(req.body?.text, 4000);
     if (!t) return res.status(400).json({ error: "Xabar bo'sh" });
     try {
-      await ownerWrites(biz, lead, t);
+      // replyId — egasi shu tayyor javobni «Tahrirlab yozish» orqali o'zgartirib yubordi
+      await ownerWrites(biz, lead, t, typeof req.body?.replyId === 'string' ? req.body.replyId.slice(0, 40) : undefined);
       res.json({ messages: inbox.thread(biz.id, lead.id, 100), replies: replies.open(biz.id, lead.id) });
     } catch (e) { fail(res, e); }
   }));
@@ -378,7 +483,7 @@ export function createApp(bot: BotService) {
     const cleanLogin = typeof login === 'string' ? login.trim().toLowerCase() : '';
     if (typeof name !== 'string' || !name.trim() || name.length > 60) return res.status(400).json({ error: 'Biznes nomini kiriting' });
     if (!/^[a-z0-9._-]{3,32}$/.test(cleanLogin)) return res.status(400).json({ error: 'Login: 3–32 ta lotin harfi yoki raqam' });
-    if (typeof password !== 'string' || password.length < 6) return res.status(400).json({ error: 'Parol kamida 6 belgi' });
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD) return res.status(400).json({ error: `Parol kamida ${MIN_PASSWORD} belgi` });
     if (businesses.byLogin(cleanLogin)) return res.status(409).json({ error: 'Bu login band' });
     const b = businesses.create(cleanLogin, hashPassword(password), emptyBusiness(name.trim(), typeof industry === 'string' ? industry.trim().slice(0, 80) : ''));
     res.json({ id: b.id });
@@ -389,11 +494,23 @@ export function createApp(bot: BotService) {
     if (!biz) return res.status(404).json({ error: 'Topilmadi' });
     const { active, password } = req.body ?? {};
     if (typeof password === 'string') {
-      if (password.length < 6) return res.status(400).json({ error: 'Parol kamida 6 belgi' });
+      if (password.length < MIN_PASSWORD) return res.status(400).json({ error: `Parol kamida ${MIN_PASSWORD} belgi` });
       businesses.update(biz.id, { passwordHash: hashPassword(password) });
     }
     if (typeof active === 'boolean') businesses.update(biz.id, { active });
     res.json({ ok: true });
+  }));
+
+  /** AI xarajati: oxirgi kunlar, biznes va kun bo'yicha (so'rovlar soni, tokenlar, taxminiy dollar) */
+  app.get('/api/admin/usage', asAdmin((_req, res) => {
+    const names = new Map(businesses.all().map(b => [b.id, b.profile.name]));
+    const days = new Map<string, { day: string; businessId: string; business: string; calls: number; input: number; output: number; cacheRead: number; cacheWrite: number }>();
+    for (const r of aiUsage.since(iso(new Date(Date.now() - (USAGE_DAYS - 1) * 86_400_000)))) {
+      const key = `${r.day}|${r.businessId}`;
+      const d = days.get(key) ?? { day: r.day, businessId: r.businessId, business: names.get(r.businessId) ?? r.businessId, calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+      days.set(key, { ...d, calls: d.calls + r.calls, input: d.input + r.input, output: d.output + r.output, cacheRead: d.cacheRead + r.cacheRead, cacheWrite: d.cacheWrite + r.cacheWrite });
+    }
+    res.json({ model: env.aiModel, usage: [...days.values()].map(d => ({ ...d, usd: Math.round(costUsd(d) * 100) / 100 })) });
   }));
 
   app.use('/api', (_req, res) => { res.status(404).json({ error: 'Topilmadi' }); });
@@ -405,7 +522,11 @@ export function createApp(bot: BotService) {
     app.get(/.*/, (_req, res) => { res.sendFile(resolve(dist, 'index.html')); });
   }
 
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error & { status?: number; type?: string }, _req: Request, res: Response, _next: NextFunction) => {
+    // Buzuq yoki juda katta so'rov tanasi: xato obyekti ichida tana (parollar bilan) bo'ladi — u logga yozilmaydi
+    if (err.type?.startsWith('entity.') || (err.status && err.status >= 400 && err.status < 500)) {
+      return res.status(err.status ?? 400).json({ error: "So'rov noto'g'ri" });
+    }
     console.error('[http]', err);
     res.status(500).json({ error: 'Serverda xato' });
   });

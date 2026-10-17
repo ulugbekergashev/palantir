@@ -3,101 +3,81 @@
  * Har bir asbob kirishini zod bilan tekshiradi (xato bo'lsa — Claude'ga sababi
  * qaytadi va u tuzatadi) va faqat shu biznesning ma'lumotiga tegadi.
  *
- * Tashqariga chiqadigan narsa (kanalga post, mijozlarga xabar) bu yerda faqat
- * QORALAMA bo'ladi — egasi tugmani bosgandagina yuboriladi.
+ * Tashqariga chiqadigan narsa (mijozlarga xabar) bu yerda faqat
+ * QORALAMA bo'ladi — egasi tugmani bosgandagina yuboriladi. Bitta istisno: klinikaning
+ * o'z CRM'iga qabul yozish (crm/tools.ts) — egasining aniq buyrug'i bilan darhol bajariladi.
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import type { Artifact, ContentItem, Design, LeadStage, Task, TemplateId } from '../src/types';
+import type { LeadStage, Task } from '../src/types';
 import { check, isMedical } from '../src/lib/compliance';
 import { upcomingOccasions } from '../src/lib/occasions';
 import { iso, stamp } from '../src/lib/week';
-import { documents, inbox, leads, newId, notes, outbound, posts, replies, tasks, type BusinessRow } from './db';
+import { MAX_OFFERINGS, mergeOfferings } from '../src/lib/prices';
+import { filterOptions } from './brain/index';
+import { LIMITS as BRAIN_LIMITS, PAGE_CHARS, sameQuestion } from './brain/logic';
+import { facts as notes, mirrorDocument, refresh as refreshVault, vault as knowledge } from './brain/vault';
+import { businesses, documents, inbox, leads, newId, outbound, replies, tasks } from './db';
+import { callsEnabled } from './calls';
+import { speechEnabled } from './tts';
+import { tgCallEnabled } from './tgcall';
+import { crmConnected } from './crm/index';
+import { normPhone } from './crm/logic';
+import { CRM_DEFS } from './crm/tools';
+import { ToolError, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
 
-export interface ToolCtx {
-  biz: BusinessRow;
-  /** Javob bilan birga egasiga ko'rsatiladigan narsalar (hujjat, post, xabar qoralamasi…) */
-  artifacts: Artifact[];
-}
-
-interface ToolDef<S extends z.ZodType> {
-  description: string;
-  input: S;
-  run: (input: z.infer<S>, ctx: ToolCtx) => unknown;
-}
-
-/** Xato: Claude'ga is_error bilan qaytadi */
-class ToolError extends Error {}
+export type { ToolCtx } from './toolkit';
 
 const localTime = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'YYYY-MM-DDTHH:MM');
 const short = (max: number) => z.string().trim().min(1).max(max);
+/** Yordamchi ocha oladigan sahifalar chegarasi (egasi papkada qo'lda ko'proq ochishi mumkin) */
+const MAX_PAGES = 50;
 const opt = (max: number) => z.string().trim().max(max).nullable().optional();
 const clean = (s: string | null | undefined) => (s?.trim() ? s.trim() : null);
 
-const taskView = (t: Task) => ({ id: t.id, title: t.title, due_at: t.dueAt, status: t.status, notes: t.notes });
+const taskView = (t: Task) => ({ id: t.id, title: t.title, due_at: t.dueAt, status: t.status, notes: t.notes, ...(t.callTo ? { phone_call: true } : t.spoken ? { voice_message: true } : {}) });
 const leadView = (l: ReturnType<typeof leads.list>[number]) => ({
   id: l.id, name: l.name, phone: l.phone, username: l.username, stage: l.stage, note: l.note, source: l.source,
   channel: l.channel, reachable: l.reachable, created: l.createdAt.slice(0, 10),
 });
 
-// ─── Post shablonlari: qaysi maydon qancha sig'adi ────────────────────────────
-
-interface Limits { title: number; lines: [min: number, max: number, len: number]; first?: number; badge?: number; cta?: number }
-const LIMITS: Record<TemplateId, Limits> = {
-  promo: { title: 40, badge: 8, first: 110, lines: [1, 3, 42], cta: 40 },
-  tip: { title: 70, lines: [3, 3, 60], cta: 90 },
-  team: { title: 40, lines: [1, 3, 140], cta: 40 },
-  holiday: { title: 50, lines: [1, 2, 70] },
-  list: { title: 22, lines: [2, 5, 44], cta: 36 },
-  poll: { title: 70, lines: [2, 2, 20], cta: 50 },
-};
-
-function checkDesign(template: TemplateId, d: Design): string[] {
-  const lim = LIMITS[template];
-  const errors: string[] = [];
-  if (d.title.length > lim.title) errors.push(`title ${d.title.length} belgi (ko'pi bilan ${lim.title})`);
-  if (d.kicker.length > 22) errors.push(`kicker ${d.kicker.length} belgi (ko'pi bilan 22)`);
-  if (d.lines.length < lim.lines[0] || d.lines.length > lim.lines[1]) errors.push(`lines: ${lim.lines[0]}–${lim.lines[1]} ta kerak, ${d.lines.length} ta berildi`);
-  d.lines.forEach((l, i) => {
-    const max = i === 0 && lim.first ? lim.first : lim.lines[2];
-    if (l.length > max) errors.push(`lines[${i}] ${l.length} belgi (ko'pi bilan ${max})`);
-  });
-  if (template === 'list') {
-    d.lines.forEach((l, i) => {
-      const [left = '', right = ''] = l.split('|');
-      if (!l.includes('|') || !left.trim() || !right.trim()) errors.push(`lines[${i}] "chap|o'ng" ko'rinishida bo'lsin`);
-      else if (left.trim().length > 26 || right.trim().length > 14) errors.push(`lines[${i}]: chapi ≤26, o'ngi ≤14 belgi`);
-    });
-  }
-  if (d.badge && lim.badge && d.badge.length > lim.badge) errors.push(`badge ${d.badge.length} belgi (ko'pi bilan ${lim.badge})`);
-  if (d.badge && !lim.badge) errors.push(`${template} shablonida badge yo'q`);
-  if (d.cta && d.cta.length > (lim.cta ?? 40)) errors.push(`cta ${d.cta.length} belgi (ko'pi bilan ${lim.cta ?? 40})`);
-  if (d.footnote && d.footnote.length > 80) errors.push(`footnote ${d.footnote.length} belgi (ko'pi bilan 80)`);
-  return errors;
-}
-
-/** Reklama filtri: topilsa — Claude qayta yozadi */
+/** Reklama filtri (mijozlarga javobdagi bilan bir xil sozlama): topilsa — Claude qayta yozadi */
 function complianceErrors(ctx: ToolCtx, texts: string[]): string[] {
-  const medical = isMedical(ctx.biz.profile.industry);
-  return check(texts.join('\n'), { medical }).map(i => `«${i.phrase}» — ${i.why}; ${i.hint}`);
+  return check(texts.join('\n'), filterOptions(ctx.biz)).map(i => `«${i.phrase}» — ${i.why}; ${i.hint}`);
 }
 
 // ─── Asboblar ─────────────────────────────────────────────────────────────────
 
-const def = <S extends z.ZodType>(d: ToolDef<S>) => d;
-
 const DEFS = {
   create_task: def({
-    description: 'Create a task or reminder for the owner. When the owner gives a time, set due_at (local time) and Cerebro sends a Telegram reminder at that moment with Done/Snooze buttons. A date without a time means 09:00. Leave due_at out for tasks with no deadline.',
+    description: 'Create a task or reminder for the owner. When the owner gives a time, set due_at (local time) and Cerebro sends a Telegram reminder at that moment with Done/Snooze buttons. A date without a time means 09:00. Leave due_at out for tasks with no deadline. If the owner asks to be phoned ("qo\'ng\'iroq qilib eslat", "telefon qil", "позвони"), set call: true — at due_at an AI voice agent calls the owner and says the reminder in Uzbek, and the Telegram reminder comes as well. For "call me 30 minutes before the meeting", due_at is the meeting time minus 30 minutes.',
     input: z.object({
-      title: short(200).describe('What to do, short and clear, in the owner\'s language'),
+      title: short(200).describe('What to do, short and clear, in the owner\'s language. With call: true this is what the voice agent says, so write it as a full phrase'),
       due_at: localTime.nullable().optional().describe('Local time YYYY-MM-DDTHH:MM'),
       notes: opt(1000),
+      call: z.boolean().optional().describe('true only when the owner explicitly asked to be phoned for this reminder or to hear it by voice'),
+      phone: short(30).optional().describe("The owner's own phone number for the call, only if the owner said it in this conversation"),
     }),
     run: (i, ctx) => {
-      const t = tasks.create(ctx.biz.id, i.title, i.due_at ?? null, clean(i.notes));
+      if (i.call && !i.due_at) throw new ToolError("Qo'ng'iroq uchun vaqt kerak — egasidan qachon qo'ng'iroq qilishni so'ra");
+      let callTo: string | null = null, callNote: string | undefined;
+      if (i.call && !callsEnabled() && tgCallEnabled()) {
+        callNote = "At due_at Cerebro calls the owner through Telegram (an AI voice in Uzbek): it says the reminder and can mark it done or move it. The Telegram reminder comes as well. No phone number is needed.";
+      } else if (i.call && !callsEnabled()) {
+        callNote = speechEnabled()
+          ? "Phone calls are not set up yet (no phone line). Instead, at due_at Cerebro sends the owner a spoken voice message in Uzbek in Telegram. Tell the owner exactly that — do not promise a phone call."
+          : "Phone calls are not set up on this server. The reminder will come only as a Telegram message — tell the owner this plainly, do not promise a call.";
+      } else if (i.call) {
+        const said = i.phone ? normPhone(i.phone) : '';
+        if (i.phone && !said) throw new ToolError("Telefon raqami noto'g'ri — egasidan to'liq raqamni so'ra (+998 90 123 45 67)");
+        callTo = said || ctx.biz.ownerPhone;
+        if (!callTo) throw new ToolError("Egasining telefon raqami hali ma'lum emas — qaysi raqamga qo'ng'iroq qilishni so'ra, keyin call: true va phone bilan qayta chaqir");
+        // Egasi aytgan raqam eslab qolinadi: keyingi safar qayta so'ralmaydi
+        if (said && said !== ctx.biz.ownerPhone) businesses.update(ctx.biz.id, { ownerPhone: said });
+      }
+      const t = tasks.create(ctx.biz.id, i.title, i.due_at ?? null, clean(i.notes), { callTo, spoken: !!i.call && (!!callTo || speechEnabled() || tgCallEnabled()) });
       ctx.artifacts.push({ type: 'task', task: t });
-      return { created: taskView(t) };
+      return { created: taskView(t), ...(callTo ? { phone_call_to: callTo } : {}), ...(callNote ? { note: callNote } : {}) };
     },
   }),
 
@@ -150,6 +130,7 @@ const DEFS = {
       query: z.string().trim().max(80).optional().describe('Search in name, phone, username, note'),
     }),
     run: (i, ctx) => {
+      ctx.readStrangers = true;
       const since = i.days ? new Date(Date.now() - i.days * 86_400_000).toISOString() : undefined;
       const q = i.query?.toLowerCase();
       const list = leads.list(ctx.biz.id, (i.stage ?? 'all') as LeadStage | 'all', since)
@@ -213,71 +194,19 @@ const DEFS = {
     }),
     run: (i, ctx) => {
       const d = documents.create(ctx.biz.id, i.title, i.kind, i.markdown);
+      // Nusxasi ikkinchi miya papkasiga ham tushadi (Hujjatlar/) — egasi Obsidian'da topadi
+      mirrorDocument(ctx.biz.id, d);
       ctx.artifacts.push({ type: 'document', doc: d });
       return { document_id: d.id, status: 'the .docx file is delivered to the owner with your reply' };
-    },
-  }),
-
-  make_post: def({
-    description: `Design a branded image post (or story) for Telegram/Instagram in the business's colors and logo, with a caption. It is a draft: the owner sees the picture with a "Publish to channel" button.
-Templates and fields (write every text in the post language, plain text, no emojis):
-- promo: an offer, product or service. kicker (short label, e.g. "Aksiya"), title (≤40), badge optional (≤8, e.g. "-20%", "Yangi"), lines: [main sentence ≤110, then 0–2 short benefits ≤42].
-- tip: useful advice for customers. title (≤70, a headline or question), lines: exactly 3 points (≤60 each), cta optional (≤90).
-- team: introduce a team member (member_id from the profile). title = the person's name, lines: [role, experience like "8 yillik tajriba" or "", a short intro ≤140].
-- holiday: greeting for a holiday. title (≤50), lines: 1–2 wishes (≤70). Set solemn for remembrance days.
-- list: a menu, price list or schedule, best as a story. title (≤22), lines: 2–5 rows "left|right" (left ≤26, right ≤14), cta (≤36).
-- poll: a story question. title (≤70), lines: exactly 2 answer options (≤20), cta (≤50).
-Use only facts from the profile or from the owner (prices, discounts, dates): never invent them.`,
-    input: z.object({
-      template: z.enum(['promo', 'tip', 'team', 'holiday', 'list', 'poll']),
-      kind: z.enum(['post', 'story']).optional().describe('post (square, default) or story (vertical)'),
-      style: z.number().int().min(0).max(2).optional().describe('0 brand-color background, 1 light, 2 gradient'),
-      lang: z.enum(['uz', 'ru']).optional().describe('Post language; default is the business content language'),
-      member_id: z.string().max(40).optional(),
-      solemn: z.boolean().optional(),
-      kicker: short(30),
-      title: short(120),
-      badge: z.string().trim().max(20).optional(),
-      lines: z.array(z.string().trim().max(200)).max(6),
-      cta: z.string().trim().max(120).optional(),
-      footnote: z.string().trim().max(120).optional(),
-      caption: short(1500).describe('Text under the picture: 2–5 short sentences, may end with a call to action'),
-    }),
-    run: (i, ctx) => {
-      const biz = ctx.biz.profile;
-      if (i.template === 'team') {
-        const m = biz.team.find(t => t.id === i.member_id);
-        if (!m) throw new ToolError(biz.team.length ? `member_id kerak: ${biz.team.map(t => `${t.id} (${t.name})`).join(', ')}` : "Profilda jamoa a'zosi yo'q — avval egasi qo'shsin");
-      }
-      const design: Design = {
-        kicker: i.kicker, title: i.title, lines: i.lines.filter(l => l.length > 0 || i.template === 'team'),
-        ...(i.badge ? { badge: i.badge } : {}), ...(i.cta ? { cta: i.cta } : {}), ...(i.footnote ? { footnote: i.footnote } : {}),
-      };
-      const errors = [...checkDesign(i.template, design), ...complianceErrors(ctx, [i.kicker, i.title, i.badge ?? '', ...i.lines, i.cta ?? '', i.footnote ?? '', i.caption])];
-      if (errors.length) throw new ToolError(`Post yaratilmadi, tuzating:\n${errors.join('\n')}`);
-      const item: ContentItem = {
-        id: newId(10),
-        kind: i.kind ?? (i.template === 'list' || i.template === 'poll' ? 'story' : 'post'),
-        template: i.template,
-        style: i.style ?? Math.floor(Math.random() * 3),
-        seed: Math.floor(Math.random() * 1e9),
-        ...(i.member_id ? { memberId: i.member_id } : {}),
-        ...(i.solemn ? { solemn: true } : {}),
-        // Post bitta tilda: ikkala kalitga ham shu matn (shablon qaysi tilni so'rasa ham bir xil)
-        design: { uz: design, ru: design },
-        caption: { uz: i.caption, ru: i.caption },
-      };
-      const p = posts.create(ctx.biz.id, item);
-      ctx.artifacts.push({ type: 'post', post: p });
-      return { post_id: p.id, status: 'draft — the picture is shown to the owner with a Publish button' };
     },
   }),
 
   recent_conversations: def({
     description: 'Customers who wrote recently (bot, the owner\'s Telegram, Instagram) with their last message and whether a reply is waiting for the owner\'s approval. Use for "who wrote today", "any unanswered messages", "what did customers ask".',
     input: z.object({ limit: z.number().int().min(1).max(50).optional() }),
-    run: (i, ctx) => ({
-      conversations: inbox.threads(ctx.biz.id, i.limit ?? 20).map(id => {
+    run: (i, ctx) => {
+      ctx.readStrangers = true;
+      return { conversations: inbox.threads(ctx.biz.id, i.limit ?? 20).map(id => {
         const l = leads.get(ctx.biz.id, id);
         const last = inbox.last(ctx.biz.id, id);
         return l && last ? {
@@ -285,8 +214,8 @@ Use only facts from the profile or from the owner (prices, discounts, dates): ne
           last: { from: last.direction === 'in' ? 'customer' : last.by, text: last.text.slice(0, 300), at: last.createdAt },
           reply_waiting_for_owner: replies.countPending(ctx.biz.id, id) > 0,
         } : null;
-      }).filter(Boolean),
-    }),
+      }).filter(Boolean) };
+    },
   }),
 
   read_conversation: def({
@@ -295,6 +224,7 @@ Use only facts from the profile or from the owner (prices, discounts, dates): ne
     run: (i, ctx) => {
       const l = leads.get(ctx.biz.id, i.lead_id);
       if (!l) throw new ToolError(`Mijoz topilmadi: ${i.lead_id}`);
+      ctx.readStrangers = true;
       return {
         customer: leadView(l),
         messages: inbox.thread(ctx.biz.id, l.id, 40).map(m => ({ from: m.direction === 'in' ? 'customer' : m.by, text: m.text, at: m.createdAt })),
@@ -305,7 +235,11 @@ Use only facts from the profile or from the owner (prices, discounts, dates): ne
   remember: def({
     description: 'Save a lasting fact about the business or the owner\'s preferences (e.g. "Yetkazib berish bepul 200 000 so\'mdan", "Hujjatlarda direktor: A. Karimov"). Use it when the owner says to remember something or states a stable fact worth keeping. Not for one-off tasks.',
     input: z.object({ fact: short(500) }),
-    run: (i, ctx) => ({ saved: notes.add(ctx.biz.id, i.fact) }),
+    run: (i, ctx) => {
+      // Saqlangan fakt har bir keyingi suhbatga kiradi — begona matn (rasmdagi yozuv, mijozning xabari) shu yo'l bilan doimiy ko'rsatmaga aylanmasin
+      assertOwnWords(ctx);
+      return { saved: notes.add(ctx.biz.id, i.fact) };
+    },
   }),
 
   forget: def({
@@ -314,6 +248,64 @@ Use only facts from the profile or from the owner (prices, discounts, dates): ne
     run: (i, ctx) => {
       if (!notes.remove(ctx.biz.id, i.note_id)) throw new ToolError(`Topilmadi: ${i.note_id}`);
       return { deleted: i.note_id };
+    },
+  }),
+
+  save_prices: def({
+    description: 'Save or update prices in the business profile, many at once: when the owner dictates prices or pastes a price list. Each item is the product or service name as the owner gave it and its price in so\'m (a whole number). A name that already exists gets the new price, others are added, nothing is deleted. Only prices the owner stated — never estimate. A free service is not a price: save it with remember. Unavailable in a turn that came with a photo: show the owner the list you read from the photo and save it after they confirm in a text message.',
+    input: z.object({ items: z.array(z.object({ name: short(80), price: z.number().int().min(1).max(100_000_000_000) })).min(1).max(MAX_OFFERINGS) }),
+    run: (i, ctx) => {
+      // Narxlar modelning tizim ko'rsatmasida turadi — begona matn shu yo'l bilan narxga aylanmasin
+      assertOwnWords(ctx);
+      // ctx.biz — suhbat boshidagi nusxa: profil shu orada panelda o'zgargan bo'lishi mumkin
+      const fresh = businesses.byId(ctx.biz.id) ?? ctx.biz;
+      const merged = mergeOfferings(fresh.profile.offerings, i.items, () => newId(8));
+      businesses.update(fresh.id, { profile: { ...fresh.profile, offerings: merged.offerings } });
+      refreshVault(fresh.id);
+      return { added: merged.added, updated: merged.updated, total: merged.offerings.length, limit: MAX_OFFERINGS };
+    },
+  }),
+
+  read_sample: def({
+    description: 'Read a document sample the owner saved (ids and titles are in <document_samples>). Before create_document for a document of the same kind, read the fitting sample and follow its structure and wording, filling in the current details.',
+    input: z.object({ sample_id: short(20) }),
+    run: (i, ctx) => {
+      const s = knowledge.get(ctx.biz.id, i.sample_id);
+      if (!s || s.kind !== 'sample') throw new ToolError(`Topilmadi: ${i.sample_id}`);
+      // Namuna — hujjat matni (fayldan kelgan bo'lishi mumkin): uni o'qigan navbatda bilimga yozish asboblari ishlamaydi
+      ctx.readStrangers = true;
+      return { title: s.question, text: s.answer };
+    },
+  }),
+
+  read_page: def({
+    description: 'Read one page of the second brain in full (ids and titles are in <business_pages>). Always read a page before changing it.',
+    input: z.object({ page_id: short(40) }),
+    run: (i, ctx) => {
+      const p = knowledge.get(ctx.biz.id, i.page_id);
+      // Tasdiq kutayotgan sahifa (fayldan kelgan taklif) hali bilim emas — o'qib berilmaydi
+      if (!p || p.kind !== 'page' || p.status !== 'active') throw new ToolError(`Topilmadi: ${i.page_id}`);
+      return { title: p.question, text: p.answer };
+    },
+  }),
+
+  write_page: def({
+    description: `Create a page in the second brain, or replace the text of an existing one (give page_id). For lasting knowledge that is longer than one fact: how the business works, a service in detail, staff rules, the address and hours ("Biznes haqida"). Write in the owner's language, plain Markdown, only what the owner told you or approved — customers are answered from these pages. At most ${PAGE_CHARS} characters per page: split longer material into several pages. To change a page: read_page, then send the complete new text with its page_id (a second page with the same title is refused).`,
+    input: z.object({ page_id: short(40).optional(), title: short(BRAIN_LIMITS.title), text: z.string().trim().min(1).max(PAGE_CHARS) }),
+    run: (i, ctx) => {
+      // Sahifa mijozlarga javobda ishlatiladi — begona matn shu yo'l bilan tasdiqlangan bilimga aylanmasin
+      assertOwnWords(ctx);
+      const pages = knowledge.list(ctx.biz.id, 'page').filter(p => p.status === 'active');
+      const old = i.page_id ? pages.find(p => p.id === i.page_id) : null;
+      if (i.page_id && !old) throw new ToolError(`Topilmadi: ${i.page_id}`);
+      // Bir xil nomli ikkinchi sahifa (masalan, ikkita «Biznes haqida») mijozlarga ikki xil manzil aytilishiga olib keladi
+      const twin = pages.find(p => p.id !== old?.id && sameQuestion(p.question, i.title));
+      if (twin) throw new ToolError(`«${twin.question}» sahifasi bor — yangisini ochmasdan o'shani o'zgartiring: page_id ${twin.id}`);
+      if (!old && pages.length >= MAX_PAGES) throw new ToolError(`Sahifalar ${MAX_PAGES} tadan oshmaydi — mavjudini to'ldiring yoki keraksizini egasi papkadan o'chirsin`);
+      const saved = old
+        ? knowledge.update(ctx.biz.id, old.id, { question: i.title, answer: i.text })
+        : knowledge.add(ctx.biz.id, { kind: 'page', question: i.title, answer: i.text, status: 'active', source: 'owner' });
+      return { saved: { page_id: saved?.id, title: saved?.question } };
     },
   }),
 
@@ -343,7 +335,6 @@ Use only facts from the profile or from the owner (prices, discounts, dates): ne
           by_stage: { new: count('new'), contacted: count('contacted'), won: count('won'), lost: count('lost') },
         },
         waiting_for_owner: {
-          post_drafts: posts.list(ctx.biz.id, 50).filter(p => p.status === 'draft').length,
           followup_drafts: outbound.list(ctx.biz.id, 50).filter(o => o.status === 'draft').length,
         },
         upcoming_holidays: upcomingOccasions(now, 14, isMedical(ctx.biz.profile.industry)).map(o => ({ date: o.date, title: o.title.uz, solemn: o.solemn })),
@@ -352,16 +343,18 @@ Use only facts from the profile or from the owner (prices, discounts, dates): ne
   }),
 };
 
-type ToolName = keyof typeof DEFS;
 
 const schemaOf = (s: z.ZodType) => {
   const { $schema: _, ...rest } = z.toJSONSchema(s) as Record<string, unknown>;
   return rest as Anthropic.Beta.BetaTool.InputSchema;
 };
 
-/** Claude'ga beriladigan asboblar ro'yxati (suhbat davomida o'zgarmaydi) */
-export function toolDefinitions(webSearch: boolean): Anthropic.Beta.BetaToolUnion[] {
-  const custom: Anthropic.Beta.BetaToolUnion[] = (Object.entries(DEFS) as [ToolName, ToolDef<z.ZodType>][]).map(([name, d]) => ({
+const isCrmTool = (name: string) => Object.hasOwn(CRM_DEFS, name);
+
+/** Claude'ga beriladigan asboblar ro'yxati (suhbat davomida o'zgarmaydi). crm — DentaCRM ulangan biznes uchun klinika asboblari bilan */
+export function toolDefinitions(webSearch: boolean, crm = false): Anthropic.Beta.BetaToolUnion[] {
+  const defs = Object.entries(crm ? { ...DEFS, ...CRM_DEFS } : DEFS) as [string, ToolDef<z.ZodType>][];
+  const custom: Anthropic.Beta.BetaToolUnion[] = defs.map(([name, d]) => ({
     name, description: d.description, input_schema: schemaOf(d.input),
   }));
   return webSearch ? [...custom, { type: 'web_search_20260209', name: 'web_search', max_uses: 3 }] : custom;
@@ -369,15 +362,18 @@ export function toolDefinitions(webSearch: boolean): Anthropic.Beta.BetaToolUnio
 
 export interface ToolOutcome { content: string; isError: boolean }
 
-export function runTool(name: string, input: unknown, ctx: ToolCtx): ToolOutcome {
-  const d = (DEFS as Record<string, ToolDef<z.ZodType>>)[name];
+export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promise<ToolOutcome> {
+  // Klinika asboblari faqat DentaCRM ulangan biznesda ishlaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin)
+  if (isCrmTool(name) && !crmConnected(ctx.biz.id)) return { content: "DentaCRM ulanmagan — egasi panel → Ulanishlar'da ulashi kerak", isError: true };
+  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...CRM_DEFS };
+  const d = Object.hasOwn(all, name) ? all[name] : undefined;
   if (!d) return { content: `Noma'lum asbob: ${name}`, isError: true };
   const parsed = d.input.safeParse(input);
   if (!parsed.success) {
     return { content: `Kirish noto'g'ri: ${parsed.error.issues.slice(0, 6).map(i => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')}`, isError: true };
   }
   try {
-    return { content: JSON.stringify(d.run(parsed.data, ctx)), isError: false };
+    return { content: JSON.stringify(await d.run(parsed.data, ctx)), isError: false };
   } catch (e) {
     if (e instanceof ToolError) return { content: e.message, isError: true };
     console.error(`[asbob] ${name}:`, e);

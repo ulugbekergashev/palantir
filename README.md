@@ -10,19 +10,37 @@ DentaCRM'dan alohida mahsulot.
 |---|---|
 | **Ovozli buyruq** | Telegram'da ovozli xabar yoki paneldagi mikrofon → matn (Gemini, zaxira — Groq Whisper) → yordamchi. Javob boshida nima eshitilgani ko'rsatiladi |
 | **Eslatma va vazifalar** | «Ertaga 10 da bankka borishni eslat» → vazifa; vaqti kelganda Telegram'ga eslatma: ✅ Bajarildi · ⏰ 1 soatdan keyin · 📅 Ertaga. Har kuni ertalab qisqa xulosa: bugungi va kechikkan vazifalar, yangi mijozlar, yaqin bayramlar |
-| **Hujjat tayyorlash** | Shartnoma, tijorat taklifi, hisob, narxlar ro'yxati, xat, reja — Word (.docx) fayl Telegram'ga keladi va panelda saqlanadi. Noma'lum joylar «________» bo'lib qoladi, o'ylab topilmaydi |
+| **Hujjat tayyorlash** | Shartnoma, tijorat taklifi, hisob, narxlar ro'yxati, xat, reja — Word (.docx) fayl Telegram'ga keladi; panelda «Ikkinchi miya» → Hujjatlar'da turadi, matn nusxasi miya papkasining `Hujjatlar/` bo'limiga ham tushadi (bilim emas — modelga o'qib berilmaydi). Noma'lum joylar «________» bo'lib qoladi, o'ylab topilmaydi |
 | **Mijozlar va follow-up** | Egasi aytgan mijozlar yoziladi; havolani bosganlar o'zi tushadi (raqam yoki savol qoldiradi). «Kecha yozganlarga rahmat xabarini tayyorla» → qoralama + «Yuborish» tugmasi |
 | **Mijozlarga javob (Telegram, Instagram)** | Mijoz botga, egasining **shaxsiy Telegramiga** yoki **Instagram Direct**'ga yozsa, Cerebro javob tayyorlaydi. Rejim: «Men tasdiqlayman» (egasiga karta + «Yuborish»), «O'zi javob bersin» (egasi N daqiqa ichida yozmasa, Cerebro yuboradi; bilmaganini — narx yo'q, chegirma, buyurtma — baribir egasidan so'raydi) yoki «O'chiq». Egasi o'zi yozsa, taklif bekor bo'ladi. Hamma yozishma — panelda «Suhbatlar»da |
-| **Postlar** | Brend rangi va logosi bilan rasm (6 shablon) va matn → «Kanalga joylash». Post ostiga mijozlar havolasi qo'shiladi — kim qaysi postdan kelgani ko'rinadi |
 | **Internetdan qidirish** | Kurs, narx, qonun, yetkazib beruvchi — manbasi bilan |
-| **Eslab qolish** | «Eslab qol: 500 mingdan yuqori buyurtmaga yetkazish bepul» — hujjat va javoblarda ishlatiladi |
+| **Klinika: DentaCRM** | Klinika DentaCRM'da ishlasa (bulut yoki klinikadagi kompyuter), «Ulanishlar»da manzil, login va parol kiritiladi. Shundan keyin: «bugun nechta bemor keldi?», «tushum qancha?», «Aliyevni ertaga 15:00 ga Rustamovga yoz» — yordamchi CRM'dan o'qiydi va qabulni CRM'ga yozadi. Ertalabki xulosada bugungi qabullar soni chiqadi |
+| **Klinika: davr hisoboti** | «Bu hafta qanday o'tdi?», «O'tgan oy qaysi shifokor ko'p ishladi?» — DentaCRM'dan: qabullar (keldi, kelmadi, bekor), tushum usullar va kunlar bo'yicha, qarzlar, shifokorlar jadvali, eng yaxshi kun, oldingi shunday davr bilan solishtirish. Hafta, oy, oxirgi 7/30 kun yoki aniq sanalar (31 kungacha) |
+| **Klinika: nazorat** | Har ertalabki xulosada va so'ralganda: kecha tushum shu hafta kuni uchun odatdagidan ikki baravar kam bo'lsa, ko'p bemor kelmagan yoki ko'p qabul bekor qilingan bo'lsa, kechagi qabullarning holati belgilanmay qolgan bo'lsa, to'lovlar qarzga qolgan bo'lsa, bugungi jadval odatdagidan bo'sh bo'lsa — aytadi. Hammasi joyida bo'lsa jim turadi |
+| **Rasmni ko'radi** | Egasi botga surat yuboradi: chek yoki hisob-faktura («shuni xarajatga yoz»), hujjat, narxnoma, qo'lyozma, kabinet yoki ish joyi («toza-mi?»). Cerebro rasmdagi yozuv va raqamlarni o'qiydi, xona bo'lsa tozalik va tartibni baholaydi, keyin odatdagidek javob beradi yoki ishni bajaradi |
+| **Klinika: pul yozuvlari** | «Ali Valiyev 350 ming to'ladi, karta», «ijaraga 2 million ketdi», «Rustamovga 3 million ulush berdim» — Cerebro tekshirilgan kartani ko'rsatadi (bemor, xizmat, shifokor, summa, usul, sana). Egasi «Tasdiqlash»ni bosgandagina DentaCRM'ga yoziladi; shu kuni «Ortga qaytarish» bilan o'chirsa bo'ladi |
+| **Klinika: resepshn** | Bemor botga, egasining Telegramiga yoki Instagram'ga oddiy gap bilan yozadi: «ertaga tushdan keyin bo'sh vaqt bormi?». Cerebro bo'sh vaqtlarni DentaCRM'dan ko'radi (shifokor jadvali va dam olish kunlari bilan), bemor vaqtni tanlab ism va telefonini bergach — qabulga yozadi. «Men tasdiqlayman» rejimida egasi «Yozish va yuborish»ni bosadi; «O'zi javob bersin»da Cerebro o'zi yozadi va egasiga aytadi |
+| **Ikkinchi miya** | Bilim bazada emas, oddiy Markdown fayllar papkasida turadi (`DATA_DIR/miya/<biznes>/`) — uni Obsidian'da «Open folder as vault» bilan ochib, havolalari va grafi bilan ko'rish, qo'lda tahrirlash mumkin; `Kutyapti/` dagi faylni `Bilim/Savollar/` ga ko'chirish — tasdiqlash. Panelda ham bitta sahifada ko'rinadi. *Tayyor savollar*: mijozlar eng ko'p so'raydigan narsalar (klinikada 13 ta: to'lov, bo'lib to'lash, bolalar, rentgen…) — egasi bir marta javob yozadi. *O'rganish*: Cerebro bilmagan savolni egasidan so'raydi; egasi mijozga javob bergach «Eslab qolaymi?» deydi — ha desa, keyingi mijozga o'zi shunday javob beradi. *Tuzatishlar*: egasi tayyor javob o'rniga boshqacha yozsa, farqi saqlanadi; panelda «O'rgan» desa, keyingi javoblarda hisobga olinadi. *Narxlar*: ro'yxatni Excel yoki Telegram'dan tashlasa bo'ladi («Plomba — 350 000», «Implant 4,5 mln») yoki yordamchiga aytadi. *Uslub* va *hujjat namunalari*. Faktlar: «Eslab qol: 500 mingdan yuqori buyurtmaga yetkazish bepul» |
 
 ### Qoidalar (kodda)
 - **Aytilmagan narsa yozilmaydi.** Yordamchi faqat profil, eslab qolingan faktlar va egasining gapidan foydalanadi; narx, chegirma, raqam o'ylab topilmaydi.
-- **Reklama filtri** (`src/lib/compliance.ts`): «eng yaxshi», «100%», «№1», «abadiy»… Tibbiyot sohasida qo'shimcha: natija kafolati, «og'riqsiz». Post va mijozlarga xabar filtrdan o'tmasa, yordamchi qayta yozadi.
-- **Tashqariga faqat egasi xohlagani chiqadi.** Kanalga post va ommaviy xabar — faqat tugma bilan. Mijozga javob — egasi tanlagan rejimda; «O'zi javob bersin»da ham faqat faktlardan yoziladi, reklama filtriga tushsa yoki qaror kerak bo'lsa — egasiga. Ikki marta bosilsa ham bir marta ketadi.
+- **Reklama filtri** (`src/lib/compliance.ts`): «eng yaxshi», «100%», «№1», «abadiy»… Tibbiyot sohasida qo'shimcha: natija kafolati, «og'riqsiz». Mijozlarga xabar filtrdan o'tmasa, yordamchi qayta yozadi; mijozga javob filtrga tushsa — o'zi ketmaydi, egasiga tasdiqqa boradi. Bilimdagi javobda shunday so'z bo'lsa, panel va Telegram egasini ogohlantiradi, ovozli agentga esa bu javob berilmaydi (telefonda tasdiqlatib bo'lmaydi).
+- **Tashqariga faqat egasi xohlagani chiqadi.** Ommaviy xabar — faqat tugma bilan. Mijozga javob — egasi tanlagan rejimda; «O'zi javob bersin»da ham faqat faktlardan yoziladi, reklama filtriga tushsa yoki qaror kerak bo'lsa — egasiga. Ikki marta bosilsa ham bir marta ketadi.
 - **Shaxsiy Telegram**: Cerebro egasining akkauntiga kod bilan kiradi («Faol seanslar»da «Cerebro»). Kontaktlardagi tanishlarga tegmaydi (sozlamada yoqilmasa), guruh va kanallarga yozmaydi. Sessiya bazada AES-256-GCM bilan shifrlangan. Notanish ro'yxatga ommaviy yozish yo'q — Telegram buning uchun akkauntni bloklaydi.
-- **Instagram** — faqat rasmiy yo'l (Instagram Login): parol saqlanmaydi; mijoz yozgandan keyin 24 soat ichida javob beriladi (Instagram qoidasi).
+- **Instagram** — Meta ilovasisiz: Cerebro shu kompyuterdagi Chrome (yoki Edge)ni alohida profil bilan ochadi, egasi ko'rinadigan oynada o'zi kiradi (parol Cerebro'ga berilmaydi), keyin brauzer fonda ishlaydi. Direct'ni (asosiy, «Umumiy», «So'rovlar») ~40 soniyada tekshiradi, javobni suhbatni ochib yozadi. Bu rasmiy yo'l emas — shuning uchun: faqat yozgan odamga javob (birinchi bo'lib yozmaydi), egasi kuzatadigan tanishlarga tegmaydi, kuniga `IG_DAILY_LIMIT` (120) tadan ko'p yozmaydi, kechikishlar tasodifiy. Instagram qayta kirishni so'rasa yoki cheklov qo'ysa — to'xtaydi va egasiga Telegram'da aytadi.
+- **DentaCRM**: parol bazada shifrlangan, token faqat xotirada. Yordamchi CRM'dan faqat kerakli maydonlarni oladi (parol xeshi, bot tokeni kabi narsalar tashlanadi), ismlar tozalanib qisqartiriladi. Qabulga yozish — egasining aniq buyrug'i bilan darhol (tugmasiz): band vaqt, ish soati va bemorning shu kundagi yozuvi oldindan tekshiriladi; bir javobda 3 ta, kuniga `CRM_DAILY_BOOKINGS` (40) tadan ko'p yozilmaydi. Summa yoki qabul qatori o'qilmasa, yordamchi taxminiy raqam aytmaydi — xato deydi. Eslatma, 6 oylik chaqiruv va kunlik hisobotni DentaCRM o'zi qiladi — Cerebro ularni takrorlamaydi.
+- **Pul yozuvlari (to'lov, xarajat, shifokorga to'lov)**: yordamchi CRM'ga o'zi yozmaydi — faqat taklif tayyorlaydi; yozish faqat egasining tugmasi bilan (Telegramdagi shaxsiy chat yoki panel). Kartadagi ism va summalar model matnidan emas, CRM'dan tekshirilgan ma'lumotdan. DentaCRM takroriy so'rovdan himoyalanmagani uchun: yozishdan oldin shu kunda aynan shunday yozuv bor-yo'qligi tekshiriladi; CRM javob bermasa «natijasi noma'lum» deyiladi va qayta urinilmaydi; ikki marta bosilsa bir marta yoziladi; taklif 30 daqiqada eskiradi. Bir javobda 3 ta, kuniga `CRM_DAILY_MONEY` (30) tadan ko'p emas; bitta yozuv `CRM_MAX_AMOUNT` (100 mln), kuniga jami `CRM_DAILY_SUM` (500 mln) so'mgacha; sana — bugundan 31 kun orqagacha. Bir xil taklif ikki marta tayyorlansa — bitta yozuv. Kartada bemorning telefoni oxirgi raqamlari ko'rsatiladi (ismdoshlar adashmasin). Qarzni yopish, avans va bemor hisobidan to'lash yo'q (ular bemor balansini o'zgartiradi) — DentaCRM'da qo'lda. Aralash maoshli shifokorga (oylik + foiz) to'lov ham CRM'da ikkiga bo'lib kiritiladi.
+- **Rasm**: faqat egasining shaxsiy chatidan qabul qilinadi (mijoz yuborgan rasm egasiga nusxa bo'lib boradi, o'qilmaydi). Rasm alohida so'rov bilan matnga aylantiriladi; suhbat tarixida va jurnalda rasmning o'zi saqlanmaydi. Rasm ichidagi yozuv yordamchi uchun ma'lumot, ko'rsatma emas. 5 MB gacha.
+- **Resepshn (qabulga yozish)**: model faqat taklif qiladi — har bir qabul kodda qayta tekshiriladi: faol shifokor, yaqin 7 kun, jadvaldagi bo'sh vaqt (har 30 daqiqada, kamida 60 daqiqa oldin), ism-familiya va to'liq telefon. Avval CRM'ga yoziladi, keyin bemorga «yozdik» deyiladi; yozib bo'lmasa — aytilmaydi, qaror sababi bilan egasiga o'tadi. Tasdiqdagi kun, vaqt va shifokor model matnidan emas, yozilgan qabuldan olinadi. Model qabul yozmasdan «yozib qo'ydik», «kutamiz» desa (lotin, kirill, ruscha) — javob o'zi ketmaydi.
+  - *Bemor kim*: bazadagi bemorga faqat telefon ham, ism-familiya ham mos kelsa yoziladi. Telefon bazada boshqa ism bilan tursa (oila a'zosi yoki xato) — o'zi yozmaydi; egasi tasdiqlasa, shu telefon bilan yangi bemor ochiladi (begona kartaga yozilmaydi).
+  - *«O'zi javob bersin» chegaralari*: bir suhbatdan kuniga 2 ta, bir telefonga haftasiga 2 ta, 10 daqiqada 6 ta, kuniga `CRM_PUBLIC_DAILY_BOOKINGS` (15) ta. Oshsa — qabul yo'qolmaydi, egasiga «Yozish va yuborish» tugmasi bilan boradi. Egasi tasdiqlagan qabulga chegara yo'q.
+  - Ikki bemor bir vaqtni tanlasa — bittasi yoziladi. Qabul yozilayotgan paytda bemor yana yozsa — xabar egasiga yetkaziladi. Qabul yozilib, xabar bemorga yetmasa — egasiga aytiladi (qabul ikkinchi marta yozilmaydi). Kompyuter qabul yozilayotgan paytda o'chib qolsa — qayta yonganda egasiga «CRM'da tekshiring» deyiladi. Shifokor jadvalidagi ichki izohlar bemorga ko'rsatilmaydi.
+  - *Bilib qo'ying*: yozishmadagi telefon tasdiqlanmagan — kimdir boshqa odamning ismi va raqami bilan yozilishi mumkin (telefon orqali yozilgandagi kabi). Shuning uchun klinikada «Men tasdiqlayman» rejimi tavsiya etiladi; «O'zi javob bersin» — yuqoridagi chegaralar bilan.
+- **Profil formasi yo'q.** Manzil, ish vaqti, telefon va jamoa — papkadagi `Bilim/Biznes haqida.md` sahifasida (eski profil maydonlari birinchi marta shu sahifaga ko'chiriladi); egasi uni Obsidian'da yoki yordamchiga aytib o'zgartiradi (`write_page`). Panelda faqat «Ulanishlar → Sozlamalar» qoldi: biznes nomi, egasining ismi, soha, til, ertalabki xulosa. Narxlar — aniq jadval, «Ikkinchi miya» sahifasida.
+- **Fayl tashlash** (`server/intake/`): egasi suhbatga (paneldagi skrepka yoki Telegram'ga hujjat) PDF, Word (.docx), Excel (.xlsx) yoki matn faylini tashlaydi. Matni o'qiladi (`unpdf`, `mammoth`, `read-excel-file`), asli papkaning `Manbalar/` bo'limiga, matni `Kutyapti/`ga sahifa taklifi bo'lib tushadi. Egasi bir tugma bilan hal qiladi: «Bilimga qo'sh», «Narxlar jadvaliga (N)», «Hujjat namunasi» yoki «Kerak emas» (asli ham o'chadi). Bu yo'lda model yo'q — narxlar matndan qoida bilan o'qiladi, shuning uchun fayl ichidagi gap ko'rsatma bo'la olmaydi. Javobda egasi nimani tasdiqlayotganini ko'radi: matnning boshi, nechta yangi xizmat va qaysi narx o'zgarishi («Plomba: 350 000 → 400 000»). Shu nomli sahifa bor bo'lsa ustidan yozilmaydi — fayl «… (2)» nomi bilan alohida sahifa bo'ladi. Xavfsizlik: fayl alohida ishchi oqimda o'qiladi (`sandbox.ts`) va 20 soniya yoki 1 GB xotiradan oshsa majburan to'xtatiladi; Word/Excel arxivi avval chegara bilan ochilib, halol hajmlar bilan qayta yig'iladi (hajmi haqida yolg'on aytadigan «zip-bomba»ga qarshi); PDF'ning faqat birinchi 60 sahifasi o'qiladi; papkaga tushadigan matn va sarlavhada rasm havolasi va HTML zararsizlantiriladi; fayl nomi va matni tasdiqlanmaguncha hech qaysi modelga berilmaydi (suhbat tarixidan ham). Chegaralar: 10 MB, kuniga 40 ta fayl, `Manbalar/` jami 300 MB; tur kengaytmadan emas, mazmundan aniqlanadi; skan qilingan PDF o'qilmaydi (sahifalari rasm qilib yuboriladi).
+- **Birinchi kun suhbati** (`server/brain/interview.ts`): egasi «savollar» deb yozsa (Telegram'da `/savollar`, panelda «Ikkinchi miya» → «Suhbatda so'rab chiq»), Cerebro javobi yo'q tayyor savollarni birma-bir o'zi so'raydi. Yozilgan yoki ovoz bilan aytilgan gap javob deb olinadi va darhol bilimga yoziladi (egasining o'z so'zi — tasdiq so'ralmaydi); «keyingi» — o'tkazib yuborish, «to'xta» — tugatish. Savol bilan tugagan gap javob deb yozilmaydi. Suhbat holati bazada turadi — server o'chib yonsa ham joyidan davom etadi. Bu yo'lda ham model chaqirilmaydi.
+- **Ikkinchi miya papkasi** (`server/brain/vault.ts`): `Bilim/` — tasdiqlangan (savollar, faktlar, uslub, tuzatishlar, namunalar, egasining o'z sahifalari), `Kutyapti/` — tasdiqni kutayotganlar, `INDEKS.md` va `Narxlar.md` ni Cerebro o'zi yozadi. Fayl boshidagi xossalardan faqat `id`, `tur`, `manba`, `sana` o'qiladi, egasi qo'shgan teglar saqlanadi. Narxlar, qabullar va to'lovlar papkada emas — bazada va CRM'da. Eski jadvallardagi bilim birinchi murojaatda fayllarga ko'chiriladi (jadvaldagisi o'chirilmaydi). Nuqtali papkalar (`.obsidian`) va havolalar o'qilmaydi; 200 KB dan katta fayl o'qilmaydi.
+- **Ikkinchi miya**: mijozlarga javobda faqat egasi tasdiqlagan bilim ishlatiladi. Egasining bir mijozga bergan javobi («sizga 20% qilaman») u «Eslab qol»ni bosmaguncha boshqa mijozga aytilmaydi; javob berilmagan taklif 14 kunda o'chadi. Savolni model shaxsiy ma'lumotsiz qayta yozadi («Bo'lib to'lash bormi?»), matn bir qatorga va tegsiz holga keltiriladi. Telefonda yozilgan oddiy xabar «tuzatish» emas — faqat aniq bir taklif o'rniga yozilgani, va u ham egasi «O'rgan» demaguncha modelga berilmaydi. «Biznes profili» eski nusxa bilan saqlanmaydi: narxlar shu orada boshqa joyda o'zgargan bo'lsa, server rad etadi. Bilim hajmi chegaralangan (har so'rovda ~12 ming belgi savol-javob, 6 ta tuzatish). Narx ro'yxatidan tushunilmagan qator taxmin qilinmaydi; «bepul» — narx emas, fakt; oraliq («800–900 ming») «boshlang'ich narx» deb yoziladi. Ovozli agent xuddi shu bilimni `GET /api/voice/knowledge` orqali oladi.
 - Bizneslar bir-birining ma'lumotini ko'rmaydi (har so'rov tokendagi biznesga bog'langan).
 
 ## Ishga tushirish (kompyuterda)
@@ -36,28 +54,78 @@ npm run dev               # panel: http://localhost:3100, server: 3200
 ```
 
 1. `http://localhost:3100/#/admin` → admin paroli → biznes qo'shing (nomi, sohasi, login, parol).
-2. `http://localhost:3100` → shu login bilan kiring → «Biznes profili»ni to'ldiring.
+2. `http://localhost:3100` → shu login bilan kiring → «Ikkinchi miya»da narxlarni tashlang va tayyor savollarga javob yozing (manzil va ish vaqti — papkadagi «Biznes haqida» sahifasida).
 3. «Telegram» → «Telegram'da ochish» → botda «Start». Shundan keyin yozing yoki ovozli xabar yuboring.
-4. «Ulanishlar»: shaxsiy Telegram (raqam → kod → bo'lsa parol), Instagram («Instagram bilan kirish»), javob rejimi.
-5. Kanal (ixtiyoriy): botni kanalga admin qiling («xabar joylash» ruxsati) — o'zi ulanadi.
+4. «Ulanishlar»: shaxsiy Telegram (raqam → kod → bo'lsa parol), Instagram («Instagram'ga kirish» → ochilgan oynada akkauntga kiring), javob rejimi.
 
 ### Shaxsiy Telegram va Instagram uchun bir martalik sozlash (sotuvchi)
 - **Telegram**: my.telegram.org → API development tools → `TG_API_ID`, `TG_API_HASH`. Bitta ilova hamma bizneslar uchun.
-- **Instagram**: developers.facebook.com → ilova → Instagram → «API setup with Instagram login». `IG_APP_ID`, `IG_APP_SECRET`; OAuth redirect: `PUBLIC_URL/api/instagram/callback`; webhook: `PUBLIC_URL/api/instagram/webhook` (`messages` maydoni, verify token — `IG_WEBHOOK_VERIFY_TOKEN`). Meta tekshiruvigacha ilova faqat unga qo'shilgan (tester) akkauntlar bilan ishlaydi va webhook kelmaydi — Cerebro o'shanda xabarlarni har 30 soniyada o'zi tekshiradi. Boshqa bizneslarga sotish uchun: biznes tasdiqlash + `instagram_business_manage_messages` uchun Advanced Access (App Review).
+- **Instagram**: hech narsa kerak emas — kompyuterda Google Chrome yoki Microsoft Edge bo'lsa yetadi (boshqa joyda bo'lsa — `IG_BROWSER`). Oyna Cerebro ishlayotgan kompyuterning ekranida ochiladi: ulashni shu kompyuterda (yoki masofadan ulanib) qiling. Brauzer profili — `DATA_DIR/instagram/`. Muammo bo'lsa `IG_SHOW_BROWSER=1` — brauzer ko'rinib ishlaydi.
+
+## Klinika kompyuteriga o'rnatish (Windows)
+
+`install\Ornatish.cmd` ni ikki marta bosing — to'liq qo'llanma: [docs/ORNATISH.md](docs/ORNATISH.md). O'rnatgich Node.js va ffmpeg'ni tekshiradi, panelni yig'adi,
+kalitlarni so'rab `.env` ga yozadi, **har bir kalitni haqiqiy xizmatda tekshiradi** (`npm run check`), papkalarni boshqa Windows foydalanuvchilaridan yopadi va Cerebro'ni avtoyuklashga qo'shadi.
+
+Qarovsiz ishlash uchun nima bor:
+- **Nazoratchi** (`npm run serve` / `npm run stop` / `npm run status`): server to'xtab qolsa qayta yoqadi; `DATA_DIR/logs/supervisor.log`.
+- **Internetsiz yonish**: panel darhol ochiladi, bot va shaxsiy Telegram fonda o'zi ulanadi; uzilish paytidagi eslatma va egasiga aytiladigan xabarlar bazadagi navbatda turadi va aloqa tiklangach ketadi.
+- **Bitta papka — bitta nusxa**: shu `DATA_DIR` bilan ikkinchi nusxa ishga tushmaydi (bazani ochmasdan chiqadi).
+- **Jurnal**: `DATA_DIR/logs/KUN.log`, 14 kun; kalitga o'xshagan narsa yozilmaydi. **Zaxira**: har kuni `BACKUP_DIR/KUN/` (baza, ikkinchi miya, maxfiy kalit), 14 kun.
+  Tiklash: serverni to'xtating, `DATA_DIR` dagi `cerebro.db-wal` va `cerebro.db-shm` ni o'chiring, zaxiradagi uchta narsani ko'chiring.
+- **AI xarajati**: har so'rov biznes hisobiga yoziladi (admin sahifasida 7 kun), kunlik chegaralar — `AI_DAILY_OWNER`, `AI_DAILY_CUSTOMER`, bitta suhbatga kuniga 40 ta javob.
+- **IP kameralar (RTSP)**: kamera manzili panelda kiritiladi; alohida jarayon (ffmpeg + odam topuvchi model) kadrlarni kechayu kunduz sanaydi — sahifa ochiq turishi shart emas.
 
 ## Serverga qo'yish (masalan, Railway)
 
 - Build: `npm install && npm run build` · Start: `npm start` (panel va API bitta portda).
+- `LISTEN_HOST=0.0.0.0` (standart — 127.0.0.1, faqat shu kompyuter) va proksi ortida `TRUST_PROXY=1` (aks holda hamma mijoz bitta manzildan ko'rinadi va kirish chegarasi hammani birga to'sadi).
 - O'zgaruvchilar: `.env.example` dagilar. `DATA_DIR` — **doimiy disk** (Railway volume, masalan `/data`): baza (`cerebro.db`) va sessiya kaliti shu yerda. Diskdan muntazam zaxira nusxa oling.
 - Bitta nusxa (instance) ishlasin — bot `getUpdates` bilan ishlaydi, ikkita nusxa bir-biriga xalaqit beradi.
+- Instagram brauzer orqali ishlaydi: ekranli kompyuter (Mac mini, Windows mini-PC) kerak — ulashda oyna ochiladi. Ekransiz serverda Instagram'siz ishlating.
 
 ## Sinovlar
 
 ```bash
 npm run typecheck
 npm test                           # to'liq oqim: soxta Telegram, Claude va ovoz xizmati bilan
-npm run build && npm run test:ui   # brauzerda panel (Chrome va playwright-core kerak)
+npm run test:resilience            # chidamlilik: internetsiz yonish, uzilishdagi eslatma, ikkinchi nusxa, jurnal, zaxira
+npm run test:ipcam                 # IP kamera zanjiri: ffmpeg → dvigatel → server (ffmpeg kerak; kamera o'rniga sinov tasviri)
+npm run test:ui                    # brauzerda panel (Chrome kerak; avval panelni o'zi yig'adi)
+npm run check                      # HAQIQIY kalitlarni tekshiradi (Telegram, Claude — bir necha sent, ovoz); --no-ai bilan Claude'siz
+npm run scenarios                  # 22 ta chuqur ssenariy: haqiqiy server + haqiqiy Obsidian (D:\Obsidian; yo'q bo'lsa — to'g'ridan-to'g'ri fayl), model — taqlid
 ```
+
+### Stend (hamma narsani qo'lda sinab ko'rish — haqiqiy kalitlarsiz)
+
+```bash
+npm run build && npm run stend
+# tashqi dunyo (siz boshqarasiz):  http://127.0.0.1:3221
+# panel (egasining kabineti):      http://127.0.0.1:3220 · login: stend · parol: stend-parol-1
+```
+
+Simulyatsiyadan farqi: bu yerda hech narsa ssenariy bo'yicha o'zi bo'lmaydi. «Tashqi dunyo» sahifasida siz mijoz bo'lib botga, egasining shaxsiy Telegramiga yoki Instagram'ga yozasiz; egasi bo'lib yordamchiga buyruq berasiz, kartaga «Reply» qilasiz, tugma bosasiz; CRM'ga qabul qo'shasiz; kreslodagi odamni yoqib-o'chirasiz. Javobni har safar haqiqiy server kodi beradi, natijasi panelda va soxta CRM ichida ko'rinadi. «Tarmoq jurnali» bo'limida server tashqariga yuborgan har bir so'rov turadi (Telegram'ga nima ketdi, CRM'ga nima yozildi, modelga nima berildi).
+
+| | |
+|---|---|
+| **Haqiqiy** | server, baza, bot mantiqi, yozishma va tasdiqlash, bilim papkasi (Obsidian'da ochsa bo'ladi), eslatmalar va ertalabki xulosa, DentaCRM mijozi, pul yozuvlari va ortga qaytarish, kamera seanslari va CRM bilan solishtirish, ovozli agent darvozasi, panel |
+| **Soxta** | Telegram, shaxsiy Telegram, Instagram, DentaCRM (`scripts/fakes.ts`, `scripts/fakeCrm.ts`), ovoz → matn (aytilgan gapni matn bilan yozasiz) |
+| **Kamera** | stendda uchta kamera tugma bilan boshqariladi; **haqiqiy** veb-kamerani ham sinasa bo'ladi: panel → «Kameralar» → yangi kamera — odamni brauzerning o'zi taniydi |
+| **Model** | `.env`da `ANTHROPIC_API_KEY` bo'lsa — haqiqiy Claude. Bo'lmasa — **taqlid miya** (`scripts/stendBrain.ts`) |
+
+**Taqlid miya nimani ko'rsatmaydi.** U tayyor qoidalar bo'yicha ishlaydi: egasining eng ko'p uchraydigan gaplaridan («Ertaga soat 10 da bankka borishni eslat», «Ali Valiyev 350 ming to'ladi, karta, Rustamov») asbob chaqiruvini yasaydi, mijozga esa faqat modelga berilgan bilimdan javob topadi. Asbobni, kartani, CRM'ga yozishni haqiqiy server bajaradi — shuning uchun tizim *qanday* ishlashi haqiqiy ko'rinadi. Lekin gapni *qanchalik yaxshi* tushunishi, javob matnining sifati, noaniq vaziyatdagi qaror, hujjat yozish, rasmni ko'rish — bular haqiqiy modelning ishi va faqat kalit bilan baholanadi. Taqlid miya yozgan har bir javob 🧪 belgisi bilan boshlanadi; tushunmagan gapini taxmin qilmaydi — ochiq aytadi.
+
+Vaqt: «Sizni kutadi» sozlamasidagi 1 daqiqa — 10 soniya, kamera seansi 3 soniyada boshlanadi; qolgani haqiqiy vaqtda (eslatma aytilgan daqiqada keladi). Ma'lumot `.stend-data` papkasida, har ishga tushganda yangidan boshlanadi; `data/` ga tegilmaydi. Sinovi: `npm run test:stend` (taqlid miya mantiqi + stendning butun yo'li).
+
+Xavfsizligi: ikkala sahifa faqat shu kompyuterdan ochiladi. «Tashqi dunyo» faqat o'z sahifasidan kelgan so'rovni bajaradi — brauzerda ochiq boshqa sayt unga buyruq bera olmaydi va uni ramkaga qo'ya olmaydi; soxta xizmatlar faqat serverning o'zidan so'rov oladi. Haqiqiy kalit bilan ishlaganda panel paroli har safar tasodifiy bo'ladi (terminalda va sahifa tepasida ko'rinadi) — model pul turadi.
+
+### Simulyatsiya (kamerasiz, telefonsiz ko'rish)
+
+```bash
+npm run build && npm run demo      # http://127.0.0.1:3210 · login: demo · parol: demo-parol-1
+```
+
+Haqiqiy server va panel soxta klinika bilan ishlaydi: kresloga bemor o'tiradi, kassada to'laydi, CRM'da yo'q odam Kabinet 2 da o'tiradi (farq chiqadi), uchta qo'ng'iroq ustma-ust keladi. «Ikkinchi miya» yarim to'ldirilgan: narxlar, bir necha javob, bitta «Eslab qolaymi?» taklifi va egasi yozgan sahifa; papkasi `.demo-data/miya/` ichida (manzili terminalda chiqadi). Vaqt siqilgan — bitta qabul bir daqiqacha. Ma'lumot `.demo-data` papkasida, har ishga tushganda yangidan boshlanadi; asosiy `data/` ga va botga tegilmaydi, server faqat shu kompyuterdan ochiladi.
 
 Sinovlar haqiqiy Telegram, Claude yoki Gemini'ga so'rov yubormaydi va pul sarflamaydi. Soxta Claude har so'rovda suhbat tarixini ham tekshiradi: faqat oxiriga qo'shilganmi, har asbob chaqiruvining natijasi joyidami.
 
@@ -65,32 +133,59 @@ Sinovlar haqiqiy Telegram, Claude yoki Gemini'ga so'rov yubormaydi va pul sarfla
 
 ```
 server/
-  index.ts       kirish nuqtasi (bot + API + jadval)
+  index.ts       kirish nuqtasi: jurnal va «bitta nusxa» qulfi, keyin main.ts
+  main.ts        tiklash → port → bot va kanallar (fonda), tinch to'xtash
+  guard.ts log.ts backup.ts   qulf va ushlanmagan xatolar · fayl jurnali · kunlik zaxira nusxa
+  claude.ts      Claude mijozi: har so'rov sanaladi (kunlik chegara, tokenlar, taxminiy xarajat)
+  camera/        kameralar: seanslar (sessions.ts), CRM bilan solishtirish (reconcile.ts), IP kamera dvigateli (engine.ts — alohida jarayon, stream.ts — boshqaruv)
   agent.ts       yordamchi: Claude bilan suhbat, asboblarni chaqirish sikli, sessiyalar
-  tools.ts       asboblar: vazifa, mijoz, xabar qoralamasi, hujjat, post, eslab qolish, xulosa
+  tools.ts       asboblar: vazifa, mijoz, xabar qoralamasi, hujjat, eslab qolish, xulosa
   bot.ts         Telegram: egasi (matn, ovoz, tugmalar), mijozlar, kanal
   scheduler.ts   eslatmalar, ertalabki xulosa, navbatdagi javoblar, Instagram tekshiruvi
   inbox/core.ts          mijozlar bilan yozishma: kanallardan kelgan xabar → javob taklifi → tasdiq yoki o'zi
   inbox/replier.ts       mijozga javob (Claude, qat'iy JSON: reply / ask_owner / ignore)
   inbox/telegramUser.ts  egasining shaxsiy Telegrami (GramJS; sinovda — soxta haydovchi)
-  inbox/instagram.ts     Instagram Login, webhook, suhbatlarni tekshirish, Direct'ga yuborish
+  inbox/instagram.ts     egasining Instagrami brauzer orqali (Playwright; sinovda — soxta haydovchi)
+  crm/dentacrm.ts        DentaCRM mijozi: kirish, qayta kirish, javoblarni tekshirish, qabulga yozish
+  crm/logic.ts           sof qoidalar: bo'sh vaqt, band vaqt, kun hisoboti, bemor qidirish, manzilni tekshirish
+  crm/tools.ts           klinika asboblari: clinic_day, find_patient, free_slots, book_appointment
+  crm/money.ts           pul yozuvlari: nima yoziladi, takror tekshiruvi, CRM'ga yozish va o'chirish
+  crm/actions.ts         pul yozuvining yo'li: taklif → tasdiq → yozildi / ortga qaytarildi
+  crm/moneyTools.ts      yordamchining pul asboblari (faqat taklif tayyorlaydi)
+  crm/report.ts          davr hisoboti va ogohlantirish qoidalari (sof hisob)
+  crm/history.ts         kunlarni CRM'dan yig'ish (DentaCRM faqat kunma-kun beradi)
+  crm/reception.ts       resepshn: model uchun bo'sh vaqtlar matni, bemorni topish/yaratish va qabulga yozish
+  crm/index.ts routes.ts ulanishni saqlash, panel yo'llari
   secret.ts      maxfiy qiymatlarni shifrlash (Telegram sessiyasi, Instagram tokeni)
   http.ts        panel API
   stt.ts         ovoz → matn (Gemini, zaxira Groq)
   docx.ts        Markdown → Word
+  intake/        suhbatga tashlangan fayl: matnini olish (extract.ts), alohida oqimda va chegara bilan (sandbox.ts, extractWorker.ts), bilimga taklif qilish (index.ts)
   render.ts      post shabloni (SVG) → PNG
   db.ts          SQLite (node:sqlite)
   auth.ts validate.ts env.ts tz.ts
 src/
-  LiveApp.tsx    kabinet: Yordamchi, Suhbatlar, Vazifalar, Mijozlar, Hujjatlar, Postlar, Biznes profili, Ulanishlar
+  LiveApp.tsx    kabinet: Yordamchi, Jurnal (vazifalar shu yerda), Mijozlar (yozishmalar bilan), Qo'ng'iroqlar, Kameralar, Ikkinchi miya (hujjatlar shu yerda), Ulanishlar
   templates/     post shablonlari — panelda, PNG'da va Telegramda bir xil
   lib/compliance.ts  reklama filtri · lib/occasions.ts  bayramlar · lib/recorder.ts  mikrofon → WAV
 scripts/
   e2e.ts ui-live.ts fakes.ts   sinovlar
+  e2e-resilience.ts e2e-ipcam.ts  chidamlilik va IP kamera sinovlari
+  supervise.mjs                nazoratchi: serverni yoqadi, to'xtasa qayta yoqadi (npm run serve / stop / status)
+  preflight.ts                 o'rnatishdan keyingi tekshiruv — haqiqiy xizmatlarda (npm run check)
+install/                       Windows o'rnatgich (Ornatish.cmd), ishga tushirish / to'xtatish / tekshirish yorliqlari
+docs/ORNATISH.md               klinikaga o'rnatish qo'llanmasi
+  stend.ts stend.html          stend: haqiqiy server + qo'lda boshqariladigan soxta dunyo (npm run stend)
+  stendBrain.ts stendParse.ts  taqlid miya (kalit bo'lmaganda model o'rnida) va uning matn o'qishi
+  e2e-stend.ts                 stend sinovi
 ```
 
 ## Cheklovlar va keyingi qadamlar
 - Shaxsiy Telegram ulanmagan bo'lsa, mijozga faqat botga yozgan odamga yozish mumkin (Telegram qoidasi). Ulangan bo'lsa — username yoki telefon orqali ham (telefon bo'yicha topilgan odam egasining kontaktlariga qo'shiladi).
-- Instagram'da birinchi bo'lib yozib bo'lmaydi va 24 soatdan keyin javob berib bo'lmaydi (Meta qoidasi).
-- Instagram'ga avtomatik joylash yo'q (Meta ruxsati kerak) — PNG va matnni yuklab olib joylanadi.
+- Instagram'da Cerebro faqat Direct'ga yozganlarga javob beradi; birinchi bo'lib yozish ataylab yo'q (akkaunt bloklanmasin). Ovozli xabar va rasm matnga aylantirilmaydi — «[ovozli xabar]» bo'lib keladi.
+- Instagram brauzer orqali ishlagani uchun Instagram sayti o'zgarsa, yozish qismi (suhbat oynasi) tuzatishni talab qilishi mumkin.
+- Post yasash (brend rangidagi rasm, kanalga joylash) menyudan va yordamchi asboblaridan olib tashlangan: Cerebro — dizayn dasturi emas. Eski postlar uchun server yo'llari (`/api/posts`, `/api/channel`) va `render.ts` hozircha turibdi; keyingi tozalashda olinadi.
+- DentaCRM: lokal nashr (dentalocal) bilan sinalgan (`npm run crm:probe`, `npm run crm:live`), bulut nashri bilan hali yo'q. Resepshn faqat 30 daqiqalik «Konsultatsiya»ga va faqat yaqin 7 kunga yozadi; qabulni bekor qilish va ko'chirish — CRM'da qo'lda (bemor so'rasa, savol egasiga o'tadi). Bemor telefonini Telegram orqali tasdiqlash hali yo'q. Filial bo'yicha ajratish yo'q. Resepshn haqiqiy model (Claude) bilan hali sinalmagan — sinovlarda soxta model ishlaydi.
+- Kameralar: odam topuvchi model odamni tanimaydi (kim ekanini bilmaydi) va kichik yoki qisman to'silgan odamni o'tkazib yuborishi mumkin; haqiqiy IP kamerada hali sinalmagan (zanjir sinov tasviri va surat bilan tekshirilgan). Yengil oqim (substream) tavsiya etiladi.
+- Shaxsiy Telegram haqiqiy akkaunt bilan, Instagram haqiqiy sayt bilan hali sinalmagan (sinovlarda soxta haydovchilar).
 - Google Calendar, SMS va to'lov tizimlari bilan bog'lanish — keyingi bosqich.

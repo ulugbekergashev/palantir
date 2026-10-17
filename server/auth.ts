@@ -52,15 +52,23 @@ export function readToken(token: string | undefined): Session | null {
   }
 }
 
-/** Parolni taxmin qilishdan himoya: 15 daqiqada 8 ta xato urinish */
+/**
+ * Parolni taxmin qilishdan himoya: 15 daqiqada 8 ta xato urinish.
+ * Shu kompyuterdan (127.0.0.1) — 40 ta: klinikada hamma shu manzildan kiradi, bitta odamning adashishi egasini kirishdan to'sib qo'ymasin
+ */
+const WINDOW_MS = 15 * 60_000, MAX_FAILURES = 8, MAX_LOCAL_FAILURES = 40, MAX_KEYS = 2000;
+const limitOf = (key: string): number => (/(^|:)(127\.0\.0\.1|::1)$/.test(key) ? MAX_LOCAL_FAILURES : MAX_FAILURES);
 const failures = new Map<string, { count: number; until: number }>();
 export const loginBlocked = (key: string): boolean => {
   const f = failures.get(key);
-  return !!f && f.count >= 8 && f.until > Date.now();
+  return !!f && f.count >= limitOf(key) && f.until > Date.now();
 };
 export const loginFailed = (key: string): void => {
+  const now = Date.now();
+  // Eskirgan yozuvlar tozalanadi: har xil manzildan urinib xotirani to'ldirib bo'lmasin
+  if (failures.size >= MAX_KEYS) for (const [k, v] of failures) if (v.until < now) failures.delete(k);
   const f = failures.get(key);
-  const fresh = !f || f.until < Date.now();
-  failures.set(key, { count: fresh ? 1 : f.count + 1, until: Date.now() + 15 * 60_000 });
+  const fresh = !f || f.until < now;
+  failures.set(key, { count: fresh ? 1 : f.count + 1, until: now + WINDOW_MS });
 };
 export const loginOk = (key: string): void => { failures.delete(key); };

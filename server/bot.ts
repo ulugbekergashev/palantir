@@ -2,8 +2,8 @@
  * Cerebro boti (bitta bot — hamma bizneslar uchun).
  *
  * Egasi:   /start o-<kod> (paneldagi havola) → ulanadi. Keyin yozadi yoki ovozli
- *          xabar yuboradi — yordamchi bajaradi. Hujjat — .docx fayl, post — rasm
- *          va «Kanalga joylash» tugmasi, mijozlarga xabar — «Yuborish» tugmasi.
+ *          xabar yuboradi — yordamchi bajaradi. Hujjat — .docx fayl; mijozlarga xabar — «Yuborish» tugmasi bilan.
+ *          Egasi yuborgan fayl (PDF, Word, Excel) o'qilib, bilimga taklif bo'ladi — tugmalar bilan hal qilinadi.
  *          Eslatma vaqti kelsa — «Bajarildi / Keyinroq» tugmalari bilan xabar.
  * Mijoz:   havola /start l-<biznes>[-<post>] → raqamini yoki savolini yuboradi →
  *          egasiga boradi. Egasi shu xabarga «Reply» qilsa — javob mijozga ketadi.
@@ -12,15 +12,24 @@
 import { Markup, Telegraf, type Context } from 'telegraf';
 import { message } from 'telegraf/filters';
 import type { InlineKeyboardMarkup } from 'telegraf/types';
-import type { Artifact, Lang, Outbound, Post, Task } from '../src/types';
+import type { Artifact, Lang, MoneyEntry, MoneyStatus, Outbound, Post, Task } from '../src/types';
+import { isMedical } from '../src/lib/compliance';
 import { addDays, dueLabel, iso, stamp } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
-import { businesses, inbox, leads, outbound, posts, relays, tasks, type BusinessRow, type LeadRow } from './db';
+import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
+import { crmConnected } from './crm/index';
+import { INTERVIEW_START, interviewReply, interviewSkip, interviewStart, interviewStop, type InterviewTurn } from './brain/interview';
+import { fileKeyboard, settleFile, settleSuggestion } from './brain/learn';
+import { businesses, chatLog, inbox, leads, moneyEntries, outbound, posts, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
+import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
 import { renderPng } from './render';
 import { SilenceError, transcribe } from './stt';
-import { approveReply, dismissReply, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
+import { MAX_PHOTO_BYTES, describePhoto, photoMessage } from './vision';
+import { reviewCall } from './callreview';
+import { toOgg } from './tts';
+import { approveReply, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
 export interface BotService {
   enabled: boolean;
@@ -34,7 +43,11 @@ export interface BotService {
   cancelFollowup(biz: BusinessRow, outboundId: string): Promise<void>;
   remindTask(biz: BusinessRow, task: Task): Promise<void>;
   sendText(chatId: string, html: string): Promise<void>;
+  /** Ovozli xabar (OGG/Opus) yoki — ffmpeg bo'lmasa — audio fayl (WAV) */
+  sendVoice(chatId: string, audio: { ogg: Buffer } | { wav: Buffer }, caption: string): Promise<void>;
   verifyChannel(ref: string): Promise<{ id: string; title: string }>;
+  /** Pul yozuvi kartasini hozirgi holatga keltiradi (panelda tasdiqlangan bo'lsa ham Telegramdagi tugma yo'qoladi) */
+  refreshMoney(bizId: string, id: string): Promise<void>;
 }
 
 const langOf = (b: BusinessRow): Lang => b.profile.contentLang ?? 'uz';
@@ -109,6 +122,15 @@ const followupKeyboard = (o: Outbound) => (o.status !== 'draft' ? undefined : kb
   b('✖️ Bekor qilish', `fc|${o.id}`),
 ]]));
 
+const MONEY_STATE: Record<MoneyStatus, string> = {
+  draft: "<i>Tekshiring. Tasdiqlasangiz — DentaCRM'ga yoziladi. Buni so'ramagan bo'lsangiz — «Bekor qilish».</i>", running: '⏳ Yozilmoqda…', done: "✅ DentaCRM'ga yozildi", cancelled: '✖️ Bekor qilindi',
+  failed: '⚠️ Yozilmadi', unknown: "❓ Yozilgan-yozilmagani noma'lum — DentaCRM'da tekshiring", undone: "↩️ Ortga qaytarildi (CRM'dan o'chirildi)",
+};
+const moneyText = (e: MoneyEntry): string =>
+  [`<b>💰 ${esc(e.title)}</b>`, ...e.details.map(esc), '', MONEY_STATE[e.status], ...(e.note ? [`ℹ️ ${esc(e.note)}`] : [])].join('\n');
+const moneyKeyboard = (e: MoneyEntry) => (e.status === 'draft' ? kb([[b('✅ Tasdiqlash', `ma|${e.id}`), b('✖️ Bekor qilish', `mx|${e.id}`)]])
+  : e.canUndo ? kb([[b('↩️ Ortga qaytarish', `mu|${e.id}`)]]) : undefined);
+
 const reminderText = (t: Task, note = '') =>
   [`⏰ <b>${esc(t.title)}</b>`, t.notes ? esc(t.notes) : '', note].filter(Boolean).join('\n');
 const reminderKeyboard = (t: Task) => kb([[b('✅ Bajarildi', `td|${t.id}`), b('⏰ 1 soatdan keyin', `ts|${t.id}`), b('📅 Ertaga', `tt|${t.id}`)]]);
@@ -127,26 +149,51 @@ const detach = (what: string, work: () => Promise<unknown>) => {
   void work().catch(e => console.error(`[bot] ${what}:`, (e as Error)?.message ?? e));
 };
 
-const HELP = [
-  'Men — Cerebro, biznesingiz uchun AI yordamchi. Oddiy gapiring yoki ovozli xabar yuboring. Masalan:',
-  '',
-  "• «Ertaga soat 10 da yetkazib beruvchiga qo'ng'iroq qilishni eslat»",
-  "• «Aziz Karimov, +998 90 123 45 67, 2 ta stol so'radi — mijozlarga qo'sh»",
-  '• «Kecha yozgan mijozlarga rahmat xabarini tayyorla»',
-  '• «Aliyevga tijorat taklifi tayyorla: 50 ta mahsulot, 10% chegirma»',
-  '• «Dam olish kunlari aksiyasi haqida post qil»',
-  '• «Bugun nima qilishim kerak?»',
-  '',
-  '/vazifalar — ochiq vazifalar',
-  '/yangi — yangi suhbat (oldingisini unutadi, vazifa va mijozlar qoladi)',
-].join('\n');
+/**
+ * Tugma bosilishiga javob (ekrandagi qisqa ogohlantirish). Eskirgan bosishga Telegram javobni rad etadi —
+ * bu xato asosiy ishni to'xtatmasligi kerak (xabar yuborilmay yoki karta yangilanmay qolardi)
+ */
+const toast = (ctx: { answerCbQuery: (text?: string, extra?: { show_alert?: boolean }) => Promise<unknown> }, text?: string, extra?: { show_alert?: boolean }): Promise<unknown> =>
+  ctx.answerCbQuery(text, extra).catch(e => { console.error('[bot] tugma javobi:', (e as Error).message); });
+
+/** Telegram javob bermasa qayta ulanish oralig'i: 5 soniyadan boshlab ikki baravar o'sadi, ko'pi bilan bir daqiqa */
+const RETRY_MIN_MS = 5_000, RETRY_MAX_MS = 60_000;
+
+/** Yordam matni: misollar biznesga mos (klinika — qabul va to'lov, qolganlar — mijoz va savdo); ovoz — faqat ovoz xizmati sozlangan bo'lsa */
+function helpFor(biz: BusinessRow): string {
+  const clinic = isMedical(biz.profile.industry) || crmConnected(biz.id);
+  const examples = clinic
+    ? [
+      '• «Bugun nechta bemor yozilgan, tushum qancha?»',
+      "• «Ertaga soat 10 da laboratoriyaga qo'ng'iroq qilishni eslat»",
+      "• «Kamola Tursunova 300 ming to'ladi»",
+      '• «Ertaga Rustamovda bo\'sh vaqt bormi?»',
+    ]
+    : [
+      "• «Ertaga soat 10 da Aziz akaga qo'ng'iroq qilishni eslat»",
+      "• «Aziz Karimov, +998 90 123 45 67, demo so'radi — mijozlarga qo'sh, payshanba eslat»",
+      '• «Kecha yozganlarga javob tayyorla»',
+      '• «Tabassum klinikasiga tijorat taklifi tayyorla»',
+    ];
+  return [
+    `Men — Cerebro, biznesingiz uchun AI yordamchi. Oddiy gapiring${voiceEnabled() ? ' yoki ovozli xabar yuboring' : ''}. Masalan:`,
+    '',
+    ...examples,
+    "• Narxnoma yoki shartnoma namunasini fayl qilib yuboring (PDF, Word, Excel) — o'qib, bilimga qo'shaman",
+    '• «Bugun nima qilishim kerak?»',
+    '',
+    '/vazifalar — ochiq vazifalar',
+    "/savollar — mijozlar ko'p so'raydigan savollarni birma-bir so'rayman, javobingizni eslab qolaman",
+    '/yangi — yangi suhbat (oldingisini unutadi, vazifa va mijozlar qoladi)',
+  ].join('\n');
+}
 
 export function createBot(): BotService {
   if (!env.botToken) {
     const off = () => Promise.reject(new Error("Telegram bot ulanmagan (BOT_TOKEN yo'q)"));
     return {
       enabled: false, username: () => null, start: async () => {}, stop: () => {},
-      publishPost: off, sendFollowup: off, cancelFollowup: off, remindTask: async () => {}, sendText: async () => {}, verifyChannel: off,
+      publishPost: off, sendFollowup: off, cancelFollowup: off, remindTask: async () => {}, sendText: async () => {}, sendVoice: async () => {}, verifyChannel: off, refreshMoney: async () => {},
     };
   }
 
@@ -156,6 +203,7 @@ export function createBot(): BotService {
   });
   const tg = bot.telegram;
   let username: string | null = null;
+  let stopped = false;
 
   const leadLink = (bizId: string, postId?: string) => (username ? `https://t.me/${username}?start=l-${bizId}${postId ? `-${postId}` : ''}` : null);
 
@@ -173,6 +221,11 @@ export function createBot(): BotService {
       const o = outbound.get(biz.id, a.outbound.id) ?? a.outbound;
       const msg = await tg.sendMessage(chat, followupText(o, biz), { parse_mode: 'HTML', reply_markup: followupKeyboard(o) });
       outbound.setOwnerMessage(biz.id, o.id, msg.message_id);
+    } else if (a.type === 'money') {
+      const row = moneyEntries.get(biz.id, a.entry.id);
+      const e = row ? entryView(row) : a.entry;
+      const msg = await tg.sendMessage(chat, moneyText(e), { parse_mode: 'HTML', reply_markup: moneyKeyboard(e) });
+      moneyEntries.setOwnerMessage(biz.id, e.id, msg.message_id);
     }
     // Vazifa — javob matnida aytiladi, alohida xabar kerak emas
   }
@@ -188,12 +241,25 @@ export function createBot(): BotService {
   }
 
   /** Egasining gapi → yordamchi → javob va narsalar */
-  async function handleOwner(ctx: Context, biz: BusinessRow, text: string, voice = false) {
+  /** Birinchi kun suhbatining navbati: savol (tugmalar bilan) yoki yakun */
+  async function sendInterview(biz: BusinessRow, turn: InterviewTurn): Promise<void> {
+    chatLog.add(biz.id, 'telegram', 'assistant', turn.text);
+    const keyboard = turn.open && turn.asking ? kb([[b("⏭ O'tkazib yuborish", `iv|s:${turn.asking}`), b("⏹ To'xtatish", 'iv|x')]]) : undefined;
+    await tg.sendMessage(biz.ownerChatId!, turn.text, keyboard ? { reply_markup: keyboard } : {});
+  }
+
+  async function handleOwner(ctx: Context, biz: BusinessRow, text: string, voice = false, extra: { display?: string; photo?: boolean } = {}) {
+    // Birinchi kun suhbati ochiq bo'lsa (yoki egasi «savollar» desa) — gap javob deb olinadi va yordamchiga ketmaydi. Rasm tavsifi javob emas
+    const turn = extra.photo ? null : INTERVIEW_START.test(text.trim()) ? interviewStart(biz) : interviewReply(biz, text);
+    if (turn) {
+      chatLog.add(biz.id, 'telegram', 'owner', voice ? `🎙 ${text}` : text);
+      return sendInterview(biz, turn);
+    }
     const chat = String(ctx.chat!.id);
     const typing = setInterval(() => { void ctx.sendChatAction('typing').catch(() => {}); }, 4500);
     void ctx.sendChatAction('typing').catch(() => {});
     try {
-      const reply = await ask(biz.id, 'telegram', text, { voice });
+      const reply = await ask(biz.id, 'telegram', text, { voice, ...extra });
       const head = voice ? `🎙 <i>${esc(cut(text, 500))}</i>\n\n` : '';
       await sendHtml(chat, head + tgHtml(reply.text));
       const fresh = businesses.byId(biz.id) ?? biz;
@@ -212,12 +278,21 @@ export function createBot(): BotService {
   async function linkOwner(ctx: Context, code: string) {
     const biz = businesses.byLinkCode(code);
     if (!biz || !biz.active) {
-      await ctx.reply("Havola noto'g'ri yoki eskirgan. Panel → «Telegram» bo'limidan yangisini oling.");
+      // Havola bir martalik: ulangan egasi uni qayta bossa (Telegram «Start»ni eski havola bilan yuboradi) — bu xato emas
+      const own = ownerOf(ctx);
+      await ctx.reply(own ? `«${own.profile.name}» bilan ulangansiz — hammasi joyida.\n\n${helpFor(own)}` : "Havola noto'g'ri yoki eskirgan. Panel → «Telegram» bo'limidan yangisini oling.");
       return;
     }
-    businesses.update(biz.id, { ownerChatId: String(ctx.chat!.id) });
+    const chat = String(ctx.chat!.id);
+    const previous = biz.ownerChatId;
+    // Egasining chati — tugmalar (pul yozuvi, javob yuborish) uchun ishonch manbai. Havola bir martalik: ulangach kod almashadi,
+    // eski havolani ko'rgan odam keyin ulana olmaydi; yangi havola faqat panelda (parol bilan) ko'rinadi
+    businesses.update(biz.id, { ownerChatId: chat, linkCode: businesses.newLinkCode() });
+    if (previous && previous !== chat) {
+      await tg.sendMessage(previous, "⚠️ Cerebro boshqa Telegram akkauntiga ulandi va endi shu yerda ishlamaydi. Buni siz qilmagan bo'lsangiz — panel → «Telegram» bo'limidagi yangi havola orqali qayta ulaning (o'sha zahoti begona akkaunt uziladi) va havolani hech kimga bermang.").catch(() => {});
+    }
     const name = biz.profile.ownerName ? `, ${biz.profile.ownerName}` : '';
-    await ctx.reply(`✅ Ulandi: «${biz.profile.name}». Assalomu alaykum${name}!\n\n${HELP}`);
+    await ctx.reply(`✅ Ulandi: «${biz.profile.name}». Assalomu alaykum${name}!\n\n${helpFor(businesses.byId(biz.id) ?? biz)}`);
   }
 
   // ─── Mijoz: havola, raqam, savol ───────────────────────────────────────────
@@ -291,13 +366,13 @@ export function createBot(): BotService {
     }
     const biz = ownerOf(ctx);
     await ctx.reply(biz
-      ? `«${biz.profile.name}» ulangan.\n\n${HELP}`
+      ? `«${biz.profile.name}» ulangan.\n\n${helpFor(biz)}`
       : "Assalomu alaykum! Bu Cerebro — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz, paneldagi «Telegramni ulash» havolasini bosing.");
   });
 
   bot.help(async ctx => {
     const biz = ownerOf(ctx);
-    await ctx.reply(biz ? HELP : 'Bu Cerebro — biznes uchun AI yordamchi. Ulanish: panel → «Telegram».');
+    await ctx.reply(biz ? helpFor(biz) : 'Bu Cerebro — biznes uchun AI yordamchi. Ulanish: panel → «Telegram».');
   });
 
   bot.command('yangi', async ctx => {
@@ -305,6 +380,13 @@ export function createBot(): BotService {
     if (!biz) return;
     resetConversation(biz.id);
     await ctx.reply('🆕 Yangi suhbat. Vazifalar, mijozlar va eslab qolganlarim joyida.');
+  });
+
+  bot.command('savollar', async ctx => {
+    const biz = ownerOf(ctx);
+    if (!biz) return;
+    chatLog.add(biz.id, 'telegram', 'owner', '/savollar');
+    await sendInterview(biz, interviewStart(biz));
   });
 
   bot.command('vazifalar', async ctx => {
@@ -332,37 +414,33 @@ export function createBot(): BotService {
     const data = 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
     const [code, id] = data.split('|');
     const biz = ctx.chat?.type === 'private' ? businesses.byOwnerChat(String(ctx.chat.id)) : undefined;
-    if (!biz || !id) return ctx.answerCbQuery('Bu tugma eskirgan');
+    if (!biz || !id) return toast(ctx, 'Bu tugma eskirgan');
     const msg = ctx.callbackQuery.message;
 
     if (code === 'pp' || code === 'pd') {
       const p = posts.get(biz.id, id);
-      if (!p) return ctx.answerCbQuery('Post topilmadi');
+      if (!p) return toast(ctx, 'Post topilmadi');
       if (code === 'pd') {
-        if (p.status === 'published') return ctx.answerCbQuery('Post allaqachon joylangan');
+        if (p.status === 'published') return toast(ctx, 'Post allaqachon joylangan');
         posts.setStatus(biz.id, id, 'deleted');
-        await ctx.answerCbQuery("O'chirildi");
+        await toast(ctx, "O'chirildi");
       } else {
-        try {
-          await publishPost(biz, id);
-          await ctx.answerCbQuery('✅ Kanalga joylandi');
-        } catch (e) {
-          return ctx.answerCbQuery(cut((e as Error).message, 190), { show_alert: true });
-        }
+        // Post joylash olib tashlangan: eski xabardagi tugma hech narsani joylamaydi
+        return toast(ctx, 'Post joylash olib tashlangan', { show_alert: true });
       }
       return refreshPost(biz.id, id);
     }
 
     if (code === 'fs' || code === 'fc') {
       const o = outbound.get(biz.id, id);
-      if (!o) return ctx.answerCbQuery('Xabar topilmadi');
-      if (o.status !== 'draft') return ctx.answerCbQuery(o.status === 'sent' ? 'Allaqachon yuborilgan' : 'Bekor qilingan', { show_alert: true });
+      if (!o) return toast(ctx, 'Xabar topilmadi');
+      if (o.status !== 'draft') return toast(ctx, o.status === 'sent' ? 'Allaqachon yuborilgan' : 'Bekor qilingan', { show_alert: true });
       if (code === 'fc') {
         await cancelFollowup(biz, id).catch(() => {});
-        return ctx.answerCbQuery('Bekor qilindi');
+        return toast(ctx, 'Bekor qilindi');
       }
       // Tugmaga darhol javob (Telegram kutmaydi), yuborish — fonda
-      await ctx.answerCbQuery('Yuborilmoqda…');
+      await toast(ctx, 'Yuborilmoqda…');
       detach('mijozlarga xabar', async () => {
         try {
           const r = await sendFollowup(biz, id);
@@ -374,38 +452,99 @@ export function createBot(): BotService {
       return;
     }
 
+    if (code === 'ma' || code === 'mx' || code === 'mu') {
+      try {
+        if (code === 'mx') {
+          cancelEntry(biz, id);
+          await toast(ctx, 'Bekor qilindi');
+        } else {
+          // CRM sekin javob bersa Telegram tugmasi kutib qolmasin: natija kartaning o'zida ko'rinadi
+          const work = code === 'ma' ? confirmEntry(biz, id) : undoEntry(biz, id);
+          const fast = await Promise.race([work.then(() => true), new Promise<false>(r => setTimeout(() => r(false), 8000))]);
+          if (!fast) {
+            await toast(ctx, 'Yozilmoqda…');
+            detach('pul yozuvi', async () => {
+              try {
+                await work.catch(e => tg.sendMessage(biz.ownerChatId!, `⚠️ ${(e as Error).message}`));
+              } finally {
+                await refreshMoney(biz.id, id);
+              }
+            });
+            return;
+          }
+          await toast(ctx, code === 'ma' ? "✅ DentaCRM'ga yozildi" : '↩️ Ortga qaytarildi');
+        }
+      } catch (e) {
+        await toast(ctx, cut((e as Error).message, 190), { show_alert: true });
+      }
+      return refreshMoney(biz.id, id);
+    }
+
+    // Ikkinchi miya: «bu javobimni eslab qol / kerak emas»
+    if (code === 'ky' || code === 'kn') {
+      const result = settleSuggestion(biz, id, code === 'ky');
+      if (!result) return toast(ctx, 'Bu tugma eskirgan');
+      // Bilim o'zgardi — yordamchi keyingi gapni yangi bilim bilan boshlasin (panel ham shunday qiladi)
+      resetConversation(biz.id);
+      if (msg) await tg.editMessageText(biz.ownerChatId!, msg.message_id, undefined, result, { parse_mode: 'HTML' }).catch(ignoreUnchanged).catch(() => {});
+      return toast(ctx, code === 'ky' ? 'Eslab qoldim' : 'Eslab qolmadim');
+    }
+
+    // Birinchi kun suhbati: «o'tkazib yuborish» (aynan shu savol hali so'ralayotgan bo'lsa) yoki «to'xtatish»
+    if (code === 'iv') {
+      const turn = id.startsWith('s:') ? interviewSkip(biz, id.slice(2)) : id === 'x' ? interviewStop(biz) : null;
+      if (!turn) return toast(ctx, 'Bu tugma eskirgan');
+      await toast(ctx);
+      return sendInterview(biz, turn);
+    }
+
+    // Fayldan kelgan taklif: narxlarni jadvalga olish yoki hujjat namunasi qilish
+    if (code === 'kp' || code === 'ks') {
+      const result = settleFile(biz, id, code === 'kp' ? 'prices' : 'sample');
+      if (!result) return toast(ctx, 'Bu tugma eskirgan');
+      resetConversation(biz.id);
+      // Bajarilmadi (jadval yoki namunalar to'lgan): taklif va tugmalar joyida qoladi, sababi ogohlantirish bo'lib chiqadi
+      if (!result.done) return toast(ctx, cut(result.text, 190), { show_alert: true });
+      if (msg) await tg.editMessageText(biz.ownerChatId!, msg.message_id, undefined, result.text, { parse_mode: 'HTML' }).catch(ignoreUnchanged).catch(() => {});
+      return toast(ctx, code === 'kp' ? 'Narxlar jadvalga tushdi' : 'Namuna saqlandi');
+    }
+
     if (code === 'ra' || code === 'rx') {
       try {
         if (code === 'ra') {
-          await approveReply(biz, id);
-          return ctx.answerCbQuery('✅ Yuborildi');
+          // Instagram'da brauzer orqali yozish bir necha soniya oladi — Telegram tugmasi uzoq kutmasin
+          const sending = approveReply(biz, id);
+          const fast = await Promise.race([sending.then(() => true), new Promise<false>(r => setTimeout(() => r(false), 8000))]);
+          if (fast) return toast(ctx, '✅ Yuborildi');
+          await toast(ctx, 'Yuborilmoqda…');
+          return detach('javob', () => sending.catch(e => notifyOwner(biz, `⚠️ Yuborilmadi: ${esc(cut((e as Error).message, 300))}`)));
         }
         await dismissReply(biz, id);
-        return ctx.answerCbQuery('Yuborilmadi');
+        return toast(ctx, 'Yuborilmadi');
       } catch (e) {
-        return ctx.answerCbQuery(cut((e as Error).message, 190), { show_alert: true });
+        return toast(ctx, cut((e as Error).message, 190), { show_alert: true });
       }
     }
 
     if (code === 'td' || code === 'ts' || code === 'tt') {
       const t = tasks.get(biz.id, id);
-      if (!t) return ctx.answerCbQuery('Vazifa topilmadi');
+      if (!t) return toast(ctx, 'Vazifa topilmadi');
       const isReminder = !!msg && 'text' in msg && !!msg.text?.startsWith('⏰');
       const edit = (html: string) => (isReminder
         ? tg.editMessageText(biz.ownerChatId!, msg.message_id, undefined, html, { parse_mode: 'HTML' }).catch(ignoreUnchanged).catch(() => {})
         : Promise.resolve());
       if (code === 'td') {
         tasks.update(biz.id, id, { status: 'done' });
-        await ctx.answerCbQuery('✅ Bajarildi');
+        await toast(ctx, '✅ Bajarildi');
         return edit(reminderText(t, '✅ Bajarildi'));
       }
       const now = new Date();
       const next = code === 'ts' ? stamp(new Date(now.getTime() + 3600_000)) : `${iso(addDays(now, 1))}T09:00`;
       const u = tasks.update(biz.id, id, { dueAt: next, status: 'open' })!;
-      await ctx.answerCbQuery(`⏰ ${dueLabel('uz', next, now)}`);
+      await toast(ctx, `⏰ ${dueLabel('uz', next, now)}`);
       return edit(reminderText(u, `⏰ Yana eslataman: ${dueLabel('uz', next, now)}`));
     }
-    return ctx.answerCbQuery();
+    return toast(ctx);
   });
 
   // ─── Xabarlar ──────────────────────────────────────────────────────────────
@@ -421,7 +560,7 @@ export function createBot(): BotService {
     const phone = contact.phone_number.startsWith('+') ? contact.phone_number : `+${contact.phone_number}`;
     const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || lead.name;
     const updated = leads.update(biz.id, lead.id, { phone, name })!;
-    await ctx.reply(`Rahmat! ✅ Tez orada bog'lanamiz.\nСпасибо! Скоро свяжемся.${biz.profile.phone ? `\n📞 ${biz.profile.phone}` : ''}`, Markup.removeKeyboard());
+    await ctx.reply("Rahmat! ✅ Tez orada bog'lanamiz.\nСпасибо! Скоро свяжемся.", Markup.removeKeyboard());
     await toOwner(biz, updated, [
       '🆕 <b>Yangi mijoz</b>',
       `👤 ${esc(personName(updated))}${updated.username ? ` (@${esc(updated.username)})` : ''}`,
@@ -475,7 +614,8 @@ export function createBot(): BotService {
         const lead = leads.get(biz.id, leadId);
         if (!lead) return ctx.reply('Mijoz topilmadi.');
         try {
-          await ownerWrites(biz, lead, text);
+          // Qaysi kartaga «Reply» qilingani ma'lum: o'sha tayyor javob o'rniga yozilgan bo'lsa — tuzatish sifatida o'rganiladi
+          await ownerWrites(biz, lead, text, replies.byOwnerMessage(biz.id, replyTo!)?.id);
           return ctx.reply(`✅ ${personName(lead)}ga yuborildi.`);
         } catch (e) {
           return ctx.reply(`⚠️ Yuborilmadi: ${(e as Error).message}`);
@@ -494,10 +634,112 @@ export function createBot(): BotService {
     const lead = leads.latestForUser(String(ctx.from.id));
     if (lead) await customerMessage(ctx, lead, null);
   };
-  bot.on(message('photo'), forwardMedia);
-  bot.on(message('document'), forwardMedia);
+  /** Kuniga ko'riladigan rasmlar soni cheklangan: har bir rasm — ikkita AI so'rovi (egasining hisobidan) */
+  const photoDays = new Map<string, { day: string; count: number }>();
+  const photoAllowed = (bizId: string): boolean => {
+    const today = iso(new Date());
+    const used = photoDays.get(bizId)?.day === today ? photoDays.get(bizId)!.count : 0;
+    if (used >= env.aiDailyPhotos) return false;
+    photoDays.set(bizId, { day: today, count: used + 1 });
+    return true;
+  };
 
-  // Bot kanalga admin qilindi → qo'shgan odam egasi bo'lsa, kanal ulanadi
+  // Egasi rasm yubordi (chek, hujjat, kabinet): avval rasm matnga aylanadi, keyin yordamchi odatdagidek ishlaydi
+  bot.on(message('photo'), async ctx => {
+    const biz = ctx.chat.type === 'private' ? ownerOf(ctx) : undefined;
+    if (!biz) return forwardMedia(ctx);
+    if (!env.aiEnabled) return ctx.reply("AI o'chiq — rasmni ko'ra olmayman.");
+    const photo = ctx.message.photo.filter(p => (p.file_size ?? 0) <= MAX_PHOTO_BYTES).at(-1);
+    if (!photo) return ctx.reply('Rasm juda katta — kichikroq qilib yuboring.');
+    if (!photoAllowed(biz.id)) return ctx.reply(`Bugun ${env.aiDailyPhotos} ta rasm ko'rib chiqildi — bugunga shu yetarli (har bir rasm AI xarajati). Ertaga davom etamiz yoki matn bilan yozing.`);
+    const caption = (ctx.message.caption ?? '').trim().slice(0, 1000);
+    detach('rasm', async () => {
+      let seen: string;
+      try {
+        void ctx.sendChatAction('typing').catch(() => {});
+        const res = await fetch(await tg.getFileLink(photo.file_id), { signal: AbortSignal.timeout(20_000) });
+        if (!res.ok) throw new Error(`fayl yuklanmadi (${res.status})`);
+        seen = await describePhoto(biz.id, Buffer.from(await res.arrayBuffer()), caption);
+      } catch (e) {
+        console.error('[rasm]', (e as Error).message);
+        return ctx.reply("📷 Rasmni ko'ra olmadim. Qayta yuboring yoki matn bilan yozing.");
+      }
+      await handleOwner(ctx, biz, photoMessage(caption, seen), false, { display: `📷 ${caption || 'Rasm'}`, photo: true });
+    });
+  });
+  // ─── Qo'ng'iroq yozuvi: egasi audio tashladi → matn (kim nima dedi) va tahlil ─────
+  /** Telegram bot yuklab beradigan fayl chegarasi */
+  const MAX_RECORDING_BYTES = 20 * 1024 * 1024;
+  const AUDIO_EXT = /\.(mp3|m4a|mp4|aac|ogg|oga|opus|wav|flac|webm|amr|awb|3gp|3gpp)$/i;
+  const MIME_BY_EXT: Record<string, string> = { mp3: 'audio/mpeg', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', wav: 'audio/wav', flac: 'audio/flac', webm: 'audio/webm' };
+  async function callRecording(ctx: Context, biz: BusinessRow, file: { id: string; name: string; mime: string; size: number }) {
+    if (!voiceEnabled()) return ctx.reply("Yozuvni tinglash uchun ovoz xizmati kerak (serverda kaliti yo'q).");
+    if (file.size > MAX_RECORDING_BYTES) return ctx.reply("📞 Yozuv 20 MB dan katta — Telegram bunday faylni botga bermaydi. Qisqaroq yoki siqilgan (mp3, m4a) qilib yuboring.");
+    await ctx.reply("📞 Qo'ng'iroq yozuvi qabul qilindi — tinglab, tahlil qilyapman (1–3 daqiqa).");
+    detach("qo'ng'iroq yozuvi", async () => {
+      try {
+        const res = await fetch(await tg.getFileLink(file.id), { signal: AbortSignal.timeout(60_000) });
+        if (!res.ok) throw new Error(`fayl yuklanmadi (${res.status})`);
+        let audio: Buffer = Buffer.from(await res.arrayBuffer()), mime = file.mime;
+        // Telefon yozuvchilarining AMR/3GP formatini nutq xizmatlari qabul qilmaydi — OGG ga aylantiriladi
+        if (/amr|awb|3gp/i.test(`${file.name} ${file.mime}`)) {
+          const ogg = await toOgg(audio);
+          if (!ogg) return ctx.reply("📞 Bu formatni o'qib bo'lmadi (kompyuterda ffmpeg kerak). mp3 yoki m4a qilib yuboring.");
+          audio = ogg;
+          mime = 'audio/ogg';
+        }
+        const r = await reviewCall(biz, audio, mime);
+        chatLog.add(biz.id, 'telegram', 'owner', `📞 Qo'ng'iroq yozuvi: ${file.name}`);
+        chatLog.add(biz.id, 'telegram', 'assistant', r.review);
+        await ctx.reply(r.review);
+        await tg.sendDocument(String(ctx.chat!.id), { source: Buffer.from(r.transcript, 'utf8'), filename: 'suhbat-matni.txt' },
+          { caption: r.speakers ? "Suhbat matni: «1-ovoz», «2-ovoz» — gapiruvchilar (avtomatik ajratilgan)" : 'Suhbat matni (avtomatik)' });
+      } catch (e) {
+        if (e instanceof SilenceError) return ctx.reply("📞 Yozuvda gap eshitilmadi.");
+        console.error("[qo'ng'iroq yozuvi]", (e as Error).message);
+        return ctx.reply(`📞 Yozuvni tahlil qilib bo'lmadi: ${(e as Error).message.slice(0, 150)}`);
+      }
+    });
+  }
+  const audioMime = (name: string, mime?: string) => (mime && mime.startsWith('audio/') ? mime : MIME_BY_EXT[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'audio/mpeg');
+
+  bot.on(message('audio'), async ctx => {
+    const biz = ctx.chat.type === 'private' ? ownerOf(ctx) : undefined;
+    if (!biz) return forwardMedia(ctx);
+    const a = ctx.message.audio;
+    const name = (a.file_name ?? 'yozuv.mp3').slice(0, 200);
+    return callRecording(ctx, biz, { id: a.file_id, name, mime: audioMime(name, a.mime_type), size: a.file_size ?? 0 });
+  });
+
+  // Egasi fayl tashladi (narxnoma, shartnoma namunasi, yo'riqnoma) → o'qiladi va bilimga taklif bo'lib tushadi. Mijozning fayli egasiga uzatiladi
+  bot.on(message('document'), async ctx => {
+    const biz = ctx.chat.type === 'private' ? ownerOf(ctx) : undefined;
+    if (!biz) return forwardMedia(ctx);
+    const doc = ctx.message.document;
+    const name = (doc.file_name ?? 'fayl').slice(0, 200);
+    // Audio fayl hujjat bo'lib kelsa (telefon yozuvi) — qo'ng'iroq tahlili
+    if (doc.mime_type?.startsWith('audio/') || AUDIO_EXT.test(name)) {
+      return callRecording(ctx, biz, { id: doc.file_id, name, mime: audioMime(name, doc.mime_type), size: doc.file_size ?? 0 });
+    }
+    if ((doc.file_size ?? 0) > MAX_FILE_BYTES) return ctx.reply(`📎 Fayl ${MAX_FILE_BYTES / 1024 / 1024} MB dan katta — kichikroq qilib yuboring.`);
+    detach('fayl', async () => {
+      try {
+        void ctx.sendChatAction('typing').catch(() => {});
+        const res = await fetch(await tg.getFileLink(doc.file_id), { signal: AbortSignal.timeout(30_000) });
+        if (!res.ok) throw new Error(`fayl yuklanmadi (${res.status})`);
+        const taken = await takeFile(biz, name, Buffer.from(await res.arrayBuffer()));
+        const text = intakeText(taken);
+        chatLog.add(biz.id, 'telegram', 'owner', `📎 ${taken.label}`);
+        chatLog.add(biz.id, 'telegram', 'assistant', text);
+        await ctx.reply(text, { reply_markup: fileKeyboard(taken.suggestion.id, taken.prices) });
+      } catch (e) {
+        if (!(e instanceof FileError)) console.error('[fayl]', (e as Error).message);
+        await ctx.reply(e instanceof FileError ? `📎 ${e.message}` : "📎 Faylni o'qiy olmadim. Qayta yuboring.");
+      }
+    });
+  });
+
+  // Post joylash olib tashlangan — kanal endi ulanmaydi. Avval ulangan kanaldan bot chiqarilsa, belgisi tozalanadi
   bot.on('my_chat_member', async ctx => {
     const upd = ctx.myChatMember;
     if (upd.chat.type !== 'channel') return;
@@ -505,10 +747,7 @@ export function createBot(): BotService {
     if (!biz) return;
     const m = upd.new_chat_member;
     const title = 'title' in upd.chat ? upd.chat.title : 'kanal';
-    if (m.status === 'administrator' && m.can_post_messages !== false) {
-      businesses.update(biz.id, { channelId: String(upd.chat.id), channelTitle: title });
-      await tg.sendMessage(biz.ownerChatId!, `✅ Kanal ulandi: «${title}». Endi postlarni bir tugma bilan joylash mumkin.`).catch(() => {});
-    } else if (biz.channelId === String(upd.chat.id) && m.status !== 'administrator') {
+    if (biz.channelId === String(upd.chat.id) && m.status !== 'administrator') {
       businesses.update(biz.id, { channelId: null, channelTitle: null });
       await tg.sendMessage(biz.ownerChatId!, `⚠️ «${title}» kanali uzildi (bot endi admin emas).`).catch(() => {});
     }
@@ -523,6 +762,15 @@ export function createBot(): BotService {
     if (!biz?.ownerChatId || !p?.ownerMessageId) return;
     await tg.editMessageCaption(biz.ownerChatId, p.ownerMessageId, undefined, postCaption(p, biz), { parse_mode: 'HTML', reply_markup: postKeyboard(p, biz) })
       .catch(ignoreUnchanged).catch(e => console.error('[bot] post xabari:', (e as Error).message));
+  }
+
+  async function refreshMoney(bizId: string, id: string) {
+    const biz = businesses.byId(bizId);
+    const row = moneyEntries.get(bizId, id);
+    if (!biz?.ownerChatId || !row?.ownerMessageId) return;
+    const e = entryView(row);
+    await tg.editMessageText(biz.ownerChatId, row.ownerMessageId, undefined, moneyText(e), { parse_mode: 'HTML', reply_markup: moneyKeyboard(e) })
+      .catch(ignoreUnchanged).catch(err => console.error('[bot] pul yozuvi:', (err as Error).message));
   }
 
   async function refreshFollowup(bizId: string, id: string) {
@@ -602,19 +850,46 @@ export function createBot(): BotService {
 
   return {
     enabled: true,
+    refreshMoney,
     username: () => username,
-    async start() {
-      const me = await tg.getMe();
-      username = me.username;
-      await tg.setMyCommands([
-        { command: 'vazifalar', description: 'Ochiq vazifalar' },
-        { command: 'yangi', description: 'Yangi suhbat' },
-        { command: 'help', description: 'Nima qila olaman' },
-      ]).catch(() => {});
-      void bot.launch({ dropPendingUpdates: false, allowedUpdates: ['message', 'callback_query', 'my_chat_member'] })
-        .catch(e => console.error('[bot] ishga tushmadi:', (e as Error).message));
+    /**
+     * Botni ishga tushiradi va ishlab turishini ta'minlaydi. Qaytadi: bot tanilganda (Telegram birinchi marta javob berganda).
+     * Telegram javob bermasa (kompyuter internetsiz yongan) yoki xabar olish uzilib qolsa (shu token bilan boshqa joyda ikkinchi nusxa
+     * ishga tushgan — 409) — tobora uzoqroq kutib qayta uriniladi. Faqat token noto'g'ri bo'lsa (401) to'xtaydi: uni qayta urinish tuzatmaydi.
+     */
+    start() {
+      return new Promise<void>(known => {
+        void (async () => {
+          for (let wait = RETRY_MIN_MS; !stopped; wait = Math.min(wait * 2, RETRY_MAX_MS)) {
+            try {
+              username = (await tg.getMe()).username;
+              known();
+              await tg.setMyCommands([
+                { command: 'vazifalar', description: 'Ochiq vazifalar' },
+                { command: 'yangi', description: 'Yangi suhbat' },
+                { command: 'help', description: 'Nima qila olaman' },
+              ]).catch(() => {});
+              // Xabar olish to'xtamaguncha shu yerda turadi; uzilsa — pastda sababi yoziladi va qayta boshlanadi
+              await bot.launch({ dropPendingUpdates: false, allowedUpdates: ['message', 'callback_query', 'my_chat_member'] });
+              if (stopped) return;
+              wait = RETRY_MIN_MS;
+            } catch (e) {
+              const code = (e as { response?: { error_code?: number } }).response?.error_code;
+              if (code === 401) {
+                console.error("[bot] BOT_TOKEN noto'g'ri yoki bekor qilingan — bot o'chiq. Tokenni tuzatib, qayta ishga tushiring");
+                return known();
+              }
+              console.error(`[bot] ${code === 409 ? 'shu token bilan boshqa nusxa ishlayapti (bitta token — bitta kompyuter)' : `Telegram'ga ulanib bo'lmadi: ${(e as Error).message}`} — ${Math.round(wait / 1000)} soniyadan keyin qayta uriniladi`);
+            }
+            await new Promise(r => setTimeout(r, wait));
+          }
+        })();
+      });
     },
-    stop: () => { try { bot.stop(); } catch { /* ishlamayotgan bo'lsa */ } },
+    stop: () => {
+      stopped = true;
+      try { bot.stop(); } catch { /* ishlamayotgan bo'lsa */ }
+    },
     publishPost,
     sendFollowup,
     cancelFollowup,
@@ -623,6 +898,10 @@ export function createBot(): BotService {
       await tg.sendMessage(biz.ownerChatId, reminderText(t), { parse_mode: 'HTML', reply_markup: reminderKeyboard(t) });
     },
     sendText: (chatId, html) => sendHtml(chatId, html),
+    async sendVoice(chatId, audio, caption) {
+      if ('ogg' in audio) await tg.sendVoice(chatId, { source: audio.ogg, filename: 'eslatma.ogg' }, { caption, parse_mode: 'HTML' });
+      else await tg.sendAudio(chatId, { source: audio.wav, filename: 'eslatma.wav' }, { caption, parse_mode: 'HTML' });
+    },
     async verifyChannel(ref: string) {
       const clean = ref.trim().replace(/^https?:\/\/t\.me\//, '').replace(/^@?/, '@');
       const chatRef = /^@-?\d+$/.test(clean) ? clean.slice(1) : clean;

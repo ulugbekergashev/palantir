@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Brain, Loader2, Mic, RotateCcw, Send, Square } from 'lucide-react';
+import { Loader2, Mic, Paperclip, RotateCcw, Send, Square } from 'lucide-react';
 import type { Artifact, Business, ChatEntry, LiveStatus } from '../types';
 import { api } from '../data/api';
 import { ArtifactView, type Notify } from '../components/Artifacts';
 import { Markdown } from '../components/Markdown';
 import { Button } from '../components/ui';
+import { takeAsk } from '../lib/ask';
+import { sectionFor } from '../lib/commands';
 import { startRecording, type Recording } from '../lib/recorder';
 
 const SUGGESTIONS = [
@@ -12,23 +14,42 @@ const SUGGESTIONS = [
   "Ertaga soat 10 da bankka borishni eslat",
   "Yangi mijoz: Aziz Karimov, +998 90 123 45 67, narx so'radi",
   'Hamkorlik shartnomasi tayyorla',
-  'Dam olish kunlari aksiyasi haqida post qil',
+  "Narxnomani (Excel, Word, PDF) skrepka bilan tashlang — o'qib, bilimga qo'shaman",
   "Oxirgi hafta yozgan mijozlarga rahmat xabarini tayyorla",
 ];
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
+/** Suhbatga tashlanadigan fayl chegarasi (server: intake/extract.ts MAX_FILE_BYTES) */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export function ChatPage({ biz, status, notify, now }: { biz: Business; status: LiveStatus; notify: Notify; now: Date }) {
   const [entries, setEntries] = useState<ChatEntry[] | null>(null);
   const [text, setText] = useState('');
   const [pending, setPending] = useState<string | null>(null);
+  /** Birinchi kun suhbati ochiq: yozilgan gap savolga javob bo'lib ketadi */
+  const [interview, setInterview] = useState(false);
   const [rec, setRec] = useState<Recording | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
   const busy = pending !== null;
+  // Suhbat bo'sh: ekranda faqat so'rov qatori turadi, misollar uning ichida navbat bilan ko'rinadi
+  // (yuklanayotganda ham shu ko'rinish: ramka paydo bo'lib, keyin yo'qolib qolmasin)
+  const empty = !entries?.length && !pending;
+  const [hint, setHint] = useState(0);
+  useEffect(() => {
+    if (!empty) return;
+    const t = setInterval(() => setHint(h => (h + 1) % SUGGESTIONS.length), 3500);
+    return () => clearInterval(t);
+  }, [empty]);
 
-  const load = () => api.chat().then(r => setEntries(r.entries)).catch(e => notify((e as Error).message, true));
-  useEffect(() => { void load(); }, []);
+  const load = () => api.chat().then(r => { setEntries(r.entries); setInterview(r.interview); }).catch(e => notify((e as Error).message, true));
+  // Bosh sahifada yozilgan savol bo'lsa — suhbat yuklangach o'zi yuboriladi (sahifadan chiqib ketilgan bo'lsa — keyingi ochilishda)
+  useEffect(() => {
+    let gone = false;
+    void load().then(() => { const asked = gone ? null : takeAsk(); if (asked) void submit(asked); });
+    return () => { gone = true; };
+  }, []);
   // Telegram'dagi suhbat ham shu yerda ko'rinsin
   useEffect(() => {
     if (busy) return;
@@ -40,14 +61,55 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
   const submit = async (value: string, voice?: Blob) => {
     const clean = value.trim();
     if ((!clean && !voice) || busy) return;
+    // «Kameralarni och» kabi qisqa buyruq: bo'lim darhol ochiladi
+    const section = voice ? null : sectionFor(clean);
+    if (section) { setText(''); window.location.hash = `#/${section}`; return; }
     setPending(voice ? '🎙 …' : clean);
     setText('');
     try {
       const r = voice ? await api.sayVoice(voice) : await api.say(clean);
       setEntries(prev => [...(prev ?? []), ...r.entries]);
+      setInterview(r.interview);
+      // Ovoz bilan aytilgan buyruq matnga aylangach tekshiriladi
+      const spoken = voice ? sectionFor(r.entries.find(e => e.role === 'owner')?.text ?? '') : null;
+      if (spoken) window.location.hash = `#/${spoken}`;
     } catch (e) {
       notify((e as Error).message, true);
       if (!voice) setText(clean);
+    } finally {
+      setPending(null);
+      input.current?.focus();
+    }
+  };
+
+  /** Birinchi kun suhbati: savolni o'tkazib yuborish yoki suhbatni to'xtatish */
+  const interviewAct = async (action: 'skip' | 'stop') => {
+    if (busy) return;
+    setPending(action === 'skip' ? 'Keyingi savol…' : "To'xtatilmoqda…");
+    try {
+      const r = await api.interview(action);
+      setEntries(prev => [...(prev ?? []), ...r.entries]);
+      setInterview(r.open);
+    } catch (e) {
+      notify((e as Error).message, true);
+      void load();
+    } finally {
+      setPending(null);
+      input.current?.focus();
+    }
+  };
+
+  /** Fayl tashlandi (narxnoma, shartnoma namunasi, yo'riqnoma): server o'qiydi, «Ikkinchi miya»da tasdiq kutadi */
+  const sendFile = async (file: File) => {
+    if (busy) return;
+    // Katta fayl serverga yuborib o'tirilmaydi (server ham shu chegarada rad etadi)
+    if (file.size > MAX_UPLOAD_BYTES) { notify(`Fayl ${MAX_UPLOAD_BYTES / 1024 / 1024} MB dan katta — kichikroq qilib yuboring.`, true); return; }
+    setPending(`📎 ${file.name}`);
+    try {
+      const r = await api.sayFile(file);
+      setEntries(prev => [...(prev ?? []), ...r.entries]);
+    } catch (e) {
+      notify((e as Error).message, true);
     } finally {
       setPending(null);
       input.current?.focus();
@@ -79,11 +141,11 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
     setEntries(prev => prev?.map(e => (e.id === entryId ? { ...e, artifacts: e.artifacts.map((x, i) => (i === index ? a : x)) } : e)) ?? prev);
 
   return (
-    <div className="flex h-[calc(100dvh-7.5rem)] flex-col lg:h-[calc(100dvh-4rem)]">
-      <header className="mb-3 flex flex-wrap items-center gap-3">
+    <div className={`flex h-[calc(100dvh-var(--shell-y))] flex-col ${empty ? 'justify-center' : ''}`}>
+      <header className={`mb-3 flex flex-wrap items-center gap-3 ${empty ? 'hidden' : ''}`}>
         <div className="mr-auto">
-          <h1 className="text-2xl font-extrabold tracking-tight">Yordamchi</h1>
-          <p className="text-sm text-slate-500">Yozing yoki gapiring — vazifa, mijoz, hujjat, post. Telegram'dagi suhbat ham shu yerda.</p>
+          <h1 className="text-[1.75rem] font-extrabold leading-tight tracking-tight">Yordamchi</h1>
+          <p className="text-sm text-slate-500">Yozing, gapiring yoki fayl tashlang — vazifa, mijoz, hujjat, narxnoma. Telegram'dagi suhbat ham shu yerda.</p>
         </div>
         {!status.ai && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">AI ulanmagan</span>}
         {status.bot && !status.ownerLinked && (
@@ -92,21 +154,12 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
         <Button size="sm" variant="ghost" onClick={reset} title="Suhbatni yangidan boshlash"><RotateCcw className="h-3.5 w-3.5" /> Yangi suhbat</Button>
       </header>
 
-      <div className="flex-1 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 sm:p-6" aria-live="polite">
+      <div className={empty ? 'pb-5' : 'flex-1 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 sm:p-6'} aria-live="polite">
         {entries === null ? (
           <div className="flex h-full items-center justify-center text-slate-400"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : entries.length === 0 && !pending ? (
           <div className="mx-auto flex h-full max-w-xl flex-col items-center justify-center text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow"><Brain className="h-7 w-7" /></div>
-            <h2 className="text-xl font-extrabold">Assalomu alaykum{biz.ownerName ? `, ${biz.ownerName}` : ''}!</h2>
-            <p className="mt-1 text-sm text-slate-500">Men — Cerebro. Ishingizni ayting, qolganini o'zim qilaman.</p>
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map(s => (
-                <button key={s} type="button" onClick={() => void submit(s)} className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50">
-                  {s}
-                </button>
-              ))}
-            </div>
+            <div className="mb-4 flex h-14 w-14 shrink-0 items-center justify-center"><img src="/favicon.svg" alt="Cerebro Logo" className="h-14 w-14" /></div>
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-4">
@@ -117,7 +170,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
                     {e.role === 'owner' ? <p className="whitespace-pre-line">{e.text}</p> : <Markdown text={e.text} />}
                   </div>
                   {e.artifacts.map((a, i) => (
-                    <ArtifactView key={i} a={a} biz={biz} channel={status.channel?.title ?? null} notify={notify} now={now} onChange={x => replaceArtifact(e.id, i, x)} />
+                    <ArtifactView key={i} a={a} biz={biz} notify={notify} now={now} onChange={x => replaceArtifact(e.id, i, x)} />
                   ))}
                   <div className={`text-[11px] text-slate-400 ${e.role === 'owner' ? 'text-right' : ''}`}>{time(e.createdAt)}{e.channel === 'telegram' ? ' · Telegram' : ''}</div>
                 </div>
@@ -134,18 +187,31 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
         <div ref={bottom} />
       </div>
 
-      <form onSubmit={e => { e.preventDefault(); void submit(text); }} className="mt-3 flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm focus-within:border-indigo-400">
+      {interview && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          <span>Cerebro savol beryapti — javobingizni yozing.</span>
+          <button type="button" onClick={() => void interviewAct('skip')} disabled={busy} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-40">O'tkazib yuborish</button>
+          <button type="button" onClick={() => void interviewAct('stop')} disabled={busy} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-40">To'xtatish</button>
+        </div>
+      )}
+      <form onSubmit={e => { e.preventDefault(); void submit(text); }} className={`flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm focus-within:border-indigo-400 ${empty ? 'mx-auto w-full max-w-3xl' : 'mt-3'}`}>
         <textarea
           ref={input}
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={onKey}
           rows={Math.min(6, Math.max(1, text.split('\n').length))}
-          placeholder={rec ? 'Gapiring… tugatgach ■ ni bosing' : 'Yozing yoki mikrofonni bosib gapiring…'}
+          placeholder={rec ? 'Gapiring… tugatgach ■ ni bosing' : empty ? `«${SUGGESTIONS[hint]}»` : 'Yozing yoki mikrofonni bosib gapiring…'}
           aria-label="Xabar"
           disabled={busy || !!rec}
           className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-[15px] outline-none placeholder:text-slate-400"
         />
+        <input ref={picker} type="file" accept=".pdf,.docx,.xlsx,.txt,.md,.csv" className="hidden" tabIndex={-1} aria-hidden="true"
+          onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void sendFile(file); }} />
+        <button type="button" onClick={() => picker.current?.click()} disabled={busy || !!rec} aria-label="Fayl biriktirish" title="PDF, Word, Excel yoki matn — o'qib, bilimga taklif qilaman"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 disabled:opacity-40">
+          <Paperclip className="h-5 w-5" />
+        </button>
         {status.voice && (
           <button
             type="button"
@@ -161,6 +227,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </button>
       </form>
+      {empty && !status.ai && <p className="mt-3 text-center text-sm text-amber-700">AI kaliti ulanmagan — yordamchi hozircha javob bera olmaydi.</p>}
     </div>
   );
 }

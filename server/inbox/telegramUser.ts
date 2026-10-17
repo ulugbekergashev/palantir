@@ -43,8 +43,13 @@ interface Driver {
   begin(key: string, phone: string): Promise<void>;
   code(key: string, code: string): Promise<{ session: string; account: TgAccount } | 'password'>;
   password(key: string, password: string): Promise<{ session: string; account: TgAccount }>;
-  /** Saqlangan sessiya bilan ulanadi; sessiya bekor qilingan bo'lsa — false */
-  attach(bizId: string, session: string, onEvent: (e: TgEvent) => void): Promise<boolean>;
+  /**
+   * Saqlangan sessiya bilan ulanadi; sessiya bekor qilingan bo'lsa — false. Tarmoq xatosi — istisno (keyinroq qayta uriniladi).
+   * since — shu paytdan (ms) keyingi xabarlar ulangach o'qib olinadi: uzilish paytida kelganlar yo'qolmasin. null — o'qilmaydi (yangi kirish)
+   */
+  attach(bizId: string, session: string, onEvent: (e: TgEvent) => void, since?: number | null): Promise<boolean>;
+  /** Ulanish tirikmi: ok — ishlayapti, revoked — egasi seansni tugatgan, down — javob yo'q (qayta ulash kerak) */
+  check(bizId: string): Promise<'ok' | 'revoked' | 'down'>;
   detach(bizId: string, logout: boolean): Promise<void>;
   send(bizId: string, to: TgTarget, text: string): Promise<{ msgId: string; userId: string; accessHash: string | null }>;
 }
@@ -62,6 +67,16 @@ const FRIENDLY: Record<string, string> = {
   FLOOD_WAIT: "Telegram ko'p urinish deb to'xtatdi — birozdan keyin qayta urining",
   API_ID_INVALID: 'Serverdagi TG_API_ID yoki TG_API_HASH noto\'g\'ri',
 };
+/** Telegram «bu seans endi yo'q» degan javoblar. Faqat shularda ulanish o'chiriladi — tarmoq xatosi seansni o'chirmaydi */
+const REVOKED = /AUTH_KEY_UNREGISTERED|AUTH_KEY_INVALID|AUTH_KEY_DUPLICATED|AUTH_KEY_PERM_EMPTY|SESSION_REVOKED|SESSION_EXPIRED|USER_DEACTIVATED/;
+const CHECK_TIMEOUT_MS = 20_000, CONNECT_TIMEOUT_MS = 60_000, CATCHUP_TIMEOUT_MS = 90_000;
+/** Uzilishdan keyin ko'riladigan suhbatlar va har biridan olinadigan oxirgi xabarlar soni */
+const CATCHUP_DIALOGS = 40, CATCHUP_MESSAGES = 10;
+const within = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+  new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('javob kutish vaqti tugadi')), ms);
+    p.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e as Error); });
+  });
 const friendly = (e: unknown) => {
   const c = errCode(e);
   const key = Object.keys(FRIENDLY).find(k => c.startsWith(k));
@@ -97,6 +112,23 @@ function gramjs(): Driver {
       name: [partner.firstName, partner.lastName].filter(Boolean).join(' ') || null, username: partner.username ?? null,
       phone: partner.phone ? `+${partner.phone}` : null, isContact: !!partner.contact, isBot: !!partner.bot, text, msgId: String(m.id),
     };
+  };
+
+  /**
+   * Uzilish paytida kelgan xabarlar: kutubxona ularni o'zi yetkazmaydi. Oxirgi suhbatlardan since dan keyingi xabarlar eskisidan yangisiga
+   * qarab beriladi — egasining o'z javoblari ham (u telefonidan javob bergan bo'lsa, Cerebro ikkinchi marta javob bermasin).
+   * Bir xabar ikki marta kelsa zarari yo'q: yozishmaga id bo'yicha bir marta tushadi
+   */
+  const catchUp = async (client: TelegramClient, since: number, onEvent: (e: TgEvent) => void) => {
+    for (const d of await client.getDialogs({ limit: CATCHUP_DIALOGS })) {
+      if (!d.isUser || !d.inputEntity || (d.date ?? 0) * 1000 < since) continue;
+      const messages = await client.getMessages(d.inputEntity, { limit: CATCHUP_MESSAGES });
+      for (const m of [...messages].reverse()) {
+        if (m.date * 1000 < since) continue;
+        const e = await toEvent(m).catch(() => null);
+        if (e) onEvent(e);
+      }
+    }
   };
 
   return {
@@ -138,22 +170,40 @@ function gramjs(): Driver {
       logins.delete(key);
       return finish(l.client);
     },
-    async attach(bizId, session, onEvent) {
+    async attach(bizId, session, onEvent, since = null) {
       const client = make(session);
-      await client.connect();
-      if (!(await client.checkAuthorization())) {
+      try {
+        // Kutubxona ulana olmasa xato bermaydi (false qaytaradi yoki kutib qoladi) — shuning uchun vaqt chegarasi va natija tekshiruvi
+        if ((await within(client.connect(), CONNECT_TIMEOUT_MS)) === false) throw new Error("Telegram'ga ulanib bo'lmadi");
+        // Kutubxonaning checkAuthorization() har qanday xatoda (internet uzilganda ham) «seans yo'q» deydi — shuning uchun o'zimiz so'raymiz
+        await within(client.invoke(new Api.updates.GetState()), CHECK_TIMEOUT_MS);
+        client.addEventHandler(async (ev: NewMessageEvent) => {
+          if (!ev.message.isPrivate) return;
+          const e = await toEvent(ev.message).catch(() => null);
+          if (e) onEvent(e);
+        }, new NewMessage({}));
+        // Yangilanishlar kelishi uchun holatni bir marta so'rash kerak
+        await within(client.getMe(), CHECK_TIMEOUT_MS);
+      } catch (e) {
         await client.destroy().catch(() => {});
-        return false;
+        if (REVOKED.test(errCode(e))) return false;
+        throw e;
       }
-      client.addEventHandler(async (ev: NewMessageEvent) => {
-        if (!ev.message.isPrivate) return;
-        const e = await toEvent(ev.message).catch(() => null);
-        if (e) onEvent(e);
-      }, new NewMessage({}));
-      // Yangilanishlar kelishi uchun holatni bir marta so'rash kerak
-      await client.getMe();
+      // Bitta biznes — bitta ulanish: oldingisi qolgan bo'lsa (qayta ulanish paytida egasi yangidan kirgan) yopiladi, xabarlar ikki marta kelmasin
+      await live.get(bizId)?.destroy().catch(() => {});
       live.set(bizId, client);
+      if (since != null) void within(catchUp(client, since, onEvent), CATCHUP_TIMEOUT_MS).catch(e => console.error("[telegram-akkaunt] o'tkazib yuborilgan xabarlar o'qilmadi:", (e as Error).message));
       return true;
+    },
+    async check(bizId) {
+      const c = live.get(bizId);
+      if (!c) return 'down';
+      try {
+        await within(c.invoke(new Api.updates.GetState()), CHECK_TIMEOUT_MS);
+        return 'ok';
+      } catch (e) {
+        return REVOKED.test(errCode(e)) ? 'revoked' : 'down';
+      }
     },
     async detach(bizId, logout) {
       const c = live.get(bizId);
@@ -219,6 +269,7 @@ function fake(base: string): Driver {
       })();
       return true;
     },
+    async check(bizId) { return live.has(bizId) ? 'ok' : 'down'; },
     async detach(bizId) { const s = live.get(bizId); if (s) s.stop = true; live.delete(bizId); },
     async send(bizId, to, text) {
       const s = live.get(bizId);
@@ -263,25 +314,89 @@ export const telegramUserAccount = (bizId: string) => {
   return c ? accountLabel(c.account) : null;
 };
 
-export async function startTelegramUser(): Promise<void> {
+/** Qayta ulanish: 15 soniyadan boshlab ikki baravar o'sadi, ko'pi bilan besh daqiqa. Tirikligini tekshirish — har daqiqada */
+const RETRY_MIN_MS = 15_000, RETRY_MAX_MS = 5 * 60_000, WATCH_MS = 60_000;
+/** Server qayta tushgach (tok o'chgan, yangilangan) shuncha vaqt ichida kelgan xabarlar o'qib olinadi */
+const BOOT_CATCHUP_MS = 6 * 3600_000;
+/** Har ulanishning oxirgi tirik ko'rilgan payti: qayta ulanganda shundan keyingi xabarlar o'qib olinadi */
+const lastAlive = new Map<string, number>();
+const bootedAt = Date.now();
+/** Ketma-ket shuncha tekshiruvda javob bo'lmasa — ulanish noldan qayta quriladi (bir martalik uzilishga tegilmaydi) */
+const DOWN_LIMIT = 2;
+const attaching = new Set<string>();
+const downs = new Map<string, number>();
+let halted = false;
+let watcher: NodeJS.Timeout | null = null;
+
+/**
+ * Saqlangan seans bilan ulanadi va ulanmaguncha qayta urinadi (kompyuter internetsiz yongan, Telegram vaqtincha javob bermayapti).
+ * Faqat Telegram seansni bekor qilingan desa — ulanish o'chiriladi va egasiga aytiladi
+ */
+async function keepAttached(bizId: string): Promise<void> {
+  if (!driver || attaching.has(bizId)) return;
+  attaching.add(bizId);
+  try {
+    for (let wait = RETRY_MIN_MS; !halted; wait = Math.min(wait * 2, RETRY_MAX_MS)) {
+      const c = connections.get(bizId, 'telegram');
+      if (!c) return; // shu orada egasi uzgan
+      try {
+        const since = lastAlive.get(bizId) ?? bootedAt - BOOT_CATCHUP_MS;
+        if (!(await driver.attach(bizId, open(c.secret), e => onEvent(bizId, e), since))) await lost(bizId);
+        else lastAlive.set(bizId, Date.now());
+        return;
+      } catch (e) {
+        console.error(`[telegram-akkaunt] ulanmadi — ${Math.round(wait / 1000)} soniyadan keyin qayta uriniladi:`, (e as Error).message);
+      }
+      await new Promise(r => setTimeout(r, wait));
+    }
+  } finally {
+    attaching.delete(bizId);
+  }
+}
+
+/** Ulanishlar tirikligini tekshiradi: jim uzilib qolgan seans qayta quriladi, bekor qilingani — o'chiriladi */
+async function watch(): Promise<void> {
+  if (!driver) return;
+  for (const c of connections.all('telegram')) {
+    const id = c.businessId;
+    if (attaching.has(id)) continue;
+    const state = await driver.check(id).catch(() => 'down' as const);
+    if (state === 'ok') { downs.delete(id); lastAlive.set(id, Date.now()); continue; }
+    if (state === 'revoked') {
+      await driver.detach(id, false).catch(() => {});
+      await lost(id);
+      continue;
+    }
+    const n = (downs.get(id) ?? 0) + 1;
+    downs.set(id, n);
+    if (n < DOWN_LIMIT) continue;
+    downs.delete(id);
+    console.error('[telegram-akkaunt] javob bermayapti — qayta ulanadi');
+    await driver.detach(id, false).catch(() => {});
+    void keepAttached(id);
+  }
+}
+
+/** Kanalni ro'yxatga oladi va saqlangan seanslarni FONDA ulaydi: Telegram javob bermasa ham server kutib qolmaydi */
+export function startTelegramUser(): void {
   if (!driver) return;
   const d = driver;
   registerSender('telegram', {
-    can: (biz, lead) => !!connections.get(biz.id, 'telegram') && !!((lead.tgUserId && lead.tgAccessHash) || lead.username || lead.phone),
+    // Telefon bo'yicha faqat egasi o'zi kiritgan mijozga yoziladi: yozishmada aytilgan raqam begona odamniki bo'lishi mumkin
+    can: (biz, lead) => !!connections.get(biz.id, 'telegram') && !!((lead.tgUserId && lead.tgAccessHash) || lead.username || (lead.phone && lead.channel === 'manual')),
     async send(biz: BusinessRow, lead: LeadRow, text: string) {
       const r = await d.send(biz.id, { userId: lead.tgUserId, accessHash: lead.tgAccessHash, username: lead.username, phone: lead.phone, name: lead.name }, text);
       if (r.userId && r.accessHash && (!lead.tgUserId || !lead.tgAccessHash)) leads.setTelegramPeer(biz.id, lead.id, r.userId, r.accessHash);
       return r.msgId;
     },
   });
-  for (const c of connections.all('telegram')) {
-    try {
-      const ok = await d.attach(c.businessId, open(c.secret), e => onEvent(c.businessId, e));
-      if (!ok) await lost(c.businessId);
-    } catch (e) {
-      console.error('[telegram-akkaunt] ulanmadi:', (e as Error).message);
-    }
-  }
+  for (const c of connections.all('telegram')) void keepAttached(c.businessId);
+  let watching = false;
+  watcher = setInterval(() => {
+    if (watching) return;
+    watching = true;
+    void watch().catch(e => console.error('[telegram-akkaunt] tekshiruv:', (e as Error).message)).finally(() => { watching = false; });
+  }, WATCH_MS);
 }
 
 /** Egasi telefonidan "Cerebro" seansini tugatgan */
@@ -292,6 +407,8 @@ async function lost(bizId: string): Promise<void> {
 }
 
 export async function stopTelegramUser(): Promise<void> {
+  halted = true;
+  if (watcher) clearInterval(watcher);
   if (!driver) return;
   for (const c of connections.all('telegram')) await driver.detach(c.businessId, false).catch(() => {});
 }
@@ -310,6 +427,8 @@ async function connected(biz: BusinessRow, r: { session: string; account: TgAcco
   await d.detach(biz.id, false).catch(() => {});
   connections.save(biz.id, 'telegram', seal(r.session), { ...r.account });
   await d.attach(biz.id, r.session, e => onEvent(biz.id, e));
+  // Yangi kirish: shu paytgacha kelgan xabarlar Cerebro'niki emas — keyingi qayta ulanishda faqat bundan keyingilari o'qiladi
+  lastAlive.set(biz.id, Date.now());
   return accountLabel({ ...r.account });
 }
 

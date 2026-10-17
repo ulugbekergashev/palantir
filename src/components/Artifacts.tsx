@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { Check, CheckCircle2, Download, Eye, FileText, Loader2, Send, Trash2, X } from 'lucide-react';
-import type { Artifact, Business, Doc, Outbound, Post, Task } from '../types';
+import { Banknote, Check, CheckCircle2, Download, Eye, FileText, Loader2, RotateCcw, Send, Trash2, X } from 'lucide-react';
+import type { Artifact, Business, Doc, MoneyEntry, MoneyStatus, Outbound, Post, Task } from '../types';
 import { api } from '../data/api';
 import { download, svgToPng } from '../lib/exportPng';
 import { dueLabel } from '../lib/week';
@@ -48,8 +48,9 @@ export function DocCard({ doc, notify, compact = false }: { doc: Doc; notify: No
   );
 }
 
-export function PostCard({ post, biz, notify, onChange, channel }: {
-  post: Post; biz: Business; notify: Notify; onChange: (p: Post) => void; channel: string | null;
+/** Eski post (post yasash olib tashlangan): rasmni yuklab olish va qoralamani o'chirish qoldi */
+export function PostCard({ post, biz, notify, onChange }: {
+  post: Post; biz: Business; notify: Notify; onChange: (p: Post) => void;
 }) {
   const ref = useRef<SVGSVGElement>(null);
   const [busy, run] = useAction(notify);
@@ -65,13 +66,7 @@ export function PostCard({ post, biz, notify, onChange, channel }: {
         <div className="flex flex-wrap items-center gap-2">
           {post.status === 'published'
             ? <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> {post.inChannel ? 'Kanalga joylandi' : 'Joylandi'}</span>
-            : post.status === 'deleted' ? <span className="text-xs font-bold text-slate-400">O'chirilgan</span>
-              : !story && (
-                <Button size="sm" variant="primary" disabled={!!busy || !channel} title={channel ? `«${channel}»ga joylash` : 'Avval Telegram kanalni ulang'}
-                  onClick={() => run('pub', async () => { onChange((await api.publishPost(post.id)).post); notify('Kanalga joylandi'); })}>
-                  {busy === 'pub' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Kanalga joylash
-                </Button>
-              )}
+            : post.status === 'deleted' && <span className="text-xs font-bold text-slate-400">O'chirilgan</span>}
           <Button size="sm" disabled={!!busy} onClick={() => run('png', async () => {
             if (!ref.current) return;
             download(await svgToPng(ref.current, 1080, heightOf(post.item)), fileName(post.item.design[lang].title, 'png'));
@@ -85,7 +80,48 @@ export function PostCard({ post, biz, notify, onChange, channel }: {
             </Button>
           )}
         </div>
-        {post.status === 'draft' && !story && !channel && <p className="text-xs text-slate-400">Kanalga joylash uchun «Telegram» bo'limida kanalni ulang.</p>}
+      </div>
+    </div>
+  );
+}
+
+const MONEY_STATE: Record<Exclude<MoneyStatus, 'draft'>, { text: string; tone: string }> = {
+  running: { text: 'Yozilmoqda…', tone: 'text-slate-500' },
+  done: { text: "DentaCRM'ga yozildi", tone: 'text-emerald-700' },
+  cancelled: { text: 'Bekor qilingan', tone: 'text-slate-400' },
+  failed: { text: 'Yozilmadi', tone: 'text-rose-600' },
+  unknown: { text: "Yozilgan-yozilmagani noma'lum — DentaCRM'da tekshiring", tone: 'text-amber-700' },
+  undone: { text: "Ortga qaytarildi (CRM'dan o'chirildi)", tone: 'text-slate-500' },
+};
+
+/** DentaCRM'ga pul yozuvi: tasdiqlanmaguncha hech narsa yozilmaydi */
+export function MoneyCard({ entry, notify, onChange }: { entry: MoneyEntry; notify: Notify; onChange: (e: MoneyEntry) => void }) {
+  const [busy, run] = useAction(notify);
+  const act = (verb: 'confirm' | 'cancel' | 'undo') => run(verb, async () => onChange((await api.money(entry.id, verb)).entry));
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-3.5">
+      <div className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800"><Banknote className="h-4 w-4 text-emerald-600" /> {entry.title}</div>
+      <ul className="space-y-0.5 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">{entry.details.map(d => <li key={d}>{d}</li>)}</ul>
+      {entry.note && <p className="mt-2 text-xs text-slate-500">{entry.note}</p>}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {entry.status === 'draft' ? (
+          <>
+            <Button size="sm" variant="primary" disabled={!!busy} onClick={() => act('confirm')}>
+              {busy === 'confirm' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Tasdiqlash
+            </Button>
+            <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => act('cancel')}><X className="h-3.5 w-3.5" /> Bekor qilish</Button>
+            <span className="text-xs text-slate-400">Tasdiqlasangiz — DentaCRM'ga yoziladi. So'ramagan bo'lsangiz — bekor qiling</span>
+          </>
+        ) : (
+          <>
+            <span className={`text-xs font-bold ${MONEY_STATE[entry.status].tone}`}>{MONEY_STATE[entry.status].text}</span>
+            {entry.canUndo && (
+              <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => act('undo')}>
+                {busy === 'undo' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} Ortga qaytarish
+              </Button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -148,13 +184,14 @@ export function TaskChip({ task, notify, onChange, now }: { task: Task; notify: 
 }
 
 /** Suhbatdagi narsa */
-export function ArtifactView({ a, biz, channel, notify, onChange, now }: {
-  a: Artifact; biz: Business; channel: string | null; notify: Notify; onChange: (a: Artifact) => void; now: Date;
+export function ArtifactView({ a, biz, notify, onChange, now }: {
+  a: Artifact; biz: Business; notify: Notify; onChange: (a: Artifact) => void; now: Date;
 }) {
   switch (a.type) {
     case 'document': return <DocCard doc={a.doc} notify={notify} />;
-    case 'post': return <div className="max-w-sm"><PostCard post={a.post} biz={biz} channel={channel} notify={notify} onChange={p => onChange({ type: 'post', post: p })} /></div>;
+    case 'post': return <div className="max-w-sm"><PostCard post={a.post} biz={biz} notify={notify} onChange={p => onChange({ type: 'post', post: p })} /></div>;
     case 'outbound': return <FollowupCard outbound={a.outbound} notify={notify} onChange={o => onChange({ type: 'outbound', outbound: o })} />;
+    case 'money': return <MoneyCard entry={a.entry} notify={notify} onChange={e => onChange({ type: 'money', entry: e })} />;
     case 'task': return <TaskChip task={a.task} notify={notify} now={now} onChange={t => onChange({ type: 'task', task: t })} />;
   }
 }

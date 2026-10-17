@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
 import { ImagePlus, Loader2, Plus, Save, Trash2, Upload } from 'lucide-react';
-import type { Business, ContentItem, Member, Note, Offering } from '../types';
+import type { Business, ContentItem, Member, Offering } from '../types';
 import { api } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { Button, Card, Field, IconButton, TextInput, inputClass } from '../components/ui';
@@ -34,40 +34,7 @@ const sample = (b: Business): ContentItem => {
   return { id: 'preview', kind: 'post', template: 'promo', style: 0, seed: 1, design: { uz: d, ru: d }, caption: { uz: '', ru: '' } };
 };
 
-function NotesCard({ notify }: { notify: Notify }) {
-  const [list, setList] = useState<Note[] | null>(null);
-  const [text, setText] = useState('');
-  useEffect(() => { api.notes().then(r => setList(r.notes)).catch(() => setList([])); }, []);
-  const add = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!text.trim()) return;
-    try { const { note } = await api.addNote(text.trim()); setList(l => [...(l ?? []), note]); setText(''); } catch (err) { notify((err as Error).message, true); }
-  };
-  return (
-    <Card title="Cerebro eslab qolgan narsalar" description="Doimiy faktlar: yetkazib berish shartlari, rekvizitlar, ish tartibi. Yordamchi ularni hujjat va javoblarda ishlatadi.">
-      {list === null ? <Loader2 className="h-5 w-5 animate-spin text-slate-400" /> : (
-        <ul className="mb-3 space-y-1.5">
-          {list.map(n => (
-            <li key={n.id} className="flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm">
-              <span className="flex-1">{n.text}</span>
-              <button type="button" aria-label={`O'chirish: ${n.text}`} className="text-slate-400 hover:text-rose-600"
-                onClick={async () => { await api.deleteNote(n.id).catch(() => {}); setList(l => l?.filter(x => x.id !== n.id) ?? l); }}>
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </li>
-          ))}
-          {!list.length && <li className="text-sm text-slate-400">Hali yo'q. Yordamchiga «eslab qol: …» deb aytsangiz ham shu yerga tushadi.</li>}
-        </ul>
-      )}
-      <form onSubmit={add} className="flex gap-2">
-        <TextInput value={text} onChange={e => setText(e.target.value)} placeholder="Masalan: 500 ming so'mdan yuqori buyurtmaga yetkazish bepul" aria-label="Yangi fakt" maxLength={500} />
-        <Button type="submit" disabled={!text.trim()}><Plus className="h-4 w-4" /></Button>
-      </form>
-    </Card>
-  );
-}
-
-export function BusinessPage({ biz, onSaved, notify }: { biz: Business; onSaved: (b: Business) => void; notify: Notify }) {
+export function BusinessPage({ biz, offeringsRev, onSaved, notify }: { biz: Business; offeringsRev: string; onSaved: (b: Business, offeringsRev: string) => void; notify: Notify }) {
   const [draft, setDraft] = useState(biz);
   const [saving, setSaving] = useState(false);
   const dirty = JSON.stringify(draft) !== JSON.stringify(biz);
@@ -78,8 +45,8 @@ export function BusinessPage({ biz, onSaved, notify }: { biz: Business; onSaved:
   const save = async () => {
     setSaving(true);
     try {
-      const { business } = await api.saveBusiness(draft);
-      onSaved(business);
+      const { business, offeringsRev: rev } = await api.saveBusiness(draft, offeringsRev);
+      onSaved(business, rev);
       setDraft(business);
       notify('Saqlandi — yordamchi yangi ma\'lumotni biladi');
     } catch (e) { notify((e as Error).message, true); } finally { setSaving(false); }
@@ -182,7 +149,6 @@ export function BusinessPage({ biz, onSaved, notify }: { biz: Business; onSaved:
           </div>
         </Card>
 
-        <div className="xl:col-span-2"><NotesCard notify={notify} /></div>
       </div>
 
       {dirty && (

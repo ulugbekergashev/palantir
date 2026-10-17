@@ -1,10 +1,44 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { CheckCircle2, KeyRound, Loader2, LogOut, Plus, Power } from 'lucide-react';
-import { adminApi, session, type AdminBusiness } from '../data/api';
+import { adminApi, session, type AdminBusiness, type AdminUsage } from '../data/api';
 import { Logo } from '../components/Sidebar';
 import { Button, Card, Field, TextInput } from '../components/ui';
 
-/** Sotuvchi (siz) uchun: bizneslarni qo'shish, bloklash, parolni tiklash */
+/** Server ham shuni talab qiladi (server/http.ts) */
+const MIN_PASSWORD = 8;
+const tokens = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} mln` : n >= 1000 ? `${Math.round(n / 1000)} ming` : String(n));
+
+/** Oxirgi kunlardagi AI xarajati: kun va biznes bo'yicha. Dollar — taxminiy (aniq hisob Anthropic kabinetida) */
+function UsageTable({ rows }: { rows: AdminUsage[] }) {
+  if (!rows.length) return <p className="py-4 text-center text-sm text-slate-500">Hali AI so'rovlari bo'lmagan</p>;
+  const total = rows.reduce((sum, r) => sum + r.usd, 0);
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="text-left text-xs text-slate-400">
+          <tr><th className="py-2 pr-3">Kun</th><th className="pr-3">Biznes</th><th className="pr-3 text-right">So'rovlar</th><th className="pr-3 text-right">Kirish</th><th className="pr-3 text-right">Chiqish</th><th className="text-right">≈ $</th></tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 tabular-nums">
+          {rows.map(r => (
+            <tr key={`${r.day}|${r.businessId}`}>
+              <td className="py-2 pr-3 text-slate-600">{r.day}</td>
+              <td className="pr-3 font-semibold">{r.business}</td>
+              <td className="pr-3 text-right">{r.calls}</td>
+              <td className="pr-3 text-right text-slate-600">{tokens(r.input + r.cacheRead + r.cacheWrite)}</td>
+              <td className="pr-3 text-right text-slate-600">{tokens(r.output)}</td>
+              <td className="text-right font-semibold">{r.usd.toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-slate-200"><td colSpan={5} className="py-2 pr-3 text-right text-slate-500">Jami</td><td className="text-right font-extrabold tabular-nums">{total.toFixed(2)}</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+/** Sotuvchi (siz) uchun: bizneslarni qo'shish, bloklash, parolni tiklash, AI xarajatini ko'rish */
 export function AdminPage() {
   const [authed, setAuthed] = useState(!!session.adminToken());
   const [password, setPassword] = useState('');
@@ -18,7 +52,8 @@ export function AdminPage() {
     if (err.status === 401) { session.setAdmin(null); setAuthed(false); }
     setMsg({ text: err.message, error: true });
   };
-  const load = () => adminApi.businesses().then(r => setList(r.businesses)).catch(fail);
+  const [usage, setUsage] = useState<{ model: string; rows: AdminUsage[] } | null>(null);
+  const load = () => Promise.all([adminApi.businesses(), adminApi.usage()]).then(([b, u]) => { setList(b.businesses); setUsage({ model: u.model, rows: u.usage }); }).catch(fail);
   useEffect(() => { if (authed) void load(); }, [authed]);
 
   const signIn = async (e: FormEvent) => {
@@ -39,20 +74,20 @@ export function AdminPage() {
     try { await adminApi.update(c.id, { active: !c.active }); await load(); } catch (err) { fail(err); }
   };
   const resetPassword = async (c: AdminBusiness) => {
-    const pw = window.prompt(`«${c.name}» uchun yangi parol (kamida 6 belgi):`);
+    const pw = window.prompt(`«${c.name}» uchun yangi parol (kamida ${MIN_PASSWORD} belgi):`);
     if (!pw) return;
     try { await adminApi.update(c.id, { password: pw }); setMsg({ text: `«${c.name}» paroli yangilandi` }); } catch (err) { fail(err); }
   };
 
   if (!authed) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-        <form onSubmit={signIn} className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <form onSubmit={signIn} className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-lift sm:p-7">
           <Logo subtitle="Admin" />
           <Field label="Admin paroli"><TextInput type="password" value={password} onChange={e => setPassword(e.target.value)} autoFocus required /></Field>
           {msg && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{msg.text}</p>}
           <Button type="submit" variant="primary" className="w-full">Kirish</Button>
-          <a href="#/" className="block text-center text-sm text-slate-400 hover:text-slate-600">Kabinetga kirish</a>
+          <a href="#/" className="block rounded text-center text-sm text-slate-500 hover:text-slate-900">Kabinetga kirish</a>
         </form>
       </div>
     );
@@ -66,12 +101,12 @@ export function AdminPage() {
       </header>
       {msg && <p role="status" className={`rounded-xl px-3.5 py-2.5 text-sm ${msg.error ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-800'}`}>{msg.text}</p>}
 
-      <Card title="Yangi biznes" description="Egasiga login va parolni bering — u kirib, biznes profilini to'ldiradi va Telegramni ulaydi">
+      <Card title="Yangi biznes" description="Egasiga login va parolni bering — u kirib, Telegramni ulaydi; biznes haqidagi bilim «Ikkinchi miya»ga yig'iladi">
         <form onSubmit={create} className="grid gap-3 sm:grid-cols-[1.3fr_1fr_1fr_1fr_auto] sm:items-end">
           <Field label="Biznes nomi"><TextInput value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required /></Field>
-          <Field label="Soha"><TextInput value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} placeholder="restoran" /></Field>
+          <Field label="Soha"><TextInput value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} placeholder="stomatologiya" /></Field>
           <Field label="Login"><TextInput value={form.login} onChange={e => setForm({ ...form, login: e.target.value })} placeholder="bizness" required /></Field>
-          <Field label="Parol"><TextInput value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength={6} required /></Field>
+          <Field label={`Parol (kamida ${MIN_PASSWORD} belgi)`}><TextInput value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength={MIN_PASSWORD} required /></Field>
           <Button type="submit" variant="primary" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Qo'shish</Button>
         </form>
       </Card>
@@ -103,6 +138,10 @@ export function AdminPage() {
             </table>
           </div>
         )}
+      </Card>
+
+      <Card title="AI xarajati — oxirgi 7 kun" description={usage ? `Model: ${usage.model}. Dollar taxminiy: aniq hisob va qoldiq — platform.claude.com` : undefined}>
+        {usage ? <UsageTable rows={usage.rows} /> : <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" />}
       </Card>
     </div>
   );

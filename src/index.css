@@ -1,19 +1,97 @@
 @import "tailwindcss";
 @import "@fontsource-variable/manrope";
 
+/*
+ * Ko'rinish: klinika qabulxonasidagi daftar — to'q siyoh yon panel va iliq qog'oz rangli ish yuzasi.
+ * Rang faqat ma'no uchun: yashil (emerald) — keldi / to'landi / joyida, sariq (amber) — egasini kutyapti,
+ * qizil (rose) — muammo / kelmadi, indigo — brend va asosiy amal.
+ */
 @theme {
   --font-sans: "Manrope Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+
+  /* Ish yuzasi (sahifa foni) */
+  --color-paper: #f6f4ef;
+
+  /* Siyoh: yon panel. 950 — logodagi rangning o'zi */
+  --color-ink-950: #0b0d10;
+  --color-ink-900: #12151b;
+  --color-ink-800: #1b1f28;
+  --color-ink-700: #272c38;
+  --color-ink-600: #3d4352;
+  --color-ink-400: #8d95a5;
+  --color-ink-300: #aeb5c2;
+  --color-ink-200: #d3d8e0;
+
+  /*
+   * Neytral shkala: och tomoni iliq qog'oz (fon, chiziq), to'q tomoni siyoh (matn).
+   * 400 ataylab to'qroq: ikkinchi darajali matn oq va qog'oz fonida 4.5:1 dan past tushmaydi.
+   */
+  --color-slate-50: #f9f7f3;
+  --color-slate-100: #f1eee8;
+  --color-slate-200: #e4e0d8;
+  --color-slate-300: #cdc8be;
+  --color-slate-400: #646a79;
+  --color-slate-500: #535968;
+  --color-slate-600: #414656;
+  --color-slate-700: #2f3441;
+  --color-slate-800: #1f232d;
+  --color-slate-900: #13161d;
+  --color-slate-950: #0b0d10;
+
+  /* Varaq soyasi: kartalar qog'oz ustida yengil ko'tarilib turadi */
+  --shadow-sheet: 0 1px 0 rgb(19 22 29 / 0.03), 0 1px 3px rgb(19 22 29 / 0.06);
+  --shadow-lift: 0 1px 0 rgb(19 22 29 / 0.04), 0 8px 24px -8px rgb(19 22 29 / 0.14);
 }
 
-html,
-body {
-  background: #f8fafc;
-  color: #0f172a;
-}
+/* Qobiqning vertikal egallagan joyi (telefonda yuqori panel + bo'shliqlar): suhbat sahifasi ekran bo'yiga shunga qarab cho'ziladi */
+:root { --shell-y: 5.5rem; }
+@media (min-width: 40rem) { :root { --shell-y: 6.5rem; } }
+@media (min-width: 64rem) { :root { --shell-y: 4rem; } }
 
+@layer base {
+  html,
+  body {
+    background: var(--color-paper);
+    color: var(--color-slate-900);
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Klaviatura bilan yurganda diqqat qayerdaligi doim ko'rinadi (o'z halqasi bor maydonlar outline-none bilan buni o'chiradi) */
+  :focus-visible {
+    outline: 2px solid var(--color-indigo-500);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-indigo-500) 22%, transparent);
+  }
+}
 
 @keyframes pop-in {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
   to { opacity: 1; transform: none; }
 }
 .animate-pop { animation: pop-in 0.22s ease-out both; }
+
+/* Sahifa almashganda mazmun yengil ko'tarilib chiqadi */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-rise { animation: rise-in 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+/* Harakatni kamaytirish so'ralgan bo'lsa — o'tishlar va paydo bo'lishlar o'chadi (kutish belgisi aylanaveradi: u holatni bildiradi) */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin),
+  *:not(.animate-spin)::before,
+  *:not(.animate-spin)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

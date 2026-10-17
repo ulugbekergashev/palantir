@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join, resolve } from 'node:path';
 
@@ -8,18 +8,34 @@ if (existsSync('.env')) process.loadEnvFile('.env');
 const dataDir = resolve(process.env.DATA_DIR || 'data');
 mkdirSync(dataDir, { recursive: true });
 
+const SECRET_HEX = 64;
 /** Sessiya imzosi kaliti: berilmagan bo'lsa bir marta yaratiladi va data papkasida saqlanadi */
 function sessionSecret(): string {
   if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
   const file = join(dataDir, 'session.secret');
-  if (!existsSync(file)) writeFileSync(file, randomBytes(32).toString('hex'), { mode: 0o600 });
-  return readFileSync(file, 'utf8').trim();
+  const saved = existsSync(file) ? readFileSync(file, 'utf8').trim() : '';
+  // Bo'sh yoki chala fayl (yozilayotganda tok o'chgan) kalit emas: bo'sh kalit bilan imzolangan tokenni har kim yasay olardi
+  if (saved.length >= SECRET_HEX) return saved;
+  const fresh = randomBytes(SECRET_HEX / 2).toString('hex');
+  writeFileSync(`${file}.tmp`, fresh, { mode: 0o600 });
+  renameSync(`${file}.tmp`, file);
+  return fresh;
 }
 
 export const env = {
   port: Number(process.env.PORT) || 3200,
+  /**
+   * Server tinglaydigan manzil. Berilmasa — 127.0.0.1: faqat shu kompyuterdan ochiladi (panel shifrsiz, tarmoqqa o'zi ochilib qolmasin).
+   * Hamma tarmoq interfeyslari uchun ochiq aytiladi: LISTEN_HOST=0.0.0.0 (yoki bo'sh qiymat) — hostingda, proksi ortida
+   */
+  listenHost: process.env.LISTEN_HOST ?? '127.0.0.1',
+  /** Server oldida proksi (nginx, hosting) turibdimi. Faqat shunda X-Forwarded-For'ga ishoniladi; to'g'ridan-to'g'ri ochiq serverda 1 qilinsa, kirish urinishlari chegarasini aylanib o'tish mumkin bo'ladi */
+  trustProxy: process.env.TRUST_PROXY === '1',
   dataDir,
   dbFile: process.env.DB_FILE || join(dataDir, 'cerebro.db'),
+  /** Kunlik zaxira nusxalar papkasi (boshqa diskka qo'ygan ma'qul) va nechta kun saqlanishi. BACKUP_KEEP=0 — zaxira olinmaydi */
+  backupDir: resolve(process.env.BACKUP_DIR || join(dataDir, 'backups')),
+  backupKeep: process.env.BACKUP_KEEP && Number.isFinite(Number(process.env.BACKUP_KEEP)) ? Number(process.env.BACKUP_KEEP) : 14,
   /** @BotFather tokeni. Bo'lmasa — panel ishlaydi, Telegram o'chiq */
   botToken: process.env.BOT_TOKEN || '',
   /** Faqat sinov uchun: soxta Telegram API manzili */
@@ -30,6 +46,12 @@ export const env = {
   /** Internetdan qidirish (Claude web search). 0 — o'chiq */
   webSearch: process.env.WEB_SEARCH !== '0',
   /** Ovozli xabar → matn: Gemini (o'zbekchani yaxshi taniydi), zaxira — Groq Whisper */
+  /** VoiceLab (Aisha, voicelab.uz → Dasturchi → API kalit) — o'zbek nutqiga ixtisoslashgan, zanjirda birinchi */
+  voicelabKey: process.env.VOICELAB_API_KEY || '',
+  /** Faqat sinov uchun: soxta VoiceLab manzili */
+  voicelabUrl: (process.env.VOICELAB_URL || 'https://api.voicelab.uz').replace(/\/$/, ''),
+  /** Ovozli eslatma uchun VoiceLab ovozi (id). Berilmasa — o'zbek ovozlari ichidan «Lola» */
+  voicelabVoice: process.env.VOICELAB_TTS_VOICE || '',
   geminiKey: process.env.GEMINI_API_KEY || '',
   groqKey: process.env.GROQ_API_KEY || '',
   /** Faqat sinov uchun: soxta ovoz xizmati manzillari */
@@ -49,24 +71,74 @@ export const env = {
   /** Faqat sinov uchun: shaxsiy Telegram o'rniga soxta xizmat */
   tgUserFakeUrl: process.env.TG_USER_FAKE_URL || '',
 
-  /** Instagram (Meta ilovasi → Instagram → API setup with Instagram login). Bo'lmasa — o'chiq */
-  igAppId: process.env.IG_APP_ID || '',
-  igAppSecret: process.env.IG_APP_SECRET || '',
-  igVerifyToken: process.env.IG_WEBHOOK_VERIFY_TOKEN || '',
-  /** Server tashqaridan qaysi manzilda ochiladi (Instagram shu yerga qaytaradi): https://cerebro.uz */
-  publicUrl: (process.env.PUBLIC_URL || '').replace(/\/$/, ''),
-  igApiVersion: process.env.IG_API_VERSION || 'v26.0',
-  /** Faqat sinov uchun: soxta Instagram manzillari */
-  igGraphUrl: process.env.IG_GRAPH_URL || 'https://graph.instagram.com',
-  igOAuthUrl: process.env.IG_OAUTH_URL || 'https://www.instagram.com/oauth/authorize',
-  igTokenUrl: process.env.IG_TOKEN_URL || 'https://api.instagram.com/oauth/access_token',
-  /** Webhook ishlamasa (ilova hali Meta tekshiruvidan o'tmagan) — xabarlarni o'zi tekshirish oralig'i */
-  igPollMs: Number(process.env.IG_POLL_MS) || 30_000,
+  /**
+   * Instagram Direct — egasining akkaunti, shu kompyuterdagi Chrome yoki Edge orqali (Meta ilovasiz).
+   * IG_BROWSER — brauzer yo'li (berilmasa o'zi topadi); IG_SHOW_BROWSER=1 — oynani ko'rsatib ishlaydi (tekshirish uchun)
+   */
+  igBrowser: process.env.IG_BROWSER || '',
+  igShowBrowser: process.env.IG_SHOW_BROWSER === '1',
+  /** Direct'ni tekshirish oralig'i (har safar ±30% tasodifiy) */
+  igPollMs: Number(process.env.IG_POLL_MS) || 90_000,
+  /** Akkaunt xavfsizligi: bir kunda Instagram'da yuboriladigan xabarlar chegarasi */
+  igDailyLimit: Number(process.env.IG_DAILY_LIMIT) || 120,
+  /** Faqat sinov uchun: brauzer o'rniga soxta Instagram */
+  igFakeUrl: process.env.IG_FAKE_URL || '',
 
   /** Mijoz ketma-ket bir nechta xabar yozishi mumkin — oxirgisidan keyin shuncha kutib javob tayyorlanadi */
   inboxDebounceMs: Number(process.env.INBOX_DEBOUNCE_MS) || 8_000,
   /** "O'zi javob bersin" rejimidagi kutish daqiqasining uzunligi (sinovda qisqartiriladi) */
   minuteMs: Number(process.env.MINUTE_MS) || 60_000,
+
+  /**
+   * DentaCRM manzili ichki tarmoqda bo'lishi mumkinmi (klinikadagi kompyuter — odatiy holat).
+   * Bir nechta biznesga xizmat qiladigan umumiy serverda CRM_ALLOW_PRIVATE=0 qiling: faqat internetdagi https manzillar qoladi
+   */
+  crmAllowPrivate: process.env.CRM_ALLOW_PRIVATE !== '0',
+  /** Yordamchi bir kunda DentaCRM'ga yoza oladigan qabullar soni (adashib yoki aldanib ko'p yozib yubormasin) */
+  crmDailyBookings: Number(process.env.CRM_DAILY_BOOKINGS) || 40,
+  /** Resepshn bir kunda egasining tasdig'isiz yoza oladigan qabullar (undan keyin — faqat tasdiq bilan) */
+  /** Bir kunda Cerebro orqali (egasi tasdiqlab) CRM'ga kiritiladigan pul yozuvlari soni */
+  /**
+   * Bir kunda bitta biznes uchun model so'rovlari chegarasi (API hisobi kutilmaganda bo'shab qolmasin: spam, aylanib qolgan suhbat).
+   * owner — egasining yordamchisi (bitta gap bir necha so'rov bo'lishi mumkin), customer — mijozlarga javob
+   */
+  aiDailyOwner: Number(process.env.AI_DAILY_OWNER) || 600,
+  aiDailyCustomer: Number(process.env.AI_DAILY_CUSTOMER) || 400,
+  /** Bir kunda egasi yuborgan nechta rasm ko'rib chiqiladi */
+  aiDailyPhotos: Number(process.env.AI_DAILY_PHOTOS) || 50,
+  crmDailyMoney: Number(process.env.CRM_DAILY_MONEY) || 30,
+  /** Bitta pul yozuvining eng katta summasi va bir kunda yoziladigan jami summa (so'm) */
+  crmMaxAmount: Number(process.env.CRM_MAX_AMOUNT) || 100_000_000,
+  crmDailySum: Number(process.env.CRM_DAILY_SUM) || 500_000_000,
+  crmPublicDailyBookings: Number(process.env.CRM_PUBLIC_DAILY_BOOKINGS) || 15,
+  /** Kamera: odam zonada shuncha soniya tursa — seans boshlanadi; shuncha ko'rinmasa — tugaydi; bundan qisqa o'tirish bemor deb sanalmaydi */
+  cameraEnterSec: Number(process.env.CAMERA_ENTER_SEC) || 20,
+  cameraLeaveSec: Number(process.env.CAMERA_LEAVE_SEC) || 60,
+  cameraMinSessionSec: Number(process.env.CAMERA_MIN_SESSION_SEC) || 180,
+  /** IP kameralardan kadr oladigan dastur (ffmpeg). Yo'li berilmasa PATH'dan qidiriladi; topilmasa IP kameralar o'chiq (veb-kamera ishlayveradi) */
+  ffmpeg: process.env.FFMPEG_PATH || 'ffmpeg',
+  /** Faqat sinov uchun: IP kamera o'rniga ffmpeg'ga beriladigan kirish (JSON ro'yxat, masalan ["-f","lavfi","-i","testsrc"]) */
+  cameraTestInput: process.env.CAMERA_TEST_INPUT || '',
+  /**
+   * Telefon qilib eslatish — SpeechLab AI agenti (speechlab.uz → Integratsiyalar → API, «AI agent qo'ng'iroqlari» ruxsati bilan).
+   * Agent raqami berilmasa — SpeechLab'da chiquvchi qo'ng'iroqlar uchun tanlangan agent gaplashadi
+   */
+  speechlabKey: process.env.SPEECHLAB_API_KEY || '',
+  speechlabAgentId: Number(process.env.SPEECHLAB_AGENT_ID) || 0,
+  /** Faqat sinov uchun: soxta SpeechLab manzili */
+  speechlabUrl: (process.env.SPEECHLAB_URL || 'https://speechlab.uz/api/v1').replace(/\/$/, ''),
+  /** Qo'ng'iroqdan keyin natija shuncha vaqtdan so'ng tekshiriladi (ko'tarmagan bo'lsa — Telegram'da aytiladi) */
+  callCheckMs: Number(process.env.CALL_CHECK_MS) || 180_000,
+  /**
+   * Telefon liniyasisiz qo'ng'iroq: Telegram orqali AI (tgvoice/call_live.py — Gemini Live). TG_CALL_PYTHON — Python (venv),
+   * TG_CALL_SCRIPT — call_live.py. Ikkalasi bo'lsa — eslatma vaqtida egasiga Telegram'da qo'ng'iroq qilinadi
+   */
+  tgCallPython: process.env.TG_CALL_PYTHON || '',
+  tgCallScript: process.env.TG_CALL_SCRIPT || '',
+  /** Bitta Telegram qo'ng'irog'iga eng ko'p vaqt (osilib qolsa — to'xtatiladi) */
+  tgCallLimitMs: Number(process.env.TG_CALL_LIMIT_MS) || 8 * 60_000,
+  /** Ovozli agent bir kunda yoza oladigan qabullar */
+  voiceDailyBookings: Number(process.env.VOICE_DAILY_BOOKINGS) || 30,
 };
 
-export const voiceEnabled = () => !!(env.geminiKey || env.groqKey);
+export const voiceEnabled = () => !!(env.voicelabKey || env.geminiKey || env.groqKey);

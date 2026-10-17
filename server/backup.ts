@@ -1,0 +1,52 @@
+/**
+ * Zaxira nusxa: kuniga bir marta baza (izchil nusxa), «ikkinchi miya» papkasi va maxfiy kalit BACKUP_DIR/YYYY-MM-DD ga ko'chiriladi.
+ * Oxirgi BACKUP_KEEP kun saqlanadi. Tiklash: server to'xtatiladi, DATA_DIR dagi cerebro.db-wal va cerebro.db-shm o'chiriladi
+ * (eski jurnal yangi baza ustiga «qayta ijro» qilinmasin), keyin shu papkadagi uchta narsa DATA_DIR ga qaytariladi.
+ * Kalit (session.secret) ham kerak: usiz bazadagi ulanish parollari (DentaCRM, Telegram seansi) ochilmaydi.
+ */
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { iso } from '../src/lib/week';
+import { copyDb } from './db';
+import { env } from './env';
+
+const FIRST_MS = 2 * 60_000, CHECK_MS = 60 * 60_000;
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Bugungi nusxa hali bo'lmasa — oladi. Qaytaradi: yangi nusxa papkasi yoki null (bor edi) */
+export function backupNow(now = new Date()): string | null {
+  const today = iso(now), dest = join(env.backupDir, today);
+  if (existsSync(dest)) return null;
+  // Avval vaqtinchalik papkaga: yarim yozilgan nusxa «tayyor» bo'lib ko'rinmasin
+  const tmp = join(env.backupDir, `.yozilmoqda-${today}`);
+  rmSync(tmp, { recursive: true, force: true });
+  mkdirSync(tmp, { recursive: true });
+  copyDb(join(tmp, 'cerebro.db'));
+  const vault = join(env.dataDir, 'miya'), secret = join(env.dataDir, 'session.secret');
+  // Havolalar ko'chirilmaydi: papkaga tashlangan yorliq boshqa diskdagi narsani nusxaga tortib kelmasin
+  if (existsSync(vault)) cpSync(vault, join(tmp, 'miya'), { recursive: true, filter: src => !lstatSync(src).isSymbolicLink() });
+  if (existsSync(secret)) cpSync(secret, join(tmp, 'session.secret'));
+  renameSync(tmp, dest);
+  prune();
+  return dest;
+}
+
+function prune(): void {
+  // Faqat o'zimiz yozgan nusxalar: BACKUP_DIR da sana nomli begona papkalar (rasmlar, hujjatlar) bo'lishi mumkin
+  const days = readdirSync(env.backupDir).filter(n => DAY.test(n) && existsSync(join(env.backupDir, n, 'cerebro.db'))).sort();
+  for (const old of days.slice(0, Math.max(0, days.length - env.backupKeep))) rmSync(join(env.backupDir, old), { recursive: true, force: true });
+}
+
+export function startBackups(): () => void {
+  if (!(env.backupKeep > 0)) return () => {};
+  const run = () => {
+    try {
+      const made = backupNow();
+      if (made) console.log(`[zaxira] nusxa olindi: ${made}`);
+    } catch (e) {
+      console.error('[zaxira] nusxa olinmadi:', (e as Error).message);
+    }
+  };
+  const first = setTimeout(run, FIRST_MS), timer = setInterval(run, CHECK_MS);
+  return () => { clearTimeout(first); clearInterval(timer); };
+}

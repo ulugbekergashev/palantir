@@ -2,5 +2,26 @@ node_modules
 dist
 *.local
 .DS_Store
-data
+/data
 .env
+
+# Odam topuvchi model fayllari (npm run camera:model bilan yuklanadi)
+public/models/
+
+# Simulyatsiya ma'lumoti (npm run demo)
+.demo-data*/
+
+# Stend ma'lumoti (npm run stend)
+.stend-data*/
+
+# Maxfiy va ish fayllari (DATA_DIR boshqa nom bilan dastur papkasida bo'lib qolsa ham git'ga tushmasin)
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+*.log
+session.secret
+cerebro.lock
+cerebro.stop
+supervisor.pid

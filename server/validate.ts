@@ -26,6 +26,7 @@ export const BusinessSchema = z.object({
   contentLang: z.enum(['uz', 'ru']).optional(),
   morningBrief: z.boolean().optional(),
   autoReply: AutoReplySchema.optional(),
+  replyStyle: text(600).optional(),
   brand: z.object({ primary: hex, accent: hex, logo: image(600_000).optional() }),
   offerings: z.array(z.object({
     id: text(40).min(1),

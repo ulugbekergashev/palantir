@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cerebro stendi — tashqi dunyo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23171a21'/%3E%3Ccircle cx='11' cy='16' r='4' fill='%23f2b33d'/%3E%3Ccircle cx='21' cy='16' r='4' fill='%232aabee'/%3E%3C/svg%3E">
+<style>
+  /* Dispetcherlik pulti: chapda — liniyalar (har kanal o'z rangida), o'ngda — tanlangan liniya. Qog'oz rang fon, siyoh rang pult. */
+  :root {
+    --paper: #f3efe6; --sheet: #fbf9f4; --ink: #171a21; --ink-2: #232732; --text: #1d2029; --muted: #6d6a62; --line: #ddd6c6; --line-strong: #c9c0ab;
+    --lamp: #f2b33d; --go: #1f9d55; --stop: #c2334d;
+    --tg: #2aabee; --ps: #14967f; --ig: #d62976; --crm: #0f766e; --cam: #b7791f; --call: #7c4ddb; --wire: #5b6577;
+    --mine: #dff3e4; --shadow: 0 1px 0 #fff inset, 0 1px 2px rgba(23, 26, 33, .08), 0 8px 24px -12px rgba(23, 26, 33, .18);
+    --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+    --sans: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
+    --channel: var(--tg);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #14161b; --sheet: #1c1f27; --ink: #0c0d11; --ink-2: #171a21; --text: #ebe7dd; --muted: #9c978b; --line: #2e323d; --line-strong: #3d4250;
+      --mine: #1d3a2b; --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 8px 24px -12px rgba(0, 0, 0, .6);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; display: grid; grid-template: auto auto 1fr / 216px 1fr; background: var(--paper); color: var(--text); font: 14px/1.5 var(--sans); }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--channel); outline-offset: 2px; }
+
+  /* Joylashuv aniq yoziladi: ogohlantirish tasmasi yashiringanda (haqiqiy model) qolganlari siljib ketmasin */
+  header { grid-row: 1; }
+  #banner { grid-row: 2; }
+  nav { grid-row: 3; grid-column: 1; }
+  main { grid-row: 3; grid-column: 2; }
+
+  /* Yuqori tasma */
+  header { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 18px; background: var(--ink); color: #f3efe6; }
+  header h1 { margin: 0; font: 700 13px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  header h1 span { color: var(--lamp); }
+  header .grow { flex: 1; }
+  header label { font: 12px var(--mono); color: #b9b4a8; display: flex; align-items: center; gap: 8px; }
+  header select { background: var(--ink-2); border: 1px solid #3a3f4d; color: #f3efe6; border-radius: 6px; padding: 5px 8px; font: 13px var(--sans); }
+  header a { color: var(--ink); background: var(--lamp); font-weight: 700; text-decoration: none; padding: 6px 12px; border-radius: 6px; transition: transform .15s; }
+  header a:hover { transform: translateY(-1px); }
+  .signal { display: inline-flex; align-items: center; gap: 8px; font: 700 12px var(--mono); letter-spacing: .06em; padding: 5px 10px; border-radius: 6px; border: 1px solid currentColor; }
+  .signal::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 25%, transparent); }
+  .signal.fake { color: var(--lamp); }
+  .signal.real { color: #5ad58c; }
+  .creds { font: 12px var(--mono); color: #b9b4a8; }
+  #banner { grid-column: 1 / -1; padding: 9px 18px; background: color-mix(in srgb, var(--lamp) 26%, var(--paper)); border-bottom: 1px solid var(--line-strong); font-size: 13px; }
+  #banner:empty { display: none; }
+  code { font-family: var(--mono); font-size: .92em; background: color-mix(in srgb, var(--text) 9%, transparent); padding: 1px 5px; border-radius: 4px; }
+
+  /* Liniyalar */
+  nav { background: var(--ink-2); padding: 14px 10px; display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+  nav button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: none; color: #c9c4b8; padding: 9px 10px; border-radius: 7px; transition: background .15s, color .15s; }
+  nav button:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+  nav button.on { background: var(--paper); color: var(--text); font-weight: 650; }
+  nav .lamp { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex-shrink: 0; }
+  nav button.on .lamp { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 30%, transparent); }
+  nav .dot { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--lamp); animation: blink 1.4s infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { nav .dot { animation: none; } header a { transition: none; } }
+
+  main { min-height: 0; min-width: 0; }
+  section { display: none; height: 100%; flex-direction: column; }
+  section.on { display: flex; }
+  .hint { padding: 10px 18px 10px 14px; border-left: 4px solid var(--channel); background: var(--sheet); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  .hint b { color: var(--text); }
+
+  /* Suhbat */
+  .split { flex: 1; min-height: 0; display: flex; }
+  .split aside { width: 264px; flex-shrink: 0; border-right: 1px solid var(--line); background: var(--sheet); display: flex; flex-direction: column; min-height: 0; }
+  .list { flex: 1; overflow-y: auto; }
+  .list button { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-left: 3px solid transparent; background: none; padding: 10px 12px; }
+  .list button:hover { background: color-mix(in srgb, var(--channel) 7%, transparent); }
+  .list button.on { border-left-color: var(--channel); background: color-mix(in srgb, var(--channel) 12%, transparent); }
+  .list small { display: block; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  aside form { padding: 12px; border-top: 1px solid var(--line-strong); display: grid; gap: 7px; background: color-mix(in srgb, var(--text) 3%, transparent); }
+  .chat { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+  .head { padding: 9px 16px; border-bottom: 1px solid var(--line); background: var(--sheet); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .head b { font-size: 15px; }
+  .msgs { flex: 1; overflow-y: auto; padding: 18px 16px; display: flex; flex-direction: column; gap: 9px; background-image: radial-gradient(color-mix(in srgb, var(--text) 7%, transparent) 1px, transparent 1px); background-size: 18px 18px; }
+  .msg { max-width: min(620px, 84%); padding: 9px 12px; border-radius: 4px 14px 14px 14px; background: var(--sheet); border: 1px solid var(--line); box-shadow: var(--shadow); white-space: pre-wrap; overflow-wrap: anywhere; align-self: flex-start; }
+  .msg.mine { border-radius: 14px 4px 14px 14px; background: var(--mine); border-color: color-mix(in srgb, var(--go) 30%, var(--line)); align-self: flex-end; }
+  .msg .who { font: 700 11px var(--mono); letter-spacing: .04em; color: var(--channel); margin-bottom: 3px; }
+  .msg.mine .who { color: var(--go); }
+  .msg .meta { font: 11px var(--mono); color: var(--muted); margin-top: 5px; display: flex; gap: 10px; align-items: center; white-space: normal; }
+  .msg .meta button { border: 0; background: none; color: var(--channel); padding: 0; font: 700 11px var(--mono); }
+  .msg a { color: var(--channel); }
+  .keys { display: grid; gap: 5px; margin-top: 9px; white-space: normal; }
+  .keys .row { display: flex; gap: 5px; flex-wrap: wrap; }
+  .keys button { flex: 1; min-width: 96px; border: 1px solid color-mix(in srgb, var(--channel) 45%, var(--line)); background: color-mix(in srgb, var(--channel) 10%, var(--sheet)); border-radius: 8px; padding: 7px 10px; font-weight: 600; transition: background .15s; }
+  .keys button:hover { background: color-mix(in srgb, var(--channel) 22%, var(--sheet)); }
+  .empty { margin: auto; color: var(--muted); text-align: center; max-width: 420px; padding: 20px; white-space: normal; }
+  .composer { border-top: 1px solid var(--line-strong); background: var(--sheet); padding: 10px 16px 12px; display: grid; gap: 7px; }
+  .composer .row { display: flex; gap: 7px; align-items: flex-end; }
+  details.examples-box { font-size: 13px; }
+  details.examples-box summary { cursor: pointer; color: var(--muted); font: 12px var(--mono); }
+  .examples { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; max-height: 132px; overflow-y: auto; }
+  .examples button { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--line-strong); background: none; }
+  .examples button:hover { border-style: solid; border-color: var(--channel); }
+  #tg-reply { font-size: 12px; color: var(--muted); }
+  #tg-reply:empty { display: none; }
+  textarea, input, select { background: var(--paper); border: 1px solid var(--line-strong); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+  textarea { flex: 1; resize: none; height: 42px; max-height: 140px; }
+  .btn, form button { border: 1px solid var(--line-strong); background: var(--sheet); border-radius: 8px; padding: 8px 12px; transition: border-color .15s, background .15s; }
+  .btn:hover, form button:hover { border-color: var(--channel); }
+  button.primary { background: var(--channel); border-color: var(--channel); color: #fff; font-weight: 650; }
+  button.primary:hover { background: color-mix(in srgb, var(--channel) 86%, #000); }
+  label.check { display: flex; gap: 7px; align-items: center; font-size: 13px; color: var(--muted); }
+
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 5px; font: 700 11px var(--mono); letter-spacing: .03em; border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; vertical-align: middle; }
+  .tag.by { border-color: var(--channel); color: var(--channel); }
+  .tag.cerebro { background: var(--ink); border-color: var(--ink); color: var(--lamp); }
+  .tag.ok { border-color: var(--go); color: var(--go); }
+  .tag.warn { border-color: var(--cam); color: var(--cam); }
+  .tag.crit { border-color: var(--stop); color: var(--stop); }
+
+  /* Jadval va kartalar */
+  .scroll { flex: 1; overflow-y: auto; padding: 18px; display: grid; gap: 16px; align-content: start; }
+  .card { background: var(--sheet); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .card h2 { font: 700 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; margin: 0 0 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--muted); }
+  .card form { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line-strong); align-items: center; }
+  .table { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font: 700 11px var(--mono); letter-spacing: .05em; color: var(--muted); text-transform: uppercase; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  tr.cerebro td { background: color-mix(in srgb, var(--lamp) 16%, transparent); }
+  tr.cerebro td:first-child { box-shadow: inset 3px 0 var(--lamp); }
+  td select { padding: 4px 8px; }
+  .monitors { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .monitor { background: var(--ink); color: #f3efe6; border-radius: 10px; padding: 14px; display: grid; gap: 10px; justify-items: center; position: relative; overflow: hidden; box-shadow: var(--shadow); }
+  .monitor::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(transparent 0 3px, rgba(255, 255, 255, .03) 3px 4px); pointer-events: none; }
+  .monitor h3 { margin: 0; font: 700 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; justify-self: start; display: flex; gap: 8px; align-items: center; }
+  .monitor h3::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--stop); }
+  .monitor .frame { width: 100%; aspect-ratio: 16 / 9; border: 1px dashed #4a5060; border-radius: 6px; display: grid; place-items: center; font-size: 46px; background: #20242e; }
+  .monitor.is-open .frame { border: 2px solid #5ad58c; }
+  .monitor.is-entering .frame { border: 2px solid var(--lamp); }
+  .monitor .state { font: 700 12px var(--mono); }
+  .monitor.is-open .state { color: #5ad58c; }
+  .monitor.is-entering .state { color: var(--lamp); }
+  .monitor button { position: relative; z-index: 1; border: 1px solid #4a5060; background: #2a2f3b; color: #f3efe6; border-radius: 8px; padding: 8px 14px; width: 100%; }
+  .monitor button.primary { background: var(--lamp); border-color: var(--lamp); color: var(--ink); }
+  .tally { display: flex; gap: 28px; flex-wrap: wrap; margin-bottom: 8px; }
+  .tally div b { display: block; font: 700 30px/1 var(--mono); }
+  .tally div span { color: var(--muted); font-size: 12px; }
+  pre { margin: 10px 0 0; padding: 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.55 var(--mono); max-height: 380px; overflow-y: auto; }
+
+  /* Tarmoq jurnali */
+  .wire { flex: 1; min-height: 0; display: flex; }
+  .wire .log { flex: 1; overflow-y: auto; min-width: 0; }
+  .wire .log button { display: grid; grid-template-columns: 64px 132px 1fr; gap: 10px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: none; padding: 7px 14px; font-size: 13px; align-items: baseline; }
+  .wire .log button:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+  .wire .log button.on { background: color-mix(in srgb, var(--lamp) 20%, transparent); }
+  .wire .log time { font: 12px var(--mono); color: var(--muted); }
+  .wire .log .svc { font: 700 11px var(--mono); color: var(--c); }
+  .wire .log .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wire .detail { width: 46%; border-left: 1px solid var(--line-strong); overflow-y: auto; padding: 14px 16px; background: var(--sheet); }
+  .wire .detail pre { max-height: none; }
+
+  #toast { position: fixed; left: 50%; top: 64px; transform: translate(-50%, -8px); background: var(--ink); color: #f3efe6; padding: 9px 16px; border-radius: 8px; border-left: 4px solid var(--lamp); font-size: 13px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; max-width: 80vw; z-index: 5; box-shadow: 0 12px 30px -10px rgba(0, 0, 0, .5); }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 820px) {
+    body { grid-template: auto auto auto 1fr / 1fr; }
+    main { grid-row: 4; grid-column: 1; }
+    nav { flex-direction: row; padding: 6px 8px; overflow-x: auto; }
+    nav button { width: auto; white-space: nowrap; }
+    .split { flex-direction: column; }
+    .split aside { width: auto; max-height: 34%; border-right: 0; border-bottom: 1px solid var(--line-strong); }
+    aside form { display: none; }
+    .wire { flex-direction: column; }
+    .wire .detail { width: auto; border-left: 0; border-top: 1px solid var(--line-strong); max-height: 45%; }
+    .wire .log button { grid-template-columns: 58px 1fr; }
+    .wire .log .svc { display: none; }
+    .msg { max-width: 92%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cerebro <span>stendi</span> · tashqi dunyo</h1>
+  <span id="model" class="signal fake">…</span>
+  <span class="grow"></span>
+  <label>Mijozlarga javob
+    <select id="mode" aria-label="Mijozlarga javob rejimi">
+      <option value="draft">Men tasdiqlayman</option>
+      <option value="auto">O'zi javob bersin</option>
+      <option value="off">O'chiq</option>
+    </select>
+  </label>
+  <span id="panel"></span>
+</header>
+<div id="banner"></div>
+<nav id="tabs" aria-label="Liniyalar"></nav>
+<main>
+  <section id="tab-telegram" style="--channel: var(--tg)">
+    <div class="hint">Soxta Telegram, <b>haqiqiy bot mantiqi</b>. Chapdan kim bo'lib yozishni tanlang: <b>egasi</b> — yordamchiga buyruq beradi, mijoz kartasiga «Reply» qiladi, tugma bosadi; <b>mijoz</b> — botga yozadi.</div>
+    <div class="split">
+      <aside>
+        <div id="tg-chats" class="list"></div>
+        <form id="tg-new"><input name="name" placeholder="Yangi mijoz ismi (masalan, Bobur Karimov)" maxlength="60" aria-label="Yangi mijoz ismi"><button>+ Yangi mijoz botga yozadi</button></form>
+      </aside>
+      <div class="chat">
+        <div id="tg-head" class="head"></div>
+        <div id="tg-msgs" class="msgs"></div>
+        <form id="tg-form" class="composer">
+          <details id="tg-examples-box" class="examples-box"><summary>Taqlid miya tushunadigan gaplar — bosing, matn maydoniga tushadi</summary><div id="tg-examples" class="examples"></div></details>
+          <div id="tg-reply"></div>
+          <div class="row">
+            <textarea id="tg-text" aria-label="Xabar" placeholder="Xabar… (Enter — yuborish, Shift+Enter — yangi qator)"></textarea>
+            <button type="button" class="btn" id="tg-voice" title="Ovozli xabar: nima deyilganini matn bilan yozasiz" aria-label="Ovozli xabar">🎙</button>
+            <button type="button" class="btn" id="tg-attach" title="Fayl yuborish (PDF, Word, Excel)" aria-label="Fayl yuborish">📎</button>
+            <button class="primary">Yuborish</button>
+          </div>
+          <input type="file" id="tg-file" hidden accept=".pdf,.docx,.xlsx,.txt,.md,.csv">
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-personal" style="--channel: var(--ps)">
+    <div class="hint">Egasining <b>shaxsiy Telegram akkaunti</b> (soxta). Notanish odam egasiga yozadi — Cerebro egasi nomidan javob tayyorlaydi. «Men tasdiqlayman» rejimida taklif egasining bot suhbatiga va paneldagi «Mijozlar»ga tushadi; «O'zi javob bersin»da — <span id="minute-note">biroz</span> kutib, o'zi yuboradi.</div>
+    <div class="split">
+      <aside>
+        <div id="ps-list" class="list"></div>
+        <form id="ps-new"><input name="name" placeholder="Ismi (masalan, Dilnoza)" maxlength="60" aria-label="Ismi"><input name="username" placeholder="@username (ixtiyoriy)" maxlength="32" aria-label="Username"><button>+ Yangi odam yozadi</button></form>
+      </aside>
+      <div class="chat">
+        <div id="ps-head" class="head"></div>
+        <div id="ps-msgs" class="msgs"></div>
+        <form id="ps-form" class="composer">
+          <label class="check"><input type="checkbox" id="ps-owner"> Bu xabarni egasi telefonidan o'zi yozyapti (mijoz emas)</label>
+          <div class="row"><textarea id="ps-text" aria-label="Xabar" placeholder="Xabar…"></textarea><button class="primary">Yuborish</button></div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-instagram" style="--channel: var(--ig)">
+    <div class="hint">Egasining <b>Instagram Direct</b>'i (soxta). Cerebro uni bir necha soniyada bir marta tekshiradi, shuning uchun javob Telegram'dagidan sekinroq keladi. Haqiqiy Instagram brauzer orqali ishlaydi — bu yerda sayt o'rnida soxta javob beruvchi turibdi.</div>
+    <div class="split">
+      <aside>
+        <div id="ig-list" class="list"></div>
+        <form id="ig-new"><input name="username" placeholder="@username (masalan, madina_95)" maxlength="32" aria-label="Username"><input name="name" placeholder="Ismi (ixtiyoriy)" maxlength="60" aria-label="Ismi"><label class="check"><input type="checkbox" name="pending"> «So'rovlar» papkasiga tushsin</label><button>+ Yangi odam yozadi</button></form>
+      </aside>
+      <div class="chat">
+        <div id="ig-head" class="head"></div>
+        <div id="ig-msgs" class="msgs"></div>
+        <form id="ig-form" class="composer">
+          <label class="check"><input type="checkbox" id="ig-owner"> Bu xabarni egasi telefonidan o'zi yozyapti (mijoz emas)</label>
+          <div class="row"><textarea id="ig-text" aria-label="Xabar" placeholder="Xabar…"></textarea><button class="primary">Yuborish</button></div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-crm" style="--channel: var(--crm)">
+    <div class="hint">Soxta <b>DentaCRM</b>ning ichi. Cerebro unga haqiqiy mijoz kodi bilan ulanadi: jadvalni o'qiydi, qabul va to'lov yozadi. <span class="tag cerebro">CEREBRO</span> belgili qatorlarni Cerebro yozgan. Formalar — klinika administratorining CRM'dagi o'z ishi (Cerebro'siz).</div>
+    <div class="scroll">
+      <div class="card"><h2>Qabullar · bugundan boshlab</h2><div id="crm-appts" class="table"></div>
+        <form id="crm-appt"><input name="patientName" placeholder="Bemor ism-familiyasi" required aria-label="Bemor"><select name="doctorId" id="crm-doctors" aria-label="Shifokor"></select><input name="date" type="date" required aria-label="Sana"><input name="time" type="time" required step="1800" aria-label="Vaqt"><button>Qabul qo'shish</button></form></div>
+      <div class="card"><h2>Bugungi to'lovlar</h2><div id="crm-pays" class="table"></div>
+        <form id="crm-pay"><input name="patientName" placeholder="Bemor" required aria-label="Bemor"><input name="amount" type="number" min="1000" step="1000" placeholder="Summa" required aria-label="Summa"><select name="type" aria-label="Usul"><option value="Cash">naqd</option><option value="Card">karta</option><option value="Click">Click</option></select><select name="doctorId" id="crm-doctors2" aria-label="Shifokor"></select><button>To'lov kiritish</button></form></div>
+      <div class="card"><h2>Xarajatlar</h2><div id="crm-exp" class="table"></div></div>
+      <div class="card"><h2>Bemorlar</h2><div id="crm-pats" class="table"></div></div>
+    </div>
+  </section>
+
+  <section id="tab-camera" style="--channel: var(--cam)">
+    <div class="hint">Uchta soxta kamera: tugma bilan odamni kiritasiz va chiqarasiz; seans hisobi va CRM bilan solishtirish — <b>haqiqiy</b>. Odam 3 soniya tursa seans ochiladi, 5 soniya ko'rinmasa yopiladi. <b>Haqiqiy kamerani sinash:</b> panelda «Kameralar» → yangi kamera qo'shing — noutbuk veb-kamerasi ishlaydi va odamni brauzerning o'zi taniydi.</div>
+    <div class="scroll"><div id="cam-cards" class="monitors"></div><div class="card"><h2>Bugungi hisob · serverdan</h2><div id="cam-summary"></div></div></div>
+  </section>
+
+  <section id="tab-calls" style="--channel: var(--call)">
+    <div class="hint">Ovozli agentning o'zi (telefon liniyasi, nutq) bu loyihada <b>yo'q</b> — u tashqi xizmat. Bu yerda uning Cerebro bilan gaplashadigan darvozasi sinaladi: agent nimani biladi, qabulga qanday yozadi va qo'ng'iroq jurnalga qanday tushadi.</div>
+    <div class="scroll">
+      <div class="card"><h2>Agent Cerebro'dan oladigan ma'lumot <button class="btn" data-act="voice-know">Bilim</button> <button class="btn" data-act="voice-slots">Bo'sh vaqtlar</button></h2><pre id="voice-out">Tugmani bosing.</pre></div>
+      <div class="card"><h2>Agent qo'ng'iroq paytida qabulga yozadi</h2>
+        <form id="voice-book" style="border: 0; margin: 0; padding: 0"><input name="name" placeholder="Ism familiya" required aria-label="Ism familiya"><input name="phone" placeholder="+998 90 123 45 67" required aria-label="Telefon"><select name="doctorId" id="crm-doctors3" aria-label="Shifokor"></select><input name="date" type="date" required aria-label="Sana"><input name="time" type="time" required step="1800" aria-label="Vaqt"><button>Yozish</button></form><pre id="voice-book-out" hidden></pre></div>
+      <div class="card"><h2>Qo'ng'iroq tugadi — jurnalga yoziladi</h2>
+        <form id="voice-call" style="display: grid; border: 0; margin: 0; padding: 0"><div style="display: flex; gap: 7px; flex-wrap: wrap"><input name="name" placeholder="Kim qo'ng'iroq qildi" value="Madina Tosheva" aria-label="Kim"><input name="phone" placeholder="Telefon" value="+998 93 707 11 22" required aria-label="Telefon"><input name="outcome" placeholder="Natija" value="Implant narxini so'radi" required aria-label="Natija" style="flex: 1"></div>
+          <textarea name="transcript" style="height: 104px" aria-label="Suhbat matni" placeholder="Har qatorda: agent: … yoki mijoz: …">agent: Assalomu alaykum, Tabassum Dental. Qanday yordam bera olaman?
+mijoz: Implant qancha turadi?
+agent: Implant 4 500 000 so'mdan boshlanadi. Konsultatsiyaga yozib qo'yaymi?
+mijoz: Hozircha yo'q, rahmat.</textarea>
+          <div><button>Jurnalga yozish</button> <span class="tag">panelda: «Qo'ng'iroqlar» · egasiga Telegram'da xabar boradi</span></div></form></div>
+    </div>
+  </section>
+
+  <section id="tab-wire" style="--channel: var(--wire)">
+    <div class="hint">Server tashqi dunyoga yuborgan <b>har bir so'rov</b>: Telegram'ga nima ketdi, CRM'ga nima yozildi, modelga nima berildi va u nima qaytardi. Qatorni bosing — to'liq mazmuni ochiladi. <label class="check" style="display: inline-flex; margin-left: 8px"><input type="checkbox" id="wire-reads" checked> CRM o'qishlarini yashirish</label></div>
+    <div class="wire"><div id="wire-log" class="log"></div><div class="detail"><b id="wire-title">Qator tanlang</b><pre id="wire-detail"></pre></div></div>
+  </section>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clock = at => (at ? new Date(at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '');
+const money = n => `${Number(n).toLocaleString('ru').replace(/\s/g, ' ')} so'm`;
+const untag = s => String(s).replace(/<[^>]+>/g, '');
+
+const TABS = [['telegram', 'Telegram bot', 'tg'], ['personal', 'Shaxsiy Telegram', 'ps'], ['instagram', 'Instagram', 'ig'], ['crm', 'DentaCRM', 'crm'], ['camera', 'Kameralar', 'cam'], ['calls', "Qo'ng'iroqlar", 'call'], ['wire', 'Tarmoq jurnali', 'wire']];
+const SERVICE_COLOR = { 'Telegram bot': 'tg', 'Shaxsiy Telegram': 'ps', Instagram: 'ig', DentaCRM: 'crm', Model: 'call', 'Ovoz → matn': 'cam' };
+let S = null;
+const ui = { tab: 'telegram', tg: null, replyTo: null, ps: null, ig: null, wire: null, seenToast: null, dots: {}, marks: {} };
+
+/** Bot xabari (HTML rejimida): faqat b, i, code va http(s) havolalar ochiladi, qolgan har qanday teg — oddiy matn */
+function tgHtml(text) {
+  // Boshqaruv belgilari oldin olib tashlanadi: pastdagi vaqtinchalik belgilar (\u0001, \u0002) matnning o'zida kelib, teg bo'lib ochilmasin
+  return String(text).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(/<(\/?)(b|i|code)>/g, '\u0001$1$2\u0002')
+    .replace(/<a href="(https?:\/\/[^"<>\s]+)">/g, '\u0001a href="$1" target="_blank" rel="noopener"\u0002')
+    .replace(/<\/a>/g, '\u0001/a\u0002')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\u0001/g, '<').replace(/\u0002/g, '>');
+}
+
+const cache = {};
+/** Mazmuni o'zgargandagina qayta chiziladi (aylantirish joyi va bosilayotgan tugma saqlanadi) */
+function paint(id, html) {
+  if (cache[id] === html) return false;
+  cache[id] = html;
+  const el = $(id), stick = el.classList.contains('msgs') && el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  el.innerHTML = html;
+  if (stick) el.scrollTop = el.scrollHeight;
+  return true;
+}
+
+function toast(text) {
+  const el = $('toast');
+  el.textContent = text;
+  el.classList.add('on');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.classList.remove('on'), 3200);
+}
+
+async function post(path, body, raw) {
+  try {
+    const r = await fetch(path, raw ? { method: 'POST', body: raw } : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+    const out = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(`Xato: ${out.error ?? r.status}`); return null; }
+    void poll();
+    return out;
+  } catch { toast('Stend javob bermayapti'); return null; }
+}
+
+// ─── Telegram bot ────────────────────────────────────────────────────────────
+function renderTelegram() {
+  const { chats } = S.telegram;
+  if (!chats.some(c => c.id === ui.tg)) ui.tg = chats[0]?.id ?? null;
+  paint('tg-chats', chats.map(c => {
+    const last = c.messages.at(-1);
+    return `<button data-act="tg-open" data-id="${c.id}" class="${c.id === ui.tg ? 'on' : ''}"><b>${esc(c.name)}</b> <span class="tag ${c.kind === 'owner' ? 'by' : ''}">${c.kind === 'owner' ? 'EGASI' : 'MIJOZ'}</span><small>${last ? esc((last.mine ? 'Siz: ' : 'Bot: ') + untag(last.text).slice(0, 60)) : '—'}</small></button>`;
+  }).join(''));
+  const chat = chats.find(c => c.id === ui.tg);
+  if (!chat) return;
+  const owner = chat.kind === 'owner';
+  paint('tg-head', `<b>${esc(chat.name)}</b> ↔ <b>Cerebro bot</b> <span class="tag by">SIZ — ${owner ? 'EGASI' : 'MIJOZ'}</span>${owner ? '' : `<span class="tag">${esc(chat.phone)}</span>`}${chat.typing ? '<span class="tag warn">Cerebro yozmoqda…</span>' : ''}`);
+  const shared = chat.messages.some(m => m.kind === 'contact');
+  paint('tg-msgs', chat.messages.map(m => {
+    const body = m.html ? tgHtml(m.text) : esc(m.text);
+    const file = m.file ? `<div>📄 <a href="/api/tg/download?id=${m.id}">${esc(m.file)}</a></div>` : '';
+    const keys = m.buttons.length ? `<div class="keys">${m.buttons.map(row => `<div class="row">${row.map(b => `<button data-act="tg-press" data-id="${m.id}" data-data="${esc(b.data)}">${esc(b.text)}</button>`).join('')}</div>`).join('')}</div>` : '';
+    const contact = m.askContact && !shared ? `<div class="keys"><button data-act="tg-contact">📞 Raqamni yuborish (${esc(chat.phone)})</button></div>` : '';
+    const reply = owner && !m.mine ? `<button data-act="tg-reply" data-id="${m.id}" title="Mijoz kartasiga «Reply» — javobingiz mijozga ketadi">↩ REPLY</button>` : '';
+    const quoted = m.replyTo ? `<div class="who">↩ ${esc(untag(chat.messages.find(x => x.id === m.replyTo)?.text ?? '').slice(0, 70))}</div>` : '';
+    return `<div class="msg ${m.mine ? 'mine' : ''}">${quoted}${file}${body}${keys}${contact}<div class="meta"><span>${clock(m.at)}${m.edited ? ' · tahrirlandi' : ''}</span>${reply}</div></div>`;
+  }).join('') || `<div class="empty">Hali xabar yo'q.</div>`);
+  const target = ui.replyTo && chat.messages.find(m => m.id === ui.replyTo);
+  paint('tg-reply', target && owner ? `↩ Javob: «${esc(untag(target.text).slice(0, 90))}» <button type="button" class="btn" data-act="tg-noreply">bekor</button>` : '');
+  paint('tg-examples', S.examples.map(e => `<button type="button" data-act="tg-example">${esc(e)}</button>`).join(''));
+  $('tg-examples-box').hidden = !(owner && S.model === 'taqlid');
+  $('tg-voice').hidden = $('tg-attach').hidden = !owner;
+  // Sahifa ochilganda eskilari ko'rsatilmaydi; keyin — faqat yangi kelganlari (tartib raqami bo'yicha)
+  const newest = Math.max(0, ...S.telegram.toasts.map(t => t.n));
+  if (ui.seenToast !== null) for (const t of S.telegram.toasts) if (t.n > ui.seenToast) toast(`${t.alert ? '⚠️ ' : ''}${t.text}`);
+  ui.seenToast = newest;
+}
+
+// ─── Shaxsiy Telegram va Instagram (bir xil ko'rinish) ───────────────────────
+function renderThreads(kind, items, key, title) {
+  if (!items.some(x => x[key] === ui[kind])) ui[kind] = items[0]?.[key] ?? null;
+  paint(`${kind}-list`, items.map(x => `<button data-act="${kind}-open" data-id="${esc(x[key])}" class="${x[key] === ui[kind] ? 'on' : ''}"><b>${esc(title(x))}</b>${x.pending ? ' <span class="tag warn">SO\'ROV</span>' : ''}<small>${esc(x.lines.at(-1)?.text.slice(0, 60) ?? '—')}</small></button>`).join('') || `<div class="empty">Hali hech kim yozmagan. Pastdan yangi odam qo'shing.</div>`);
+  const open = items.find(x => x[key] === ui[kind]);
+  paint(`${kind}-head`, open ? `<b>${esc(title(open))}</b> ↔ <b>egasining akkaunti</b> <span class="tag by">SIZ — MIJOZ</span>` : '<span class="tag">suhbat tanlanmagan</span>');
+  paint(`${kind}-msgs`, open ? open.lines.map(l => `<div class="msg ${l.mine ? 'mine' : ''}"><div class="who">${esc(l.by)}</div>${esc(l.text)}<div class="meta">${clock(l.at)}</div></div>`).join('') : `<div class="empty">Chapdan suhbat tanlang yoki yangi odam qo'shing.</div>`);
+}
+
+// ─── DentaCRM ────────────────────────────────────────────────────────────────
+const STATUSES = { Pending: 'kutilmoqda', Confirmed: 'tasdiqlangan', 'Checked-In': 'keldi', Completed: 'tugadi', 'No-Show': 'kelmadi', Cancelled: 'bekor' };
+const PAID = { Cash: 'naqd', Card: 'karta', Click: 'Click', Transfer: "o'tkazma", Balance: 'balansdan' };
+const who = o => (o === 'cerebro' ? '<span class="tag cerebro">CEREBRO</span>' : o === 'stend' ? '<span class="tag">administrator</span>' : '');
+const rowClass = r => (r.origin === 'cerebro' ? 'cerebro' : '');
+function renderCrm() {
+  const c = S.crm;
+  const options = c.doctors.map(d => `<option value="${esc(d.id)}">${esc(d.name)} (${esc(d.specialty)})</option>`).join('');
+  for (const id of ['crm-doctors', 'crm-doctors2', 'crm-doctors3']) paint(id, options);
+  paint('crm-appts', `<table><tr><th>Sana</th><th>Vaqt</th><th>Bemor</th><th>Shifokor</th><th>Tur</th><th>Holat</th><th></th></tr>${c.appointments.map(a => `<tr class="${rowClass(a)}"><td>${a.date === c.today ? 'bugun' : esc(a.date)}</td><td class="num">${esc(a.time)}</td><td>${esc(a.patientName)}</td><td>${esc(a.doctorName)}</td><td>${esc(a.type)}</td><td><select data-act="crm-status" data-id="${esc(a.id)}" aria-label="Holat">${Object.entries(STATUSES).map(([k, v]) => `<option value="${k}" ${k === a.status ? 'selected' : ''}>${v}</option>`).join('')}</select></td><td>${who(a.origin)}</td></tr>`).join('')}</table>`);
+  paint('crm-pays', c.transactions.length ? `<table><tr><th>Bemor</th><th>Xizmat</th><th>Summa</th><th>Usul</th><th>Holat</th><th>Shifokor</th><th></th></tr>${c.transactions.map(t => `<tr class="${rowClass(t)}"><td>${esc(t.patientName)}</td><td>${esc(t.service)}</td><td class="num">${money(t.amount)}</td><td>${esc(PAID[t.type] ?? t.type)}</td><td>${esc(t.status)}</td><td>${esc(t.doctorName)}</td><td>${who(t.origin)}</td></tr>`).join('')}</table>` : '<span class="tag">yo\'q</span>');
+  paint('crm-exp', c.expenses.length ? `<table><tr><th>Sana</th><th>Nima</th><th>Tur</th><th>Summa</th><th>Usul</th><th></th></tr>${c.expenses.map(x => `<tr class="${rowClass(x)}"><td class="num">${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td class="num">${money(x.amount)}</td><td>${esc(PAID[x.method] ?? x.method)}</td><td>${who(x.origin)}</td></tr>`).join('')}</table>` : '<span class="tag">yo\'q — yordamchiga «Ijaraga 2 million ketdi» deb yozib ko\'ring</span>');
+  paint('crm-pats', `<table><tr><th>Ism</th><th>Telefon</th><th>Balans</th><th></th></tr>${c.patients.map(p => `<tr class="${rowClass(p)}"><td>${esc(p.firstName)} ${esc(p.lastName)}</td><td class="num">${esc(p.phone)}</td><td class="num">${p.balance ? money(p.balance) : '—'}</td><td>${who(p.origin)}</td></tr>`).join('')}</table>`);
+}
+
+// ─── Kameralar ───────────────────────────────────────────────────────────────
+const ZONE = { empty: "bo'sh", entering: 'kiryapti…', open: "o'tiribdi · seans ochiq" };
+function renderCameras() {
+  paint('cam-cards', S.cameras.list.map(cam => `<div class="monitor is-${esc(cam.state)}"><h3>${esc(cam.name)}</h3><div class="frame">${cam.present ? '🧍' : '🪑'}</div><div class="state">${ZONE[cam.state] ?? ZONE.empty}</div><button class="${cam.present ? '' : 'primary'}" data-act="cam" data-id="${esc(cam.id)}" data-on="${cam.present ? '' : '1'}">${cam.present ? 'Odam chiqib ketdi' : 'Odam kirdi'}</button></div>`).join(''));
+  const s = S.cameras.summary;
+  paint('cam-summary', s ? `<div class="tally"><div><b>${Number(s.seated)}</b><span>kresloga o'tirdi${s.crm ? ` · CRM'da «keldi»: ${Number(s.crm.visits)}` : ''}</span></div><div><b>${Number(s.deskVisits)}</b><span>kassa oldida turdi${s.crm ? ` · CRM'da to'lov: ${Number(s.crm.payments)}` : ''}</span></div></div>${s.findings.map(f => `<p><span class="tag ${f.level === 'crit' ? 'crit' : 'warn'}">${f.level === 'crit' ? 'FARQ' : 'DIQQAT'}</span> ${esc(f.text)}</p>`).join('') || '<p><span class="tag ok">FARQ TOPILMADI</span></p>'}<div class="table"><table><tr><th>Zona</th><th>Boshlandi</th><th>Tugadi</th></tr>${s.sessions.map(x => `<tr><td>${esc(x.zoneName)}</td><td class="num">${clock(x.startedAt)}</td><td class="num">${x.endedAt ? clock(x.endedAt) : 'hozir'}</td></tr>`).join('')}</table></div>` : '…');
+}
+
+// ─── Tarmoq jurnali ──────────────────────────────────────────────────────────
+function renderWire() {
+  const hide = $('wire-reads').checked;
+  const rows = S.wire.filter(w => !(hide && w.service === 'DentaCRM' && w.summary.startsWith('GET')));
+  paint('wire-log', rows.slice().reverse().map(w => `<button data-act="wire" data-id="${w.n}" class="${w.n === ui.wire ? 'on' : ''}" style="--c: var(--${SERVICE_COLOR[w.service] ?? 'wire'})"><time>${clock(w.at)}</time><span class="svc">${esc(w.service)}</span><span class="what">${esc(w.summary)}</span></button>`).join('') || `<div class="empty">Hali so'rov yo'q.</div>`);
+}
+/** Jurnal mazmuni: matnli qismlar haqiqiy qator uzilishlari bilan (modelga berilgan matn o'qilsin) */
+function pretty(detail) {
+  if (detail === undefined || detail === null) return "(qo'shimcha mazmun yo'q)";
+  if (typeof detail !== 'object') return String(detail);
+  return Object.entries(detail).map(([k, v]) => `── ${k.replace(/_/g, ' ')} ──\n${typeof v === 'string' ? v : JSON.stringify(v, null, 2)}`).join('\n\n');
+}
+
+function render() {
+  const real = S.model === 'haqiqiy';
+  paint('model', real ? 'MODEL: HAQIQIY CLAUDE' : 'MODEL: TAQLID MIYA');
+  $('model').className = `signal ${real ? 'real' : 'fake'}`;
+  paint('banner', real ? '' : "<b>Model taqlid.</b> Tizim qanday ishlashi — xabar yo'li, kartalar, tugmalar, CRM'ga yozish, eslatmalar, kamera hisobi — <b>haqiqiy</b>. Gapni tushunish va javob matni esa tayyor qoidalardan chiqadi: bu <b>sifatni ko'rsatmaydi</b>. Sifatni ko'rish uchun <code>.env</code> ga <code>ANTHROPIC_API_KEY</code> qo'yib, stendni qayta ishga tushiring.");
+  paint('panel', `<a href="${esc(S.panel.url)}" target="_blank" rel="noopener">Panelni ochish ↗</a> <span class="creds">login ${esc(S.panel.login)} · parol ${esc(S.panel.password)}</span>`);
+  paint('minute-note', `${Number(S.mode?.delayMin ?? 1)} «daqiqa» (stendda ${Number(S.mode?.delayMin ?? 1) * Number(S.minuteSec)} soniya)`);
+  if (S.mode && document.activeElement !== $('mode')) $('mode').value = S.mode.mode;
+  renderTelegram();
+  renderThreads('ps', S.personal, 'userId', p => p.name + (p.username ? ` (@${p.username})` : ''));
+  renderThreads('ig', S.instagram, 'id', t => `@${t.username}${t.name ? ` · ${t.name}` : ''}`);
+  renderCrm();
+  renderCameras();
+  renderWire();
+  // Ochiq bo'lmagan liniyada yangilik bo'lsa — chiroq miltillaydi
+  const marks = { telegram: cache['tg-chats'], personal: cache['ps-list'], instagram: cache['ig-list'], crm: [cache['crm-appts'], cache['crm-pays'], cache['crm-exp'], cache['crm-pats']].join(''), camera: cache['cam-summary'], wire: String(S.wire.at(-1)?.n ?? 0) };
+  for (const [tab, mark] of Object.entries(marks)) {
+    if (ui.marks[tab] !== undefined && ui.marks[tab] !== mark && ui.tab !== tab) ui.dots[tab] = true;
+    ui.marks[tab] = mark;
+  }
+  ui.dots[ui.tab] = false;
+  paint('tabs', TABS.map(([id, label, color]) => `<button data-act="tab" data-id="${id}" class="${ui.tab === id ? 'on' : ''}" style="--c: var(--${color})"><span class="lamp"></span>${label}${ui.dots[id] ? '<span class="dot" title="yangilik bor"></span>' : ''}</button>`).join(''));
+  for (const [id] of TABS) $(`tab-${id}`).classList.toggle('on', ui.tab === id);
+}
+
+/** Holatni yangilaydi. Yangilash ketayotgan paytda yana so'ralsa (tugma bosildi) — tugashi bilan bir marta qayta yangilanadi */
+const refreshing = { busy: false, again: false };
+async function poll() {
+  if (refreshing.busy) { refreshing.again = true; return; }
+  refreshing.busy = true;
+  try {
+    const r = await fetch('/api/state');
+    // Xato javob holat o'rniga yozilmaydi (sahifa bo'sh qolardi) — keyingi urinishni kutadi
+    if (r.ok) { S = await r.json(); render(); }
+  } catch { /* stend to'xtagan bo'lishi mumkin — keyingi urinishda */ }
+  refreshing.busy = false;
+  if (refreshing.again) { refreshing.again = false; void poll(); }
+}
+
+// ─── Harakatlar ──────────────────────────────────────────────────────────────
+const actions = {
+  tab: el => { ui.tab = el.dataset.id; render(); },
+  'tg-open': el => { ui.tg = Number(el.dataset.id); ui.replyTo = null; render(); $('tg-msgs').scrollTop = $('tg-msgs').scrollHeight; },
+  'tg-press': el => post('/api/tg/press', { chat: ui.tg, id: Number(el.dataset.id), data: el.dataset.data }),
+  'tg-contact': () => post('/api/tg/contact', { chat: ui.tg }),
+  'tg-reply': el => { ui.replyTo = Number(el.dataset.id); render(); $('tg-text').focus(); },
+  'tg-noreply': () => { ui.replyTo = null; render(); },
+  'tg-example': el => { $('tg-text').value = el.textContent; $('tg-text').focus(); },
+  'ps-open': el => { ui.ps = el.dataset.id; render(); },
+  'ig-open': el => { ui.ig = el.dataset.id; render(); },
+  cam: el => post('/api/camera', { id: el.dataset.id, present: !!el.dataset.on }),
+  wire: async el => {
+    ui.wire = Number(el.dataset.id);
+    const { entry } = await (await fetch(`/api/wire?n=${ui.wire}`)).json();
+    $('wire-title').textContent = entry ? `${clock(entry.at)} · ${entry.service} · ${entry.summary}` : 'Topilmadi';
+    $('wire-detail').textContent = pretty(entry?.detail);
+    render();
+  },
+  'voice-know': async () => { $('voice-out').textContent = (await (await fetch('/api/voice/knowledge')).json()).knowledge ?? 'xato'; },
+  'voice-slots': async () => { const r = await (await fetch('/api/voice/slots')).json(); $('voice-out').textContent = r.schedule ?? JSON.stringify(r); },
+};
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (el && el.tagName !== 'SELECT' && actions[el.dataset.act]) { e.preventDefault(); void actions[el.dataset.act](el); }
+});
+document.addEventListener('change', e => {
+  if (e.target.dataset?.act === 'crm-status') void post('/api/crm/status', { id: e.target.dataset.id, status: e.target.value });
+});
+// Faqat rejim almashadi: panelda sozlangan «tanishlarga ham» va kutish vaqti o'zgarmaydi
+$('mode').addEventListener('change', e => post('/api/mode', { mode: e.target.value, contacts: !!S?.mode?.contacts, delayMin: Number(S?.mode?.delayMin ?? 1) }));
+$('wire-reads').addEventListener('change', render);
+
+const fields = form => Object.fromEntries(new FormData(form).entries());
+/** Enter — yuborish, Shift+Enter — yangi qator */
+function composer(formId, textId, send) {
+  const submit = async () => { const text = $(textId).value.trim(); if (text && await send(text) !== null) $(textId).value = ''; };
+  $(formId).addEventListener('submit', e => { e.preventDefault(); void submit(); });
+  $(textId).addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submit(); } });
+}
+composer('tg-form', 'tg-text', async text => { const out = await post('/api/tg/send', { chat: ui.tg, text, replyTo: ui.replyTo }); if (out) ui.replyTo = null; return out; });
+composer('ps-form', 'ps-text', text => (ui.ps ? post($('ps-owner').checked ? '/api/personal/owner' : '/api/personal/send', { userId: ui.ps, text }) : (toast("Avval chapdan yangi odam qo'shing"), null)));
+composer('ig-form', 'ig-text', text => (ui.ig ? post($('ig-owner').checked ? '/api/instagram/owner' : '/api/instagram/send', { thread: ui.ig, text }) : (toast("Avval chapdan yangi odam qo'shing"), null)));
+
+$('tg-new').addEventListener('submit', async e => {
+  e.preventDefault();
+  const out = await post('/api/tg/customer', fields(e.target));
+  if (out) { ui.tg = out.chat.id; e.target.reset(); toast(`${out.chat.name} botga kirdi (biznes havolasini bosdi)`); }
+});
+$('ps-new').addEventListener('submit', async e => {
+  e.preventDefault();
+  const out = await post('/api/personal/send', { ...fields(e.target), text: 'Assalomu alaykum' });
+  if (out) { ui.ps = out.userId; e.target.reset(); }
+});
+$('ig-new').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = fields(e.target);
+  const out = await post('/api/instagram/send', { ...f, pending: !!f.pending, text: 'Assalomu alaykum' });
+  if (out) { ui.ig = out.thread; e.target.reset(); }
+});
+$('tg-voice').addEventListener('click', () => {
+  const text = prompt("Ovozli xabarda nima deyiladi? (Stendda ovoz tanish soxta: aytilgan gapni matn bilan yozasiz, qolgan yo'l haqiqiy)");
+  if (text?.trim()) void post('/api/tg/voice', { chat: ui.tg, text });
+});
+$('tg-attach').addEventListener('click', () => $('tg-file').click());
+$('tg-file').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (file) await post(`/api/tg/file?chat=${ui.tg}&name=${encodeURIComponent(file.name)}`, null, file);
+  e.target.value = '';
+});
+$('crm-appt').addEventListener('submit', async e => { e.preventDefault(); if (await post('/api/crm/appointment', fields(e.target))) e.target.patientName.value = ''; });
+$('crm-pay').addEventListener('submit', async e => { e.preventDefault(); if (await post('/api/crm/payment', fields(e.target))) { e.target.patientName.value = ''; e.target.amount.value = ''; } });
+$('voice-book').addEventListener('submit', async e => {
+  e.preventDefault();
+  const r = await fetch('/api/voice/book', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(fields(e.target)) });
+  const out = await r.json();
+  $('voice-book-out').hidden = false;
+  $('voice-book-out').textContent = r.ok ? `Yozildi: ${out.booked}` : `Yozilmadi (${r.status}): ${out.code ?? out.error ?? ''}`;
+  void poll();
+});
+$('voice-call').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = fields(e.target);
+  const transcript = f.transcript.split('\n').map(l => /^\s*(agent|mijoz)\s*:\s*(.+)$/i.exec(l)).filter(Boolean).map(m => ({ who: m[1].toLowerCase() === 'agent' ? 'ai' : 'caller', text: m[2] }));
+  if (await post('/api/voice/call', { name: f.name, phone: f.phone, outcome: f.outcome, durationSec: 20 + transcript.length * 6, transcript })) toast("Qo'ng'iroq jurnalga yozildi");
+});
+
+// Sana va vaqt maydonlari: bugun, joriy yarim soat
+const now = new Date(), today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+for (const el of document.querySelectorAll('input[type=date]')) el.value = today;
+for (const el of document.querySelectorAll('input[type=time]')) el.value = `${String(now.getHours()).padStart(2, '0')}:${now.getMinutes() < 30 ? '00' : '30'}`;
+void poll();
+setInterval(poll, 1000);
+</script>
+</body>
+</html>

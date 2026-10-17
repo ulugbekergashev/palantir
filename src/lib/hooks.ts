@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 /** Joriy vaqt — daqiqa sayin yangilanadi ("Rejada" → "Joylandi") */
 export function useNow(): Date {
@@ -33,3 +33,12 @@ export function useToast() {
   }, [toast]);
   return [toast, setToast] as const;
 }
+
+/** Keng ekran (Tailwind'ning lg chegarasi — 64rem): bo'limlar yon panelda doim ko'rinadi; torroqda — tugma ortidagi tortma */
+const WIDE = '(min-width: 64rem)';
+const watchWide = (changed: () => void) => {
+  const query = window.matchMedia(WIDE);
+  query.addEventListener('change', changed);
+  return () => query.removeEventListener('change', changed);
+};
+export const useWide = (): boolean => useSyncExternalStore(watchWide, () => window.matchMedia(WIDE).matches);
