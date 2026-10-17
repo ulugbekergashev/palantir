@@ -50,7 +50,7 @@ yoki Gemini ovozi nomi). O'zgartirish keyingi qo'ng'iroqdan kuchga kiradi. Suhba
 | `login.py` | Akkauntga bir marta kirish |
 | `common.py` | Kalitlar `.env` dan (Cerebro bergan muhit o'zgaruvchilari ustun) |
 | `call.py` | Eski zanjir: VoiceLab ovozi bilan (VoiceLab varianti uchun asos) |
-| `check_live.py`, `check_player.py` | Qo'ng'iroqsiz tekshiruvlar |
+| `check_live.py`, `check_player.py`, `check_voicelab.py` | Qo'ng'iroqsiz tekshiruvlar (oxirgisi VoiceLab kreditini ishlatadi) |
 | `latency.py` | Javob tezligini o'lchash |
 | `voices_live.py` | Ovoz namunalarini egasining Telegramiga yuborish |
 

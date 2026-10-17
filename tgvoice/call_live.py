@@ -7,8 +7,10 @@ import array
 import asyncio
 import faulthandler
 import os
+import re
 import sys
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -86,6 +88,42 @@ TOOLS = [types.Tool(function_declarations=[
         parameters=S(type='OBJECT', properties={'request': S(type='STRING', description="O'zbekcha so'rov")}, required=['request'])),
     types.FunctionDeclaration(name='end_call', description="Qo'ng'iroqni tugatish (xayrlashgandan keyin)."),
 ])]
+
+
+VOICELAB = 'https://api.voicelab.uz'
+VOICELAB_MODEL = env('VOICELAB_MODEL', 'lison')        # lison — gapga ~0,6 s; lison-v2 jonliroq, lekin gapga ~5 s (2026-10-18 o'lchov) — telefonga yaramaydi
+SENTENCE_END = re.compile(r'(?<=[.!?…])\s+')
+
+
+class VoiceLabVoice:
+    """«ovoz: voicelab:Madina» — AI gapini VoiceLab'ning o'zbek ovozi o'qiydi: talaffuz tabiiyroq, lekin har gapga ~1 s va pul qo'shiladi"""
+    def __init__(self, name: str):
+        self.name = name
+        self.http = httpx.AsyncClient(timeout=30, headers={'Authorization': f"Bearer {env('VOICELAB_API_KEY')}"})
+        self.voice_id: str | None = None
+        self.model = VOICELAB_MODEL
+
+    async def pcm48(self, text: str) -> bytes:
+        """Gap → 48 kHz mono PCM (Telegram'ga yuborishga tayyor)"""
+        if not self.voice_id:
+            voices = (await self.http.get(f'{VOICELAB}/v1/voices', params={'language': 'uz'})).json()['data']
+            found = next((v for v in voices if v['name'].lower().startswith(self.name.lower())), None)
+            if not found:
+                raise RuntimeError(f"VoiceLab'da «{self.name}» ovozi yo'q")
+            self.voice_id = found['id']
+        r = await self.http.post(f'{VOICELAB}/v1/tts', headers={'Idempotency-Key': str(uuid.uuid4())},
+                                 json={'text': text[:600], 'language': 'uz', 'voice_id': self.voice_id, 'model_id': self.model})
+        if r.status_code == 404 and self.model != 'lison':  # bu ovoz v2 da yo'q (masalan, Lola) — oddiy model bilan
+            self.model = 'lison'
+            return await self.pcm48(text)
+        if r.status_code != 200:
+            raise RuntimeError(f'VoiceLab {r.status_code}: {r.text[:120]}')
+        p = await asyncio.create_subprocess_exec('ffmpeg', '-loglevel', 'error', '-i', 'pipe:0', '-f', 's16le', '-ar', str(RATE), '-ac', '1', 'pipe:1',
+                                                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        out, err = await p.communicate(r.content)
+        if p.returncode:
+            raise RuntimeError(f'ffmpeg: {err.decode(errors="replace")[:120]}')
+        return out
 
 
 def speech_config(voice: str) -> types.SpeechConfig:
@@ -208,6 +246,12 @@ class Bridge:
         self.connected = asyncio.Event()
         # AI birinchi salomini tugatdi — shundan keyin odamning ovozi Live'ga boradi (gapni bo'lish ham shundan keyin)
         self.greeted = asyncio.Event()
+        # «ovoz: voicelab:…» — AI gapini VoiceLab o'qiydi (run() o'rnatadi); tts_gen — gap bo'linganda eskirgan gaplarni tashlash uchun
+        self.speaker: 'VoiceLabVoice | None' = None
+        self.tts_q: asyncio.Queue[tuple[int, str]] = asyncio.Queue()
+        self.tts_gen = 0
+        self.tts_busy = False
+        self._pending = ''
         self.done = asyncio.Event()
         self.cerebro = Cerebro()
         self._heard: list[str] = []
@@ -273,6 +317,7 @@ class Bridge:
                     continue
                 if sc.interrupted:  # odam gapirib yubordi — AI darhol jim bo'ladi
                     self.outbuf.clear()
+                    self.hush()
                 if sc.input_transcription and sc.input_transcription.text:
                     if self._said:
                         self.flush_text()
@@ -281,14 +326,55 @@ class Bridge:
                     if self._heard:
                         self.flush_text()
                     self._said.append(sc.output_transcription.text)
-                if sc.model_turn:
+                    if self.speaker:
+                        self.feed(sc.output_transcription.text)
+                if sc.model_turn and not self.speaker:  # VoiceLab ovozida Gemini'ning o'z ovozi ishlatilmaydi
                     for p in sc.model_turn.parts:
                         if p.inline_data and p.inline_data.data:
                             self.outbuf += up_24_to_48(p.inline_data.data)
                 if sc.turn_complete:
+                    if self.speaker:
+                        self.feed('', final=True)
                     self.flush_text()
                     if not self.greeted.is_set():
                         asyncio.ensure_future(self._open_mic())
+
+    # ─── VoiceLab ovozi: AI matni gap-gap bo'lib o'qiladi ────────────────────
+
+    def feed(self, text: str, final: bool = False):
+        """Live javobining matni bo'lak-bo'lak keladi: tugagan har gap darhol navbatga (birinchi gap ikkinchisi o'ylanayotganda aytiladi)"""
+        self._pending += text
+        parts = SENTENCE_END.split(self._pending)
+        self._pending = '' if final else parts.pop()
+        for sentence in parts:
+            if sentence.strip():
+                self.tts_q.put_nowait((self.tts_gen, sentence.strip()))
+
+    def hush(self):
+        """Gap bo'lindi: navbatdagi va yasalayotgan gaplar tashlanadi"""
+        self.tts_gen += 1
+        self._pending = ''
+        while not self.tts_q.empty():
+            self.tts_q.get_nowait()
+
+    async def tts_worker(self):
+        while not self.done.is_set():
+            gen, sentence = await self.tts_q.get()
+            if gen != self.tts_gen:
+                continue
+            self.tts_busy = True
+            try:
+                pcm = await self.speaker.pcm48(sentence)
+                if gen == self.tts_gen:  # yasalayotganda gap bo'linmagan bo'lsa
+                    self.outbuf += pcm
+            except Exception as e:
+                log('—', f"VoiceLab ovozi: {type(e).__name__}: {str(e)[:150]}")
+            finally:
+                self.tts_busy = False
+
+    def speaking(self) -> bool:
+        """AI hali gapiryapti: yuborilmagan ovoz bor yoki VoiceLab gapni yasayapti"""
+        return bool(self.outbuf) or (self.speaker is not None and (self.tts_busy or not self.tts_q.empty() or bool(self._pending.strip())))
 
     async def tools(self, s, call):
         responses = []
@@ -316,13 +402,14 @@ class Bridge:
     async def _open_mic(self):
         """Salom oxirigacha eshitilgach odamning ovozi Live'ga ochiladi (eng ko'pi 15 s kutiladi — nima bo'lsa ham ochiladi)"""
         end = time.monotonic() + 15
-        while self.outbuf and not self.done.is_set() and time.monotonic() < end:
+        while self.speaking() and not self.done.is_set() and time.monotonic() < end:
             await asyncio.sleep(0.05)
         self.greeted.set()
 
     def _end_after_speech(self):
         async def wait():
-            while self.outbuf:  # xayrlashuv ovozi oxirigacha eshitilsin
+            end = time.monotonic() + 20
+            while self.speaking() and time.monotonic() < end:  # xayrlashuv ovozi oxirigacha eshitilsin
                 await asyncio.sleep(0.1)
             await asyncio.sleep(0.5)
             self.done.set()
@@ -348,6 +435,9 @@ class Bridge:
         owner = (info.get('owner') or '').strip()
         guide = info.get('guide') or DEFAULT_GUIDE.format(comma_owner=f', {owner}' if owner else '')
         voice = info.get('voice') or LIVE_VOICE
+        if voice.lower().startswith('voicelab:'):
+            self.speaker = VoiceLabVoice(voice.split(':', 1)[1].strip())
+            voice = 'standart'  # Gemini ovozi eshittirilmaydi, faqat matni olinadi
         opening, kickoff = GREET, "(qo'ng'iroq ulandi)"
         if self.remind:
             task = next((t for t in (await self.cerebro.list_tasks())['tasks'] if t['id'] == self.remind), None)
@@ -371,9 +461,10 @@ class Bridge:
             realtime_input_config=types.RealtimeInputConfig(automatic_activity_detection=types.AutomaticActivityDetection(
                 end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH, silence_duration_ms=LIVE_SILENCE_MS, prefix_padding_ms=20)))
         async with client.aio.live.connect(model=LIVE_MODEL, config=config) as s:
-            log('—', f"Gemini Live ulandi ({LIVE_MODEL}, {voice})")
+            log('—', f"Gemini Live ulandi ({LIVE_MODEL}, {f'VoiceLab: {self.speaker.name}' if self.speaker else voice})")
             await s.send_client_content(turns=types.Content(role='user', parts=[types.Part(text=kickoff)]), turn_complete=True)
-            tasks = [asyncio.create_task(self.guard(c)) for c in (self.uplink(s), self.player(), self.downlink(s))]
+            parts = [self.uplink(s), self.player(), self.downlink(s)] + ([self.tts_worker()] if self.speaker else [])
+            tasks = [asyncio.create_task(self.guard(c)) for c in parts]
             try:
                 await asyncio.wait_for(self.done.wait(), CALL_LIMIT_S)
             except asyncio.TimeoutError:

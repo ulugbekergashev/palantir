@@ -471,7 +471,8 @@ function phonePage(): string {
   return `# Telefon
 
 %% Telefondagi AI (Telegram qo'ng'irog'i) shu sahifaga qarab gaplashadi: salomlashish, murojaat, ohang, nima qilsin va nima qilmasin.
-O'zgartirsangiz — keyingi qo'ng'iroqdan kuchga kiradi. «ovoz:» qatori — «standart» (o'zbekchani eng tabiiy aytadi) yoki Gemini ovozi nomi (Kore, Aoede, Puck, Leda, Orus...).
+O'zgartirsangiz — keyingi qo'ng'iroqdan kuchga kiradi. «ovoz:» qatori — «standart» (o'zbekchani eng tabiiy aytadi), Gemini ovozi nomi (Kore, Aoede, Puck, Leda, Orus...)
+yoki «voicelab:Madina» — AI gapini VoiceLab'ning o'zbek ovozi o'qiydi (tabiiyroq, lekin har gapga ~1 s va pul qo'shiladi).
 {ism} — egasining profildagi ismi (qo'ng'iroq paytida qo'yiladi); «Ulug'bek aka» kabi aniq murojaatni o'zingiz ham yozishingiz mumkin.
 Bu izoh AI'ga berilmaydi. %%
 

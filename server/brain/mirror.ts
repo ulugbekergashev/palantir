@@ -121,7 +121,8 @@ export function syncTasks(bizId: string): void {
 
 /** Telefon.md dan bunchasi beriladi (adashib tashlangan uzun matn ko'rsatmani to'ldirib yubormasin) */
 const MAX_GUIDE = 4000;
-const VOICE = /^ovoz:\s*([A-Za-z]{2,20})\s*$/im;
+/** «ovoz: standart», «ovoz: Aoede» (Gemini) yoki «ovoz: voicelab:Madina» (AI gapini VoiceLab o'qiydi) */
+const VOICE = /^ovoz:\s*((?:voicelab:\s*)?[A-Za-z][A-Za-z' -]{1,30}?)\s*$/im;
 
 /**
  * Telefondagi AI ko'rsatmasi (egasi Obsidian'da yozadi): izohlarsiz matn va tanlangan ovoz. Sahifa yo'q — bo'sh.

@@ -62,6 +62,8 @@ export async function mirrorTests({ ok, api, token, otherToken, dataDir }: Harne
   writeFileSync(phoneFile, readFileSync(phoneFile, 'utf8').replace('ovoz: standart', 'ovoz: Aoede').replace('## Qanday gaplashsin', "## Qanday gaplashsin\n- Har qo'ng'iroq oxirida «Tabassum klinikasi xizmatingizda» de."));
   phone = (await api('/api/brain/phone', { token })).json;
   ok("Obsidian'da o'zgartirildi — keyingi qo'ng'iroqqa: yangi ovoz va qoida", phone.voice === 'Aoede' && phone.guide.includes('Tabassum klinikasi xizmatingizda'));
+  writeFileSync(phoneFile, readFileSync(phoneFile, 'utf8').replace('ovoz: Aoede', 'ovoz: voicelab:Madina'));
+  ok("VoiceLab ovozi tanlanishi mumkin: «ovoz: voicelab:Madina»", (await api('/api/brain/phone', { token })).json.voice === 'voicelab:Madina');
   const otherPhone = (await api('/api/brain/phone', { token: otherToken })).json as { guide: string; voice: string };
   ok("boshqa biznesning o'z Telefon.md si — bu o'zgartirish unga o'tmaydi", otherPhone.voice === 'standart' && !otherPhone.guide.includes('Tabassum klinikasi xizmatingizda'));
   rmSync(phoneFile);
