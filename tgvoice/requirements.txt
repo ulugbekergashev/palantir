@@ -1,0 +1,6 @@
+py-tgcalls==3.0.0
+ntgcalls==3.0.3
+Telethon==1.45.0
+google-genai==2.31.0
+httpx==0.28.1
+websockets==16.1.1

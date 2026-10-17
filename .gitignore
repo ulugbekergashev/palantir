@@ -25,3 +25,12 @@ session.secret
 cerebro.lock
 cerebro.stop
 supervisor.pid
+
+# Telegram qo'ng'iroq dasturi: muhit, Telegram sessiyasi (akkauntga kirish kaliti!) va ish fayllari
+tgvoice/.venv/
+tgvoice/*.session
+tgvoice/*.session-journal
+tgvoice/tmp/
+tgvoice/*.txt
+!tgvoice/requirements.txt
+__pycache__/
