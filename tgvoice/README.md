@@ -39,8 +39,17 @@ aks holda Telegram uni id bo'yicha topishga ruxsat bermaydi.
 
 ## Biznesga moslash — Obsidian'da
 
-Har biznesning papkasida `Telefon.md`: salomlashish, murojaat («Ulug'bek aka»), ohang, qoidalar va ovoz (`ovoz: standart`
-yoki Gemini ovozi nomi). O'zgartirish keyingi qo'ng'iroqdan kuchga kiradi. Suhbatlar `Qo'ng'iroqlar/` ga yoziladi.
+Har biznesning papkasida `Telefon.md`: salomlashish, murojaat («Ulug'bek aka»), ohang, qoidalar va ovoz.
+O'zgartirish keyingi qo'ng'iroqdan kuchga kiradi. Suhbatlar `Qo'ng'iroqlar/` ga yoziladi.
+
+| `ovoz:` | Kim gapiradi | Narx, tezlik |
+|---|---|---|
+| `standart` | Gemini, ovoz nomisiz + uz-UZ (o'zbekchani eng tabiiy aytadi) | ~150 so'm/daq, javob ~1,1 s |
+| `Aoede`, `Puck`… | Gemini'ning shu nomli ovozi | xuddi shunday |
+| `voicelab:Madina` | AI Gemini'da eshitadi va o'ylaydi, gapni VoiceLab o'qiydi (gap-gap) | + VoiceLab haqi, har javobga ~1 s |
+
+VoiceLab v2 modeli (`VOICELAB_MODEL=lison-v2`) jonliroq, lekin gapga ~5 s — telefonda ishlatilmaydi. Jonli oqim
+(VoiceLab realtime TTS, kalitda `tts:realtime` ruxsati) bilan tezlashishi mumkin — hali sinalmagan.
 
 ## Fayllar
 
