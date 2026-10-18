@@ -379,3 +379,58 @@ export interface BrainView {
   priced: number;
   offerings: number;
 }
+
+// ─── Ulash ustasi ─────────────────────────────────────────────────────────────
+
+/** Server kaliti (panelda ko'rinishi): qiymatning o'zi emas, yashirilgan boshi-oxiri */
+export interface KeyView {
+  name: import('./lib/secrets').KeyName;
+  label: string;
+  where: string;
+  required: boolean;
+  /** panel — ulash ustasida kiritilgan; env — .env faylidan; null — berilmagan */
+  source: 'panel' | 'env' | null;
+  masked: string | null;
+  updatedAt: string | null;
+}
+export type KeyCheck = { ok: true; info: string; warn?: string } | { ok: false; error: string; canForce: boolean };
+
+/** Bo'shliq: Cerebro'ga yetishmagan yoki zid narsa — egasidan so'raladi */
+export interface Gap {
+  /** gap:… — suhbatdagi savol id'si shu bilan boshlanadi */
+  id: string;
+  question: string;
+  hint: string;
+  /** Tayyor javoblar (Telegram'da tugma bo'lib chiqadi); egasi o'zi yozsa ham bo'ladi */
+  options?: string[];
+}
+
+/** Tarmoqda topilgan kamera */
+export interface FoundCamera {
+  ip: string;
+  /** Hikvision, Dahua… — bilinmasa bo'sh */
+  brand: string;
+  model: string;
+  /** ONVIF boshqaruv manzili (bo'lmasa — faqat 554-port topilgan) */
+  onvif: string | null;
+  rtspPort: number;
+  /** Shu biznesga allaqachon ulangan */
+  connected?: boolean;
+}
+
+export interface AnketaView { code: string; label: string; industry: string; status: import('./lib/anketa').AnketaStatus; updatedAt: string; expiresAt: string }
+export interface AnketaImport {
+  prices: { added: number; updated: number; conflicts: number; unclear: number };
+  answers: number;
+  about: boolean;
+}
+
+/** O'rnatish holati (GET /api/setup) */
+export interface SetupView {
+  has: { instagram: string; telegramPhone: string; crm: import('./lib/anketa').CrmKind; cameras: number; cameraBrand: string };
+  anketa: { code: string | null; importedAt: string } | null;
+  gaps: Gap[];
+  pack: { answered: number; total: number };
+  prices: number;
+  status: LiveStatus;
+}

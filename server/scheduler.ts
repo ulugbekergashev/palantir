@@ -156,14 +156,14 @@ function phoneReminder(bot: BotService, biz: BusinessRow, t: Task): void {
 
 export function startScheduler(bot: BotService): () => void {
   const stopInbox = startInbox();
-  if (!bot.enabled) return stopInbox;
   let running = false;
   let briefRetryAt = 0;
   // Internet yo'q paytda har tekshiruvda emas, siyrakroq uriniladi (jurnal bir xil xato bilan to'lmasin)
   let remindRetryAt = 0;
   const remindRetryMs = Math.min(60_000, env.tickMs * 2);
   const tick = async () => {
-    if (running) return;
+    // Bot hali ulanmagan (token ulash ustasida keyin kiritiladi) — jadval kutib turadi, token kelgach o'zi ishlay boshlaydi
+    if (running || !bot.enabled) return;
     running = true;
     try {
       const now = new Date();

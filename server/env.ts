@@ -54,6 +54,10 @@ export const env = {
   voicelabVoice: process.env.VOICELAB_TTS_VOICE || '',
   geminiKey: process.env.GEMINI_API_KEY || '',
   groqKey: process.env.GROQ_API_KEY || '',
+  /** Kalitni tekshirish manzillari (ulash ustasi). Faqat sinov uchun almashtiriladi */
+  anthropicRoot: (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, ''),
+  geminiApiRoot: (process.env.GEMINI_API_ROOT || 'https://generativelanguage.googleapis.com').replace(/\/$/, ''),
+  groqApiRoot: (process.env.GROQ_API_ROOT || 'https://api.groq.com').replace(/\/$/, ''),
   /** Faqat sinov uchun: soxta ovoz xizmati manzillari */
   geminiSttUrl: process.env.GEMINI_STT_URL || 'https://generativelanguage.googleapis.com/v1beta/interactions',
   groqSttUrl: process.env.GROQ_STT_URL || 'https://api.groq.com/openai/v1/audio/transcriptions',
@@ -119,6 +123,9 @@ export const env = {
   ffmpeg: process.env.FFMPEG_PATH || 'ffmpeg',
   /** Faqat sinov uchun: IP kamera o'rniga ffmpeg'ga beriladigan kirish (JSON ro'yxat, masalan ["-f","lavfi","-i","testsrc"]) */
   cameraTestInput: process.env.CAMERA_TEST_INPUT || '',
+  /** Faqat sinov uchun: kamera qidiruvi tarmoq o'rniga shu manzillarga (host:port, vergul bilan) — ONVIF so'rovi va 554-port */
+  cameraProbeTargets: process.env.CAMERA_PROBE_TARGETS || '',
+  cameraScanHosts: process.env.CAMERA_SCAN_HOSTS || '',
   /**
    * Telefon qilib eslatish — SpeechLab AI agenti (speechlab.uz → Integratsiyalar → API, «AI agent qo'ng'iroqlari» ruxsati bilan).
    * Agent raqami berilmasa — SpeechLab'da chiquvchi qo'ng'iroqlar uchun tanlangan agent gaplashadi

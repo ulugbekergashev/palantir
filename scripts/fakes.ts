@@ -46,6 +46,8 @@ export const tgServer = createServer(async (req: IncomingMessage, res: ServerRes
   }
   const method = url.split('/').pop()!.split('?')[0];
   const body = await readBody(req);
+  // Ulash ustasi sinovi: shu raqam bilan boshlangan token — @BotFather bekor qilgan token
+  if (url.startsWith('/bot1111111111:')) return json(res, { ok: false, error_code: 401, description: 'Unauthorized' }, 401);
   let params: Record<string, unknown> = {};
   let file: Buffer | undefined, fileName: string | undefined;
   const type = req.headers['content-type'] ?? '';

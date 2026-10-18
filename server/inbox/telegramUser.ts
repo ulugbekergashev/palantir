@@ -281,8 +281,19 @@ function fake(base: string): Driver {
 
 // ─── Ulash va kanalga bog'lash ────────────────────────────────────────────────
 
-const driver: Driver | null = env.tgUserFakeUrl ? fake(env.tgUserFakeUrl) : env.tgApiId && env.tgApiHash ? gramjs() : null;
+const pickDriver = (): Driver | null => (env.tgUserFakeUrl ? fake(env.tgUserFakeUrl) : env.tgApiId && env.tgApiHash ? gramjs() : null);
+let driver: Driver | null = pickDriver();
 export const telegramUserAvailable = () => !!driver;
+
+/**
+ * TG_API_ID va TG_API_HASH ulash ustasida kiritildi: server to'xtamasdan shaxsiy Telegram yoqiladi.
+ * Ishlab turgan drayver almashtirilmaydi — ulangan seanslar o'z kaliti bilan ishlayveradi (yangi kalit qayta yoqilganda kuchga kiradi)
+ */
+export function refreshTelegramUser(): void {
+  if (driver || halted) return;
+  driver = pickDriver();
+  if (driver) startTelegramUser();
+}
 
 /** Mijoz bilan yozishmami yoki shaxsiy suhbatmi */
 function accept(biz: BusinessRow, e: TgEvent): boolean {

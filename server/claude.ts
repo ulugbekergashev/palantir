@@ -6,6 +6,8 @@ import { env } from './env';
 
 let client: Anthropic | null = null;
 export const claude = () => (client ??= new Anthropic({ maxRetries: 2, timeout: 600_000 }));
+/** Kalit almashdi (ulash ustasi): keyingi so'rov yangi kalit bilan ochilgan mijozdan ketadi */
+export const resetClaude = (): void => { client = null; };
 
 // Model rad etsa yoki band bo'lsa — so'rov server tomonda zaxira modelda bajariladi
 export const FALLBACK: { betas: Anthropic.Beta.AnthropicBeta[]; fallbacks: 'default' } = { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' };

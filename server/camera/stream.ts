@@ -44,13 +44,13 @@ export function parseStream(input: string): { url: string; host: string } {
 const inputArgs = (url: string): string[] => testInput() ?? ['-rtsp_transport', 'tcp', '-i', url];
 
 /** Kameradan bitta kadr (JPEG): zonalarni uning ustida chizish va ulanishni tekshirish uchun */
-export function snapshot(url: string): Promise<Buffer> {
+export function snapshot(url: string, timeoutMs = SNAPSHOT_TIMEOUT_MS): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const proc = spawn(env.ffmpeg, ['-nostdin', '-loglevel', 'error', ...inputArgs(url), '-an', '-frames:v', '1', '-vf', `scale=${SNAPSHOT_WIDTH}:-2`, '-f', 'image2pipe', '-c:v', 'mjpeg', '-q:v', '5', 'pipe:1'],
       { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const chunks: Buffer[] = [];
     let size = 0, problem = '';
-    const timer = setTimeout(() => { problem = 'kamera javob bermadi'; proc.kill(); }, SNAPSHOT_TIMEOUT_MS);
+    const timer = setTimeout(() => { problem = 'kamera javob bermadi'; proc.kill(); }, timeoutMs);
     proc.stdout.on('data', (c: Buffer) => { size += c.length; if (size <= SNAPSHOT_MAX_BYTES) chunks.push(c); else proc.kill(); });
     proc.stderr.on('data', (c: Buffer) => { problem ||= maskUrl(String(c)).trim().split(/\r?\n/).at(-1)?.slice(0, 200) ?? ''; });
     proc.on('error', e => { clearTimeout(timer); reject(new Error((e as NodeJS.ErrnoException).code === 'ENOENT' ? "Bu kompyuterda ffmpeg yo'q — IP kamera uchun o'rnating" : e.message)); });

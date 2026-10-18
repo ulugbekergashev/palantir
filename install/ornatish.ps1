@@ -28,12 +28,6 @@ function Run([string]$what, [scriptblock]$command) {
   if ($LASTEXITCODE -ne 0) { Fail "$what bajarilmadi (kod $LASTEXITCODE). Yuqoridagi xabarni o'qing va qayta urining." }
 }
 
-function Read-Secret([string]$prompt) {
-  $secure = Read-Host -Prompt $prompt -AsSecureString
-  $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-  try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr).Trim() } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
-}
-
 function New-Password([int]$length) {
   # O'qishda adashtiradigan belgilarsiz (0/O, 1/l/I)
   $alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -120,35 +114,24 @@ Run 'npm run build' { npm run --silent build }
 # --- 4. Sozlamalar (.env) ----------------------------------------------------
 Step '4/7  Sozlamalar (.env)'
 $adminPassword = ''
-if (Test-Path '.env') {
+$fresh = -not (Test-Path '.env')
+if (-not $fresh) {
   Note ".env bor - o'zgartirilmadi. Kalitlarni almashtirish: faylni Bloknotda oching (install papkasi yonida)."
   if ($ffmpegPath -and -not (Read-EnvValue 'FFMPEG_PATH')) {
     [IO.File]::AppendAllText((Join-Path $Root '.env'), "`r`nFFMPEG_PATH=$ffmpegPath`r`n", (New-Object Text.UTF8Encoding($false)))
     Note 'FFMPEG_PATH .env ga qoshildi'
   }
 } else {
-  Note "Kalitlar faqat shu kompyuterdagi .env fayliga yoziladi."
   $data = Read-Host "   Ma'lumotlar papkasi [$DefaultData]"
   if (-not $data) { $data = $DefaultData }
   New-Item -ItemType Directory -Force $data | Out-Null
-  Note "Kalitlar yozilayotganda ekranda ko'rinmaydi (yonda odam bo'lishi mumkin). Nusxalab, sichqonchaning o'ng tugmasi bilan qo'ying va Enter bosing."
-  Note "Xato kiritilgan bo'lsa keyingi qadamdagi tekshiruv aytadi."
-  $token = Read-Secret '   Telegram bot tokeni (@BotFather -> /newbot)'
-  $claude = Read-Secret '   Claude API kaliti (platform.claude.com)'
-  $gemini = Read-Secret "   Gemini kaliti - ovozli xabarlar uchun (aistudio.google.com, bepul; yo'q bo'lsa Enter)"
-  $tgId = (Read-Host "   TG_API_ID - egasining shaxsiy Telegrami uchun (my.telegram.org; yo'q bo'lsa Enter)").Trim()
-  $tgHash = ''
-  if ($tgId) { $tgHash = Read-Secret '   TG_API_HASH' }
+  Note "Bot tokeni va AI kalitlari bu yerda so'ralmaydi: o'rnatish oxirida ulash ustasi ochiladi - kalitlarni o'sha yerga qo'yasiz, u har birini darhol tekshiradi."
   $adminPassword = New-Password 16
   $lines = @(
     "# Cerebro sozlamalari ($(Get-Date -Format 'yyyy-MM-dd') da o'rnatildi). Hamma imkoniyatlar: .env.example",
     "ADMIN_PASSWORD=$adminPassword",
-    "BOT_TOKEN=$token",
-    "ANTHROPIC_API_KEY=$claude",
-    "GEMINI_API_KEY=$gemini",
-    'GROQ_API_KEY=',
-    "TG_API_ID=$tgId",
-    "TG_API_HASH=$tgHash",
+    '# Bot tokeni, Claude, Gemini, Telegram API kalitlari - panelda: http://localhost:3200/#/ulash (shifrlanib bazada turadi).',
+    '# Shu yerga yozilsa ham ishlaydi, lekin paneldagisi ustun.',
     "PORT=$DefaultPort",
     '# Faqat shu kompyuterdan ochiladi. Tarmoqdagi boshqa qurilmalarga ochish: 0.0.0.0 (panel shifrsiz - parol ochiq ketadi)',
     'LISTEN_HOST=127.0.0.1',
@@ -175,9 +158,14 @@ else { Warn "Papkalarni yopib bo'lmadi (disk buni qo'llamasligi mumkin). Boshqa 
 
 # --- 5. Tekshiruv ------------------------------------------------------------
 Step '5/7  Tekshiruv (Telegram, Claude, ovoz, papka, port)'
-npm run --silent check
-$checkFailed = $LASTEXITCODE -ne 0
-if ($checkFailed) { Warn "Tekshiruvda xato bor. O'rnatish davom etadi, lekin xatoni tuzatmaguningizcha o'sha qism ishlamaydi (.env ni to'g'rilab: install\Tekshirish.cmd)." }
+$checkFailed = $false
+if ($fresh) {
+  Note "Yangi o'rnatish: kalitlar hali yo'q - ular ulash ustasida kiritilib, o'sha zahoti tekshiriladi. To'liq tekshiruv keyin: install\Tekshirish.cmd"
+} else {
+  npm run --silent check
+  $checkFailed = $LASTEXITCODE -ne 0
+}
+if ($checkFailed) { Warn "Tekshiruvda xato bor. O'rnatish davom etadi, lekin xatoni tuzatmaguningizcha o'sha qism ishlamaydi (kalitni ulash ustasida almashtiring: http://localhost:3200/#/ulash, keyin install\Tekshirish.cmd)." }
 
 # --- 6. Avtoyuklash va yorliqlar ---------------------------------------------
 Step '6/7  Avtoyuklash va yorliqlar'
@@ -218,13 +206,12 @@ Note "Cerebro ishlayapti: http://localhost:$port"
 
 Write-Host ''
 Write-Host '== Tayyor. Keyingi qadamlar (docs\ORNATISH.md da batafsil):' -ForegroundColor Green
-Note "1. http://localhost:$port/#/admin -> admin paroli bilan kiring -> klinikani qo'shing (login va parol)"
-Note "2. Klinika logini bilan kiring -> 'Telegram' bo'limidagi havola orqali egasining Telegramini ulang"
-Note "3. DentaCRM, shaxsiy Telegram, Instagram va kameralarni shu panelda ulang"
+Note "Brauzerda ulash ustasi ochiladi: http://localhost:$port/#/ulash - admin paroli bilan kiring va qadamlarni tartib bilan bajaring:"
+Note "   klinika va anketa -> kalitlar -> egasining Telegrami -> DentaCRM -> kameralar -> shaxsiy Telegram -> Instagram -> bo'shliqlar"
 if ($adminPassword) {
   Write-Host ''
   Write-Host "   ADMIN PAROLI: $adminPassword" -ForegroundColor Yellow
   Note "Uni hozir yozib oling (u .env faylida ham turadi). Bu parol klinikaga berilmaydi - u sizniki."
 }
 if ($checkFailed) { Warn "Eslatma: tekshiruvdagi xatolarni tuzating (install\Tekshirish.cmd)." }
-Start-Process "http://localhost:$port/#/admin"
+Start-Process "http://localhost:$port/#/ulash"

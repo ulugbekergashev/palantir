@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { CheckCircle2, KeyRound, Loader2, LogOut, Plus, Power } from 'lucide-react';
+import { CheckCircle2, KeyRound, Loader2, LogOut, Plus, Power, Wand2 } from 'lucide-react';
 import { adminApi, session, type AdminBusiness, type AdminUsage } from '../data/api';
 import { Logo } from '../components/Sidebar';
-import { Button, Card, Field, TextInput } from '../components/ui';
+import { Button, ButtonLink, Card, Field, TextInput } from '../components/ui';
+import { AnketaAdmin } from './AnketaAdmin';
 
 /** Server ham shuni talab qiladi (server/http.ts) */
 const MIN_PASSWORD = 8;
@@ -97,7 +98,10 @@ export function AdminPage() {
     <div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-8">
       <header className="flex items-center justify-between">
         <Logo subtitle="Admin — bizneslar" />
-        <Button variant="ghost" onClick={() => { session.setAdmin(null); setAuthed(false); }}><LogOut className="h-4 w-4" /> Chiqish</Button>
+        <div className="flex items-center gap-1">
+          <ButtonLink variant="primary" href="#/ulash"><Wand2 className="h-4 w-4" /> Ulash ustasi</ButtonLink>
+          <Button variant="ghost" onClick={() => { session.setAdmin(null); setAuthed(false); }}><LogOut className="h-4 w-4" /> Chiqish</Button>
+        </div>
       </header>
       {msg && <p role="status" className={`rounded-xl px-3.5 py-2.5 text-sm ${msg.error ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-800'}`}>{msg.text}</p>}
 
@@ -110,6 +114,8 @@ export function AdminPage() {
           <Button type="submit" variant="primary" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Qo'shish</Button>
         </form>
       </Card>
+
+      <AnketaAdmin onError={fail} onInfo={text => setMsg({ text })} />
 
       <Card title={`Bizneslar${list ? ` (${list.length})` : ''}`}>
         {!list ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : list.length === 0 ? (

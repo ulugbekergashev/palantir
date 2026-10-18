@@ -1,8 +1,11 @@
 /** Serverning o'zi: tiklash → port → bot va kanallar (fonda). index.ts qulf olingach yuklaydi */
+// Birinchi: ulash ustasida kiritilgan kalitlar .env ustidan qo'yiladi — qolgan modullar yuklanganda ular tayyor turadi
+import { onKeyChange } from './keys';
 import type { Server } from 'node:http';
 import type { Express } from 'express';
 import { startBackups } from './backup';
-import { createBot } from './bot';
+import { swappableBot } from './bot';
+import { resetClaude } from './claude';
 import { env, voiceEnabled } from './env';
 import { createApp } from './http';
 import { ffmpegAvailable, stopCameraEngine } from './camera/stream';
@@ -10,7 +13,7 @@ import { recoverMoney } from './crm/actions';
 import { closeDb, notices } from './db';
 import { recoverBookings } from './inbox/core';
 import { instagramAvailable, startInstagram, stopInstagram } from './inbox/instagram';
-import { startTelegramUser, stopTelegramUser, telegramUserAvailable } from './inbox/telegramUser';
+import { refreshTelegramUser, startTelegramUser, stopTelegramUser, telegramUserAvailable } from './inbox/telegramUser';
 import { startScheduler } from './scheduler';
 
 /** Bot nomini shuncha kutamiz; Telegram javob bermasa — server baribir ko'tariladi, bot fonda ulanadi */
@@ -30,7 +33,13 @@ function listen(app: Express): Promise<Server> {
   });
 }
 
-const bot = createBot();
+const bot = swappableBot();
+// Kalit almashdi — server to'xtamasdan kuchga kiradi
+onKeyChange(async name => {
+  if (name === 'BOT_TOKEN') await bot.reload();
+  if (name === 'ANTHROPIC_API_KEY') resetClaude();
+  if (name === 'TG_API_ID' || name === 'TG_API_HASH') refreshTelegramUser();
+});
 // Tiklash — bot xabar qabul qila boshlashidan OLDIN: aks holda kutib turgan «Tasdiqlash» bosilishi endigina boshlangan yozuvni «to'xtab qolgan» deb belgilab qo'yardi.
 // Tarmoqqa chiqilmaydi: egasiga aytiladigan gaplar bazadagi navbatga yoziladi va bot ulangach yuboriladi (internet kech kelsa ham yo'qolmaydi)
 for (const r of recoverMoney()) notices.add(r.businessId, `⚠️ <b>${r.title}</b>\n${r.note ?? ''}`);

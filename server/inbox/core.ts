@@ -40,6 +40,8 @@ const senders = new Map<LeadChannel, Sender>();
 let owner: OwnerOutlet | null = null;
 export const registerSender = (channel: LeadChannel, s: Sender) => { senders.set(channel, s); };
 export const setOwnerOutlet = (o: OwnerOutlet) => { owner = o; };
+/** Bot tokeni olib tashlandi (ulash ustasi): eski bot orqali mijozga ham, egasiga ham yuborilmaydi */
+export const clearBotOutlets = (): void => { senders.delete('bot'); owner = null; };
 export const notifyOwner = (biz: BusinessRow, html: string, keyboard?: InlineKeyboardMarkup) => owner?.notify(biz, html, keyboard) ?? Promise.resolve(null);
 
 export const DEFAULT_REPLY: AutoReply = { mode: 'draft', contacts: false, delayMin: 2 };

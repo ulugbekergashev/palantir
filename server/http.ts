@@ -22,6 +22,8 @@ import { approveReply, dismissReply, ownerWrites, replySettings } from './inbox/
 import { cancelInstagramLogin, disconnectInstagram, instagramAvailable, instagramStatus, startInstagramLogin } from './inbox/instagram';
 import { disconnectTelegramUser, loginCode, loginPassword, loginStart, telegramUserAccount, telegramUserAvailable } from './inbox/telegramUser';
 import { AutoReplySchema, BusinessSchema, emptyBusiness } from './validate';
+import { containsSecret } from '../src/lib/secrets';
+import { mountSetup } from './setup/routes';
 import { crmStatus } from './crm/index';
 import { mountCrm } from './crm/routes';
 import { mountBrain } from './brain/routes';
@@ -186,6 +188,8 @@ export function createApp(bot: BotService) {
   app.post('/api/chat', asBiz(async (req, res, biz) => {
     const text = typeof req.body?.text === 'string' ? req.body.text.trim().slice(0, 4000) : '';
     if (!text) return res.status(400).json({ error: "Xabar bo'sh" });
+    // Token yoki kalit suhbatga yozilmaydi: u modelga, jurnalga va bilimga tushib qolardi
+    if (containsSecret(text)) return res.status(400).json({ error: "Xabarda maxfiy kalit bor — u yuborilmadi va saqlanmadi. Kalitlarni «Ulash» sahifasiga kiriting (#/ulash)." });
     const answered = interviewTurn(biz, text);
     if (answered) return res.json(answered);
     // phone: true — gap jonli qo'ng'iroqdan (D:\tgvoice\call.py): javob qisqa va ovozga mos bo'lsin
@@ -205,6 +209,7 @@ export function createApp(bot: BotService) {
     } catch (e) {
       return res.status(e instanceof SilenceError ? 400 : 502).json({ error: e instanceof SilenceError ? 'Hech narsa eshitilmadi' : "Ovozni tanib bo'lmadi" });
     }
+    if (containsSecret(text)) return res.status(400).json({ error: "Gapda maxfiy kalit eshitildi — yuborilmadi va saqlanmadi. Kalitlarni «Ulash» sahifasiga kiriting (#/ulash)." });
     const answered = interviewTurn(biz, text.trim(), `🎙 ${text.trim()}`);
     if (answered) return res.json(answered);
     const reply = await ask(biz.id, 'web', text, { voice: true });
@@ -406,6 +411,7 @@ export function createApp(bot: BotService) {
   mountCamera(app, { asBiz, bad });
   mountVoice(app, { asBiz, bad });
   mountBrain(app, { asBiz, bad, fail });
+  mountSetup(app, { asBiz, asAdmin, bad, fail, bot, statusOf: bizId => status(businesses.byId(bizId)!, bot) });
 
   // ─── Mijozlarga javob: rejim va yozishmalar ────────────────────────────────
   app.put('/api/business/auto-reply', asBiz((req, res, biz) => {

@@ -1,5 +1,8 @@
 import type { BrainView, Call, Camera, CameraSummary, CameraTiming, CameraZone, ClinicDay, ZoneNow } from '../types';
 import type { PriceLine } from '../lib/prices';
+import type { AnketaData } from '../lib/anketa';
+import type { KeyName } from '../lib/secrets';
+import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, SetupView } from '../types';
 import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 /** Server bilan ishlash. Token — shu brauzerda */
@@ -129,6 +132,13 @@ export const api = {
   igCancel: () => call<{ ok: true }>('/instagram/cancel', { body: {} }),
   igDisconnect: () => call<{ status: LiveStatus }>('/instagram', { method: 'DELETE' }),
 
+  /** Ulash ustasi: o'rnatish holati, anketani yuklash (kod yoki fayl), egasidan Telegram'da so'rash */
+  setup: () => call<{ setup: SetupView }>('/setup'),
+  importAnketa: (body: { code: string; source: string } | { data: unknown }) => call<{ result: AnketaImport; setup: SetupView }>('/setup/anketa', { body }),
+  askOwner: () => call<{ setup: SetupView }>('/setup/ask', { body: {} }),
+  discoverCameras: () => call<{ found: FoundCamera[]; ffmpeg: boolean }>('/cameras/discover', { body: {} }),
+  connectCamera: (v: { ip: string; port: number; brand: string; onvif: string | null; login: string; password: string; name: string }) => call<{ camera: Camera }>('/cameras/connect', { body: v }),
+
 };
 
 export interface AdminBusiness {
@@ -151,4 +161,30 @@ export const adminApi = {
   create: (b: { name: string; industry: string; login: string; password: string }) => call<{ id: string }>('/admin/businesses', { body: b, admin: true }),
   usage: () => call<{ model: string; usage: AdminUsage[] }>('/admin/usage', { admin: true }),
   update: (id: string, patch: { active?: boolean; password?: string }) => call<{ ok: true }>(`/admin/businesses/${id}`, { method: 'PATCH', body: patch, admin: true }),
+  keys: () => call<{ keys: KeyView[] }>('/admin/keys', { admin: true }),
+  removeKey: (name: KeyName) => call<{ key: KeyView }>(`/admin/keys/${name}`, { method: 'DELETE', admin: true }),
+  /** Ulash ustasi biznes kabineti nomidan ishlashi uchun qisqa muddatli token */
+  enter: (id: string) => call<{ token: string }>(`/admin/businesses/${id}/session`, { body: {}, admin: true }),
+  anketas: () => call<{ anketas: AnketaView[] }>('/admin/anketa', { admin: true }),
+  newAnketa: (label: string, industry: string) => call<{ anketa: AnketaView }>('/admin/anketa', { body: { label, industry }, admin: true }),
+  removeAnketa: (code: string) => call<{ ok: true }>(`/admin/anketa/${code}`, { method: 'DELETE', admin: true }),
+};
+
+export type KeySave = { ok: true; key: KeyView; check: KeyCheck } | { ok: false; error: string; canForce: boolean };
+/** Kalitni tekshirib saqlaydi. Rad etilsa — sababi va «baribir saqlash» mumkinmi (internet yo'q, hisobda mablag' yo'q) */
+export async function putKey(name: KeyName, value: string, force = false): Promise<KeySave> {
+  const token = session.adminToken();
+  const res = await fetch(`/api/admin/keys/${name}`, {
+    method: 'PUT', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ value, force }),
+  }).catch(() => { throw new ApiError("Server bilan aloqa yo'q", 0); });
+  const json = await res.json().catch(() => ({})) as { key?: KeyView; check?: KeyCheck; error?: string; canForce?: boolean };
+  if (res.status === 401) throw new ApiError('Admin sifatida qayta kiring', 401);
+  if (res.ok && json.key && json.check) return { ok: true, key: json.key, check: json.check };
+  return { ok: false, error: json.error ?? `Xato (${res.status})`, canForce: !!json.canForce };
+}
+
+/** Ochiq anketa formasi (kod — kalit): kirishsiz */
+export const anketaApi = {
+  get: (code: string) => call<{ anketa: AnketaView & { data: AnketaData } }>(`/anketa/${encodeURIComponent(code)}`),
+  save: (code: string, data: AnketaData, submit = false) => call<{ anketa: AnketaView }>(`/anketa/${encodeURIComponent(code)}`, { method: 'PUT', body: { data, submit } }),
 };

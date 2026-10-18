@@ -18,6 +18,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "tsx scripts/e2e.ts",
     "test:resilience": "tsx scripts/e2e-resilience.ts",
+    "test:setup": "tsx scripts/e2e-setup.ts",
+    "test:ui-setup": "tsx scripts/ui-setup.ts",
     "test:tgcall": "tsx scripts/e2e-tgcall.ts",
     "test:ipcam": "tsx scripts/e2e-ipcam.ts",
     "test:ui": "vite build && tsx scripts/ui-live.ts",

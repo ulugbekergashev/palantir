@@ -18,7 +18,8 @@ import { addDays, dueLabel, iso, stamp } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
 import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
 import { crmConnected } from './crm/index';
-import { INTERVIEW_START, interviewReply, interviewSkip, interviewStart, interviewStop, type InterviewTurn } from './brain/interview';
+import { INTERVIEW_START, interviewOption, interviewReply, interviewSkip, interviewStart, interviewStop, type InterviewTurn } from './brain/interview';
+import { containsSecret } from '../src/lib/secrets';
 import { fileKeyboard, settleFile, settleSuggestion } from './brain/learn';
 import { businesses, chatLog, inbox, leads, moneyEntries, outbound, posts, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
 import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index';
@@ -29,7 +30,7 @@ import { SilenceError, transcribe } from './stt';
 import { MAX_PHOTO_BYTES, describePhoto, photoMessage } from './vision';
 import { reviewCall } from './callreview';
 import { toOgg } from './tts';
-import { approveReply, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
+import { approveReply, clearBotOutlets, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
 export interface BotService {
   enabled: boolean;
@@ -48,6 +49,8 @@ export interface BotService {
   verifyChannel(ref: string): Promise<{ id: string; title: string }>;
   /** Pul yozuvi kartasini hozirgi holatga keltiradi (panelda tasdiqlangan bo'lsa ham Telegramdagi tugma yo'qoladi) */
   refreshMoney(bizId: string, id: string): Promise<void>;
+  /** Birinchi kun suhbatini egasining Telegram'ida boshlaydi (ulash ustasi «Egasidan so'rash»): bo'shliqlar, keyin tayyor savollar */
+  startInterview(biz: BusinessRow): Promise<void>;
 }
 
 const langOf = (b: BusinessRow): Lang => b.profile.contentLang ?? 'uz';
@@ -190,10 +193,13 @@ function helpFor(biz: BusinessRow): string {
 
 export function createBot(): BotService {
   if (!env.botToken) {
+    // Token olib tashlangan bo'lsa — oldingi botning yuborish yo'llari ham yopiladi
+    clearBotOutlets();
     const off = () => Promise.reject(new Error("Telegram bot ulanmagan (BOT_TOKEN yo'q)"));
     return {
       enabled: false, username: () => null, start: async () => {}, stop: () => {},
       publishPost: off, sendFollowup: off, cancelFollowup: off, remindTask: async () => {}, sendText: async () => {}, sendVoice: async () => {}, verifyChannel: off, refreshMoney: async () => {},
+      startInterview: off,
     };
   }
 
@@ -244,11 +250,17 @@ export function createBot(): BotService {
   /** Birinchi kun suhbatining navbati: savol (tugmalar bilan) yoki yakun */
   async function sendInterview(biz: BusinessRow, turn: InterviewTurn): Promise<void> {
     chatLog.add(biz.id, 'telegram', 'assistant', turn.text);
-    const keyboard = turn.open && turn.asking ? kb([[b("⏭ O'tkazib yuborish", `iv|s:${turn.asking}`), b("⏹ To'xtatish", 'iv|x')]]) : undefined;
+    const options = (turn.open && turn.asking ? turn.options ?? [] : []).map((o, i) => [b(o, `iv|o:${i}:${turn.asking}`)]);
+    const keyboard = turn.open && turn.asking ? kb([...options, [b("⏭ O'tkazib yuborish", `iv|s:${turn.asking}`), b("⏹ To'xtatish", 'iv|x')]]) : undefined;
     await tg.sendMessage(biz.ownerChatId!, turn.text, keyboard ? { reply_markup: keyboard } : {});
   }
 
   async function handleOwner(ctx: Context, biz: BusinessRow, text: string, voice = false, extra: { display?: string; photo?: boolean } = {}) {
+    // Ovozdan o'girilgan matn yoki rasm izohida ham kalit bo'lishi mumkin: modelga, jurnalga va bilimga ketmaydi
+    if (containsSecret(text)) {
+      await ctx.reply("🔒 Bu xabarda maxfiy kalit (token, parol bilan manzil) bor — uni hech qayerga saqlamadim va yordamchiga bermadim. Kalitlarni klinika kompyuteridagi panelga, «Ulash» sahifasiga kiriting.");
+      return;
+    }
     // Birinchi kun suhbati ochiq bo'lsa (yoki egasi «savollar» desa) — gap javob deb olinadi va yordamchiga ketmaydi. Rasm tavsifi javob emas
     const turn = extra.photo ? null : INTERVIEW_START.test(text.trim()) ? interviewStart(biz) : interviewReply(biz, text);
     if (turn) {
@@ -492,7 +504,9 @@ export function createBot(): BotService {
 
     // Birinchi kun suhbati: «o'tkazib yuborish» (aynan shu savol hali so'ralayotgan bo'lsa) yoki «to'xtatish»
     if (code === 'iv') {
-      const turn = id.startsWith('s:') ? interviewSkip(biz, id.slice(2)) : id === 'x' ? interviewStop(biz) : null;
+      const option = /^o:(\d+):(.+)$/.exec(id);
+      const turn = option ? interviewOption(biz, option[2], Number(option[1]))
+        : id.startsWith('s:') ? interviewSkip(biz, id.slice(2)) : id === 'x' ? interviewStop(biz) : null;
       if (!turn) return toast(ctx, 'Bu tugma eskirgan');
       await toast(ctx);
       return sendInterview(biz, turn);
@@ -606,6 +620,11 @@ export function createBot(): BotService {
     const chatId = String(ctx.chat.id);
     const text = ctx.message.text.trim();
     const biz = businesses.byOwnerChat(chatId);
+    if (biz && containsSecret(text)) {
+      // Egasi token yoki kalitni botga yozib yubordi: xabar chatdan o'chiriladi, modelga, jurnalga va bilimga tushmaydi
+      await ctx.deleteMessage().catch(() => {});
+      return ctx.reply("🔒 Xabaringizda maxfiy kalit (token, parol bilan manzil) bor edi — uni chatdan o'chirdim va hech qayerga saqlamadim. Kalitlarni Telegram'ga yozmang: ularni klinika kompyuteridagi panelga, «Ulash» sahifasiga kiriting.");
+    }
     if (biz) {
       // Mijoz xabariga "Reply" — javob mijozga ketadi
       const replyTo = ctx.message.reply_to_message?.message_id;
@@ -898,6 +917,10 @@ export function createBot(): BotService {
       await tg.sendMessage(biz.ownerChatId, reminderText(t), { parse_mode: 'HTML', reply_markup: reminderKeyboard(t) });
     },
     sendText: (chatId, html) => sendHtml(chatId, html),
+    async startInterview(biz) {
+      if (!biz.ownerChatId) throw new Error("Egasi hali Telegram'ni ulamagan — avval ulash havolasini bossin");
+      await sendInterview(biz, interviewStart(biz));
+    },
     async sendVoice(chatId, audio, caption) {
       if ('ogg' in audio) await tg.sendVoice(chatId, { source: audio.ogg, filename: 'eslatma.ogg' }, { caption, parse_mode: 'HTML' });
       else await tg.sendAudio(chatId, { source: audio.wav, filename: 'eslatma.wav' }, { caption, parse_mode: 'HTML' });
@@ -914,4 +937,25 @@ export function createBot(): BotService {
       return { id: String(chat.id), title: 'title' in chat ? chat.title : chatRef };
     },
   };
+}
+
+/** Yangi bot Telegram'da tanilishini shuncha kutamiz (javob bermasa ham kalit saqlanadi — bot fonda ulanadi) */
+const SWAP_WAIT_MS = 5_000;
+
+/**
+ * Tokeni almashtirsa bo'ladigan bot. Panel, jadval va kanallar shu obyektni ushlab turadi; ichidagi bot esa ulash ustasida
+ * yangi BOT_TOKEN kiritilganda qayta yaratiladi — server to'xtamaydi. Eski bot xabar olishni to'xtatadi, yangisi boshlaydi
+ */
+export function swappableBot(make: () => BotService = createBot): BotService & { reload: () => Promise<void> } {
+  let current = make();
+  const reload = async (): Promise<void> => {
+    current.stop();
+    current = make();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([current.start(), new Promise(r => { timer = setTimeout(r, SWAP_WAIT_MS); })]);
+    clearTimeout(timer);
+  };
+  return new Proxy({} as BotService & { reload: () => Promise<void> }, {
+    get: (_t, prop) => (prop === 'reload' ? reload : Reflect.get(current, prop)),
+  });
 }

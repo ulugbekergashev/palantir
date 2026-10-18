@@ -13,6 +13,8 @@ import { businesses, cameraSessions, cameras, newId, type BusinessRow } from '..
 import { env } from '../env';
 import { open, seal } from '../secret';
 import { feedOf, ffmpegAvailable, parseStream, snapshot, startCameraEngine, syncEngine } from './stream';
+import { candidatePaths, discoverCameras, onvifStreamUri, withCredentials } from './discover';
+import { loginBlocked, loginFailed, loginOk } from '../auth';
 import { findings, reconcile, type Sitting } from './reconcile';
 import { flush, step, type States, type ZoneEvent } from './sessions';
 
@@ -31,6 +33,32 @@ const ZonesSchema = z.object({
   }))).max(MAX_ZONES),
 });
 const ObserveSchema = z.object({ people: z.array(BoxSchema).max(MAX_PEOPLE) });
+/**
+ * Faqat mahalliy tarmoq manzili (kamera klinikaning o'zida) — server boshqa joyga so'rov yubormasin.
+ * Shu kompyuterning o'zi (127.x) — yo'q: kamera nomi bilan o'z xizmatlarini paypaslab bo'lmasin (soxta kamera bilan sinovdan tashqari)
+ */
+const LOCAL_IP = /^(10\.\d{1,3}|192\.168|172\.(1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}$/;
+const LOOPBACK_IP = /^127\.0\.0\.1$/;
+const localIp = (ip: string): boolean => LOCAL_IP.test(ip) || (!!(env.cameraProbeTargets || env.cameraScanHosts) && LOOPBACK_IP.test(ip));
+const ConnectSchema = z.object({
+  ip: z.string().refine(localIp, 'mahalliy tarmoq manzili emas'),
+  port: z.number().int().min(1).max(65_535).default(554),
+  brand: z.string().trim().max(40).default(''),
+  onvif: z.string().max(300).nullable().optional(),
+  login: z.string().max(64),
+  password: z.string().max(128),
+  name: z.string().trim().min(1).max(40),
+});
+/** Bitta ulanishda shuncha manzil sinab ko'riladi, har biri shuncha kutiladi (so'rov uzoq osilib qolmasin) */
+const MAX_TRIES = 8, TRY_TIMEOUT_MS = 8_000;
+let discovering = false;
+/** Kamera o'z manzilini boshqa IP bilan bersa (tashqi tarmoq uchun sozlangan) — biz topgan IP qo'yiladi */
+const onHost = (rtsp: string, ip: string): string => { const u = new URL(rtsp); u.hostname = ip; return u.href; };
+const hostsOf = (list: string) => list.split(',').map(s => s.trim()).filter(Boolean).map(s => { const [host, port] = s.split(':'); return { host, port: Number(port) }; });
+const discoveryOptions = () => ({
+  ...(env.cameraProbeTargets ? { probeTargets: hostsOf(env.cameraProbeTargets), waitMs: 800 } : {}),
+  ...(env.cameraScanHosts || env.cameraProbeTargets ? { scanHosts: hostsOf(env.cameraScanHosts) } : {}),
+});
 /** Taqvimda bor sana (2026-13-99 kabi yozuv o'tmaydi) */
 const DaySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(s => { const [y, m, d] = s.split('-').map(Number); return iso(new Date(y, m - 1, d)) === s; }, "taqvimda bunday sana yo'q");
 
@@ -145,6 +173,61 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
     if (!p.success) return bad(res, p.error);
     if (cameras.list(biz.id).length >= MAX_CAMERAS) return res.status(409).json({ error: `Ko'pi bilan ${MAX_CAMERAS} ta kamera` });
     res.json({ camera: cameras.create(biz.id, p.data.name) });
+  }));
+
+  /** Ulash ustasi: klinika tarmog'idagi kameralarni qidirish (bir necha soniya). Bir vaqtda bitta qidiruv */
+  app.post('/api/cameras/discover', asBiz(async (_req, res, biz) => {
+    if (!env.crmAllowPrivate) return res.status(403).json({ error: "Bu serverda IP kameralar o'chirilgan" });
+    if (discovering) return res.status(429).json({ error: 'Qidiruv davom etyapti — biroz kuting' });
+    discovering = true;
+    try {
+      const list = await discoverCameras(discoveryOptions());
+      const taken = new Set(cameras.list(biz.id).map(c => c.ip?.replace(/:\d+$/, '')).filter(Boolean));
+      res.json({ found: list.map(c => ({ ...c, connected: taken.has(c.ip) })), ffmpeg: ffmpegAvailable() });
+    } finally {
+      discovering = false;
+    }
+  }));
+
+  /** Topilgan kamerani ulash: manzil ONVIF'dan yoki markaning odatiy yo'llaridan olinadi, kadr olib tekshiriladi */
+  app.post('/api/cameras/connect', asBiz(async (req, res, biz) => {
+    const p = ConnectSchema.safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    const { ip, port, brand, onvif, login, password, name } = p.data;
+    if (!env.crmAllowPrivate) return res.status(403).json({ error: "Bu serverda IP kameralar o'chirilgan" });
+    if (!ffmpegAvailable()) return res.status(409).json({ error: "Bu kompyuterda ffmpeg yo'q — IP kamera uchun o'rnating (o'rnatish qo'llanmasida bor)" });
+    if (cameras.list(biz.id).length >= MAX_CAMERAS) return res.status(409).json({ error: `Ko'pi bilan ${MAX_CAMERAS} ta kamera` });
+    // Noto'g'ri parol sanaladi: kamera parolini terib topishga qarshi (manzil topilmagani hisobga kirmaydi)
+    const key = `cam:${biz.id}`;
+    if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
+    let chosen: string | null = null, problem = '';
+    const tried: string[] = [];
+    if (onvif) {
+      try { tried.push(onHost(await onvifStreamUri(onvif, ip, login, password), ip)); } catch (e) { problem = (e as Error).message; }
+    }
+    tried.push(...candidatePaths(brand).map(path => `rtsp://${ip}:${port}${path}`));
+    for (const url of [...new Set(tried)].slice(0, MAX_TRIES)) {
+      const full = withCredentials(url, login, password);
+      try {
+        await snapshot(full, TRY_TIMEOUT_MS);
+        chosen = full;
+        break;
+      } catch (e) {
+        problem = (e as Error).message;
+        // Parol noto'g'ri — boshqa yo'llarni sinash befoyda (va kamera bloklab qo'yishi mumkin)
+        if (/401|unauthori[sz]ed|login yoki parol/i.test(problem)) {
+          loginFailed(key);
+          return res.status(400).json({ error: "Kamera login yoki parolni qabul qilmadi — kamera qutisidagi yoki o'rnatuvchidagi parolni tekshiring" });
+        }
+      }
+    }
+    if (!chosen) return res.status(400).json({ error: `Kameradan kadr olib bo'lmadi (${problem || 'javob yo\'q'}). Manzilni Kameralar sahifasida qo'lda kiriting` });
+    loginOk(key);
+    const cam = cameras.create(biz.id, name);
+    const stream = parseStream(chosen);
+    cameras.setStream(biz.id, cam.id, seal(stream.url), stream.host);
+    syncEngine();
+    res.json({ camera: view(cameras.get(biz.id, cam.id)!) });
   }));
 
   app.put('/api/cameras/:id/zones', asBiz((req, res, biz) => {

@@ -78,6 +78,26 @@ export function parsePrices(text: string): ParsedPrices {
 }
 
 const key = (name: string): string => name.toLowerCase().replace(/[‘’ʻʼ`]/g, "'").replace(/\s+/g, ' ').trim();
+/** Ikki nom bitta xizmatmi (jadvalga qo'shishdagi qoida bilan bir xil) */
+export const priceKey = key;
+
+export interface PriceConflict { name: string; prices: number[] }
+/**
+ * Bitta xizmatga bir nechta narx («Tish tozalash — 250 000» va pastroqda «Tish tozalash — 300 000»). Jadvalga olishda oxirgisi
+ * g'olib bo'lib qolardi — mijozga noto'g'ri narx aytilmasin, egasidan so'raladi. Qolganlari — ziddiyatsiz narxlar
+ */
+export function splitConflicts(items: PriceLine[]): { clean: PriceLine[]; conflicts: PriceConflict[] } {
+  const groups = new Map<string, PriceLine[]>();
+  for (const i of items) groups.set(key(i.name), [...(groups.get(key(i.name)) ?? []), i]);
+  const conflicts: PriceConflict[] = [];
+  const clean: PriceLine[] = [];
+  for (const group of groups.values()) {
+    const prices = [...new Set(group.map(i => i.price))];
+    if (prices.length > 1) conflicts.push({ name: group[0].name, prices });
+    else clean.push(group[0]);
+  }
+  return { clean, conflicts };
+}
 
 export interface PriceChanges { /** Jadvalda yo'q yangi xizmatlar soni */ fresh: number; /** Narxi o'zgaradigan mavjud xizmatlar */ changed: { name: string; from: number; to: number }[] }
 /** Yangi narxlar jadvalga olinsa nima o'zgaradi (mergeOfferings bilan bir xil qoida) — egasiga oldindan ko'rsatish uchun */

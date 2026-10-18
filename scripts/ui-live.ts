@@ -312,10 +312,20 @@ try {
   await page.getByText(/ta savolim bor/).first().waitFor({ timeout: 10000 });
   ok("suhbat: «Ikkinchi miya»dagi tugma suhbat sahifasini ochadi — Cerebro birinchi javobsiz savolni so'raydi", page.url().endsWith('#/chat') && await page.getByText('Cerebro savol beryapti').isVisible());
   await shot('17-interview');
+  // Avval bo'shliqlar so'raladi (yozilmagan manzil, telefon, ish vaqti) — har biriga o'ziga mos javob, keyin tayyor savol
+  const gapAnswers: [RegExp, string][] = [[/Manzilingiz qayer/, 'Chilonzor 9-kvartal, 14-uy'], [/qaysi raqamga qo'ng'iroq/, '+998 71 200 45 67'], [/Ish vaqtingiz qanday/, 'Du–Sh 09:00–20:00']];
+  let gapsAnswered = 0;
+  for (const [question, answer] of gapAnswers) {
+    if (!(await page.getByText(question).last().isVisible())) continue;
+    await send(answer);
+    await page.getByText(/✅ .*yozdim/).nth(gapsAnswered).waitFor({ timeout: 10000 });
+    gapsAnswered++;
+  }
+  ok("suhbat: avval bo'shliqlar so'raldi, javobi «Biznes haqida»ga yozildi", gapsAnswered > 0, `${gapsAnswered} ta`);
   await send('Buyurtma bergan kuni, ertasiga yetkazamiz');
   await page.getByText(/Yozib oldim/).first().waitFor({ timeout: 10000 });
   await page.getByRole('button', { name: "To'xtatish" }).click();
-  await page.getByText(/Savollarni to'xtatdim: 1 ta javob oldim/).first().waitFor({ timeout: 10000 });
+  await page.getByText(new RegExp(`Savollarni to'xtatdim: ${gapsAnswered + 1} ta javob oldim`)).first().waitFor({ timeout: 10000 });
   ok("suhbat: javob yozib olindi; «To'xtatish» suhbatni yopdi — tugmalar yo'qoldi", await page.getByText('Cerebro savol beryapti').count() === 0);
 
   console.log('\n# Telefon ekrani');

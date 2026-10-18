@@ -7,6 +7,8 @@
  * Claude tekshiruvi ikki kichik so'rov yuboradi (bir necha sent). O'tkazib yuborish: npm run check -- --no-ai
  */
 import '../server/tz';
+// Ulash ustasida kiritilgan kalitlar (bazada shifrlangan) .env ustidan qo'yiladi — server ishlatadiganining o'zi tekshiriladi
+import '../server/keys';
 import { existsSync, mkdirSync, rmSync, statfsSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
@@ -80,7 +82,7 @@ async function port(): Promise<void> {
 // ─── Telegram ────────────────────────────────────────────────────────────────
 
 async function telegram(): Promise<void> {
-  if (!env.botToken) return say('fail', 'Telegram bot', 'BOT_TOKEN berilmagan (@BotFather → /newbot)');
+  if (!env.botToken) return say('fail', 'Telegram bot', "BOT_TOKEN berilmagan (@BotFather → /newbot) — panelda kiriting: http://localhost:3200/#/ulash");
   const api = `${env.telegramApiRoot ?? 'https://api.telegram.org'}/bot${env.botToken}`;
   try {
     const r = await get(`${api}/getMe`);
@@ -99,7 +101,7 @@ async function telegram(): Promise<void> {
 // ─── Claude ──────────────────────────────────────────────────────────────────
 
 async function ai(skip: boolean): Promise<void> {
-  if (!env.aiEnabled) return say('fail', 'Claude', 'ANTHROPIC_API_KEY berilmagan (platform.claude.com → API keys)');
+  if (!env.aiEnabled) return say('fail', 'Claude', "ANTHROPIC_API_KEY berilmagan (platform.claude.com → API keys) — panelda kiriting: http://localhost:3200/#/ulash");
   if (skip) return say('warn', 'Claude', 'kalit bor, lekin tekshirilmadi (--no-ai)');
   const used = (u: Anthropic.Beta.BetaUsage) => `${u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0)} kirish, ${u.output_tokens} chiqish tokeni`;
   // Server yuboradigan so'rovlarning o'zi: asboblar, kesh, o'ylash, zaxira model — biror maydon rad etilsa shu yerda ko'rinadi

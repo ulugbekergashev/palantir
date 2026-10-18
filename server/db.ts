@@ -86,7 +86,7 @@ function ensureColumns(table: string, columns: Record<string, string>): void {
   for (const [name, type] of Object.entries(columns)) if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
 }
 ensureColumns('replies', { booking: 'TEXT', booked_at: 'TEXT', question: 'TEXT' });
-ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT' });
+ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT' });
 ensureColumns('tasks', { call_to: 'TEXT', spoken: 'INTEGER NOT NULL DEFAULT 0' });
 ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT' });
 db.exec(`UPDATE leads SET channel = 'bot', bot_started = 1 WHERE tg_user_id IS NOT NULL AND channel = 'manual' AND ig_user_id IS NULL AND tg_access_hash IS NULL`);
@@ -126,6 +126,8 @@ export interface BusinessRow {
   interview: string | null;
   /** Egasining telefoni: «qo'ng'iroq qilib eslat» shu raqamga (egasi bir marta aytadi, eslab qolinadi) */
   ownerPhone: string | null;
+  /** O'rnatish holati (JSON, setup/state.ts): anketadan qolgan hal qilinmagan narsalar — narx ziddiyatlari, egasida bor kanallar */
+  setup: string | null;
   createdAt: string;
 }
 
@@ -142,12 +144,14 @@ const toBusiness = (r: Raw): BusinessRow => ({
   briefDate: str(r.brief_date),
   interview: str(r.interview),
   ownerPhone: str(r.owner_phone),
+  setup: str(r.setup),
   createdAt: String(r.created_at),
 });
 
 const BIZ_COLUMNS = {
   passwordHash: 'password_hash', profile: 'profile', ownerChatId: 'owner_chat_id', channelId: 'channel_id', linkCode: 'link_code',
   channelTitle: 'channel_title', active: 'active', briefDate: 'brief_date', interview: 'interview', ownerPhone: 'owner_phone',
+  setup: 'setup',
 } as const;
 
 export const businesses = {
@@ -805,6 +809,42 @@ export const aiUsage = {
     businessId: String(r.business_id), day: String(r.day), kind: String(r.kind), calls: Number(r.calls),
     input: Number(r.input), output: Number(r.output), cacheRead: Number(r.cache_read), cacheWrite: Number(r.cache_write),
   }), day),
+};
+
+// ─── Server kalitlari (ulash ustasida kiritiladi) ────────────────────────────
+db.exec('CREATE TABLE IF NOT EXISTS settings (name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)');
+
+/** Server bo'yicha kalitlar: qiymat shifrlangan holda (secret.ts) keladi va shunday saqlanadi */
+export const settings = {
+  all: () => many('SELECT * FROM settings ORDER BY name', r => ({ name: String(r.name), value: String(r.value), updatedAt: String(r.updated_at) })),
+  set: (name: string, sealed: string) => run('INSERT INTO settings (name, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at', name, sealed, nowIso()),
+  remove: (name: string) => run('DELETE FROM settings WHERE name = ?', name),
+};
+
+// ─── Anketalar (o'rnatishdan oldin egasi to'ldiradi) ─────────────────────────
+db.exec(`
+CREATE TABLE IF NOT EXISTS anketa (
+  code TEXT PRIMARY KEY, label TEXT NOT NULL, industry TEXT NOT NULL, data TEXT, status TEXT NOT NULL DEFAULT 'new',
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, expires_at TEXT NOT NULL
+);
+`);
+
+export interface AnketaRow { code: string; label: string; industry: string; data: string | null; status: string; createdAt: string; updatedAt: string; expiresAt: string }
+const toAnketa = (r: Raw): AnketaRow => ({
+  code: String(r.code), label: String(r.label), industry: String(r.industry), data: str(r.data), status: String(r.status),
+  createdAt: String(r.created_at), updatedAt: String(r.updated_at), expiresAt: String(r.expires_at),
+});
+export const anketas = {
+  create(code: string, label: string, industry: string, expiresAt: string): AnketaRow {
+    run('INSERT INTO anketa (code, label, industry, created_at, updated_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', code, label, industry, nowIso(), nowIso(), expiresAt);
+    return anketas.get(code)!;
+  },
+  get: (code: string) => one('SELECT * FROM anketa WHERE code = ?', toAnketa, code),
+  list: () => many('SELECT * FROM anketa ORDER BY created_at DESC LIMIT 200', toAnketa),
+  save: (code: string, data: string, status: string) => run('UPDATE anketa SET data = ?, status = ?, updated_at = ? WHERE code = ?', data, status, nowIso(), code),
+  remove: (code: string) => run('DELETE FROM anketa WHERE code = ?', code),
+  /** Muddati o'tganlari o'chadi: anketada manzil, telefon, narxlar bor — keraksiz turmasin */
+  expire: () => run('DELETE FROM anketa WHERE expires_at < ?', nowIso()),
 };
 
 export const closeDb = () => db.close();

@@ -5,6 +5,11 @@ Bir klinika — bitta kompyuter — bitta bot. O'rnatish 30–40 daqiqa oladi (i
 
 ## 1. Borishdan oldin tayyorlang
 
+**Anketa (2–3 kun oldin).** O'zingizning Cerebro serveringizda (internetdan ochiladigan, masalan cloudflared orqali): `/#/admin` → «Anketalar» → klinika nomi → «Anketa yaratish». Havola va kod nusxalanadi — egasiga Telegram'da yuboring.
+Egasi telefonidan 10–15 daqiqada to'ldiradi: manzil, ish vaqti, narxlar, ko'p so'raladigan savollar, nimalari bor (Instagram, Telegram raqami, DentaCRM, kameralar). Parol va token anketaga **yozilmaydi** — yozsa, anketa saqlanmaydi.
+Admin sahifasidagi ro'yxatda holati ko'rinadi: «ochilmagan», «to'ldirilmoqda», «yuborilgan». Anketa 60 kundan keyin o'zi o'chadi.
+Anketa serveri tunnel yoki proksi ortida tursa (cloudflared, nginx), uning `.env` ida `TRUST_PROXY=1` qiling: aks holda noto'g'ri kod urinishlari hamma egalar uchun bitta deb sanaladi va 8 ta xato kod hammaning anketasini 15 daqiqaga yopib qo'yadi. Bir nechta biznesga xizmat qiladigan umumiy serverda `CRM_ALLOW_PRIVATE=0` ham qiling — anketa, DentaCRM va kameralar ichki tarmoq manzillariga ulanmaydi.
+
 | Nima | Qayerdan | Nima uchun |
 |---|---|---|
 | **Telegram bot tokeni** | @BotFather → `/newbot` (har klinikaga alohida bot) | Egasi yordamchi bilan shu botda gaplashadi; bemorlar ham shu botga yozadi |
@@ -24,36 +29,34 @@ Klinikadagi kompyuter: Windows 10 yoki 11, doim yoniq va internetga ulangan, Goo
 2. `install\Ornatish.cmd` ni ikki marta bosing. U o'zi:
    - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'rnatishni taklif qiladi. Node.js o'rnatilgach oynani yopib, `Ornatish.cmd` ni **qayta** bosing;
    - kutubxonalarni yuklaydi va panelni yig'adi;
-   - kalitlarni so'raydi va `.env` fayliga yozadi (ma'lumotlar papkasi — `C:\CerebroData`). Kalitlar yozilayotganda ekranda **ko'rinmaydi**: nusxalab, sichqonchaning o'ng tugmasi bilan qo'ying va Enter bosing;
-   - **hamma kalitni haqiqiy xizmatda tekshiradi** (Telegram, Claude, ovoz);
+   - `.env` faylini yozadi: admin paroli, port, ma'lumotlar papkasi (`C:\CerebroData`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
    - dastur va ma'lumotlar papkasini kompyuterning boshqa Windows foydalanuvchilaridan yopadi;
-   - Cerebro'ni avtoyuklashga qo'shadi, ish stoliga «Cerebro» yorlig'ini qo'yadi, ishga tushiradi.
+   - Cerebro'ni avtoyuklashga qo'shadi, ish stoliga «Cerebro» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi.
 3. Oxirida ekranda **admin paroli** chiqadi — yozib oling. U sizniki, klinikaga berilmaydi.
 
 **Qaysi Windows foydalanuvchisi ostida o'rnatish kerak.** Cerebro shu foydalanuvchi kirganda ishlaydi va kalitlar, baza, bemorlar yozishmasi faqat unga ochiq bo'ladi.
 Eng yaxshisi — egasining (yoki faqat Cerebro uchun ochilgan) alohida parolli foydalanuvchisi. Hamma xodim bitta umumiy foydalanuvchi bilan ishlasa, ular `.env` va bazani ocha oladi — buni egasiga ayting.
 Zaxira nusxani fleshkaga olsangiz: unda baza va uni ochadigan kalit yonma-yon turadi — fleshka yo'qolsa hammasi ochiq.
 
-Tekshiruvda `[XATO]` chiqsa — yonidagi izohni o'qing, `.env` ni Bloknotda tuzating va `install\Tekshirish.cmd` ni bosing.
-Eng ko'p uchraydiganlari: token noto'g'ri ko'chirilgan; Claude hisobida mablag' yo'q; shu bot tokeni boshqa kompyuterda ham ishlab turibdi.
+## 3. Klinikani sozlash — ulash ustasi
 
-## 3. Klinikani sozlash (panelda)
+Panel: ish stolidagi «Cerebro» yorlig'i. Usta: `http://localhost:3200/#/ulash` (admin paroli bilan). Chapda qadamlar va «klinikada o'tgan vaqt», har qadam tayyor bo'lsa yashil belgi oladi; qadamlarni istalgan tartibda bosish mumkin.
 
-Panel: ish stolidagi «Cerebro» yorlig'i (`http://localhost:3200`).
-
-1. **Admin** (`/#/admin`): admin paroli bilan kiring → klinikani qo'shing: nomi, soha (`stomatologiya`), login, parol (kamida 8 belgi). Bu login-parol klinika egasiga beriladi.
-2. Klinika logini bilan kiring.
-3. **Telegram**: «Telegramni ulash» havolasini egasi **o'z telefonida** ochadi va «Start» bosadi. Bot «Ulandi» deb javob beradi.
-4. **DentaCRM**: manzil, login, parolni kiriting. Ulangach bosh sahifada bugungi qabullar ko'rinadi.
-5. **Mijozlarga javob** rejimi: birinchi hafta **«Tasdiq bilan»** qoldiring — Cerebro javobni tayyorlaydi, egasi Telegramda «Yuborish» bosadi. Javoblar yoqsa, keyin «O'zi javob bersin»ga o'tkazing.
-6. **Shaxsiy Telegram** (TG_API_ID bo'lsa): egasining raqami → Telegramga kelgan kod → (bo'lsa) ikki bosqichli parol.
-7. **Instagram**: egasi login-parolini ochilgan oynada o'zi kiritadi. Pastdagi «Chegaralar»ni o'qing.
-8. **Kameralar**: kamera qo'shing → IP manzilini kiriting → kadr ustida kreslo va kassa zonalarini chizing → saqlang.
+1. **Klinika**: «Yangi klinika» → nomi (login va parol o'zi yaratiladi — nusxalab egasiga bering). Keyin **anketa kodi** va o'z serveringiz manzili → «Yuklash»: manzil, ish vaqti, narxlar, javoblar shu kompyuterga tushadi. Internet bo'lmasa — anketa sahifasidan yuklab olingan `.json` faylni tanlang.
+2. **Kalitlar**: bot tokeni, Claude va Gemini kalitlari, kamera `rtsp://` manzili, DentaCRM havolasi, Telegram raqami — **hammasini bitta maydonga** qo'ying. Usta har qatorning turini o'zi taniydi (AI'siz, qolip bo'yicha), kalitni haqiqiy xizmatda tekshiradi va shifrlab saqlaydi; qolganini o'z qadamiga o'tkazadi. Tanimagan qatorni (masalan, DentaCRM paroli) bir tugma bilan belgilaysiz. Server to'xtamaydi: bot shu zahoti yangi token bilan ulanadi.
+3. **Egasining Telegram'i**: havolani egasi **o'z telefonida** ochadi va «Start» bosadi — sahifa o'zi yangilanadi.
+4. **DentaCRM**: manzil va parol kalitlar maydonidan o'tgan bo'ladi, loginni yozasiz → «Ulash va tekshirish».
+5. **Kameralar**: «Tarmoqdan qidirish» — kameralar o'zi topiladi (ONVIF va 554-port), markasi va modeli bilan. Login-parolni bir marta kiritasiz, har kameraga joyini yozasiz («Qabulxona», «1-kabinet») → «Ulash». RTSP manzili kameradan so'raladi (yengil oqim), bo'lmasa markaning odatiy yo'llari sinab ko'riladi; ulangach kadri ko'rinadi. Kreslo va kassa zonalarini kabinetdagi «Kameralar» bo'limida kadr ustida chizasiz. Topilmagan kamerani `rtsp://` manzili bilan «Kalitlar» qadamiga qo'yish mumkin:
    - Hikvision: `rtsp://admin:PAROL@192.168.1.64:554/Streaming/Channels/102` (`102` — 1-kamera, yengil oqim; 2-kamera — `202`)
    - Dahua: `rtsp://admin:PAROL@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1`
-   - Har doim **yengil oqimni** (substream) oling: asosiy oqim kompyuterni bekorga yuklaydi.
-   - Kresloga shifokor id'sini yozsangiz, kamera ko'rgani o'sha shifokorning CRM'dagi qabullari bilan solishtiriladi.
-9. **Bilim**: egasi botga `/savollar` yozadi — Cerebro bemorlar ko'p so'raydigan savollarni birma-bir so'raydi. Narxnoma faylini (PDF, Word, Excel) botga tashlasa, o'qib oladi.
+6. **Shaxsiy Telegram** (Telegram API ID va hash kiritilgan bo'lsa): raqam anketadan yoki kalitlar maydonidan → kod → (bo'lsa) ikki bosqichli parol.
+7. **Instagram**: «Instagram oynasini ochish» — egasi login-parolini ochilgan oynada o'zi kiritadi. Pastdagi «Chegaralar»ni o'qing.
+8. **Bo'shliqlar**: usta hamma ma'lumotni tekshirib, yetishmagan va zid joylarni ko'rsatadi — bitta xizmatga ikki xil narx, yozilmagan kunlar, manzil, telefon. «Egasidan Telegram'da so'rash» — bot egasiga bittalab so'raydi (narx savolida tugmalar bilan), javob o'z joyiga yoziladi: narx — jadvalga, manzil va ish vaqti — «Biznes haqida» sahifasiga. Keyin ko'p so'raladigan savollar keladi. Ro'yxat egasi javob bergan sari ekranda qisqaradi.
+9. **Tayyor**: hamma qadam holati va o'tgan vaqt. «Kabinetga o'tish» — klinika kabineti qayta kirishsiz ochiladi.
+
+**Mijozlarga javob** rejimi: birinchi hafta **«Tasdiq bilan»** qoldiring — Cerebro javobni tayyorlaydi, egasi Telegramda «Yuborish» bosadi. Javoblar yoqsa, keyin «O'zi javob bersin»ga o'tkazing.
+
+Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: bot xabarni chatdan o'chiradi, hech qayerga saqlamaydi va panelga yo'naltiradi.
 
 ## 4. Ketishdan oldin tekshiring
 
@@ -77,7 +80,7 @@ Panel: ish stolidagi «Cerebro» yorlig'i (`http://localhost:3200`).
 | Tiklash | Cerebro'ni to'xtating → `C:\CerebroData` dagi `cerebro.db-wal` va `cerebro.db-shm` fayllarini o'chiring → zaxira papkasidagi `cerebro.db`, `miya`, `session.secret` ni `C:\CerebroData` ga ko'chiring → ishga tushiring |
 | Dasturni yangilash | Yangi `cerebro` papkasini eskisining ustiga ko'chiring (`.env` qoladi) → `install\Ornatish.cmd`. Ma'lumotlar `C:\CerebroData` da — tegilmaydi |
 | AI xarajati | Admin sahifasida oxirgi 7 kun: so'rovlar soni va taxminiy dollar. Aniq hisob — platform.claude.com |
-| Kalitni almashtirish | `.env` ni Bloknotda tuzating → to'xtatib, qayta ishga tushiring → `Tekshirish.cmd` |
+| Kalitni almashtirish | `/#/ulash` → «Kalitlar»: yangisini qo'ying — tekshiriladi va server to'xtamasdan kuchga kiradi. Kalitlar bazada shifrlangan (`session.secret` bilan); `.env` dagisi faqat panelda berilmagan bo'lsa ishlaydi |
 | Olib tashlash | `install\Ornatish.cmd -Uninstall` (ma'lumotlar o'chmaydi) |
 
 Kunlik chegaralar (`.env` da o'zgartiriladi): egasining yordamchisi — 600 so'rov (`AI_DAILY_OWNER`), mijozlarga javob — 400 (`AI_DAILY_CUSTOMER`), rasm — 50 (`AI_DAILY_PHOTOS`). Chegara tugasa Cerebro buni egasiga aytadi va pul sarflamaydi.
@@ -88,7 +91,7 @@ Kunlik chegaralar (`.env` da o'zgartiriladi): egasining yordamchisi — 600 so'r
 |---|---|
 | Bot javob bermayapti | Kompyuter yoniqmi, internet bormi? `Tekshirish.cmd`. Jurnalda `409` — shu token boshqa joyda ham ishlayapti: u yerda to'xtating |
 | «AI hisobida mablag' tugagan» | platform.claude.com da hisobni to'ldiring |
-| «AI kaliti ishlamayapti» | Kalit o'chirilgan yoki noto'g'ri: yangisini `.env` ga yozing |
+| «AI kaliti ishlamayapti» | Kalit o'chirilgan yoki noto'g'ri: yangisini `/#/ulash` → «Kalitlar»ga qo'ying |
 | «Bugungi AI chegarasi tugadi» | Kunlik chegara: ertaga o'zi ochiladi yoki `.env` da oshiring |
 | «Shaxsiy Telegram uzildi» | Egasi telefonida «Faol seanslar»dan Cerebro'ni tugatgan: panelda qayta ulang |
 | Kamera: «kadr kelmayapti» | Kamera yoki registrator o'chgan, IP o'zgargan, parol almashgan. Manzilni qayta kiriting |
