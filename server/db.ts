@@ -8,9 +8,10 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { randomBytes } from 'node:crypto';
 import type {
   Artifact, Business, ChatEntry, ContentItem, Doc, InboxMessage, Lead, LeadChannel, LeadStage, Note, Outbound, OutboundStatus, Post, PostStatus,
-  MoneyEntry, MoneyKind, MoneyStatus, ReplyBooking, ReplyDraft, ReplyStatus, Task, TaskStatus,
+  MoneyEntry, MoneyKind, MoneyStatus, ReplyBooking, ReplyDraft, ReplyStatus, Task, TaskStatus, VisitChange,
 } from '../src/types';
 import type { Call, CallLine, Camera, CameraSession, CameraZone, Knowledge, KnowledgeKind, ZoneKind } from '../src/types';
+import { phoneKey } from '../src/lib/phone';
 import { env } from './env';
 
 const db = new DatabaseSync(env.dbFile);
@@ -85,12 +86,17 @@ function ensureColumns(table: string, columns: Record<string, string>): void {
   const have = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(c => c.name));
   for (const [name, type] of Object.entries(columns)) if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
 }
-ensureColumns('replies', { booking: 'TEXT', booked_at: 'TEXT', question: 'TEXT' });
-ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT' });
-ensureColumns('tasks', { call_to: 'TEXT', spoken: 'INTEGER NOT NULL DEFAULT 0' });
-ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT' });
+ensureColumns('replies', { booking: 'TEXT', booked_at: 'TEXT', question: 'TEXT', visit_change: 'TEXT', changed_at: 'TEXT' });
+ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT' });
+ensureColumns('tasks', { call_to: 'TEXT', spoken: 'INTEGER NOT NULL DEFAULT 0', lead_id: 'TEXT' });
+ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT', next_step: 'TEXT', next_at: 'TEXT', phone_key: 'TEXT', patient_id: 'TEXT' });
 db.exec(`UPDATE leads SET channel = 'bot', bot_started = 1 WHERE tg_user_id IS NOT NULL AND channel = 'manual' AND ig_user_id IS NULL AND tg_access_hash IS NULL`);
 db.exec('CREATE INDEX IF NOT EXISTS leads_ig ON leads (business_id, ig_user_id)');
+db.exec('CREATE INDEX IF NOT EXISTS leads_phone ON leads (business_id, phone_key)');
+// Eski bazada telefoni bor, kaliti yo'q mijozlar (bir marta)
+for (const r of db.prepare('SELECT id, phone FROM leads WHERE phone IS NOT NULL AND phone_key IS NULL').all() as { id: string; phone: string }[]) {
+  db.prepare('UPDATE leads SET phone_key = ? WHERE id = ?').run(phoneKey(r.phone), r.id);
+}
 
 const ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
 /** Qisqa id: faqat harf va raqam (Telegram havolasi va tugmalarida ishlatiladi) */
@@ -107,6 +113,16 @@ const one = <T,>(sql: string, map: (r: Raw) => T, ...args: SQLInputValue[]): T |
 const many = <T,>(sql: string, map: (r: Raw) => T, ...args: SQLInputValue[]): T[] =>
   (db.prepare(sql).all(...args) as Raw[]).map(map);
 const run = (sql: string, ...args: SQLInputValue[]) => db.prepare(sql).run(...args);
+/** Alohida fayldagi jadvallar uchun (so'rovlar, xodimlar): shu baza va shu yordamchilar */
+export const sql = {
+  exec: (text: string) => db.exec(text), one, many, run, ensureColumns, nowIso, str, num,
+  /** Bir nechta yozuv — hammasi yoki hech biri */
+  tx<T>(work: () => T): T {
+    db.exec('BEGIN IMMEDIATE');
+    try { const r = work(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; }
+  },
+};
+export type Row = Raw;
 
 // ─── Bizneslar ────────────────────────────────────────────────────────────────
 
@@ -128,6 +144,10 @@ export interface BusinessRow {
   ownerPhone: string | null;
   /** O'rnatish holati (JSON, setup/state.ts): anketadan qolgan hal qilinmagan narsalar — narx ziddiyatlari, egasida bor kanallar */
   setup: string | null;
+  /** Natijasi so'ralgan vazifa (JSON, outcome.ts): egasining keyingi gapi shu vazifaning natijasi deb olinadi */
+  outcome: string | null;
+  /** Kechki «kun qanday o'tdi» savoli oxirgi marta qaysi kuni berilgan (YYYY-MM-DD) */
+  eveningDate: string | null;
   createdAt: string;
 }
 
@@ -145,13 +165,15 @@ const toBusiness = (r: Raw): BusinessRow => ({
   interview: str(r.interview),
   ownerPhone: str(r.owner_phone),
   setup: str(r.setup),
+  outcome: str(r.outcome),
+  eveningDate: str(r.evening_date),
   createdAt: String(r.created_at),
 });
 
 const BIZ_COLUMNS = {
   passwordHash: 'password_hash', profile: 'profile', ownerChatId: 'owner_chat_id', channelId: 'channel_id', linkCode: 'link_code',
   channelTitle: 'channel_title', active: 'active', briefDate: 'brief_date', interview: 'interview', ownerPhone: 'owner_phone',
-  setup: 'setup',
+  setup: 'setup', outcome: 'outcome', eveningDate: 'evening_date',
 } as const;
 
 export const businesses = {
@@ -192,13 +214,14 @@ const toTask = (r: Raw): Task & { businessId: string } => ({
   createdAt: String(r.created_at),
   callTo: str(r.call_to),
   spoken: Number(r.spoken) === 1,
+  leadId: str(r.lead_id),
 });
 
 export const tasks = {
-  create(businessId: string, title: string, dueAt: string | null, notes: string | null, alert: { callTo?: string | null; spoken?: boolean } = {}): Task {
+  create(businessId: string, title: string, dueAt: string | null, notes: string | null, alert: { callTo?: string | null; spoken?: boolean; leadId?: string | null } = {}): Task {
     const id = newId(8);
-    run('INSERT INTO tasks (id, business_id, title, notes, due_at, call_to, spoken, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      id, businessId, title, notes, dueAt, alert.callTo ?? null, alert.spoken ? 1 : 0, nowIso(), nowIso());
+    run('INSERT INTO tasks (id, business_id, title, notes, due_at, call_to, spoken, lead_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      id, businessId, title, notes, dueAt, alert.callTo ?? null, alert.spoken ? 1 : 0, alert.leadId ?? null, nowIso(), nowIso());
     return tasks.get(businessId, id)!;
   },
   get: (businessId: string, id: string) => one('SELECT * FROM tasks WHERE business_id = ? AND id = ?', toTask, businessId, id),
@@ -220,6 +243,9 @@ export const tasks = {
     many(`SELECT t.* FROM tasks t JOIN businesses b ON b.id = t.business_id
       WHERE b.active = 1 AND t.status = 'open' AND t.due_at IS NOT NULL AND t.due_at <= ? AND t.reminded_at IS NULL`, toTask, localNow),
   markReminded: (id: string) => run('UPDATE tasks SET reminded_at = ? WHERE id = ?', nowIso(), id),
+  /** Haftalik yakun: oraliqda bajarilgan vazifalar soni (bajarilgan paytdagi updated_at bo'yicha) */
+  doneBetween: (businessId: string, fromIso: string, toIso: string) =>
+    Number((db.prepare("SELECT COUNT(*) n FROM tasks WHERE business_id = ? AND status = 'done' AND updated_at >= ? AND updated_at < ?").get(businessId, fromIso, toIso) as Raw).n),
 };
 
 // ─── Mijozlar (lidlar) ────────────────────────────────────────────────────────
@@ -246,7 +272,7 @@ const toLead = (r: Raw): LeadRow => {
   // Telefon bo'yicha faqat egasi o'zi kiritgan mijozga yoziladi (telegramUser.ts dagi qoida bilan bir xil)
   const viaTelegram = (channel === 'telegram' || channel === 'manual') && !!((r.tg_user_id && r.tg_access_hash) || r.username || (r.phone && channel === 'manual'))
     && connected(businessId, 'telegram');
-  const viaInstagram = channel === 'instagram' && !!r.ig_thread && connected(businessId, 'instagram');
+  const viaInstagram = channel === 'instagram' && !!r.ig_thread && (connected(businessId, 'instagram') || connected(businessId, 'instagram_api'));
   return {
     id: String(r.id),
     businessId,
@@ -264,15 +290,19 @@ const toLead = (r: Raw): LeadRow => {
     stage: String(r.stage) as LeadStage,
     note: str(r.note),
     source: str(r.source),
+    nextStep: str(r.next_step),
+    nextAt: str(r.next_at),
+    patientId: str(r.patient_id),
     postId: str(r.post_id),
     createdAt: String(r.created_at),
+    updatedAt: String(r.updated_at),
   };
 };
 
 /** Panelga ko'rsatiladigan qismi (ichki id va kalitlarsiz) */
 export const publicLead = (l: LeadRow): Lead => ({
   id: l.id, name: l.name, phone: l.phone, username: l.username, reachable: l.reachable, channel: l.channel, lastInboundAt: l.lastInboundAt,
-  stage: l.stage, note: l.note, source: l.source, createdAt: l.createdAt,
+  stage: l.stage, note: l.note, source: l.source, nextStep: l.nextStep, nextAt: l.nextAt, patientId: l.patientId ?? null, createdAt: l.createdAt, updatedAt: l.updatedAt,
 });
 
 export interface ChannelPerson {
@@ -289,8 +319,8 @@ export const leads = {
   /** Qo'lda qo'shilgan (egasi aytdi) */
   add(businessId: string, v: { name: string | null; phone: string | null; note: string | null; source: string | null; username?: string | null }): LeadRow {
     const id = newId(10);
-    run('INSERT INTO leads (id, business_id, name, phone, username, note, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      id, businessId, v.name, v.phone, v.username ?? null, v.note, v.source, nowIso(), nowIso());
+    run('INSERT INTO leads (id, business_id, name, phone, phone_key, username, note, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      id, businessId, v.name, v.phone, phoneKey(v.phone), v.username ?? null, v.note, v.source, nowIso(), nowIso());
     return leads.get(businessId, id)!;
   },
   /** Havola orqali botga kelgan odam: bir biznesda bir odam — bitta yozuv */
@@ -314,14 +344,14 @@ export const leads = {
     const now = nowIso();
     if (existing) {
       run(`UPDATE leads SET channel = ?, last_inbound_at = ?, updated_at = ?, name = COALESCE(name, ?), username = COALESCE(username, ?),
-        phone = COALESCE(phone, ?), tg_access_hash = COALESCE(?, tg_access_hash), ig_thread = COALESCE(?, ig_thread) WHERE id = ?`,
-        channel, now, now, p.name, p.username, p.phone ?? null, p.tgAccessHash ?? null, p.igThread ?? null, existing.id);
+        phone = COALESCE(phone, ?), phone_key = COALESCE(phone_key, ?), tg_access_hash = COALESCE(?, tg_access_hash), ig_thread = COALESCE(?, ig_thread) WHERE id = ?`,
+        channel, now, now, p.name, p.username, p.phone ?? null, phoneKey(p.phone), p.tgAccessHash ?? null, p.igThread ?? null, existing.id);
       return { lead: leads.get(businessId, existing.id)!, created: false };
     }
     const id = newId(10);
-    run(`INSERT INTO leads (id, business_id, name, username, phone, tg_user_id, tg_access_hash, ig_user_id, ig_thread, channel, source, last_inbound_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, businessId, p.name, p.username, p.phone ?? null, p.tgUserId ?? null, p.tgAccessHash ?? null, p.igUserId ?? null, p.igThread ?? null, channel, source, now, now, now);
+    run(`INSERT INTO leads (id, business_id, name, username, phone, phone_key, tg_user_id, tg_access_hash, ig_user_id, ig_thread, channel, source, last_inbound_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, businessId, p.name, p.username, p.phone ?? null, phoneKey(p.phone), p.tgUserId ?? null, p.tgAccessHash ?? null, p.igUserId ?? null, p.igThread ?? null, channel, source, now, now, now);
     return { lead: leads.get(businessId, id)!, created: true };
   },
   /** Egasi birinchi yozgan odam (Cerebro Telegram'da topib yozdi) — Telegram id'si saqlanadi */
@@ -336,20 +366,39 @@ export const leads = {
   list: (businessId: string, stage: LeadStage | 'all' = 'all', sinceIso?: string, limit = 300) =>
     many(`SELECT * FROM leads WHERE business_id = ? AND (? = 'all' OR stage = ?) AND created_at >= ? ORDER BY created_at DESC LIMIT ?`,
       toLead, businessId, stage, stage, sinceIso ?? '0000', limit),
-  update(businessId: string, id: string, patch: { stage?: LeadStage; note?: string | null; phone?: string | null; name?: string | null }): LeadRow | undefined {
+  update(businessId: string, id: string, patch: { stage?: LeadStage; note?: string | null; phone?: string | null; name?: string | null; nextStep?: string | null; nextAt?: string | null }): LeadRow | undefined {
     const cur = leads.get(businessId, id);
     if (!cur) return undefined;
-    run('UPDATE leads SET stage = ?, note = ?, phone = ?, name = ?, updated_at = ? WHERE business_id = ? AND id = ?',
-      patch.stage ?? cur.stage, patch.note !== undefined ? patch.note : cur.note, patch.phone !== undefined ? patch.phone : cur.phone,
-      patch.name !== undefined ? patch.name : cur.name, nowIso(), businessId, id);
+    const pick = <K extends keyof typeof patch>(k: K, old: LeadRow[K & keyof LeadRow]) => (patch[k] !== undefined ? patch[k] : old);
+    // Yutildi yoki yo'qotildi — keyingi qadam qolmaydi (rejada «bugun qilish kerak» bo'lib chiqmasin), yangisi to'liq berilmasa
+    const closed = (patch.stage === 'won' || patch.stage === 'lost') && !(patch.nextStep && patch.nextAt);
+    const phone = pick('phone', cur.phone);
+    run('UPDATE leads SET stage = ?, note = ?, phone = ?, phone_key = ?, name = ?, next_step = ?, next_at = ?, updated_at = ? WHERE business_id = ? AND id = ?',
+      patch.stage ?? cur.stage, pick('note', cur.note), phone, phoneKey(phone), pick('name', cur.name),
+      closed ? null : pick('nextStep', cur.nextStep), closed ? null : pick('nextAt', cur.nextAt),
+      nowIso(), businessId, id);
     return leads.get(businessId, id);
   },
+  /** Haftalik yakun: oraliqda qo'shilgan mijozlar soni */
+  addedBetween: (businessId: string, fromIso: string, toIso: string) =>
+    Number((db.prepare('SELECT COUNT(*) n FROM leads WHERE business_id = ? AND created_at >= ? AND created_at < ?').get(businessId, fromIso, toIso) as Raw).n),
+  /** Kunlik reja uchun: faol (yutilmagan va yo'qotilmagan) mijozlar */
+  active: (businessId: string, limit = 2000) =>
+    // Eng uzoq jim turganlari birinchi: chegaraga yetsa ham «unutilgan»lar tushib qolmasin
+    many("SELECT * FROM leads WHERE business_id = ? AND stage IN ('new', 'contacted') ORDER BY updated_at ASC LIMIT ?", toLead, businessId, limit),
   markInbound: (id: string) => run('UPDATE leads SET last_inbound_at = ?, updated_at = ? WHERE id = ?', nowIso(), nowIso(), id),
+  /** Shu telefon raqamli mijozlar (kalit — oxirgi 9 raqam), eng eskisi birinchi */
+  byPhone: (businessId: string, phone: string | null) => {
+    const key = phoneKey(phone);
+    return key ? many('SELECT * FROM leads WHERE business_id = ? AND phone_key = ? ORDER BY created_at', toLead, businessId, key) : [];
+  },
+  setPatient: (businessId: string, id: string, patientId: string | null) => run('UPDATE leads SET patient_id = ? WHERE business_id = ? AND id = ?', patientId, businessId, id),
 };
 
 // ─── Ulanishlar: shaxsiy Telegram, Instagram (maxfiy qismi shifrlangan) ──────
 
-export type ConnectionKind = 'telegram' | 'instagram' | 'dentacrm';
+/** instagram — brauzer orqali (egasining akkaunti); instagram_api — rasmiy Instagram API (Meta ilovasi, Cerebro Hub orqali) */
+export type ConnectionKind = 'telegram' | 'instagram' | 'instagram_api' | 'dentacrm';
 export interface ConnectionRow { businessId: string; kind: ConnectionKind; secret: string; account: Record<string, string>; meta: Record<string, string>; updatedAt: string }
 
 const toConnection = (r: Raw): ConnectionRow => ({
@@ -395,6 +444,8 @@ export const inbox = {
     const id = newId(12);
     const r = run('INSERT OR IGNORE INTO inbox (id, business_id, lead_id, channel, direction, author, text, ext_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       id, businessId, m.leadId, m.channel, m.direction, m.by, m.text, m.extId ?? null, m.at ?? nowIso());
+    // Mijozga yozildi — u «unutilgan» emas (kunlik reja oxirgi faollikni shundan biladi)
+    if (Number(r.changes) && m.direction === 'out') run('UPDATE leads SET updated_at = ? WHERE business_id = ? AND id = ?', nowIso(), businessId, m.leadId);
     return Number(r.changes) ? one('SELECT * FROM inbox WHERE id = ?', toInbox, id)! : null;
   },
   has: (businessId: string, channel: LeadChannel, extId: string) =>
@@ -427,18 +478,25 @@ const toReply = (r: Raw): ReplyRow => ({
   id: String(r.id), businessId: String(r.business_id), leadId: String(r.lead_id), channel: String(r.channel) as LeadChannel, text: String(r.text),
   status: String(r.status) as ReplyStatus, note: str(r.note), dueAt: str(r.due_at), ownerMessageId: num(r.owner_message_id), createdAt: String(r.created_at),
   booking: toBooking(r.booking), bookedAt: str(r.booked_at), question: str(r.question),
+  change: toChange(r.visit_change), changedAt: str(r.changed_at),
 });
+const toChange = (v: unknown): VisitChange | null => {
+  try { const c = v ? JSON.parse(String(v)) as VisitChange : null; return c && (c.kind === 'move' || c.kind === 'cancel') && c.appointmentId ? c : null; } catch { return null; }
+};
 
 export const replies = {
-  create(businessId: string, v: { leadId: string; channel: LeadChannel; text: string; status: 'pending' | 'scheduled' | 'sent'; note: string | null; dueAt: string | null; booking?: ReplyBooking | null; question?: string | null }): ReplyRow {
+  create(businessId: string, v: { leadId: string; channel: LeadChannel; text: string; status: 'pending' | 'scheduled' | 'sent'; note: string | null; dueAt: string | null; booking?: ReplyBooking | null; question?: string | null; change?: VisitChange | null }): ReplyRow {
     const id = newId(10);
-    run('INSERT INTO replies (id, business_id, lead_id, channel, text, status, note, due_at, booking, question, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      id, businessId, v.leadId, v.channel, v.text, v.status, v.note, v.dueAt, v.booking ? JSON.stringify(v.booking) : null, v.question || null, nowIso());
+    run('INSERT INTO replies (id, business_id, lead_id, channel, text, status, note, due_at, booking, question, visit_change, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      id, businessId, v.leadId, v.channel, v.text, v.status, v.note, v.dueAt, v.booking ? JSON.stringify(v.booking) : null, v.question || null, v.change ? JSON.stringify(v.change) : null, nowIso());
     return replies.get(businessId, id)!;
   },
   get: (businessId: string, id: string) => one('SELECT * FROM replies WHERE business_id = ? AND id = ?', toReply, businessId, id),
   open: (businessId: string, leadId: string) =>
     many("SELECT * FROM replies WHERE business_id = ? AND lead_id = ? AND status IN ('pending', 'scheduled') ORDER BY created_at", toReply, businessId, leadId),
+  /** Biznes bo'yicha egasining tasdig'ini kutayotgan javoblar (kunlik reja uchun) */
+  pendingTotal: (businessId: string) =>
+    Number((db.prepare("SELECT COUNT(*) n FROM replies WHERE business_id = ? AND status = 'pending'").get(businessId) as Raw).n),
   countPending: (businessId: string, leadId: string) =>
     Number((db.prepare("SELECT COUNT(*) n FROM replies WHERE business_id = ? AND lead_id = ? AND status = 'pending'").get(businessId, leadId) as Raw).n),
   /** Vaqti kelgan javoblar. Qabulli javob bu yo'l bilan hech qachon ketmaydi: u faqat qabul CRM'ga yozilgach yuboriladi */
@@ -464,6 +522,10 @@ export const replies = {
   unfinished: () => many("SELECT * FROM replies WHERE status = 'sent' AND booking IS NOT NULL AND booked_at IS NULL", toReply),
   /** Qabul CRM'ga yozildi (javob yuborilmay qolsa, qayta urinishda ikkinchi marta yozilmasin) */
   setBooked: (businessId: string, id: string) => run('UPDATE replies SET booked_at = ? WHERE business_id = ? AND id = ?', nowIso(), businessId, id),
+  setChanged: (businessId: string, id: string) => run('UPDATE replies SET changed_at = ? WHERE business_id = ? AND id = ?', nowIso(), businessId, id),
+  /** Shu mijoz uchun shu paytdan beri o'zi ko'chirilgan/bekor qilingan qabullar (tasdiqsiz yozish chegarasi) */
+  changes: (businessId: string, leadId: string, sinceIso: string) =>
+    Number((db.prepare('SELECT COUNT(*) n FROM replies WHERE business_id = ? AND lead_id = ? AND changed_at >= ?').get(businessId, leadId, sinceIso) as Raw).n),
   /**
    * Shu vaqtdan beri qabulli javoblar soni: butun biznes, bitta suhbat yoki bitta telefon bo'yicha.
    * Hozir yozilayotgani ham kiradi (holat CRM'ga murojaatdan oldin «sent» bo'ladi) — ketma-ket so'rovlar chegaradan o'tib ketmasin
@@ -709,6 +771,10 @@ export const cameraSessions = {
 const toCall = (r: Raw): Call => ({
   id: String(r.id), phone: String(r.phone), name: str(r.name), startedAt: String(r.started_at), durationSec: Number(r.duration_sec), outcome: String(r.outcome),
   transcript: list<CallLine>(r.transcript), booked: str(r.booked),
+  // MicroSIP ustunlari (phone/store.ts qo'shadi): eski bazada bo'lmasa — ovozli agent qo'ng'irog'i
+  source: r.source === 'microsip' ? 'microsip' : 'voice', direction: (str(r.direction) as Call['direction']) ?? null, status: (str(r.status) as Call['status']) ?? null,
+  leadId: str(r.lead_id), hasRecording: !!r.recording, review: (str(r.review) as Call['review']) ?? 'none',
+  analysis: (() => { try { return r.analysis ? JSON.parse(String(r.analysis)) : null; } catch { return null; } })(),
 });
 
 export const calls = {
@@ -719,6 +785,8 @@ export const calls = {
     return { id, ...c };
   },
   recent: (businessId: string, limit = 50) => many('SELECT * FROM calls WHERE business_id = ? ORDER BY started_at DESC LIMIT ?', toCall, businessId, limit),
+  /** Shu mijoz kartasiga bog'langan qo'ng'iroqlar (lead_id ustuni phone/store.ts da qo'shiladi) */
+  forLead: (businessId: string, leadId: string, limit = 50) => many('SELECT * FROM calls WHERE business_id = ? AND lead_id = ? ORDER BY started_at DESC LIMIT ?', toCall, businessId, leadId, limit),
   /** Shu paytdan beri saqlangan qo'ng'iroqlar (server vaqti bo'yicha — agent yuborgan vaqtga ishonilmaydi) */
   savedSince: (businessId: string, since: string) => Number(one('SELECT COUNT(*) AS n FROM calls WHERE business_id = ? AND created_at >= ?', r => Number(r.n), businessId, since) ?? 0),
 };

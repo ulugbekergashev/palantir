@@ -14,6 +14,8 @@ import { bookForCustomer, bookingLine, checkBooking, scheduleText } from '../crm
 import { businesses, calls, voiceBookings, voiceKeys, type BusinessRow } from '../db';
 import { env } from '../env';
 import { notifyOwner } from '../inbox/core';
+import { leadForPhone } from '../people';
+import { openRequest } from '../requests/index';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -57,6 +59,13 @@ const CallSchema = z.object({
   outcome: need(120), booked: cut(120).nullable().optional(),
   transcript: z.array(z.object({ who: z.enum(['ai', 'caller']), text: cut(600) })).max(2000).transform(list => list.filter(l => l.text).slice(0, 200)),
 });
+const RequestSchema = z.object({
+  phone: need(24), name: cut(80).nullable().optional(), kind: z.enum(['callback', 'booking', 'change', 'complaint', 'other']).default('callback'),
+  summary: need(400), when: cut(120).nullable().optional(), dueAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/).nullable().optional(),
+});
+/** Agent soatiga shuncha so'rov ochadi (adashgan agent qabulxonani to'ldirmasin) */
+const REQUESTS_PER_HOUR = 30;
+const agentRequests = new Map<string, number[]>();
 const esc = (s: string) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
 
 export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
@@ -105,6 +114,19 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
       if (e instanceof CrmError) return res.status(409).json({ error: UNAVAILABLE, code: 'unavailable' });
       throw e;
     }
+  }));
+
+  // Agent: qo'ng'iroq qiluvchi odam bilan gaplashishni so'radi (qayta qo'ng'iroq, surish, shikoyat) — qabulxonaga so'rov
+  app.post('/api/voice/requests', asAgent(async (req, res, biz) => {
+    const p = RequestSchema.safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    const recent = (agentRequests.get(biz.id) ?? []).filter(t => t > Date.now() - HOUR_MS);
+    if (recent.length >= REQUESTS_PER_HOUR) return res.status(429).json({ error: "Juda ko'p so'rov — keyinroq", code: 'limit' });
+    agentRequests.set(biz.id, [...recent, Date.now()]);
+    const phone = normPhone(p.data.phone) || p.data.phone;
+    const lead = leadForPhone(biz, phone, { name: p.data.name || null, source: "Qo'ng'iroq (ovozli agent)" });
+    const { request } = await openRequest(biz, lead.id, { kind: p.data.kind, phone, name: p.data.name || null, summary: p.data.summary, whenText: p.data.when || null, dueAt: p.data.dueAt || null, source: 'voice' });
+    res.json({ request: { id: request.id } });
   }));
 
   // Agent: tugagan qo'ng'iroq

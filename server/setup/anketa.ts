@@ -6,7 +6,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { CLINIC_PACK, GENERAL_PACK } from '../../src/data/brainPack';
+import { ALL_PACKS, packFor } from '../../src/data/industries';
 import { CODE_ALPHABET, emptyAnketa, hoursText, type AnketaData, type AnketaStatus } from '../../src/lib/anketa';
 import type { AnketaImport, AnketaView } from '../../src/types';
 import { parsePrices, priceKey, splitConflicts, type PriceConflict } from '../../src/lib/prices';
@@ -108,7 +108,6 @@ export async function fetchAnketa(source: string, code: string): Promise<AnketaD
 
 // ─── Biznesga yozish ─────────────────────────────────────────────────────────
 
-const ALL_PACK = [...CLINIC_PACK, ...GENERAL_PACK];
 const MIN_ANSWER = 2;
 
 /** Ikki ziddiyat ro'yxatini qo'shadi: shu xizmat bo'yicha yangi anketadagi ziddiyat eskisining o'rnini oladi */
@@ -161,7 +160,8 @@ export function applyAnketa(biz: BusinessRow, given: AnketaData, code: string | 
   let answers = 0;
   const withAnswers = businesses.byId(biz.id)!;
   for (const [id, text] of Object.entries(d.answers)) {
-    const q = ALL_PACK.find(x => x.id === id);
+    // Savol matni — shu biznes sohasining ro'yxatidan (bir xil id turli sohada boshqacha so'raladi)
+    const q = packFor(d.industry || p.industry, d.crm === 'dentacrm').find(x => x.id === id) ?? ALL_PACKS.find(x => x.id === id);
     if (!q || text.trim().length < MIN_ANSWER) continue;
     try {
       saveAnswer(withAnswers, q.question, text, `pack:${id}`);

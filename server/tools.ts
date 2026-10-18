@@ -23,7 +23,9 @@ import { speechEnabled } from './tts';
 import { tgCallEnabled } from './tgcall';
 import { crmConnected } from './crm/index';
 import { normPhone } from './crm/logic';
+import { phoneChanged } from './people';
 import { CRM_DEFS } from './crm/tools';
+import { REQUEST_DEFS } from './requests/tools';
 import { ToolError, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
 
 export type { ToolCtx } from './toolkit';
@@ -34,12 +36,17 @@ const short = (max: number) => z.string().trim().min(1).max(max);
 const MAX_PAGES = 50;
 const opt = (max: number) => z.string().trim().max(max).nullable().optional();
 const clean = (s: string | null | undefined) => (s?.trim() ? s.trim() : null);
+/** Bitta gapda qo'shiladigan mijozlar chegarasi (internetdan qidirib qo'shganda ham) */
+const MAX_LEADS_PER_TURN = 20;
 
-const taskView = (t: Task) => ({ id: t.id, title: t.title, due_at: t.dueAt, status: t.status, notes: t.notes, ...(t.callTo ? { phone_call: true } : t.spoken ? { voice_message: true } : {}) });
+const taskView = (t: Task) => ({ id: t.id, title: t.title, due_at: t.dueAt, status: t.status, notes: t.notes, ...(t.leadId ? { customer_id: t.leadId } : {}), ...(t.callTo ? { phone_call: true } : t.spoken ? { voice_message: true } : {}) });
 const leadView = (l: ReturnType<typeof leads.list>[number]) => ({
   id: l.id, name: l.name, phone: l.phone, username: l.username, stage: l.stage, note: l.note, source: l.source,
-  channel: l.channel, reachable: l.reachable, created: l.createdAt.slice(0, 10),
+  channel: l.channel, reachable: l.reachable, created: l.createdAt.slice(0, 10), last_activity: l.updatedAt.slice(0, 10),
+  ...(l.nextStep || l.nextAt ? { next_step: l.nextStep, next_at: l.nextAt } : {}),
 });
+const NEXT_STEP = opt(200).describe(`The next action with this customer, short: "taklif yuborish", "qo'ng'iroq qilib natijani so'rash"`);
+const NEXT_AT = localTime.nullable().optional().describe('When to do the next step, local time YYYY-MM-DDTHH:MM (always with a time; if the owner gave only a date, use 09:00)');
 
 /** Reklama filtri (mijozlarga javobdagi bilan bir xil sozlama): topilsa — Claude qayta yozadi */
 function complianceErrors(ctx: ToolCtx, texts: string[]): string[] {
@@ -57,6 +64,7 @@ const DEFS = {
       notes: opt(1000),
       call: z.boolean().optional().describe('true only when the owner explicitly asked to be phoned for this reminder or to hear it by voice'),
       phone: short(30).optional().describe("The owner's own phone number for the call, only if the owner said it in this conversation"),
+      customer_id: short(20).optional().describe('The customer this task is about (a meeting, call or proposal) — from list_leads or save_lead. When the owner marks such a task done, Cerebro asks how it went'),
     }),
     run: (i, ctx) => {
       if (i.call && !i.due_at) throw new ToolError("Qo'ng'iroq uchun vaqt kerak — egasidan qachon qo'ng'iroq qilishni so'ra");
@@ -75,7 +83,8 @@ const DEFS = {
         // Egasi aytgan raqam eslab qolinadi: keyingi safar qayta so'ralmaydi
         if (said && said !== ctx.biz.ownerPhone) businesses.update(ctx.biz.id, { ownerPhone: said });
       }
-      const t = tasks.create(ctx.biz.id, i.title, i.due_at ?? null, clean(i.notes), { callTo, spoken: !!i.call && (!!callTo || speechEnabled() || tgCallEnabled()) });
+      if (i.customer_id && !leads.get(ctx.biz.id, i.customer_id)) throw new ToolError(`Mijoz topilmadi: ${i.customer_id}`);
+      const t = tasks.create(ctx.biz.id, i.title, i.due_at ?? null, clean(i.notes), { callTo, spoken: !!i.call && (!!callTo || speechEnabled() || tgCallEnabled()), leadId: i.customer_id ?? null });
       ctx.artifacts.push({ type: 'task', task: t });
       return { created: taskView(t), ...(callTo ? { phone_call_to: callTo } : {}), ...(callNote ? { note: callNote } : {}) };
     },
@@ -110,14 +119,22 @@ const DEFS = {
       phone: opt(40),
       telegram_username: opt(40).describe('Without @'),
       note: opt(500).describe('What they want, what was agreed'),
-      source: opt(80).describe('Where they came from, e.g. "Instagram", "tanish orqali"'),
+      source: opt(80).describe('Where they came from, e.g. "Instagram", "tanish orqali", "internet"'),
+      next_step: NEXT_STEP,
+      next_at: NEXT_AT,
     }),
     run: (i, ctx) => {
       const name = clean(i.name);
       const phone = clean(i.phone);
       const username = clean(i.telegram_username)?.replace(/^@/, '') ?? null;
       if (!name && !phone && !username) throw new ToolError('Ism, telefon yoki username kerak');
-      const l = leads.add(ctx.biz.id, { name, phone, username, note: clean(i.note), source: clean(i.source) ?? "qo'lda" });
+      // Internetdan topilganlarni ommaviy qo'shish ham shu yo'ldan: bitta gapda chegaradan ko'p emas
+      ctx.leadsSaved = (ctx.leadsSaved ?? 0) + 1;
+      if (ctx.leadsSaved > MAX_LEADS_PER_TURN) throw new ToolError(`Bir so'rovda ${MAX_LEADS_PER_TURN} tadan ko'p mijoz qo'shilmaydi — egasiga shu paytgacha qo'shilganlarni ayt`);
+      const fresh = leads.add(ctx.biz.id, { name, phone, username, note: clean(i.note), source: clean(i.source) ?? "qo'lda" });
+      // Shu raqam bilan yozishgan odam bo'lsa — yangi karta ochilmaydi, o'shanikiga qo'shiladi
+      const added = (phone ? phoneChanged(ctx.biz, fresh.id) : undefined) ?? fresh;
+      const l = i.next_step || i.next_at ? leads.update(ctx.biz.id, added.id, { nextStep: clean(i.next_step), nextAt: i.next_at ?? null })! : added;
       return { saved: leadView(l) };
     },
   }),
@@ -128,9 +145,14 @@ const DEFS = {
       stage: z.enum(['all', 'new', 'contacted', 'won', 'lost']).optional().describe('Default: all'),
       days: z.number().int().min(1).max(365).optional().describe('Only those added in the last N days'),
       query: z.string().trim().max(80).optional().describe('Search in name, phone, username, note'),
+      lead_id: short(20).optional().describe('Only this one customer'),
     }),
     run: (i, ctx) => {
       ctx.readStrangers = true;
+      if (i.lead_id) {
+        const one = leads.get(ctx.biz.id, i.lead_id);
+        return { total: one ? 1 : 0, leads: one ? [leadView(one)] : [] };
+      }
       const since = i.days ? new Date(Date.now() - i.days * 86_400_000).toISOString() : undefined;
       const q = i.query?.toLowerCase();
       const list = leads.list(ctx.biz.id, (i.stage ?? 'all') as LeadStage | 'all', since)
@@ -140,13 +162,15 @@ const DEFS = {
   }),
 
   update_lead: def({
-    description: 'Update a customer: stage (new → contacted → won/lost), note, phone or name.',
+    description: 'Update a customer: stage (new → contacted → won/lost), note, phone, name, or the next step (what to do next and when; null clears it). Won or lost clears the next step unless you set a new one.',
     input: z.object({
       lead_id: short(20),
       stage: z.enum(['new', 'contacted', 'won', 'lost']).optional(),
       note: opt(500),
       phone: opt(40),
       name: opt(80),
+      next_step: NEXT_STEP,
+      next_at: NEXT_AT,
     }),
     run: (i, ctx) => {
       const l = leads.update(ctx.biz.id, i.lead_id, {
@@ -154,9 +178,11 @@ const DEFS = {
         note: i.note === undefined ? undefined : clean(i.note),
         phone: i.phone === undefined ? undefined : clean(i.phone),
         name: i.name === undefined ? undefined : clean(i.name),
+        nextStep: i.next_step === undefined ? undefined : clean(i.next_step),
+        nextAt: i.next_at === undefined ? undefined : i.next_at,
       });
       if (!l) throw new ToolError(`Mijoz topilmadi: ${i.lead_id}`);
-      return { updated: leadView(l) };
+      return { updated: leadView((i.phone ? phoneChanged(ctx.biz, l.id) : undefined) ?? l) };
     },
   }),
 
@@ -353,7 +379,7 @@ const isCrmTool = (name: string) => Object.hasOwn(CRM_DEFS, name);
 
 /** Claude'ga beriladigan asboblar ro'yxati (suhbat davomida o'zgarmaydi). crm — DentaCRM ulangan biznes uchun klinika asboblari bilan */
 export function toolDefinitions(webSearch: boolean, crm = false): Anthropic.Beta.BetaToolUnion[] {
-  const defs = Object.entries(crm ? { ...DEFS, ...CRM_DEFS } : DEFS) as [string, ToolDef<z.ZodType>][];
+  const defs = Object.entries(crm ? { ...DEFS, ...REQUEST_DEFS, ...CRM_DEFS } : { ...DEFS, ...REQUEST_DEFS }) as [string, ToolDef<z.ZodType>][];
   const custom: Anthropic.Beta.BetaToolUnion[] = defs.map(([name, d]) => ({
     name, description: d.description, input_schema: schemaOf(d.input),
   }));
@@ -365,7 +391,7 @@ export interface ToolOutcome { content: string; isError: boolean }
 export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promise<ToolOutcome> {
   // Klinika asboblari faqat DentaCRM ulangan biznesda ishlaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin)
   if (isCrmTool(name) && !crmConnected(ctx.biz.id)) return { content: "DentaCRM ulanmagan — egasi panel → Ulanishlar'da ulashi kerak", isError: true };
-  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...CRM_DEFS };
+  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...REQUEST_DEFS, ...CRM_DEFS };
   const d = Object.hasOwn(all, name) ? all[name] : undefined;
   if (!d) return { content: `Noma'lum asbob: ${name}`, isError: true };
   const parsed = d.input.safeParse(input);

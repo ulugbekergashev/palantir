@@ -1,5 +1,3 @@
-import { isMedical } from '../lib/compliance';
-
 /**
  * Tayyor savollar: mijozlar eng ko'p so'raydigan, lekin javobi faqat egasining o'zida bo'lgan narsalar.
  * Bu yerda javob yo'q va bo'lmaydi ham — har biznes o'zinikini bir marta yozadi, keyin Cerebro o'zi javob beradi.
@@ -33,5 +31,4 @@ export const GENERAL_PACK: PackQuestion[] = [
   { id: 'route', question: 'Qanday boriladi?', hint: "Masalan: mo'ljal — Korzinka ro'parasi, 2-qavat" },
 ];
 
-/** Klinika (soha tibbiyot yoki DentaCRM ulangan) — klinika savollari, qolganlarga umumiy ro'yxat */
-export const packFor = (industry: string, clinic: boolean): PackQuestion[] => (clinic || isMedical(industry) ? CLINIC_PACK : GENERAL_PACK);
+// Qaysi biznesga qaysi ro'yxat — soha profilida (industries.ts: packFor)

@@ -32,7 +32,7 @@ const PORT = await freePort();
 const base = `http://127.0.0.1:${PORT}`;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
-    ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
+    ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
     ANTHROPIC_API_KEY: '', VOICELAB_API_KEY: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', SPEECHLAB_API_KEY: '', TG_API_ID: '', TG_API_HASH: '',
     TG_CALL_PYTHON: process.execPath, TG_CALL_SCRIPT: join(import.meta.dirname, 'fakeTgCall.mjs'), FAKE_TGCALL_DIR: dataDir,
     ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '400', SESSION_SECRET: 'tgcall-secret', MORNING_HOUR: String((new Date().getHours() + 12) % 24),

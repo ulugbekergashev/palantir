@@ -61,6 +61,10 @@ export const crm = {
   slowBooking: 0,
   onBooking: null as (() => void) | null,
   doctors: [] as Row[],
+  /** Qabulxona natijalari (ko'chirish, bekor qilish) — /call yoki eski nashrda PUT */
+  callResults: [] as Row[],
+  /** Eski nashr: /call yo'li yo'q */
+  noCallRoute: false,
   patients: [] as Row[],
   appointments: [] as Row[],
   transactions: [] as Row[],
@@ -214,6 +218,30 @@ export const crmServer = createServer(async (req, res) => {
     crm.appointments.push(row);
     crm.posted.push(row);
     return json(res, row);
+  }
+  // Qabulxona natijasi (haqiqiy CRM bilan bir xil qoida): ko'chirildi — yangi kun/vaqt va tasdiqlangan; bekor qildi — Cancelled
+  const callResult = req.method === 'POST' ? /^\/api\/appointments\/([^/]+)\/call$/.exec(path) : null;
+  if (callResult) {
+    if (crm.noCallRoute) return json(res, { error: 'Not found' }, 404);
+    const a = crm.appointments.find(x => x.id === callResult[1]);
+    if (!a) return json(res, { error: 'Qabul topilmadi' }, 404);
+    crm.callResults.push({ id: callResult[1], ...body });
+    if (body.result === 'rescheduled') {
+      if (crm.appointments.some(x => x.id !== a.id && x.patientId === a.patientId && x.date === body.date && x.status !== 'Cancelled')) return json(res, { error: 'CALL_DATE_TAKEN' }, 409);
+      Object.assign(a, { date: body.date, time: body.time, status: 'Confirmed' });
+    }
+    if (body.result === 'cancelled') a.status = 'Cancelled';
+    if (body.result === 'confirmed') a.status = 'Confirmed';
+    return json(res, a);
+  }
+  // Eski nashr: qabulni oddiy tahrirlash
+  const put = req.method === 'PUT' ? /^\/api\/appointments\/([^/]+)$/.exec(path) : null;
+  if (put) {
+    const a = crm.appointments.find(x => x.id === put[1]);
+    if (!a) return json(res, { error: 'Topilmadi' }, 404);
+    crm.callResults.push({ id: put[1], put: true, ...body });
+    Object.assign(a, body);
+    return json(res, a);
   }
   json(res, { error: 'Not found' }, 404);
 });

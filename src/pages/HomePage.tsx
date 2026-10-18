@@ -11,12 +11,11 @@ import { setupSteps } from '../lib/setup';
 import { useDayFeed } from '../lib/useDayFeed';
 import { DAYS, dayLong, weekday } from '../lib/week';
 import { ClinicDayCard } from './ClinicDayCard';
-import { CallsBlock, CamerasBlock } from './DayBlocks';
+import { Dashboard } from './dashboard/Dashboard';
+import { CamerasBlock } from './DayBlocks';
 import { SetupCard } from './SetupCard';
 import { TodayTasks, dueToday, useOpenTasks } from './TodayTasks';
 
-/** Bosh sahifadagi so'nggi qo'ng'iroqlar soni */
-const LATEST_CALLS = 3;
 const QUICK = ['Bugun nima qilishim kerak?', 'Ertaga soat 10 da bankka borishni eslat', 'Hamkorlik shartnomasi tayyorla'];
 const QUICK_CLINIC = ['Bugun nima qilishim kerak?', 'Bugungi tushum qancha?', 'Ertaga nechta bemor yozilgan?'];
 
@@ -50,8 +49,8 @@ function AskBar({ ai, clinic }: { ai: boolean; clinic: boolean }) {
 }
 
 /**
- * Bosh sahifa: egasi kunni bir qarashda ko'radi. Tepadan pastga faqat ma'lumoti bor bo'laklar:
- * salom va yordamchiga savol, klinika kuni (DentaCRM), sizni kutayotgan ishlar va bugungi vazifalar, kameralar va qo'ng'iroqlar.
+ * Bosh sahifa: egasi biznesni bir qarashda ko'radi. Tepadan pastga: salom va yordamchiga savol; boshqaruv paneli (murojaatlar,
+ * javob vaqti, javobsizlar, so'rovlar — davr bo'yicha, dinamika, kanallar va jamoa); klinika kuni (DentaCRM), sizni kutayotgan ishlar va bugungi vazifalar.
  * Hali hech narsa ulanmagan bo'lsa — birinchi bo'lib ishga tushirish ro'yxati.
  */
 export function HomePage({ biz, status, now, notify, onChanged }: { biz: Business; status: LiveStatus; now: Date; notify: Notify; onChanged: () => void }) {
@@ -72,7 +71,6 @@ export function HomePage({ biz, status, now, notify, onChanged }: { biz: Busines
   const setup = steps.some(s => !s.done) && <SetupCard steps={steps} />;
   const waiting = feed?.journal.waiting ?? [];
   const today = tasks ? dueToday(tasks, now) : [];
-  const calls = feed?.calls.slice(0, LATEST_CALLS) ?? [];
   const cameras = hasCamera ? feed?.summary ?? null : null;
 
   return (
@@ -93,6 +91,7 @@ export function HomePage({ biz, status, now, notify, onChanged }: { biz: Busines
       </header>
 
       {fresh && setup}
+      <Dashboard status={status} clinic={clinic || !!status.crm.account} notify={notify} />
       {status.crm.account && <ClinicDayCard status={status} now={now} />}
 
       {/* Klinika kuni o'zi kutish belgisini ko'rsatadi — ikkinchisi kerak emas */}
@@ -115,7 +114,6 @@ export function HomePage({ biz, status, now, notify, onChanged }: { biz: Busines
             )}
             {today.length > 0 && <div className={CELL}><TodayTasks tasks={today} now={now} replace={replace} notify={notify} /></div>}
             {cameras && <div className={CELL}><CamerasBlock summary={cameras} /></div>}
-            {calls.length > 0 && <div className={CELL}><CallsBlock calls={calls} now={now} /></div>}
           </div>
         </>
       )}

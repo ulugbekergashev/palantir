@@ -15,6 +15,7 @@ import { ChatPage } from './pages/ChatPage';
 import { HomePage } from './pages/HomePage';
 import { InboxPage } from './pages/InboxPage';
 import { JournalPage } from './pages/JournalPage';
+import { RequestsPage } from './pages/RequestsPage';
 import { TelegramPage } from './pages/TelegramPage';
 
 /** Manzildagi bo'lim: #/journal, #/inbox… (bo'sh yoki notanish manzil — bosh sahifa) */
@@ -34,6 +35,7 @@ export default function LiveApp() {
   const [error, setError] = useState('');
   const [dueToday, setDueToday] = useState(0);
   const [waiting, setWaiting] = useState(0);
+  const [openRequests, setOpenRequests] = useState(0);
   const [menu, setMenu] = useState(false);
   const [offeringsRev, setOfferingsRev] = useState('');
   const loaded = useRef(false);
@@ -96,6 +98,7 @@ export default function LiveApp() {
     const today = `${iso(new Date())}T23:59`;
     api.tasks('open').then(r => setDueToday(r.tasks.filter(t => t.dueAt && t.dueAt <= today).length)).catch(() => {});
     api.inbox().then(r => setWaiting(r.threads.reduce((n, t) => n + t.pending, 0))).catch(() => {});
+    api.requests('open').then(r => setOpenRequests(r.open)).catch(() => {});
   };
   useEffect(refreshBadges, [page]);
 
@@ -111,7 +114,7 @@ export default function LiveApp() {
   }
   if (!biz || !status) return <div className="flex min-h-screen items-center justify-center text-slate-400"><Loader2 className="h-7 w-7 animate-spin" /></div>;
 
-  const badges = { journal: dueToday, inbox: waiting };
+  const badges = { journal: dueToday, inbox: waiting, requests: openRequests };
   const health = connectionHealth(status, isMedical(biz.industry));
 
   return (
@@ -121,7 +124,7 @@ export default function LiveApp() {
         <header inert={drawerOpen} className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-slate-200 bg-paper/90 px-2 backdrop-blur">
           <button ref={menuButton} type="button" onClick={() => setMenu(true)} aria-label="Menyu" aria-expanded={drawerOpen} className="relative flex h-10 w-10 items-center justify-center rounded-xl text-slate-700 transition-colors hover:bg-slate-200/80 active:bg-slate-200">
             <Menu className="h-5 w-5" aria-hidden="true" />
-            {dueToday + waiting > 0 && <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-paper bg-amber-500" aria-hidden="true" />}
+            {dueToday + waiting + openRequests > 0 && <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-paper bg-amber-500" aria-hidden="true" />}
           </button>
           <img src="/favicon.svg" alt="" className="h-7 w-7" />
           <span className="text-[15px] font-extrabold tracking-tight">Cerebro</span>
@@ -135,6 +138,7 @@ export default function LiveApp() {
           {page === 'home' && <HomePage biz={biz} status={status} now={now} notify={notify} onChanged={refreshBadges} />}
           {page === 'chat' && <ChatPage biz={biz} status={status} notify={notify} now={now} />}
           {page === 'cameras' && <CamerasPage notify={notify} />}
+          {page === 'requests' && <RequestsPage notify={notify} onChanged={refreshBadges} />}
           {page === 'calls' && <CallsPage notify={notify} />}
           {page === 'journal' && <JournalPage now={now} notify={notify} onChanged={refreshBadges} />}
           {page === 'brain' && <BrainPage notify={notify} />}

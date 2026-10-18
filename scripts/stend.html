@@ -107,6 +107,7 @@
   textarea { flex: 1; resize: none; height: 42px; max-height: 140px; }
   .btn, form button { border: 1px solid var(--line-strong); background: var(--sheet); border-radius: 8px; padding: 8px 12px; transition: border-color .15s, background .15s; }
   .btn:hover, form button:hover { border-color: var(--channel); }
+  header .daily { display: flex; gap: 6px; flex-wrap: wrap; } header .daily .btn { padding: 6px 10px; font-size: 13px; }
   button.primary { background: var(--channel); border-color: var(--channel); color: #fff; font-weight: 650; }
   button.primary:hover { background: color-mix(in srgb, var(--channel) 86%, #000); }
   label.check { display: flex; gap: 7px; align-items: center; font-size: 13px; color: var(--muted); }
@@ -185,6 +186,11 @@
   <h1>Cerebro <span>stendi</span> · tashqi dunyo</h1>
   <span id="model" class="signal fake">…</span>
   <span class="grow"></span>
+  <span class="daily" role="group" aria-label="Kunlik xabarni hozir yuborish">
+    <button class="btn" data-act="daily" data-kind="morning">☀️ Ertalabki reja</button>
+    <button class="btn" data-act="daily" data-kind="morning" data-weekly="1">📊 Dushanba rejasi</button>
+    <button class="btn" data-act="daily" data-kind="evening">🌙 Kechki savol</button>
+  </span>
   <label>Mijozlarga javob
     <select id="mode" aria-label="Mijozlarga javob rejimi">
       <option value="draft">Men tasdiqlayman</option>
@@ -480,6 +486,10 @@ const actions = {
   'ps-open': el => { ui.ps = el.dataset.id; render(); },
   'ig-open': el => { ui.ig = el.dataset.id; render(); },
   cam: el => post('/api/camera', { id: el.dataset.id, present: !!el.dataset.on }),
+  daily: async el => {
+    const r = await post('/api/daily', { kind: el.dataset.kind, weekly: !!el.dataset.weekly });
+    if (r) toast(r.sent ? "Egasining Telegram'iga yuborildi" : "Aytadigan narsa yo'q — xabar yuborilmadi");
+  },
   wire: async el => {
     ui.wire = Number(el.dataset.id);
     const { entry } = await (await fetch(`/api/wire?n=${ui.wire}`)).json();

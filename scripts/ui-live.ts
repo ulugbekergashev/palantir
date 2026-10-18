@@ -29,7 +29,7 @@ const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-ui-'));
 const PORT = 3291;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
-    ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
+    ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700',
     VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', GEMINI_API_KEY: 'g-test', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, SESSION_SECRET: 'ui-secret', MORNING_HOUR: '0',
     INBOX_DEBOUNCE_MS: '300', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_POLL_MS: '700', IG_FAKE_URL: `http://127.0.0.1:${igPort}`,
@@ -137,7 +137,11 @@ try {
 
   console.log('\n# Menyu: bo\'limlar kamaydi');
   const menuItems = await page.locator('aside nav button').allInnerTexts();
-  ok("menyu: bosh sahifa va yetti bo'lim — Vazifalar, Hujjatlar, Postlar, Suhbatlar alohida emas", menuItems.map(t => t.trim().split('\n')[0]).join(', ') === "Bosh sahifa, Yordamchi, Jurnal, Mijozlar, Qo'ng'iroqlar, Kameralar, Ikkinchi miya, Ulanishlar", menuItems.join(' | '));
+  ok("menyu: bosh sahifa va sakkiz bo'lim (So'rovlar — mijozlar yonida) — Vazifalar, Hujjatlar, Postlar, Suhbatlar alohida emas", menuItems.map(t => t.trim().split('\n')[0]).join(', ') === "Bosh sahifa, Yordamchi, Jurnal, Mijozlar, So'rovlar, Qo'ng'iroqlar, Kameralar, Ikkinchi miya, Ulanishlar", menuItems.join(' | '));
+  await page.goto(`${base}/#/requests`, { waitUntil: 'networkidle' });
+  ok("So'rovlar sahifasi: bo'sh holat va qabulxona xodimlari", await page.getByRole('heading', { name: "So'rovlar" }).waitFor({ timeout: 8000 }).then(() => true, () => false)
+    && await page.getByText("Ochiq so'rov yo'q").waitFor({ timeout: 8000 }).then(() => true, () => false) && await page.getByText('Qabulxona xodimlari').waitFor({ timeout: 8000 }).then(() => true, () => false));
+  await shot('requests');
   await page.goto(`${base}/#/tasks`, { waitUntil: 'networkidle' });
   ok("eski manzil (#/tasks) Jurnalga olib boradi", await page.getByRole('heading', { name: 'Jurnal' }).waitFor({ timeout: 8000 }).then(() => true, () => false));
 
@@ -212,7 +216,10 @@ try {
   await page.getByRole('button', { name: 'Kirish', exact: true }).click();
   await page.getByText('Aziz Egasi · @aziz_owner').waitFor({ timeout: 10000 });
   ok('shaxsiy Telegram: kod bilan kirildi', true);
-  // Instagram: soxta "oyna" — egasi kirdi deb belgilanguncha kutadi
+  // Instagram: rasmiy yo'l uchun hub kodi kerak (sinovda yo'q) — zaxira yo'l (brauzer) ochiladi
+  ok("Instagram: rasmiy yo'l — hub kodi so'raladi; brauzer orqali — zaxira", await page.getByText('Cerebro Hub kodi').isVisible());
+  await page.getByText("Meta ilovasisiz — shu kompyuterdagi brauzer orqali").click();
+  // Soxta "oyna" — egasi kirdi deb belgilanguncha kutadi
   await page.getByRole('button', { name: "Instagram'ga kirish" }).click();
   await page.getByText("o'sha oynada akkauntingizga kiring").waitFor({ timeout: 10000 });
   ok("Instagram: oyna ochildi, panel kutyapti", true);

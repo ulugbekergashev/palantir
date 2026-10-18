@@ -19,6 +19,7 @@ import { keyList, removeKey, setKey } from '../keys';
 import { anketaData, anketaView, applyAnketa, createAnketa, fetchAnketa, liveAnketa, parseAnketa } from './anketa';
 import { gapsOf } from './gaps';
 import { setupOf } from './state';
+import { sendEvening, sendMorning } from '../scheduler';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -76,6 +77,23 @@ export function mountSetup(app: Express, { asBiz, asAdmin, bad, fail, bot, statu
     const biz = businesses.byId(String(req.params.id));
     if (!biz || !biz.active) return res.status(404).json({ error: 'Topilmadi' });
     res.json({ token: issueToken(biz.id, 'business', SESSION_DAYS) });
+  }));
+
+  /**
+   * Kunlik xabarni hozir yuborish: ertalabki reja yoki kechki savol (o'rnatuvchi egasiga klinikada ko'rsatadi; stend tugmalari).
+   * weekly — dushanbadagidek (o'tgan hafta yakuni va qaytarish ro'yxati bilan)
+   */
+  app.post('/api/admin/businesses/:id/daily', asAdmin(async (req, res) => {
+    const biz = businesses.byId(String(req.params.id));
+    if (!biz || !biz.active) return res.status(404).json({ error: 'Topilmadi' });
+    const p = z.object({ kind: z.enum(['morning', 'evening']), weekly: z.boolean().optional() }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    if (!bot.enabled) return res.status(409).json({ error: 'Telegram bot ulanmagan' });
+    if (!biz.ownerChatId) return res.status(409).json({ error: "Egasi hali Telegram'ni ulamagan" });
+    try {
+      const sent = p.data.kind === 'morning' ? await sendMorning(bot, biz, new Date(), { weekly: p.data.weekly }) : await sendEvening(bot, biz);
+      res.json({ sent });
+    } catch (e) { fail(res, e, 502); }
   }));
 
   // ─── Admin: anketalar ───────────────────────────────────────────────────────

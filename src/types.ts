@@ -51,6 +51,8 @@ export interface Business {
   morningBrief?: boolean;
   /** Mijozlar yozganda (bot, shaxsiy Telegram, Instagram) Cerebro qanday javob beradi */
   autoReply?: AutoReply;
+  /** Qabulxona xodimlari ulangan bo'lsa ham so'rovlar (qo'ng'iroq qilish va h.k.) nusxasi egasiga keladimi (bo'lmasa — ha) */
+  requestsCopy?: boolean;
   /** Eski maydon: yozish uslubi endi ikkinchi miya papkasidagi Uslub.md da turadi (bu yerdan faqat bir marta ko'chiriladi) */
   replyStyle?: string;
   brand: Brand;
@@ -119,6 +121,8 @@ export interface Task {
   callTo: string | null;
   /** Egasi eslatmani ovoz bilan so'ragan: telefon sozlanmagan bo'lsa — Telegram'ga o'zbekcha ovozli xabar */
   spoken: boolean;
+  /** Qaysi mijoz bilan bog'liq (uchrashuv, qo'ng'iroq, taklif) — bajarilganda natijasi so'raladi */
+  leadId?: string | null;
   status: TaskStatus;
   remindedAt: string | null;
   createdAt: string;
@@ -142,8 +146,75 @@ export interface Lead {
   note: string | null;
   /** Qayerdan: post nomi, "Instagram bio", "qo'lda" */
   source: string | null;
+  /** Keyingi qadam: nima qilish kerak va qachon (mahalliy vaqt «2026-10-20T10:00»; bo'lmasa — null) */
+  nextStep: string | null;
+  nextAt: string | null;
+  /** DentaCRM'dagi bemor (telefoni va ismi mos kelgani topilgan yoki qabulga yozilganda); bo'lmasa — null */
+  patientId?: string | null;
   createdAt: string;
+  /** Oxirgi o'zgarish yoki yozishma */
+  updatedAt: string;
 }
+
+// ─── So'rovlar: mijoz xodimdan nimadir kutyapti ─────────────────────────────
+
+/**
+ * callback — qo'ng'iroq qilishni so'radi (yoki raqam qoldirdi); booking — yozilmoqchi, lekin yozishmada yozib bo'lmadi;
+ * change — qabulni (buyurtmani) surish yoki bekor qilish; complaint — shikoyat; other — boshqa ish
+ */
+export type RequestKind = 'callback' | 'booking' | 'change' | 'complaint' | 'other';
+export type RequestStatus = 'open' | 'done' | 'cancelled';
+/** So'rov qayerdan keldi: yozishma kanali, qo'ng'iroq (o'tkazib yuborilgan), ovozli agent, egasi yoki panel */
+export type RequestSource = LeadChannel | 'call' | 'voice' | 'owner' | 'panel';
+
+export interface LeadRequest {
+  id: string;
+  leadId: string | null;
+  kind: RequestKind;
+  status: RequestStatus;
+  /** Qaysi raqamga qo'ng'iroq qilish (mijoz yozishmada boshqa raqam aytgan bo'lishi mumkin) */
+  phone: string | null;
+  name: string | null;
+  /** Xodim uchun: nima qilish kerak */
+  summary: string;
+  /** Mijoz aytgan qulay vaqt, o'z so'zi bilan («bugun 18:00 dan keyin») */
+  whenText: string | null;
+  /** Mahalliy vaqt «YYYY-MM-DDTHH:MM»: shundan oldin qo'ng'iroq qilinmaydi (eslatma shu paytda) */
+  dueAt: string | null;
+  /** Mijozning o'z gapi */
+  quote: string | null;
+  source: RequestSource;
+  /** «Ko'tarmadi» necha marta bosildi */
+  attempts: number;
+  /** Kim nima qildi: «Qabulga yozildi, ertaga 15:00» */
+  result: string | null;
+  /** Kim yopdi yoki oxirgi marta urindi (xodim yoki egasi ismi) */
+  doneBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+}
+
+/** Mijoz kartasi: kanallari, yozishma va qo'ng'iroqlar soni, so'rovlari, qo'ng'iroqlari, DentaCRM bemori */
+export interface ClientCardView {
+  lead: Lead;
+  /** Qaysi kanalda tanish: Instagram (@username), Telegram (bot yoki shaxsiy), telefon */
+  channels: { instagram: string | null; telegram: string | null; phone: string | null };
+  messages: { instagram: number; telegram: number; total: number };
+  firstMessageAt: string | null;
+  lastMessageAt: string | null;
+  requests: LeadRequest[];
+  calls: Call[];
+  /** DentaCRM bemori (bog'langan bo'lsa); problem — CRM javob bermadi yoki bemor topilmadi */
+  patient: {
+    id: string; name: string; phone: string | null; lastVisit: string | null; balance: number;
+    upcoming: { id: string; date: string; time: string; doctorName: string; status: string }[];
+    problem: string | null;
+  } | null;
+}
+
+/** Klinika xodimi (qabulxona): so'rovlarni Telegram'da oladi va yopadi */
+export interface StaffMember { id: string; name: string; role: 'reception'; linked: boolean; createdAt: string }
 
 export interface Doc {
   id: string;
@@ -216,6 +287,21 @@ export interface ReplyDraft {
   booking: ReplyBooking | null;
   /** Qabul CRM'ga yozilgan vaqt */
   bookedAt: string | null;
+  /** Bor bo'lsa: javobdan oldin bemorning mavjud qabuli ko'chiriladi yoki bekor qilinadi */
+  change?: VisitChange | null;
+  changedAt?: string | null;
+}
+
+/** Bemorning qabulini ko'chirish (yangi kun va vaqt, shifokor o'sha) yoki bekor qilish */
+export interface VisitChange {
+  kind: 'move' | 'cancel';
+  appointmentId: string;
+  /** Hozirgi vaqti: «2026-10-20 15:00» */
+  from: string;
+  doctorName: string;
+  /** move bo'lsa: yangi kun va vaqt */
+  date?: string;
+  time?: string;
 }
 
 export interface InboxThread {
@@ -277,6 +363,8 @@ export interface LiveStatus {
    * waiting — ochilgan oynada egasi kirishini kutyapti; problem — nega ishlamayapti; relogin — qayta kirish yordam beradi
    */
   instagram: { available: boolean; account: string | null; waiting: boolean; problem: string | null; relogin: boolean };
+  /** Rasmiy Instagram (Meta ilovasi, Cerebro Hub orqali): hub — hub kodi kiritilgan; account — «@username»; humanAgent — 7 kungacha javob ruxsati */
+  instagramApi: { hub: boolean; account: string | null; problem: string | null; expiresAt: string | null; humanAgent: boolean };
   /** Klinikaning DentaCRM'i: account — "Klinika nomi · manzil"; problem — nega ishlamayapti */
   crm: { account: string | null; problem: string | null };
 }
@@ -326,8 +414,42 @@ export interface CameraFinding { level: 'ok' | 'warn' | 'crit'; text: string }
 export interface CameraSummary { date: string; seated: number; deskVisits: number; crm: { visits: number; payments: number } | null; findings: CameraFinding[]; sessions: CameraSession[] }
 
 export interface CallLine { who: 'ai' | 'caller'; text: string }
-/** Ovozli agent qabul qilgan qo'ng'iroq. booked — qabulga yozilgan bo'lsa "sana vaqt, shifokor" */
-export interface Call { id: string; phone: string; name: string | null; startedAt: string; durationSec: number; outcome: string; transcript: CallLine[]; booked: string | null }
+/**
+ * Qo'ng'iroq: ovozli agent qabul qilgani (source 'voice') yoki MicroSIP orqali bo'lgan haqiqiy qo'ng'iroq (source 'microsip').
+ * booked — qabulga yozilgan bo'lsa "sana vaqt, shifokor"
+ */
+export interface Call {
+  id: string; phone: string; name: string | null; startedAt: string; durationSec: number; outcome: string; transcript: CallLine[]; booked: string | null;
+  source?: 'voice' | 'microsip';
+  direction?: 'in' | 'out' | null;
+  /** ringing, dialing, talking — hali davom etyapti; ended — gaplashildi; missed — ko'tarilmadi (kiruvchi); no_answer — ko'tarmadi (chiquvchi) */
+  status?: 'ringing' | 'dialing' | 'talking' | 'ended' | 'missed' | 'no_answer' | null;
+  leadId?: string | null;
+  /** Suhbat yozib olingan (panelda tinglash mumkin) */
+  hasRecording?: boolean;
+  /** pending — matn va tahlil tayyorlanmoqda */
+  review?: 'none' | 'pending' | 'done' | 'failed';
+  analysis?: CallAnalysis | null;
+}
+
+/** Yozib olingan qo'ng'iroqning tahlili (matn — avtomatik, gapiruvchilar «1-ovoz», «2-ovoz») */
+export interface CallAnalysis {
+  transcript: string;
+  speakers: boolean;
+  /** Bir-ikki gap: kim, nima uchun, nima bilan tugadi */
+  summary: string;
+  customerName: string;
+  /** Mijoz nima xohladi */
+  wants: string;
+  /** booked — qabulga yozildi / kelishildi; callback — qayta qo'ng'iroq kerak; info — faqat ma'lumot oldi; lost — qiziqmadi; complaint; other */
+  outcome: 'booked' | 'callback' | 'info' | 'lost' | 'complaint' | 'other';
+  /** Nima kelishildi (sana, vaqt, narx) */
+  agreed: string;
+  nextStep: string;
+  /** Xodim qanday gaplashdi: 1–10 va bir gap */
+  score: number;
+  staffNote: string;
+}
 
 /** Sanash qoidasi: zonada shuncha soniya tursa — seans; shuncha ko'rinmasa — tugaydi; bundan qisqa o'tirish bemor deb sanalmaydi */
 export interface CameraTiming { enterSec: number; leaveSec: number; minSessionSec: number }

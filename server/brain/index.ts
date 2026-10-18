@@ -3,7 +3,7 @@
  * Yozilish yo'llari: egasi o'zi yozadi (panel, tayyor savollar), mijozga bergan javobini «eslab qol» deydi (taklif → tasdiq),
  * tayyor javobni tuzatib yuboradi (tuzatish), yoki papkadagi faylni Obsidian'da o'zgartiradi. Hammasi fayllarda turadi (vault.ts).
  */
-import { packFor } from '../../src/data/brainPack';
+import { packFor } from '../../src/data/industries';
 import { check, isMedical } from '../../src/lib/compliance';
 import { mergeOfferings, parsePrices, type PriceLine } from '../../src/lib/prices';
 import type { BrainView, Knowledge } from '../../src/types';

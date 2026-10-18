@@ -13,8 +13,11 @@ import { recoverMoney } from './crm/actions';
 import { closeDb, notices } from './db';
 import { recoverBookings } from './inbox/core';
 import { instagramAvailable, startInstagram, stopInstagram } from './inbox/instagram';
+import { startInstagramApi, stopInstagramApi } from './inbox/instagramApi';
 import { refreshTelegramUser, startTelegramUser, stopTelegramUser, telegramUserAvailable } from './inbox/telegramUser';
 import { startScheduler } from './scheduler';
+import { startPhone, stopPhone } from './phone/index';
+import { startMonitor } from './monitor';
 
 /** Bot nomini shuncha kutamiz; Telegram javob bermasa — server baribir ko'tariladi, bot fonda ulanadi */
 const BOT_WAIT_MS = 3_000;
@@ -47,10 +50,16 @@ recoverBookings();
 // Port — tarmoqqa bog'liq ishlardan oldin: internet bo'lmasa ham panel ochiladi, port band bo'lsa bot navbatiga tegilmaydi
 const server = await listen(createApp(bot));
 await Promise.race([bot.start(), new Promise(r => setTimeout(r, BOT_WAIT_MS))]);
+// Rasmiy Instagram (hub orqali) birinchi: ikkalasi ulangan biznesda javob rasmiy yo'l bilan ketadi
+startInstagramApi();
 startInstagram();
 startTelegramUser();
 const stopScheduler = startScheduler(bot);
+// MicroSIP shu kompyuterda ulangan bo'lsa — qo'ng'iroq hodisalari va yozuvlar o'qiladi
+startPhone();
 const stopBackups = startBackups();
+// Kanallar nazorati: CRM, rasmiy Instagram va hub, MicroSIP, IP kameralar — uzilsa egasiga aytiladi
+const stopMonitor = startMonitor();
 
 const open = !env.listenHost || env.listenHost === '0.0.0.0' || env.listenHost === '::';
 console.log(`Cerebro server: http://localhost:${env.port}${open ? ' (hamma tarmoq interfeyslari)' : ` (${env.listenHost})`}`);
@@ -58,7 +67,7 @@ console.log(`  bot:  ${!bot.enabled ? "o'chiq (BOT_TOKEN yo'q)" : bot.username()
 console.log(`  AI:   ${env.aiEnabled ? `${env.aiModel}${env.webSearch ? ' + internetdan qidirish' : ''}` : "o'chiq (ANTHROPIC_API_KEY yo'q)"}`);
 console.log(`  ovoz: ${voiceEnabled() ? [env.voicelabKey && 'VoiceLab', env.geminiKey && 'Gemini', env.groqKey && 'Groq'].filter(Boolean).join(' → ') : "o'chiq (VOICELAB_API_KEY / GEMINI_API_KEY / GROQ_API_KEY yo'q)"}`);
 console.log(`  shaxsiy Telegram: ${telegramUserAvailable() ? 'yoqilgan' : "o'chiq (TG_API_ID / TG_API_HASH yo'q)"}`);
-console.log(`  Instagram: ${instagramAvailable() ? 'yoqilgan (brauzer orqali)' : "o'chiq (Chrome yoki Edge topilmadi — IG_BROWSER)"}`);
+console.log(`  Instagram: ${instagramAvailable() ? 'yoqilgan (brauzer orqali)' : "o'chiq (Chrome yoki Edge topilmadi — IG_BROWSER)"}${env.hub ? ` + rasmiy (hub: ${new URL(env.hub.url).host})` : ''}`);
 console.log(`  IP kameralar: ${ffmpegAvailable() ? 'yoqilgan (ffmpeg bor)' : "o'chiq (ffmpeg topilmadi — FFMPEG_PATH)"}`);
 console.log(`  baza: ${env.dbFile}`);
 
@@ -68,6 +77,9 @@ const shutdown = () => {
   stopping = true;
   stopScheduler();
   stopBackups();
+  stopPhone();
+  stopMonitor();
+  stopInstagramApi();
   bot.stop();
   stopCameraEngine();
   // Brauzer (Instagram) va Telegram seansi yopilishi kutiladi: chala yopilgan brauzer keyingi ishga tushishda profilni band qilib turardi

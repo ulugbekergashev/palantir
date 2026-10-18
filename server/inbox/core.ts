@@ -14,14 +14,18 @@ import { Markup } from 'telegraf';
 import type { InlineKeyboardMarkup } from 'telegraf/types';
 import type { AutoReply, InboxMessage, LeadChannel, ReplyBooking } from '../../src/types';
 import { check } from '../../src/lib/compliance';
+import { iso } from '../../src/lib/week';
 import { businesses, inbox, leads, notices, relays, replies, type BusinessRow, type ChannelPerson, type LeadRow, type ReplyRow } from '../db';
 import { cleanName, normPhone } from '../crm/logic';
 import { filterOptions, recordFix } from '../brain/index';
 import { ownerAnswered } from '../brain/learn';
 import { AiLimitError } from '../claude';
-import { bookForCustomer, bookingLine, checkBooking } from '../crm/reception';
+import { bookForCustomer, bookingLine, changeLine, changeVisit, checkBooking, checkChange } from '../crm/reception';
 import { env } from '../env';
 import { decide, type Decision } from './replier';
+import { phoneChanged } from '../people';
+import { deliverToTeam, editTeamCards, openRequest } from '../requests/index';
+import { replyCards } from '../requests/store';
 
 export interface Sender {
   /** Shu mijozga shu kanal orqali yozish mumkinmi */
@@ -36,9 +40,11 @@ export interface OwnerOutlet {
   edit(biz: BusinessRow, messageId: number, html: string): Promise<void>;
 }
 
-const senders = new Map<LeadChannel, Sender>();
+/** Yuborish yo'llari: nomi bo'yicha (bir kanalda bir nechta bo'lishi mumkin — Instagram'da brauzer va rasmiy API) */
+const senders = new Map<string, { channel: LeadChannel; sender: Sender }>();
+const sendersOf = (ch: LeadChannel) => [...senders.values()].filter(x => x.channel === ch).map(x => x.sender);
 let owner: OwnerOutlet | null = null;
-export const registerSender = (channel: LeadChannel, s: Sender) => { senders.set(channel, s); };
+export const registerSender = (channel: LeadChannel, s: Sender, name: string = channel) => { senders.set(name, { channel, sender: s }); };
 export const setOwnerOutlet = (o: OwnerOutlet) => { owner = o; };
 /** Bot tokeni olib tashlandi (ulash ustasi): eski bot orqali mijozga ham, egasiga ham yuborilmaydi */
 export const clearBotOutlets = (): void => { senders.delete('bot'); owner = null; };
@@ -69,15 +75,15 @@ export const isOurEcho = (bizId: string, channel: LeadChannel, text: string) => 
 };
 
 export function canReach(biz: BusinessRow, lead: LeadRow): boolean {
-  return ROUTES[lead.channel].some(ch => senders.get(ch)?.can(biz, lead));
+  return ROUTES[lead.channel].some(ch => sendersOf(ch).some(s => s.can(biz, lead)));
 }
 
 /** Mijozga yozadi (u yozishgan kanal orqali) va yozishmaga qo'shadi */
 export async function sendToLead(biz: BusinessRow, lead: LeadRow, text: string, by: 'owner' | 'cerebro'): Promise<LeadChannel> {
   let last: Error | null = null;
   for (const ch of ROUTES[lead.channel]) {
-    const s = senders.get(ch);
-    if (!s?.can(biz, lead)) continue;
+    const s = sendersOf(ch).find(x => x.can(biz, lead));
+    if (!s) continue;
     try {
       ours.set(ourKey(biz.id, ch, text), Date.now());
       const extId = await s.send(biz, lead, text);
@@ -185,6 +191,11 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   // Claude o'ylayotganda yana yozgan bo'lsa — navbatdagi ishlov hammasini birga ko'radi
   if (inbox.last(bizId, leadId)?.id !== last.id) return;
   remember(biz, lead, d);
+  // Mijoz xodimdan ish kutyapti (qo'ng'iroq qilish, qabul, shikoyat): so'rov qabulxonaga — javobning taqdiridan qat'i nazar
+  if (d.request) {
+    await openRequest(biz, lead.id, { ...d.request, source: lead.channel, quote: fresh.map(m => m.text).join(' / ') })
+      .catch(e => console.error("[mijozlar] so'rov ochilmadi:", (e as Error).message));
+  }
   // Yangi javob yoki yangi qabul taklifi bo'lsa — eski qabul taklifi ham eskiradi
   if (d.action !== 'ignore') await supersede(biz, lead, 'Yangi xabar keldi — pastda yangi taklif');
 
@@ -195,6 +206,14 @@ async function handle(bizId: string, leadId: string): Promise<void> {
       // Kutilmagan xato (masalan, Telegram kartani qabul qilmadi): bemorning xabari javobsiz yo'qolmasin
       console.error('[mijozlar] qabul:', (e as Error).message);
       return forward(biz, lead, fresh, "Cerebro qabulni oxiriga yetkaza olmadi — CRM'ni tekshirib, o'zingiz javob bering");
+    }
+  }
+  if ((d.action === 'reschedule' || d.action === 'cancel_visit') && d.change) {
+    try {
+      return await changeFlow(biz, lead, fresh, d, settings.mode);
+    } catch (e) {
+      console.error("[mijozlar] qabulni o'zgartirish:", (e as Error).message);
+      return forward(biz, lead, fresh, "Cerebro qabulni o'zgartira olmadi — CRM'ni tekshirib, o'zingiz javob bering");
     }
   }
   if (d.action === 'ignore' || !d.reply) {
@@ -216,13 +235,27 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   await card(biz, lead, fresh, r);
 }
 
-/** Mijoz o'zi aytgan ism, telefon va nima xohlashi — mijozlar ro'yxatiga */
+/** Qabul yozilgan bemor — mijoz kartasi unga bog'lanadi (oldin boshqa bemorga bog'langan bo'lsa — tegilmaydi) */
+function linkBooked(biz: BusinessRow, lead: LeadRow, patientId: string): void {
+  if (!leads.get(biz.id, lead.id)?.patientId) leads.setPatient(biz.id, lead.id, patientId);
+}
+
+/** Keyingi qadam vaqti: N kundan keyin soat 10:00 (mahalliy) */
+const followAt = (days: number): string => `${iso(new Date(Date.now() + days * DAY_MS))}T10:00`;
+
+/**
+ * Mijoz o'zi aytgan ism, telefon, nima xohlashi va (yozishmadan ko'rinsa) keyingi qadam — mijozlar ro'yxatiga.
+ * Egasi yoki yordamchi qo'ygan keyingi qadam ustidan yozilmaydi
+ */
 function remember(biz: BusinessRow, lead: LeadRow, d: Decision): void {
-  const patch: { name?: string; phone?: string; note?: string } = {};
+  const patch: { name?: string; phone?: string; note?: string; nextStep?: string; nextAt?: string } = {};
   if (d.customerName && !lead.name) patch.name = d.customerName;
   if (d.customerPhone && !lead.phone) patch.phone = d.customerPhone;
   if (d.leadNote && d.leadNote !== lead.note) patch.note = d.leadNote;
+  if (d.followUp && d.followUpDays && !lead.nextAt && (lead.stage === 'new' || lead.stage === 'contacted')) { patch.nextStep = d.followUp; patch.nextAt = followAt(d.followUpDays); }
   if (Object.keys(patch).length) leads.update(biz.id, lead.id, patch);
+  // Raqam aytildi — shu odamning boshqa kanaldagi kartalari (Instagram, bot, qo'ng'iroq) shu kartaga yig'iladi
+  if (patch.phone) phoneChanged(biz, lead.id);
 }
 
 const DAY_MS = 86_400_000;
@@ -302,7 +335,7 @@ async function receive(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], d
   // Holat darhol «sent»: CRM'ga yozilayotgan qabul boshqa yo'l bilan (vaqti kelgan javob sifatida) ketib qolmaydi va chegaralarda hisobga kiradi
   const r = replies.create(biz.id, { leadId: lead.id, channel: lead.channel, text, status: 'sent', note: null, dueAt: null, booking });
   try {
-    await bookForCustomer(biz, booking);
+    linkBooked(biz, lead, await bookForCustomer(biz, booking));
   } catch (e) {
     replies.move(biz.id, r.id, ['sent'], 'dismissed');
     // CRM javob bermagan bo'lsa natija noma'lum — «yozilmadi» deb aytilmaydi (sababning o'zida yozilgan)
@@ -315,6 +348,56 @@ async function receive(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], d
     await owner?.notify(biz, `🤖 <b>${who(lead)}</b> · ${CHANNEL_LABEL[ch]}\n${line}\n<i>${esc(cut(text, 1500))}</i>`).catch(() => {});
   } catch (e) {
     // Qabul CRM'da bor, lekin bemor bilmaydi — egasi o'zi aytishi kerak
+    await owner?.notify(biz, `⚠️ <b>${who(lead)}</b>\n${line}\nLekin bemorga xabar yetmadi (${esc((e as Error).message)}) — o'zingiz ayting.`).catch(() => {});
+  }
+  await forwardMissed(biz, lead, startedAt);
+}
+
+/** Bitta suhbatdan bir kunda o'zi ko'chiriladigan/bekor qilinadigan qabullar */
+const MAX_CHANGES_PER_LEAD_DAY = 2;
+
+/**
+ * Bemor mavjud qabulini ko'chirmoqchi yoki bekor qilmoqchi (DentaCRM, mijoz bemorga bog'langan). Model faqat taklif qiladi:
+ * qabul shu bemorniki, yangi vaqt o'sha shifokorda bo'sh — shu yerda tekshiriladi. draft — karta «Ko'chirish va yuborish»;
+ * auto — darhol, kuniga cheklov bilan; bo'lmasa — sababi bilan egasiga
+ */
+async function changeFlow(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], d: Decision, mode: AutoReply['mode']): Promise<void> {
+  const want = d.change!;
+  const hold = async (why: string) => {
+    const r = replies.create(biz.id, { leadId: lead.id, channel: lead.channel, text: HOLD_TEXT, status: 'pending', dueAt: null, note: `Qabul o'zgartirilmadi: ${why}` });
+    await card(biz, lead, fresh, r);
+  };
+  if (!lead.patientId) return hold("mijoz DentaCRM bemoriga bog'lanmagan");
+  const ready = await checkChange(biz, lead.patientId, want);
+  // Bemor bu orada yana yozgan bo'lsa — navbatdagi ishlov hammasini birga ko'radi
+  if (inbox.last(biz.id, lead.id)?.id !== fresh.at(-1)?.id) return;
+  if ('problem' in ready) return hold(ready.problem);
+  const change = ready.change;
+  // Tasdiqdagi yangi vaqt model matnidan emas, CRM'ga yoziladigan o'zgarishning o'zidan
+  const text = `${d.reply}\n${change.kind === 'move' ? `📅 ${change.date} ${change.time}, ${change.doctorName}` : `✖️ ${change.from} — bekor qilindi`}`.trim();
+  const propose = async (note: string | null) => {
+    const r = replies.create(biz.id, { leadId: lead.id, channel: lead.channel, text, status: 'pending', note, dueAt: null, change });
+    await card(biz, lead, fresh, r);
+  };
+  if (!isClean(biz, text)) return propose("Javob taklifida reklama filtriga tushadigan so'z bor — tekshirib yuboring");
+  if (change.kind === 'move' && (d.reply.match(CLOCK_RE) ?? []).some(t => t.replace('.', ':').padStart(5, '0') !== change.time)) return propose('Javob matnidagi vaqt yangi vaqtdan boshqa — matnni tekshiring');
+  if (mode !== 'auto') return propose(null);
+  if (replies.changes(biz.id, lead.id, new Date(Date.now() - DAY_MS).toISOString()) >= MAX_CHANGES_PER_LEAD_DAY) return propose(`O'zim o'zgartirmadim: bu suhbatda bir kunda ${MAX_CHANGES_PER_LEAD_DAY} marta o'zgartirildi — chegara`);
+  if (!canReach(biz, lead)) return propose("O'zim o'zgartirmadim: bu mijozga hozir yozib bo'lmaydi");
+  const startedAt = new Date().toISOString();
+  const r = replies.create(biz.id, { leadId: lead.id, channel: lead.channel, text, status: 'sent', note: null, dueAt: null, change });
+  try {
+    await changeVisit(biz, lead.patientId, change);
+  } catch (e) {
+    replies.move(biz.id, r.id, ['sent'], 'dismissed');
+    return hold((e as Error).message);
+  }
+  replies.setChanged(biz.id, r.id);
+  const line = `🔁 ${change.kind === 'move' ? "Qabulni ko'chirdim" : 'Qabulni bekor qildim'}: ${esc(changeLine(change))}`;
+  try {
+    const ch = await sendToLead(biz, lead, text, 'cerebro');
+    await owner?.notify(biz, `🤖 <b>${who(lead)}</b> · ${CHANNEL_LABEL[ch]}\n${line}\n<i>${esc(cut(text, 1500))}</i>`).catch(() => {});
+  } catch (e) {
     await owner?.notify(biz, `⚠️ <b>${who(lead)}</b>\n${line}\nLekin bemorga xabar yetmadi (${esc((e as Error).message)}) — o'zingiz ayting.`).catch(() => {});
   }
   await forwardMissed(biz, lead, startedAt);
@@ -348,20 +431,21 @@ const quotes = (fresh: InboxMessage[]) => fresh.slice(-5).map(m => `«${esc(cut(
 async function forward(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], note: string | null): Promise<void> {
   if (!owner || !fresh.length) return;
   const body = [`💬 <b>${who(lead)}</b> · ${CHANNEL_LABEL[lead.channel]}`, quotes(fresh), note ? `\nℹ️ ${esc(note)}` : ''];
-  let id: number | null;
+  let sentTo: { chatId: string; messageId: number }[];
   try {
-    id = await owner.notify(biz, [...body, '', REPLY_HINT].join('\n'));
+    // Qabulxona xodimlari (bo'lsa) va egasi: kim birinchi ko'rsa — kartaga «Reply» qilib javob beradi
+    sentTo = await deliverToTeam(biz, [...body, '', REPLY_HINT].join('\n'));
   } catch (e) {
     // Telegram hozir javob bermadi: mijozning xabari egasiga yetmay qolmasin — navbatga (javobni panelda beradi)
     console.error('[mijozlar] egasiga yetkazilmadi, navbatga qo\'yildi:', (e as Error).message);
     notices.add(biz.id, [...body, '', '<i>Javob berish: panel → Mijozlar.</i>'].join('\n'));
     return;
   }
-  if (id && biz.ownerChatId) relays.add(biz.ownerChatId, id, lead.id);
+  for (const c of sentTo) relays.add(c.chatId, c.messageId, lead.id);
 }
 
 const replyKeyboard = (r: ReplyRow) => Markup.inlineKeyboard([[
-  Markup.button.callback(r.booking ? '✅ Yozish va yuborish' : '✅ Yuborish', `ra|${r.id}`),
+  Markup.button.callback(r.booking ? '✅ Yozish va yuborish' : r.change ? (r.change.kind === 'move' ? "✅ Ko'chirish va yuborish" : '✅ Bekor qilish va yuborish') : '✅ Yuborish', `ra|${r.id}`),
   Markup.button.callback('✖️ Kerak emas', `rx|${r.id}`),
 ]]).reply_markup;
 
@@ -372,31 +456,36 @@ async function card(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], r: R
     quotes(fresh),
     '',
     r.booking ? `📅 <b>Qabulga yozadi:</b> ${esc(bookingLine(r.booking))}\n` : '',
+    r.change ? `🔁 <b>${r.change.kind === 'move' ? "Qabulni ko'chiradi" : 'Qabulni bekor qiladi'}:</b> ${esc(changeLine(r.change))}\n` : '',
     `✍️ <b>Javob taklifi:</b>\n<i>${esc(cut(r.text, 1300))}</i>`,
     r.note ? `ℹ️ ${esc(cut(r.note, 500))}` : '',
     '',
     REPLY_HINT,
   ].filter((l, i, a) => l !== '' || a[i - 1] !== '').join('\n');
-  let id: number | null;
+  let sentTo: { chatId: string; messageId: number }[];
   try {
-    id = await owner.notify(biz, html, replyKeyboard(r));
+    sentTo = await deliverToTeam(biz, html, replyKeyboard(r));
   } catch (e) {
     // Karta ketmadi: taklif panelda turibdi — egasi buni bilishi uchun qisqa xabar navbatga qo'yiladi
     console.error('[mijozlar] karta ketmadi, navbatga qo\'yildi:', (e as Error).message);
     notices.add(biz.id, [`💬 <b>${who(lead)}</b> · ${CHANNEL_LABEL[lead.channel]}`, quotes(fresh), '', '<i>Javob taklifi tayyor — tasdiqlash: panel → Mijozlar.</i>'].join('\n'));
     return;
   }
-  if (!id) return;
-  replies.setOwnerMessage(biz.id, r.id, id);
-  if (biz.ownerChatId) relays.add(biz.ownerChatId, id, lead.id);
+  for (const c of sentTo) {
+    replyCards.add(r.id, c.chatId, c.messageId);
+    relays.add(c.chatId, c.messageId, lead.id);
+    if (c.chatId === biz.ownerChatId) replies.setOwnerMessage(biz.id, r.id, c.messageId);
+  }
 }
 
 /** Karta natijasi bilan yangilanadi (tugmalar olib tashlanadi) */
 async function settleCard(biz: BusinessRow, r: ReplyRow, status: string): Promise<void> {
-  if (!owner || !r.ownerMessageId) return;
   const lead = leads.get(biz.id, r.leadId);
-  await owner.edit(biz, r.ownerMessageId, `💬 <b>${lead ? who(lead) : 'Mijoz'}</b> · ${CHANNEL_LABEL[r.channel]}\n✍️ <i>${esc(cut(r.text, 1500))}</i>\n\n${status}`)
-    .catch(() => {});
+  const html = `💬 <b>${lead ? who(lead) : 'Mijoz'}</b> · ${CHANNEL_LABEL[r.channel]}\n✍️ <i>${esc(cut(r.text, 1500))}</i>\n\n${status}`;
+  const cards = replyCards.of(r.id);
+  if (cards.length) return editTeamCards(cards, html);
+  // Eski karta (jamoa kartalaridan oldin yuborilgan) — faqat egasida
+  if (owner && r.ownerMessageId) await owner.edit(biz, r.ownerMessageId, html).catch(() => {});
 }
 
 /** Mijoz yana yozdi yoki egasi o'zi javob berdi — oldingi takliflar eskirdi */
@@ -441,31 +530,45 @@ export async function approveReply(biz: BusinessRow, id: string): Promise<void> 
   const booking = r.booking && !r.bookedAt ? r.booking : null;
   // Aytib bo'lmaydigan bemorni yozib qo'ymaslik uchun — CRM'ga murojaatdan oldin
   if (booking && !canReach(biz, lead)) throw new Error("Bu mijozga hozir yozib bo'lmaydi — qabul ham yozilmadi");
+  const change = r.change && !r.changedAt ? r.change : null;
+  if (change && !canReach(biz, lead)) throw new Error("Bu mijozga hozir yozib bo'lmaydi — qabul ham o'zgartirilmadi");
+  if (change && !lead.patientId) throw new Error("Mijoz DentaCRM bemoriga bog'lanmagan — qabulni CRM'da o'zingiz o'zgartiring");
   if (!replies.move(biz.id, id, ['pending'], 'sent')) throw new Error('Allaqachon yuborilgan');
   const startedAt = new Date().toISOString();
   if (booking) {
     try {
-      await bookForCustomer(biz, booking);
+      linkBooked(biz, lead, await bookForCustomer(biz, booking));
     } catch (e) {
       replies.move(biz.id, id, ['sent'], 'pending');
       throw e;
     }
     replies.setBooked(biz.id, id);
   }
-  try {
-    await sendToLead(biz, lead, r.text, 'cerebro');
-  } catch (e) {
-    if (!r.booking) {
+  if (change) {
+    try {
+      await changeVisit(biz, lead.patientId!, change);
+    } catch (e) {
       replies.move(biz.id, id, ['sent'], 'pending');
       throw e;
     }
-    // Qabul CRM'da bor: taklif qayta ochilmaydi (ikkinchi marta yozilmasin, «kerak emas» bilan yo'qolmasin) — bemorga egasi o'zi aytadi
-    const why = `Qabul CRM'ga yozildi, lekin bemorga xabar yetmadi (${(e as Error).message}) — o'zingiz ayting`;
-    await settleCard(biz, r, `⚠️ ${esc(why)}\n📅 ${esc(bookingLine(r.booking))}`);
+    replies.setChanged(biz.id, id);
+  }
+  try {
+    await sendToLead(biz, lead, r.text, 'cerebro');
+  } catch (e) {
+    if (!r.booking && !r.change) {
+      replies.move(biz.id, id, ['sent'], 'pending');
+      throw e;
+    }
+    // Qabul CRM'da yozilgan yoki o'zgartirilgan: taklif qayta ochilmaydi (ikkinchi marta bajarilmasin) — bemorga egasi o'zi aytadi
+    const done = r.booking ? "Qabul CRM'ga yozildi" : "Qabul CRM'da o'zgartirildi";
+    const why = `${done}, lekin bemorga xabar yetmadi (${(e as Error).message}) — o'zingiz ayting`;
+    await settleCard(biz, r, `⚠️ ${esc(why)}\n${r.booking ? `📅 ${esc(bookingLine(r.booking))}` : `🔁 ${esc(changeLine(r.change!))}`}`);
     throw new Error(why);
   }
-  await settleCard(biz, r, r.booking ? `✅ Qabulga yozildi va yuborildi\n📅 ${esc(bookingLine(r.booking))}` : '✅ Yuborildi');
-  if (booking) await forwardMissed(biz, lead, startedAt);
+  await settleCard(biz, r, r.booking ? `✅ Qabulga yozildi va yuborildi\n📅 ${esc(bookingLine(r.booking))}`
+    : r.change ? `✅ ${r.change.kind === 'move' ? "Ko'chirildi" : 'Bekor qilindi'} va yuborildi\n🔁 ${esc(changeLine(r.change))}` : '✅ Yuborildi');
+  if (booking || change) await forwardMissed(biz, lead, startedAt);
 }
 
 export async function dismissReply(biz: BusinessRow, id: string): Promise<void> {
@@ -483,7 +586,7 @@ export async function ownerWrites(biz: BusinessRow, lead: LeadRow, text: string,
   const draft = draftId ? replies.get(biz.id, draftId) : undefined;
   const ch = await sendToLead(biz, lead, text, 'owner');
   // So'ralgan savolga javob — bilim taklifi; oddiy tayyor javob o'rniga yozilgani — tuzatish
-  if (draft && draft.leadId === lead.id && draft.status === 'pending' && !draft.question && !draft.booking && draft.text !== HOLD_TEXT) recordFix(biz, draft.text, text);
+  if (draft && draft.leadId === lead.id && draft.status === 'pending' && !draft.question && !draft.booking && !draft.change && draft.text !== HOLD_TEXT) recordFix(biz, draft.text, text);
   ownerAnswered(biz, lead, text, (html, keyboard) => notifyOwner(biz, html, keyboard));
   await supersede(biz, lead, "O'zingiz javob berdingiz");
   return ch;

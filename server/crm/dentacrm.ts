@@ -33,6 +33,16 @@ const fail = (kind: keyof typeof MESSAGES) => new CrmError(kind, MESSAGES[kind])
 /** Yozuv so'rovi ketdi, javob kelmadi: qayta urinish ikkinchi yozuvni yaratishi mumkin */
 export const isUnknownOutcome = (e: unknown): boolean => e instanceof CrmError && e.message === UNKNOWN_OUTCOME;
 const UNKNOWN_OUTCOME = "DentaCRM javob bermadi — yozildimi yoki yo'qmi, noma'lum. Qayta yozishdan oldin CRM'da tekshiring";
+/** Bu nashrda yozish yo'li yo'q (404) — eski nashr bo'lsa boshqa yo'l bilan uriniladi */
+const MISSING_ROUTE = 'DentaCRM bu amalni qo\'llamaydi (eski nashr)';
+/** CRM 409 javobidagi sabab: ma'lum kodlar — o'zbekcha; boshqa matn — tozalanib, qisqartirilib */
+function conflictText(raw: string): string {
+  let error = '';
+  try { error = String((JSON.parse(raw) as { error?: unknown }).error ?? ''); } catch { /* matn emas */ }
+  if (error === 'CALL_DATE_TAKEN') return 'Bemor shu kuni boshqa qabulga yozilgan';
+  if (!error || /^[A-Z_]+$/.test(error)) return "DentaCRM bu vaqtni qabul qilmadi (band yoki shifokor ishlamaydi)";
+  return error.replace(/[\u0000-\u001f<>`]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+}
 
 const TIMEOUT_MS = 10_000;
 const PATIENTS_TIMEOUT_MS = 20_000;
@@ -78,7 +88,7 @@ const AppointmentSchema = z.object({
   date: day, time: clock, duration: z.coerce.number().int().positive().max(24 * 60).catch(30), status: label(40).catch('Pending'), notes: text(500),
 });
 const PatientSchema = z.object({ id, firstName: label(80).catch(''), lastName: label(80).catch(''), phone: text(40), secondaryPhone: text(40), lastVisit: text(40), balance: money.catch(0) });
-const TransactionSchema = z.object({ id, patientName: label(80).catch(''), amount: money, type: label(40), service: text(80), status: label(40).pipe(z.string().min(1)), doctorId: id.nullish().transform(v => v ?? null).catch(null), doctorName: text(80), date: text(40) });
+const TransactionSchema = z.object({ id, patientName: label(80).catch(''), patientId: id.nullish().transform(v => v ?? null).catch(null), amount: money, type: label(40), service: text(80), status: label(40).pipe(z.string().min(1)), doctorId: id.nullish().transform(v => v ?? null).catch(null), doctorName: text(80), date: text(40) });
 
 const ExpenseSchema = z.object({ id, date: text(40), amount: money, category: label(40), title: text(120), doctorId: id.nullish().transform(v => v ?? null).catch(null) });
 const CreatedSchema = z.object({ id });
@@ -96,6 +106,11 @@ export interface DentaCrm {
   patients(): Promise<Patient[]>;
   createPatient(p: { firstName: string; lastName: string; phone: string }): Promise<Patient>;
   bookAppointment(b: Booking): Promise<Appointment>;
+  /**
+   * Qabulxona natijasi: ko'chirildi (yangi kun va vaqt, shifokor o'sha), bekor qildi, tasdiqladi. CRM shifokor ishlamaydigan vaqtni
+   * o'zi ham tekshiradi va kim, qachon qo'ng'iroq qilgani izini saqlaydi. Eski nashrda bu yo'l bo'lmasa — oddiy tahrir (PUT)
+   */
+  visitResult(id: string, r: { result: 'rescheduled' | 'cancelled' | 'confirmed'; date?: string; time?: string; note?: string }): Promise<Appointment>;
   /** Klinikaning hamma xarajatlari (CRM sana bo'yicha saralamaydi) */
   expenses(): Promise<Expense[]>;
   /** To'langan to'lov yozuvi; qaytaradi — id. Takrordan himoya yo'q: chaqiruvchi oldindan tekshiradi (money.ts) */
@@ -107,7 +122,7 @@ export interface DentaCrm {
 
 interface Cached<T> { at: number; value: Promise<T> }
 type Session = z.infer<typeof LoginSchema>;
-interface Call { method: 'GET' | 'POST' | 'DELETE'; path: (clinicId: string) => string; body?: (clinicId: string) => unknown; timeoutMs?: number; limit?: number }
+interface Call { method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: (clinicId: string) => string; body?: (clinicId: string) => unknown; timeoutMs?: number; limit?: number }
 
 /** Javobni sanab o'qiydi: hajmi aytilmagan yoki siqilgan katta javob xotirani to'ldirmasin */
 async function readCapped(res: Response, limit: number): Promise<string> {
@@ -148,7 +163,7 @@ export function createDentaCrm(cfg: CrmConfig): DentaCrm {
     return hit && Date.now() - hit.at < CACHE_MS ? hit.value : remember(key, Date.now(), load());
   };
 
-  async function send(method: 'GET' | 'POST' | 'DELETE', path: string, token: string | null, body?: unknown, timeoutMs = TIMEOUT_MS): Promise<Response> {
+  async function send(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, token: string | null, body?: unknown, timeoutMs = TIMEOUT_MS): Promise<Response> {
     if (Date.now() < downUntil) throw fail('unreachable');
     try {
       const res = await fetch(`${cfg.baseUrl}${path}`, {
@@ -215,6 +230,9 @@ export function createDentaCrm(cfg: CrmConfig): DentaCrm {
         if (session?.token === s.token) { session = null; await signIn(); }
         continue;
       }
+      // Band vaqt, shifokor ishlamaydi, bemor shu kuni yozilgan — CRM aytgan sabab (ma'lum kodlar tarjima qilinadi)
+      if (res.status === 409) throw new CrmError('conflict', conflictText(await readCapped(res, ERROR_BODY_LIMIT).catch(() => '')));
+      if (res.status === 404 && c.method !== 'GET') { drop(res); throw new CrmError('invalid', MISSING_ROUTE); }
       if (!res.ok) { drop(res); throw fail(res.status >= 500 ? 'unreachable' : 'invalid'); }
       const refreshed = res.headers.get('x-refreshed-token');
       if (refreshed && refreshed.length <= 4096 && session?.token === s.token) session = { ...session, token: refreshed };
@@ -228,7 +246,7 @@ export function createDentaCrm(cfg: CrmConfig): DentaCrm {
     }
   }
   /** Yozuv: javob kelmasa natija noma'lum — "yozilmadi" deyilmaydi, bemorlar ro'yxati qayta yuklanadi */
-  async function write(path: string | ((clinicId: string) => string), body?: (clinicId: string) => unknown, method: 'POST' | 'DELETE' = 'POST'): Promise<unknown> {
+  async function write(path: string | ((clinicId: string) => string), body?: (clinicId: string) => unknown, method: 'POST' | 'PUT' | 'DELETE' = 'POST'): Promise<unknown> {
     try {
       return await call({ method, path: typeof path === 'string' ? () => path : path, body });
     } catch (e) {
@@ -289,6 +307,23 @@ export function createDentaCrm(cfg: CrmConfig): DentaCrm {
     removeExpense: id => remove(cid => `/api/expenses/${encodeURIComponent(id)}?${q(cid)}`),
     bookAppointment(b) {
       const next = booking.catch(() => {}).then(() => bookNow(b));
+      booking = next;
+      return next;
+    },
+    visitResult(id, r) {
+      const next = booking.catch(() => {}).then(async () => {
+        const body = { result: r.result, ...(r.date ? { date: r.date, time: r.time } : {}), note: r.note ?? 'Cerebro' };
+        let saved: unknown;
+        try {
+          saved = await write(cid => `/api/appointments/${encodeURIComponent(id)}/call?${q(cid)}`, () => body);
+        } catch (e) {
+          if (!(e instanceof CrmError) || e.message !== MISSING_ROUTE) throw e;
+          // Eski nashr: qabulxona yo'li yo'q — qabulning o'zi tahrirlanadi
+          const patch = r.result === 'rescheduled' ? { date: r.date, time: r.time, status: 'Confirmed' } : { status: r.result === 'cancelled' ? 'Cancelled' : 'Confirmed' };
+          saved = await write(cid => `/api/appointments/${encodeURIComponent(id)}?${q(cid)}`, () => patch, 'PUT');
+        }
+        return one(AppointmentSchema, saved);
+      });
       booking = next;
       return next;
     },

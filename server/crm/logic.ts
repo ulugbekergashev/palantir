@@ -15,7 +15,8 @@ export interface Clinic { id: string; name: string; startHour: number; endHour: 
 export interface Doctor { id: string; firstName: string; lastName: string; specialty: string | null; status: string | null; startHour: number | null; endHour: number | null; off?: DoctorOff | null; /** Bulut nashri: 'none' | 'fixed' | 'fixed_kpi' | 'kpi'; lokal nashrda yo'q */ salaryType?: string | null }
 export interface Appointment { id: string; patientId: string; patientName: string; doctorId: string; doctorName: string; type: string; date: string; time: string; duration: number; status: string; notes: string | null }
 export interface Patient { id: string; firstName: string; lastName: string; phone: string | null; secondaryPhone: string | null; lastVisit: string | null; balance: number }
-export interface Transaction { id: string; patientName: string; amount: number; type: string; service: string | null; status: string; doctorId: string | null; doctorName: string | null }
+/** patientId — CRM'da bemorga bog'langan to'lov (eski yozuvlarda bo'lmasligi mumkin) */
+export interface Transaction { id: string; patientName: string; patientId?: string | null; amount: number; type: string; service: string | null; status: string; doctorId: string | null; doctorName: string | null }
 
 export const SLOT_STEP_MIN = 30;
 export const DEFAULT_DURATION_MIN = 30;

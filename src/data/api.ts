@@ -5,6 +5,17 @@ import type { KeyName } from '../lib/secrets';
 import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, SetupView } from '../types';
 import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
+import type { ClientCardView, LeadRequest, RequestKind, StaffMember } from '../types';
+import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
+
+export type RequestView = LeadRequest & { lead: Lead | null };
+/** MicroSIP shu kompyuterda: topildimi, ulanganmi (shu biznesga), operator hisobi bormi, suhbatlar yozib olinadimi */
+export interface PhoneStatus {
+  available: boolean; exePath: string | null; connected: boolean; mine: boolean; otherBusiness: boolean; noAccount: boolean; recording: boolean; recordFormat: 'mp3' | 'wav' | null;
+}
+/** Qabulxona: xodimlar (ulanmaganida — Telegram havolasi), so'rovlar nusxasi egasiga keladimi, bot ulanganmi */
+export interface TeamView { staff: (StaffMember & { link: string | null })[]; copyToOwner: boolean; bot: boolean }
+
 /** Server bilan ishlash. Token — shu brauzerda */
 const TOKEN_KEY = 'cerebro_token';
 const ADMIN_KEY = 'cerebro_admin_token';
@@ -72,7 +83,7 @@ export const api = {
   addTask: (t: { title: string; dueAt: string | null; notes?: string | null }) => call<{ task: Task }>('/tasks', { body: t }),
   updateTask: (id: string, patch: Partial<Pick<Task, 'title' | 'dueAt' | 'notes' | 'status'>>) => call<{ task: Task }>(`/tasks/${id}`, { method: 'PATCH', body: patch }),
 
-  updateLead: (id: string, patch: { stage?: LeadStage; note?: string | null; phone?: string | null; name?: string | null }) =>
+  updateLead: (id: string, patch: { stage?: LeadStage; note?: string | null; phone?: string | null; name?: string | null; nextStep?: string | null; nextAt?: string | null }) =>
     call<{ lead: Lead }>(`/leads/${id}`, { method: 'PATCH', body: patch }),
   followups: () => call<{ followups: Outbound[] }>('/followups'),
   sendFollowup: (id: string) => call<{ sent: number; failed: number; followup: Outbound }>(`/followups/${id}/send`, { body: {} }),
@@ -87,7 +98,27 @@ export const api = {
   setCameraStream: (id: string, url: string) => call<{ camera: Camera }>(`/cameras/${id}/stream`, { method: 'PUT', body: { url } }),
   /** IP kameraning hozirgi kadri (zonalarni uning ustida chizish uchun) */
   cameraSnapshot: async (id: string) => (await send(`/cameras/${id}/snapshot`, { method: 'GET' })).blob(),
+  /** So'rovlar: ochiq (eng eskisi birinchi) yoki yopilganlar */
+  requests: (which: 'open' | 'closed' = 'open') => call<{ requests: RequestView[]; open: number }>(`/requests?which=${which}`),
+  openRequest: (r: { kind: RequestKind; leadId?: string; phone?: string; name?: string; summary: string; whenText?: string; dueAt?: string }) => call<{ request: RequestView }>('/requests', { body: r }),
+  requestAction: (id: string, verb: 'done' | 'cancel' | 'no-answer' | 'note', text?: string) => call<{ request: RequestView }>(`/requests/${id}/${verb}`, { body: { text } }),
+  staff: () => call<TeamView>('/staff'),
+  addStaff: (name: string) => call<TeamView>('/staff', { body: { name } }),
+  removeStaff: (id: string) => call<TeamView>(`/staff/${id}`, { method: 'DELETE' }),
+  staffCopy: (copyToOwner: boolean) => call<TeamView>('/staff/copy', { method: 'PUT', body: { copyToOwner } }),
+  phone: () => call<{ phone: PhoneStatus }>('/phone'),
+  connectPhone: (overwrite = false) => call<{ phone: PhoneStatus }>('/phone/connect', { body: { overwrite } }),
+  disconnectPhone: () => call<{ phone: PhoneStatus }>('/phone/disconnect', { body: {} }),
+  dial: (phone: string, requestId?: string) => call<{ noAccount: boolean }>('/phone/dial', { body: { phone, requestId } }),
+  /** Qo'ng'iroq yozuvi (tinglash uchun) */
+  callAudio: async (id: string) => (await send(`/calls/${id}/audio`, { method: 'GET' })).blob(),
   calls: () => call<{ calls: Call[] }>('/calls'),
+  dashboard: (period: PeriodKey, range?: { from: string; to: string }) =>
+    call<{ dashboard: DashboardView }>(`/dashboard?period=${period}${range ? `&from=${range.from}&to=${range.to}` : ''}`),
+  funnel: (period: PeriodKey, range?: { from: string; to: string }) =>
+    call<{ funnel: FunnelView }>(`/dashboard/funnel?period=${period}${range ? `&from=${range.from}&to=${range.to}` : ''}`),
+  igOfficialUrl: () => call<{ url: string }>('/instagram/official', { body: {} }),
+  igOfficialDisconnect: () => call<{ status: LiveStatus }>('/instagram/official', { method: 'DELETE' }),
   voiceKey: () => call<{ exists: boolean }>('/voice/key'),
   newVoiceKey: () => call<{ key: string }>('/voice/key', { body: {} }),
   money: (id: string, verb: 'confirm' | 'cancel' | 'undo') => call<{ entry: MoneyEntry }>(`/crm/money/${id}/${verb}`, { body: {} }),
@@ -113,6 +144,7 @@ export const api = {
   deleteNote: (id: string) => call<{ ok: true }>(`/notes/${id}`, { method: 'DELETE' }),
 
   inbox: () => call<{ threads: InboxThread[]; settings: AutoReply }>('/inbox'),
+  clientCard: (leadId: string) => call<{ card: ClientCardView }>(`/leads/${leadId}/card`),
   thread: (leadId: string) => call<{ lead: Lead; messages: InboxMessage[]; replies: ReplyDraft[] }>(`/inbox/${leadId}`),
   /** replyId — shu tayyor javob tahrirlab yuborilyapti (Cerebro farqidan o'rganadi) */
   writeTo: (leadId: string, text: string, replyId?: string | null) => call<{ messages: InboxMessage[]; replies: ReplyDraft[] }>(`/inbox/${leadId}/send`, { body: { text, ...(replyId ? { replyId } : {}) } }),

@@ -22,6 +22,13 @@ function sessionSecret(): string {
   return fresh;
 }
 
+/** «8-21» → { from: 8, to: 21 }; noto'g'ri yoki bo'sh — 8–21 */
+function dayHours(v: string | undefined): { from: number; to: number } {
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec(v?.trim() ?? '');
+  const [from, to] = m ? [Number(m[1]), Number(m[2])] : [8, 21];
+  return from < to && to <= 24 ? { from, to } : { from: 8, to: 21 };
+}
+
 export const env = {
   port: Number(process.env.PORT) || 3200,
   /**
@@ -68,6 +75,17 @@ export const env = {
   tickMs: Number(process.env.TICK_MS) || 30_000,
   /** Ertalabki xulosa soati (Toshkent vaqti) */
   morningHour: process.env.MORNING_HOUR ? Number(process.env.MORNING_HOUR) : 8,
+  /** Kechki «kun qanday o'tdi» savoli soati (Toshkent vaqti) */
+  eveningHour: process.env.EVENING_HOUR ? Number(process.env.EVENING_HOUR) : 19,
+  /** So'rov eslatmalari shu soatlarda («8-21»): tungi so'rov ertalab eslatiladi, tunda karta ovozsiz keladi */
+  requestHours: dayHours(process.env.REQUEST_HOURS),
+
+  /** Cerebro Hub (rasmiy Instagram uchun): manzili va klinika kaliti — CEREBRO_HUB kodidan (keys.ts o'rnatadi) */
+  hub: null as { url: string; clinicId: string; key: string } | null,
+  /** Faqat sinov uchun: soxta Instagram Graph API */
+  igGraphUrl: (process.env.IG_GRAPH_URL || 'https://graph.instagram.com').replace(/\/$/, ''),
+  /** Instagram'da 24 soatdan keyin (7 kungacha) xodim javobi — Meta «Human Agent» ruxsatini bergan bo'lsa: IG_HUMAN_AGENT=1 */
+  igHumanAgent: process.env.IG_HUMAN_AGENT === '1',
 
   /** Egasining shaxsiy Telegramiga kirish (my.telegram.org → API development tools). Bo'lmasa — o'chiq */
   tgApiId: Number(process.env.TG_API_ID) || 0,

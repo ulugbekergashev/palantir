@@ -89,6 +89,47 @@ function TelegramLogin({ status, onStatus, notify }: { status: LiveStatus; onSta
   );
 }
 
+/**
+ * Rasmiy Instagram (Instagram API with Instagram Login): egasi instagram.com'da kiradi va ruxsat beradi, Meta xabarlarni
+ * Cerebro Hub orqali yuboradi. Akkaunt bloklanmaydi, lekin javob — mijozning oxirgi xabaridan 24 soat ichida
+ */
+function InstagramOfficial({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
+  const ig = status.instagramApi;
+  const [waiting, setWaiting] = useState(false);
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(async () => {
+      try {
+        const s = (await api.me()).status;
+        if (s.instagramApi.account) { setWaiting(false); notify(`Instagram ${s.instagramApi.account} ulandi`); }
+        onStatus(s);
+      } catch { /* keyingi safar */ }
+    }, 2500);
+    const stop = setTimeout(() => setWaiting(false), 10 * 60_000);
+    return () => { clearInterval(t); clearTimeout(stop); };
+  }, [waiting]);
+  const connect = () => api.igOfficialUrl().then(r => { window.open(r.url, '_blank', 'noopener'); setWaiting(true); }).catch(e => notify((e as Error).message, true));
+  if (!ig.hub) {
+    return <p className="text-sm text-slate-600">Rasmiy ulanish uchun <b>Cerebro Hub kodi</b> kerak (ulash ustasi → kalitlar). Hub Meta xabarlarini shu kompyuterga yetkazadi — kompyuterda port ochish shart emas.</p>;
+  }
+  if (ig.account) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm"><span className="font-semibold text-emerald-700">✓ {ig.account}</span> — rasmiy ulanish{ig.expiresAt ? ` · token ${new Date(ig.expiresAt).toLocaleDateString('uz')} gacha (o'zi yangilanadi)` : ''}</p>
+        {ig.problem && <p className="text-sm text-amber-700">{ig.problem}</p>}
+        <p className="text-xs text-slate-500">Instagram mijozning oxirgi xabaridan {ig.humanAgent ? '7 kun (Human Agent ruxsati bilan)' : '24 soat'} ichida javob berishga ruxsat beradi. Undan keyin — qo'ng'iroq qiling.</p>
+        <Button size="sm" variant="ghost" onClick={() => { if (window.confirm('Rasmiy Instagram uzilsinmi?')) api.igOfficialDisconnect().then(r => onStatus(r.status)).catch(e => notify((e as Error).message, true)); }}>Uzish</Button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-slate-600">Instagram professional (Business yoki Creator) akkaunt kerak. «Ulash»ni bosing — Instagram oynasi ochiladi, akkauntingizga kiring va ruxsat bering.</p>
+      <Button variant="primary" onClick={connect}>{waiting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />} {waiting ? 'Instagram oynasida ruxsat bering…' : "Instagram'ni rasmiy ulash"}</Button>
+    </div>
+  );
+}
+
 /** Instagram: shu kompyuterda brauzer oynasi ochiladi — egasi o'zi kiradi, keyin Cerebro fonda ishlaydi */
 function Instagram({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
   const ig = status.instagram;
@@ -267,8 +308,14 @@ export function TelegramPage({ status, onStatus, biz, onBiz, offeringsRev, onSav
         <TelegramLogin status={status} onStatus={onStatus} notify={notify} />
       </Section>
 
-      <Section done={!!status.instagram.account && !status.instagram.problem} title="3. Instagram Direct">
-        <Instagram status={status} onStatus={onStatus} notify={notify} />
+      <Section done={(!!status.instagram.account && !status.instagram.problem) || (!!status.instagramApi.account && !status.instagramApi.problem)} title="3. Instagram Direct">
+        <InstagramOfficial status={status} onStatus={onStatus} notify={notify} />
+        {!status.instagramApi.account && (
+          <details className="mt-4 border-t border-slate-100 pt-3">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-600">Meta ilovasisiz — shu kompyuterdagi brauzer orqali (zaxira yo'l)</summary>
+            <div className="mt-3"><Instagram status={status} onStatus={onStatus} notify={notify} /></div>
+          </details>
+        )}
       </Section>
 
       {(isMedical(biz.industry) || status.crm.account) && (

@@ -35,7 +35,7 @@ const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-chidam-'));
 const PORT = 3295;
 const base = `http://127.0.0.1:${PORT}`;
 const ENV = {
-  ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
+  ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
   ANTHROPIC_API_KEY: '', VOICELAB_API_KEY: '', GEMINI_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '500', SESSION_SECRET: 'chidam-secret', MORNING_HOUR: String((new Date().getHours() + 12) % 24),
   TG_API_ID: '', TG_API_HASH: '', IG_BROWSER: join(dataDir, 'yoq.exe'),
 };

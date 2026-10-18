@@ -20,6 +20,7 @@ import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index'
 import { INTERVIEW_START, interviewReply, interviewStart, interviewing } from './brain/interview';
 import { approveReply, dismissReply, ownerWrites, replySettings } from './inbox/core';
 import { cancelInstagramLogin, disconnectInstagram, instagramAvailable, instagramStatus, startInstagramLogin } from './inbox/instagram';
+import { disconnectInstagramApi, instagramApiConnectUrl, instagramApiStatus } from './inbox/instagramApi';
 import { disconnectTelegramUser, loginCode, loginPassword, loginStart, telegramUserAccount, telegramUserAvailable } from './inbox/telegramUser';
 import { AutoReplySchema, BusinessSchema, emptyBusiness } from './validate';
 import { containsSecret } from '../src/lib/secrets';
@@ -29,6 +30,13 @@ import { mountCrm } from './crm/routes';
 import { mountBrain } from './brain/routes';
 import { mountCamera } from './camera/routes';
 import { mountVoice } from './voice/routes';
+import { mountRequests } from './requests/routes';
+import { mountPhone } from './phone/routes';
+import { dashboard } from './analytics';
+import { funnel } from './funnel';
+import { clientCard } from './clientCard';
+import { MAX_PERIOD_DAYS, daysIn, periodDays, type PeriodKey } from '../src/lib/dashboard';
+import { phoneChanged } from './people';
 
 type Handler = (req: Request, res: Response) => unknown;
 
@@ -44,6 +52,7 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
     telegramUser: { available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
     instagram: { available: instagramAvailable(), ...instagramStatus(biz.id) },
+    instagramApi: instagramApiStatus(biz.id),
     crm: crmStatus(biz.id),
   };
 }
@@ -70,7 +79,11 @@ const LeadCreate = z.object({
   note: z.string().trim().max(500).nullable().optional(),
   source: z.string().trim().max(80).nullable().optional(),
 });
-const LeadPatch = LeadCreate.omit({ source: true }).extend({ stage: z.enum(['new', 'contacted', 'won', 'lost']).optional() });
+const LeadPatch = LeadCreate.omit({ source: true }).extend({
+  stage: z.enum(['new', 'contacted', 'won', 'lost']).optional(),
+  nextStep: z.string().trim().max(200).nullable().optional(),
+  nextAt: localTime.nullable().optional(),
+});
 const orNull = (s: string | null | undefined) => (s === undefined ? undefined : s?.trim() ? s.trim() : null);
 
 /** So'rov tanasini o'qiydi (JSON bo'lmagan yuklama uchun). Chegaradan oshsa — null: ortig'i xotiraga olinmaydi, lekin javob yuborish uchun oxirigacha kutiladi */
@@ -90,6 +103,8 @@ const LOOPBACK = /^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|::1|localhost)$/;
 const MIN_PASSWORD = 8;
 /** Admin panelida AI xarajati necha kun uchun ko'rsatiladi */
 const USAGE_DAYS = 7;
+/** Telefondagi AI yordamchi javobini shuncha kutadi (tgvoice/call_live.py CEREBRO_WAIT_S); undan kech javob Telegram'ga yuboriladi */
+const PHONE_WAIT_MS = 9_000;
 
 /** So'rov tanasining qolgani o'qib tashlanguncha kutadi (xotiraga olinmaydi). Juda uzoq davom etsa — kutilmaydi */
 const DRAIN_MS = 60_000;
@@ -156,6 +171,23 @@ export function createApp(bot: BotService) {
   /** Xizmatlar ro'yxatining «nusxa raqami»: panel qaysi nusxani tahrirlayotganini bildiradi */
   const offeringsRev = (list: BusinessRow['profile']['offerings']) => createHash('sha256').update(JSON.stringify(list)).digest('hex').slice(0, 16);
 
+  // Boshqaruv paneli: davr ko'rsatkichlari, dinamika, jamoa, so'nggi murojaatlar
+  app.get('/api/dashboard', asBiz((req, res, biz) => {
+    const key = (['today', 'yesterday', 'week', 'month', 'custom'] as const).find(k => k === req.query.period) ?? 'today';
+    const day = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
+    const p = periodDays(key as PeriodKey, new Date(), { from: day(req.query.from), to: day(req.query.to) });
+    if (daysIn(p) > MAX_PERIOD_DAYS) return res.status(400).json({ error: `Oraliq ${MAX_PERIOD_DAYS} kundan oshmasin` });
+    res.json({ dashboard: dashboard(biz, p) });
+  }));
+  // Voronka (DentaCRM'dan kelgan va to'laganlar bilan): sekinroq — panel alohida so'raydi
+  app.get('/api/dashboard/funnel', asBiz(async (req, res, biz) => {
+    const key = (['today', 'yesterday', 'week', 'month', 'custom'] as const).find(k => k === req.query.period) ?? 'today';
+    const day = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
+    const p = periodDays(key as PeriodKey, new Date(), { from: day(req.query.from), to: day(req.query.to) });
+    if (daysIn(p) > MAX_PERIOD_DAYS) return res.status(400).json({ error: `Oraliq ${MAX_PERIOD_DAYS} kundan oshmasin` });
+    res.json({ funnel: await funnel(biz, p) });
+  }));
+
   app.get('/api/me', asBiz((_req, res, biz) => res.json({ business: biz.profile, status: status(biz, bot), offeringsRev: offeringsRev(biz.profile.offerings) })));
 
   app.put('/api/business', asBiz((req, res, biz) => {
@@ -192,9 +224,24 @@ export function createApp(bot: BotService) {
     if (containsSecret(text)) return res.status(400).json({ error: "Xabarda maxfiy kalit bor — u yuborilmadi va saqlanmadi. Kalitlarni «Ulash» sahifasiga kiriting (#/ulash)." });
     const answered = interviewTurn(biz, text);
     if (answered) return res.json(answered);
-    // phone: true — gap jonli qo'ng'iroqdan (D:\tgvoice\call.py): javob qisqa va ovozga mos bo'lsin
-    const reply = await ask(biz.id, 'web', text, { phone: req.body?.phone === true });
-    res.json({ entries: reply.entries, interview: false });
+    // phone: true — gap jonli qo'ng'iroqdan (tgvoice/): javob qisqa va ovozga mos bo'lsin
+    const phone = req.body?.phone === true;
+    const started = Date.now();
+    const reply = await ask(biz.id, 'web', text, { phone });
+    // Qo'ng'iroqda so'ralgan hujjat yoki rasm egasining Telegram'iga boradi (telefonda uni ko'rsatib bo'lmaydi). Javob kech qolsa —
+    // telefondagi AI kutmay qo'ygan (PHONE_WAIT_MS): matni ham Telegram'ga. Qo'ng'iroq uzilgan bo'lsa ham natija yo'qolmaydi
+    const late = Date.now() - started > PHONE_WAIT_MS;
+    const deliver = phone && req.body?.deliver === 'telegram' && bot.enabled && !!biz.ownerChatId && (reply.artifacts.length > 0 || late);
+    let delivered = false;
+    if (deliver) {
+      try {
+        await bot.deliverReply(businesses.byId(biz.id) ?? biz, reply.text, reply.artifacts);
+        delivered = true;
+      } catch (e) {
+        console.error("[telefon] Telegram'ga yetkazilmadi:", (e as Error).message);
+      }
+    }
+    if (!res.headersSent && !res.writableEnded) res.json({ entries: reply.entries, interview: false, delivered });
   }));
 
   // Panel mikrofoni: brauzer WAV yuboradi → matn → yordamchi
@@ -279,15 +326,27 @@ export function createApp(bot: BotService) {
     const name = orNull(p.data.name) ?? null;
     const phone = orNull(p.data.phone) ?? null;
     if (!name && !phone) return res.status(400).json({ error: 'Ism yoki telefon kiriting' });
-    res.json({ lead: publicLead(leads.add(biz.id, { name, phone, note: orNull(p.data.note) ?? null, source: orNull(p.data.source) ?? "qo'lda" })) });
+    const added = leads.add(biz.id, { name, phone, note: orNull(p.data.note) ?? null, source: orNull(p.data.source) ?? "qo'lda" });
+    // Shu raqam bilan yozishgan (Instagram, bot) odam bo'lsa — bitta karta
+    res.json({ lead: publicLead((phone ? phoneChanged(biz, added.id) : undefined) ?? added) });
+  }));
+
+  // Mijoz kartasi: kanallari, so'rovlari, qo'ng'iroqlari, DentaCRM bemori
+  app.get('/api/leads/:id/card', asBiz(async (req, res, biz) => {
+    const card = await clientCard(biz, String(req.params.id));
+    if (!card) return res.status(404).json({ error: 'Topilmadi' });
+    res.json({ card });
   }));
 
   app.patch('/api/leads/:id', asBiz((req, res, biz) => {
     const p = LeadPatch.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
-    const l = leads.update(biz.id, String(req.params.id), { stage: p.data.stage, note: orNull(p.data.note), phone: orNull(p.data.phone), name: orNull(p.data.name) });
+    const l = leads.update(biz.id, String(req.params.id), {
+      stage: p.data.stage, note: orNull(p.data.note), phone: orNull(p.data.phone), name: orNull(p.data.name),
+      nextStep: orNull(p.data.nextStep), nextAt: p.data.nextAt,
+    });
     if (!l) return res.status(404).json({ error: 'Topilmadi' });
-    res.json({ lead: publicLead(l) });
+    res.json({ lead: publicLead((p.data.phone ? phoneChanged(biz, l.id) : undefined) ?? l) });
   }));
 
   // Pul yozuvi (DentaCRM): tasdiqlash, bekor qilish, shu kuni ortga qaytarish
@@ -395,6 +454,15 @@ export function createApp(bot: BotService) {
   }));
 
   // ─── Instagram: shu kompyuterda oyna ochiladi, egasi o'zi kiradi ───────────
+  // Rasmiy Instagram: hub bergan kirish havolasi (egasi brauzerda ochadi) va uzish
+  app.post('/api/instagram/official', asBiz(async (_req, res, biz) => {
+    try { res.json({ url: await instagramApiConnectUrl(biz) }); } catch (e) { fail(res, e); }
+  }));
+  app.delete('/api/instagram/official', asBiz(async (_req, res, biz) => {
+    await disconnectInstagramApi(biz);
+    res.json({ status: status(businesses.byId(biz.id)!, bot) });
+  }));
+
   app.post('/api/instagram/login', asBiz((_req, res, biz) => {
     try { startInstagramLogin(biz); res.json({ status: status(biz, bot) }); } catch (e) { fail(res, e, 400); }
   }));
@@ -410,6 +478,8 @@ export function createApp(bot: BotService) {
   mountCrm(app, { asBiz, bad, fail, statusOf: bizId => status(businesses.byId(bizId)!, bot) });
   mountCamera(app, { asBiz, bad });
   mountVoice(app, { asBiz, bad });
+  mountRequests(app, { asBiz, bad, bot });
+  mountPhone(app, { asBiz, bad, fail });
   mountBrain(app, { asBiz, bad, fail });
   mountSetup(app, { asBiz, asAdmin, bad, fail, bot, statusOf: bizId => status(businesses.byId(bizId)!, bot) });
 

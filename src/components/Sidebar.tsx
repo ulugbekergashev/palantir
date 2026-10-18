@@ -1,16 +1,17 @@
-import { Brain, Check, House, ListChecks, LogOut, MessageCircle, PhoneCall, Plug, TriangleAlert, Users, Video, type LucideIcon } from 'lucide-react';
+import { BellRing, Brain, Check, House, ListChecks, LogOut, MessageCircle, PhoneCall, Plug, TriangleAlert, Users, Video, type LucideIcon } from 'lucide-react';
 import type { Business } from '../types';
 import type { HealthItem } from '../lib/health';
 import { initials } from '../lib/text';
 
 /** Bo'limlar kam: vazifalar Jurnalda, mijozlar va yozishmalar bitta joyda, hujjatlar va bilim — Ikkinchi miyada */
-export type Page = 'home' | 'chat' | 'journal' | 'inbox' | 'calls' | 'cameras' | 'brain' | 'telegram';
+export type Page = 'home' | 'chat' | 'journal' | 'inbox' | 'requests' | 'calls' | 'cameras' | 'brain' | 'telegram';
 
 const NAV: Record<Page, { label: string; icon: LucideIcon }> = {
   home: { label: 'Bosh sahifa', icon: House },
   chat: { label: 'Yordamchi', icon: MessageCircle },
   journal: { label: 'Jurnal', icon: ListChecks },
   inbox: { label: 'Mijozlar', icon: Users },
+  requests: { label: "So'rovlar", icon: BellRing },
   calls: { label: "Qo'ng'iroqlar", icon: PhoneCall },
   cameras: { label: 'Kameralar', icon: Video },
   brain: { label: 'Ikkinchi miya', icon: Brain },
@@ -21,10 +22,10 @@ export const PAGES = Object.keys(NAV) as Page[];
 export const pageLabel = (page: Page): string => NAV[page].label;
 
 /** Menyudagi tartib: kun ishlari, mijozlar bilan aloqa, sozlash — orasida ingichka chiziq */
-const GROUPS: Page[][] = [['home', 'chat', 'journal'], ['inbox', 'calls', 'cameras'], ['brain', 'telegram']];
+const GROUPS: Page[][] = [['home', 'chat', 'journal'], ['inbox', 'requests', 'calls', 'cameras'], ['brain', 'telegram']];
 
 /** Belgi yonidagi son nimani bildiradi (ekran o'quvchi uchun) */
-const BADGE_MEANING: Partial<Record<Page, string>> = { journal: 'ta ish bugunga', inbox: 'ta javob tasdiq kutyapti' };
+const BADGE_MEANING: Partial<Record<Page, string>> = { journal: 'ta ish bugunga', inbox: 'ta javob tasdiq kutyapti', requests: "ta so'rov javobsiz" };
 
 /** Olib tashlangan bo'limlarning eski manzillari (xatcho'p, eski havola) — ishi ko'chgan joyga olib boradi */
 export const MOVED: Record<string, Page> = { tasks: 'journal', leads: 'inbox', documents: 'brain', posts: 'chat', business: 'telegram' };

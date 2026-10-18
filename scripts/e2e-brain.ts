@@ -2,7 +2,8 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { brainPrompt, fitPages, inert, packView, sameQuestion } from '../server/brain/logic';
-import { CLINIC_PACK, GENERAL_PACK, packFor } from '../src/data/brainPack';
+import { CLINIC_PACK, GENERAL_PACK } from '../src/data/brainPack';
+import { packFor } from '../src/data/industries';
 import { sectionFor } from '../src/lib/commands';
 import { buildJournal } from '../src/lib/journal';
 import { mergeOfferings, parsePrices } from '../src/lib/prices';

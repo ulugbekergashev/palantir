@@ -1,19 +1,24 @@
 /**
  * Har yarim daqiqada: (1) vaqti kelgan vazifalar uchun eslatma yuboradi,
- * (2) ertalab (MORNING_HOUR dan keyingi 4 soat ichida) kunlik qisqa xulosa yuboradi —
- * bugungi va kechikkan vazifalar, yangi mijozlar, tasdiq kutayotganlar, yaqin bayramlar.
- * Xulosa AI'siz tuziladi: arzon, tez va har doim bir xil.
+ * (2) ertalab (MORNING_HOUR dan keyingi 4 soat ichida) kunlik ish rejasini yuboradi (plan.ts) —
+ * tasdiq kutayotganlar, mijozlarning bugungi qadamlari, vazifalar, unutilgan mijozlar, klinika, yangi mijozlar, bayramlar.
+ * Reja AI'siz tuziladi: arzon, tez va har doim bir xil.
  */
+import { remindRequests } from './requests/index';
 import type { Task } from '../src/types';
 import { isMedical } from '../src/lib/compliance';
 import { upcomingOccasions } from '../src/lib/occasions';
-import { dayLong, dueLabel, fromIso, iso, stamp } from '../src/lib/week';
+import { dayLong, fromIso, iso, stamp } from '../src/lib/week';
 import type { BotService } from './bot';
 import { callState, callsEnabled, placeCall } from './calls';
 import { speak, speechEnabled } from './tts';
-import { businesses, leads, notices, outbound, tasks, type BusinessRow } from './db';
+import { businesses, leads, notices, outbound, publicLead, replies, tasks, type BusinessRow } from './db';
 import { env } from './env';
-import { crmBriefLines } from './crm/index';
+import { crmBriefLines, crmConnected, crmWeekLine, recallPatients } from './crm/index';
+import { industryOf } from '../src/data/industries';
+import { planText, type Plan } from './plan';
+import { periodRange } from './crm/report';
+import { DAY_OUTCOME, askDay } from './outcome';
 import { flushDue } from './inbox/core';
 import { pollInstagram } from './inbox/instagram';
 import { syncTasks } from './brain/mirror';
@@ -21,32 +26,79 @@ import { tgCall, tgCallEnabled } from './tgcall';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** Ertalabki xulosa matni; aytadigan narsa bo'lmasa — null. extra — tayyor qatorlar (klinika: bugungi qabullar) */
-export function morningBrief(biz: BusinessRow, now = new Date(), extra: string[] = []): string | null {
-  const today = iso(now);
-  const open = tasks.list(biz.id, 'open', 300);
-  const overdue = open.filter(t => t.dueAt && t.dueAt < `${today}T00:00`);
-  const todays = open.filter(t => t.dueAt?.startsWith(today));
-  const fresh = leads.list(biz.id, 'all', new Date(now.getTime() - 86_400_000).toISOString());
-  const waitingMsgs = outbound.list(biz.id, 50).filter(o => o.status === 'draft').length;
-  const holidays = upcomingOccasions(now, 3, isMedical(biz.profile.industry));
-  if (!overdue.length && !todays.length && !fresh.length && !holidays.length && !extra.length) return null;
+/**
+ * Ertalabki ish rejasi (plan.ts): vazifalar, mijozlarning keyingi qadamlari, unutilgan mijozlar, tasdiq kutayotganlar,
+ * klinika — bugungi qabullar va ogohlantirishlar; dushanba — o'tgan hafta yakuni va qaytarish kerak bo'lgan bemorlar.
+ * Aytadigan narsa bo'lmasa — null
+ */
+/**
+ * Ertalabki rejani egasiga yuboradi; yordamchi bugungi va unutilgan mijozlarga xabarni fonda tayyorlaydi.
+ * Qaytadi: yuborildimi (aytadigan narsa bo'lmasa — false). Telegram xatosi yuqoriga chiqadi (jadval qayta urinadi)
+ */
+export async function sendMorning(bot: BotService, biz: BusinessRow, now = new Date(), opts: { weekly?: boolean } = {}): Promise<boolean> {
+  if (!biz.ownerChatId) return false;
+  const plan = await morningPlan(biz, now, opts).catch(e => { console.error(`[jadval] reja (${biz.profile.name}):`, e); return null; });
+  if (!plan) return false;
+  await bot.sendText(biz.ownerChatId, plan.html, plan.buttons);
+  // Fonda: jadval kutib qolmaydi, xato bo'lsa reja baribir yuborilgan
+  if (plan.prep.length) void bot.prepareDay(biz, prepPrompt(plan.prep), '☀️ Bugungi xabarlarni tayyorla').catch(e => console.error(`[jadval] tayyorgarlik (${biz.profile.name}):`, (e as Error).message));
+  return true;
+}
 
-  const line = (t: Task) => `• ${esc(t.title)}${t.dueAt ? ` — <i>${dueLabel('uz', t.dueAt, now)}</i>` : ''}`;
-  const out = [`☀️ <b>Xayrli tong${biz.profile.ownerName ? `, ${esc(biz.profile.ownerName)}` : ''}!</b>`];
-  if (extra.length) out.push('', ...extra);
-  if (todays.length) out.push('', `<b>Bugun (${todays.length})</b>`, ...todays.slice(0, 10).map(line));
-  if (overdue.length) out.push('', `<b>🔴 Kechikkan (${overdue.length})</b>`, ...overdue.slice(0, 7).map(line));
-  if (fresh.length) {
-    out.push('', `<b>Yangi mijozlar (${fresh.length})</b>`,
-      ...fresh.slice(0, 7).map(l => `• ${esc(l.name ?? (l.username ? `@${l.username}` : "Ismi yo'q"))}${l.phone ? ` — ${esc(l.phone)}` : ''}`));
-  }
-  if (waitingMsgs) out.push('', `⏳ Tasdiq kutmoqda: mijozlarga ${waitingMsgs} ta xabar`);
-  if (holidays.length) {
-    out.push('', ...holidays.map(h => `🎉 ${dayLong('uz', fromIso(h.date))} — ${esc(h.title.uz)}. Mijozlarga tabrik yuborish kerak bo'lsa, «bayram tabrigini tayyorla» deb yozing.`));
-  }
-  out.push('', 'Nima qilamiz? Yozing yoki ovozli xabar yuboring.');
-  return out.join('\n');
+/** Kechki «kun qanday o'tdi» savoli; egasining keyingi gapi kun yakuni bo'lib yordamchiga boradi. Aytadigan narsa bo'lmasa — false */
+export async function sendEvening(bot: BotService, biz: BusinessRow, now = new Date()): Promise<boolean> {
+  if (!biz.ownerChatId) return false;
+  const check = eveningCheck(biz, now);
+  if (!check) return false;
+  await bot.sendText(biz.ownerChatId, check.html, [[{ text: "Bugun aytadigan narsa yo'q", data: `od|${DAY_OUTCOME}` }]]);
+  askDay(biz, check.taskIds, check.leadIds);
+  return true;
+}
+
+/** Ertalabki tayyorgarlik topshirig'i: faqat mijoz id'lari (ism va izohlar — begona matn — yordamchi asbob orqali o'qiydi) */
+export const prepPrompt = (ids: string[]): string =>
+  `Morning preparation, without asking me anything. For each customer below, look them up with list_leads (lead_id). If Cerebro can message them (reachable: true), prepare one short, warm follow-up that moves things forward with draft_followup — one call per customer, written for that customer and their next step. If they are not reachable, write in one line what I should say when I phone them. Set a next step with next_at for anyone who has none, and move an overdue next step to a sensible time after today's message — do it yourself, do not ask me. Then reply with a very short list: who, and what is ready. Customers: ${ids.join(', ')}.`;
+
+/** Kechki savol: bugungi vazifalar (bajarilgan va ochiq) va bugun qadami bo'lgan mijozlar; aytadigan narsa bo'lmasa — null */
+export function eveningCheck(biz: BusinessRow, now = new Date()): { html: string; taskIds: string[]; leadIds: string[] } | null {
+  const today = iso(now);
+  const dayTasks = tasks.list(biz.id, 'all', 300).filter(t => t.dueAt?.startsWith(today) && t.status !== 'cancelled');
+  const dayLeads = leads.active(biz.id).filter(l => l.nextAt?.startsWith(today));
+  if (!dayTasks.length && !dayLeads.length) return null;
+  const name = (l: { name: string | null; username: string | null; phone: string | null }) => l.name ?? (l.username ? `@${l.username}` : l.phone ?? "ismi yo'q");
+  const lines = [
+    ...dayTasks.slice(0, 8).map(t => `• ${t.status === 'done' ? '✅ ' : ''}${esc(t.title)}`),
+    ...dayLeads.slice(0, 8).map(l => `• ${esc(name(l))} — ${esc(l.nextStep ?? "bog'lanish")}`),
+  ];
+  const html = [`🌙 <b>Kun qanday o'tdi${biz.profile.ownerName ? `, ${esc(biz.profile.ownerName)}` : ''}?</b>`, '', 'Bugungi ishlar:', ...lines, '',
+    "Kim bilan gaplashdingiz, nima kelishildi? Yozing yoki ovozli ayting — mijozlar va vazifalarni o'zim yangilayman, ertangi qadamlarni qo'yaman."].join('\n');
+  return { html, taskIds: dayTasks.map(t => t.id), leadIds: dayLeads.map(l => l.id) };
+}
+
+export async function morningPlan(biz: BusinessRow, now = new Date(), opts: { weekly?: boolean } = {}): Promise<Plan | null> {
+  const today = iso(now);
+  const clinic = crmConnected(biz.id);
+  const profile = industryOf(biz.profile.industry, clinic);
+  const monday = opts.weekly ?? now.getDay() === 1;
+  // O'tgan hafta: o'tgan dushanba 00:00 dan bu dushanba 00:00 gacha (DentaCRM yakuni bilan bir xil oraliq)
+  const lastWeek = periodRange('last_week', today);
+  const weekFrom = new Date(`${lastWeek.from}T00:00:00`).toISOString(), weekTo = new Date(`${today}T00:00:00`).toISOString();
+  const [crmLines, weekLine, recall] = await Promise.all([
+    crmBriefLines(biz.id, today),
+    monday ? crmWeekLine(biz.id, today) : Promise.resolve(null),
+    monday && clinic ? recallPatients(biz.id, today) : Promise.resolve([]),
+  ]);
+  const holidays = upcomingOccasions(now, 3, isMedical(biz.profile.industry)).map(h =>
+    `🎉 ${dayLong('uz', fromIso(h.date))} — ${esc(h.title.uz)}. Mijozlarga tabrik yuborish kerak bo'lsa, «bayram tabrigini tayyorla» deb yozing.`);
+  return planText({
+    now, ownerName: biz.profile.ownerName, profile,
+    tasks: tasks.list(biz.id, 'open', 300),
+    leads: leads.active(biz.id).map(publicLead),
+    repliesPending: replies.pendingTotal(biz.id),
+    outboundDrafts: outbound.list(biz.id, 50).filter(o => o.status === 'draft').length,
+    crmLines, holidays, recall: recall.length, autoPrep: env.aiEnabled,
+    week: monday ? { leadsAdded: leads.addedBetween(biz.id, weekFrom, weekTo), tasksDone: tasks.doneBetween(biz.id, weekFrom, weekTo), crmLine: weekLine } : null,
+  });
 }
 
 /** Mijozlarga javob: vaqti kelgan "o'zi javob bersin" javoblari va Instagram tekshiruvi */
@@ -186,6 +238,8 @@ export function startScheduler(bot: BotService): () => void {
         }
         tasks.markReminded(t.id);
       }
+      // 1b) So'rovlar: javobsiz qolgan «qo'ng'iroq qiling» va boshqalar — qabulxonaga eslatma
+      if (Date.now() >= remindRetryAt) await remindRequests(now).catch(e => console.error("[jadval] so'rov eslatmasi:", (e as Error).message));
       // 1a) Egasiga navbatdagi xabarlar (to'xtab qolgan yozuvlar, yetkazilmagan mijoz xabarlari)
       for (const n of Date.now() >= remindRetryAt ? notices.list() : []) {
         const chat = businesses.byId(n.businessId)?.ownerChatId;
@@ -202,6 +256,20 @@ export function startScheduler(bot: BotService): () => void {
         }
         notices.remove(n.id);
       }
+      // 3) Kechki savol: kun qanday o'tdi — egasining javobidan yordamchi mijoz va vazifalarni yangilaydi
+      const eveningHour = now.getHours(), day = iso(now);
+      if (env.aiEnabled && eveningHour >= env.eveningHour && eveningHour < env.eveningHour + 3) {
+        for (const biz of businesses.all()) {
+          if (!biz.active || !biz.ownerChatId || biz.eveningDate === day || biz.profile.morningBrief === false) continue;
+          try {
+            await sendEvening(bot, biz, now);
+          } catch (e) {
+            console.error(`[jadval] kechki savol (${biz.profile.name}):`, (e as Error).message);
+            if (transient(e)) break;
+          }
+          businesses.update(biz.id, { eveningDate: day });
+        }
+      }
       // 2) Ertalabki xulosa
       // Server ertalab o'chiq bo'lgan bo'lsa, kechqurun "xayrli tong" yubormaydi
       const hour = now.getHours();
@@ -209,15 +277,12 @@ export function startScheduler(bot: BotService): () => void {
         const today = iso(now);
         for (const biz of businesses.all()) {
           if (!biz.active || !biz.ownerChatId || biz.briefDate === today || biz.profile.morningBrief === false) continue;
-          const text = morningBrief(biz, now, await crmBriefLines(biz.id, today));
-          if (text) {
-            try {
-              await bot.sendText(biz.ownerChatId, text);
-            } catch (e) {
-              console.error(`[jadval] xulosa (${biz.profile.name}):`, (e as Error).message);
-              // Internet yo'q — «yuborildi» deb belgilanmaydi: besh daqiqadan keyin yana uriniladi (ertalabki oraliq ichida)
-              if (transient(e)) { briefRetryAt = Date.now() + BRIEF_RETRY_MS; break; }
-            }
+          try {
+            await sendMorning(bot, biz, now);
+          } catch (e) {
+            console.error(`[jadval] xulosa (${biz.profile.name}):`, (e as Error).message);
+            // Internet yo'q — «yuborildi» deb belgilanmaydi: besh daqiqadan keyin yana uriniladi (ertalabki oraliq ichida)
+            if (transient(e)) { briefRetryAt = Date.now() + BRIEF_RETRY_MS; break; }
           }
           businesses.update(biz.id, { briefDate: today });
         }

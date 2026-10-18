@@ -22,6 +22,7 @@ import { businesses, chatLog, conversations, type BusinessRow } from './db';
 import { env } from './env';
 import { AiLimitError, profileText, think } from './claude';
 import { crmClinicName, crmConnected } from './crm/index';
+import { COMMON_RULES, industryOf } from '../src/data/industries';
 import { runTool, toolDefinitions, type ToolCtx } from './tools';
 
 type Msg = Anthropic.Beta.BetaMessageParam;
@@ -85,8 +86,14 @@ function buildSystem(b: BusinessRow): string {
   // Fayl tashlanganidagi yozuvlar (📎 …) kiritilmaydi: ularda fayl nomi va matnining boshi bor — bu begona matn, egasi hali tasdiqlamagan
   const recent = chatLog.recent(b.id, 10).filter(e => !e.text.startsWith('📎'));
   const samples = knowledge.list(b.id).filter(k => k.kind === 'sample' && k.status === 'active');
+  const profile = industryOf(b.profile.industry, crmConnected(b.id));
   const parts = [
     RULES,
+    `<how_this_business_works>
+${profile.playbook}
+
+${COMMON_RULES}
+</how_this_business_works>`,
     ...knowledgeBlocks(b),
     samples.length ? `<document_samples>\nSamples of the owner's own documents. Before writing a document of the same kind, read the sample with read_sample and follow it.\n${samples.map(s => `- [${s.id}] ${s.question}`).join('\n')}\n</document_samples>` : '',
     holidays.length ? `<upcoming_holidays>\n${holidays.map(h => `- ${h.date}: ${h.title.uz}${h.solemn ? ' (remembrance day)' : ''}`).join('\n')}\n</upcoming_holidays>` : '',
@@ -253,6 +260,8 @@ async function run(biz: BusinessRow, session: { system: string; startedAt: strin
       return { text: "Bu so'rovni bajara olmayman.", artifacts: ctx.artifacts };
     }
     messages.push({ role: 'assistant', content: res.content as Block[] });
+    // Internetdan qidiruv natijasi — begona matn: shu gapda bilim va xotiraga yozuvchi asboblar yopiladi (mijozlar ro'yxatini o'qigandagidek)
+    if (res.content.some(b => b.type === 'server_tool_use' || b.type === 'web_search_tool_result')) ctx.readStrangers = true;
     const said = textOf(res.content);
     if (said) spoken = said;
 

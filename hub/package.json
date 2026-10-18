@@ -1,0 +1,11 @@
+{
+  "name": "cerebro-hub",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server.ts"
+  }
+}

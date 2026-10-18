@@ -19,6 +19,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { parseEnv } from 'node:util';
+import { DatabaseSync } from 'node:sqlite';
 import { addDays, iso } from '../src/lib/week';
 import { fold } from './stendParse';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
@@ -52,7 +53,7 @@ const ABOUT_PAGE = "# Biznes haqida\n\nTabassum Dental — oilaviy stomatologiya
 
 // ─── Haqiqiy server bilan gaplashish ─────────────────────────────────────────
 
-let token = '', voiceKey = '', bizId = '';
+let token = '', voiceKey = '', bizId = '', adminToken = '';
 async function panel<T = Json>(path: string, opts: { token?: string; body?: unknown; method?: string } = {}): Promise<T> {
   const r = await fetch(panelUrl + path, {
     method: opts.method ?? (opts.body ? 'POST' : 'GET'),
@@ -345,6 +346,12 @@ const routes: Record<string, Handler> = {
     return { ok: true };
   },
 
+  // Kunlik xabarni hozir yuborish (odatda ertalab va kechqurun o'zi keladi): reja, dushanbadagi reja yoki kechki savol
+  'POST /api/daily': async b => {
+    const kind = b.kind === 'evening' ? 'evening' : 'morning';
+    const r = await panel<{ sent: boolean }>(`/api/admin/businesses/${bizId}/daily`, { token: adminToken, body: { kind, weekly: b.weekly === true } });
+    return { sent: r.sent };
+  },
   'POST /api/camera': b => {
     const cam = cameras.find(c => c.id === b.id);
     need(cam, 'Kamera topilmadi');
@@ -452,11 +459,15 @@ async function until<T>(what: string, check: () => Promise<T | undefined | false
 /** Biznes, egasining Telegrami, shaxsiy Telegram, Instagram, DentaCRM, kameralar, ovozli agent kaliti va boshlang'ich bilim */
 async function setUp(dataDir: string): Promise<string> {
   const admin = (await panel<{ token: string }>('/api/admin/login', { token: '', body: { password: ADMIN_PASSWORD } })).token;
+  adminToken = admin;
   await panel('/api/admin/businesses', { token: admin, body: { name: 'Tabassum Dental', industry: 'Stomatologiya', ...account } });
   token = (await panel<{ token: string }>('/api/login', { token: '', body: account })).token;
   const me = await panel('/api/me');
   bizId = String(me.status.generalLink).split('start=l-')[1];
   await panel('/api/business', { method: 'PUT', body: { ...me.business, ownerName: 'Aziz', offeringsRev: me.offeringsRev } });
+
+  // Egasi ulanishidan oldin — klinikaning «hayoti»: ertalabki reja birinchi kuniyoq bo'sh kelmasin
+  await seedDay(dataDir);
 
   // Egasi paneldagi havolani bosib, botni o'ziga ulaydi
   chats.set(OWNER, { id: OWNER, kind: 'owner', name: 'Aziz (egasi)', username: 'aziz_owner', phone: OWNER_PHONE });
@@ -480,12 +491,59 @@ async function setUp(dataDir: string): Promise<string> {
     cameras.push({ id, name, present: false, state: 'empty' });
   }
   voiceKey = (await panel<{ key: string }>('/api/voice/key', { body: {} })).key;
+  // Telefon liniyasi (tgvoice/sip_live.py) stendga ulanib, AI qabulxonani soxta DentaCRM bilan sinashi uchun: kalit faqat shu papkada
+  writeFileSync(join(dataDir, 'ovozli-agent-kaliti.txt'), voiceKey, { mode: 0o600 });
 
   for (const [packId, answer] of Object.entries(KNOWN)) await panel('/api/brain/qa', { body: { packId, answer } });
   await panel('/api/brain/prices', { body: { items: PRICE_LIST } });
   const vault = join(dataDir, (await panel<{ brain: { vault: string } }>('/api/brain')).brain.vault);
   writeFileSync(join(vault, 'Bilim', 'Biznes haqida.md'), ABOUT_PAGE);
   return vault;
+}
+
+/**
+ * Klinika kuni: botga yozgan mijozlar (Cerebro ularga yoza oladi) va qo'lda kiritilgan mijoz (faqat telefon), bugungi va kechikkan
+ * keyingi qadamlar, bir necha kundan beri jim turganlar, qo'ng'iroq vazifasi; DentaCRM'da 6–12 oy oldin kelgan bemorlar.
+ * Ertalabki rejada «bugungi qadamlar», «unutilganlar» va (dushanba tugmasi bilan) «qaytarish» bo'limlari to'la ko'rinadi
+ */
+async function seedDay(dataDir: string): Promise<void> {
+  const now = new Date();
+  const local = (d: Date, hhmm: string) => `${iso(d)}T${hhmm}`;
+  const who: { name: string; phone: string; note: string; stage: 'new' | 'contacted'; idleDays?: number; nextStep?: string; nextAt?: string }[] = [
+    { name: 'Dilnoza Karimova', phone: '+998901234567', note: "Implant narxini so'radi, «o'ylab ko'raman» dedi", stage: 'contacted', idleDays: 4 },
+    { name: 'Malika Yusupova', phone: '+998935557711', note: "6 yoshli o'g'liga tish tozalash so'radi", stage: 'new', idleDays: 2 },
+    { name: 'Jasur Aliyev', phone: '+998977001122', note: 'Breket qo\'ydirmoqchi', stage: 'contacted', nextStep: 'breket konsultatsiyasiga vaqt kelishish', nextAt: local(now, '11:00') },
+  ];
+  for (const w of who) newCustomer(w.name, w.phone);
+  const leadsNow = await until('mijozlar botga yozdi', async () => {
+    const list = (await panel<{ leads: { id: string; name: string | null }[] }>('/api/leads')).leads;
+    return list.length >= who.length ? list : null;
+  });
+  const db = new DatabaseSync(join(dataDir, 'cerebro.db'));
+  db.exec('PRAGMA busy_timeout = 5000');
+  for (const w of who) {
+    const l = leadsNow.find(x => x.name === w.name);
+    if (!l) continue;
+    await panel(`/api/leads/${l.id}`, { method: 'PATCH', body: { note: w.note, stage: w.stage, ...(w.nextStep ? { nextStep: w.nextStep, nextAt: w.nextAt } : {}) } });
+    if (w.idleDays) {
+      const at = new Date(now.getTime() - w.idleDays * 86_400_000).toISOString();
+      db.prepare('UPDATE leads SET updated_at = ?, created_at = ?, last_inbound_at = ? WHERE id = ?').run(at, at, at, l.id);
+    }
+  }
+  // Qo'lda kiritilgan (telefon orqali kelgan) — Cerebro unga yoza olmaydi: tayyorgarlikda qo'ng'iroq matni chiqadi
+  const manual = (await panel<{ lead: { id: string } }>('/api/leads', { body: { name: 'Sardor Toshmatov', phone: '+998935554433', note: "Ildiz davolash, narx so'ragan" } })).lead;
+  await panel(`/api/leads/${manual.id}`, { method: 'PATCH', body: { stage: 'contacted', nextStep: 'davolash rejasi va narxini yuborish', nextAt: local(addDays(now, -1), '10:00') } });
+  db.close();
+
+  const soon = new Date(now.getTime() + 3600_000);
+  await panel('/api/tasks', { body: { title: "Dilnoza Karimova bilan implant bo'yicha qo'ng'iroq", dueAt: local(soon, `${String(soon.getHours()).padStart(2, '0')}:${String(soon.getMinutes()).padStart(2, '0')}`) } });
+  await panel('/api/tasks', { body: { title: 'Laboratoriyadan koronkalarni olish', dueAt: local(now, '16:00') } });
+
+  // DentaCRM: oxirgi kelgani 7–10 oy oldin — «qaytarish» ro'yxati uchun
+  const months = (n: number) => iso(addDays(now, -n * 30));
+  crm.patients = [...crm.patients,
+    ...[['r1', 'Nodira', 'Rahimova', '+998901110011', 7], ['r2', 'Bekzod', 'Usmonov', '+998935550022', 8], ['r3', 'Gulnora', 'Saidova', '+998977770033', 10]]
+      .map(([id, firstName, lastName, phone, m]) => ({ id, firstName, lastName, phone, secondaryPhone: null, lastVisit: months(Number(m)), balance: 0, clinicId: 'c1' }))];
 }
 
 async function main(): Promise<void> {

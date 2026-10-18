@@ -20,6 +20,9 @@ import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
 import { crmConnected } from './crm/index';
 import { INTERVIEW_START, interviewOption, interviewReply, interviewSkip, interviewStart, interviewStop, type InterviewTurn } from './brain/interview';
 import { containsSecret } from '../src/lib/secrets';
+import { DAY_OUTCOME, askOutcome, dropOutcome, takeOutcome, wantsOutcome } from './outcome';
+import { recallPatients } from './crm/index';
+import { patientName } from './crm/logic';
 import { fileKeyboard, settleFile, settleSuggestion } from './brain/learn';
 import { businesses, chatLog, inbox, leads, moneyEntries, outbound, posts, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
 import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index';
@@ -30,6 +33,10 @@ import { SilenceError, transcribe } from './stt';
 import { MAX_PHOTO_BYTES, describePhoto, photoMessage } from './vision';
 import { reviewCall } from './callreview';
 import { toOgg } from './tts';
+import { phoneChanged } from './people';
+import { actorOf, setTeamOutlet } from './requests/index';
+import { replyCards } from './requests/store';
+import { linkStaff, listOpen, requestButton, requestReply, staffText, teamOutlet } from './requests/telegram';
 import { approveReply, clearBotOutlets, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
 export interface BotService {
@@ -43,14 +50,19 @@ export interface BotService {
   sendFollowup(biz: BusinessRow, outboundId: string): Promise<{ sent: number; failed: number }>;
   cancelFollowup(biz: BusinessRow, outboundId: string): Promise<void>;
   remindTask(biz: BusinessRow, task: Task): Promise<void>;
-  sendText(chatId: string, html: string): Promise<void>;
+  /** buttons — xabar ostidagi tugmalar (kunlik reja: «xabar tayyorla», «ro'yxat») */
+  sendText(chatId: string, html: string, buttons?: { text: string; data: string }[][]): Promise<void>;
   /** Ovozli xabar (OGG/Opus) yoki — ffmpeg bo'lmasa — audio fayl (WAV) */
   sendVoice(chatId: string, audio: { ogg: Buffer } | { wav: Buffer }, caption: string): Promise<void>;
   verifyChannel(ref: string): Promise<{ id: string; title: string }>;
   /** Pul yozuvi kartasini hozirgi holatga keltiradi (panelda tasdiqlangan bo'lsa ham Telegramdagi tugma yo'qoladi) */
   refreshMoney(bizId: string, id: string): Promise<void>;
+  /** Yordamchi javobi (matn va hujjat, rasm kabi narsalari) egasining Telegram'iga — telefon qo'ng'irog'ida so'ralgan ish natijasi */
+  deliverReply(biz: BusinessRow, text: string, artifacts: Artifact[]): Promise<void>;
   /** Birinchi kun suhbatini egasining Telegram'ida boshlaydi (ulash ustasi «Egasidan so'rash»): bo'shliqlar, keyin tayyor savollar */
   startInterview(biz: BusinessRow): Promise<void>;
+  /** Ertalabki tayyorgarlik: yordamchi topshiriqni bajaradi (mijozlarga xabar qoralamalari), natijasi egasiga keladi. display — jurnalda */
+  prepareDay(biz: BusinessRow, prompt: string, display: string): Promise<void>;
 }
 
 const langOf = (b: BusinessRow): Lang => b.profile.contentLang ?? 'uz';
@@ -195,11 +207,13 @@ export function createBot(): BotService {
   if (!env.botToken) {
     // Token olib tashlangan bo'lsa — oldingi botning yuborish yo'llari ham yopiladi
     clearBotOutlets();
+    setTeamOutlet(null);
     const off = () => Promise.reject(new Error("Telegram bot ulanmagan (BOT_TOKEN yo'q)"));
     return {
       enabled: false, username: () => null, start: async () => {}, stop: () => {},
       publishPost: off, sendFollowup: off, cancelFollowup: off, remindTask: async () => {}, sendText: async () => {}, sendVoice: async () => {}, verifyChannel: off, refreshMoney: async () => {},
-      startInterview: off,
+      deliverReply: off,
+      startInterview: off, prepareDay: async () => {},
     };
   }
 
@@ -236,12 +250,15 @@ export function createBot(): BotService {
     // Vazifa — javob matnida aytiladi, alohida xabar kerak emas
   }
 
-  async function sendHtml(chat: string, html: string) {
-    for (const part of chunks(html)) {
-      await tg.sendMessage(chat, part, { parse_mode: 'HTML', link_preview_options: { is_disabled: true } }).catch(async e => {
+  async function sendHtml(chat: string, html: string, buttons?: { text: string; data: string }[][]) {
+    const parts = chunks(html);
+    for (const [n, part] of parts.entries()) {
+      // Tugmalar oxirgi bo'lak ostida
+      const markup = buttons?.length && n === parts.length - 1 ? { reply_markup: kb(buttons.map(row => row.map(x => b(x.text, x.data)))) } : {};
+      await tg.sendMessage(chat, part, { parse_mode: 'HTML', link_preview_options: { is_disabled: true }, ...markup }).catch(async e => {
         // HTML buzilgan bo'lsa (kutilmagan belgi) — oddiy matn sifatida
         if (!String((e as Error).message).includes("can't parse entities")) throw e;
-        await tg.sendMessage(chat, part.replace(/<[^>]+>/g, ''), { link_preview_options: { is_disabled: true } });
+        await tg.sendMessage(chat, part.replace(/<[^>]+>/g, ''), { link_preview_options: { is_disabled: true }, ...markup });
       });
     }
   }
@@ -262,7 +279,8 @@ export function createBot(): BotService {
       return;
     }
     // Birinchi kun suhbati ochiq bo'lsa (yoki egasi «savollar» desa) — gap javob deb olinadi va yordamchiga ketmaydi. Rasm tavsifi javob emas
-    const turn = extra.photo ? null : INTERVIEW_START.test(text.trim()) ? interviewStart(biz) : interviewReply(biz, text);
+    // Tugmadan kelgan buyruq (display bilan) ham javob emas: u egasining gapi emas, yordamchiga topshiriq
+    const turn = extra.photo || extra.display ? null : INTERVIEW_START.test(text.trim()) ? interviewStart(biz) : interviewReply(biz, text);
     if (turn) {
       chatLog.add(biz.id, 'telegram', 'owner', voice ? `🎙 ${text}` : text);
       return sendInterview(biz, turn);
@@ -271,18 +289,24 @@ export function createBot(): BotService {
     const typing = setInterval(() => { void ctx.sendChatAction('typing').catch(() => {}); }, 4500);
     void ctx.sendChatAction('typing').catch(() => {});
     try {
-      const reply = await ask(biz.id, 'telegram', text, { voice, ...extra });
-      const head = voice ? `🎙 <i>${esc(cut(text, 500))}</i>\n\n` : '';
-      await sendHtml(chat, head + tgHtml(reply.text));
-      const fresh = businesses.byId(biz.id) ?? biz;
-      for (const a of reply.artifacts) {
-        await sendArtifact(fresh, chat, a).catch(e => {
-          console.error('[bot] yetkazilmadi:', a.type, (e as Error).message);
-          return tg.sendMessage(chat, `⚠️ ${a.type === 'document' ? 'Hujjat' : a.type === 'post' ? 'Rasm' : 'Xabar'} yuborilmadi — panelda ko'ring.`).catch(() => {});
-        });
-      }
+      // Vazifa natijasi so'ralgan edi: gap shu vazifa haqida ekani yordamchiga aytiladi (jurnalda — egasining o'z gapi)
+      const outcome = extra.photo || extra.display ? null : takeOutcome(businesses.byId(biz.id) ?? biz, text);
+      const reply = await ask(biz.id, 'telegram', outcome ?? text, { voice, ...extra, ...(outcome ? { display: voice ? `🎙 ${text}` : text } : {}) });
+      await deliver(biz, chat, reply, voice ? `🎙 <i>${esc(cut(text, 500))}</i>\n\n` : '');
     } finally {
       clearInterval(typing);
+    }
+  }
+
+  /** Yordamchi javobi va narsalari (xabar qoralamasi «Yuborish» tugmasi bilan, hujjat…) egasiga */
+  async function deliver(biz: BusinessRow, chat: string, reply: { text: string; artifacts: Artifact[] }, head = ''): Promise<void> {
+    await sendHtml(chat, head + tgHtml(reply.text));
+    const fresh = businesses.byId(biz.id) ?? biz;
+    for (const a of reply.artifacts) {
+      await sendArtifact(fresh, chat, a).catch(e => {
+        console.error('[bot] yetkazilmadi:', a.type, (e as Error).message);
+        return tg.sendMessage(chat, `⚠️ ${a.type === 'document' ? 'Hujjat' : a.type === 'post' ? 'Rasm' : 'Xabar'} yuborilmadi — panelda ko'ring.`).catch(() => {});
+      });
     }
   }
 
@@ -372,6 +396,7 @@ export function createBot(): BotService {
     if (ctx.chat.type !== 'private') return;
     const payload = ctx.payload?.trim() ?? '';
     if (payload.startsWith('o-')) return linkOwner(ctx, payload.slice(2));
+    if (payload.startsWith('s-')) return linkStaff(ctx, payload.slice(2));
     if (payload.startsWith('l-')) {
       const [, bizId, postId] = payload.split('-');
       return leadStart(ctx, bizId, postId);
@@ -401,6 +426,11 @@ export function createBot(): BotService {
     await sendInterview(biz, interviewStart(biz));
   });
 
+  // So'rovlar (qo'ng'iroq qilish, qabul, shikoyat): egasi ham, qabulxona xodimi ham
+  bot.command(['sorovlar', 'zayavki'], async ctx => {
+    if (ctx.chat.type === 'private') await listOpen(ctx);
+  });
+
   bot.command('vazifalar', async ctx => {
     const biz = ownerOf(ctx);
     if (!biz) return;
@@ -425,7 +455,11 @@ export function createBot(): BotService {
   bot.on('callback_query', async ctx => {
     const data = 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '';
     const [code, id] = data.split('|');
-    const biz = ctx.chat?.type === 'private' ? businesses.byOwnerChat(String(ctx.chat.id)) : undefined;
+    // So'rov kartasi: egasi va qabulxona xodimlari bosadi
+    if (await requestButton(ctx, code, id)) return;
+    const ownerBiz = ctx.chat?.type === 'private' ? businesses.byOwnerChat(String(ctx.chat.id)) : undefined;
+    // Mijozga javob taklifi: qabulxona xodimi ham yuboradi yoki rad etadi
+    const biz = ownerBiz ?? ((code === 'ra' || code === 'rx') && ctx.chat?.type === 'private' ? actorOf(String(ctx.chat.id))?.biz : undefined);
     if (!biz || !id) return toast(ctx, 'Bu tugma eskirgan');
     const msg = ctx.callbackQuery.message;
 
@@ -502,6 +536,41 @@ export function createBot(): BotService {
       return toast(ctx, code === 'ky' ? 'Eslab qoldim' : 'Eslab qolmadim');
     }
 
+    // Vazifa natijasi so'ralgandi — egasi «aytadigan narsa yo'q» dedi
+    if (code === 'od') {
+      dropOutcome(biz.id, DAY_OUTCOME);
+      if (msg) await tg.editMessageText(biz.ownerChatId!, msg.message_id, undefined, 'Mayli, ertaga gaplashamiz. Yaxshi dam oling!').catch(ignoreUnchanged).catch(() => {});
+      return toast(ctx);
+    }
+
+    if (code === 'oc') {
+      // Faqat shu vazifaning so'rovi yopiladi (keyinroq boshqa vazifa bajarilgan bo'lsa, uning so'roviga tegilmaydi)
+      dropOutcome(biz.id, id);
+      if (msg) await tg.editMessageText(biz.ownerChatId!, msg.message_id, undefined, 'Mayli, natijasiz yopdim.').catch(ignoreUnchanged).catch(() => {});
+      return toast(ctx);
+    }
+
+    // Kunlik reja: unutilgan mijozga qayta yozish matni — yordamchi tayyorlaydi (yuborish baribir egasining tugmasi bilan)
+    if (code === 'fu') {
+      const lead = leads.get(biz.id, id);
+      if (!lead) return toast(ctx, 'Mijoz topilmadi');
+      await toast(ctx, 'Tayyorlayapman…');
+      const prompt = `Customer id ${lead.id} has had no contact for a while and has no next step. Look at them with list_leads (lead_id), then prepare a short, warm follow-up message with draft_followup and set the next step with update_lead. If Cerebro cannot message them, write in two sentences what I should say when I phone them.`;
+      // Jurnalga mijozning ismi (begona matn) egasining gapi bo'lib yozilmasin — keyingi suhbatlarga «egasi aytgan» bo'lib o'tardi
+      return detach('qayta yozish', () => handleOwner(ctx, biz, prompt, false, { display: '✍️ Unutilgan mijozga qayta yozish matnini tayyorla' }));
+    }
+
+    // Kunlik reja (klinika): 6–12 oy oldin kelgan bemorlar ro'yxati — qabulxona qo'ng'iroq qilishi uchun
+    if (code === 'rc') {
+      await toast(ctx, "Ro'yxat olinmoqda…");
+      const list = await recallPatients(biz.id, iso(new Date()));
+      if (!list.length) return tg.sendMessage(biz.ownerChatId!, "6–12 oy oldin kelgan bemor topilmadi (yoki DentaCRM javob bermadi).").then(() => {}).catch(() => {});
+      const shown = list.slice(0, RECALL_SHOWN);
+      const lines = shown.map(p => `• ${esc(patientName(p))}${p.phone ? ` — ${esc(p.phone)}` : ''} · oxirgi: ${esc(p.lastVisit!.slice(0, 10))}`);
+      const more = list.length > shown.length ? `\n… yana ${list.length - shown.length} ta — to'liq ro'yxat DentaCRM'da` : '';
+      return sendHtml(biz.ownerChatId!, `🔁 <b>Qaytarish kerak (${list.length})</b>\nQabulxona qo'ng'iroq qilib, ko'rikka taklif qilsin:\n${lines.join('\n')}${more}`);
+    }
+
     // Birinchi kun suhbati: «o'tkazib yuborish» (aynan shu savol hali so'ralayotgan bo'lsa) yoki «to'xtatish»
     if (code === 'iv') {
       const option = /^o:(\d+):(.+)$/.exec(id);
@@ -548,9 +617,18 @@ export function createBot(): BotService {
         ? tg.editMessageText(biz.ownerChatId!, msg.message_id, undefined, html, { parse_mode: 'HTML' }).catch(ignoreUnchanged).catch(() => {})
         : Promise.resolve());
       if (code === 'td') {
+        const wasOpen = t.status === 'open';
         tasks.update(biz.id, id, { status: 'done' });
         await toast(ctx, '✅ Bajarildi');
-        return edit(reminderText(t, '✅ Bajarildi'));
+        await edit(reminderText(t, '✅ Bajarildi'));
+        // Uchrashuv, qo'ng'iroq, taklif yoki mijozga bog'liq ish: natijasi so'raladi — keyingi qadamni yordamchi qo'yadi
+        // Ikki marta bosilsa (yoki allaqachon bajarilgan bo'lsa) qayta so'ralmaydi
+        if (wasOpen && wantsOutcome(t)) {
+          askOutcome(biz, t);
+          await tg.sendMessage(biz.ownerChatId!, `«${cut(t.title, 80)}» — natijasi qanday bo'ldi? Yozing yoki ovozli ayting — mijozni yangilab, keyingi qadamni o'zim qo'yaman.`,
+            { reply_markup: kb([[b("Aytadigan narsa yo'q", `oc|${t.id}`)]]) }).catch(() => {});
+        }
+        return;
       }
       const now = new Date();
       const next = code === 'ts' ? stamp(new Date(now.getTime() + 3600_000)) : `${iso(addDays(now, 1))}T09:00`;
@@ -573,7 +651,9 @@ export function createBot(): BotService {
     if (!lead || !biz) return ctx.reply("Qaysi biznes bilan bog'lanmoqchisiz? Havolani qayta bosing.", Markup.removeKeyboard());
     const phone = contact.phone_number.startsWith('+') ? contact.phone_number : `+${contact.phone_number}`;
     const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || lead.name;
-    const updated = leads.update(biz.id, lead.id, { phone, name })!;
+    leads.update(biz.id, lead.id, { phone, name });
+    // Shu raqam bilan Instagram'da yoki qo'ng'iroqda kelgan karta bo'lsa — bitta odam, bitta karta
+    const updated = phoneChanged(biz, lead.id)!;
     await ctx.reply("Rahmat! ✅ Tez orada bog'lanamiz.\nСпасибо! Скоро свяжемся.", Markup.removeKeyboard());
     await toOwner(biz, updated, [
       '🆕 <b>Yangi mijoz</b>',
@@ -628,13 +708,16 @@ export function createBot(): BotService {
     if (biz) {
       // Mijoz xabariga "Reply" — javob mijozga ketadi
       const replyTo = ctx.message.reply_to_message?.message_id;
+      // So'rov kartasiga «Reply» — natija (mijozga ketmaydi)
+      const noted = await requestReply(chatId, replyTo, text);
+      if (noted) return ctx.reply(noted);
       const leadId = replyTo ? relays.leadFor(chatId, replyTo) : undefined;
       if (leadId) {
         const lead = leads.get(biz.id, leadId);
         if (!lead) return ctx.reply('Mijoz topilmadi.');
         try {
           // Qaysi kartaga «Reply» qilingani ma'lum: o'sha tayyor javob o'rniga yozilgan bo'lsa — tuzatish sifatida o'rganiladi
-          await ownerWrites(biz, lead, text, replies.byOwnerMessage(biz.id, replyTo!)?.id);
+          await ownerWrites(biz, lead, text, replyCards.byMessage(chatId, replyTo!) ?? replies.byOwnerMessage(biz.id, replyTo!)?.id);
           return ctx.reply(`✅ ${personName(lead)}ga yuborildi.`);
         } catch (e) {
           return ctx.reply(`⚠️ Yuborilmadi: ${(e as Error).message}`);
@@ -642,6 +725,8 @@ export function createBot(): BotService {
       }
       return detach('javob', () => handleOwner(ctx, biz, text));
     }
+    // Qabulxona xodimi: yordamchi bilan gaplashmaydi, faqat so'rovlar
+    if (await staffText(ctx, text)) return;
     const lead = leads.latestForUser(String(ctx.from.id));
     if (lead) return customerMessage(ctx, lead, text);
     await ctx.reply("Assalomu alaykum! Bu Cerebro — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz, paneldagi «Telegramni ulash» havolasini bosing.");
@@ -855,6 +940,7 @@ export function createBot(): BotService {
       return `b${m.message_id}`;
     },
   });
+  setTeamOutlet(teamOutlet(tg));
   setOwnerOutlet({
     async notify(biz, html, keyboard) {
       if (!biz.ownerChatId) return null;
@@ -916,7 +1002,18 @@ export function createBot(): BotService {
       if (!biz.ownerChatId) return;
       await tg.sendMessage(biz.ownerChatId, reminderText(t), { parse_mode: 'HTML', reply_markup: reminderKeyboard(t) });
     },
-    sendText: (chatId, html) => sendHtml(chatId, html),
+    sendText: (chatId, html, buttons) => sendHtml(chatId, html, buttons),
+    async deliverReply(biz, text, artifacts) {
+      if (!biz.ownerChatId) throw new Error("Egasi Telegram'da ulanmagan");
+      const chat = biz.ownerChatId;
+      await sendHtml(chat, `📞 ${tgHtml(text)}`);
+      for (const a of artifacts) await sendArtifact(biz, chat, a);
+    },
+    async prepareDay(biz, prompt, display) {
+      if (!biz.ownerChatId) return;
+      const reply = await ask(biz.id, 'telegram', prompt, { display });
+      await deliver(biz, biz.ownerChatId, reply);
+    },
     async startInterview(biz) {
       if (!biz.ownerChatId) throw new Error("Egasi hali Telegram'ni ulamagan — avval ulash havolasini bossin");
       await sendInterview(biz, interviewStart(biz));
@@ -938,6 +1035,9 @@ export function createBot(): BotService {
     },
   };
 }
+
+/** Qaytarish ro'yxatida Telegram'ga shuncha bemor chiqadi (qolgani — DentaCRM'da) */
+const RECALL_SHOWN = 40;
 
 /** Yangi bot Telegram'da tanilishini shuncha kutamiz (javob bermasa ham kalit saqlanadi — bot fonda ulanadi) */
 const SWAP_WAIT_MS = 5_000;

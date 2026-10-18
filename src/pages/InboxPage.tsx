@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ClientCard } from './ClientCard';
 import { ArrowLeft, Bot, Check, Loader2, Phone, Send, Users, X } from 'lucide-react';
 import type { AutoReply, InboxMessage, InboxThread, Lead, LeadChannel, LeadStage, Outbound, ReplyDraft } from '../types';
 import { api } from '../data/api';
@@ -54,6 +55,7 @@ function LeadFacts({ lead, notify, onSaved }: { lead: Lead; notify: Notify; onSa
   };
   const stage = picked ?? lead.stage;
   return (
+    <>
     <div className="mt-2 flex items-center gap-2">
       <input
         value={draft ?? saved}
@@ -71,6 +73,30 @@ function LeadFacts({ lead, notify, onSaved }: { lead: Lead; notify: Notify; onSa
         {STAGE_IDS.map(s => <option key={s} value={s}>{STAGES[s].label}</option>)}
       </select>
     </div>
+    {(stage === 'new' || stage === 'contacted') && <NextStep lead={lead} save={save} />}
+    </>
+  );
+}
+
+/** Keyingi qadam: nima va qachon — ertalabki rejada shu kuni chiqadi. Maydondan chiqilganda saqlanadi */
+function NextStep({ lead, save }: { lead: Lead; save: (patch: Parameters<typeof api.updateLead>[1], done: string) => Promise<boolean> }) {
+  const [step, setStep] = useState<string | null>(null);
+  const [at, setAt] = useState<string | null>(null);
+  const commit = async () => {
+    const nextStep = (step ?? lead.nextStep ?? '').trim() || null;
+    const nextAt = (at ?? lead.nextAt ?? '') || null;
+    if (nextStep === lead.nextStep && nextAt === lead.nextAt) { setStep(null); setAt(null); return; }
+    // Saqlash paytida boshqa maydon o'zgargan bo'lsa — u yo'qolmaydi (faqat saqlangan qiymat bo'shatiladi)
+    if (await save({ nextStep, nextAt }, 'Keyingi qadam saqlandi')) { setStep(s => (s === step ? null : s)); setAt(a => (a === at ? null : a)); }
+  };
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      <input value={step ?? lead.nextStep ?? ''} onChange={e => setStep(e.target.value)} onBlur={() => void commit()} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+        placeholder="Keyingi qadam: taklif yuborish, qayta qo'ng'iroq…" aria-label="Keyingi qadam" maxLength={200}
+        className="min-w-0 flex-1 basis-48 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none" />
+      <input type="datetime-local" value={at ?? lead.nextAt ?? ''} onChange={e => setAt(e.target.value)} onBlur={() => void commit()} aria-label="Keyingi qadam vaqti"
+        className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:border-indigo-400 focus:outline-none" />
+    </div>
   );
 }
 
@@ -80,6 +106,7 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
   /** «Tahrirlab yozish» bosilgan taklif: yuborilganda Cerebro farqidan o'rganadi */
   const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [tab, setTab] = useState<'chat' | 'card'>('chat');
   const bottom = useRef<HTMLDivElement>(null);
   const load = () => api.thread(leadId).then(setData).catch(e => notify((e as Error).message, true));
   useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 10_000); return () => clearInterval(t); }, [leadId]);
@@ -115,7 +142,14 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
           </div>
         </div>
         <LeadFacts lead={lead} notify={notify} onSaved={() => load().then(onChanged)} />
+        <div role="tablist" aria-label="Mijoz" className="mt-3 flex gap-1">
+          {([['chat', 'Yozishma'], ['card', 'Karta']] as const).map(([k, label]) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${tab === k ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{label}</button>
+          ))}
+        </div>
       </header>
+      {tab === 'card' ? <div className="flex-1 overflow-y-auto"><ClientCard leadId={leadId} notify={notify} /></div> : (<>
       <div className="flex-1 space-y-2 overflow-y-auto py-4">
         {!messages.length && <p className="py-6 text-center text-sm text-slate-400">Bu mijoz bilan hali yozishma yo'q.</p>}
         {messages.map(m => (
@@ -139,13 +173,14 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
           <div key={r.id} className="ml-auto max-w-[85%] rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm">
             <div className="mb-1 text-[11px] font-bold text-amber-800">✍️ Javob taklifi — tasdiqlaysizmi?</div>
             {r.booking && <p className="mb-1.5 rounded-lg bg-white/70 px-2 py-1 text-xs font-semibold text-slate-800">📅 Qabulga yozadi: {r.booking.doctorName}, {r.booking.date} {r.booking.time} — {r.booking.name}, {r.booking.phone}</p>}
+            {r.change && <p className="mb-1.5 rounded-lg bg-white/70 px-2 py-1 text-xs font-semibold text-slate-800">🔁 {r.change.kind === 'move' ? `Qabulni ko'chiradi: ${r.change.doctorName}, ${r.change.from} → ${r.change.date} ${r.change.time}` : `Qabulni bekor qiladi: ${r.change.doctorName}, ${r.change.from}`}</p>}
             <p className="whitespace-pre-line">{r.text}</p>
             {r.note && <p className="mt-1.5 text-xs text-amber-900">ℹ️ {r.note}</p>}
             <div className="mt-2 flex flex-wrap gap-2">
               <Button size="sm" variant="primary" disabled={!!busy} onClick={() => act(r.id, () => api.sendReply(r.id), 'Yuborildi')}>
-                {busy === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} {r.booking ? 'Yozish va yuborish' : 'Yuborish'}
+                {busy === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} {r.booking ? 'Yozish va yuborish' : r.change ? (r.change.kind === 'move' ? "Ko'chirish va yuborish" : 'Bekor qilish va yuborish') : 'Yuborish'}
               </Button>
-              {!r.booking && <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => { setText(r.text); setEditing(r.id); }}>Tahrirlab yozish</Button>}
+              {!r.booking && !r.change && <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => { setText(r.text); setEditing(r.id); }}>Tahrirlab yozish</Button>}
               <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => act(`x${r.id}`, () => api.dismissReply(r.id))}><X className="h-3.5 w-3.5" /> Kerak emas</Button>
             </div>
           </div>
@@ -162,6 +197,7 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
         </button>
       </form>
       {!lead.reachable && lead.channel === 'instagram' && <p className="pt-2 text-xs text-slate-400">Instagram ulanmagan — «Ulanishlar»da qayta ulang.</p>}
+      </>)}
     </div>
   );
 }

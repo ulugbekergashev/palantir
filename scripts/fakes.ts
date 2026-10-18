@@ -316,8 +316,11 @@ export const ai = {
   replier: [] as { user: string; format: unknown }[],
   /** Stend: taqlid miya (scripts/stendBrain.ts). Berilsa — pastdagi kalit so'zli qoidalar o'rniga shu javob beradi */
   owner: null as ((messages: Msg[], tools: Block[], system: string) => { content: Block[]; stop: string }) | null,
-  customer: null as ((user: string) => Record<string, string>) | null,
+  customer: null as ((user: string) => Record<string, unknown>) | null,
   vision: null as ((caption: string) => string) | null,
+  /** Qo'ng'iroq tahlili so'rovlari (modelga borgan matn) va javobi (berilmasa — tayyor «qabulga yozildi») */
+  calls_analysed: [] as string[],
+  callAnalysis: null as ((user: string) => Record<string, unknown>) | null,
 };
 
 /**
@@ -520,6 +523,17 @@ export const aiServer = createServer(async (req, res) => {
   if (String(body.system).startsWith('You review a recorded phone call')) {
     const text = "📞 Qisqacha\nMijoz narx so'radi.\n✅ Natija\nKelishilmadi.\n➡️ Keyingi qadam\nQayta qo'ng'iroq qiling.";
     return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 10 } });
+  }
+
+  // Yozib olingan qo'ng'iroq tahlili (phone/analysis.ts): qat'iy JSON
+  if (String(body.system).startsWith('You analyse a recorded phone call')) {
+    const user = String(body.messages[0]?.content ?? '');
+    ai.calls_analysed.push(user);
+    const result = ai.callAnalysis ? ai.callAnalysis(user) : {
+      summary: "Mijoz implant narxini so'radi, ertaga 10:00 ga yozildi.", customer_name: 'Dilnoza', wants: "Implant narxi va vaqti", outcome: 'booked', agreed: 'Ertaga 10:00, Rustamov',
+      next_step: "Ertalab eslatma yuborish", request_kind: 'none', request_summary: '', request_due: '', score: 8, staff_note: "Narxni aniq aytdi, vaqt taklif qildi",
+    };
+    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: JSON.stringify(result) }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 20 } });
   }
 
   if (String(body.system).startsWith('You answer customer messages')) {

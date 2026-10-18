@@ -21,6 +21,8 @@ export interface ToolCtx {
   fromPhoto?: boolean;
   /** Shu javob davomida mijozlar yozgan matn o'qildi (yozishma, mijozlar ro'yxati): u ham begona matn */
   readStrangers?: boolean;
+  /** Shu gapda qo'shilgan mijozlar soni (chegara: tools.ts MAX_LEADS_PER_TURN) */
+  leadsSaved?: number;
 }
 
 /** Doimiy bilimga (fakt, narx, sahifa) yozishdan oldin: begona matn — rasmdagi yozuv yoki mijozning xabari — shu yo'l bilan bilimga aylanmasin */

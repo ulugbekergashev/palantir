@@ -40,7 +40,7 @@ const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-e2e-'));
 const PORT = 3290;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
-    ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
+    ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700',
     GEMINI_API_KEY: 'g-test', GROQ_API_KEY: 'q-test', VOICELAB_API_KEY: '', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, GROQ_STT_URL: `http://127.0.0.1:${sttPort}/groq`,
     MORNING_HOUR: String(new Date().getHours()), WEB_SEARCH: '1', SESSION_SECRET: 'e2e-secret',
@@ -523,6 +523,16 @@ try {
   const phoneReq = ai.requests.slice(beforePhone).find(r => String(r.system).startsWith('You are Cerebro'));
   ok("telefon: jurnalda 📞, modelga «live phone call» belgisi, tez o'ylash (effort low)", phone.status === 200 && phone.json.entries?.[0]?.text === '📞 Bugun nima ishlarim bor?'
     && JSON.stringify(phoneReq?.messages.at(-1) ?? '').includes('live phone call') && phoneReq?.effort === 'low', JSON.stringify({ e: phone.json.entries?.[0]?.text, effort: phoneReq?.effort }));
+  // Qo'ng'iroqda hujjat so'raldi: telefonda ko'rsatib bo'lmaydi — egasining Telegram'iga boradi, AI'ga «yuborildi» deyiladi
+  mark = sent.length;
+  const phoneDoc = await api('/api/chat', { token, body: { text: 'Aliyevga tijorat taklifi tayyorla', phone: true, deliver: 'telegram' } });
+  const phoneDocMsg = await waitFor("telefondan so'ralgan hujjat", () => after(mark, OWNER, s => s.method === 'sendDocument'));
+  ok("telefon: so'ralgan hujjat egasining Telegram'iga keldi, javobda delivered", phone.status === 200 && phoneDoc.json.delivered === true
+    && phoneDocMsg?.file?.subarray(0, 2).toString() === 'PK' && !!after(mark, OWNER, s => s.method === 'sendMessage' && textOf(s).startsWith('📞')));
+  mark = sent.length;
+  const phoneNoDeliver = await api('/api/chat', { token, body: { text: 'Aliyevga tijorat taklifi tayyorla', phone: true } });
+  await new Promise(r => setTimeout(r, 300));
+  ok("telefon: deliver so'ralmasa Telegram'ga yuborilmaydi", phoneNoDeliver.json.delivered === false && !after(mark, OWNER, s => s.method === 'sendDocument'));
   const plainReq = ai.requests.slice(beforePhone).filter(r => String(r.system).startsWith('You are Cerebro'));
   ok("oddiy chat: telefon belgisi yo'q, o'ylash o'rtacha", plainReq.length > 0 && !ai.requests.slice(0, beforePhone).some(r => JSON.stringify(r.messages.at(-1) ?? '').includes('live phone call'))
     && ai.requests.slice(0, beforePhone).filter(r => String(r.system).startsWith('You are Cerebro')).every(r => r.effort === 'medium'));

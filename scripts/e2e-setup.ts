@@ -39,6 +39,8 @@ ok('chala bot tokeni — sababi bilan', /35 belgi/.test(classifyLine('7412589630
 ok('Claude, Gemini, Groq kalitlari', classifyLine(CLAUDE)?.key === 'ANTHROPIC_API_KEY' && classifyLine(GEMINI)?.key === 'GEMINI_API_KEY' && classifyLine(`gsk_${'a'.repeat(52)}`)?.key === 'GROQ_API_KEY');
 ok('chala Gemini kaliti — xato', !!classifyLine('AIzaSyB7xK2')?.error);
 ok('Telegram API hash (32 hex)', classifyLine('0123456789abcdef0123456789abcdef')?.key === 'TG_API_HASH');
+ok("Cerebro Hub kodi: «chub.» — tanildi; chala kod — sababi bilan", classifyLine(`chub.aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`)?.key === 'CEREBRO_HUB' && !classifyLine(`chub.aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`)?.error
+  && !!classifyLine('chub.abc')?.error);
 ok('kamera, DentaCRM, Instagram, telefon', classifyLine('rtsp://admin:p@192.168.1.64:554/x')?.kind === 'rtsp' && classifyLine('https://shifo.dentacrm.uz')?.kind === 'crm'
   && classifyLine('instagram.com/shifodent')?.kind === 'instagram' && classifyLine('+998 90 123 45 67')?.kind === 'phone');
 ok('tanilmagan qator — unknown', classifyLine('Klinika2026!')?.kind === 'unknown');
@@ -129,7 +131,7 @@ async function start(): Promise<void> {
   serverLog = '';
   server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
     env: {
-      ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, BOT_TOKEN: '', ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: '',
+      ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '', ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: '',
       GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_API_ID: '', TG_API_HASH: '',
       TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, ANTHROPIC_BASE_URL: `http://127.0.0.1:${keysPort}`,
       GEMINI_API_ROOT: `http://127.0.0.1:${keysPort}`, GROQ_API_ROOT: `http://127.0.0.1:${keysPort}`,
@@ -170,7 +172,7 @@ try {
   ok('kalitlar ro\'yxati — faqat admin', (await api('/api/admin/keys')).status === 401);
   const admin = (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token as string;
   const keys0 = (await api('/api/admin/keys', { token: admin })).json.keys as { name: string; source: string | null }[];
-  ok("ro'yxat: 8 ta kalit, hammasi berilmagan", keys0.length === 8 && keys0.every(k => k.source === null));
+  ok("ro'yxat: 9 ta kalit (Cerebro Hub kodi bilan), hammasi berilmagan", keys0.length === 9 && keys0.every(k => k.source === null));
   const put = (name: string, value: string, force = false) => api(`/api/admin/keys/${name}`, { method: 'PUT', token: admin, body: { value, force } });
   const wrongShape = await put('BOT_TOKEN', CLAUDE);
   ok("bot tokeni o'rniga Claude kaliti — rad, sababi bilan", wrongShape.status === 400 && /claude/i.test(wrongShape.json.error), wrongShape.json.error);

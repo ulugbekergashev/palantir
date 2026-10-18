@@ -227,7 +227,7 @@ const button = (m: Json, code: string): string => m?.buttons.flat().find((b: Jso
 async function liveTests(): Promise<void> {
   const { spawn } = await import('node:child_process');
   let log = '';
-  const stend = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'scripts/stend.ts'], { env: { ...process.env, STEND_PORT: String(PORT), STEND_FAKE_AI: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const stend = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'scripts/stend.ts'], { env: { ...process.env, STEND_PORT: String(PORT), STEND_FAKE_AI: '1', EVENING_HOUR: '99' }, stdio: ['ignore', 'pipe', 'pipe'] });
   stend.stdout.on('data', d => { log += d; });
   stend.stderr.on('data', d => { log += d; });
   try {
