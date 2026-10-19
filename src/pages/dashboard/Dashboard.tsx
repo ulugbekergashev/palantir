@@ -21,7 +21,7 @@ const Instagram: Icon = ({ className }) => (
 
 const REFRESH_MS = 30_000;
 const PERIOD_KEY = 'cerebro_dashboard_period';
-const COLORS = { instagram: '#d6336c', telegram: '#229ed9', callsIn: '#0e9f6e', callsOut: '#6d5bd0', missed: '#d97706', ink: '#13161d' } as const;
+const COLORS = { instagram: '#d6336c', telegram: '#229ed9', callsIn: '#0e9f6e', callsOut: '#6d5bd0', missed: '#d97706', ink: '#d5d8de' } as const;
 
 const readPeriod = (): PeriodKey => { try { const v = localStorage.getItem(PERIOD_KEY); return v === 'yesterday' || v === 'week' || v === 'month' ? v : 'today'; } catch { return 'today'; } };
 const savePeriod = (v: PeriodKey) => { try { localStorage.setItem(PERIOD_KEY, v); } catch { /* yopiq xotira */ } };

@@ -77,7 +77,7 @@ const PORT = 3296, base = `http://127.0.0.1:${PORT}`;
 const procs: ChildProcess[] = [];
 let log = '';
 const start = (script: string, env: Record<string, string>) => {
-  const p = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', script], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const p = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', script], { env: { ...process.env, DOTENV: '0', ASTERISK_WSL: '0', ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
   p.stdout!.on('data', d => { log += d; });
   p.stderr!.on('data', d => { log += d; });
   procs.push(p);

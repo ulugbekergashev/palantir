@@ -10,6 +10,11 @@ import type { AgentEvent, AgentOrder, OrderMember, OrderSpec } from '../types';
 import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 
 export type RequestView = LeadRequest & { lead: Lead | null };
+/** «Sizni kutyapti» qatori (server/attention.ts) */
+export interface AttentionItem {
+  key: string; kind: 'camera' | 'request' | 'reply' | 'task' | 'order'; member: OrderMember; refId: string;
+  title: string; body: string; at: string; phone: string | null; urgent: boolean;
+}
 /** Telefon liniyasi (server/voice/line.ts LineView) */
 export interface PhoneLine {
   trunk: { host: string; port: number; login: string; number: string } | null;
@@ -110,6 +115,9 @@ export const api = {
   cameraLive: () => call<{ live: Record<string, { at: string; people: number }> }>('/cameras/live'),
   askCamera: (question: string, cameraId?: string, image?: string) => call<{ answers: { cameraId: string; name: string; answer: string }[] }>('/cameras/ask', { body: { question, cameraId, image } }),
   setCameraProfile: (id: string, profile: string) => call<{ camera: Camera }>(`/cameras/${id}/profile`, { method: 'PUT', body: { profile } }),
+  // ─── «Sizni kutyapti»: hamma xodimdan egasining qarorini kutayotganlar (server/attention.ts) ───
+  attention: () => call<{ items: AttentionItem[] }>('/attention'),
+  seeEvent: (id: string) => call<{ ok: true }>(`/agents/events/${id}/seen`, { body: {} }),
   // ─── Telefon liniyasi (Asterisk): shahar raqami, kim javob beradi, administrator telefoni ───
   phoneLine: () => call<{ line: PhoneLine }>('/phone/line'),
   savePhoneTrunk: (t: { host: string; port: number; login: string; number: string; password?: string }) => call<{ line: PhoneLine; warning: string | null }>('/phone/line/trunk', { method: 'PUT', body: t }),

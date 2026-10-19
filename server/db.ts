@@ -495,6 +495,9 @@ export const replies = {
   open: (businessId: string, leadId: string) =>
     many("SELECT * FROM replies WHERE business_id = ? AND lead_id = ? AND status IN ('pending', 'scheduled') ORDER BY created_at", toReply, businessId, leadId),
   /** Biznes bo'yicha egasining tasdig'ini kutayotgan javoblar (kunlik reja uchun) */
+  /** Egasining tasdig'ini kutayotgan javoblar (bosh ekran: «Sizni kutyapti»), yangisi tepada */
+  pendingList: (businessId: string, limit = 20) =>
+    many("SELECT * FROM replies WHERE business_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT ?", toReply, businessId, limit),
   pendingTotal: (businessId: string) =>
     Number((db.prepare("SELECT COUNT(*) n FROM replies WHERE business_id = ? AND status = 'pending'").get(businessId) as Raw).n),
   countPending: (businessId: string, leadId: string) =>

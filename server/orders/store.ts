@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS agent_events (
 );
 CREATE INDEX IF NOT EXISTS agent_events_member ON agent_events (business_id, member, at);
 `);
+sql.ensureColumns('agent_events', { seen_at: 'TEXT' });
 
 /** Bitta xodimga shuncha topshiriq; jurnal sahifasi */
 export const MAX_ORDERS = 30;
@@ -83,6 +84,11 @@ export const events = {
   list: (bizId: string, member: OrderMember, opts: { cameraId?: string; before?: string } = {}) =>
     sql.many(`SELECT * FROM agent_events WHERE business_id = ? AND member = ?${opts.cameraId ? ' AND camera_id = ?' : ''}${opts.before ? ' AND at < ?' : ''} ORDER BY at DESC LIMIT ?`,
       toEvent, bizId, member, ...(opts.cameraId ? [opts.cameraId] : []), ...(opts.before ? [opts.before] : []), EVENTS_PAGE),
+  /** Egasi ko'rmagan muammolar (bosh ekran: «Sizni kutyapti») — shundan beri */
+  unseen: (bizId: string, sinceIso: string) =>
+    sql.many("SELECT * FROM agent_events WHERE business_id = ? AND level IN ('warn', 'crit') AND seen_at IS NULL AND at >= ? ORDER BY at DESC LIMIT 20", toEvent, bizId, sinceIso),
+  /** Egasi ko'rdi */
+  see: (bizId: string, id: string) => sql.run('UPDATE agent_events SET seen_at = ? WHERE business_id = ? AND id = ? AND seen_at IS NULL', sql.nowIso(), bizId, id).changes > 0,
   /** Hodisa kadri (yo'q yoki o'chgan bo'lsa — null) */
   image(bizId: string, id: string): Buffer | null {
     const file = sql.one('SELECT image FROM agent_events WHERE business_id = ? AND id = ?', r => sql.str(r.image), bizId, id);

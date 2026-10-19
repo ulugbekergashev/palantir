@@ -2,7 +2,8 @@
  * AI bosh ekran (#/ai): egasi qo'l bilan emas, ovoz bilan ishlaydi. Markazda Cerebro — bosing va gapiring: jonli suhbat
  * (Gemini Live, telefondagi yordamchining o'zi), javob ovozda va ekranda; asbob natijasi (vazifalar, Cerebro javobi) karta bo'lib chiqadi.
  * Pastda AI jamoa — Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi: har biri hozir nima qilayotgani haqiqiy ma'lumotdan.
- * Kartani bosish — o'sha xodimning sahifasi (qobiq: LiveApp, chap ustun — Rail).
+ * Kartani bosish — o'sha xodimning sahifasi (qobiq: LiveApp, chap ustun — Rail). O'rtada «Sizni kutyapti» — hamma xodimdan egasining qarorini
+ * kutayotganlar (components/Attention.tsx).
  */
 import { useState, type FormEvent } from 'react';
 import { ArrowUp, Mic, Sparkles, Square } from 'lucide-react';
@@ -12,6 +13,8 @@ import { hrefOf } from '../lib/nav';
 import { api } from '../data/api';
 import { Markdown } from '../components/Markdown';
 import { useVoice, type VoiceMode } from '../lib/useVoice';
+import { Attention } from '../components/Attention';
+import type { Notify } from '../components/Artifacts';
 
 const WEEKDAYS = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba'];
 const MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
@@ -26,7 +29,7 @@ const STATE_TEXT: Record<VoiceMode, string> = {
 
 const greeting = (h: number) => (h < 5 ? 'Xayrli tun' : h < 12 ? 'Xayrli tong' : h < 18 ? 'Xayrli kun' : 'Xayrli kech');
 
-export function AiPage({ biz, now, team }: { biz: Business; status: LiveStatus; now: Date; team: Record<Member, MemberState> | null }) {
+export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Business; status: LiveStatus; now: Date; team: Record<Member, MemberState> | null; notify: Notify; tick: number; onChanged: () => void }) {
   const { mode, active, you, ai, cards, error, toggle, orb, push, setYou, setAi, setError, nextId } = useVoice('owner');
   const [typed, setTyped] = useState('');
   const [busyText, setBusyText] = useState(false);
@@ -138,6 +141,9 @@ export function AiPage({ biz, now, team }: { biz: Business; status: LiveStatus; 
             <ArrowUp className="h-5 w-5" aria-hidden="true" />
           </button>
         </form>
+
+        {/* Hamma xodimdan sizning qaroringizni kutayotganlar — bitta joyda */}
+        <Attention notify={notify} tick={tick} onChanged={onChanged} />
 
         {/* AI jamoa — har biri o'z ishida */}
         <section aria-label="AI jamoa" className="mt-14 w-full">

@@ -28,7 +28,7 @@ const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-dash-'));
 const PORT = 3297, base = `http://127.0.0.1:${PORT}`;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
-    ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
+    ...process.env, DOTENV: '0', ASTERISK_WSL: '0', PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', SESSION_SECRET: 'dash-secret', TICK_MS: '60000',
     MONITOR_MS: '500', MONITOR_GRACE_MS: '1500',
     MORNING_HOUR: '99', EVENING_HOUR: '99', WEB_SEARCH: '0', BACKUP_KEEP: '0', GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '',
@@ -151,7 +151,7 @@ try {
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
-  await page.goto(`${base}/#/home`, { waitUntil: 'networkidle' });
+  await page.goto(`${base}/#/tahlilchi/hisobot`, { waitUntil: 'networkidle' });
   await page.getByText('Murojaatlar sharhi').waitFor({ timeout: 10000 });
   await page.waitForTimeout(700);
   await page.screenshot({ path: join(OUT, 'dashboard-1440.png'), fullPage: true });

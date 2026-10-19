@@ -38,6 +38,7 @@ import { clientCard } from './clientCard';
 import { MAX_PERIOD_DAYS, daysIn, periodDays, type PeriodKey } from '../src/lib/dashboard';
 import { phoneChanged } from './people';
 import { mountOrders } from './orders/routes';
+import { mountAttention } from './attention';
 
 type Handler = (req: Request, res: Response) => unknown;
 
@@ -483,6 +484,7 @@ export function createApp(bot: BotService) {
   mountPhone(app, { asBiz, bad, fail });
   mountBrain(app, { asBiz, bad, fail });
   mountOrders(app, { asBiz, bad, fail, bot });
+  mountAttention(app, { asBiz });
   mountSetup(app, { asBiz, asAdmin, bad, fail, bot, statusOf: bizId => status(businesses.byId(bizId)!, bot) });
 
   // ─── Mijozlarga javob: rejim va yozishmalar ────────────────────────────────

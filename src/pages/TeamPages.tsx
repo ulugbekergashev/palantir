@@ -21,6 +21,7 @@ import { OrdersPanel } from '../components/Orders';
 import { AgentJournal } from '../components/Journal';
 import { CallsPage } from './CallsPage';
 import { CamerasPage } from './CamerasPage';
+import { Dashboard } from './dashboard/Dashboard';
 import { ChatPage } from './ChatPage';
 import { InboxPage } from './InboxPage';
 import { JournalPage } from './JournalPage';
@@ -121,19 +122,21 @@ export function WatchArea({ tab, notify, state, tick }: Common) {
   );
 }
 
-export function AnalystArea({ tab, notify, state }: Common) {
-  const active = pick(tab, ['raqamlar', 'topshiriqlar']);
+export function AnalystArea({ tab, biz, status, notify, state }: Common) {
+  const active = pick(tab, ['raqamlar', 'hisobot', 'topshiriqlar']);
   const [period, setPeriod] = useState<'today' | 'yesterday' | 'week' | 'month'>('week');
   const data = useAnalystData(period, notify);
   return (
     <div className="space-y-6">
       <AgentHero member="tahlilchi" state={state} stats={analystStats(data?.dashboard ?? null, data?.funnel ?? null)}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <AgentTabs area="tahlilchi" active={active} tabs={[{ id: 'raqamlar', label: 'Raqamlar' }, { id: 'topshiriqlar', label: 'Topshiriqlar' }]} />
+          <AgentTabs area="tahlilchi" active={active} tabs={[{ id: 'raqamlar', label: 'Raqamlar' }, { id: 'hisobot', label: "To'liq hisobot" }, { id: 'topshiriqlar', label: 'Topshiriqlar' }]} />
           {active === 'raqamlar' && <PeriodSwitch value={period} onChange={setPeriod} />}
         </div>
       </AgentHero>
-      {active === 'raqamlar' ? <AnalystBody data={data} /> : <OrdersPanel member="tahlilchi" notify={notify} />}
+      {active === 'raqamlar' && <AnalystBody data={data} />}
+      {active === 'hisobot' && <Dashboard status={status} clinic={isMedical(biz.industry)} notify={notify} />}
+      {active === 'topshiriqlar' && <OrdersPanel member="tahlilchi" notify={notify} />}
     </div>
   );
 }

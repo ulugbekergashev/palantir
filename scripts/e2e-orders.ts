@@ -92,6 +92,15 @@ export async function orderApiTests(h: Harness): Promise<void> {
   ok("topshiriq: egasiga Telegram'da aytildi", told, sent.slice(before).map(m => String(m.params.text ?? '').slice(0, 60)).join(' | '));
   for (let i = 0; i < 3; i++) { await api(`/api/cameras/${cam.id}/observe`, { token, body: person }); await sleep(500); }
   ok("topshiriq: holat davom etsa — ikkinchi xabar yo'q", ((await api('/api/agents/kuzatuvchi/events', { token })).json.events ?? []).length === 1);
+  // «Sizni kutyapti»: kamera hodisasi va kechikkan ish bosh ekranda; «ko'rdim» — ro'yxatdan tushadi
+  const late = (await api('/api/tasks', { token, body: { title: 'Kechikkan sinov ishi', dueAt: '2026-01-01T09:00' } })).json.task;
+  const att = (await api('/api/attention', { token })).json.items as { key: string; kind: string; refId: string; title: string }[];
+  ok("kutyapti: kamera hodisasi va kechikkan ish ro'yxatda, kamera tepada", att?.[0]?.kind === 'camera' && att.some(i => i.kind === 'camera' && i.refId === events[0].id) && att.some(i => i.kind === 'task' && i.refId === late?.id), JSON.stringify(att?.map(i => i.key)));
+  ok("kutyapti: begona biznes ko'rmaydi va «ko'rdim» bosa olmaydi", ((await api('/api/attention', { token: otherToken })).json.items ?? []).every((i: { refId: string }) => i.refId !== events[0].id)
+    && (await api(`/api/agents/events/${events[0].id}/seen`, { token: otherToken, body: {} })).status === 404);
+  ok("kutyapti: «ko'rdim» — hodisa ro'yxatdan tushdi", (await api(`/api/agents/events/${events[0].id}/seen`, { token, body: {} })).status === 200
+    && !((await api('/api/attention', { token })).json.items as { refId: string }[]).some(i => i.refId === events[0].id));
+  await api(`/api/tasks/${late.id}`, { method: 'PATCH', token, body: { status: 'done' } });
   ok("topshiriq: begona biznes tavsifni o'zgartira olmaydi", (await api(`/api/cameras/${cam.id}/profile`, { method: 'PUT', token: otherToken, body: { profile: 'x' } })).status === 404);
   ok("topshiriq: begona biznes kameraga savol bera olmaydi", (await api('/api/cameras/ask', { token: otherToken, body: { question: 'Kim bor?', cameraId: cam.id } })).status === 404);
   ok("topshiriq: begona biznes kamera sonini ko'rmaydi", !(await api('/api/cameras/live', { token: otherToken })).json.live?.[cam.id]);

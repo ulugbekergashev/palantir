@@ -90,7 +90,7 @@ export default function LiveApp() {
       <WakeOverlay wake={wake} />
       {area === 'ai' ? (
         <main key="ai" ref={main} tabIndex={-1} className="outline-none">
-          <AiPage biz={biz} status={status} now={now} team={team} />
+          <AiPage biz={biz} status={status} now={now} team={team} notify={notify} tick={tick} onChanged={changed} />
         </main>
       ) : (
         <main key={area} ref={main} tabIndex={-1} className={`animate-rise mx-auto w-full px-4 py-5 outline-none sm:px-6 sm:py-7 lg:px-10 lg:py-9 ${area === 'miya' ? 'max-w-[1500px]' : 'max-w-6xl'}`}>
