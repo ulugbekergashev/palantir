@@ -21,6 +21,8 @@ import { orders } from '../orders/store';
 import { forgetWatchCache } from '../orders/watch';
 import { chairUse, waitStats } from './occupancy';
 import { settleWaits, waitingIn, waitingNow } from './waiting';
+import { judgeLook, type TamperEvent, type TamperState } from './tamper';
+import type { Look } from './wire';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -84,6 +86,23 @@ function apply(biz: BusinessRow, cam: Camera, events: ZoneEvent[]): void {
 type FrameListener = (biz: BusinessRow, cam: Camera, people: { x: number; y: number; w: number; h: number }[], now: number) => void;
 const frameListeners: FrameListener[] = [];
 export const onCameraFrame = (fn: FrameListener): void => { frameListeners.push(fn); };
+
+/** Kamera yopildi/burildi (tamper.ts): hodisani kutayotganlar (xabar — orders/run.ts) va har kameraning odatiy ko'rinishi */
+type LookListener = (biz: BusinessRow, cam: Camera, event: TamperEvent) => void;
+const lookListeners: LookListener[] = [];
+export const onCameraLook = (fn: LookListener): void => { lookListeners.push(fn); };
+const looks = new Map<string, TamperState>();
+/** Zonalar yoki manzil o'zgardi: odatiy ko'rinish qaytadan o'rganiladi (egasi kamerani yangi joyga moslagan) */
+const forgetLook = (cameraId: string) => looks.delete(cameraId);
+
+function judgeFrame(biz: BusinessRow, cam: Camera, look: Look, now: number): void {
+  const r = judgeLook(looks.get(cam.id), look, now, { warmupMs: env.cameraTamperWarmupSec * 1000, holdMs: env.cameraTamperHoldSec * 1000 });
+  looks.set(cam.id, r.next);
+  if (!r.event) return;
+  for (const fn of lookListeners) {
+    try { fn(biz, cam, r.event); } catch (e) { console.error('[kamera] yopildi/burildi xabari:', (e as Error).message); }
+  }
+}
 
 /** Kadr natijasini qo'llaydi: seanslarni ochadi/yopadi, zonalarning hozirgi holatini qaytaradi */
 export function observe(biz: BusinessRow, cam: Camera, people: { x: number; y: number; w: number; h: number }[], now = Date.now()): Record<string, 'empty' | 'entering' | 'open'> {
@@ -186,9 +205,11 @@ const sameBox = (a: CameraZone, b: { kind: string; x: number; y: number; w: numb
 export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
   cameraSessions.closeDangling();
   // IP kameralar: dvigatel topgan odamlar brauzerdan kelgan kuzatuv bilan bir xil yo'ldan o'tadi
-  startCameraEngine((businessId, cameraId, people) => {
+  startCameraEngine((businessId, cameraId, people, look) => {
     const biz = businesses.byId(businessId), cam = cameras.get(businessId, cameraId);
-    if (biz?.active && cam) observe(biz, cam, people);
+    if (!biz?.active || !cam) return;
+    observe(biz, cam, people);
+    if (look) judgeFrame(biz, cam, look, Date.now());
   });
   const found = (res: Response, biz: BusinessRow, id: string | string[] | undefined): Camera | null => {
     const cam = cameras.get(biz.id, String(id));
@@ -275,7 +296,10 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
       return { id: keep, kind: zn.kind, name: zn.name, x: zn.x, y: zn.y, w: zn.w, h: zn.h, doctorId: zn.doctorId || null };
     });
     // Joyi o'zgarmagan zonaning seansi uzilmaydi (nomini tahrirlash o'tirgan bemorni ikkiga bo'lmasin)
-    reset(biz, cam, new Set(cam.zones.filter(o => !zones.some(n => n.id === o.id && sameBox(o, n))).map(o => o.id)));
+    const moved = new Set(cam.zones.filter(o => !zones.some(n => n.id === o.id && sameBox(o, n))).map(o => o.id));
+    reset(biz, cam, moved);
+    // Zonalar qayta chizildi — egasi kamerani yangi ko'rinishga moslagan: odatiy ko'rinish qaytadan o'rganiladi
+    if (moved.size || zones.length !== cam.zones.length) forgetLook(cam.id);
     cameras.setZones(biz.id, cam.id, zones);
     res.json({ camera: view(cameras.get(biz.id, cam.id)!) });
   }));
@@ -304,6 +328,7 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
     // Manba almashdi: eski manbadan ochilgan seanslar yopiladi
     reset(biz, cam);
     shots.delete(cam.id);
+    forgetLook(cam.id);
     syncEngine();
     res.json({ camera: view(cameras.get(biz.id, cam.id)!) });
   }));
@@ -333,6 +358,7 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
     orders.dropCamera(biz.id, cam.id);
     forgetWatchCache();
     shots.delete(cam.id);
+    forgetLook(cam.id);
     syncEngine();
     res.json({ ok: true });
   }));

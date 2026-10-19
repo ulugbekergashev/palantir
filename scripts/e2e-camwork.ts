@@ -4,7 +4,8 @@
  *   yordamchi «kameraga qara» — look_camera: rasm Telegram'ga, kadr Kuzatuvchi jurnalida, panel suhbatida kamera kartasi;
  *   brauzer kamerasi va noma'lum kamera, begona biznes himoyasi;
  *   to'lovsiz qabul: bemor qabul vaqtida kresloda o'tirgan, DentaCRM'da shu kuni to'lovi yo'q (sof qoida va kamera hisobi);
- *   kutish joyi: har odam alohida sanaladi, uzoq kutsa — egasiga bitta xabar; kreslo bandligi foizi.
+ *   kutish joyi: har odam alohida sanaladi, uzoq kutsa — egasiga bitta xabar; kreslo bandligi foizi;
+ *   kamera burildi yoki yopildi: sinov tasviri vaqt bo'yicha o'zgaradi (odatiy → aks → odatiy → qora → odatiy).
  * Kompyuterda ffmpeg bo'lmasa sinov o'tkazib yuboriladi. Haqiqiy kamera va haqiqiy model bu yerda yo'q.
  */
 process.env.TZ = 'Asia/Tashkent';
@@ -17,6 +18,7 @@ import { findings, reconcile, unbilled, type Sitting } from '../server/camera/re
 import type { Appointment } from '../server/crm/logic';
 import { MAX_JUMP, chairUse, trackStep, waitStats, type Track } from '../server/camera/occupancy';
 import type { Camera, CameraSession } from '../src/types';
+import { judgeLook, type TamperState } from '../server/camera/tamper';
 import { OWNER, ai, aiServer, listen, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 
@@ -68,6 +70,28 @@ ok("bandlik: kamera 10 daqiqadan kam kuzatgan — foiz aytilmaydi", chairUse([{ 
 const ws = waitStats([sess('w', 'waiting', T(10), T(10, 5)), sess('x', 'waiting', T(10), T(10, 25)), sess('y', 'waiting', T(11), null), sess('z', 'chair', T(9), T(10))], 20, { people: 1, longestMs: 3 * 60_000 });
 ok("kutish hisobi: 2 kishi, o'rtacha 15, eng uzoq 25, 20 daqiqadan oshgan 1", ws.count === 2 && ws.avgMin === 15 && ws.maxMin === 25 && ws.longCount === 1 && ws.nowWaiting === 1 && ws.nowLongestMin === 3, JSON.stringify(ws));
 
+console.log('\n# Kamera yopildi yoki burildi (sof qoida)');
+const grid = (f: (i: number) => number) => Array.from({ length: 32 * 18 }, (_, i) => f(i));
+const scene = grid(i => (i % 32) * 6 + 20), flipped = grid(i => (31 - (i % 32)) * 6 + 20), bright = scene.map(v => Math.min(255, v * 1.4 + 30));
+const L = (thumb: number[], std = 60, mean = 110) => ({ mean, std, thumb });
+const TO = { warmupMs: 10_000, holdMs: 4_000 };
+let ts: TamperState | undefined;
+const feed = (look: ReturnType<typeof L>, at: number) => { const r = judgeLook(ts, look, at, TO); ts = r.next; return r.event?.type ?? null; };
+ok("tamper: qorong'ida yoqilgan kamera qora kadrni namuna qilmaydi", feed(L(grid(() => 3), 1, 3), 0) === null && ts!.ref === null);
+feed(L(scene), 1000);
+ok("tamper: o'rganish paytida burilish aytilmaydi", feed(L(flipped), 3000) === null && feed(L(scene), 5000) === null);
+const events: (string | null)[] = [];
+for (let t = 12_000; t <= 20_000; t += 2000) events.push(feed(L(bright), t));
+ok("tamper: chiroq yoqildi (yorug'roq, o'sha manzara) — hech narsa", events.every(e => e === null));
+const moved = [22_000, 24_000, 26_000, 28_000].map(t => feed(L(flipped), t));
+ok("tamper: burildi — 4 soniya davom etgach bir marta", moved.join() === ',,moved,', moved.join());
+ok("tamper: burilgan manzara namunaga aylanmaydi", feed(L(flipped), 60_000) === null && ts!.told === 'moved');
+ok("tamper: joyiga qaytdi — «yana ko'ryapti»", feed(L(scene), 62_000) === 'restored');
+const dark = [64_000, 66_000, 68_000, 70_000].map(t => feed(L(grid(() => 4), 2, 4), t));
+ok("tamper: qora kadr — «ko'rmay qoldi» bir marta", dark.filter(Boolean).join() === 'covered', dark.join());
+ok("tamper: qorong'i shovqinli kadr «burildi» emas — o'sha «ko'rmay qoldi»", feed(L(grid(i => (i * 7919) % 25), 9, 12), 72_000) === null && ts!.told === 'covered');
+ok("tamper: bir zumlik to'silish — aytilmaydi", (() => { feed(L(scene), 74_000); const a = feed(L(grid(() => 120), 1, 120), 76_000); const b = feed(L(scene), 78_000); return a === null && b === null; })());
+
 if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status !== 0) {
   console.log("ffmpeg yo'q — kamera sinovi o'tkazib yuborildi");
   process.exit(0);
@@ -85,7 +109,9 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', SESSION_SECRET: 'camwork-secret', TICK_MS: '500',
     MORNING_HOUR: '99', EVENING_HOUR: '99', WEB_SEARCH: '0', BACKUP_KEEP: '0',
     GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_API_ID: '', TG_API_HASH: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '',
-    CAMERA_TEST_INPUT: JSON.stringify(['-re', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=5']),
+    // Sinov tasviri: 22–38 s aks (kamera burildi), 54–70 s qora (yopildi), qolgan paytda odatiy
+    CAMERA_TEST_INPUT: JSON.stringify(['-re', '-f', 'lavfi', '-i', "testsrc=size=640x360:rate=5,split[a][b];[b]hflip[f];color=c=black:size=640x360:rate=5[k];[a][f]overlay=enable='between(t,22,38)'[m];[m][k]overlay=enable='between(t,54,70)'"]),
+    CAMERA_TAMPER_WARMUP_SEC: '8', CAMERA_TAMPER_HOLD_SEC: '4',
     // Sinovda chegaralar soniyalarda: 1 s tursa — o'tirish, 2 s ko'rinmasa — turdi; to'lov kutilmaydi
     CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '2', CAMERA_PAY_GRACE_MIN: '0', CAMERA_WAIT_ALERT_MIN: '0.1',
   },
@@ -235,6 +261,18 @@ try {
   const lastTool = ai.requests.filter(q => q.system.includes('Name: Shifo Dent')).at(-1)?.messages.at(-1)?.content;
   const res = Array.isArray(lastTool) ? JSON.parse(String(lastTool.find(b => b.type === 'tool_result')?.content ?? '{}')) : {};
   ok("yordamchi kamera hisobida kutish va bandlik bor", tool.status === 200 && res.waiting?.waited_today === 2 && Array.isArray(res.chair_use) && res.chair_use[0]?.chair === 'Kreslo 1', JSON.stringify(res).slice(0, 220));
+
+  console.log("\n# Kamera burildi yoki yopildi (jonli: ffmpeg sinov tasviri)");
+  const ownerTexts = () => sent.filter(m => m.method === 'sendMessage' && Number(m.params.chat_id) === OWNER).map(caption);
+  const timeline = await waitFor('burildi → tuzaldi → yopildi → tuzaldi', () => {
+    const t = ownerTexts().filter(x => x.includes('«Qabulxona» kamerasi'));
+    const kinds = t.map(x => (x.includes('burilgan') ? 'moved' : x.includes("ko'rmay qoldi") ? 'covered' : x.includes('yana odatdagidek') ? 'restored' : '?'));
+    return kinds.join() === 'moved,restored,covered,restored' ? kinds : kinds.length >= 4 ? kinds : undefined;
+  }, 150_000);
+  ok("kamera burildi, qaytdi, yopildi, qaytdi — egasiga to'rt xabar, tartib bilan", timeline?.join() === 'moved,restored,covered,restored', String(timeline));
+  const tamperEvents = ((await api('/api/agents/kuzatuvchi/events?camera=' + zal.id, { token })).json.events ?? []) as { title: string; level: string; hasImage: boolean }[];
+  const movedEv = tamperEvents.find(e => e.title.includes('burilgan'));
+  ok('jurnalda «burilgan» — jiddiy, hozirgi kadr bilan', movedEv?.level === 'crit' && movedEv.hasImage, JSON.stringify(tamperEvents.map(e => e.title)));
 
   ok("begona biznes ro'yxatida kamera yo'q", ((await api('/api/cameras', { token: other })).json.cameras ?? []).length === 0);
   ok('kamera paroli jurnalga va Telegramga tushmagan', !log.includes(SECRET) && !JSON.stringify(sent.map(s => s.params)).includes(SECRET));

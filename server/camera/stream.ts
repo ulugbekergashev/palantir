@@ -8,7 +8,7 @@ import type { CameraFeed } from '../../src/types';
 import { cameras } from '../db';
 import { env } from '../env';
 import { open } from '../secret';
-import { ENGINE_FLAG, maskUrl, type Box, type FromEngine, type ToEngine } from './wire';
+import { ENGINE_FLAG, maskUrl, type Box, type FromEngine, type Look, type ToEngine } from './wire';
 
 const MAX_URL = 300;
 const SNAPSHOT_TIMEOUT_MS = 20_000, SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024, SNAPSHOT_WIDTH = 960;
@@ -66,7 +66,7 @@ export function snapshot(url: string, timeoutMs = SNAPSHOT_TIMEOUT_MS): Promise<
 
 // ─── Dvigatel ────────────────────────────────────────────────────────────────
 
-type OnSeen = (businessId: string, cameraId: string, people: Box[]) => void;
+type OnSeen = (businessId: string, cameraId: string, people: Box[], look: Look | null) => void;
 let engine: ChildProcess | null = null;
 let onSeen: OnSeen | null = null;
 let halted = false;
@@ -105,7 +105,7 @@ function launch(): void {
   child.on('message', (m: FromEngine) => {
     if (m.type === 'seen') {
       const businessId = owners.get(m.id);
-      if (businessId) onSeen?.(businessId, m.id, m.people);
+      if (businessId) onSeen?.(businessId, m.id, m.people, m.look ?? null);
       wait = RESTART_MIN_MS;
     } else if (m.type === 'state') {
       feeds.set(m.id, { state: m.state, message: m.message });

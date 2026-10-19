@@ -9,11 +9,13 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
-import { ENGINE_FLAG, maskUrl, type Box, type EngineCamera, type FromEngine, type ToEngine } from './wire';
+import { ENGINE_FLAG, maskUrl, type Box, type EngineCamera, type FromEngine, type Look, type ToEngine } from './wire';
 
 /** Model uchun kadr o'lchami (nisbat buzilsa ham zonalar to'g'ri tushadi: joylar kadr ulushida) va kadrlar orasi */
 const WIDTH = 480, HEIGHT = 270, FRAME_BYTES = WIDTH * HEIGHT * 3, FRAME_EVERY_SEC = 2;
 const MIN_SCORE = 0.5, MAX_PEOPLE = 20;
+/** Kadr izi uchun kichik rasm o'lchami (kamera yopildi/burildi tekshiruvi) */
+const THUMB_W = 32, THUMB_H = 18;
 /** Shuncha vaqt kadr kelmasa — ffmpeg osilib qolgan: qayta ishga tushiriladi */
 const SILENCE_MS = 30_000;
 const RESTART_MIN_MS = 5_000, RESTART_MAX_MS = 60_000;
@@ -122,6 +124,23 @@ async function loadDetector(): Promise<Detect> {
   };
 }
 
+/** Kadr izi: yorug'lik, kontrast va 32×18 kulrang rasm (har ikkinchi nuqta — tez). Kadrning o'zi yuborilmaydi */
+function lookOf(frame: Buffer): Look {
+  const cells = new Float64Array(THUMB_W * THUMB_H), counts = new Uint32Array(THUMB_W * THUMB_H);
+  let sum = 0, squares = 0, n = 0;
+  for (let y = 0; y < HEIGHT; y += 2) {
+    for (let x = 0; x < WIDTH; x += 2) {
+      const i = (y * WIDTH + x) * 3;
+      const l = 0.299 * frame[i] + 0.587 * frame[i + 1] + 0.114 * frame[i + 2];
+      sum += l; squares += l * l; n++;
+      const c = Math.floor((y * THUMB_H) / HEIGHT) * THUMB_W + Math.floor((x * THUMB_W) / WIDTH);
+      cells[c] += l; counts[c]++;
+    }
+  }
+  const mean = sum / n;
+  return { mean: Math.round(mean), std: Math.round(Math.sqrt(Math.max(0, squares / n - mean * mean)) * 10) / 10, thumb: Array.from(cells, (v, i) => Math.round(v / (counts[i] || 1))) };
+}
+
 async function main(): Promise<void> {
   // Server yopilsa (yoki majburan o'chirilsa) dvigatel va uning ffmpeg jarayonlari ham yopiladi
   const quit = () => { for (const f of feeds.values()) stop(f); process.exit(0); };
@@ -145,7 +164,7 @@ async function main(): Promise<void> {
       if (!frame) continue;
       f.latest = null;
       worked = true;
-      send({ type: 'seen', id: f.cam.id, people: await detect(frame) });
+      send({ type: 'seen', id: f.cam.id, look: lookOf(frame), people: await detect(frame) });
     }
     if (!worked) await new Promise(r => setTimeout(r, IDLE_MS));
   }

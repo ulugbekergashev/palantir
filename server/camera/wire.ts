@@ -1,9 +1,11 @@
 /** Server va kamera dvigateli (alohida jarayon) o'rtasidagi xabarlar. Bu faylda boshqa hech narsa import qilinmaydi: dvigatel bazani ochmasin */
 export interface EngineCamera { id: string; url: string }
 export type Box = { x: number; y: number; w: number; h: number };
+/** Kadr izi (kamera yopildi/burildi tekshiruvi): o'rtacha yorug'lik va kontrast (0..255), 32×18 kulrang kichik rasm */
+export interface Look { mean: number; std: number; thumb: number[] }
 export type ToEngine = { type: 'cameras'; list: EngineCamera[]; ffmpeg: string; testInput: string[] | null };
 export type FromEngine =
-  | { type: 'seen'; id: string; people: Box[] }
+  | { type: 'seen'; id: string; people: Box[]; look?: Look }
   | { type: 'state'; id: string; state: 'connecting' | 'ok' | 'error'; message: string | null }
   | { type: 'fatal'; message: string };
 

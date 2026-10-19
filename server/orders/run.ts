@@ -11,7 +11,7 @@ import { ask } from '../agent';
 import type { BotService } from '../bot';
 import { businesses, cameras, type BusinessRow } from '../db';
 import { notifyOwner } from '../inbox/core';
-import { cameraFrame, onCameraFrame } from '../camera/routes';
+import { cameraFrame, onCameraFrame, onCameraLook } from '../camera/routes';
 import { waitFrame } from '../camera/waiting';
 import { checkFrame } from './look';
 import { events, orders } from './store';
@@ -63,6 +63,17 @@ export async function runLook(biz: BusinessRow, o: AgentOrder, quiet: boolean): 
 
 export function startOrders(bot: BotService): () => void {
   onCameraFrame((biz, cam, people, now) => watchFrame(biz, cam, people, now, (b, html) => notifyOwner(b, html), () => cameraFrame(biz.id, cam.id)));
+  // Kamera yopildi yoki burildi — jurnalga (hozirgi kadr bilan) va egasiga; tuzalsa — «yana ko'ryapti»
+  onCameraLook((biz, cam, e) => {
+    const title = e.type === 'covered' ? `«${cam.name}» kamerasi ko'rmay qoldi` : e.type === 'moved' ? `«${cam.name}» kamerasi burilgan yoki joyi o'zgargan` : `«${cam.name}» kamerasi yana odatdagidek ko'ryapti`;
+    const body = e.type === 'covered' ? "Kadr qora yoki bir xil rangda: obyektiv yopilgan, to'silgan yoki xonada chiroq butunlay o'chgan bo'lishi mumkin — tekshiring."
+      : e.type === 'moved' ? "Kadr odatdagi ko'rinishga o'xshamayapti. Kamera boshqa tomonga qaragan bo'lsa, kreslo va kassa noto'g'ri sanaladi — joyiga qaytaring yoki zonalarni qayta belgilang."
+        : 'Kadr yana odatdagi ko\'rinishda.';
+    void cameraFrame(biz.id, cam.id).then(image => {
+      events.add(biz.id, { member: 'kuzatuvchi', orderId: null, level: e.type === 'restored' ? 'info' : 'crit', title, body, cameraId: cam.id }, image);
+      return notifyOwner(biz, `${e.type === 'restored' ? '✅' : '⚠️'} <b>${esc(title)}</b>\n${esc(body)}`);
+    }).catch(err => console.error('[kuzatuvchi] kamera holati xabari:', (err as Error).message));
+  });
   // Kutish joyi: kimdir uzoq kutsa — jurnalga (kadr bilan) va egasiga
   onCameraFrame((biz, cam, people, now) => waitFrame(biz, cam, people, now, (b, c, zone, minutes) => {
     const title = `${c.name} · ${zone.name}: bir kishi ${minutes} daqiqadan beri kutyapti`;
