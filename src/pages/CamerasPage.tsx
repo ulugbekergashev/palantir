@@ -253,14 +253,20 @@ function ZoneEditor({ camera, timing, notify, onSaved, onRemoved }: { camera: Ca
     return () => setShot(old => { if (old) URL.revokeObjectURL(old); return null; });
   }, []);
 
-  /** Brauzer kamerasining hozirgi kadri (JPEG) — AI zonalarni taklif qilishi uchun; tasvir hali yo'q bo'lsa — undefined */
+  /**
+   * Brauzer kamerasining hozirgi kadri (JPEG) — AI zonalarni taklif qilishi uchun; tasvir hali yo'q bo'lsa — undefined.
+   * Maxfiy joylar shu yerda qora qilinadi: yopilmagan kadr brauzerdan chiqmaydi
+   */
   const grab = () => new Promise<Blob | undefined>(resolve => {
     const v = video.current;
-    if (!v?.videoWidth) return resolve(undefined);
-    const c = document.createElement('canvas');
+    const ctx = v?.videoWidth ? document.createElement('canvas').getContext('2d') : null;
+    if (!v || !ctx) return resolve(undefined);
+    const c = ctx.canvas;
     c.width = v.videoWidth; c.height = v.videoHeight;
-    c.getContext('2d')?.drawImage(v, 0, 0);
-    c.toBlob(b => resolve(b ?? undefined), 'image/jpeg', 0.85);
+    ctx.drawImage(v, 0, 0);
+    ctx.fillStyle = '#000';
+    for (const z of zones) if (z.kind === 'private') ctx.fillRect(z.x * c.width, z.y * c.height, z.w * c.width, z.h * c.height);
+    c.toBlob(blob => resolve(blob ?? undefined), 'image/jpeg', 0.85);
   });
   /** AI kadrga qarab kreslo, kassa, kutish va xodim joylarini taklif qiladi — muharrirga qo'shiladi, egasi tekshirib saqlaydi */
   const suggest = async () => {
