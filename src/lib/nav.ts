@@ -23,7 +23,7 @@ const OLD: Record<string, Route> = {
   cameras: { area: 'kuzatuvchi', tab: null },
   brain: { area: 'miya', tab: 'savollar' },
   documents: { area: 'miya', tab: null },
-  telegram: { area: 'sozlamalar', tab: null },
+  telegram: { area: 'sozlamalar', tab: 'telegram' },
   business: { area: 'sozlamalar', tab: null },
 };
 

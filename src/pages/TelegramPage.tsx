@@ -1,30 +1,13 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { CheckCircle2, Copy, ExternalLink, Loader2, Unlink } from 'lucide-react';
+/** Sozlamalar bo'limlarining qismlari (settings/SettingsHub.tsx yig'adi): Telegram, Instagram, javob rejimi, asosiy sozlamalar, mijozlar havolasi */
+import { useEffect, useState, type FormEvent } from 'react';
+import { Copy, ExternalLink, Loader2, Unlink } from 'lucide-react';
 import type { AutoReply, Business, LiveStatus, ReplyMode } from '../types';
 import { api } from '../data/api';
 import type { Notify } from '../components/Artifacts';
-import { Button, ButtonLink, Card, Field, PageHeader, TextInput, controlClass } from '../components/ui';
-import { isMedical } from '../lib/compliance';
-import { DentaCrm } from './DentaCrmSection';
-
-function Section({ done, title, children, badge }: { done: boolean; title: string; children: ReactNode; badge?: ReactNode }) {
-  return (
-    <Card>
-      <div className="flex gap-4">
-        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${done ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-          <CheckCircle2 className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2"><h2 className="font-bold">{title}</h2>{badge}</div>
-          {children}
-        </div>
-      </div>
-    </Card>
-  );
-}
+import { Button, ButtonLink, Card, Field, TextInput, controlClass } from '../components/ui';
 
 /** Shaxsiy Telegram: raqam → kod → (bo'lsa) ikki bosqichli parol */
-function TelegramLogin({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
+export function TelegramLogin({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
   const [step, setStep] = useState<'phone' | 'code' | 'password'>('phone');
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
@@ -93,7 +76,7 @@ function TelegramLogin({ status, onStatus, notify }: { status: LiveStatus; onSta
  * Rasmiy Instagram (Instagram API with Instagram Login): egasi instagram.com'da kiradi va ruxsat beradi, Meta xabarlarni
  * Cerebro Hub orqali yuboradi. Akkaunt bloklanmaydi, lekin javob — mijozning oxirgi xabaridan 24 soat ichida
  */
-function InstagramOfficial({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
+export function InstagramOfficial({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
   const ig = status.instagramApi;
   const [waiting, setWaiting] = useState(false);
   useEffect(() => {
@@ -131,7 +114,7 @@ function InstagramOfficial({ status, onStatus, notify }: { status: LiveStatus; o
 }
 
 /** Instagram: shu kompyuterda brauzer oynasi ochiladi — egasi o'zi kiradi, keyin Cerebro fonda ishlaydi */
-function Instagram({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
+export function Instagram({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
   const ig = status.instagram;
   const [busy, setBusy] = useState(false);
 
@@ -210,7 +193,7 @@ const MODES: { value: ReplyMode; title: string; text: string }[] = [
   { value: 'off', title: "O'chiq", text: "Cerebro mijozlarga javob tayyorlamaydi (bot xabarlari sizga shunchaki yetkaziladi)." },
 ];
 
-function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b: Business) => void; notify: Notify }) {
+export function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b: Business) => void; notify: Notify }) {
   const v: AutoReply = { mode: 'draft', contacts: false, delayMin: 2, ...biz.autoReply };
   const save = async (patch: Partial<AutoReply>) => {
     try { onBiz((await api.setAutoReply({ ...v, ...patch })).business); notify('Saqlandi'); } catch (e) { notify((e as Error).message, true); }
@@ -245,7 +228,7 @@ function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b: Busin
 }
 
 /** Forma emas, bir nechta sozlama: qolgan hamma narsa (manzil, ish vaqti, narxlar) — ikkinchi miyada */
-function SettingsCard({ biz, offeringsRev, onSaved, notify }: { biz: Business; offeringsRev: string; onSaved: (b: Business, offeringsRev: string) => void; notify: Notify }) {
+export function SettingsCard({ biz, offeringsRev, onSaved, notify }: { biz: Business; offeringsRev: string; onSaved: (b: Business, offeringsRev: string) => void; notify: Notify }) {
   const saved = { name: biz.name, ownerName: biz.ownerName, industry: biz.industry, contentLang: biz.contentLang ?? 'uz', morningBrief: biz.morningBrief ?? true };
   const [draft, setDraft] = useState(saved);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
@@ -277,65 +260,33 @@ function SettingsCard({ biz, offeringsRev, onSaved, notify }: { biz: Business; o
   );
 }
 
-export function TelegramPage({ status, onStatus, biz, onBiz, offeringsRev, onSaved, notify }: {
-  status: LiveStatus; onStatus: (s: LiveStatus) => void; biz: Business; onBiz: (b: Business) => void;
-  offeringsRev: string; onSaved: (b: Business, offeringsRev: string) => void; notify: Notify;
-}) {
-  const copy = async (text: string) => { await navigator.clipboard.writeText(text).catch(() => {}); notify('Nusxalandi'); };
-
+/** Egasining Telegram'i (bot): eslatmalar, xulosa va mijozlarga javob takliflari shu yerga keladi */
+export function OwnerBot({ status }: { status: LiveStatus }) {
+  if (!status.bot) return <p className="text-sm text-slate-500">Serverda BOT_TOKEN berilmagan — ulash ustasida (#/ulash) bot tokenini kiriting.</p>;
   return (
-    <div className="max-w-3xl space-y-5">
-      <PageHeader title="Ulanishlar" description="Cerebro bilan Telegram'da gaplashasiz; mijozlaringiz yozadigan joylarni ulasangiz, ularga ham javob beradi." />
-
-      <SettingsCard key={`${biz.name}|${biz.ownerName}|${biz.industry}|${biz.contentLang}|${biz.morningBrief}`} biz={biz} offeringsRev={offeringsRev} onSaved={onSaved} notify={notify} />
-
-      <Section done={status.ownerLinked} title="1. Cerebro bilan Telegram'da gaplashish">
-        {!status.bot ? <p className="text-sm text-slate-500">Serverda BOT_TOKEN berilmagan — administrator @BotFather'dan token olib qo'yishi kerak.</p> : (
-          <>
-            {status.ownerLinked
-              ? <p className="text-sm text-slate-600">Ulangan. Bot: <a className="font-semibold text-indigo-700" href={`https://t.me/${status.bot}`} target="_blank" rel="noreferrer">@{status.bot}</a> — yozing yoki ovozli xabar yuboring.</p>
-              : <p className="text-sm text-slate-600">Tugmani bosing — Telegram ochiladi, «Start» ni bosing. Eslatmalar, xulosa va mijozlarga javob takliflari shu yerga keladi.</p>}
-            {status.linkUrl && (
-              <ButtonLink href={status.linkUrl} target="_blank" rel="noreferrer" variant="primary">
-                <ExternalLink className="h-4 w-4" /> {status.ownerLinked ? 'Boshqa telefondan ulash' : "Telegram'da ochish"}
-              </ButtonLink>
-            )}
-          </>
-        )}
-      </Section>
-
-      <Section done={!!status.telegramUser.account} title="2. Shaxsiy Telegram — mijozlaringiz yozadigan akkaunt">
-        <TelegramLogin status={status} onStatus={onStatus} notify={notify} />
-      </Section>
-
-      <Section done={(!!status.instagram.account && !status.instagram.problem) || (!!status.instagramApi.account && !status.instagramApi.problem)} title="3. Instagram Direct">
-        <InstagramOfficial status={status} onStatus={onStatus} notify={notify} />
-        {!status.instagramApi.account && (
-          <details className="mt-4 border-t border-slate-100 pt-3">
-            <summary className="cursor-pointer text-sm font-semibold text-slate-600">Meta ilovasisiz — shu kompyuterdagi brauzer orqali (zaxira yo'l)</summary>
-            <div className="mt-3"><Instagram status={status} onStatus={onStatus} notify={notify} /></div>
-          </details>
-        )}
-      </Section>
-
-      {(isMedical(biz.industry) || status.crm.account) && (
-        <Section done={!!status.crm.account && !status.crm.problem} title="DentaCRM — qabullar va tushum">
-          <DentaCrm status={status} onStatus={onStatus} notify={notify} />
-        </Section>
+    <div className="space-y-3">
+      {status.ownerLinked
+        ? <p className="text-sm text-slate-600">Ulangan. Bot: <a className="font-semibold text-indigo-700" href={`https://t.me/${status.bot}`} target="_blank" rel="noreferrer">@{status.bot}</a> — yozing yoki ovozli xabar yuboring.</p>
+        : <p className="text-sm text-slate-600">Tugmani bosing — Telegram ochiladi, «Start» ni bosing. Eslatmalar, xulosa va mijozlarga javob takliflari shu yerga keladi.</p>}
+      {status.linkUrl && (
+        <ButtonLink href={status.linkUrl} target="_blank" rel="noreferrer" variant="primary">
+          <ExternalLink className="h-4 w-4" /> {status.ownerLinked ? 'Boshqa telefondan ulash' : "Telegram'da ochish"}
+        </ButtonLink>
       )}
-
-      <ReplyModeCard biz={biz} onBiz={onBiz} notify={notify} />
-
-      {status.generalLink && (
-        <Card title="Mijozlar uchun havola" description="Instagram bio, reklama yoki vizitkaga qo'ying: bosgan odam botga tushadi, raqam yoki savol qoldiradi">
-          <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-2 pl-3">
-            <code className="min-w-0 flex-1 truncate text-sm">{status.generalLink}</code>
-            <Button size="sm" onClick={() => copy(status.generalLink!)}><Copy className="h-3.5 w-3.5" /> Nusxalash</Button>
-          </div>
-        </Card>
-      )}
-
-      {!status.voice && <p className="text-xs text-slate-400">Ovozli xabarlar hozircha o'chiq: serverda GEMINI_API_KEY yoki GROQ_API_KEY yo'q.</p>}
     </div>
+  );
+}
+
+/** Mijozlar uchun havola: bosgan odam botga tushadi */
+export function ClientLink({ status, notify }: { status: LiveStatus; notify: Notify }) {
+  if (!status.generalLink) return null;
+  const copy = async () => { await navigator.clipboard.writeText(status.generalLink!).catch(() => {}); notify('Nusxalandi'); };
+  return (
+    <Card title="Mijozlar uchun havola" description="Instagram bio, reklama yoki vizitkaga qo'ying: bosgan odam botga tushadi, raqam yoki savol qoldiradi">
+      <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-2 pl-3">
+        <code className="min-w-0 flex-1 truncate text-sm">{status.generalLink}</code>
+        <Button size="sm" onClick={() => { void copy(); }}><Copy className="h-3.5 w-3.5" /> Nusxalash</Button>
+      </div>
+    </Card>
   );
 }

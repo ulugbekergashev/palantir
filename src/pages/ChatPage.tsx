@@ -218,8 +218,8 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
             <h1 className="text-[17px] font-semibold text-[#f2f0ea]">Cerebro bilan suhbat</h1>
             <p className="text-[13px] text-[#8a909c]">Yozing, gapiring yoki fayl tashlang. Telegram va ovozli suhbatlar ham shu yerda.</p>
           </div>
-          {!status.ai && <span className="rounded-full bg-amber-400/15 px-3 py-1 text-[12px] font-semibold text-amber-200">AI ulanmagan</span>}
-          {status.bot && !status.ownerLinked && <a href="#/sozlamalar" className="rounded-full bg-amber-400/15 px-3 py-1 text-[12px] font-semibold text-amber-200 no-underline">Telegram'ni ulang →</a>}
+          {!status.ai && <span className="rounded-full bg-[#f5b454]/15 px-3 py-1 text-[12px] font-semibold text-[#fde2b0]">AI ulanmagan</span>}
+          {status.bot && !status.ownerLinked && <a href="#/sozlamalar/telegram" className="rounded-full bg-[#f5b454]/15 px-3 py-1 text-[12px] font-semibold text-[#fde2b0] no-underline">Telegram'ni ulang →</a>}
           <button type="button" onClick={() => { void reset(); }} title="Yangi mavzu: suhbat qisqaradi, Xotira qoladi" className="flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] text-[#a3a9b5] hover:bg-glass/5 hover:text-[#f2f0ea]">
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Yangi mavzu
           </button>

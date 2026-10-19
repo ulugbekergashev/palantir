@@ -75,7 +75,13 @@ wsl -d Cerebro -u root -- bash /mnt/d/Projects/cerebro/tgvoice/asterisk/install.
 tgvoice\.venv\Scripts\python.exe tgvoice\sip_live.py
 ```
 
-Uztelecom ma'lumotlari kelganda: `asterisk/pjsip_shahar.conf.namuna` → `pjsip_shahar.conf` (git'ga tushmaydi), to'ldirib `install.sh`.
+Uztelecom ma'lumotlari kelganda: panel → **Sozlamalar → Telefon liniyasi** (server, login, parol, raqam) — `pjsip_shahar.conf`
+o'zi yoziladi va Asterisk qo'ng'iroqlarni uzmasdan qayta yuklanadi (`install.sh reload`). Qo'lda: `asterisk/pjsip_shahar.conf.namuna`.
+
+Kim javob beradi (shu sahifada): «har doim AI» yoki «ish vaqtida avval administrator, ko'tarmasa yoki ish vaqtidan tashqari — AI».
+Asterisk har qo'ng'iroqda Cerebro'dan so'raydi (`[kiruvchi]` → `/api/voice/route`, ovozli agent kaliti bilan), shuning uchun ish vaqti
+o'zgarsa qayta yuklash kerak emas; Cerebro javob bermasa ham — AI. Administrator telefoni: Zoiper, login `admin`, parolni panel yaratadi
+(`pjsip_admin.conf`, git'ga tushmaydi). Qaror `messages.log` da: `Cerebro: <raqam> — kim javob beradi: …`.
 Telefonsiz tekshiruv: `tgvoice\.venv\Scripts\python.exe tgvoice\check_sip.py` — Asterisk ichida «mijoz» savol beradi, yozuv `tmp/sinov.wav`.
 
 ## «Quloq» — panelda «Cerebro» deb chaqirish (`wake.py`)

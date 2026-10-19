@@ -398,7 +398,7 @@ export const leads = {
 // ─── Ulanishlar: shaxsiy Telegram, Instagram (maxfiy qismi shifrlangan) ──────
 
 /** instagram — brauzer orqali (egasining akkaunti); instagram_api — rasmiy Instagram API (Meta ilovasi, Cerebro Hub orqali) */
-export type ConnectionKind = 'telegram' | 'instagram' | 'instagram_api' | 'dentacrm';
+export type ConnectionKind = 'telegram' | 'instagram' | 'instagram_api' | 'dentacrm' | 'sip_line';
 export interface ConnectionRow { businessId: string; kind: ConnectionKind; secret: string; account: Record<string, string>; meta: Record<string, string>; updatedAt: string }
 
 const toConnection = (r: Raw): ConnectionRow => ({

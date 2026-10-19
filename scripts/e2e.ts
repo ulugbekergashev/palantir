@@ -21,6 +21,7 @@ import { cameraApiTests, cameraLogicTests, cameraToolTests, commandTests, journa
 import { brainApiTests, brainFlowTests, brainLogicTests, brainVaultTests } from './e2e-brain';
 import { mirrorTests } from './e2e-mirror';
 import { orderApiTests, orderLogicTests } from './e2e-orders';
+import { lineApiTests, lineLogicTests } from './e2e-line';
 import { intakeExtractTests, intakeFlowTests } from './e2e-intake';
 import { interviewTests } from './e2e-interview';
 
@@ -47,7 +48,7 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     MORNING_HOUR: String(new Date().getHours()), WEB_SEARCH: '1', SESSION_SECRET: 'e2e-secret',
     INBOX_DEBOUNCE_MS: '300', MINUTE_MS: '1500', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
     IG_FAKE_URL: `http://127.0.0.1:${igPort}`, IG_POLL_MS: '700', IG_DAILY_LIMIT: '3', CRM_DAILY_BOOKINGS: '3',
-    CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '1',
+    CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '1', ASTERISK_WSL: '0',
     SPEECHLAB_API_KEY: 'sl_live_test', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', SPEECHLAB_AGENT_ID: '17', SPEECHLAB_URL: `http://127.0.0.1:${speechlabPort}`, CALL_CHECK_MS: '400',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -118,6 +119,7 @@ try {
   crmLogicTests(ok);
   cameraLogicTests(ok);
   orderLogicTests(ok);
+  lineLogicTests(ok);
   commandTests(ok);
   journalTests(ok);
   brainLogicTests(ok);
@@ -148,6 +150,7 @@ try {
 
   // Egasi ulangach: kamera qoidasi xabari Telegram'ga ham boradi
   await orderApiTests(crmHarness);
+  await lineApiTests(crmHarness);
 
   console.log('\n# Yordamchi: eslatma');
   mark = sent.length;

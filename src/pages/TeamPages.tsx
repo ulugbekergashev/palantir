@@ -26,7 +26,7 @@ import { InboxPage } from './InboxPage';
 import { JournalPage } from './JournalPage';
 import { RequestsPage } from './RequestsPage';
 import { SetupCard } from './SetupCard';
-import { TelegramPage } from './TelegramPage';
+import { SettingsHub } from './settings/SettingsHub';
 
 interface Common { biz: Business; status: LiveStatus; now: Date; notify: Notify; onChanged: () => void; tab: string | null; state: MemberState | null; tick: number }
 const pick = (tab: string | null, ids: string[]) => (tab && ids.includes(tab) ? tab : ids[0]);
@@ -138,7 +138,7 @@ export function AnalystArea({ tab, notify, state }: Common) {
   );
 }
 
-export function SettingsArea({ biz, status, notify, onStatus, onBiz, offeringsRev, onSaved }: Common & {
+export function SettingsArea({ tab, biz, status, notify, onStatus, onBiz, offeringsRev, onSaved }: Common & {
   onStatus: (s: LiveStatus) => void; onBiz: (b: Business) => void; offeringsRev: string; onSaved: (b: Business, rev: string) => void;
 }) {
   const feed = useDayFeed(notify);
@@ -149,13 +149,11 @@ export function SettingsArea({ biz, status, notify, onStatus, onBiz, offeringsRe
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-glass/[0.06] text-[#d9dbe1]"><Settings className="h-7 w-7" aria-hidden="true" /></span>
         <div>
           <h1 className="text-[28px] font-bold leading-tight tracking-tight text-[#f2f0ea]">Sozlamalar</h1>
-          <p className="mt-0.5 text-sm text-[#a3a9b5]">Telegram, Instagram, DentaCRM va telefon — jamoangiz qayerda ishlashi.</p>
+          <p className="mt-0.5 text-sm text-[#a3a9b5]">Telegram, Instagram, DentaCRM, telefon va kameralar — jamoangiz qayerda ishlashi.</p>
         </div>
       </header>
       {steps.some(s => !s.done) && <SetupCard steps={steps} />}
-      <div className="agent-body">
-        <TelegramPage status={status} onStatus={onStatus} biz={biz} onBiz={onBiz} offeringsRev={offeringsRev} onSaved={onSaved} notify={notify} />
-      </div>
+      <SettingsHub tab={tab} biz={biz} status={status} notify={notify} onStatus={onStatus} onBiz={onBiz} offeringsRev={offeringsRev} onSaved={onSaved} />
     </div>
   );
 }

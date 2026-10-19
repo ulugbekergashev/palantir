@@ -9,6 +9,9 @@ import { MEMBERS, TEAM, type Member, type MemberState } from './team';
 
 interface Item { area: Area; label: string; icon: LucideIcon; badge?: number }
 
+/** Telefonning pastki panelida yetti bo'lim sig'ishi uchun qisqa nomlar (kompyuterda — to'liq) */
+const SHORT: Partial<Record<Area, string>> = { qabulxona: 'Qabul', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', sozlamalar: 'Sozlama' };
+
 const EAR: Record<Wake['phase'], { dot: string; hint: string }> = {
   off: { dot: '', hint: "O'chiq — yoqsangiz, «Cerebro» yoki «Jarvis» deb chaqirasiz" },
   starting: { dot: 'bg-glass/40', hint: 'Ulanmoqda…' },
@@ -31,12 +34,14 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
         key={it.area}
         href={hrefOf(it.area)}
         aria-current={active ? 'page' : undefined}
-        className={`group relative flex min-h-12 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[11px] font-medium no-underline transition-colors lg:flex-none lg:py-2 ${active ? 'text-[#f2f0ea]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
+        aria-label={it.label}
+        className={`group relative flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[10px] font-medium sm:text-[11px] no-underline transition-colors lg:flex-none lg:py-2 ${active ? 'text-[#f2f0ea]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
       >
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${active ? 'bg-[#8b8cff]/18 text-[#c7c8ff]' : 'group-hover:bg-glass/5'}`}>
           <it.icon className="h-[19px] w-[19px]" aria-hidden="true" />
         </span>
-        <span className="max-w-full truncate">{it.label}</span>
+        <span className="max-w-full truncate lg:hidden" aria-hidden="true">{SHORT[it.area] ?? it.label}</span>
+        <span className="hidden max-w-full truncate lg:inline" aria-hidden="true">{it.label}</span>
         {!!it.badge && <span className="absolute right-1.5 top-1 min-w-[18px] rounded-full bg-[#f5b454] px-1 text-center text-[10px] font-bold leading-[18px] text-[#07080b] lg:right-3">{it.badge}</span>}
       </a>
     );
@@ -46,7 +51,7 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
       <a href={hrefOf('ai')} className="mb-4 hidden justify-center lg:flex" aria-label="Cerebro — bosh ekran"><img src="/favicon.svg" alt="" className="h-9 w-9" /></a>
       <div className="flex flex-1 gap-0.5 lg:flex-none lg:flex-col lg:gap-1">{items.map(link)}</div>
       <div className="hidden flex-1 lg:block" />
-      <div className="flex gap-0.5 lg:flex-col lg:gap-1">
+      <div className="flex w-[calc(100%/7)] gap-0.5 lg:w-auto lg:flex-col lg:gap-1">
         <button type="button" onClick={wake.toggle} aria-pressed={wake.enabled} title={`Quloq: ${EAR[wake.phase].hint}`}
           className={`group relative hidden min-h-12 flex-col items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-medium transition-colors lg:flex ${wake.enabled ? 'text-[#c7c8ff]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
           aria-describedby="quloq-holat">

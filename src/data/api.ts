@@ -10,6 +10,13 @@ import type { AgentEvent, AgentOrder, OrderMember, OrderSpec } from '../types';
 import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 
 export type RequestView = LeadRequest & { lead: Lead | null };
+/** Telefon liniyasi (server/voice/line.ts LineView) */
+export interface PhoneLine {
+  trunk: { host: string; port: number; login: string; number: string } | null;
+  routing: { mode: 'ai' | 'day_admin'; ring: number; days: number[]; from: string; to: string };
+  admin: { server: string; login: string; password: string | null };
+  status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; note: string | null };
+}
 /** MicroSIP shu kompyuterda: topildimi, ulanganmi (shu biznesga), operator hisobi bormi, suhbatlar yozib olinadimi */
 export interface PhoneStatus {
   available: boolean; exePath: string | null; connected: boolean; mine: boolean; otherBusiness: boolean; noAccount: boolean; recording: boolean; recordFormat: 'mp3' | 'wav' | null;
@@ -103,6 +110,11 @@ export const api = {
   cameraLive: () => call<{ live: Record<string, { at: string; people: number }> }>('/cameras/live'),
   askCamera: (question: string, cameraId?: string, image?: string) => call<{ answers: { cameraId: string; name: string; answer: string }[] }>('/cameras/ask', { body: { question, cameraId, image } }),
   setCameraProfile: (id: string, profile: string) => call<{ camera: Camera }>(`/cameras/${id}/profile`, { method: 'PUT', body: { profile } }),
+  // ─── Telefon liniyasi (Asterisk): shahar raqami, kim javob beradi, administrator telefoni ───
+  phoneLine: () => call<{ line: PhoneLine }>('/phone/line'),
+  savePhoneTrunk: (t: { host: string; port: number; login: string; number: string; password?: string }) => call<{ line: PhoneLine; warning: string | null }>('/phone/line/trunk', { method: 'PUT', body: t }),
+  savePhoneRouting: (r: PhoneLine['routing']) => call<{ line: PhoneLine }>('/phone/line/routing', { method: 'PUT', body: r }),
+  newAdminPhone: () => call<{ line: PhoneLine; warning: string | null }>('/phone/line/admin', { body: {} }),
   // ─── Xodimlarga topshiriqlar va jurnal ───
   orders: (member: OrderMember) => call<{ orders: AgentOrder[] }>(`/orders?member=${member}`),
   parseOrder: (member: OrderMember, text: string) => call<{ parsed: { ok: true; spec: OrderSpec; summary: string } | { ok: false; question: string } }>('/orders/parse', { body: { member, text } }),

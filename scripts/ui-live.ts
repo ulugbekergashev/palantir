@@ -1,5 +1,5 @@
 /**
- * Panelning brauzer sinovi: server + soxta Telegram/Claude/ovoz + tayyor build.
+ * Panelning brauzer sinovi (AI jamoa paneli: Cerebro, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Miya, Sozlamalar): server + soxta Telegram/Claude/ovoz + tayyor build.
  * Talab: npm run build; Chrome o'rnatilgan (CHROME — boshqa yo'l bo'lsa).
  * Ishga tushirish: npx tsx scripts/ui-live.ts <skrinshot papkasi>
  */
@@ -32,7 +32,7 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700',
     VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', GEMINI_API_KEY: 'g-test', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, SESSION_SECRET: 'ui-secret', MORNING_HOUR: '0',
-    INBOX_DEBOUNCE_MS: '300', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_POLL_MS: '700', IG_FAKE_URL: `http://127.0.0.1:${igPort}`,
+    ASTERISK_WSL: '0', INBOX_DEBOUNCE_MS: '300', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_POLL_MS: '700', IG_FAKE_URL: `http://127.0.0.1:${igPort}`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -54,13 +54,15 @@ page.on('console', (m: { type: () => string; text: () => string }) => { if (m.ty
 page.on('dialog', (d: { accept: () => void }) => d.accept());
 const shot = (name: string, full = false) => page.screenshot({ path: join(OUT, `${name}.png`), fullPage: full });
 const send = async (text: string) => {
-  await page.getByLabel('Xabar').fill(text);
-  await page.getByLabel('Xabar').press('Enter');
+  await page.getByLabel('Xabar', { exact: true }).fill(text);
+  await page.getByLabel('Xabar', { exact: true }).press('Enter');
 };
-// Keng ekranda bo'limlar yon panelda doim ko'rinadi («Menyu» tugmasi faqat tor ekranda — pastda telefon bo'limida tekshiriladi)
-const nav = async (label: string) => {
-  await page.locator('aside').getByRole('button', { name: label }).click();
-};
+// Bo'limlar chap ustunda (telefonda — pastki panel): Cerebro, AI jamoa, Miya, Sozlamalar. Xodim ichidagi varaq — manzil bilan
+const rail = () => page.locator('nav[aria-label="Bo\'limlar"]');
+const nav = async (label: string) => { await rail().getByRole('link', { name: label, exact: true }).click(); };
+const go = async (hash: string) => { await page.goto(`${base}/#/${hash}`, { waitUntil: 'networkidle' }); };
+const tabOn = (name: string) => page.locator('nav[aria-label="Varaqlar"]').getByRole('link', { name, exact: false });
+const visible = (l: { waitFor: (o: { timeout: number }) => Promise<unknown> }, ms = 8000) => l.waitFor({ timeout: ms }).then(() => true, () => false);
 
 try {
   console.log('\n# Admin');
@@ -73,28 +75,31 @@ try {
   await page.getByLabel('Parol').fill('secret12');
   await page.getByRole('button', { name: "Qo'shish" }).click();
   await page.getByText("«Mebel Uyi» qo'shildi").waitFor({ timeout: 10000 });
-  ok("admin: biznes qo'shildi, ro'yxatda", await page.getByRole('cell', { name: 'Mebel Uyi' }).isVisible());
+  ok("admin: biznes qo'shildi, ro'yxatda", await visible(page.getByRole('cell', { name: 'Mebel Uyi' })));
   await shot('01-admin');
 
-  console.log('\n# Kirish va suhbat');
+  console.log('\n# Kirish va bosh ekran (Cerebro)');
   await page.goto(`${base}/#/`, { waitUntil: 'networkidle' });
   await page.getByLabel('Login').fill('mebel');
   await page.getByLabel('Parol').fill('secret12');
   await page.getByRole('button', { name: 'Kirish' }).click();
-  await page.getByLabel("Cerebro'ga savol").waitFor({ timeout: 10000 });
-  ok("kirdi: bosh sahifa ochildi — hali hech narsa ulanmagan, ishga tushirish ro'yxati ko'rinadi", await page.getByRole('heading', { name: "Cerebro'ni ishga tushirish" }).waitFor({ timeout: 10000 }).then(() => true, () => false)
-    && await page.locator('aside').getByRole('button', { name: 'Bosh sahifa' }).getAttribute('aria-current') === 'page');
-  ok("kirdi: keng ekranda bo'limlar yon panelda doim ko'rinadi (menyu tugmasi yo'q)", await page.locator('aside').getByRole('button', { name: 'Ulanishlar' }).isVisible()
-    && (await page.locator('aside').getAttribute('inert')) === null && await page.getByRole('button', { name: 'Menyu', exact: true }).count() === 0);
-  await shot('02a-home-fresh', true);
-  await nav('Yordamchi');
-  await page.getByLabel('Xabar').waitFor({ timeout: 10000 });
-  ok("kirdi: bo'sh holatda faqat so'rov qatori (sarlavha va tugmalar yo'q)", !(await page.getByRole('heading', { name: 'Yordamchi' }).isVisible()) && (await page.getByLabel('Xabar').getAttribute('placeholder') ?? '').startsWith('«'));
-  await shot('02-chat-empty');
+  await page.getByLabel("Cerebro'ga yozing").waitFor({ timeout: 10000 });
+  ok('kirdi: bosh ekran — ovozli sfera va yozish qatori', await page.getByRole('button', { name: 'Cerebro bilan gaplashish' }).isVisible());
+  // Logotip havolasi (rasm, matnsiz) ro'yxatga kirmaydi
+  const items = (await rail().getByRole('link').allInnerTexts()).map(t => t.trim().split('\n')[0]).filter(Boolean);
+  ok("menyu: Cerebro, to'rt AI xodim, Miya, Sozlamalar", items.join(', ') === 'Cerebro, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Miya, Sozlamalar', items.join(' | '));
+  ok("menyu: «Quloq» tugmasi bor (o'chiq)", await rail().getByRole('button', { name: /Quloq/ }).getAttribute('aria-pressed') === 'false');
+  await page.getByLabel("Cerebro'ga yozing").fill('Bugun nima qilishim kerak?');
+  await page.getByLabel("Cerebro'ga yozing").press('Enter');
+  ok("bosh ekran: yozilgan savolga javob shu yerda karta bo'lib chiqadi", await visible(page.getByRole('region', { name: 'Natijalar' }).getByText('Bugun:').first(), 15000));
+  await shot('02a-home', true);
 
-  await send('Bugun nima qilishim kerak?');
-  await page.getByText('Bugun: 0 ta vazifa').waitFor({ timeout: 15000 });
-  ok("savol yozildi: javob keldi, suhbat sarlavhasi paydo bo'ldi", await page.getByRole('heading', { name: 'Yordamchi' }).isVisible());
+  console.log('\n# Yordamchi: suhbat');
+  await nav('Yordamchi');
+  await tabOn('Suhbat').click();
+  await page.getByLabel('Xabar', { exact: true }).waitFor({ timeout: 10000 });
+  ok("suhbat: bosh ekranda yozilgan savol shu yerda (bitta suhbat)", await visible(page.locator('[data-chat-log]').getByText('Bugun nima qilishim kerak?').first()));
+  ok("suhbat: yonida Xotira paneli", await page.getByRole('heading', { name: 'Xotira' }).isVisible());
 
   await send('Ertaga soat 10 da bankka borishni eslat');
   const chip = page.getByText(/⏰ Ertaga 10:00/);
@@ -102,93 +107,94 @@ try {
   await shot('02b-eslatma');
   ok('eslatma: vazifa kartasi suhbatda', await chip.isVisible());
 
-  await page.getByLabel('Xabar').fill('Kameralarni och');
-  await page.getByLabel('Xabar').press('Enter');
-  await page.getByRole('heading', { name: 'Kameralar' }).waitFor({ timeout: 8000 }).catch(() => {});
-  ok("suhbatda «Kameralarni och» deyilsa — bo'lim ochiladi", page.url().endsWith('#/cameras'), page.url());
-  await nav('Yordamchi');
+  await send('Kameralarni och');
+  ok("suhbatda «Kameralarni och» deyilsa — Kuzatuvchi ochiladi", await visible(page.getByRole('heading', { name: 'Kuzatuvchi', exact: true })) && page.url().endsWith('#/cameras'), page.url());
+  await go('yordamchi/suhbat');
 
   await send('Aliyevga tijorat taklifi tayyorla');
-  await page.getByText('Tijorat taklifi — Aliyev').waitFor({ timeout: 15000 });
-  await page.getByRole('button', { name: "Ko'rish" }).click();
+  await page.getByText('Tijorat taklifi — Aliyev').first().waitFor({ timeout: 15000 });
+  await page.getByRole('button', { name: "Ko'rish" }).first().click();
   ok("hujjat: ko'rinishida jadval", await page.getByRole('cell', { name: 'Stol' }).isVisible());
-  const [docDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Yuklab olish' }).click()]);
+  const [docDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Yuklab olish' }).first().click()]);
   ok('hujjat: .docx yuklab olindi', docDl.suggestedFilename().endsWith('.docx'), docDl.suggestedFilename());
-
   await shot('03-chat');
 
-  console.log('\n# Mikrofon');
+  console.log('\n# Ovozli xabar');
   const before = stt.gemini;
   stt.text = 'Bugun nima qilishim kerak?';
-  await page.getByRole('button', { name: 'Ovoz bilan aytish' }).click();
+  await page.getByRole('button', { name: 'Ovozli xabar' }).click();
   await sleep(1500);
   await page.getByRole('button', { name: 'Yozishni tugatish va yuborish' }).click();
-  await page.getByText('🎙 Bugun nima qilishim kerak?').waitFor({ timeout: 15000 });
-  ok('mikrofon: ovoz → WAV → matn → javob', stt.gemini === before + 1 && stt.lastMime === 'audio/wav' && stt.lastAudio.subarray(0, 4).toString() === 'RIFF');
+  const voiced = page.locator('[data-msg="owner"]').filter({ hasText: 'Ovozli xabar' }).filter({ hasText: 'Bugun nima qilishim kerak?' });
+  ok('ovozli xabar: ovoz → WAV → matn → javob, belgisi bilan', await visible(voiced, 15000) && stt.gemini === before + 1 && stt.lastMime === 'audio/wav' && stt.lastAudio.subarray(0, 4).toString() === 'RIFF');
 
-  console.log('\n# Sozlamalar (profil formasi yo\'q — qolgani ikkinchi miyada)');
-  ok("menyuda «Biznes profili» bo'limi yo'q", (await page.locator('aside').getByRole('button', { name: 'Biznes profili' }).count()) === 0);
-  await page.locator('aside').getByRole('button', { name: 'Ulanishlar' }).click();
-  await page.getByLabel('Egasi (yordamchi shunday murojaat qiladi)').fill('Aziz');
-  await page.getByRole('button', { name: 'Saqlash', exact: true }).click();
-  await page.getByText('Saqlandi').first().waitFor({ timeout: 10000 });
-  ok('sozlamalar: egasining ismi saqlandi', true);
-  await shot('04-settings', true);
+  console.log('\n# Xotira');
+  await page.getByLabel('Eslab qolsin').fill('Yetkazish 500 mingdan bepul');
+  await page.getByRole('button', { name: "Xotiraga qo'shish" }).click();
+  ok("xotira: fakt qo'shildi", await visible(page.getByRole('heading', { name: 'Xotira' }).locator('..').locator('..').getByText('Yetkazish 500 mingdan bepul')));
+  await page.getByRole('button', { name: 'Unutsin: Yetkazish 500 mingdan bepul' }).click();
+  ok("xotira: fakt o'chirildi", await page.getByRole('button', { name: 'Unutsin: Yetkazish 500 mingdan bepul' }).waitFor({ state: 'detached', timeout: 8000 }).then(() => true, () => false));
 
-  console.log('\n# Menyu: bo\'limlar kamaydi');
-  const menuItems = await page.locator('aside nav button').allInnerTexts();
-  ok("menyu: bosh sahifa va sakkiz bo'lim (So'rovlar — mijozlar yonida) — Vazifalar, Hujjatlar, Postlar, Suhbatlar alohida emas", menuItems.map(t => t.trim().split('\n')[0]).join(', ') === "Bosh sahifa, Yordamchi, Jurnal, Mijozlar, So'rovlar, Qo'ng'iroqlar, Kameralar, Ikkinchi miya, Ulanishlar", menuItems.join(' | '));
-  await page.goto(`${base}/#/requests`, { waitUntil: 'networkidle' });
-  ok("So'rovlar sahifasi: bo'sh holat va qabulxona xodimlari", await page.getByRole('heading', { name: "So'rovlar" }).waitFor({ timeout: 8000 }).then(() => true, () => false)
-    && await page.getByText("Ochiq so'rov yo'q").waitFor({ timeout: 8000 }).then(() => true, () => false) && await page.getByText('Qabulxona xodimlari').waitFor({ timeout: 8000 }).then(() => true, () => false));
-  await shot('requests');
-  await page.goto(`${base}/#/tasks`, { waitUntil: 'networkidle' });
-  ok("eski manzil (#/tasks) Jurnalga olib boradi", await page.getByRole('heading', { name: 'Jurnal' }).waitFor({ timeout: 8000 }).then(() => true, () => false));
-
-  console.log('\n# Jurnal: vazifalar shu yerda');
-  await nav('Jurnal');
+  console.log('\n# Yordamchi: ish stoli va ishlar');
+  await go('tasks');
+  ok("eski manzil (#/tasks) Yordamchi → Ishlar varag'iga olib boradi", await tabOn('Ishlar').getAttribute('aria-current') === 'page');
   await page.getByLabel('Vazifa').fill("Yetkazib beruvchiga qo'ng'iroq");
   await page.getByRole('button', { name: "Qo'shish" }).click();
   await page.getByText("Yetkazib beruvchiga qo'ng'iroq").waitFor();
-  ok("vazifa: Jurnalda qo'shildi (muddatsiz)", await page.getByText('Muddatsiz (1)').isVisible());
-  ok("AI yaratgan vazifa ham ro'yxatda", await page.getByText('Bankka borish').isVisible());
+  ok("vazifa: qo'shildi (muddatsiz)", await page.getByText('Muddatsiz (1)').isVisible());
+  ok("AI yaratgan vazifa ham ro'yxatda", await page.getByText('Bankka borish').first().isVisible());
   await page.getByRole('button', { name: "Bajarildi: Yetkazib beruvchiga qo'ng'iroq" }).click();
   await page.getByText(/Bajarilgan \(1\)/).waitFor();
   ok('vazifa: bajarildi', true);
-  await shot('05-journal-tasks');
+  await shot('05-ishlar');
+  await go('yordamchi/stol');
+  ok("ish stoli: tayyorlangan hujjat «Hujjatlar»da", await visible(page.getByText('Tijorat taklifi — Aliyev').first()));
+  await shot('05b-ish-stoli', true);
 
-  console.log('\n# Mijozlar');
-  const auth = { authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('cerebro_token'))}` };
+  console.log('\n# Topshiriqlar');
+  await go('yordamchi/topshiriqlar');
+  ok('topshiriqlar: misollar va bo\'sh holat', await visible(page.getByText('Hali topshiriq yo\'q.', { exact: false })) && await page.getByRole('button', { name: /kun rejamni yubor/ }).isVisible());
+  const auth = { authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('cerebro_token'))}`, 'content-type': 'application/json' };
+  await fetch(`${base}/api/orders`, { method: 'POST', headers: auth, body: JSON.stringify({ member: 'yordamchi', text: 'Har kuni 8:30 da kun rejamni yubor', spec: { kind: 'schedule', at: '08:30', days: [] }, summary: 'Har kuni 08:30 da kun rejangizni yuboraman.' }) });
+  await page.reload({ waitUntil: 'networkidle' });
+  ok("topshiriq: ro'yxatda — tushunchasi, vaqti va yoqish tugmasi", await visible(page.getByText('Har kuni 08:30 da kun rejangizni yuboraman.')) && await page.getByText(/Jadval · 08:30 · har kuni/).isVisible());
+  await shot('05c-topshiriqlar', true);
+
+  console.log('\n# Qabulxona');
+  await go('requests');
+  ok("eski manzil (#/requests) Qabulxona → So'rovlar: bo'sh holat va xodimlar", await tabOn("So'rovlar").getAttribute('aria-current') === 'page'
+    && await visible(page.getByText("Ochiq so'rov yo'q")) && await visible(page.getByText('Qabulxona xodimlari')));
+  await go('qabulxona');
+  ok("qabulxona bugun: murojaat yo'q — nima bo'lishi va qanday sinash", await visible(page.getByRole('heading', { name: "Hali murojaat yo'q" })) && await page.getByRole('button', { name: "Qabulxonaga qo'ng'iroq qilish" }).isVisible());
+  await shot('06a-qabulxona', true);
+
+  console.log('\n# Mijozlar (Qabulxona → Yozishmalar)');
   const leadsNow = async () => (await (await fetch(`${base}/api/leads`, { headers: auth })).json() as { leads: { name: string | null; phone: string | null; stage: string; note: string | null }[] }).leads;
-  await nav('Yordamchi');
-  await send("Yangi mijoz qo'sh: Aziz Karimov, 2 ta stol so'radi");
-  // waitFor sinxron shartni kutadi; serverdan so'rab tekshirish uchun — alohida kutish
   const until = async (met: () => Promise<boolean>, ms = 10_000): Promise<boolean> => {
     for (const end = Date.now() + ms; Date.now() < end; await sleep(200)) if (await met()) return true;
     return false;
   };
+  await go('yordamchi/suhbat');
+  await send("Yangi mijoz qo'sh: Aziz Karimov, 2 ta stol so'radi");
   await until(async () => (await leadsNow()).some(l => l.name === 'Aziz Karimov'));
-  await nav('Mijozlar');
+  await go('qabulxona/yozishmalar');
   await page.getByRole('button', { name: /Aziz Karimov/ }).click();
-  ok("mijozlar: yordamchi qo'shgan mijoz ro'yxatda (yozishmasi yo'q bo'lsa ham)", await page.getByText("Bu mijoz bilan hali yozishma yo'q.").waitFor({ timeout: 8000 }).then(() => true, () => false));
+  ok("mijozlar: yordamchi qo'shgan mijoz ro'yxatda (yozishmasi yo'q bo'lsa ham)", await visible(page.getByText("Bu mijoz bilan hali yozishma yo'q.")));
   await page.getByLabel('Mijoz holati').selectOption('contacted');
   await page.getByLabel('Mijoz haqida izoh').fill('Juma kuni qayta aloqa');
   await page.getByLabel('Mijoz haqida izoh').blur();
   const kept = await until(async () => (await leadsNow()).some(l => l.name === 'Aziz Karimov' && l.stage === 'contacted' && l.note === 'Juma kuni qayta aloqa'));
-  ok('mijoz: holati va izohi suhbat tepasida o\'zgartirildi va saqlandi', kept && await page.getByLabel('Mijoz holati').inputValue() === 'contacted' && await page.getByLabel('Mijoz haqida izoh').inputValue() === 'Juma kuni qayta aloqa', JSON.stringify((await leadsNow()).find(l => l.name === 'Aziz Karimov')));
+  ok("mijoz: holati va izohi saqlandi", kept);
   const me = await (await fetch(`${base}/api/me`, { headers: auth })).json() as { status: { generalLink: string } };
   const bizId = me.status.generalLink.split('start=l-')[1];
   say(CUSTOMER, `/start l-${bizId}`);
   await waitFor('mijozga salom', () => sent.find(s => Number(s.params.chat_id) === CUSTOMER));
   shareContact(CUSTOMER, '998911112233');
-  for (let i = 0; i < 50; i++) {
-    if ((await leadsNow()).some(l => l.phone === '+998911112233')) break;
-    await sleep(200);
-  }
-  await nav('Yordamchi');
+  await until(async () => (await leadsNow()).some(l => l.phone === '+998911112233'));
+  await go('yordamchi/suhbat');
   await send('Oxirgi hafta yozgan mijozlarga rahmat xabarini tayyorla');
   await page.getByText('tanlaganingiz uchun rahmat').first().waitFor({ timeout: 15000 });
-  await nav('Mijozlar');
+  await go('qabulxona/yozishmalar');
   await page.getByText('Yuborishni kutayotgan xabarlar').waitFor();
   ok("mijozlar: botdan kelgan mijoz — kanal belgisi bilan ro'yxatda", await page.getByText('Bot', { exact: true }).first().isVisible());
   await shot('06-leads');
@@ -196,130 +202,123 @@ try {
   await page.getByText('Yuborildi: 1 ta').first().waitFor({ timeout: 10000 });
   ok('xabar: tasdiqlab yuborildi', !!sent.find(s => Number(s.params.chat_id) === CUSTOMER && String(s.params.text).includes('rahmat')));
 
-  console.log('\n# Hujjatlar (Ikkinchi miya ichida)');
-  await nav('Ikkinchi miya');
-  // Sahifa ochilgach ro'yxat yuklanishini kutadi (darhol tekshirilsa, sekin mashinada hali chizilmagan bo'ladi)
-  ok("hujjatlar: Ikkinchi miyada ro'yxatda, Word tugmasi bilan", await page.getByText('Tijorat taklifi — Aliyev').first().waitFor({ timeout: 10000 }).then(() => true, () => false) && await page.getByRole('button', { name: 'Yuklab olish' }).first().isVisible());
-  await shot('08-brain-documents', true);
-
-  console.log('\n# Ulanishlar');
-  await nav('Ulanishlar');
-  ok('ulash havolasi', (await page.getByRole('link', { name: "Telegram'da ochish" }).getAttribute('href'))?.includes('start=o-'));
-  ok("ulanishlar: kanal bo'limi yo'q (post yasash olib tashlangan)", (await page.getByLabel('Kanal manzili').count()) === 0);
-  await shot('07-telegram');
-
-  console.log('\n# Shaxsiy Telegram va Instagram');
-  await nav('Ulanishlar');
-  await page.getByLabel('Telefon raqamingiz').fill('+998 90 111 22 33');
-  await page.getByRole('button', { name: 'Kod olish' }).click();
-  await page.getByLabel("Telegram'ga kelgan kod").fill('12345');
-  await page.getByRole('button', { name: 'Kirish', exact: true }).click();
-  await page.getByText('Aziz Egasi · @aziz_owner').waitFor({ timeout: 10000 });
-  ok('shaxsiy Telegram: kod bilan kirildi', true);
-  // Instagram: rasmiy yo'l uchun hub kodi kerak (sinovda yo'q) — zaxira yo'l (brauzer) ochiladi
-  ok("Instagram: rasmiy yo'l — hub kodi so'raladi; brauzer orqali — zaxira", await page.getByText('Cerebro Hub kodi').isVisible());
-  await page.getByText("Meta ilovasisiz — shu kompyuterdagi brauzer orqali").click();
-  // Soxta "oyna" — egasi kirdi deb belgilanguncha kutadi
-  await page.getByRole('button', { name: "Instagram'ga kirish" }).click();
-  await page.getByText("o'sha oynada akkauntingizga kiring").waitFor({ timeout: 10000 });
-  ok("Instagram: oyna ochildi, panel kutyapti", true);
-  await shot('11a-instagram-waiting');
-  igWeb.loggedIn = true;
-  await page.getByText('Instagram ulandi').waitFor({ timeout: 10000 });
-  ok('Instagram: egasi kirdi — ulandi', await page.getByText('@mebel_uyi').isVisible());
+  console.log('\n# Sozlamalar');
+  await nav('Sozlamalar');
+  ok("sozlamalar: ulanishlar plitkalari (holati bilan)", await visible(page.getByRole('navigation', { name: 'Ulanishlar' }).getByRole('link', { name: /Telefon liniyasi/ })));
+  ok("sozlamalar: savdo sohasida DentaCRM plitkasi yo'q", await page.getByRole('navigation', { name: 'Ulanishlar' }).getByRole('link', { name: /DentaCRM/ }).count() === 0);
+  await page.getByLabel('Egasi (yordamchi shunday murojaat qiladi)').fill('Aziz');
+  await page.getByRole('button', { name: 'Saqlash', exact: true }).first().click();
+  await page.getByText('Saqlandi').first().waitFor({ timeout: 10000 });
+  ok('sozlamalar: egasining ismi saqlandi', true);
   await page.getByRole('radio', { name: /O'zi javob bersin/ }).click();
   await page.getByLabel('Kutish vaqti').waitFor();
   ok("javob rejimi: «O'zi javob bersin» tanlandi", await page.getByRole('radio', { name: /O'zi javob bersin/ }).getAttribute('aria-checked') === 'true');
   await page.getByRole('radio', { name: /Men tasdiqlayman/ }).click();
-  await sleep(500);
-  await shot('11-connections', true);
+  await shot('04-settings', true);
 
-  // DentaCRM: bo'lim klinikalarda yoki ulangan bo'lsa ko'rinadi — bu yerda API orqali ulab, holatini tekshiramiz
+  await go('sozlamalar/telegram');
+  ok('telegram: ulash havolasi', (await page.getByRole('link', { name: "Telegram'da ochish" }).getAttribute('href'))?.includes('start=o-'));
+  await page.getByLabel('Telefon raqamingiz').fill('+998 90 111 22 33');
+  await page.getByRole('button', { name: 'Kod olish' }).click();
+  await page.getByLabel("Telegram'ga kelgan kod").fill('12345');
+  await page.getByRole('button', { name: 'Kirish', exact: true }).click();
+  ok('shaxsiy Telegram: kod bilan kirildi', await visible(page.getByText('Aziz Egasi · @aziz_owner'), 10000));
+  await shot('07-telegram');
+
+  await go('sozlamalar/instagram');
+  ok("Instagram: rasmiy yo'l — hub kodi so'raladi; brauzer orqali — zaxira", await visible(page.getByText('Cerebro Hub kodi')));
+  await page.getByText("Meta ilovasisiz — shu kompyuterdagi brauzer orqali").click();
+  await page.getByRole('button', { name: "Instagram'ga kirish" }).click();
+  ok("Instagram: oyna ochildi, panel kutyapti", await visible(page.getByText("o'sha oynada akkauntingizga kiring"), 10000));
+  igWeb.loggedIn = true;
+  await page.getByText('Instagram ulandi').waitFor({ timeout: 10000 });
+  ok('Instagram: egasi kirdi — ulandi', await page.getByText('@mebel_uyi').isVisible());
+  await shot('11-instagram', true);
+
+  await go('sozlamalar/telefon');
+  ok("telefon liniyasi: holat, shahar raqami formasi, kim javob beradi, administrator telefoni", await visible(page.getByRole('heading', { name: 'Shahar raqami (Uztelecom)' }))
+    && await page.getByRole('heading', { name: 'Kim javob beradi' }).isVisible() && await page.getByRole('heading', { name: 'Administrator telefoni' }).isVisible());
+  await page.getByRole('radio', { name: /Ish vaqtida — administrator/ }).check();
+  await page.getByRole('button', { name: 'Saqlash', exact: true }).click();
+  await page.getByText(/keyingi qo.ng.iroqdan kuchga kiradi/).first().waitFor({ timeout: 10000 });
+  const line = await (await fetch(`${base}/api/phone/line`, { headers: auth })).json() as { line: { routing: { mode: string } } };
+  ok('telefon liniyasi: «ish vaqtida administrator» saqlandi', line.line.routing.mode === 'day_admin');
+  await shot('11c-telefon', true);
+
+  // DentaCRM: plitka klinikada yoki ulangan bo'lsa ko'rinadi — API orqali ulab, holatini tekshiramiz
   crm.seed(new Date().toISOString().slice(0, 10), new Date(Date.now() + 86_400_000).toISOString().slice(0, 10));
-  ok("DentaCRM: klinika bo'lmagan biznesda bo'lim yashirin", await page.getByText('DentaCRM — qabullar va tushum').count() === 0);
   const crmJoined = await page.evaluate(async (body: unknown) => (await fetch('/api/crm', {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${localStorage.getItem('cerebro_token')}` }, body: JSON.stringify(body),
   })).status, { url: `http://127.0.0.1:${crmPort}`, ...CRM_LOGIN });
+  await go('sozlamalar/dentacrm');
   await page.reload({ waitUntil: 'networkidle' });
-  await page.getByText('DentaCRM — qabullar va tushum').waitFor({ timeout: 10000 });
-  ok('DentaCRM: ulangan holat — klinika nomi, parol sahifada yo\'q', crmJoined === 200 && await page.getByText(`Tabassum Dental · 127.0.0.1:${crmPort}`).isVisible()
+  ok("DentaCRM: ulangan holat — klinika nomi, parol sahifada yo'q", crmJoined === 200 && await visible(page.getByText(`Tabassum Dental · 127.0.0.1:${crmPort}`), 10000)
     && !(await page.content()).includes(CRM_LOGIN.password));
   await shot('11b-dentacrm', true);
 
-  console.log('\n# Bosh sahifa');
-  await nav('Bosh sahifa');
-  const clinicDay = page.getByRole('region', { name: 'Klinika kuni' });
-  await clinicDay.getByText('jami').waitFor({ timeout: 10000 });
-  const { day } = await (await fetch(`${base}/api/crm/day`, { headers: auth })).json() as { day: { total: number; revenue: { total: number }; doctors: { doctor: string }[] } };
-  const dayShown = (await clinicDay.innerText()).replace(/\s+/g, ' ');
-  ok("bosh sahifa: klinika kuni — qabullar soni, tushum va shifokorlar DentaCRM'dagi bilan bir xil", dayShown.includes(`jami ${day.total}`) && dayShown.includes(`${day.revenue.total.toLocaleString('ru-RU').replace(/\s/g, ' ')} so'm`)
-    && day.doctors.every(d => dayShown.includes(d.doctor)), dayShown.slice(0, 200));
-  await shot('11c-home-clinic', true);
-  const lastChat = async () => (await (await fetch(`${base}/api/chat`, { headers: auth })).json() as { entries: { id: string; role: string; text: string }[] }).entries.at(-1);
-  const chatBefore = (await lastChat())?.id;
-  await page.getByLabel("Cerebro'ga savol").fill('Bugun nima qilishim kerak?');
-  await page.getByLabel("Cerebro'ga savol").press('Enter');
-  const answered = await until(async () => { const last = await lastChat(); return !!last && last.id !== chatBefore && last.role === 'assistant' && last.text.startsWith('Bugun:'); });
-  ok("bosh sahifa: yozilgan savol suhbat sahifasiga o'tadi va u yerda yuboriladi — javob keladi", answered && page.url().endsWith('#/chat') && await page.getByRole('heading', { name: 'Yordamchi' }).isVisible());
+  console.log('\n# Tahlilchi va Kuzatuvchi');
+  await nav('Tahlilchi');
+  ok('tahlilchi: raqamlar va topshiriqlar varaqlari', await visible(page.getByRole('heading', { name: 'Tahlilchi' })) && await tabOn('Topshiriqlar').isVisible());
+  await shot('12a-tahlilchi', true);
+  await nav('Kuzatuvchi');
+  ok("kuzatuvchi: kamera yo'q — nima qiladi va qanday ulanadi", await visible(page.getByRole('heading', { name: "Kuzatuvchi hali hech narsani ko'rmayapti" })) && await tabOn('Kameralar').isVisible());
 
-  console.log('\n# Mijozlar: yozishma');
+  console.log('\n# Qabulxona: yozishma');
   tgUser.incoming(TG_SESSION, '6001', 'Stol narxi qancha?', { name: 'Bobur', username: 'bobur_t' });
   await sleep(1500);
-  await nav('Mijozlar');
+  await go('qabulxona');
+  ok("qabulxona bugun: yangi yozishma suhbatlar ro'yxatida", await visible(page.getByRole('region', { name: 'Suhbatlar' }).getByText('Bobur').first(), 10000));
+  await shot('12-qabulxona-suhbat', true);
+  await go('qabulxona/yozishmalar');
   await page.getByRole('button', { name: /Bobur/ }).click();
   await page.getByText('Javob taklifi — tasdiqlaysizmi?').waitFor({ timeout: 10000 });
   ok("suhbat: mijoz gapi va Cerebro taklifi ko'rinadi", await page.getByText('Stol narxi qancha?').last().isVisible());
-  await shot('12-inbox');
   await page.getByRole('button', { name: 'Yuborish', exact: true }).click();
   await page.getByText('Yuborildi').first().waitFor({ timeout: 10000 });
-  ok("taklif tasdiqlandi — egasining Telegrami orqali ketdi", !!tgUser.sent.find(m => m.to.userId === '6001' && m.text.includes("1 500 000")));
-  await page.getByLabel('Mijozga xabar').fill("Yetkazib berish ham bepul");
+  ok("taklif tasdiqlandi — egasining Telegrami orqali ketdi", !!tgUser.sent.find(m => m.to.userId === '6001' && m.text.includes('1 500 000')));
+  await page.getByLabel('Mijozga xabar').fill('Yetkazib berish ham bepul');
   await page.getByRole('button', { name: 'Mijozga yuborish' }).click();
   await waitFor('panel xabari', () => tgUser.sent.find(m => m.text === 'Yetkazib berish ham bepul'));
   ok('panel orqali mijozga yozildi', !!tgUser.sent.find(m => m.text === 'Yetkazib berish ham bepul'));
 
   console.log('\n# Fayl tashlash');
-  await nav('Yordamchi');
+  await go('yordamchi/suhbat');
   await page.locator('input[type="file"]').setInputFiles({ name: 'Narxnoma_kuz.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: xlsxFile([['Xizmat', 'Narx'], ['Shkaf sinov', 1200000], ['Parta sinov', 2300000]]) });
   await page.getByText(/«Narxnoma kuz» o'qildi/).first().waitFor({ timeout: 15000 });
   ok("fayl: skrepka orqali tashlandi — suhbatda «o'qildi» va «2 ta narx topildi»", await page.getByText(/2 ta narx topildi/).first().isVisible() && await page.getByRole('button', { name: 'Fayl biriktirish' }).isVisible());
   await shot('15-file-chat');
-  await nav('Ikkinchi miya');
+  await go('miya/savollar');
   await page.getByRole('button', { name: 'Narxlar jadvaliga (2)' }).click();
   await page.getByText('Narxlar jadvalga tushdi').first().waitFor({ timeout: 10000 });
-  ok("fayl: «Ikkinchi miya»da bir tugma bilan narxlar jadvalga tushdi, taklif yopildi", await page.getByRole('button', { name: "Narxni o'chirish: Shkaf sinov" }).count() === 1 && await page.getByRole('button', { name: 'Narxlar jadvaliga (2)' }).count() === 0);
-  await shot('16-file-brain', true);
+  ok("fayl: Miya → «Savollar va narxlar»da bir tugma bilan narxlar jadvalga tushdi", await page.getByRole('button', { name: "Narxni o'chirish: Shkaf sinov" }).count() === 1 && await page.getByRole('button', { name: 'Narxlar jadvaliga (2)' }).count() === 0);
 
-  console.log('\n# Ikkinchi miya');
-  await nav('Ikkinchi miya');
-  await page.getByRole('heading', { name: 'Ikkinchi miya' }).waitFor();
-  await page.getByLabel('Yangi fakt').fill('Yetkazish 500 mingdan bepul');
+  console.log('\n# Miya');
+  await page.getByLabel('Yangi fakt').fill('Ish kuni 9 dan 19 gacha');
   await page.getByLabel('Yangi fakt').press('Enter');
-  await page.getByText('Yetkazish 500 mingdan bepul').waitFor({ timeout: 5000 });
-  ok('miya: fakt qo\'shildi', true);
+  ok("miya: fakt qo'shildi", await visible(page.getByText('Ish kuni 9 dan 19 gacha').first(), 5000));
   await page.getByRole('button', { name: /Qanday to'lash mumkin\?/ }).click();
   await page.getByLabel("Qanday to'lash mumkin?").fill('Naqd, karta va Click');
   await page.getByRole('button', { name: 'Saqlash', exact: true }).first().click();
-  // Javob saqlangach sarlavhadagi hisob yangilanadi (matnning o'zi yozish maydonida ham bor — unga qarab bo'lmaydi)
-  const counted = await page.getByText(/savollar · 1\/\d+/).waitFor({ timeout: 10000 }).then(() => true, () => false);
-  ok('miya: tayyor savolga javob yozildi, hisob yangilandi', counted);
+  ok('miya: tayyor savolga javob yozildi, hisob yangilandi', await visible(page.getByText(/savollar · 1\/\d+/), 10000));
   await page.getByLabel("Narx ro'yxatini shu yerga tashlang").fill('Divan — 4,5 mln\nKreslo 900 ming\nYetkazish — bepul\nBreket 350');
   ok("miya: narx ro'yxati o'qildi, tushunilmagan qator alohida ko'rsatildi", (await page.getByText(/4.500.000 so'm/).isVisible()) && (await page.getByText(/«Breket 350»/).isVisible()));
-  await shot('14-brain');
   await page.getByRole('button', { name: '3 ta narxni saqlash' }).click();
   await page.getByText('Narxlar saqlandi').first().waitFor({ timeout: 10000 });
-  ok('miya: bepul xizmat fakt bo\'lib saqlandi', await page.getByText('Yetkazish — bepul', { exact: true }).isVisible());
+  ok("miya: bepul xizmat fakt bo'lib saqlandi", await page.getByText('Yetkazish — bepul', { exact: true }).isVisible());
   await page.getByRole('button', { name: "Narxni o'chirish: Kreslo" }).click();
   const gone = await page.getByRole('button', { name: "Narxni o'chirish: Kreslo" }).waitFor({ state: 'detached', timeout: 10000 }).then(() => true, () => false);
   ok("miya: narxlar ro'yxati shu sahifada — bittasi o'chirildi, qolgani joyida", gone && (await page.getByRole('button', { name: "Narxni o'chirish: Divan" }).count()) === 1);
-  ok("miya: «Biznes haqida» sahifasi egasining sahifalari orasida", await page.getByText('Biznes haqida', { exact: true }).first().isVisible());
+  await shot('14-miya', true);
+  await go('miya');
+  ok("miya: sahifalar (Obsidian kabi) — «Biznes haqida» ro'yxatda", await visible(page.getByText('Biznes haqida').first(), 10000));
+  await shot('14b-miya-sahifalar');
 
   console.log('\n# Birinchi kun suhbati');
+  await go('miya/savollar');
   await page.getByRole('button', { name: "Suhbatda so'rab chiq" }).click();
   await page.getByText(/ta savolim bor/).first().waitFor({ timeout: 10000 });
-  ok("suhbat: «Ikkinchi miya»dagi tugma suhbat sahifasini ochadi — Cerebro birinchi javobsiz savolni so'raydi", page.url().endsWith('#/chat') && await page.getByText('Cerebro savol beryapti').isVisible());
+  ok("suhbat: Miya'dagi tugma suhbatni ochadi — Cerebro birinchi javobsiz savolni so'raydi", page.url().endsWith('#/chat') && await page.getByText('Cerebro savol beryapti').isVisible());
   await shot('17-interview');
-  // Avval bo'shliqlar so'raladi (yozilmagan manzil, telefon, ish vaqti) — har biriga o'ziga mos javob, keyin tayyor savol
   const gapAnswers: [RegExp, string][] = [[/Manzilingiz qayer/, 'Chilonzor 9-kvartal, 14-uy'], [/qaysi raqamga qo'ng'iroq/, '+998 71 200 45 67'], [/Ish vaqtingiz qanday/, 'Du–Sh 09:00–20:00']];
   let gapsAnswered = 0;
   for (const [question, answer] of gapAnswers) {
@@ -337,25 +336,23 @@ try {
 
   console.log('\n# Telefon ekrani');
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${base}/#/chat`, { waitUntil: 'networkidle' });
-  await page.getByLabel('Xabar').waitFor();
+  await go('yordamchi/suhbat');
+  await page.getByLabel('Xabar', { exact: true }).waitFor();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   ok("telefon: gorizontal siljish yo'q", overflow <= 0, `${overflow}px`);
   await shot('09-mobile-chat');
-  // Tor ekranda bo'limlar yuqori chapdagi «Menyu» tugmasi ortida: tortma yopiq (inert), tugma bosilsa ochiladi, bo'lim tanlansa yopiladi
-  const hidden = await page.getByRole('button', { name: 'Menyu', exact: true }).isVisible() && (await page.locator('aside').getAttribute('inert')) !== null;
-  await page.getByRole('button', { name: 'Menyu', exact: true }).click();
-  await page.locator('aside').getByRole('button', { name: 'Bosh sahifa' }).click();
-  await page.getByLabel("Cerebro'ga savol").waitFor({ timeout: 10000 });
-  ok("telefon: bo'limlar yuqori chapdagi menyu tugmasi ortida — ochiladi, bo'lim tanlansa yopiladi", hidden && page.url().endsWith('#/home') && (await page.locator('aside').getAttribute('inert')) !== null);
+  const box = await rail().boundingBox();
+  ok("telefon: bo'limlar pastki panelda", !!box && box.y > 700, JSON.stringify(box));
+  await nav('Cerebro');
+  ok('telefon: pastki paneldan bosh ekranga', await visible(page.getByLabel("Cerebro'ga yozing")) && page.url().endsWith('#/ai'));
   await shot('09b-mobile-home', true);
-  for (const p of ['home', 'inbox', 'journal', 'telegram', 'brain']) {
-    await page.goto(`${base}/#/${p}`, { waitUntil: 'networkidle' });
+  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'sozlamalar/telefon', 'miya']) {
+    await go(p);
     await sleep(300);
     const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     ok(`telefon: ${p} — sig'adi`, o <= 0, `${o}px`);
-    if (p === 'journal') await shot('10-mobile-journal');
-    if (p === 'inbox') await shot('13-mobile-inbox');
+    if (p === 'yordamchi/jurnal') await shot('10-mobile-ishlar');
+    if (p === 'qabulxona') await shot('13-mobile-qabulxona');
   }
 
   ok("brauzerda xato yo'q", errors.length === 0, errors.slice(0, 3).join(' | '));

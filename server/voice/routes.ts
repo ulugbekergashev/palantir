@@ -16,6 +16,7 @@ import { env } from '../env';
 import { notifyOwner } from '../inbox/core';
 import { leadForPhone } from '../people';
 import { openRequest } from '../requests/index';
+import { applyLine, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk } from './line';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -68,6 +69,22 @@ const REQUESTS_PER_HOUR = 30;
 const agentRequests = new Map<string, number[]>();
 const esc = (s: string) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
 
+const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+/** Asterisk sozlamasiga tushadi: faqat xavfsiz belgilar (qator uzilishi, izoh va bo'lim belgisi o'tmaydi) */
+const SipText = z.string().trim().regex(/^[^\s;[\]]*$/, "bo'shliq va ; [ ] belgilari bo'lmasin");
+const TrunkSchema = z.object({
+  host: SipText.min(3).max(120).regex(/^[A-Za-z0-9.-]+$/, 'server manzili: sip.uztelecom.uz yoki IP'),
+  port: z.number().int().min(1).max(65_535).default(5060),
+  login: SipText.min(1).max(64),
+  number: z.string().trim().max(20).regex(/^\+?\d*$/, 'raqam: faqat raqamlar'),
+  /** Bo'sh — eski parol qoladi */
+  password: SipText.max(128).optional(),
+});
+const RoutingSchema = z.object({
+  mode: z.enum(['ai', 'day_admin']), ring: z.number().int().min(5).max(60),
+  days: z.array(z.number().int().min(1).max(7)).max(7), from: HHMM, to: HHMM,
+});
+
 export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   const asAgent = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => (req, res) => {
     const biz = bizOf(req);
@@ -81,6 +98,35 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   app.post('/api/voice/key', asBiz((_req, res, biz) => res.json({ key: newVoiceKey(biz.id) })));
 
   // Agent: bo'sh vaqtlar (model o'qiydigan matn)
+  // Asterisk har kiruvchi qo'ng'iroqda so'raydi (extensions.conf, [kiruvchi]): «admin:20» — avval administrator telefoni, yoki «ai»
+  app.get('/api/voice/route', asAgent((_req, res, biz) => { res.type('text/plain').send(routeNow(lineRouting(biz.id), new Date())); }));
+
+  // ─── Panel: telefon liniyasi (Sozlamalar → Telefon liniyasi) ───
+  app.get('/api/phone/line', asBiz(async (_req, res, biz) => { res.json({ line: await lineView(biz) }); }));
+  // Sozlama saqlandi, lekin Asterisk'ka o'rnatib bo'lmadi (WSL yo'q, Asterisk to'xtagan) — egasi sababini ko'radi
+  const applied = async (res: Response, biz: BusinessRow) => {
+    let warning: string | null = null;
+    try { await applyLine(); } catch (e) { warning = (e as Error).message; }
+    res.json({ line: await lineView(biz), warning });
+  };
+  app.put('/api/phone/line/trunk', asBiz(async (req, res, biz) => {
+    const p = TrunkSchema.safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    const { password, ...trunk } = p.data;
+    try { saveTrunk(biz, trunk, password || null); } catch (e) { return res.status(400).json({ error: (e as Error).message }); }
+    await applied(res, biz);
+  }));
+  app.put('/api/phone/line/routing', asBiz(async (req, res, biz) => {
+    const p = RoutingSchema.safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    saveRouting(biz, p.data);
+    res.json({ line: await lineView(biz, false) });
+  }));
+  app.post('/api/phone/line/admin', asBiz(async (_req, res, biz) => {
+    newAdminPassword(biz);
+    await applied(res, biz);
+  }));
+
   app.get('/api/voice/slots', asAgent(async (_req, res, biz) => {
     const schedule = await scheduleText(biz.id);
     if (!schedule) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
