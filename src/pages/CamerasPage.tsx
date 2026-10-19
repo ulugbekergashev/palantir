@@ -331,12 +331,12 @@ function ZoneEditor({ camera, timing, notify, onSaved, onRemoved }: { camera: Ca
       </div>
       {!isIp && counting === 'off' && (
         <form className="space-y-2 rounded-xl border border-slate-200 p-3" onSubmit={e => { e.preventDefault(); if (address.trim()) link(address.trim()); }}>
-          <label htmlFor={`rtsp-${camera.id}`} className="block text-sm font-semibold">Devordagi (IP) kamerani ulash</label>
+          <label htmlFor={`rtsp-${camera.id}`} className="block text-sm font-semibold">IP kamera yoki telefonni ulash</label>
           <div className="flex flex-wrap gap-2">
             <input id={`rtsp-${camera.id}`} className={`${inputClass} min-w-0 flex-1`} value={address} onChange={e => setAddress(e.target.value)} maxLength={300} placeholder={RTSP_SAMPLE} autoComplete="off" spellCheck={false} />
             <Button type="submit" disabled={linking || !address.trim()}>{linking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wifi className="h-4 w-4" />} Ulash</Button>
           </div>
-          <p className="text-sm text-slate-500">Kamera yoki videoregistratorning RTSP manzili (login va paroli bilan). Yengil oqimni oling — Hikvision'da oxiri <code>102</code>, Dahua'da <code>subtype=1</code>. Ulangach odamlarni server o'zi, kechayu kunduz sanaydi; manzil shifrlab saqlanadi.</p>
+          <p className="text-sm text-slate-500">Kamera yoki videoregistratorning RTSP manzili (login va paroli bilan). Yengil oqimni oling — Hikvision'da oxiri <code>102</code>, Dahua'da <code>subtype=1</code>. RTSP'siz kamera — HTTP manzili (MJPEG oqim yoki <code>…/snapshot.jpg</code>). Eski Android telefon ham kamera bo'ladi: «IP Webcam» ilovasini o'rnatib, «Start server» bosing va <code>http://telefon-IP:8080/video</code> ni yozing. Ulangach odamlarni server o'zi, kechayu kunduz sanaydi; manzil shifrlab saqlanadi.</p>
         </form>
       )}
     </div>

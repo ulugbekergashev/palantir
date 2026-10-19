@@ -29,6 +29,7 @@
     "test:tgcall": "tsx scripts/e2e-tgcall.ts",
     "test:ipcam": "tsx scripts/e2e-ipcam.ts",
     "test:camwork": "tsx scripts/e2e-camwork.ts",
+    "test:httpcam": "tsx scripts/e2e-httpcam.ts",
     "test:ui": "vite build && tsx scripts/ui-live.ts",
     "crm:probe": "tsx scripts/crm-probe.ts",
     "crm:live": "tsx scripts/crm-live.ts",

@@ -9,7 +9,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
-import { ENGINE_FLAG, maskUrl, type Box, type EngineCamera, type FromEngine, type Look, type ToEngine } from './wire';
+import { ENGINE_FLAG, ffmpegInput, maskUrl, type Box, type EngineCamera, type FromEngine, type Look, type ToEngine } from './wire';
 
 /** Model uchun kadr o'lchami (nisbat buzilsa ham zonalar to'g'ri tushadi: joylar kadr ulushida) va kadrlar orasi */
 const WIDTH = 480, HEIGHT = 270, FRAME_BYTES = WIDTH * HEIGHT * 3, FRAME_EVERY_SEC = 2;
@@ -38,7 +38,7 @@ function setState(f: Feed, state: 'connecting' | 'ok' | 'error', message: string
 function start(f: Feed): void {
   f.timer = null;
   if (feeds.get(f.cam.id) !== f) return;
-  const input = testInput ?? ['-rtsp_transport', 'tcp', '-i', f.cam.url];
+  const input = testInput ?? ffmpegInput(f.cam.url, FRAME_EVERY_SEC);
   const proc = spawn(ffmpeg, ['-nostdin', '-loglevel', 'error', ...input, '-an', '-vf', `fps=1/${FRAME_EVERY_SEC},scale=${WIDTH}:${HEIGHT}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   f.proc = proc;
   f.pending = Buffer.alloc(0);

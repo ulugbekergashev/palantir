@@ -61,7 +61,7 @@ try {
   console.log('\n# Manzil tekshiruvi');
   ok('yangi kamera — shu kompyuter kamerasi (IP yo\'q)', cam.ip === null && cam.feed === null);
   ok('fayl manzili qabul qilinmaydi', (await put('file:///C:/Windows/win.ini')).status === 400);
-  ok('http manzil qabul qilinmaydi', (await put('http://192.168.1.64/video')).status === 400);
+  ok('ftp va boshqa protokol qabul qilinmaydi (faqat rtsp va http)', (await put('ftp://192.168.1.64/video')).status === 400 && (await put('concat:rtsp://a|rtsp://b')).status === 400);
   ok('ffmpeg buyrug\'iga o\'xshash matn qabul qilinmaydi', (await put('-f lavfi -i testsrc')).status === 400);
   ok('tokensiz ulab bo\'lmaydi', (await api(`/api/cameras/${cam.id}/stream`, { method: 'PUT', body: { url: 'rtsp://1.2.3.4/x' } })).status === 401);
   ok('ulanmagan kamerada kadr yo\'q — 404', (await api(`/api/cameras/${cam.id}/snapshot`, { token })).status === 404);

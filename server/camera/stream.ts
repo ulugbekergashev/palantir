@@ -8,7 +8,7 @@ import type { CameraFeed } from '../../src/types';
 import { cameras } from '../db';
 import { env } from '../env';
 import { open } from '../secret';
-import { ENGINE_FLAG, maskUrl, type Box, type FromEngine, type Look, type ToEngine } from './wire';
+import { ENGINE_FLAG, ffmpegInput, maskUrl, type Box, type FromEngine, type Look, type ToEngine } from './wire';
 
 const MAX_URL = 300;
 const SNAPSHOT_TIMEOUT_MS = 20_000, SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024, SNAPSHOT_WIDTH = 960;
@@ -28,20 +28,21 @@ const testInput = (): string[] | null => {
 };
 
 /**
- * Egasi kiritgan kamera manzili. Faqat rtsp:// yoki rtsps:// — ffmpeg boshqa "manzil" bilan kompyuterdagi faylni ham o'qiy oladi.
- * Qaytaradi: tozalangan manzil va ko'rsatish uchun host (parolsiz)
+ * Egasi kiritgan kamera manzili: rtsp(s):// — IP kamera; http(s):// — MJPEG oqim yoki surat (telefon «IP Webcam», arzon kameralar).
+ * Boshqasi qabul qilinmaydi — ffmpeg boshqa "manzil" bilan kompyuterdagi faylni ham o'qiy oladi. Qaytaradi: tozalangan manzil va
+ * ko'rsatish uchun host (parolsiz)
  */
 export function parseStream(input: string): { url: string; host: string } {
   const text = input.trim();
   if (!text || text.length > MAX_URL || /[\s\p{Cc}]/u.test(text)) throw new Error("Kamera manzili noto'g'ri");
   let u: URL;
   try { u = new URL(text); } catch { throw new Error("Kamera manzili noto'g'ri. Namuna: rtsp://admin:parol@192.168.1.64:554/Streaming/Channels/102"); }
-  if (u.protocol !== 'rtsp:' && u.protocol !== 'rtsps:') throw new Error('Manzil rtsp:// bilan boshlanishi kerak');
+  if (!['rtsp:', 'rtsps:', 'http:', 'https:'].includes(u.protocol)) throw new Error('Manzil rtsp:// (IP kamera) yoki http:// (telefon, MJPEG) bilan boshlanishi kerak');
   if (!u.hostname) throw new Error("Manzilda kamera IP'si yo'q");
   return { url: u.href, host: u.port ? `${u.hostname}:${u.port}` : u.hostname };
 }
 
-const inputArgs = (url: string): string[] => testInput() ?? ['-rtsp_transport', 'tcp', '-i', url];
+const inputArgs = (url: string): string[] => testInput() ?? ffmpegInput(url);
 
 /** Maxfiy joylar ffmpeg'ning o'zida qora bilan to'ldiriladi — yopilmagan kadr serverdan tashqariga chiqmaydi. Qiymatlar — kadr ulushi (0..1) */
 const maskFilter = (masks: readonly Box[]): string => masks.map(m => {
