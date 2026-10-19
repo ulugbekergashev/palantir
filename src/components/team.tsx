@@ -14,7 +14,7 @@ export type Member = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi';
 export const TEAM: Record<Member, { name: string; role: string; about: string; icon: LucideIcon }> = {
   qabulxona: { name: 'Qabulxona', role: 'Telefon · Instagram · Telegram', icon: Headset, about: "Mijozlarga kunu tun javob beradi, qabulga yozadi; o'zi hal qila olmaganini sizga so'rov qilib qoldiradi." },
   yordamchi: { name: 'Yordamchi', role: "Sizning o'ng qo'lingiz", icon: UserRound, about: 'Eslatadi, hujjat tayyorlaydi, savolingizga javob beradi — ovoz bilan yoki yozib.' },
-  kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, about: 'Kreslo va kassani kuzatadi, kelganlar sonini jadval bilan solishtiradi.' },
+  kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, about: "Kameralarni kuzatadi, siz bergan topshiriqlarni bajaradi va kadrga qarab savolingizga javob beradi; kelganlarni DentaCRM bilan solishtiradi." },
   tahlilchi: { name: 'Tahlilchi', role: 'Raqamlar · DentaCRM', icon: ChartLine, about: "Murojaatlar, qabul va tushum — kunlik va haftalik ko'rinishda." },
 };
 export const MEMBERS = Object.keys(TEAM) as Member[];

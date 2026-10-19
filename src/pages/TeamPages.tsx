@@ -16,7 +16,9 @@ import { iso } from '../lib/week';
 import { AnalystBody, PeriodSwitch, analystStats, useAnalystData } from './agents/Analyst';
 import { AssistantDesk, dueGroup, useAssistantData } from './agents/Assistant';
 import { ReceptionToday, useReceptionData } from './agents/Reception';
-import { WatchToday, useWatchData } from './agents/Watch';
+import { WatchCameras, WatchNow, useWatchData } from './agents/Watch';
+import { OrdersPanel } from '../components/Orders';
+import { AgentJournal } from '../components/Journal';
 import { CallsPage } from './CallsPage';
 import { CamerasPage } from './CamerasPage';
 import { ChatPage } from './ChatPage';
@@ -30,7 +32,7 @@ interface Common { biz: Business; status: LiveStatus; now: Date; notify: Notify;
 const pick = (tab: string | null, ids: string[]) => (tab && ids.includes(tab) ? tab : ids[0]);
 
 export function ReceptionArea({ tab, notify, onChanged, state, status, tick }: Common) {
-  const active = pick(tab, ['bugun', 'sorovlar', 'qongiroqlar', 'yozishmalar']);
+  const active = pick(tab, ['bugun', 'sorovlar', 'qongiroqlar', 'yozishmalar', 'topshiriqlar']);
   const [data, reload] = useReceptionData(notify, tick);
   const today = iso(new Date());
   const k = data?.dashboard?.kpi;
@@ -43,10 +45,11 @@ export function ReceptionArea({ tab, notify, onChanged, state, status, tick }: C
   return (
     <div className="space-y-6">
       <AgentHero member="qabulxona" state={state} stats={stats}>
-        <AgentTabs area="qabulxona" active={active} tabs={[{ id: 'bugun', label: 'Bugun' }, { id: 'sorovlar', label: "So'rovlar", count: data?.requests.length }, { id: 'qongiroqlar', label: "Qo'ng'iroqlar" }, { id: 'yozishmalar', label: 'Yozishmalar' }]} />
+        <AgentTabs area="qabulxona" active={active} tabs={[{ id: 'bugun', label: 'Bugun' }, { id: 'sorovlar', label: "So'rovlar", count: data?.requests.length }, { id: 'qongiroqlar', label: "Qo'ng'iroqlar" }, { id: 'yozishmalar', label: 'Yozishmalar' }, { id: 'topshiriqlar', label: 'Topshiriqlar' }]} />
       </AgentHero>
       {active === 'bugun' && <ReceptionToday data={data} reload={reload} notify={notify} status={status} onChanged={onChanged} tick={tick} />}
-      {active !== 'bugun' && (
+      {active === 'topshiriqlar' && <OrdersPanel member="qabulxona" notify={notify} />}
+      {active !== 'bugun' && active !== 'topshiriqlar' && (
         <div className="agent-body">
           {active === 'sorovlar' && <RequestsPage notify={notify} onChanged={() => { reload(); onChanged(); }} />}
           {active === 'qongiroqlar' && <CallsPage notify={notify} />}
@@ -59,7 +62,7 @@ export function ReceptionArea({ tab, notify, onChanged, state, status, tick }: C
 
 export function AssistantArea({ tab, biz, status, now, notify, onChanged, state, tick }: Common) {
   // «ishlar» — eski manzil (jurnal)
-  const active = pick(tab === 'ishlar' ? 'jurnal' : tab, ['stol', 'suhbat', 'jurnal']);
+  const active = pick(tab === 'ishlar' ? 'jurnal' : tab, ['stol', 'suhbat', 'jurnal', 'topshiriqlar']);
   const [data, reload] = useAssistantData(notify, tick);
   const tasks = data?.tasks ?? [];
   const late = tasks.filter(t => dueGroup(t) === 'late').length;
@@ -73,19 +76,28 @@ export function AssistantArea({ tab, biz, status, now, notify, onChanged, state,
   const changed = () => { reload(); onChanged(); };
   return (
     <div className="space-y-6">
-      <AgentHero member="yordamchi" state={state} stats={stats}>
-        <AgentTabs area="yordamchi" active={active} tabs={[{ id: 'stol', label: 'Ish stoli' }, { id: 'suhbat', label: 'Suhbat tarixi' }, { id: 'jurnal', label: 'Jurnal', count: late }]} />
+      <AgentHero member="yordamchi" state={state} stats={stats} compact={active === 'suhbat'}>
+        <AgentTabs area="yordamchi" active={active} tabs={[{ id: 'stol', label: 'Ish stoli' }, { id: 'suhbat', label: 'Suhbat' }, { id: 'jurnal', label: 'Ishlar', count: late }, { id: 'topshiriqlar', label: 'Topshiriqlar' }]} />
       </AgentHero>
       {active === 'stol' && <AssistantDesk data={data} reload={reload} notify={notify} onChanged={onChanged} owner={(biz.ownerName || '').split(' ')[0]} />}
       {/* Suhbat ekran bo'yiga cho'ziladi: sarlavha egallagan joy hisobga olinadi */}
-      {active === 'suhbat' && <div className="agent-body mx-auto max-w-4xl [--shell-y:9rem]"><ChatPage biz={biz} status={status} notify={notify} now={now} /></div>}
+      {active === 'suhbat' && <div className="[--shell-y:10.5rem]"><ChatPage biz={biz} status={status} notify={notify} now={now} /></div>}
       {active === 'jurnal' && <div className="agent-body"><JournalPage now={now} notify={notify} onChanged={changed} /></div>}
+      {active === 'topshiriqlar' && (
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <OrdersPanel member="yordamchi" notify={notify} />
+          <section aria-label="Bajarganlari" className="rounded-[22px] border border-glass/[0.07] bg-[#0b0c10] p-5"><h2 className="mb-4 text-[13px] font-semibold uppercase tracking-[0.12em] text-[#a3a9b5]">Bajarganlari</h2><AgentJournal member="yordamchi" notify={notify} tick={tick} /></section>
+        </div>
+      )}
     </div>
   );
 }
 
 export function WatchArea({ tab, notify, state, tick }: Common) {
-  const active = pick(tab, ['kuzatuv', 'sozlash']);
+  // Kamera sahifasi: #/kuzatuvchi/kamera-<id>; eski varaqlar: kuzatuv → hozir, sozlash → ulash
+  const camera = tab?.startsWith('kamera-') ? tab.slice(7) : null;
+  const alias: Record<string, string> = { kuzatuv: 'hozir', sozlash: 'ulash' };
+  const active = camera ? 'kameralar' : pick(tab ? alias[tab] ?? tab : null, ['hozir', 'kameralar', 'topshiriqlar', 'jurnal', 'ulash']);
   const data = useWatchData(notify, tick);
   const s = data?.summary;
   const issues = s?.findings.filter(f => f.level !== 'ok').length ?? 0;
@@ -98,22 +110,30 @@ export function WatchArea({ tab, notify, state, tick }: Common) {
   return (
     <div className="space-y-6">
       <AgentHero member="kuzatuvchi" state={state} stats={stats}>
-        <AgentTabs area="kuzatuvchi" active={active} tabs={[{ id: 'kuzatuv', label: 'Kuzatuv' }, { id: 'sozlash', label: 'Kameralarni sozlash' }]} />
+        <AgentTabs area="kuzatuvchi" active={active} tabs={[{ id: 'hozir', label: 'Hozir' }, { id: 'kameralar', label: 'Kameralar', count: data?.cameras.length }, { id: 'topshiriqlar', label: 'Topshiriqlar' }, { id: 'jurnal', label: 'Jurnal' }, { id: 'ulash', label: 'Ulash' }]} />
       </AgentHero>
-      {active === 'kuzatuv' ? <WatchToday data={data} /> : <div className="agent-body"><CamerasPage notify={notify} /></div>}
+      {active === 'hozir' && <WatchNow data={data} notify={notify} tick={tick} />}
+      {active === 'kameralar' && <WatchCameras data={data} selected={camera} notify={notify} tick={tick} />}
+      {active === 'topshiriqlar' && <OrdersPanel member="kuzatuvchi" notify={notify} cameras={data?.cameras ?? []} />}
+      {active === 'jurnal' && <AgentJournal member="kuzatuvchi" notify={notify} tick={tick} />}
+      {active === 'ulash' && <div className="agent-body"><CamerasPage notify={notify} /></div>}
     </div>
   );
 }
 
-export function AnalystArea({ notify, state }: Common) {
+export function AnalystArea({ tab, notify, state }: Common) {
+  const active = pick(tab, ['raqamlar', 'topshiriqlar']);
   const [period, setPeriod] = useState<'today' | 'yesterday' | 'week' | 'month'>('week');
   const data = useAnalystData(period, notify);
   return (
     <div className="space-y-6">
       <AgentHero member="tahlilchi" state={state} stats={analystStats(data?.dashboard ?? null, data?.funnel ?? null)}>
-        <PeriodSwitch value={period} onChange={setPeriod} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <AgentTabs area="tahlilchi" active={active} tabs={[{ id: 'raqamlar', label: 'Raqamlar' }, { id: 'topshiriqlar', label: 'Topshiriqlar' }]} />
+          {active === 'raqamlar' && <PeriodSwitch value={period} onChange={setPeriod} />}
+        </div>
       </AgentHero>
-      <AnalystBody data={data} />
+      {active === 'raqamlar' ? <AnalystBody data={data} /> : <OrdersPanel member="tahlilchi" notify={notify} />}
     </div>
   );
 }

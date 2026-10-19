@@ -403,6 +403,7 @@ export interface Camera {
   /** Kadrlar uzluksiz kela boshlagan payt */ seenFrom: string | null;
   /** IP kamera ulangan bo'lsa — uning manzili (parolsiz, faqat ko'rsatish uchun); null — shu kompyuter kamerasi (brauzerda sanaladi) */ ip: string | null;
   /** IP kamera holati; brauzer kamerasida null */ feed: CameraFeed | null;
+  /** Egasining tavsifi: kamera nimaga qaraydi, odatda kim turadi, ish vaqti — har topshiriq va savolda AI shuni o'qiydi */ profile?: string | null;
 }
 /** Zonada odam bo'lgan oraliq; endedAt null — hozir ham shu yerda */
 export interface CameraSession { id: string; cameraId: string; zoneId: string; kind: ZoneKind; zoneName: string; startedAt: string; endedAt: string | null }
@@ -412,6 +413,38 @@ export interface CameraFinding { level: 'ok' | 'warn' | 'crit'; text: string }
  * crm — DentaCRM'dagi «keldi» qabullar va to'langan to'lovlar soni (ulanmagan yoki javob bermagan bo'lsa null)
  */
 export interface CameraSummary { date: string; seated: number; deskVisits: number; crm: { visits: number; payments: number } | null; findings: CameraFinding[]; sessions: CameraSession[] }
+
+// ─── AI xodimlarga topshiriqlar va ularning jurnali ──────────────────────────
+export type OrderMember = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi';
+/**
+ * Kamera qoidasi sharti (odam topuvchi sanagan odamlar bo'yicha): crowd — kamida `people` kishi; linger — kimdir turibdi
+ * (uzoq turish); empty — hech kim yo'q; presence — odam ko'rindi (masalan, ish vaqtidan tashqari)
+ */
+export type WatchCondition = 'crowd' | 'linger' | 'empty' | 'presence';
+/**
+ * Topshiriq turi. standing — doimiy ko'rsatma (xodim har doim amal qiladi); schedule — belgilangan vaqtda bajaradi
+ * (days: 1 — dushanba … 7 — yakshanba, bo'sh — har kuni); watch — kamera qoidasi (odam topuvchi, bepul, darhol);
+ * look — AI ko'zi: kadrga qarab savolni tekshiradi (kadr AI'ga yuboriladi) — at bo'lsa o'sha vaqtda, bo'lmasa har everyMin daqiqada.
+ * Vaqtlar «HH:MM»; from/to — faqat shu oraliqda (kechasi ham bo'ladi: 21:00–07:00). cameraId null — hamma kamera
+ */
+export type OrderSpec =
+  | { kind: 'standing' }
+  | { kind: 'schedule'; at: string; days: number[] }
+  | { kind: 'watch'; cameraId: string | null; zoneId: string | null; condition: WatchCondition; people: number; minutes: number; from: string | null; to: string | null }
+  | { kind: 'look'; cameraId: string | null; at: string | null; days: number[]; everyMin: number; from: string | null; to: string | null; question: string };
+export interface AgentOrder {
+  id: string; member: OrderMember;
+  /** Egasining o'z so'zi */ text: string;
+  spec: OrderSpec;
+  /** AI qanday tushungani — bir gap («Har kuni 20:00 da …») */ summary: string;
+  active: boolean; createdAt: string; lastRunAt: string | null; lastResult: string | null;
+  /** Necha marta ishlagan (qoida bo'lsa — necha marta xabar bergan) */ hits: number;
+}
+/** Xodim jurnalidagi yozuv: nima ko'rdi yoki nima qildi. hasImage — kadr saqlangan (kamera hodisasi) */
+export interface AgentEvent {
+  id: string; member: OrderMember; orderId: string | null; level: 'info' | 'warn' | 'crit'; title: string; body: string;
+  cameraId: string | null; hasImage: boolean; at: string;
+}
 
 export interface CallLine { who: 'ai' | 'caller'; text: string }
 /**

@@ -40,7 +40,8 @@ Sub OpenApp(target)
                    lad & "\Google\Chrome\Application\chrome.exe", pf86 & "\Microsoft\Edge\Application\msedge.exe", pf & "\Microsoft\Edge\Application\msedge.exe")
   For Each b In browsers
     If fso.FileExists(b) Then
-      shell.Run """" & b & """ --app=" & target & " --start-maximized", 1, False
+      ' Ovoz bosishsiz ham ishlasin («Quloq»: «Cerebro» deb chaqirish) — brauzer hali ochilmagan bo'lsa kuchga kiradi
+      shell.Run """" & b & """ --app=" & target & " --start-maximized --autoplay-policy=no-user-gesture-required", 1, False
       Exit Sub
     End If
   Next

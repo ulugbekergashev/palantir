@@ -32,8 +32,21 @@ export function AgentOrb({ member, size = 84, live = false }: { member: Member; 
 export interface Stat { label: string; value: ReactNode; hint?: string; tone?: 'warn' | 'good' }
 
 /** Xodim sarlavhasi: sfera, ismi, nima qiladi, jonli holati va bugungi raqamlar; ostida — varaqlar */
-export function AgentHero({ member, state, stats, children }: { member: Member; state: MemberState | null; stats: Stat[]; children?: ReactNode }) {
+export function AgentHero({ member, state, stats, children, compact = false }: { member: Member; state: MemberState | null; stats: Stat[]; children?: ReactNode; /** Ixcham: ism va varaqlar bir qatorda (suhbat kabi ekranni to'ldiradigan varaq) */ compact?: boolean }) {
   const m = TEAM[member], h = HUE[member];
+  if (compact) {
+    return (
+      <header className="relative flex flex-wrap items-center gap-4 overflow-hidden rounded-[22px] border border-glass/[0.07] bg-[#0a0b0f] px-5 py-3.5">
+        <div aria-hidden="true" className="pointer-events-none absolute -left-16 -top-24 h-60 w-60 rounded-full" style={{ background: `radial-gradient(closest-side, ${h.glow}, transparent)` }} />
+        <AgentOrb member={member} size={40} live={state?.live} />
+        <div className="relative mr-auto min-w-0">
+          <h1 className="text-[20px] font-bold leading-tight tracking-tight text-[#f2f0ea]">{m.name}</h1>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: h.text }}>{m.role}</p>
+        </div>
+        {children && <div className="relative">{children}</div>}
+      </header>
+    );
+  }
   return (
     <header className="relative overflow-hidden rounded-[28px] border border-glass/[0.07] bg-[#0a0b0f] p-6 sm:p-8">
       <div aria-hidden="true" className="pointer-events-none absolute -left-24 -top-32 h-[420px] w-[420px] rounded-full" style={{ background: `radial-gradient(closest-side, ${h.glow}, transparent)` }} />

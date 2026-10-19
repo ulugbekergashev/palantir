@@ -24,6 +24,7 @@ import { AiLimitError, profileText, think } from './claude';
 import { crmClinicName, crmConnected } from './crm/index';
 import { COMMON_RULES, industryOf } from '../src/data/industries';
 import { runTool, toolDefinitions, type ToolCtx } from './tools';
+import { orders } from './orders/store';
 
 type Msg = Anthropic.Beta.BetaMessageParam;
 type Block = Anthropic.Beta.BetaContentBlockParam;
@@ -80,6 +81,14 @@ export function knowledgeBlocks(b: BusinessRow): string[] {
   ];
 }
 
+/** Egasining doimiy topshiriqlari yordamchi va tahlilchiga (panel: xodim sahifasi → Topshiriqlar) */
+function standingOrders(bizId: string): string {
+  const mine = orders.standing(bizId, 'yordamchi'), analyst = orders.standing(bizId, 'tahlilchi');
+  if (!mine.length && !analyst.length) return '';
+  const lines = [...mine, ...analyst.map(t => `(reports and numbers) ${t}`)].map(t => `- ${t}`);
+  return `<owner_standing_orders>\nStanding orders the owner gave you — follow them in every conversation:\n${lines.join('\n')}\n</owner_standing_orders>`;
+}
+
 function buildSystem(b: BusinessRow): string {
   const now = new Date();
   const holidays = upcomingOccasions(now, 21, isMedical(b.profile.industry));
@@ -101,6 +110,7 @@ ${COMMON_RULES}
       ? `<previous_session>\nThe last messages before this conversation started (for continuity; the tools have the current data):\n${recent.map(e => `${e.role === 'owner' ? 'Owner' : 'Cerebro'}: ${e.text.slice(0, 300)}`).join('\n')}\n</previous_session>`
       : '',
     clinicBlock(b.id),
+    standingOrders(b.id),
     `Session started: ${iso(now)}.`,
   ];
   return parts.filter(Boolean).join('\n\n');
@@ -140,6 +150,8 @@ export interface Reply {
   text: string;
   artifacts: Artifact[];
   entries: ChatEntry[];
+  /** Ish bajarilmadi (AI ulanmagan, chegara, xizmat xatosi): text — egasiga tushunarli sabab */
+  failed?: boolean;
 }
 
 /** Egasining yangi gapi: oxirgi xabar egasiniki bo'lsa (xatodan keyin), unga qo'shiladi */
@@ -180,17 +192,18 @@ export function friendlyError(e: unknown): string {
 const PHONE_NOTE = ' (live phone call, speech-to-text: reply in one or two short spoken sentences of plain text — no lists, markdown, links or emoji, it is read aloud)';
 
 /** Egasining gapiga javob. Hech qachon tashlamaydi: xato bo'lsa — tushunarli matn */
-export function ask(bizId: string, channel: ChatEntry['channel'], text: string, opts: { voice?: boolean; /** Jurnalda ko'rinadigan matn (rasm yuborilganda: tavsif emas, qisqa belgi) */ display?: string; /** Gap rasm tavsifi bilan kelgan (toolkit.ts: fromPhoto) */ photo?: boolean; /** Jonli telefon qo'ng'irog'i: javob ovoz chiqarib o'qiladi */ phone?: boolean } = {}): Promise<Reply> {
+export function ask(bizId: string, channel: ChatEntry['channel'], text: string, opts: { voice?: boolean; /** Jurnalda ko'rinadigan matn (rasm yuborilganda: tavsif emas, qisqa belgi) */ display?: string; /** Gap rasm tavsifi bilan kelgan (toolkit.ts: fromPhoto) */ photo?: boolean; /** Jonli telefon qo'ng'irog'i: javob ovoz chiqarib o'qiladi */ phone?: boolean; /** Jadvaldagi topshiriq: egasi kuzatmayapti (toolkit.ts: unattended) */ unattended?: boolean } = {}): Promise<Reply> {
   return serial(bizId, async () => {
     const biz = businesses.byId(bizId);
     if (!biz) throw new Error('Biznes topilmadi');
     // Jurnalga javob bilan birga yoziladi (yangi sessiyaning "oldingi gaplar"iga joriy gap tushmasin)
-    const finish = (reply: string, artifacts: Artifact[]): Reply => ({
+    const finish = (reply: string, artifacts: Artifact[], failed = false): Reply => ({
       text: reply,
       artifacts,
+      ...(failed ? { failed } : {}),
       entries: [chatLog.add(biz.id, channel, 'owner', opts.display ?? (opts.phone ? `📞 ${text}` : opts.voice ? `🎙 ${text}` : text)), chatLog.add(biz.id, channel, 'assistant', reply, artifacts)],
     });
-    if (!env.aiEnabled) return finish("AI ulanmagan: serverda ANTHROPIC_API_KEY yo'q. Vazifa va mijozlarni panelda qo'lda qo'shish mumkin.", []);
+    if (!env.aiEnabled) return finish("AI ulanmagan: serverda ANTHROPIC_API_KEY yo'q. Vazifa va mijozlarni panelda qo'lda qo'shish mumkin.", [], true);
 
     const userText = `${nowLabel(channel)}${opts.phone ? PHONE_NOTE : opts.voice ? ' (voice message, transcribed)' : ''}\n${text}`;
     const attempt = async (restart: boolean) => {
@@ -200,7 +213,7 @@ export function ask(bizId: string, channel: ChatEntry['channel'], text: string, 
       const session = keep && prev
         ? { system: prev.system, startedAt: prev.startedAt, messages: prev.messages as Msg[] }
         : { system: buildSystem(biz), startedAt: new Date().toISOString(), messages: [] as Msg[] };
-      return run(biz, session, set, userText, keep, !!opts.photo, !!opts.phone);
+      return run(biz, session, set, userText, keep, !!opts.photo, !!opts.phone, !!opts.unattended);
     };
     try {
       const r = await attempt(false).catch(e => {
@@ -215,7 +228,7 @@ export function ask(bizId: string, channel: ChatEntry['channel'], text: string, 
       // Jurnalga qisqa va aniq: holat kodi va xizmat aytgan sabab (kalit yoki so'rov matni yozilmaydi)
       console.error('[ai]', cause instanceof Anthropic.APIError ? `${cause.status ?? 'aloqa'}: ${cause.message}` : cause);
       const reason = friendlyError(cause);
-      return finish(partial?.artifacts.length ? `Ish qisman bajarildi. ${reason}` : reason, partial?.artifacts ?? []);
+      return finish(partial?.artifacts.length ? `Ish qisman bajarildi. ${reason}` : reason, partial?.artifacts ?? [], !partial?.artifacts.length);
     }
   });
 }
@@ -225,8 +238,8 @@ class PartialError extends Error {
   constructor(readonly cause: unknown, readonly artifacts: Artifact[]) { super('partial'); }
 }
 
-async function run(biz: BusinessRow, session: { system: string; startedAt: string; messages: Msg[] }, set: Toolset, userText: string, continuing: boolean, fromPhoto = false, phone = false) {
-  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto };
+async function run(biz: BusinessRow, session: { system: string; startedAt: string; messages: Msg[] }, set: Toolset, userText: string, continuing: boolean, fromPhoto = false, phone = false, unattended = false) {
+  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto, unattended };
   const messages = withOwnerText(session.messages, userText);
   const save = (upTo: number) => conversations.save(biz.id, { system: session.system, toolsKey: set.key, startedAt: session.startedAt, messages: messages.slice(0, upTo) });
   /** Oxirgi to'liq holat (egasining xabari yoki asbob natijalari bilan tugaydi) */

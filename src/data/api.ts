@@ -6,6 +6,7 @@ import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, SetupVie
 import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffMember } from '../types';
+import type { AgentEvent, AgentOrder, OrderMember, OrderSpec } from '../types';
 import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 
 export type RequestView = LeadRequest & { lead: Lead | null };
@@ -98,6 +99,19 @@ export const api = {
   setCameraStream: (id: string, url: string) => call<{ camera: Camera }>(`/cameras/${id}/stream`, { method: 'PUT', body: { url } }),
   /** IP kameraning hozirgi kadri (zonalarni uning ustida chizish uchun) */
   cameraSnapshot: async (id: string) => (await send(`/cameras/${id}/snapshot`, { method: 'GET' })).blob(),
+  /** Har kameraning oxirgi kadrida nechta odam (kadr kelmayotgan kamera — ro'yxatda yo'q) */
+  cameraLive: () => call<{ live: Record<string, { at: string; people: number }> }>('/cameras/live'),
+  askCamera: (question: string, cameraId?: string, image?: string) => call<{ answers: { cameraId: string; name: string; answer: string }[] }>('/cameras/ask', { body: { question, cameraId, image } }),
+  setCameraProfile: (id: string, profile: string) => call<{ camera: Camera }>(`/cameras/${id}/profile`, { method: 'PUT', body: { profile } }),
+  // ─── Xodimlarga topshiriqlar va jurnal ───
+  orders: (member: OrderMember) => call<{ orders: AgentOrder[] }>(`/orders?member=${member}`),
+  parseOrder: (member: OrderMember, text: string) => call<{ parsed: { ok: true; spec: OrderSpec; summary: string } | { ok: false; question: string } }>('/orders/parse', { body: { member, text } }),
+  createOrder: (o: { member: OrderMember; text: string; spec: OrderSpec; summary: string }) => call<{ order: AgentOrder }>('/orders', { body: o }),
+  setOrderActive: (id: string, active: boolean) => call<{ order: AgentOrder }>(`/orders/${id}`, { method: 'PATCH', body: { active } }),
+  deleteOrder: (id: string) => call<{ ok: true }>(`/orders/${id}`, { method: 'DELETE' }),
+  runOrder: (id: string) => call<{ result: string }>(`/orders/${id}/run`, { body: {} }),
+  agentEvents: (member: OrderMember, cameraId?: string) => call<{ events: AgentEvent[] }>(`/agents/${member}/events${cameraId ? `?camera=${cameraId}` : ''}`),
+  eventImage: async (id: string) => (await send(`/agents/events/${id}/image`, { method: 'GET' })).blob(),
   /** So'rovlar: ochiq (eng eskisi birinchi) yoki yopilganlar */
   requests: (which: 'open' | 'closed' = 'open') => call<{ requests: RequestView[]; open: number }>(`/requests?which=${which}`),
   openRequest: (r: { kind: RequestKind; leadId?: string; phone?: string; name?: string; summary: string; whenText?: string; dueAt?: string }) => call<{ request: RequestView }>('/requests', { body: r }),

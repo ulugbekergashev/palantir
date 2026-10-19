@@ -17,6 +17,8 @@ import { candidatePaths, discoverCameras, onvifStreamUri, withCredentials } from
 import { loginBlocked, loginFailed, loginOk } from '../auth';
 import { findings, reconcile, type Sitting } from './reconcile';
 import { flush, step, type States, type ZoneEvent } from './sessions';
+import { orders } from '../orders/store';
+import { forgetWatchCache } from '../orders/watch';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -76,6 +78,11 @@ function apply(biz: BusinessRow, cam: Camera, events: ZoneEvent[]): void {
   }
 }
 
+/** Har kadr natijasini kutayotganlar (kamera qoidalari — orders/watch.ts): o'zaro import aylanmasin deb shu yerda ro'yxatdan o'tadi */
+type FrameListener = (biz: BusinessRow, cam: Camera, people: { x: number; y: number; w: number; h: number }[], now: number) => void;
+const frameListeners: FrameListener[] = [];
+export const onCameraFrame = (fn: FrameListener): void => { frameListeners.push(fn); };
+
 /** Kadr natijasini qo'llaydi: seanslarni ochadi/yopadi, zonalarning hozirgi holatini qaytaradi */
 export function observe(biz: BusinessRow, cam: Camera, people: { x: number; y: number; w: number; h: number }[], now = Date.now()): Record<string, 'empty' | 'entering' | 'open'> {
   const t = thresholds();
@@ -85,6 +92,9 @@ export function observe(biz: BusinessRow, cam: Camera, people: { x: number; y: n
   // Kadrlar uzoq uzilgan bo'lsa, kamera "yangidan ko'ra boshladi": o'sha oraliqdagi qabullar haqida hukm chiqarilmaydi
   const silent = !cam.lastSeenAt || !cam.seenFrom || now - Date.parse(cam.lastSeenAt) > 2 * t.leaveMs;
   cameras.seen(biz.id, cam.id, isoAt(now), silent ? isoAt(now) : cam.seenFrom!);
+  for (const fn of frameListeners) {
+    try { fn(biz, cam, people, now); } catch (e) { console.error('[kamera] qoida:', (e as Error).message); }
+  }
   return Object.fromEntries(cam.zones.map(z => { const s = r.states[z.id]; return [z.id, s?.open ? 'open' : s?.since != null ? 'entering' : 'empty']; }));
 }
 
@@ -147,6 +157,13 @@ function shot(cameraId: string, url: string): Promise<Buffer> {
   shots.set(cameraId, { at: Date.now(), image });
   image.catch(() => { if (shots.get(cameraId)?.image === image) shots.delete(cameraId); });
   return image;
+}
+
+/** IP kameraning hozirgi kadri (JPEG); IP manzili yo'q (brauzer kamerasi) yoki javob bermasa — null */
+export async function cameraFrame(bizId: string, cameraId: string): Promise<Buffer | null> {
+  const sealed = cameras.stream(bizId, cameraId);
+  if (!sealed) return null;
+  try { return await shot(cameraId, open(sealed)); } catch { return null; }
 }
 
 const sameBox = (a: CameraZone, b: { kind: string; x: number; y: number; w: number; h: number }) => a.kind === b.kind && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
@@ -297,6 +314,9 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
     if (!cam) return;
     reset(biz, cam);
     cameras.remove(biz.id, cam.id);
+    // Shu kameraga bog'langan topshiriqlar o'chiriladi — jim ishlamay yotmasin
+    orders.dropCamera(biz.id, cam.id);
+    forgetWatchCache();
     shots.delete(cam.id);
     syncEngine();
     res.json({ ok: true });

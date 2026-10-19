@@ -78,12 +78,30 @@ tgvoice\.venv\Scripts\python.exe tgvoice\sip_live.py
 Uztelecom ma'lumotlari kelganda: `asterisk/pjsip_shahar.conf.namuna` → `pjsip_shahar.conf` (git'ga tushmaydi), to'ldirib `install.sh`.
 Telefonsiz tekshiruv: `tgvoice\.venv\Scripts\python.exe tgvoice\check_sip.py` — Asterisk ichida «mijoz» savol beradi, yozuv `tmp/sinov.wav`.
 
+## «Quloq» — panelda «Cerebro» deb chaqirish (`wake.py`)
+
+Panelning chap ustunidagi «Quloq» yoqilsa, brauzer mikrofoni `web_live.py` ga (mode `wake`) oqadi va shu kompyuterda tinglanadi —
+internetga hech narsa ketmaydi. «Cerebro» yoki «Jarvis» eshitilsa, shu ulanishning o'zida Gemini Live suhbati boshlanadi
+(chaqiriqdan keyingi gap ham yo'qolmaydi), istalgan sahifada pastda suhbat oynasi chiqadi; tugagach yana tinglaydi.
+
+Model (bir marta, ~45 MB, Apache-2.0), `tgvoice/models/` ga (git'ga tushmaydi):
+
+```
+curl -L -o m.zip https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip && tar -xf m.zip -C tgvoice/models && del m.zip
+tgvoice\.venv\Scripts\python.exe -m pip install vosk
+```
+
+Sinov (Gemini TTS, 3 ovoz, o'zbekcha va ruscha): 12 oddiy gapdan 0 tasida yolg'on chaqiriq, 15 chaqiriqdan 13 tasi topildi.
+Boshqa model: `WAKE_MODEL=<papka>`.
+
 ## Fayllar
 
 | Fayl | Nima |
 |---|---|
 | `call_live.py` | Asosiy: Telegram ↔ Gemini Live, vazifa asboblari, eslatma rejimi (`--remind <id>`) |
 | `sip_live.py` | Telefon liniyasi: Asterisk (AudioSocket) ↔ Gemini Live, egasi va mijoz rejimlari, bir vaqtda bir nechta qo'ng'iroq |
+| `web_live.py` | Panel ovozi: egasi, qabulxona sinovi (mijoz) va «quloq» (chaqiriqni kutish) rejimlari |
+| `wake.py` | «Cerebro» / «Jarvis» chaqirig'ini topish (Vosk, internetsiz) |
 | `asterisk/` | Asterisk sozlamalari va `install.sh` (WSL ichiga o'rnatadi) |
 | `check_sip.py` | Telefonsiz tekshiruv: Asterisk ichida mijoz qo'ng'irog'i |
 | `login.py` | Akkauntga bir marta kirish |

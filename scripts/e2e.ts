@@ -20,6 +20,7 @@ import { crmConnectTests, crmLogicTests, crmReceptionTests, crmToolTests, type H
 import { cameraApiTests, cameraLogicTests, cameraToolTests, commandTests, journalTests } from './e2e-camera';
 import { brainApiTests, brainFlowTests, brainLogicTests, brainVaultTests } from './e2e-brain';
 import { mirrorTests } from './e2e-mirror';
+import { orderApiTests, orderLogicTests } from './e2e-orders';
 import { intakeExtractTests, intakeFlowTests } from './e2e-intake';
 import { interviewTests } from './e2e-interview';
 
@@ -116,6 +117,7 @@ try {
   const crmHarness: Harness = { ok, api, base, token, otherToken, dataDir, crmPort, serverLog: () => serverLog };
   crmLogicTests(ok);
   cameraLogicTests(ok);
+  orderLogicTests(ok);
   commandTests(ok);
   journalTests(ok);
   brainLogicTests(ok);
@@ -143,6 +145,9 @@ try {
   ok('ertalabki xulosa: bugungi vazifa bilan', brief && textOf(brief).includes('Hisobotni topshirish'));
   ok("ertalabki xulosa: DentaCRM'dan bugungi qabullar", brief && textOf(brief).includes('5 ta qabul') && textOf(brief).includes('09:00'), brief ? textOf(brief) : '');
   ok("ertalabki xulosa: klinikadagi g'alati holatlar (kecha tushum kam, ko'p bemor kelmagan)", brief && textOf(brief).includes('⚠️ Kecha tushum odatdagidan') && textOf(brief).includes('450 000') && textOf(brief).includes('4 ta bemor kelmadi'));
+
+  // Egasi ulangach: kamera qoidasi xabari Telegram'ga ham boradi
+  await orderApiTests(crmHarness);
 
   console.log('\n# Yordamchi: eslatma');
   mark = sent.length;

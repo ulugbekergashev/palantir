@@ -128,6 +128,8 @@ export const env = {
   aiDailyCustomer: Number(process.env.AI_DAILY_CUSTOMER) || 400,
   /** Bir kunda egasi yuborgan nechta rasm ko'rib chiqiladi */
   aiDailyPhotos: Number(process.env.AI_DAILY_PHOTOS) || 50,
+  /** Bir kunda «AI ko'zi» (kamera kadrini tekshirish va kameraga savol) — egasining rasmlari chegarasiga tegmaydi */
+  aiDailyCamera: Number(process.env.AI_DAILY_CAMERA) || 150,
   crmDailyMoney: Number(process.env.CRM_DAILY_MONEY) || 30,
   /** Bitta pul yozuvining eng katta summasi va bir kunda yoziladigan jami summa (so'm) */
   crmMaxAmount: Number(process.env.CRM_MAX_AMOUNT) || 100_000_000,

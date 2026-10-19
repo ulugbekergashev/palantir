@@ -8,10 +8,15 @@
 export type Who = 'Siz' | 'Cerebro' | 'Amal';
 export type VoiceEvent =
   | { type: 'ready' }
+  /** «Quloq» rejimi: server chaqiriqni kutyapti (mikrofon shu kompyuterda tinglanadi) */
+  | { type: 'listening' }
+  /** «Cerebro» yoki «Jarvis» deyildi — shu ulanishda suhbat boshlanadi */
+  | { type: 'wake'; word: string }
   | { type: 'partial' | 'line'; who: Who; text: string }
   | { type: 'tool'; name: string; state: 'start' | 'done'; args: Record<string, unknown>; result?: Record<string, unknown> }
   | { type: 'interrupt' }
-  | { type: 'error'; text: string }
+  /** fatal — qayta urinish foydasiz (masalan, «quloq» modeli o'rnatilmagan) */
+  | { type: 'error'; text: string; fatal?: boolean }
   | { type: 'closed' };
 
 export interface VoiceSession {
@@ -31,12 +36,19 @@ const WORKLET = `class CerebroMic extends AudioWorkletProcessor {
 }
 registerProcessor('cerebro-mic', CerebroMic);`;
 
-/** kind: owner — egasining yordamchisi; customer — qabulxonani mijoz bo'lib sinash (tgvoice/web_live.py) */
-export async function startVoice(token: string, on: (e: VoiceEvent) => void, kind: 'owner' | 'customer' = 'owner'): Promise<VoiceSession> {
+/** kind: owner — egasining yordamchisi; customer — qabulxonani mijoz bo'lib sinash; wake — «quloq»: chaqiriqni kutadi (tgvoice/web_live.py) */
+export async function startVoice(token: string, on: (e: VoiceEvent) => void, kind: 'owner' | 'customer' | 'wake' = 'owner'): Promise<VoiceSession> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   const micCtx = new AudioContext({ sampleRate: IN_RATE });
   const outCtx = new AudioContext({ sampleRate: OUT_RATE });
+  // Sahifa o'zi ochgan (bosilmagan) ovoz konteksti to'xtab turadi — birinchi bosish yoki tugmada uyg'onadi
+  const wakeUp = () => { void micCtx.resume().catch(() => {}); void outCtx.resume().catch(() => {}); };
+  wakeUp();
+  window.addEventListener('pointerdown', wakeUp);
+  window.addEventListener('keydown', wakeUp);
   const release = () => {
+    window.removeEventListener('pointerdown', wakeUp);
+    window.removeEventListener('keydown', wakeUp);
     stream.getTracks().forEach(t => t.stop());
     void micCtx.close().catch(() => {});
     void outCtx.close().catch(() => {});
@@ -96,7 +108,7 @@ export async function startVoice(token: string, on: (e: VoiceEvent) => void, kin
     if (typeof e.data === 'string') {
       let msg: VoiceEvent;
       try { msg = JSON.parse(e.data) as VoiceEvent; } catch { return; }
-      if (msg.type === 'ready') ready = true;
+      if (msg.type === 'ready' || msg.type === 'listening') ready = true;
       if (msg.type === 'interrupt') silenceAi();
       on(msg);
       return;

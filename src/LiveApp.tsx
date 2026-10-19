@@ -3,6 +3,8 @@ import { Loader2 } from 'lucide-react';
 import type { Business, LiveStatus } from './types';
 import { api, session } from './data/api';
 import { Rail } from './components/Rail';
+import { WakeOverlay } from './components/WakeOverlay';
+import { useWake } from './lib/useWake';
 import { TEAM, isMember, useTeam } from './components/team';
 import { Button } from './components/ui';
 import { useFontsReady, useNow, useToast } from './lib/hooks';
@@ -63,6 +65,9 @@ export default function LiveApp() {
 
   const notify = (text: string, isError = false) => setToast({ text, error: isError });
   const team = useTeam(status ?? ({ crm: { account: null } } as unknown as LiveStatus), tick);
+  const wake = useWake();
+  // «Quloq» ishlay olmasa (model o'rnatilmagan, mikrofon yo'q) — egasi bilsin
+  useEffect(() => { if (wake.phase === 'error' && wake.error) setToast({ text: `Quloq: ${wake.error}`, error: true }); }, [wake.phase, wake.error]);
   const changed = () => setTick(t => t + 1);
   const logout = () => { session.set(null); window.location.hash = ''; window.location.reload(); };
 
@@ -81,7 +86,8 @@ export default function LiveApp() {
 
   return (
     <div className="night min-h-dvh pb-20 lg:pb-0 lg:pl-[92px]">
-      <Rail area={area} team={team} ownerName={biz.ownerName} onLogout={logout} />
+      <Rail area={area} team={team} ownerName={biz.ownerName} onLogout={logout} wake={wake} />
+      <WakeOverlay wake={wake} />
       {area === 'ai' ? (
         <main key="ai" ref={main} tabIndex={-1} className="outline-none">
           <AiPage biz={biz} status={status} now={now} team={team} />

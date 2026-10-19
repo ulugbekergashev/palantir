@@ -722,11 +722,11 @@ CREATE TABLE IF NOT EXISTS voice_keys (business_id TEXT PRIMARY KEY, hash TEXT N
 CREATE TABLE IF NOT EXISTS voice_bookings (id TEXT PRIMARY KEY, business_id TEXT NOT NULL, phone TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS calls_day ON calls (business_id, started_at);
 `);
-ensureColumns('cameras', { seen_from: 'TEXT', stream: 'TEXT', stream_host: 'TEXT' });
+ensureColumns('cameras', { seen_from: 'TEXT', stream: 'TEXT', stream_host: 'TEXT', profile: 'TEXT' });
 
 /** Buzilgan JSON butun sahifani yiqitmasin: o'qilmasa — bo'sh ro'yxat */
 const list = <T,>(v: unknown): T[] => { try { const p = JSON.parse(String(v ?? '[]')); return Array.isArray(p) ? p : []; } catch { return []; } };
-const toCamera = (r: Raw): Camera => ({ id: String(r.id), name: String(r.name), zones: list<CameraZone>(r.zones), createdAt: String(r.created_at), lastSeenAt: str(r.last_seen_at), seenFrom: str(r.seen_from), ip: str(r.stream_host), feed: null });
+const toCamera = (r: Raw): Camera => ({ id: String(r.id), name: String(r.name), zones: list<CameraZone>(r.zones), createdAt: String(r.created_at), lastSeenAt: str(r.last_seen_at), seenFrom: str(r.seen_from), ip: str(r.stream_host), feed: null, profile: str(r.profile) });
 const toSession = (r: Raw): CameraSession => ({
   id: String(r.id), cameraId: String(r.camera_id), zoneId: String(r.zone_id), kind: String(r.kind) as ZoneKind, zoneName: String(r.zone_name), startedAt: String(r.started_at), endedAt: str(r.ended_at),
 });
@@ -739,6 +739,7 @@ export const cameras = {
     run('INSERT INTO cameras (id, business_id, name, created_at) VALUES (?, ?, ?, ?)', id, businessId, name, nowIso());
     return cameras.get(businessId, id)!;
   },
+  setProfile: (businessId: string, id: string, profile: string | null) => run('UPDATE cameras SET profile = ? WHERE business_id = ? AND id = ?', profile, businessId, id),
   setZones: (businessId: string, id: string, zones: CameraZone[]) => run('UPDATE cameras SET zones = ? WHERE business_id = ? AND id = ?', JSON.stringify(zones), businessId, id),
   /** IP kamera manzili: shifrlangan holda (ichida kamera paroli bor); host — panelda ko'rsatish uchun. null — uziladi */
   setStream: (businessId: string, id: string, sealed: string | null, host: string | null) => run('UPDATE cameras SET stream = ?, stream_host = ? WHERE business_id = ? AND id = ?', sealed, host, businessId, id),

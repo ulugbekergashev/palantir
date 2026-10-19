@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import { iso, stamp } from '../../src/lib/week';
-import { PHOTO_REFUSAL, ToolError, def, type ToolCtx } from '../toolkit';
+import { PHOTO_REFUSAL, UNATTENDED_REFUSAL, ToolError, def, type ToolCtx } from '../toolkit';
 import { daySummary as cameraDay } from '../camera/routes';
 import { cameras } from '../db';
 import { CrmError, type DentaCrm } from './dentacrm';
@@ -129,6 +129,7 @@ Give either patient_id (from find_patient) or new_patient (only for someone who 
     }).refine(i => !!i.patient_id !== !!i.new_patient, 'patient_id yoki new_patient — aynan bittasi kerak'),
     run: (i, ctx) => inCrm(ctx, async crm => {
       if (ctx.fromPhoto) throw new ToolError(PHOTO_REFUSAL);
+      if (ctx.unattended) throw new ToolError(UNATTENDED_REFUSAL);
       if ((ctx.crmWrites ?? 0) >= MAX_BOOKINGS_PER_TURN) throw new ToolError(`Bir javobda ko'pi bilan ${MAX_BOOKINGS_PER_TURN} ta qabul yoziladi — qolganini egasi alohida so'rasin`);
       if (bookingsLeft(ctx.biz.id) <= 0) throw new ToolError("Bugungi chegara tugadi: yordamchi orqali bundan ortiq qabul yozilmaydi. Qolganini DentaCRM'da qo'lda yozing");
       const now = stamp(new Date());

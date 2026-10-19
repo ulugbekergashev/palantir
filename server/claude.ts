@@ -12,9 +12,9 @@ export const resetClaude = (): void => { client = null; };
 // Model rad etsa yoki band bo'lsa — so'rov server tomonda zaxira modelda bajariladi
 export const FALLBACK: { betas: Anthropic.Beta.AnthropicBeta[]; fallbacks: 'default' } = { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' };
 
-/** Ish turi: owner — egasining yordamchisi, customer — mijozga javob, photo — rasmni ko'rish */
-export type AiKind = 'owner' | 'customer' | 'photo';
-const DAILY: Record<AiKind, () => number> = { owner: () => env.aiDailyOwner, customer: () => env.aiDailyCustomer, photo: () => env.aiDailyPhotos };
+/** Ish turi: owner — egasining yordamchisi, customer — mijozga javob, photo — rasmni ko'rish, camera — AI ko'zi (kamera kadri) */
+export type AiKind = 'owner' | 'customer' | 'photo' | 'camera';
+const DAILY: Record<AiKind, () => number> = { owner: () => env.aiDailyOwner, customer: () => env.aiDailyCustomer, photo: () => env.aiDailyPhotos, camera: () => env.aiDailyCamera };
 
 /** Bugungi chegara tugadi: so'rov yuborilmaydi (pul ketmaydi) */
 export class AiLimitError extends Error {

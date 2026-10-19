@@ -11,6 +11,7 @@ import { crmConnected } from '../crm/index';
 import { businesses, newId, type BusinessRow } from '../db';
 import { LIMITS, approvedAnswers, brainPrompt, fitPages, inert, packView, plain, sameQuestion } from './logic';
 import { FILE_SOURCE, facts as notes, refresh, removeSource, style, vault as knowledge, vaultPath } from './vault';
+import { orders } from '../orders/store';
 
 export { FILE_SOURCE } from './vault';
 
@@ -99,7 +100,11 @@ export function replierBrain(biz: BusinessRow): string {
   // Papka bir marta o'qiladi (har mijoz xabarida chaqiriladi)
   const all = knowledge.list(biz.id);
   const of = (kind: Knowledge['kind']) => all.filter(k => k.kind === kind);
-  return brainPrompt({ qa: of('qa'), fixes: of('fix'), pages: of('page'), style: style.get(biz.id) });
+  const rules = orders.standing(biz.id, 'qabulxona');
+  return [
+    brainPrompt({ qa: of('qa'), fixes: of('fix'), pages: of('page'), style: style.get(biz.id) }),
+    rules.length ? `<owner_standing_orders>\nThe owner's standing orders for answering customers — always follow them:\n${rules.map(r => `- ${r}`).join('\n')}\n</owner_standing_orders>` : '',
+  ].filter(Boolean).join('\n\n');
 }
 
 /** Egasi yozgan javob. Shu savol (yoki shu tayyor savol) avval bo'lsa — javobi yangilanadi, takror yozuv bo'lmaydi */
@@ -241,12 +246,14 @@ export function knowledgeText(biz: BusinessRow): string {
   // Qatorlar birlashtirilgach paydo bo'lgan ibora ham («eng» bir qatorda, «yaxshi» keyingisida) o'tib ketmasin
   const pages = fitPages(all).lines.filter(sayable);
   const facts = notes.list(biz.id).filter(f => sayable(f.text));
+  const rules = orders.standing(biz.id, 'qabulxona').filter(sayable);
   return [
     `Nomi: ${p.name}`,
     priced.length ? `Narxlar (so'm):\n${priced.map(o => `- ${o.name}: ${o.price}`).join('\n')}` : "Narxlar: kiritilmagan — narxni aytmang, administrator aniqlab qayta qo'ng'iroq qiladi deng.",
     facts.length ? `Faktlar:\n${facts.map(f => `- ${f.text}`).join('\n')}` : '',
     qa.length ? `Savol-javoblar (egasi tasdiqlagan):\n${qa.map(k => `- Savol: ${line(k.question, LIMITS.question)}\n  Javob: ${line(k.answer, LIMITS.answer)}`).join('\n')}` : '',
     pages.length ? `Biznes haqida sahifalar (manzil, ish vaqti va boshqalar):\n${pages.map(p => `- ${p}`).join('\n')}` : '',
+    rules.length ? `Egasining doimiy ko'rsatmalari (har doim amal qiling):\n${rules.map(r => `- ${r}`).join('\n')}` : '',
     "Bu yerda yo'q narsani o'ylab topmang: bilmasangiz, administrator aniqlab aytishini ayting.",
   ].filter(Boolean).join('\n');
 }

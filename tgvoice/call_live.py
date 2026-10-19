@@ -282,6 +282,8 @@ class Bridge:
     call_limit_s = CALL_LIMIT_S
     # Odam gapi boshlanganini qanchalik tez sezish: telefon liniyasida past (karnaydan qaytgan AI ovozi va shovqin gap deb olinmasin)
     start_sensitivity: 'types.StartSensitivity | None' = None
+    # Shuncha jimlik — odamning gapi tugadi (panelda chaqirilganda uzunroq: «Cerebro… ertaga» orasidagi pauza gapni bo'lmasin)
+    silence_ms = LIVE_SILENCE_MS
 
     def __init__(self, calls: PyTgCalls | None, peer: int, remind: str | None = None):
         self.calls, self.peer = calls, peer
@@ -535,11 +537,13 @@ class Bridge:
             input_audio_transcription=types.AudioTranscriptionConfig(), output_audio_transcription=types.AudioTranscriptionConfig(),
             thinking_config=types.ThinkingConfig(thinking_budget=LIVE_THINKING),
             realtime_input_config=types.RealtimeInputConfig(automatic_activity_detection=types.AutomaticActivityDetection(
-                end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH, silence_duration_ms=LIVE_SILENCE_MS, prefix_padding_ms=20,
+                end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH, silence_duration_ms=self.silence_ms, prefix_padding_ms=20,
                 **({'start_of_speech_sensitivity': self.start_sensitivity} if self.start_sensitivity else {}))))
         async with client.aio.live.connect(model=LIVE_MODEL, config=config) as s:
             self.log('—', f"Gemini Live ulandi ({LIVE_MODEL}, {f'VoiceLab: {self.speaker.name}' if self.speaker else voice})")
-            await s.send_client_content(turns=types.Content(role='user', parts=[types.Part(text=kickoff)]), turn_complete=True)
+            # Bo'sh kickoff — AI birinchi bo'lib gapirmaydi (panelda «Cerebro» deb chaqirilganda: buyruq ovozda keladi)
+            if kickoff:
+                await s.send_client_content(turns=types.Content(role='user', parts=[types.Part(text=kickoff)]), turn_complete=True)
             parts = [self.uplink(s), self.player(), self.downlink(s)] + ([self.tts_worker()] if self.speaker else [])
             tasks = [asyncio.create_task(self.guard(c)) for c in parts]
             try:
@@ -578,6 +582,7 @@ class Bridge:
                 'startedAt': self.started.strftime('%Y-%m-%dT%H:%M:%S'),
                 'seconds': round((datetime.now(UZ_TZ) - self.started).total_seconds()),
                 'withWhom': f"{self.who} ({self.channel})"[:80],
+                'channel': self.channel,
                 'lines': self.lines[-600:],
             })
             self.log('—', f"Obsidian'ga yozildi: {rel}")

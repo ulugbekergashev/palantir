@@ -29,6 +29,14 @@ export function cardOf(e: Extract<VoiceEvent, { type: 'tool' }>, id: number): Vo
   return null;
 }
 
+/**
+ * Panelda ochiq jonli suhbatlar soni: «quloq» (useWake) shu paytda to'xtab turadi — ikki suhbat bir mikrofonda to'qnashmasin.
+ * Hodisa: window «cerebro:voice» (detail — yangi son)
+ */
+let liveCount = 0;
+export const liveVoices = () => liveCount;
+const bump = (d: number) => { liveCount = Math.max(0, liveCount + d); window.dispatchEvent(new CustomEvent('cerebro:voice', { detail: liveCount })); };
+
 export function useVoice(kind: 'owner' | 'customer' = 'owner') {
   const [mode, setMode] = useState<VoiceMode>('idle');
   const [you, setYou] = useState('');
@@ -69,7 +77,7 @@ export function useVoice(kind: 'owner' | 'customer' = 'owner') {
       setMode(working.current > 0 ? 'thinking' : 'listening');
       push(cardOf(e, ++cardId.current));
     } else if (e.type === 'error') setError(e.text);
-    else if (e.type === 'closed') { voice.current = null; working.current = 0; setMode('idle'); }
+    else if (e.type === 'closed') { voice.current = null; working.current = 0; setMode('idle'); bump(-1); }
   };
 
   const toggle = async () => {
@@ -80,9 +88,11 @@ export function useVoice(kind: 'owner' | 'customer' = 'owner') {
     setYou('');
     setAi('');
     setMode('connecting');
+    bump(1);
     try {
       voice.current = await startVoice(token, onEvent, kind);
     } catch (e) {
+      bump(-1);
       setMode('idle');
       setError((e as Error).name === 'NotAllowedError' ? 'Mikrofonga ruxsat bering (manzil satridagi belgi)' : 'Ovozli suhbat ochilmadi — Cerebro telefon liniyasi ishlayaptimi?');
     }

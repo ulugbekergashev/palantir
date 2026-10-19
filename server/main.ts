@@ -18,6 +18,7 @@ import { refreshTelegramUser, startTelegramUser, stopTelegramUser, telegramUserA
 import { startScheduler } from './scheduler';
 import { startPhone, stopPhone } from './phone/index';
 import { startMonitor } from './monitor';
+import { startOrders } from './orders/run';
 
 /** Bot nomini shuncha kutamiz; Telegram javob bermasa — server baribir ko'tariladi, bot fonda ulanadi */
 const BOT_WAIT_MS = 3_000;
@@ -55,6 +56,8 @@ startInstagramApi();
 startInstagram();
 startTelegramUser();
 const stopScheduler = startScheduler(bot);
+// Xodimlarga berilgan topshiriqlar: jadvaldagi ish, AI ko'zi, kamera qoidalari
+const stopOrders = startOrders(bot);
 // MicroSIP shu kompyuterda ulangan bo'lsa — qo'ng'iroq hodisalari va yozuvlar o'qiladi
 startPhone();
 const stopBackups = startBackups();
@@ -76,6 +79,7 @@ const shutdown = () => {
   if (stopping) return;
   stopping = true;
   stopScheduler();
+  stopOrders();
   stopBackups();
   stopPhone();
   stopMonitor();

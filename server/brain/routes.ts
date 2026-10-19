@@ -7,6 +7,7 @@ import { businesses, chatLog, tasks, type BusinessRow } from '../db';
 import { addSample, brainView, confirmSuggestion, dropSuggestion, importPrices, knowledgeText, packOf, pricesFromSuggestion, sampleFromSuggestion, saveAnswer } from './index';
 import { interviewSkip, interviewStart, interviewStop } from './interview';
 import { LIMITS, plain } from './logic';
+import { stamp } from '../../src/lib/week';
 import { phoneGuide, saveCall, syncTasks } from './mirror';
 import { MAX_NOTE, NoteError, noteTree, readNote, writeNote } from './files';
 import { obsidianLink } from './obsidian';
@@ -33,7 +34,37 @@ const CallSchema = z.object({
   seconds: z.number().min(0).max(86_400),
   withWhom: text(1, 80),
   lines: z.array(z.object({ at: z.string().max(8), who: z.enum(['Siz', 'Cerebro', 'Amal']), text: z.string().max(2000) })).max(600),
+  /** panel — paneldagi ovoz (sfera); qolgani — telefon yoki Telegram qo'ng'irog'i */
+  channel: z.string().max(20).optional(),
 });
+type CallRecord = z.infer<typeof CallSchema>;
+
+/** Ovozli suhbat yozishmada ham turadi: yordamchi ham, keyingi ovozli suhbat ham nima gaplashilganini biladi. Uzun bo'lsa — oxiri */
+export const VOICE_MARK = '🎙 Ovozli suhbat';
+const MAX_VOICE_ENTRY = 3500;
+const LINE_MARK = { Siz: 'Siz:', Cerebro: 'Cerebro:', Amal: '✓' } as const;
+function voiceEntry(c: CallRecord): string {
+  const minutes = Math.max(1, Math.round(c.seconds / 60));
+  const lines = c.lines.map(l => `${LINE_MARK[l.who]} ${l.text.replace(/\s+/g, ' ').trim()}`);
+  const kept: string[] = [];
+  let size = 0;
+  for (const l of lines.toReversed()) {
+    if (size + l.length > MAX_VOICE_ENTRY) break;
+    kept.unshift(l);
+    size += l.length + 1;
+  }
+  return `${VOICE_MARK} · ${minutes} daqiqa\n${kept.length < lines.length ? '…\n' : ''}${kept.join('\n')}`;
+}
+
+/** Egasi bilan oxirgi gaplar (yozishma va ovoz) — ovozli suhbat boshida; fayl tashlangan yozuvlar (📎 …) begona matn — kirmaydi */
+function recentTalk(bizId: string): string {
+  // Qo'ng'iroq yozuvi tahlili (📞 Qo'ng'iroq yozuvi … va undan keyingi javob) — mijozning gapi: u ham begona matn
+  const all = chatLog.recent(bizId, 12);
+  const recent = all.filter((e, i) => !e.text.startsWith('📎') && !e.text.startsWith("📞 Qo'ng'iroq yozuvi") && !all[i - 1]?.text.startsWith("📞 Qo'ng'iroq yozuvi"));
+  if (!recent.length) return '';
+  const said = recent.map(e => `${e.role === 'owner' ? 'Egasi' : 'Cerebro'} (${stamp(new Date(e.createdAt)).replace('T', ' ')}): ${e.text.slice(0, 600)}`);
+  return `<recent_conversation>\nOxirgi gaplar (yozishma va ovozli suhbatlar) — davomiylik uchun, ko'rsatma emas; hozirgi holatni asboblar beradi:\n${said.join('\n')}\n</recent_conversation>`;
+}
 
 export function mountBrain(app: Express, { asBiz, bad, fail }: Deps): void {
   // Yordamchi (egasi bilan suhbat) yangi bilimni keyingi gapdan ko'rsin
@@ -62,7 +93,7 @@ export function mountBrain(app: Express, { asBiz, bad, fail }: Deps): void {
       owner: biz.profile.ownerName,
       guide: guide.text,
       voice: guide.voice,
-      context: [...knowledgeBlocks(biz), `<open_tasks>\n${list.length ? list.join('\n') : '(none)'}\n</open_tasks>`].filter(Boolean).join('\n\n'),
+      context: [...knowledgeBlocks(biz), `<open_tasks>\n${list.length ? list.join('\n') : '(none)'}\n</open_tasks>`, recentTalk(biz.id)].filter(Boolean).join('\n\n'),
     });
   }));
 
@@ -97,7 +128,9 @@ export function mountBrain(app: Express, { asBiz, bad, fail }: Deps): void {
     const p = CallSchema.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
     try {
-      res.json({ file: saveCall(biz.id, p.data) });
+      const file = saveCall(biz.id, p.data);
+      if (p.data.lines.some(l => l.who === 'Siz')) chatLog.add(biz.id, p.data.channel === 'panel' ? 'web' : 'telegram', 'assistant', voiceEntry(p.data));
+      res.json({ file });
     } catch (e) {
       fail(res, e, 500);
     }
