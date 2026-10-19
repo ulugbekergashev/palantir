@@ -400,8 +400,11 @@ export interface ClinicDay {
 }
 
 /** Kamera zonasi: kadrning ulushlarida berilgan to'rtburchak (0..1). chair — kreslo, desk — kassa stoli */
-/** chair — kreslo, desk — kassa stoli, waiting — kutish joyi (har odamning kutishi alohida sanaladi) */
-export type ZoneKind = 'chair' | 'desk' | 'waiting';
+/**
+ * chair — kreslo, desk — kassa stoli, waiting — kutish joyi (har odamning kutishi alohida sanaladi),
+ * private — maxfiy joy: kameradan chiqadigan har rasmda (AI, Telegram, jurnal, panel) qora bilan yopiladi
+ */
+export type ZoneKind = 'chair' | 'desk' | 'waiting' | 'private';
 export interface CameraZone { id: string; kind: ZoneKind; name: string; x: number; y: number; w: number; h: number; /** Kreslo qaysi shifokorniki (DentaCRM'dagi id) */ doctorId: string | null }
 /** IP kameradan kadr olish holati: connecting — ulanmoqda, ok — kadrlar kelyapti, error — ulanib bo'lmadi (message — sababi) */
 export interface CameraFeed { state: 'connecting' | 'ok' | 'error'; message: string | null }

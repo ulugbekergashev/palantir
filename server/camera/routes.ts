@@ -35,7 +35,7 @@ const unit = z.number().min(0).max(1);
 const BoxSchema = z.object({ x: unit, y: unit, w: unit.gt(0), h: unit.gt(0) }).refine(b => b.x + b.w <= 1.001 && b.y + b.h <= 1.001, 'kadrdan tashqarida');
 const ZonesSchema = z.object({
   zones: z.array(BoxSchema.and(z.object({
-    id: z.string().max(16).optional(), kind: z.enum(['chair', 'desk', 'waiting']), name: z.string().trim().min(1).max(40), doctorId: z.string().trim().max(60).nullable().optional(),
+    id: z.string().max(16).optional(), kind: z.enum(['chair', 'desk', 'waiting', 'private']), name: z.string().trim().min(1).max(40), doctorId: z.string().trim().max(60).nullable().optional(),
   }))).max(MAX_ZONES),
 });
 const ObserveSchema = z.object({ people: z.array(BoxSchema).max(MAX_PEOPLE) });
@@ -108,7 +108,7 @@ function judgeFrame(biz: BusinessRow, cam: Camera, look: Look, now: number): voi
 export function observe(biz: BusinessRow, cam: Camera, people: { x: number; y: number; w: number; h: number }[], now = Date.now()): Record<string, 'empty' | 'entering' | 'open'> {
   const t = thresholds();
   // Kutish joyida bitta «band/bo'sh» seans emas — har odam alohida (waiting.ts, kadr tinglovchisi)
-  const r = step(live.get(cam.id) ?? {}, cam.zones.filter(z => z.kind !== 'waiting'), people, now, t);
+  const r = step(live.get(cam.id) ?? {}, cam.zones.filter(z => z.kind === 'chair' || z.kind === 'desk'), people, now, t);
   live.set(cam.id, r.states);
   apply(biz, cam, r.events);
   // Kadrlar uzoq uzilgan bo'lsa, kamera "yangidan ko'ra boshladi": o'sha oraliqdagi qabullar haqida hukm chiqarilmaydi
@@ -119,6 +119,7 @@ export function observe(biz: BusinessRow, cam: Camera, people: { x: number; y: n
   }
   return Object.fromEntries(cam.zones.map(z => {
     if (z.kind === 'waiting') return [z.id, waitingIn(cam.id, z.id) ? 'open' : 'empty'];
+    if (z.kind === 'private') return [z.id, 'empty'];
     const s = r.states[z.id];
     return [z.id, s?.open ? 'open' : s?.since != null ? 'entering' : 'empty'];
   }));
@@ -183,21 +184,24 @@ export async function daySummary(biz: BusinessRow, date: string, now = new Date(
 const view = (cam: Camera): Camera => ({ ...cam, feed: feedOf(cam.id, !!cam.ip) });
 /** Bitta kadr bir necha soniya eslab qolinadi: sahifa qayta-qayta so'rasa kameraga har safar yangi ulanish ochilmasin */
 const SNAPSHOT_KEEP_MS = 5_000;
-const shots = new Map<string, { at: number; image: Promise<Buffer> }>();
-function shot(cameraId: string, url: string): Promise<Buffer> {
-  const had = shots.get(cameraId);
-  if (had && Date.now() - had.at < SNAPSHOT_KEEP_MS) return had.image;
-  const image = snapshot(url);
-  shots.set(cameraId, { at: Date.now(), image });
-  image.catch(() => { if (shots.get(cameraId)?.image === image) shots.delete(cameraId); });
+const shots = new Map<string, { at: number; masks: string; image: Promise<Buffer> }>();
+/** Kameraning kadri — maxfiy joylari yopilgan holda (bu kadr AI'ga, Telegram'ga, jurnalga va panelga boradi) */
+function shot(cam: Camera, url: string): Promise<Buffer> {
+  const masks = cam.zones.filter(z => z.kind === 'private');
+  const key = JSON.stringify(masks.map(({ x, y, w, h }) => [x, y, w, h]));
+  const had = shots.get(cam.id);
+  if (had && had.masks === key && Date.now() - had.at < SNAPSHOT_KEEP_MS) return had.image;
+  const image = snapshot(url, undefined, masks);
+  shots.set(cam.id, { at: Date.now(), masks: key, image });
+  image.catch(() => { if (shots.get(cam.id)?.image === image) shots.delete(cam.id); });
   return image;
 }
 
 /** IP kameraning hozirgi kadri (JPEG); IP manzili yo'q (brauzer kamerasi) yoki javob bermasa — null */
 export async function cameraFrame(bizId: string, cameraId: string): Promise<Buffer | null> {
-  const sealed = cameras.stream(bizId, cameraId);
-  if (!sealed) return null;
-  try { return await shot(cameraId, open(sealed)); } catch { return null; }
+  const sealed = cameras.stream(bizId, cameraId), cam = cameras.get(bizId, cameraId);
+  if (!sealed || !cam) return null;
+  try { return await shot(cam, open(sealed)); } catch { return null; }
 }
 
 const sameBox = (a: CameraZone, b: { kind: string; x: number; y: number; w: number; h: number }) => a.kind === b.kind && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
@@ -340,7 +344,7 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
     const sealed = cameras.stream(biz.id, cam.id);
     if (!sealed) return res.status(404).json({ error: 'Bu kameraga IP manzil ulanmagan' });
     try {
-      const image = await shot(cam.id, open(sealed));
+      const image = await shot(cam, open(sealed));
       res.setHeader('content-type', 'image/jpeg');
       res.setHeader('cache-control', 'no-store');
       res.end(image);

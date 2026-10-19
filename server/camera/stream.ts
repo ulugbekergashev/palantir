@@ -43,10 +43,16 @@ export function parseStream(input: string): { url: string; host: string } {
 
 const inputArgs = (url: string): string[] => testInput() ?? ['-rtsp_transport', 'tcp', '-i', url];
 
-/** Kameradan bitta kadr (JPEG): zonalarni uning ustida chizish va ulanishni tekshirish uchun */
-export function snapshot(url: string, timeoutMs = SNAPSHOT_TIMEOUT_MS): Promise<Buffer> {
+/** Maxfiy joylar ffmpeg'ning o'zida qora bilan to'ldiriladi — yopilmagan kadr serverdan tashqariga chiqmaydi. Qiymatlar — kadr ulushi (0..1) */
+const maskFilter = (masks: readonly Box[]): string => masks.map(m => {
+  const f = (v: number) => Math.min(1, Math.max(0, v)).toFixed(4);
+  return `,drawbox=x=iw*${f(m.x)}:y=ih*${f(m.y)}:w=iw*${f(m.w)}:h=ih*${f(m.h)}:color=black:t=fill`;
+}).join('');
+
+/** Kameradan bitta kadr (JPEG): zonalarni uning ustida chizish va ulanishni tekshirish uchun. masks — maxfiy joylar (qora) */
+export function snapshot(url: string, timeoutMs = SNAPSHOT_TIMEOUT_MS, masks: readonly Box[] = []): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(env.ffmpeg, ['-nostdin', '-loglevel', 'error', ...inputArgs(url), '-an', '-frames:v', '1', '-vf', `scale=${SNAPSHOT_WIDTH}:-2`, '-f', 'image2pipe', '-c:v', 'mjpeg', '-q:v', '5', 'pipe:1'],
+    const proc = spawn(env.ffmpeg, ['-nostdin', '-loglevel', 'error', ...inputArgs(url), '-an', '-frames:v', '1', '-vf', `scale=${SNAPSHOT_WIDTH}:-2${maskFilter(masks)}`, '-f', 'image2pipe', '-c:v', 'mjpeg', '-q:v', '5', 'pipe:1'],
       { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const chunks: Buffer[] = [];
     let size = 0, problem = '';

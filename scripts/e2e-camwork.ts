@@ -5,7 +5,8 @@
  *   brauzer kamerasi va noma'lum kamera, begona biznes himoyasi;
  *   to'lovsiz qabul: bemor qabul vaqtida kresloda o'tirgan, DentaCRM'da shu kuni to'lovi yo'q (sof qoida va kamera hisobi);
  *   kutish joyi: har odam alohida sanaladi, uzoq kutsa — egasiga bitta xabar; kreslo bandligi foizi;
- *   kamera burildi yoki yopildi: sinov tasviri vaqt bo'yicha o'zgaradi (odatiy → aks → odatiy → qora → odatiy).
+ *   kamera burildi yoki yopildi: sinov tasviri vaqt bo'yicha o'zgaradi (odatiy → aks → odatiy → qora → odatiy);
+ *   maxfiy joy: kameradan chiqadigan rasmlarda (panel, Telegram) o'sha joy qora.
  * Kompyuterda ffmpeg bo'lmasa sinov o'tkazib yuboriladi. Haqiqiy kamera va haqiqiy model bu yerda yo'q.
  */
 process.env.TZ = 'Asia/Tashkent';
@@ -128,6 +129,13 @@ const caption = (s: Sent) => String(s.params.caption ?? s.params.text ?? '');
 const photos = (mark: number) => sent.slice(mark).filter(s => s.method === 'sendPhoto' && Number(s.params.chat_id) === OWNER);
 const texts = (mark: number) => sent.slice(mark).filter(s => s.method === 'sendMessage' && Number(s.params.chat_id) === OWNER).map(caption);
 const isJpeg = (b: Buffer | undefined) => !!b && b.length > 100 && b[0] === 0xff && b[1] === 0xd8;
+/** JPEG → 32×18 kulrang; to'rtburchakning o'rtacha yorug'ligi (kadr ulushida) */
+const brightness = (jpeg: Buffer, box: { x: number; y: number; w: number; h: number }) => {
+  const g = spawnSync('ffmpeg', ['-loglevel', 'error', '-i', 'pipe:0', '-vf', 'scale=32:18', '-f', 'rawvideo', '-pix_fmt', 'gray', 'pipe:1'], { input: jpeg }).stdout;
+  let sum = 0, n = 0;
+  for (let y = Math.floor(box.y * 18); y < Math.ceil((box.y + box.h) * 18); y++) for (let x = Math.floor(box.x * 32); x < Math.ceil((box.x + box.w) * 32); x++) { sum += g[y * 32 + x]; n++; }
+  return n ? sum / n : -1;
+};
 
 try {
   for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
@@ -273,6 +281,27 @@ try {
   const tamperEvents = ((await api('/api/agents/kuzatuvchi/events?camera=' + zal.id, { token })).json.events ?? []) as { title: string; level: string; hasImage: boolean }[];
   const movedEv = tamperEvents.find(e => e.title.includes('burilgan'));
   ok('jurnalda «burilgan» — jiddiy, hozirgi kadr bilan', movedEv?.level === 'crit' && movedEv.hasImage, JSON.stringify(tamperEvents.map(e => e.title)));
+
+  console.log('\n# Maxfiy joy: rasmlarda qora');
+  const MASK = { x: 0, y: 0, w: 0.5, h: 0.5 }, OPEN = { x: 0.55, y: 0.55, w: 0.45, h: 0.45 };
+  // Tekshiruv ichki qismda (chegarada kichraytirish piksellarni aralashtiradi); ffmpeg «qora»si — 16 atrofida (YUV)
+  const INSIDE = { x: 0.05, y: 0.05, w: 0.35, h: 0.35 };
+  const plain = Buffer.from(await (await fetch(`${base}/api/cameras/${zal.id}/snapshot`, { headers: { authorization: `Bearer ${token}` } })).arrayBuffer());
+  ok('niqobsiz: o\'sha joy ko\'rinadi', brightness(plain, MASK) > 40, String(brightness(plain, MASK)));
+  const masked = await api(`/api/cameras/${zal.id}/zones`, { method: 'PUT', token, body: { zones: [{ kind: 'private', name: 'Kassa qutisi', ...MASK, doctorId: null }] } });
+  ok('maxfiy joy saqlandi', masked.status === 200 && masked.json.camera?.zones?.[0]?.kind === 'private', JSON.stringify(masked.json).slice(0, 160));
+  await sleep(5500); // oldingi kadr eslab qolingan bo'lishi mumkin (5 s)
+  const panelShot = Buffer.from(await (await fetch(`${base}/api/cameras/${zal.id}/snapshot`, { headers: { authorization: `Bearer ${token}` } })).arrayBuffer());
+  ok('panel kadri: maxfiy joy qora, qolgani ko\'rinadi', isJpeg(panelShot) && brightness(panelShot, INSIDE) < 25 && brightness(panelShot, OPEN) > 40, `${brightness(panelShot, INSIDE).toFixed(1)} / ${brightness(panelShot, OPEN).toFixed(1)}`);
+  mark = sent.length;
+  say(OWNER, '/kamera qabulxona');
+  const maskedTg = await waitFor('niqobli rasm', () => photos(mark)[0], 30_000);
+  ok("Telegram rasmi ham yopilgan (/kamera)", isJpeg(maskedTg?.file) && brightness(maskedTg!.file!, INSIDE) < 25 && brightness(maskedTg!.file!, OPEN) > 40, maskedTg?.file ? brightness(maskedTg.file, INSIDE).toFixed(1) : 'rasm yo\'q');
+  const watcherNote = ai.requests.length; // AI'ga ham shu kadr boradi: tizim ko'rsatmasida niqob haqida
+  mark = sent.length;
+  say(OWNER, '/kamera qabulxonada nima bor');
+  await waitFor('javobli rasm', () => photos(mark)[0], 30_000);
+  ok("AI ko'ziga: qora to'rtburchak — niqob, orqasini taxmin qilmaydi", ai.camera.length > 0 && ai.requests.slice(watcherNote).some(q => String(q.system).includes('privacy masks')));
 
   ok("begona biznes ro'yxatida kamera yo'q", ((await api('/api/cameras', { token: other })).json.cameras ?? []).length === 0);
   ok('kamera paroli jurnalga va Telegramga tushmagan', !log.includes(SECRET) && !JSON.stringify(sent.map(s => s.params)).includes(SECRET));
