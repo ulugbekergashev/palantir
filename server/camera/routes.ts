@@ -15,7 +15,7 @@ import { open, seal } from '../secret';
 import { feedOf, ffmpegAvailable, parseStream, snapshot, startCameraEngine, syncEngine } from './stream';
 import { candidatePaths, discoverCameras, onvifStreamUri, withCredentials } from './discover';
 import { loginBlocked, loginFailed, loginOk } from '../auth';
-import { findings, reconcile, type Sitting } from './reconcile';
+import { findings, reconcile, unbilled, type Sitting } from './reconcile';
 import { flush, step, type States, type ZoneEvent } from './sessions';
 import { orders } from '../orders/store';
 import { forgetWatchCache } from '../orders/watch';
@@ -134,8 +134,9 @@ export async function daySummary(biz: BusinessRow, date: string, now = new Date(
   try {
     const crm = await withCrm(biz.id, c => c.day(date));
     const nowMin = date < iso(now) ? 24 * 60 : date > iso(now) ? 0 : now.getHours() * 60 + now.getMinutes();
+    const r = reconcile(sittings, crm.appointments, nowMin, coverage);
     return {
-      ...base, findings: findings(reconcile(sittings, crm.appointments, nowMin, coverage)),
+      ...base, findings: findings(r, unbilled(r, crm.transactions, nowMin, env.cameraPayGraceMin)),
       crm: { visits: crm.appointments.filter(a => a.status === 'Completed' || a.status === 'Checked-In').length, payments: crm.transactions.filter(t => t.status === 'Paid' && t.type !== 'Balance').length },
     };
   } catch (e) {

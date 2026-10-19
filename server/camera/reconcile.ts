@@ -4,7 +4,7 @@
  * Shubhali holatda farq aytilmaydi (noto'g'ri ayblov o'tkazib yuborilgan farqdan yomonroq).
  */
 import type { CameraFinding } from '../../src/types';
-import type { Appointment } from '../crm/logic';
+import type { Appointment, Transaction } from '../crm/logic';
 
 /** Kreslodagi bitta o'tirish: vaqtlar — kun boshidan daqiqa; endMin null — hali o'tiribdi */
 export interface Sitting { id: string; doctorId: string | null; label: string; startMin: number; endMin: number | null }
@@ -52,12 +52,40 @@ export function reconcile(sittings: Sitting[], appointments: Appointment[], nowM
   return { matched, ghosts: ghosts.sort((a, b) => a.startMin - b.startMin), missed: live.filter(a => !taken.has(a.id) && watched(a)) };
 }
 
+/** Kreslodan turganidan shuncha o'tib ham to'lov yozilmagan bo'lsa — aytiladi (kassada to'lov biroz keyin yoziladi) */
+export const PAY_GRACE_MIN = 30;
+/** Kresloda o'tirgan, qabuliga mos kelgan, lekin shu kuni hech qanday to'lovi yo'q bemor: o'tirgan oraliq bilan */
+export interface Unbilled { appointment: Appointment; fromMin: number; toMin: number }
+
+const nameKey = (s: string): string => s.toLowerCase().replace(/[‘’ʻʼ`']/g, '').split(/[^\p{L}\p{N}]+/u).filter(Boolean).sort().join(' ');
+
+/**
+ * To'lovsiz qabul: kamera bemorni qabul vaqtida kresloda ko'rgan, lekin CRM'da shu kuni unga bog'langan to'lov umuman yo'q —
+ * naqd, karta, avansdan yoki qarz (kutilayotgan) bo'lib ham. Bemor hali o'tirgan yoki yaqinda turgan bo'lsa — aytilmaydi.
+ * To'lov bemorga bog'lanmagan eski yozuvlarda ism bo'yicha (so'z tartibi farq qilmaydi)
+ */
+export function unbilled(r: Reconciled, transactions: Pick<Transaction, 'patientId' | 'patientName'>[], nowMin: number, graceMin = PAY_GRACE_MIN): Unbilled[] {
+  const billed = (a: Appointment) => transactions.some(t => (t.patientId ? sameId(t.patientId, a.patientId) : nameKey(t.patientName) === nameKey(a.patientName)));
+  // Bitta qabulga bir necha o'tirish (bemor rentgenga chiqib qaytgan): eng oxirgisi tugagach hisoblanadi
+  const byVisit = new Map<string, Unbilled & { open: boolean }>();
+  for (const { sitting: s, appointment: a } of r.matched) {
+    const had = byVisit.get(a.id);
+    const open = s.endMin == null || !!had?.open;
+    byVisit.set(a.id, { appointment: a, open, fromMin: Math.min(had?.fromMin ?? s.startMin, s.startMin), toMin: Math.max(had?.toMin ?? 0, s.endMin ?? s.startMin) });
+  }
+  return [...byVisit.values()]
+    .filter(v => !v.open && nowMin - v.toMin >= graceMin && !billed(v.appointment))
+    .map(({ appointment, fromMin, toMin }) => ({ appointment, fromMin, toMin }))
+    .sort((a, b) => a.fromMin - b.fromMin);
+}
+
 /** Farqlar — egasiga ko'rsatiladigan gaplar */
-export function findings(r: Reconciled): CameraFinding[] {
+export function findings(r: Reconciled, unpaid: Unbilled[] = []): CameraFinding[] {
   return [
     ...r.ghosts.map((s): CameraFinding => ({ level: 'crit', text: `${s.label}: ${clock(s.startMin)}${s.endMin == null ? ' dan beri' : `–${clock(s.endMin)} da`} kresloda bemor bor${s.endMin == null ? '' : ' edi'}, CRM'da bunday qabul yo'q.` })),
     ...r.missed.map((a): CameraFinding => (came(a)
       ? { level: 'crit', text: `${a.time} · ${a.patientName} (${a.doctorName}): CRM'da «keldi» deb belgilangan, kresloda hech kim ko'rinmadi.` }
       : { level: 'warn', text: `${a.time} · ${a.patientName} (${a.doctorName}): CRM'da qabul bor, kresloda hech kim ko'rinmadi.` })),
+    ...unpaid.map((u): CameraFinding => ({ level: 'warn', text: `${u.appointment.time} · ${u.appointment.patientName} (${u.appointment.doctorName}): ${clock(u.fromMin)}–${clock(u.toMin)} da kresloda o'tirdi, CRM'da shu kuni to'lov yozilmagan — kassani tekshiring.` })),
   ];
 }

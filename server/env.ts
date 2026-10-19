@@ -141,6 +141,8 @@ export const env = {
   cameraEnterSec: Number(process.env.CAMERA_ENTER_SEC) || 20,
   cameraLeaveSec: Number(process.env.CAMERA_LEAVE_SEC) || 60,
   cameraMinSessionSec: Number(process.env.CAMERA_MIN_SESSION_SEC) || 180,
+  /** Bemor kreslodan turganidan shuncha daqiqa o'tib ham to'lov yozilmagan bo'lsa — kamera hisobida «to'lov yozilmagan» */
+  cameraPayGraceMin: process.env.CAMERA_PAY_GRACE_MIN ? Math.max(0, Number(process.env.CAMERA_PAY_GRACE_MIN) || 0) : 30,
   /** IP kameralardan kadr oladigan dastur (ffmpeg). Yo'li berilmasa PATH'dan qidiriladi; topilmasa IP kameralar o'chiq (veb-kamera ishlayveradi) */
   ffmpeg: process.env.FFMPEG_PATH || 'ffmpeg',
   /** Faqat sinov uchun: IP kamera o'rniga ffmpeg'ga beriladigan kirish (JSON ro'yxat, masalan ["-f","lavfi","-i","testsrc"]) */
