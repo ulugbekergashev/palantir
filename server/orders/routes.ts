@@ -2,7 +2,7 @@
  * Topshiriqlar va xodim jurnali — panel yo'llari. Topshiriq ikki qadamda: egasining gapi → AI tushunchasi (saqlanmaydi, egasi ko'radi)
  * → saqlash. Saqlanadigan tuzilma qayta tekshiriladi (kamera va zona shu biznesniki, vaqtlar to'g'ri). Kameraga savol va kamera tavsifi ham shu yerda.
  */
-import type { Express, Request, Response } from 'express';
+import express, { type Express, type Request, type Response } from 'express';
 import { z } from 'zod';
 import type { OrderMember } from '../../src/types';
 import { AiLimitError } from '../claude';
@@ -10,7 +10,7 @@ import type { BotService } from '../bot';
 import { cameras, type BusinessRow } from '../db';
 import { resetConversation } from '../agent';
 import { cameraFrame } from '../camera/routes';
-import { askFrame } from './look';
+import { askFrame, suggestZones } from './look';
 import { MIN_LOOK_EVERY, conditionHolds, countIn, inWindow } from './logic';
 import { parseOrder } from './parse';
 import { runLook, runScheduled } from './run';
@@ -147,6 +147,19 @@ export function mountOrders(app: Express, { asBiz, bad, fail, bot }: Deps): void
       }
       res.json({ answers });
     } catch (e) { aiError(res, e); }
+  }));
+
+  /**
+   * AI zonalarni taklif qiladi: IP kamerada — hozirgi kadr (maxfiy joylari yopilgan), brauzer kamerasida — panel yuborgan surat (JPEG).
+   * Taklif saqlanmaydi — panel muharrirga qo'yadi
+   */
+  app.post('/api/cameras/:id/suggest-zones', express.raw({ type: ['image/jpeg'], limit: '3mb' }), asBiz(async (req, res, biz) => {
+    const cam = cameras.get(biz.id, String(req.params.id));
+    if (!cam) return res.status(404).json({ error: 'Kamera topilmadi' });
+    const sent = Buffer.isBuffer(req.body) && req.body.length > 100 && req.body[0] === 0xff && req.body[1] === 0xd8 ? req.body : null;
+    const frame = cam.ip ? await cameraFrame(biz.id, cam.id) : sent;
+    if (!frame) return res.status(409).json({ error: cam.ip ? 'Kameradan kadr olinmadi — kamera javob bermayapti' : "Kadr kelmadi — kamera tasviri ko'ringach qayta bosing" });
+    try { res.json({ zones: await suggestZones(biz.id, cam, frame) }); } catch (e) { aiError(res, e); }
   }));
 
   // Hozir har kamerada nechta odam (oxirgi daqiqadagi kadr bo'yicha)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { Loader2, Radar, RefreshCw, Trash2, Video, Wifi } from 'lucide-react';
+import { Loader2, Radar, RefreshCw, Sparkles, Trash2, Video, Wifi } from 'lucide-react';
 import type { Camera, CameraFeed, CameraTiming, CameraZone, FoundCamera, ZoneKind, ZoneNow } from '../types';
 import { ZONE_BORDER, ZONE_KIND } from '../lib/zones';
 import { loadPersonDetector, type PersonBox } from '../lib/personDetector';
@@ -8,6 +8,8 @@ import type { Notify } from '../components/Artifacts';
 import { Button, inputClass } from '../components/ui';
 
 type Draft = Omit<CameraZone, 'id'> & { id?: string };
+/** Bitta kamerada zonalar (server ham shuni tekshiradi) */
+const MAX_ZONES = 8;
 const KIND = ZONE_KIND;
 const FEED: Record<CameraFeed['state'], { dot: string; text: string }> = {
   ok: { dot: 'bg-emerald-500', text: 'kadr kelyapti' },
@@ -192,6 +194,7 @@ function ZoneEditor({ camera, timing, notify, onSaved, onRemoved }: { camera: Ca
   const [shot, setShot] = useState<string | null>(null);
   const [address, setAddress] = useState('');
   const [linking, setLinking] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
   const isIp = !!camera.ip;
   const running = useRef(false);
   // Sahifadan chiqilganda yoki boshqa kamera tanlanganda false bo'ladi: kechikib tugagan so'rov sanashni qayta yoqib yubormasin
@@ -250,6 +253,33 @@ function ZoneEditor({ camera, timing, notify, onSaved, onRemoved }: { camera: Ca
     return () => setShot(old => { if (old) URL.revokeObjectURL(old); return null; });
   }, []);
 
+  /** Brauzer kamerasining hozirgi kadri (JPEG) — AI zonalarni taklif qilishi uchun; tasvir hali yo'q bo'lsa — undefined */
+  const grab = () => new Promise<Blob | undefined>(resolve => {
+    const v = video.current;
+    if (!v?.videoWidth) return resolve(undefined);
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext('2d')?.drawImage(v, 0, 0);
+    c.toBlob(b => resolve(b ?? undefined), 'image/jpeg', 0.85);
+  });
+  /** AI kadrga qarab kreslo, kassa, kutish va xodim joylarini taklif qiladi — muharrirga qo'shiladi, egasi tekshirib saqlaydi */
+  const suggest = async () => {
+    setSuggesting(true);
+    try {
+      const frame = isIp ? undefined : await grab();
+      if (!isIp && !frame) throw new Error("Kamera tasviri hali ko'rinmayapti — bir oz kuting");
+      const r = await api.suggestZones(camera.id, frame);
+      if (!alive.current) return;
+      const added = r.zones.slice(0, Math.max(0, MAX_ZONES - zones.length)).map((z): Draft => ({ ...z, doctorId: null }));
+      if (!added.length) {
+        notify(r.zones.length ? `Bitta kamerada ko'pi bilan ${MAX_ZONES} ta zona` : "AI kadrda kreslo, kassa yoki kutish joyini aniq ko'rmadi — o'zingiz chizing", r.zones.length > 0);
+        return;
+      }
+      setZones(list => [...list, ...added]);
+      notify(`AI ${added.length} ta joy taklif qildi — joyini tekshirib, «Zonalarni saqlash»ni bosing`);
+    } catch (e) { fail(e); } finally { if (alive.current) setSuggesting(false); }
+  };
+
   const link = (url: string) => {
     setLinking(true);
     api.setCameraStream(camera.id, url).then(() => { notify(url ? 'IP kamera ulandi' : 'IP kamera uzildi'); return onSaved(); }).catch(fail).finally(() => { if (alive.current) setLinking(false); });
@@ -278,7 +308,7 @@ function ZoneEditor({ camera, timing, notify, onSaved, onRemoved }: { camera: Ca
     const r = rect(drag);
     setDrag(null);
     if (r.w < 0.04 || r.h < 0.04) return;
-    if (zones.length >= 8) return notify("Bitta kamerada ko'pi bilan 8 ta zona", true);
+    if (zones.length >= MAX_ZONES) return notify(`Bitta kamerada ko'pi bilan ${MAX_ZONES} ta zona`, true);
     setZones([...zones, { ...r, kind: 'chair', name: `Kreslo ${zones.filter(z => z.kind === 'chair').length + 1}`, doctorId: null }]);
   };
   const patch = (i: number, p: Partial<Draft>) => setZones(zones.map((z, j) => (j === i ? { ...z, ...p } : z)));
@@ -319,6 +349,9 @@ function ZoneEditor({ camera, timing, notify, onSaved, onRemoved }: { camera: Ca
       ))}
       <div className="flex flex-wrap gap-2">
         <Button variant="primary" onClick={() => void save()} disabled={counting !== 'off' || zones.some(z => !z.name.trim())}>Zonalarni saqlash</Button>
+        <Button onClick={() => void suggest()} disabled={counting !== 'off' || suggesting || (isIp ? !shot : !ready) || zones.length >= MAX_ZONES}>
+          {suggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} AI belgilasin
+        </Button>
         {isIp ? (
           <>
             <Button onClick={() => void loadShot()}><RefreshCw className="h-4 w-4" /> Kadrni yangilash</Button>

@@ -8,6 +8,7 @@ import type { Camera } from '../../src/types';
 import { stamp } from '../../src/lib/week';
 import { think } from '../claude';
 import { env } from '../env';
+import { ZONES_REQUEST, ZONES_SCHEMA, cleanSuggestions, type ZoneSuggestion } from '../camera/zoneSuggest';
 import { orders } from './store';
 
 const SYSTEM = `You are the camera watcher of a small business in Uzbekistan (often a dental clinic). You see one still frame from one of its cameras.
@@ -62,4 +63,18 @@ export async function askFrame(bizId: string, cam: Camera, question: string, jpe
   });
   if (res.stop_reason === 'refusal') throw new Error('kadrga javob berilmadi');
   return clean(textOf(res)) || "Kadrdan javob topilmadi.";
+}
+
+/** Kadrga qarab zonalar taklifi (kreslo, kassa, kutish joyi, xodim joyi) — saqlanmaydi, egasi muharrirda tekshiradi */
+export async function suggestZones(bizId: string, cam: Camera, jpeg: Buffer): Promise<ZoneSuggestion[]> {
+  const res = await think(bizId, 'camera', {
+    model: env.aiModel,
+    max_tokens: 2000,
+    system: SYSTEM,
+    messages: [{ role: 'user', content: [image(jpeg), { type: 'text', text: `${context(bizId, cam)}\n\n${ZONES_REQUEST}` }] }],
+    thinking: { type: 'adaptive', display: 'omitted' },
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: ZONES_SCHEMA } },
+  });
+  if (res.stop_reason === 'refusal') throw new Error('zonalar taklif qilinmadi');
+  try { return cleanSuggestions(JSON.parse(textOf(res))); } catch { return []; }
 }

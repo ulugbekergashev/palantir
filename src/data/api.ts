@@ -125,6 +125,8 @@ export const api = {
   setCameraStream: (id: string, url: string) => call<{ camera: Camera }>(`/cameras/${id}/stream`, { method: 'PUT', body: { url } }),
   /** IP kameraning hozirgi kadri (zonalarni uning ustida chizish uchun) */
   cameraSnapshot: async (id: string) => (await send(`/cameras/${id}/snapshot`, { method: 'GET' })).blob(),
+  /** AI zonalarni taklif qiladi; brauzer kamerasida — shu kadr (JPEG) bilan */
+  suggestZones: async (id: string, frame?: Blob) => (await send(`/cameras/${id}/suggest-zones`, { method: 'POST', ...(frame ? { headers: { 'content-type': 'image/jpeg' }, body: frame } : {}) })).json() as Promise<{ zones: Omit<CameraZone, 'id' | 'doctorId'>[] }>,
   /** Har kameraning oxirgi kadrida nechta odam (kadr kelmayotgan kamera — ro'yxatda yo'q) */
   cameraLive: () => call<{ live: Record<string, { at: string; people: number }> }>('/cameras/live'),
   askCamera: (question: string, cameraId?: string, image?: string) => call<{ answers: { cameraId: string; name: string; answer: string }[] }>('/cameras/ask', { body: { question, cameraId, image } }),

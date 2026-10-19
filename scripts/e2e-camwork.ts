@@ -9,7 +9,8 @@
  *   maxfiy joy: kameradan chiqadigan rasmlarda (panel, Telegram) o'sha joy qora;
  *   tayyor qoidalar: kameradagi zonalarga moslanadi va server ularni qabul qiladi;
  *   xodim joyi: kim qachon keldi, ketdi, qancha joyida bo'ldi va eng uzoq yo'qligi;
- *   kechki kamera hisoboti: Telegram'ga kuniga bir marta (AI'siz), yordamchining camera_day asbobi.
+ *   kechki kamera hisoboti: Telegram'ga kuniga bir marta (AI'siz), yordamchining camera_day asbobi;
+ *   AI zonalarni taklif qiladi: model javobi tekshiriladi, IP kamerada — kadr, brauzer kamerasida — panel yuborgan surat.
  * Kompyuterda ffmpeg bo'lmasa sinov o'tkazib yuboriladi. Haqiqiy kamera va haqiqiy model bu yerda yo'q.
  */
 process.env.TZ = 'Asia/Tashkent';
@@ -25,6 +26,7 @@ import type { Camera, CameraSession } from '../src/types';
 import { judgeLook, type TamperState } from '../server/camera/tamper';
 import { cameraPresets } from '../src/lib/presets';
 import { reportHtml } from '../server/camera/reportText';
+import { cleanSuggestions } from '../server/camera/zoneSuggest';
 import { OWNER, ai, aiServer, listen, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 
@@ -123,6 +125,17 @@ ok('hisobot: sarlavha, kreslo (CRM bilan), kassa, bandlik, kutish, xodim, farq v
   rep.startsWith('📷 <b>Kameralar — bugun, 20-oktabr</b>') && rep.includes("Kresloga o'tirdi: <b>12</b> bemor (DentaCRM'da «keldi»: 14)") && rep.includes("to'lov yozilgan: 13")
   && rep.includes('Kreslo &lt;1&gt; — 63%') && !rep.includes('Kreslo 2 —') && rep.includes("23 kishi, o'rtacha 7 daq, eng uzog'i 26 daq — 2 kishi 20 daqiqadan ko'p")
   && rep.includes('Administrator: 08:52 keldi, 19:10 ketdi, joyida 9 soat 40 daq; eng uzoq yo\'qligi 45 daq') && rep.includes('Tekshiring</b> (1)') && rep.includes('3 marta ogohlantirdi'), rep);
+
+console.log('\n# AI zonalarni taklif qiladi (sof)');
+const sug = cleanSuggestions({ zones: [
+  { kind: 'chair', name: '', x: 0.5, y: 0.3, w: 0.3, h: 0.4 }, { kind: 'chair', name: 'Kreslo <b>', x: 0.9, y: 0.9, w: 0.5, h: 0.5 },
+  { kind: 'private', name: 'x', x: 0, y: 0, w: 0.5, h: 0.5 }, { kind: 'desk', name: 'Kassa', x: 0.1, y: 0.1, w: 0.01, h: 0.3 },
+  { kind: 'waiting', name: 'Divan', x: -0.2, y: 0.5, w: 0.4, h: 0.3 }, { kind: 'chair', name: 'Kreslo', x: 'nima', y: 0, w: 1, h: 1 },
+] });
+ok("taklif: noma'lum va maxfiy tur, juda kichik, buzuq son — tashlanadi", sug.length === 3 && sug.every(z => z.kind !== ('private' as string)), JSON.stringify(sug));
+ok('taklif: nomsiz kreslo raqamlanadi, teglar olinadi', sug[0].name === 'Kreslo 1' && sug[1].name === 'Kreslo b');
+ok('taklif: kadrdan chiqqani kadr ichiga qisqartiriladi', sug[1].x === 0.9 && sug[1].w === 0.1 && sug[2].x === 0 && sug[2].w === 0.4, JSON.stringify(sug.slice(1)));
+ok("taklif: ko'pi bilan 6 ta, javob bo'lmasa — bo'sh", cleanSuggestions({ zones: Array.from({ length: 9 }, () => ({ kind: 'chair', name: 'K', x: 0, y: 0, w: 0.2, h: 0.2 })) }).length === 6 && cleanSuggestions(null).length === 0);
 
 console.log('\n# Tayyor qoidalar (sof)');
 const Z = (id: string, kind: string, name: string) => ({ id, kind, name, x: 0, y: 0, w: 0.5, h: 0.5, doctorId: null });
@@ -397,6 +410,21 @@ try {
   const dayRes = Array.isArray(dayTool) ? dayTool.find(b => b.type === 'tool_result') : undefined;
   const dayJson = (() => { try { return JSON.parse(String(dayRes?.content)); } catch { return {}; } })();
   ok("yordamchi camera_day: tayyor hisobot matni, HTML'siz", dayAsk.status === 200 && !dayRes?.is_error && String(dayJson.report).includes('Kameralar — bugun') && String(dayJson.report).includes('Administrator') && !String(dayJson.report).includes('<b>'), String(dayJson.report).slice(0, 160));
+
+  console.log('\n# AI zonalarni taklif qiladi (jonli)');
+  const before2 = ai.camera.length;
+  ai.cameraAnswer = text => (text.includes('<zones_request>') ? JSON.stringify({ zones: [{ kind: 'chair', name: 'Kreslo 1', x: 0.55, y: 0.3, w: 0.3, h: 0.45 }, { kind: 'desk', name: 'Kassa', x: 0.05, y: 0.6, w: 0.3, h: 0.3 }, { kind: 'private', name: 'x', x: 0, y: 0, w: 0.1, h: 0.1 }] }) : 'kadr');
+  const ipSug = await api(`/api/cameras/${zal.id}/suggest-zones`, { token, body: {} });
+  ok('IP kamera: kadrga qarab 2 ta joy taklif qilindi (maxfiy tur tashlandi), saqlanmadi', ipSug.status === 200 && ipSug.json.zones?.map((z: { kind: string }) => z.kind).join() === 'chair,desk'
+    && !(await api('/api/cameras', { token })).json.cameras.find((c: { id: string }) => c.id === zal.id).zones.some((z: { kind: string }) => z.kind === 'chair'), JSON.stringify(ipSug.json));
+  ok("AI'ga kadr va ko'rsatma bordi", ai.camera.length === before2 + 1 && ai.camera.at(-1)!.hasImage && ai.camera.at(-1)!.text.includes('<zones_request>'));
+  const noFrame = await api(`/api/cameras/${kabinet.id}/suggest-zones`, { token, body: {} });
+  ok("brauzer kamerasi: surat yuborilmasa — 409, sababi aytiladi", noFrame.status === 409 && String(noFrame.json.error).includes('Kadr kelmadi'), JSON.stringify(noFrame.json));
+  const browserSug = await fetch(`${base}/api/cameras/${kabinet.id}/suggest-zones`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'image/jpeg' }, body: new Uint8Array(plain) });
+  const browserJson = await browserSug.json() as { zones?: unknown[] };
+  ok('brauzer kamerasi: panel yuborgan surat bilan — taklif keldi', browserSug.status === 200 && browserJson.zones?.length === 2 && ai.camera.at(-1)!.hasImage, JSON.stringify(browserJson));
+  ok('begona biznes taklif ololmaydi — 404', (await api(`/api/cameras/${zal.id}/suggest-zones`, { token: other, body: {} })).status === 404);
+  ai.cameraAnswer = null;
 
   ok("begona biznes ro'yxatida kamera yo'q", ((await api('/api/cameras', { token: other })).json.cameras ?? []).length === 0);
   ok('kamera paroli jurnalga va Telegramga tushmagan', !log.includes(SECRET) && !JSON.stringify(sent.map(s => s.params)).includes(SECRET));
