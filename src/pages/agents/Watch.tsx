@@ -14,6 +14,7 @@ import { AgentOrb, HUE, Panel, Quiet, clock } from '../../components/agent';
 import { AgentJournal } from '../../components/Journal';
 import { OrdersPanel } from '../../components/Orders';
 import { hrefOf } from '../../lib/nav';
+import { ZONE_KIND, hoursMin } from '../../lib/zones';
 
 const SNAPSHOT_MS = 6_000;
 const LIVE_MS = 5_000;
@@ -130,6 +131,48 @@ function Findings({ s }: { s: CameraSummary | null | undefined }) {
   ) : <Quiet>{s?.crm ? "Bugun kamera va DentaCRM o'rtasida farq yo'q." : "DentaCRM ulansa, kamera ko'rganini qabul va to'lovlar bilan solishtiradi."}</Quiet>;
 }
 
+function Stat({ label, value, hint, warn = false }: { label: string; value: string; hint?: string; warn?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <dt className="order-2 text-[12px] leading-snug text-[#8a909c]">{label}{hint && <span className="block text-[#7d838f]">{hint}</span>}</dt>
+      <dd className={`order-1 text-[20px] font-semibold tabular-nums ${warn ? 'text-[#fbd38d]' : 'text-[#f2f0ea]'}`}>{value}</dd>
+    </div>
+  );
+}
+
+/** Kreslolar bugun qancha band bo'ldi va kutish joyida qancha kutishyapti */
+function Occupancy({ s }: { s: CameraSummary | null | undefined }) {
+  const chairs = s?.chairUse ?? [], w = s?.waiting;
+  if (!chairs.length && !w) return <Quiet>Kamerada kreslo yoki kutish joyini belgilasangiz, bu yerda kreslo bandligi va bemorlar qancha kutgani chiqadi.</Quiet>;
+  return (
+    <div className="flex flex-col gap-4">
+      {chairs.length > 0 && (
+        <ul className="flex flex-col gap-3.5">
+          {chairs.map(c => (
+            <li key={c.zoneId}>
+              <div className="flex items-baseline gap-2 text-[14px] text-[#d9dbe1]">
+                <span className="truncate">{c.name}</span><span className="truncate text-[12px] text-[#7d838f]">{c.cameraName}</span>
+                <span className="ml-auto font-semibold tabular-nums text-[#f2f0ea]">{c.pct === null ? '—' : `${c.pct}%`}</span>
+              </div>
+              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-glass/[0.06]" role="img" aria-label={c.pct === null ? `${c.name}: hali hisoblanmadi` : `${c.name}: ${c.pct}% band`}>
+                <div className="h-full rounded-full" style={{ width: `${c.pct ?? 0}%`, background: ACCENT }} />
+              </div>
+              <p className="mt-1 text-[12px] text-[#7d838f]">{c.pct === null ? 'Kamera hali yetarlicha kuzatmadi' : `${hoursMin(c.busyMin)} band · ${hoursMin(c.watchedMin)} kuzatildi`}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      {w && (
+        <dl className={`grid grid-cols-3 gap-3 ${chairs.length ? 'border-t border-glass/[0.06] pt-4' : ''}`}>
+          <Stat label="Hozir kutyapti" value={w.nowWaiting ? `${w.nowWaiting} kishi` : "hech kim"} hint={w.nowWaiting ? `eng uzog'i ${hoursMin(w.nowLongestMin)}` : undefined} warn={w.nowWaiting > 0 && w.nowLongestMin >= w.alertMin} />
+          <Stat label="O'rtacha kutish" value={w.count ? hoursMin(w.avgMin) : '—'} hint={`bugun ${w.count} kishi kutdi`} />
+          <Stat label="Eng uzoq kutish" value={w.count ? hoursMin(w.maxMin) : '—'} hint={w.longCount ? `${w.longCount} kishi ${w.alertMin} daqiqadan ko'p` : undefined} warn={w.longCount > 0} />
+        </dl>
+      )}
+    </div>
+  );
+}
+
 export function WatchEmpty() {
   return (
     <section className="flex flex-col items-center gap-6 rounded-[28px] border border-glass/[0.07] bg-[#0b0c10] px-6 py-14 text-center">
@@ -153,7 +196,7 @@ export function WatchNow({ data, notify, tick }: { data: WatchData | null; notif
   const live = useLiveCounts(!!data?.cameras.length);
   if (data && !data.cameras.length) return <WatchEmpty />;
   const s = data?.summary;
-  const today = s?.sessions.slice().sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)).slice(0, 8) ?? [];
+  const today = s?.sessions.filter(x => x.kind !== 'waiting').sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)).slice(0, 8) ?? [];
   return (
     <div className="flex flex-col gap-5">
       <AskCamera notify={notify} placeholder="Kameralardan so'rang: «Hozir qabulxonada nechta odam bor?»" />
@@ -166,6 +209,7 @@ export function WatchNow({ data, notify, tick }: { data: WatchData | null; notif
             <div className="max-h-[420px] overflow-y-auto pr-1"><AgentJournal member="kuzatuvchi" notify={notify} tick={tick} empty="Hali hodisa yo'q. «Topshiriqlar»da yozing — masalan, kechasi odam ko'rinsa xabar bersin." /></div>
           </Panel>
           <Panel title="DentaCRM bilan solishtirish"><Findings s={s} /></Panel>
+          <Panel title="Kreslo va kutish"><Occupancy s={s} /></Panel>
         </div>
       </div>
       <Panel title="Bugun kuzatilgan">
@@ -244,7 +288,7 @@ export function WatchCameras({ data, selected, notify, tick }: { data: WatchData
             <Profile cam={cam} notify={notify} onSaved={c => setCams(list => list.map(x => (x.id === c.id ? { ...x, profile: c.profile } : x)))} />
             {cam.zones.length > 0 && (
               <Panel title="Belgilangan joylar">
-                <ul className="flex flex-wrap gap-2">{cam.zones.map(z => <li key={z.id} className="rounded-full border border-glass/10 px-3 py-1 text-[13px] text-[#d9dbe1]">{z.kind === 'chair' ? 'Kreslo' : 'Kassa'} · {z.name}</li>)}</ul>
+                <ul className="flex flex-wrap gap-2">{cam.zones.map(z => <li key={z.id} className="rounded-full border border-glass/10 px-3 py-1 text-[13px] text-[#d9dbe1]">{ZONE_KIND[z.kind]} · {z.name}</li>)}</ul>
               </Panel>
             )}
           </div>

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { Loader2, Radar, RefreshCw, Trash2, Video, Wifi } from 'lucide-react';
 import type { Camera, CameraFeed, CameraTiming, CameraZone, FoundCamera, ZoneKind, ZoneNow } from '../types';
+import { ZONE_BORDER, ZONE_KIND } from '../lib/zones';
 import { loadPersonDetector, type PersonBox } from '../lib/personDetector';
 import { api } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { Button, inputClass } from '../components/ui';
 
 type Draft = Omit<CameraZone, 'id'> & { id?: string };
-const KIND: Record<ZoneKind, string> = { chair: 'Kreslo', desk: 'Kassa stoli' };
+const KIND = ZONE_KIND;
 const FEED: Record<CameraFeed['state'], { dot: string; text: string }> = {
   ok: { dot: 'bg-emerald-500', text: 'kadr kelyapti' },
   connecting: { dot: 'bg-amber-500', text: 'ulanmoqda…' },
@@ -301,7 +302,7 @@ function ZoneEditor({ camera, timing, notify, onSaved, onRemoved }: { camera: Ca
 {isIp
           ? shot ? <img src={shot} alt={`${camera.name} kamerasi kadri`} draggable={false} className="block min-h-40 w-full" /> : <div className="flex min-h-40 items-center justify-center text-sm text-[#7d838f]">Kadr olinmoqda…</div>
           : <video ref={video} autoPlay muted playsInline onLoadedData={() => setReady(true)} aria-label={`${camera.name} kamerasi tasviri`} className="block min-h-40 w-full" />}
-        {zones.map((z, i) => <div key={i} className={`absolute border-2 ${z.kind === 'chair' ? 'border-emerald-400' : 'border-amber-400'}`} style={box(z)}><span className="bg-black/70 px-1 text-xs font-semibold text-white">{z.name}{seen && z.id && seen.zones[z.id] ? ` · ${NOW[seen.zones[z.id]]}` : ''}</span></div>)}
+        {zones.map((z, i) => <div key={i} className={`absolute border-2 ${ZONE_BORDER[z.kind]}`} style={box(z)}><span className="bg-black/70 px-1 text-xs font-semibold text-white">{z.name}{seen && z.id && seen.zones[z.id] ? ` · ${NOW[seen.zones[z.id]]}` : ''}</span></div>)}
         {seen?.people.map((p, i) => <div key={`p${i}`} className="absolute border-2 border-dashed border-white/90" style={box(p)} />)}
         {drag && <div className="absolute border-2 border-dashed border-white" style={box(rect(drag))} />}
       </div>

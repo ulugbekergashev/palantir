@@ -400,7 +400,8 @@ export interface ClinicDay {
 }
 
 /** Kamera zonasi: kadrning ulushlarida berilgan to'rtburchak (0..1). chair — kreslo, desk — kassa stoli */
-export type ZoneKind = 'chair' | 'desk';
+/** chair — kreslo, desk — kassa stoli, waiting — kutish joyi (har odamning kutishi alohida sanaladi) */
+export type ZoneKind = 'chair' | 'desk' | 'waiting';
 export interface CameraZone { id: string; kind: ZoneKind; name: string; x: number; y: number; w: number; h: number; /** Kreslo qaysi shifokorniki (DentaCRM'dagi id) */ doctorId: string | null }
 /** IP kameradan kadr olish holati: connecting — ulanmoqda, ok — kadrlar kelyapti, error — ulanib bo'lmadi (message — sababi) */
 export interface CameraFeed { state: 'connecting' | 'ok' | 'error'; message: string | null }
@@ -412,14 +413,27 @@ export interface Camera {
   /** IP kamera holati; brauzer kamerasida null */ feed: CameraFeed | null;
   /** Egasining tavsifi: kamera nimaga qaraydi, odatda kim turadi, ish vaqti — har topshiriq va savolda AI shuni o'qiydi */ profile?: string | null;
 }
-/** Zonada odam bo'lgan oraliq; endedAt null — hozir ham shu yerda */
+/** Zonada odam bo'lgan oraliq; endedAt null — hozir ham shu yerda. Kutish joyida — bitta odamning kutishi */
 export interface CameraSession { id: string; cameraId: string; zoneId: string; kind: ZoneKind; zoneName: string; startedAt: string; endedAt: string | null }
 export interface CameraFinding { level: 'ok' | 'warn' | 'crit'; text: string }
 /**
  * Bir kunning kamera hisobi. seated — kresloda yetarlicha uzoq o'tirganlar; deskVisits — kassa oldida turganlar;
  * crm — DentaCRM'dagi «keldi» qabullar va to'langan to'lovlar soni (ulanmagan yoki javob bermagan bo'lsa null)
  */
-export interface CameraSummary { date: string; seated: number; deskVisits: number; crm: { visits: number; payments: number } | null; findings: CameraFinding[]; sessions: CameraSession[] }
+export interface CameraSummary {
+  date: string; seated: number; deskVisits: number; crm: { visits: number; payments: number } | null; findings: CameraFinding[]; sessions: CameraSession[];
+  /** Har kreslo qancha band bo'ldi (kamera shu kuni kuzatgan vaqtga nisbatan) */
+  chairUse?: ChairUse[];
+  /** Kutish joyi bo'lsa — kutishlar hisobi; bo'lmasa null */
+  waiting?: WaitStats | null;
+}
+/** Kreslo bandligi: busyMin — kimdir o'tirgan, watchedMin — kamera kuzatgan daqiqalar; pct — kuzatilgani 10 daqiqadan kam bo'lsa null */
+export interface ChairUse { zoneId: string; name: string; cameraName: string; busyMin: number; watchedMin: number; pct: number | null }
+/**
+ * Kutish joyi: bugun necha kishi kutdi (count), o'rtacha va eng uzoq kutish, alertMin dan uzoq kutganlar soni;
+ * hozir kutayotganlar va ularning eng uzog'i
+ */
+export interface WaitStats { count: number; avgMin: number; maxMin: number; longCount: number; alertMin: number; nowWaiting: number; nowLongestMin: number }
 
 // ─── AI xodimlarga topshiriqlar va ularning jurnali ──────────────────────────
 export type OrderMember = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi';

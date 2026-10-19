@@ -3,7 +3,8 @@
  *   /kamera — hamma kameradan hozirgi rasm; «/kamera Zal» — bitta kamera; «/kamera … kim bor» — kadrga qarab javob;
  *   yordamchi «kameraga qara» — look_camera: rasm Telegram'ga, kadr Kuzatuvchi jurnalida, panel suhbatida kamera kartasi;
  *   brauzer kamerasi va noma'lum kamera, begona biznes himoyasi;
- *   to'lovsiz qabul: bemor qabul vaqtida kresloda o'tirgan, DentaCRM'da shu kuni to'lovi yo'q (sof qoida va kamera hisobi).
+ *   to'lovsiz qabul: bemor qabul vaqtida kresloda o'tirgan, DentaCRM'da shu kuni to'lovi yo'q (sof qoida va kamera hisobi);
+ *   kutish joyi: har odam alohida sanaladi, uzoq kutsa — egasiga bitta xabar; kreslo bandligi foizi.
  * Kompyuterda ffmpeg bo'lmasa sinov o'tkazib yuboriladi. Haqiqiy kamera va haqiqiy model bu yerda yo'q.
  */
 process.env.TZ = 'Asia/Tashkent';
@@ -14,6 +15,8 @@ import { join } from 'node:path';
 import { iso } from '../src/lib/week';
 import { findings, reconcile, unbilled, type Sitting } from '../server/camera/reconcile';
 import type { Appointment } from '../server/crm/logic';
+import { MAX_JUMP, chairUse, trackStep, waitStats, type Track } from '../server/camera/occupancy';
+import type { Camera, CameraSession } from '../src/types';
 import { OWNER, ai, aiServer, listen, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 
@@ -41,6 +44,30 @@ ok("ikki o'tirish tugagan — bitta farq, butun oraliq bilan", both.length === 1
 const said = findings(day, unpaid).find(f => f.text.includes("to'lov yozilmagan"));
 ok("farq matni: qabul vaqti, bemor, shifokor, o'tirgan oraliq — ogohlantirish", said?.level === 'warn' && said.text.startsWith("10:00 · Dilnoza Karimova (Rustam Rustamov): 10:05–10:35 da kresloda o'tirdi"), said?.text);
 
+console.log('\n# Kutish joyi va kreslo bandligi (sof qoida)');
+const WZ = { x: 0, y: 0, w: 0.5, h: 1 };
+const P = (cx: number, cy: number) => ({ x: cx - 0.05, y: cy - 0.1, w: 0.1, h: 0.2 });
+const O = { leaveMs: 2000, maxJump: MAX_JUMP };
+let tr: Track[] = trackStep([], [P(0.2, 0.5), P(0.4, 0.5), P(0.8, 0.5)], WZ, 0, O).tracks;
+ok("kutish: zonadagi ikki odam — ikki kishi, zonadan tashqaridagi sanalmaydi", tr.length === 2 && tr[0].id !== tr[1].id);
+const first = tr[0].id;
+tr = trackStep(tr, [P(0.22, 0.52), P(0.4, 0.5)], WZ, 1000, O).tracks;
+ok("kutish: biroz qimirlagan odam — o'sha odam (vaqti saqlanadi)", tr.length === 2 && tr[0].id === first && tr[0].since === 0 && tr[0].lastSeen === 1000);
+let step2 = trackStep(tr, [P(0.4, 0.5)], WZ, 2500, O);
+ok("kutish: bir zum ko'rinmay qolgan odam hali ketmagan", step2.tracks.length === 2 && step2.finished.length === 0);
+step2 = trackStep(step2.tracks, [P(0.4, 0.5)], WZ, 3500, O);
+ok("kutish: leaveMs dan ko'p ko'rinmagan — ketdi, kutgan vaqti bilan", step2.finished.length === 1 && step2.finished[0].id === first && step2.finished[0].lastSeen - step2.finished[0].since === 1000);
+const jump = trackStep(step2.tracks, [P(0.05, 0.1)], WZ, 3600, O);
+ok("kutish: uzoq joyda paydo bo'lgan — yangi odam", jump.tracks.length === 2 && jump.tracks.some(t => t.since === 3600));
+const T = (h: number, mm = 0) => new Date(2026, 9, 20, h, mm).toISOString();
+const cam = { id: 'k1', name: 'Kabinet', zones: [{ id: 'c1', kind: 'chair', name: 'Kreslo 1', x: 0, y: 0, w: 1, h: 1, doctorId: null }], seenFrom: T(9), lastSeenAt: T(12) } as unknown as Camera;
+const sess = (id: string, kind: 'chair' | 'waiting', from: string, to: string | null): CameraSession => ({ id, cameraId: 'k1', zoneId: kind === 'chair' ? 'c1' : 'w1', kind, zoneName: 'x', startedAt: from, endedAt: to });
+const use = chairUse([cam], [sess('a', 'chair', T(8), T(8, 30)), sess('b', 'chair', T(9, 30), T(10, 30)), sess('c', 'chair', T(11), null)], Date.parse(T(0)), Date.parse(T(24)), Date.parse(T(12)));
+ok("bandlik: kuzatilgan 3 soatdan 2 soati band — 67% (kamera ko'rmagan paytdagi o'tirish hisobga kirmaydi)", use.length === 1 && use[0].pct === 67 && use[0].busyMin === 120 && use[0].watchedMin === 180, JSON.stringify(use));
+ok("bandlik: kamera 10 daqiqadan kam kuzatgan — foiz aytilmaydi", chairUse([{ ...cam, seenFrom: T(11, 55) }], [], Date.parse(T(0)), Date.parse(T(24)), Date.parse(T(12)))[0].pct === null);
+const ws = waitStats([sess('w', 'waiting', T(10), T(10, 5)), sess('x', 'waiting', T(10), T(10, 25)), sess('y', 'waiting', T(11), null), sess('z', 'chair', T(9), T(10))], 20, { people: 1, longestMs: 3 * 60_000 });
+ok("kutish hisobi: 2 kishi, o'rtacha 15, eng uzoq 25, 20 daqiqadan oshgan 1", ws.count === 2 && ws.avgMin === 15 && ws.maxMin === 25 && ws.longCount === 1 && ws.nowWaiting === 1 && ws.nowLongestMin === 3, JSON.stringify(ws));
+
 if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status !== 0) {
   console.log("ffmpeg yo'q — kamera sinovi o'tkazib yuborildi");
   process.exit(0);
@@ -60,7 +87,7 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_API_ID: '', TG_API_HASH: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '',
     CAMERA_TEST_INPUT: JSON.stringify(['-re', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=5']),
     // Sinovda chegaralar soniyalarda: 1 s tursa — o'tirish, 2 s ko'rinmasa — turdi; to'lov kutilmaydi
-    CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '2', CAMERA_PAY_GRACE_MIN: '0',
+    CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '2', CAMERA_PAY_GRACE_MIN: '0', CAMERA_WAIT_ALERT_MIN: '0.1',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -181,6 +208,33 @@ try {
   crm.transactions.push({ id: 'now-pay', patientId: 'p4', patientName: 'Dilnoza Karimova', date: today, amount: 300_000, type: 'Cash', service: 'Plomba', status: 'Paid', clinicId: 'c1', doctorId: 'd1', doctorName: 'Rustam Rustamov', discountAmount: 0 });
   const after = (await api(`/api/cameras/summary?date=${today}`, { token })).json.summary as { findings: { text: string }[] };
   ok("to'lov yozilgach — ogohlantirish yo'qoldi", !!after && !after.findings.some(f => f.text.includes("to'lov yozilmagan")), JSON.stringify(after?.findings));
+
+  console.log("\n# Kutish joyi: kamera hisobi va xabar");
+  const chairZone = (zoned.json.camera.zones as { id: string }[])[0];
+  const both = await api(`/api/cameras/${kabinet.id}/zones`, { method: 'PUT', token, body: { zones: [{ ...chairZone }, { kind: 'waiting', name: 'Kutish zali', x: 0, y: 0, w: 0.25, h: 1, doctorId: null }] } });
+  const waitZone = (both.json.camera?.zones as { id: string; kind: string }[] | undefined)?.find(z => z.kind === 'waiting');
+  ok("kutish joyi saqlandi (kreslo o'zgarmadi)", both.status === 200 && !!waitZone && both.json.camera.zones.some((z: { id: string }) => z.id === chairZone.id), JSON.stringify(both.json).slice(0, 200));
+  mark = sent.length;
+  const evBefore = ((await api('/api/agents/kuzatuvchi/events', { token })).json.events ?? []).length;
+  const two = { people: [{ x: 0.05, y: 0.2, w: 0.08, h: 0.3 }, { x: 0.15, y: 0.5, w: 0.08, h: 0.3 }] };
+  let state = '';
+  for (let i = 0; i < 26; i++) { state = (await api(`/api/cameras/${kabinet.id}/observe`, { token, body: two })).json.zones?.[waitZone!.id]; await sleep(300); }
+  ok("kutish joyi holati: band", state === 'open', state);
+  const during = (await api(`/api/cameras/summary?date=${today}`, { token })).json.summary as { waiting: { nowWaiting: number; count: number } | null };
+  ok('hozir 2 kishi kutyapti', during?.waiting?.nowWaiting === 2 && during.waiting.count === 0, JSON.stringify(during?.waiting));
+  const told = await waitFor('kutish xabari', () => texts(mark).find(t => t.includes('kutyapti')));
+  ok("uzoq kutish — egasiga Telegram'da (kamera va joy nomi bilan)", !!told && told.includes('Kabinet · Kutish zali') && told.includes('daqiqadan beri kutyapti'), told);
+  ok("ikki kishi uzoq kutdi, lekin xabar bitta (bir joy — 15 daqiqada bitta)", texts(mark).filter(t => t.includes('kutyapti')).length === 1);
+  const evs = (await api('/api/agents/kuzatuvchi/events', { token })).json.events as { title: string; level: string }[];
+  ok('Kuzatuvchi jurnalida ogohlantirish', evs.length === evBefore + 1 && evs[0].level === 'warn' && evs[0].title.includes('kutyapti'), JSON.stringify(evs.slice(0, 2)));
+  for (let i = 0; i < 12; i++) { await api(`/api/cameras/${kabinet.id}/observe`, { token, body: { people: [] } }); await sleep(300); }
+  const waited = (await api(`/api/cameras/summary?date=${today}`, { token })).json.summary as { waiting: { count: number; longCount: number; nowWaiting: number; alertMin: number }; chairUse: { name: string; pct: number | null; watchedMin: number }[]; sessions: { kind: string }[] };
+  ok("ketishdi: ikkalasining kutishi yozildi, ikkalasi chegaradan uzoq", waited?.waiting?.count === 2 && waited.waiting.longCount === 2 && waited.waiting.nowWaiting === 0 && waited.waiting.alertMin === 0.1, JSON.stringify(waited?.waiting));
+  ok("kreslo bandligi: kamera hali kam kuzatgan — foiz yo'q, lekin kreslo ro'yxatda", waited?.chairUse?.length === 1 && waited.chairUse[0].name === 'Kreslo 1' && waited.chairUse[0].pct === null, JSON.stringify(waited?.chairUse));
+  const tool = await api('/api/chat', { token, body: { text: 'kamera hisobi {}' } });
+  const lastTool = ai.requests.filter(q => q.system.includes('Name: Shifo Dent')).at(-1)?.messages.at(-1)?.content;
+  const res = Array.isArray(lastTool) ? JSON.parse(String(lastTool.find(b => b.type === 'tool_result')?.content ?? '{}')) : {};
+  ok("yordamchi kamera hisobida kutish va bandlik bor", tool.status === 200 && res.waiting?.waited_today === 2 && Array.isArray(res.chair_use) && res.chair_use[0]?.chair === 'Kreslo 1', JSON.stringify(res).slice(0, 220));
 
   ok("begona biznes ro'yxatida kamera yo'q", ((await api('/api/cameras', { token: other })).json.cameras ?? []).length === 0);
   ok('kamera paroli jurnalga va Telegramga tushmagan', !log.includes(SECRET) && !JSON.stringify(sent.map(s => s.params)).includes(SECRET));

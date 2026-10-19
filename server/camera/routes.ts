@@ -19,6 +19,8 @@ import { findings, reconcile, unbilled, type Sitting } from './reconcile';
 import { flush, step, type States, type ZoneEvent } from './sessions';
 import { orders } from '../orders/store';
 import { forgetWatchCache } from '../orders/watch';
+import { chairUse, waitStats } from './occupancy';
+import { settleWaits, waitingIn, waitingNow } from './waiting';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -31,7 +33,7 @@ const unit = z.number().min(0).max(1);
 const BoxSchema = z.object({ x: unit, y: unit, w: unit.gt(0), h: unit.gt(0) }).refine(b => b.x + b.w <= 1.001 && b.y + b.h <= 1.001, 'kadrdan tashqarida');
 const ZonesSchema = z.object({
   zones: z.array(BoxSchema.and(z.object({
-    id: z.string().max(16).optional(), kind: z.enum(['chair', 'desk']), name: z.string().trim().min(1).max(40), doctorId: z.string().trim().max(60).nullable().optional(),
+    id: z.string().max(16).optional(), kind: z.enum(['chair', 'desk', 'waiting']), name: z.string().trim().min(1).max(40), doctorId: z.string().trim().max(60).nullable().optional(),
   }))).max(MAX_ZONES),
 });
 const ObserveSchema = z.object({ people: z.array(BoxSchema).max(MAX_PEOPLE) });
@@ -86,7 +88,8 @@ export const onCameraFrame = (fn: FrameListener): void => { frameListeners.push(
 /** Kadr natijasini qo'llaydi: seanslarni ochadi/yopadi, zonalarning hozirgi holatini qaytaradi */
 export function observe(biz: BusinessRow, cam: Camera, people: { x: number; y: number; w: number; h: number }[], now = Date.now()): Record<string, 'empty' | 'entering' | 'open'> {
   const t = thresholds();
-  const r = step(live.get(cam.id) ?? {}, cam.zones, people, now, t);
+  // Kutish joyida bitta «band/bo'sh» seans emas — har odam alohida (waiting.ts, kadr tinglovchisi)
+  const r = step(live.get(cam.id) ?? {}, cam.zones.filter(z => z.kind !== 'waiting'), people, now, t);
   live.set(cam.id, r.states);
   apply(biz, cam, r.events);
   // Kadrlar uzoq uzilgan bo'lsa, kamera "yangidan ko'ra boshladi": o'sha oraliqdagi qabullar haqida hukm chiqarilmaydi
@@ -95,7 +98,11 @@ export function observe(biz: BusinessRow, cam: Camera, people: { x: number; y: n
   for (const fn of frameListeners) {
     try { fn(biz, cam, people, now); } catch (e) { console.error('[kamera] qoida:', (e as Error).message); }
   }
-  return Object.fromEntries(cam.zones.map(z => { const s = r.states[z.id]; return [z.id, s?.open ? 'open' : s?.since != null ? 'entering' : 'empty']; }));
+  return Object.fromEntries(cam.zones.map(z => {
+    if (z.kind === 'waiting') return [z.id, waitingIn(cam.id, z.id) ? 'open' : 'empty'];
+    const s = r.states[z.id];
+    return [z.id, s?.open ? 'open' : s?.since != null ? 'entering' : 'empty'];
+  }));
 }
 
 /** Berilgan zonalarning (yoki hammasining) ochiq seanslarini oxirgi ko'rilgan paytda yopadi va holatini unutadi */
@@ -117,11 +124,18 @@ function sweep(biz: BusinessRow, now = Date.now()): Camera[] {
 /** Bir kunning hisobi: kamera ko'rgani va (ulangan bo'lsa) DentaCRM bilan farqlar */
 export async function daySummary(biz: BusinessRow, date: string, now = new Date()): Promise<CameraSummary> {
   const cams = sweep(biz, now.getTime());
+  settleWaits(biz, cams, now.getTime());
   const [y, m, d] = date.split('-').map(Number);
-  const sessions = cameraSessions.between(biz.id, new Date(y, m - 1, d).toISOString(), new Date(y, m - 1, d + 1).toISOString());
+  const dayStart = new Date(y, m - 1, d).getTime(), dayEnd = new Date(y, m - 1, d + 1).getTime();
+  const sessions = cameraSessions.between(biz.id, new Date(dayStart).toISOString(), new Date(dayEnd).toISOString());
   const long = (s: CameraSession) => (s.endedAt ? Date.parse(s.endedAt) : now.getTime()) - Date.parse(s.startedAt) >= env.cameraMinSessionSec * 1000;
   const chairs = sessions.filter(s => s.kind === 'chair' && long(s));
-  const base = { date, seated: chairs.length, deskVisits: sessions.filter(s => s.kind === 'desk').length, sessions };
+  const hasWaiting = cams.some(c => c.zones.some(z => z.kind === 'waiting')) || sessions.some(s => s.kind === 'waiting');
+  const waiting = hasWaiting ? waitStats(sessions, env.cameraWaitAlertMin, date === iso(now) ? waitingNow(cams, now.getTime()) : { people: 0, longestMs: 0 }) : null;
+  const base = {
+    date, seated: chairs.length, deskVisits: sessions.filter(s => s.kind === 'desk').length, sessions,
+    chairUse: chairUse(cams, sessions, dayStart, dayEnd, now.getTime()), waiting,
+  };
   if (!crmConnected(biz.id)) return { ...base, crm: null, findings: [] };
   const zones = cams.flatMap(c => c.zones);
   const sittings: Sitting[] = chairs.map(s => ({ id: s.id, doctorId: zones.find(z => z.id === s.zoneId)?.doctorId ?? null, label: s.zoneName, startMin: minuteOf(s.startedAt), endMin: s.endedAt ? minuteOf(s.endedAt) : null }));

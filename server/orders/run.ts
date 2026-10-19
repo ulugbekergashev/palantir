@@ -12,6 +12,7 @@ import type { BotService } from '../bot';
 import { businesses, cameras, type BusinessRow } from '../db';
 import { notifyOwner } from '../inbox/core';
 import { cameraFrame, onCameraFrame } from '../camera/routes';
+import { waitFrame } from '../camera/waiting';
 import { checkFrame } from './look';
 import { events, orders } from './store';
 import { dueAt, dueEvery } from './logic';
@@ -62,6 +63,14 @@ export async function runLook(biz: BusinessRow, o: AgentOrder, quiet: boolean): 
 
 export function startOrders(bot: BotService): () => void {
   onCameraFrame((biz, cam, people, now) => watchFrame(biz, cam, people, now, (b, html) => notifyOwner(b, html), () => cameraFrame(biz.id, cam.id)));
+  // Kutish joyi: kimdir uzoq kutsa — jurnalga (kadr bilan) va egasiga
+  onCameraFrame((biz, cam, people, now) => waitFrame(biz, cam, people, now, (b, c, zone, minutes) => {
+    const title = `${c.name} · ${zone.name}: bir kishi ${minutes} daqiqadan beri kutyapti`;
+    void cameraFrame(b.id, c.id).then(image => {
+      events.add(b.id, { member: 'kuzatuvchi', orderId: null, level: 'warn', title, body: "Kutish joyida uzoq kutish — kimdir uni qabul qilsin yoki nima bo'lganini aytsin", cameraId: c.id }, image);
+      return notifyOwner(b, `⏳ <b>${esc(title)}</b>\nQabulxonaga ayting: bemorni qabul qilsin yoki kechikish sababini aytsin.`);
+    }).catch(e => console.error('[kuzatuvchi] kutish xabari:', (e as Error).message));
+  }));
   const busy = new Set<string>();
   const retryAt = new Map<string, number>();
   /** Bajarilmagani jurnalga kuniga bir marta (har urinishda emas) */

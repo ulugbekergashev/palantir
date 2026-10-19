@@ -66,13 +66,20 @@ const CLINIC_DEFS = {
   }),
 
   clinic_cameras: def({
-    description: 'What the clinic cameras saw on one day, next to DentaCRM: how many patients actually sat in a dental chair versus appointments marked as arrived, how many people stood at the cash desk versus payments recorded, and the discrepancies between them (a patient in a chair with no such appointment in the CRM; an appointment marked as arrived while nobody was seen in the chair; a patient who sat in the chair at their appointment time but has no payment of any kind recorded that day). "findings" are ready Uzbek sentences. Use for "how many patients really came", "does the camera match the CRM", "anything suspicious at the clinic today". The camera does not know who a person is and does not see amounts of money: findings are things for the owner to check, never proof. "cameras": 0 means no camera is set up yet — say that plainly instead of implying everything matches.',
+    description: 'What the clinic cameras saw on one day, next to DentaCRM: how many patients actually sat in a dental chair versus appointments marked as arrived, how many people stood at the cash desk versus payments recorded, and the discrepancies between them (a patient in a chair with no such appointment in the CRM; an appointment marked as arrived while nobody was seen in the chair; a patient who sat in the chair at their appointment time but has no payment of any kind recorded that day). "findings" are ready Uzbek sentences. Use for "how many patients really came", "does the camera match the CRM", "anything suspicious at the clinic today". The camera does not know who a person is and does not see amounts of money: findings are things for the owner to check, never proof. "cameras": 0 means no camera is set up yet — say that plainly instead of implying everything matches. "chair_use": how busy each chair was, as a percent of the time its camera watched that day (null — watched too little to say). "waiting" (only if a waiting area is marked): how many people waited, average and longest wait in minutes, how many waited longer than the alert limit, and who is waiting right now.',
     input: z.object({ date: date.optional().describe('YYYY-MM-DD, default today') }),
     run: async (i, ctx) => {
       const s = await cameraDay(ctx.biz, i.date ?? iso(new Date()));
       return {
         date: s.date, cameras: cameras.list(ctx.biz.id).length, seated_in_chair: s.seated, stood_at_cash_desk: s.deskVisits,
         crm: s.crm ? { marked_arrived: s.crm.visits, payments: s.crm.payments } : 'not available', findings: s.findings.map(f => f.text),
+        ...(s.chairUse?.length ? { chair_use: s.chairUse.map(c => ({ chair: c.name, camera: c.cameraName, busy_pct: c.pct, busy_min: c.busyMin, watched_min: c.watchedMin })) } : {}),
+        ...(s.waiting ? {
+          waiting: {
+            waited_today: s.waiting.count, avg_wait_min: s.waiting.avgMin, longest_wait_min: s.waiting.maxMin, waited_over_limit: s.waiting.longCount,
+            limit_min: s.waiting.alertMin, waiting_now: s.waiting.nowWaiting, longest_now_min: s.waiting.nowLongestMin,
+          },
+        } : {}),
       };
     },
   }),
