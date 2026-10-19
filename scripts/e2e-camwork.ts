@@ -6,7 +6,8 @@
  *   to'lovsiz qabul: bemor qabul vaqtida kresloda o'tirgan, DentaCRM'da shu kuni to'lovi yo'q (sof qoida va kamera hisobi);
  *   kutish joyi: har odam alohida sanaladi, uzoq kutsa — egasiga bitta xabar; kreslo bandligi foizi;
  *   kamera burildi yoki yopildi: sinov tasviri vaqt bo'yicha o'zgaradi (odatiy → aks → odatiy → qora → odatiy);
- *   maxfiy joy: kameradan chiqadigan rasmlarda (panel, Telegram) o'sha joy qora.
+ *   maxfiy joy: kameradan chiqadigan rasmlarda (panel, Telegram) o'sha joy qora;
+ *   tayyor qoidalar: kameradagi zonalarga moslanadi va server ularni qabul qiladi.
  * Kompyuterda ffmpeg bo'lmasa sinov o'tkazib yuboriladi. Haqiqiy kamera va haqiqiy model bu yerda yo'q.
  */
 process.env.TZ = 'Asia/Tashkent';
@@ -20,6 +21,7 @@ import type { Appointment } from '../server/crm/logic';
 import { MAX_JUMP, chairUse, trackStep, waitStats, type Track } from '../server/camera/occupancy';
 import type { Camera, CameraSession } from '../src/types';
 import { judgeLook, type TamperState } from '../server/camera/tamper';
+import { cameraPresets } from '../src/lib/presets';
 import { OWNER, ai, aiServer, listen, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 
@@ -92,6 +94,20 @@ const dark = [64_000, 66_000, 68_000, 70_000].map(t => feed(L(grid(() => 4), 2, 
 ok("tamper: qora kadr — «ko'rmay qoldi» bir marta", dark.filter(Boolean).join() === 'covered', dark.join());
 ok("tamper: qorong'i shovqinli kadr «burildi» emas — o'sha «ko'rmay qoldi»", feed(L(grid(i => (i * 7919) % 25), 9, 12), 72_000) === null && ts!.told === 'covered');
 ok("tamper: bir zumlik to'silish — aytilmaydi", (() => { feed(L(scene), 74_000); const a = feed(L(grid(() => 120), 1, 120), 76_000); const b = feed(L(scene), 78_000); return a === null && b === null; })());
+
+console.log('\n# Tayyor qoidalar (sof)');
+const Z = (id: string, kind: string, name: string) => ({ id, kind, name, x: 0, y: 0, w: 0.5, h: 0.5, doctorId: null });
+const camA = { id: 'ca', name: 'Qabulxona', zones: [Z('d1', 'desk', 'Kassa'), Z('w1', 'waiting', 'Divan')] } as unknown as Camera;
+const camB = { id: 'cb', name: 'Kabinet', zones: [Z('c1', 'chair', 'Kreslo 1')] } as unknown as Camera;
+const keys = (list: { key: string }[]) => list.map(x => x.key).join();
+ok("tayyor qoidalar: kamera yo'q — hech narsa", cameraPresets([]).length === 0);
+const onlyB = cameraPresets([camB], 'cb');
+ok("kassa zonasi yo'q kamerada «kassa bo'sh» taklif qilinmaydi; hammasi shu kameraga", keys(onlyB) === 'night,crowd,tidy,closing' && onlyB.every(x => 'cameraId' in x.spec && x.spec.cameraId === 'cb'), keys(onlyB));
+const all = cameraPresets([camA, camB]);
+const deskP = all.find(x => x.key === 'desk-empty'), crowdP = all.find(x => x.key === 'crowd');
+ok("kassa bo'sh — o'sha zona va kameraga bog'langan", deskP?.spec.kind === 'watch' && deskP.spec.zoneId === 'd1' && deskP.spec.cameraId === 'ca' && deskP.spec.condition === 'empty' && deskP.spec.minutes === 10);
+ok("ko'p odam — kutish joyini sanaydi", crowdP?.spec.kind === 'watch' && crowdP.spec.zoneId === 'w1' && crowdP.text.includes('Qabulxona · Divan'));
+ok("hamma kameraga: kechasi qoidasi kamerasiz (hammasi)", all[0].spec.kind === 'watch' && all[0].spec.cameraId === null && all[0].text.includes('kameralarda'));
 
 if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status !== 0) {
   console.log("ffmpeg yo'q — kamera sinovi o'tkazib yuborildi");
@@ -302,6 +318,15 @@ try {
   say(OWNER, '/kamera qabulxonada nima bor');
   await waitFor('javobli rasm', () => photos(mark)[0], 30_000);
   ok("AI ko'ziga: qora to'rtburchak — niqob, orqasini taxmin qilmaydi", ai.camera.length > 0 && ai.requests.slice(watcherNote).some(q => String(q.system).includes('privacy masks')));
+
+  console.log("\n# Tayyor qoidalar: server qabul qiladi");
+  await api(`/api/cameras/${kabinet.id}/zones`, { method: 'PUT', token, body: { zones: [...both.json.camera.zones, { kind: 'desk', name: 'Kassa', x: 0.75, y: 0.75, w: 0.2, h: 0.2, doctorId: null }] } });
+  const liveCams = (await api('/api/cameras', { token })).json.cameras as Camera[];
+  const ready = cameraPresets(liveCams);
+  const made = [];
+  for (const pr of ready) made.push(await api('/api/orders', { token, body: { member: 'kuzatuvchi', text: pr.text, spec: pr.spec, summary: pr.summary } }));
+  ok(`hamma tayyor qoida saqlandi (${ready.length} ta: ${keys(ready)})`, ready.some(x => x.key === 'desk-empty') && made.every(r => r.status === 200 && r.json.order?.active), JSON.stringify(made.filter(r => r.status !== 200).map(r => r.json)));
+  for (const r of made) if (r.json.order?.id) await api(`/api/orders/${r.json.order.id}`, { method: 'DELETE', token });
 
   ok("begona biznes ro'yxatida kamera yo'q", ((await api('/api/cameras', { token: other })).json.cameras ?? []).length === 0);
   ok('kamera paroli jurnalga va Telegramga tushmagan', !log.includes(SECRET) && !JSON.stringify(sent.map(s => s.params)).includes(SECRET));

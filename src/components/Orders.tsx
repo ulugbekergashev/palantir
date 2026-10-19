@@ -4,12 +4,13 @@
  * (jadvaldagi ish va AI ko'zi — hozir bajariladi, kamera qoidasi — hozirgi kadrda tekshiriladi), oxirgi natija.
  */
 import { useEffect, useState, type FormEvent } from 'react';
-import { Clock, Eye, Loader2, Play, ScanEye, ScrollText, Sparkles, Trash2 } from 'lucide-react';
+import { Check, Clock, Eye, Loader2, Play, Plus, ScanEye, ScrollText, Sparkles, Trash2 } from 'lucide-react';
 import type { AgentOrder, Camera, OrderMember, OrderSpec } from '../types';
 import { api } from '../data/api';
 import type { Notify } from './Artifacts';
 import { HUE, Quiet, ago } from './agent';
 import { TEAM } from './team';
+import { cameraPresets, type Preset } from '../lib/presets';
 
 const DAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
 /** Har xodimga tayyor misollar — bosilsa matn maydoniga tushadi */
@@ -104,12 +105,43 @@ function OrderCard({ o, cams, notify, onChange, accent }: { o: AgentOrder; cams:
   );
 }
 
+/** Tayyor kamera qoidalari: bir bosishda yoqiladi; yoqilgani belgilanadi (o'sha matnli topshiriq bor) */
+function Presets({ presets, orders, busy, onAdd }: { presets: Preset[]; orders: AgentOrder[]; busy: string | null; onAdd: (p: Preset) => void }) {
+  return (
+    <section aria-label="Tayyor qoidalar" className="rounded-[22px] border border-glass/[0.07] bg-[#0b0c10] p-5">
+      <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[#a3a9b5]">Tayyor qoidalar — bir bosishda</h2>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {presets.map(p => {
+          const on = orders.some(o => o.text === p.text);
+          return (
+            <li key={p.key} className="flex items-center gap-3 rounded-2xl border border-glass/[0.07] bg-glass/[0.02] px-3.5 py-3">
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-medium text-[#f2f0ea]">{p.title}</span>
+                <span className="block text-[12px] text-[#8a909c]">{p.hint}</span>
+              </span>
+              {on
+                ? <span className="flex min-h-9 items-center gap-1.5 px-2 text-[13px] text-emerald-300"><Check className="h-4 w-4" aria-hidden="true" />Yoqilgan</span>
+                : (
+                  <button type="button" disabled={!!busy} onClick={() => onAdd(p)} aria-label={`Yoqish: ${p.title}`}
+                    className="flex min-h-9 items-center gap-1.5 rounded-xl border border-glass/10 px-3 text-[13px] font-semibold text-[#f2f0ea] hover:bg-glass/5 disabled:opacity-50">
+                    {busy === p.key ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}Yoqish
+                  </button>
+                )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export function OrdersPanel({ member, notify, cameras = [], cameraId }: { member: OrderMember; notify: Notify; cameras?: Camera[]; /** Faqat shu kameraning topshiriqlari (kamera sahifasi) */ cameraId?: string }) {
   const [list, setList] = useState<AgentOrder[] | null>(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<'parse' | 'save' | null>(null);
   const [draft, setDraft] = useState<{ spec: OrderSpec; summary: string; text: string } | null>(null);
   const [question, setQuestion] = useState<string | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
   const accent = HUE[member].a;
   const name = TEAM[member].name;
 
@@ -141,6 +173,15 @@ export function OrdersPanel({ member, notify, cameras = [], cameraId }: { member
       notify(`${name} topshiriqni oldi`);
     } catch (err) { notify((err as Error).message, true); } finally { setBusy(null); }
   };
+  const presets = member === 'kuzatuvchi' ? cameraPresets(cameras, cameraId) : [];
+  const addPreset = async (p: Preset) => {
+    setAdding(p.key);
+    try {
+      const r = await api.createOrder({ member, text: p.text, spec: p.spec, summary: p.summary });
+      setList(l => [...(l ?? []), r.order]);
+      notify(`${name}: «${p.title}» yoqildi`);
+    } catch (err) { notify((err as Error).message, true); } finally { setAdding(null); }
+  };
   const shown = (list ?? []).filter(o => !cameraId || ('cameraId' in o.spec && (o.spec.cameraId === cameraId || o.spec.cameraId === null)));
 
   return (
@@ -157,7 +198,7 @@ export function OrdersPanel({ member, notify, cameras = [], cameraId }: { member
             {busy === 'parse' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}Tushunish
           </button>
         </div>
-        {!draft && !question && (
+        {!draft && !question && !presets.length && (
           <div className="relative mt-3 flex flex-wrap gap-2">
             {TEMPLATES[member].slice(0, cameraId ? 2 : undefined).map(t => <button key={t} type="button" onClick={() => setText(t)} className="min-h-8 rounded-full border border-glass/10 px-3 text-[12.5px] text-[#c9cbd2] hover:bg-glass/5">{t}</button>)}
           </div>
@@ -177,6 +218,7 @@ export function OrdersPanel({ member, notify, cameras = [], cameraId }: { member
           </div>
         )}
       </form>
+      {presets.length > 0 && list && <Presets presets={presets} orders={list} busy={adding} onAdd={p => { void addPreset(p); }} />}
       {list === null ? <Loader2 className="h-5 w-5 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" />
         : shown.length ? (
           <ul className="flex flex-col gap-3">
