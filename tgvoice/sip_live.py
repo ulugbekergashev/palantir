@@ -4,7 +4,9 @@ Har qo'ng'iroq — o'z Gemini Live suhbati: bir vaqtda bir nechta qo'ng'iroq (SI
 Kim qo'ng'iroq qilganini Asterisk aytadi (sozlamasi: asterisk/extensions.conf):
   egasi  — egasining SIP ilovasi (parol bilan): vazifalar, Cerebro — xuddi Telegram qo'ng'irog'idagidek
   mijoz  — shahar raqamiga (Uztelecom) kelgan qo'ng'iroq: AI qabulxona (reception.py) — bilim, qabulga yozish, so'rov;
-           faqat ovozli agent kaliti bilan, egasining vazifalari, boshqa mijozlar va ichki ma'lumot mijozga berilmaydi
+           faqat ovozli agent kaliti bilan, egasining vazifalari, boshqa mijozlar va ichki ma'lumot mijozga berilmaydi.
+           Ish vaqtida (Sozlamalar → Telefon liniyasi, «kerak bo'lsa o'tkazadi» rejimi) AI qo'ng'iroqni administratorga o'tkaza oladi:
+           Asterisk'ga «channel redirect» — [operator]; administrator ko'tarmasa, qo'ng'iroq AI'ga qaytadi (3-rejim)
 Ishga tushirish:  tgvoice\\.venv\\Scripts\\python.exe tgvoice\\sip_live.py"""
 import array
 import asyncio
@@ -51,7 +53,9 @@ TOKEN_TTL_S = 6 * 3600
 
 # AudioSocket xabarlari: 1 bayt tur, 2 bayt uzunlik (big-endian), keyin ma'lumot
 HANGUP, CALL_ID, DTMF, AUDIO, ERROR = 0x00, 0x01, 0x03, 0x10, 0xFF
-OWNER, CUSTOMER = '1', '2'
+OWNER, CUSTOMER, MISSED = '1', '2', '3'          # MISSED — mijoz, AI o'tkazdi, administrator ko'tarmadi (AI'ga qaytdi)
+CUSTOMERS = (CUSTOMER, MISSED)
+HANDOFF_SPEECH_S = 10                              # «Hozir ulayman» gapi tugashini shuncha kutib, keyin o'tkaziladi
 
 def parse_call_id(raw: bytes) -> tuple[str, str]:
     """Asterisk yuborgan id (extensions.conf): 1-raqam — kim (1 egasi, 2 mijoz), keyingi 2 tasi — telefon raqami uzunligi,
@@ -59,6 +63,32 @@ def parse_call_id(raw: bytes) -> tuple[str, str]:
     digits = raw.hex()
     length = int(digits[1:3]) if digits[1:3].isdigit() else 0
     return digits[0], digits[3:16][13 - min(length, 13):] if length else ''
+
+
+def call_uuid(raw: bytes) -> str:
+    """AudioSocket id'si Asterisk'dagi ko'rinishda (8-4-4-4-12) — kanalni shu bilan topamiz"""
+    h = raw.hex()
+    return f'{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}'
+
+
+async def asterisk(command: str) -> str:
+    """Asterisk buyrug'i (WSL ichida; Linux'da — to'g'ridan-to'g'ri). Fonda: oyna ochilmaydi"""
+    argv = ['wsl.exe', '-d', DISTRO, '--', 'asterisk', '-rx', command] if os.name == 'nt' else ['asterisk', '-rx', command]
+    proc = await asyncio.create_subprocess_exec(*argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+                                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    out, _ = await asyncio.wait_for(proc.communicate(), 10)
+    return out.decode('utf-8', 'replace')
+
+
+async def redirect_to_operator(uuid: str, ring: int) -> str | None:
+    """Qo'ng'iroqni administratorga buradi ([operator], ring soniya). Xato bo'lsa — sababi, bo'lmasa None.
+    Kanal AudioSocket id'si bo'yicha topiladi (Asterisk 20 da AI ulanishni yopsa qo'ng'iroq butunlay uziladi — shuning uchun redirect)"""
+    channels = await asterisk('core show channels concise')
+    chan = next((line.split('!')[0] for line in channels.splitlines() if uuid in line and 'AudioSocket' in line), None)
+    if not chan:
+        return 'kanal topilmadi'
+    out = await asterisk(f'channel redirect {chan} operator,{max(5, min(int(ring), 60))},1')
+    return None if 'redirected' in out.lower() else out.strip()[:160]
 
 
 def rms(pcm: bytes) -> int:
@@ -92,14 +122,16 @@ class PhoneBridge(Bridge):
     out_rate = LINE_RATE
     start_sensitivity = types.StartSensitivity.START_SENSITIVITY_LOW   # karnay sadosi va shovqin gap deb olinmasin
 
-    def __init__(self, writer: asyncio.StreamWriter, mode: str, caller: str, token: str, number: int):
+    def __init__(self, writer: asyncio.StreamWriter, mode: str, caller: str, token: str, number: int, uuid: str = ''):
         super().__init__(None, 0)
-        self.writer, self.mode, self.caller = writer, mode, caller
-        # Mijoz qo'ng'irog'i — AI qabulxona (faqat ovozli agent kaliti bilan); egasiniki — Cerebro kaliti bilan
-        self.desk = Desk(caller) if mode == CUSTOMER else None
+        self.writer, self.mode, self.caller, self.uuid = writer, mode, caller, uuid
+        # Mijoz qo'ng'irog'i — AI qabulxona (faqat ovozli agent kaliti bilan); egasiniki — Cerebro kaliti bilan.
+        # Administrator ko'tarmay AI'ga qaytgan qo'ng'iroqda yana o'tkazilmaydi (aylanib qolmasin)
+        self.desk = Desk(caller, missed=mode == MISSED, can_transfer=mode == CUSTOMER) if mode in CUSTOMERS else None
+        self.live = None                        # Gemini Live seansi (o'tkazib bo'lmasa AI'ga aytish uchun)
         self.voice_at = 0.0                     # AI ovozi liniyaga oxirgi marta ketgan payt
         self.echo = {'cut': 0, 'cut_max': 0, 'pass': 0, 'pass_max': 0}   # aks-sado filtri hisobi (jurnalga, sozlash uchun)
-        self.call_limit_s = CUSTOMER_LIMIT_S if mode == CUSTOMER else OWNER_LIMIT_S
+        self.call_limit_s = CUSTOMER_LIMIT_S if mode in CUSTOMERS else OWNER_LIMIT_S
         self.cerebro.http.headers['Authorization'] = f'Bearer {token}'
         self.who = caller or 'raqami yashirin'
         # Jurnalda qaysi qo'ng'iroq: tartib raqami va telefonning oxirgi 4 raqami
@@ -167,8 +199,43 @@ class PhoneBridge(Bridge):
         system, tools = await self.desk.prompt()
         return system, LIVE_VOICE, "(qo'ng'iroq ulandi)", tools
 
+    async def tools(self, s, call):
+        self.live = s
+        await super().tools(s, call)
+
     async def run_tool(self, name: str, args: dict) -> dict:
-        return await self.desk.tool(name, args) if self.desk else await super().run_tool(name, args)
+        if not self.desk:
+            return await super().run_tool(name, args)
+        result = await self.desk.tool(name, args)
+        if name == 'transfer_to_operator' and result.get('ring'):
+            asyncio.ensure_future(self.hand_over(int(result['ring'])))
+        return result
+
+    async def hand_over(self, ring: int):
+        """AI «hozir ulayman» degach — gapi tugashini kutib, qo'ng'iroqni administratorga buradi. Asterisk AI ulanishini o'zi yopadi.
+        Bo'lmasa — AI'ga aytiladi: uzr so'rab, so'rov qoldiradi"""
+        await asyncio.sleep(1.0)   # tool javobidan keyin AI gapira boshlasin
+        end = time.monotonic() + HANDOFF_SPEECH_S
+        while self.speaking() and not self.done.is_set() and time.monotonic() < end:
+            await asyncio.sleep(0.1)
+        if self.done.is_set():
+            return
+        try:
+            problem = await redirect_to_operator(self.uuid, ring) if self.uuid else "qo'ng'iroq id'si yo'q"
+        except (OSError, asyncio.TimeoutError) as e:
+            problem = f'{type(e).__name__}: {str(e)[:120]}'
+        if problem is None:
+            self.log('—', f"administratorga o'tkazildi ({ring} s jiringlaydi)")
+            self.desk.handed_over = True
+            return
+        self.log('—', f"administratorga o'tkazib bo'lmadi: {problem}")
+        self.desk.transferred = ''
+        if self.live:
+            try:
+                await self.live.send_client_content(turns=types.Content(role='user', parts=[types.Part(
+                    text="(Administratorga ulab bo'lmadi. Mijozdan uzr so'ra, savolini va raqamini aniqlab leave_request qil.)")]), turn_complete=True)
+            except Exception as e:
+                self.log('—', f"AI'ga aytib bo'lmadi: {type(e).__name__}")
 
     def action_text(self, name: str, args: dict, result: dict) -> str | None:
         return self.desk.action_text(name, args, result) if self.desk else super().action_text(name, args, result)
@@ -245,14 +312,15 @@ class Server:
             writer.close()
             return
         mode, caller = parse_call_id(raw)
-        if mode not in (OWNER, CUSTOMER):
+        if mode not in (OWNER, *CUSTOMERS):
             writer.close()
             return
-        if mode == CUSTOMER and not self.reception:
+        if mode in CUSTOMERS and not self.reception:
             log('—', f"mijoz qo'ng'irog'i ({caller or 'yashirin raqam'}) ko'tarilmadi: .env da VOICE_AGENT_KEY yo'q")
             writer.write(frame(HANGUP))
             writer.close()
             return
+        # Administrator ko'tarmay AI'ga qaytgan mijoz (MISSED) band deb qaytarilmaydi: u allaqachon navbatda edi
         busy = self.active >= MAX_CALLS or (mode == CUSTOMER and self.customers >= CUSTOMER_SLOTS)
         if busy:
             log('—', f"band: {self.active} ta qo'ng'iroq ketyapti, {caller or 'yashirin raqam'} ko'tarilmadi")
@@ -260,12 +328,12 @@ class Server:
             writer.close()
             return
         self.active += 1
-        self.customers += mode == CUSTOMER
+        self.customers += mode in CUSTOMERS
         self.count += 1
         bridge: PhoneBridge | None = None
         reading: asyncio.Task | None = None
         try:
-            bridge = PhoneBridge(writer, mode, caller, await self.token.get() if mode == OWNER else '', self.count)
+            bridge = PhoneBridge(writer, mode, caller, await self.token.get() if mode == OWNER else '', self.count, call_uuid(raw))
             reading = asyncio.create_task(read_line(reader, bridge))
             bridge.log('—', f"qo'ng'iroq ({self.active}/{MAX_CALLS})")
             await bridge.run()
@@ -276,7 +344,7 @@ class Server:
             log('—', f"qo'ng'iroq xatosi: {type(e).__name__}: {str(e)[:200]}")
         finally:
             self.active -= 1
-            self.customers -= mode == CUSTOMER
+            self.customers -= mode in CUSTOMERS
             if bridge:
                 bridge.done.set()
             if reading:

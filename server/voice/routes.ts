@@ -16,7 +16,7 @@ import { env } from '../env';
 import { notifyOwner } from '../inbox/core';
 import { leadForPhone } from '../people';
 import { openRequest } from '../requests/index';
-import { applyLine, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk } from './line';
+import { applyLine, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk, transferNow } from './line';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -81,7 +81,7 @@ const TrunkSchema = z.object({
   password: SipText.max(128).optional(),
 });
 const RoutingSchema = z.object({
-  mode: z.enum(['ai', 'day_admin']), ring: z.number().int().min(5).max(60),
+  mode: z.enum(['ai', 'ai_transfer', 'day_admin']), ring: z.number().int().min(5).max(60),
   days: z.array(z.number().int().min(1).max(7)).max(7), from: HHMM, to: HHMM,
 });
 
@@ -100,6 +100,8 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   // Agent: bo'sh vaqtlar (model o'qiydigan matn)
   // Asterisk har kiruvchi qo'ng'iroqda so'raydi (extensions.conf, [kiruvchi]): «admin:20» — avval administrator telefoni, yoki «ai»
   app.get('/api/voice/route', asAgent((_req, res, biz) => { res.type('text/plain').send(routeNow(lineRouting(biz.id), new Date())); }));
+  // AI qabulxona (sip_live.py): hozir administratorga o'tkaza oladimi — ish vaqtida «ai_transfer» rejimida necha soniya jiringlashi, bo'lmasa null
+  app.get('/api/voice/handoff', asAgent((_req, res, biz) => { res.json({ ring: transferNow(lineRouting(biz.id), new Date()) }); }));
 
   // ─── Panel: telefon liniyasi (Sozlamalar → Telefon liniyasi) ───
   app.get('/api/phone/line', asBiz(async (_req, res, biz) => { res.json({ line: await lineView(biz) }); }));

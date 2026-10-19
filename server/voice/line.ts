@@ -14,9 +14,9 @@ import { join, resolve } from 'node:path';
 import { connections, type BusinessRow } from '../db';
 import { open, seal } from '../secret';
 
-import type { LineRouting } from './route';
+import { LINE_MODES, type LineMode, type LineRouting } from './route';
 
-export { routeNow, type LineMode, type LineRouting } from './route';
+export { routeNow, transferNow, type LineMode, type LineRouting } from './route';
 export interface LineTrunk { host: string; port: number; login: string; number: string }
 export interface LineView {
   trunk: LineTrunk | null;
@@ -45,7 +45,7 @@ const secretsOf = (bizId: string): Secrets => {
 export function lineRouting(bizId: string): LineRouting {
   const m = connections.get(bizId, KIND)?.meta ?? {};
   return {
-    mode: m.mode === 'day_admin' ? 'day_admin' : 'ai',
+    mode: (LINE_MODES as string[]).includes(m.mode ?? '') ? m.mode as LineMode : 'ai',
     ring: Number(m.ring) || DEFAULT_ROUTING.ring,
     days: m.days ? m.days.split(',').map(Number).filter(d => d >= 1 && d <= 7) : DEFAULT_ROUTING.days,
     from: m.from || DEFAULT_ROUTING.from,

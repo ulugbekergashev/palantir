@@ -24,7 +24,7 @@ export interface TeamDay {
 /** Telefon liniyasi (server/voice/line.ts LineView) */
 export interface PhoneLine {
   trunk: { host: string; port: number; login: string; number: string } | null;
-  routing: { mode: 'ai' | 'day_admin'; ring: number; days: number[]; from: string; to: string };
+  routing: { mode: 'ai' | 'ai_transfer' | 'day_admin'; ring: number; days: number[]; from: string; to: string };
   admin: { server: string; login: string; password: string | null };
   status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; note: string | null };
 }

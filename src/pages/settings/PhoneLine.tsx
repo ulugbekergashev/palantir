@@ -103,9 +103,10 @@ function Routing({ line, onLine, notify }: { line: Line; onLine: (l: Line) => vo
     <Block icon={<Waypoints className="h-[18px] w-[18px]" aria-hidden="true" />} title="Kim javob beradi" hint="Shahar raqamiga kelgan qo'ng'iroq kimga boradi. Kechasi va administrator ko'tarmasa — har doim AI, mijoz javobsiz qolmaydi.">
       <div className="flex flex-col gap-2">
         {option('ai', 'Har doim AI qabulxona', 'Kunu tun AI javob beradi, qabulga yozadi, bilmaganini sizga so‘rov qilib qoldiradi.')}
+        {option('ai_transfer', 'AI javob beradi, ish vaqtida kerak bo‘lsa — administratorga o‘tkazadi', 'AI javob bera olmasa yoki mijoz odam bilan gaplashmoqchi bo‘lsa, ish vaqtida qo‘ng‘iroqni administrator telefoniga o‘tkazadi; u ko‘tarmasa — AI so‘rov qoldiradi. Kechasi — faqat AI.')}
         {option('day_admin', 'Ish vaqtida — administrator, qolgan paytda — AI', 'Ish vaqtida avval administrator telefoni jiringlaydi; ko‘tarmasa yoki band bo‘lsa — AI javob beradi.')}
       </div>
-      {r.mode === 'day_admin' && (
+      {r.mode !== 'ai' && (
         <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-glass/[0.06] p-4">
           <fieldset className="flex flex-wrap items-center gap-1.5">
             <legend className="mb-2 text-[12px] font-medium text-[#a3a9b5]">Ish kunlari</legend>
@@ -118,7 +119,7 @@ function Routing({ line, onLine, notify }: { line: Line; onLine: (l: Line) => vo
           <div className="grid gap-3 sm:grid-cols-3">
             <Label text="Boshlanadi"><input type="time" className={input} value={r.from} onChange={e => setR(x => ({ ...x, from: e.target.value }))} /></Label>
             <Label text="Tugaydi"><input type="time" className={input} value={r.to} onChange={e => setR(x => ({ ...x, to: e.target.value }))} /></Label>
-            <Label text="Administrator ko'tarmasa, AI ga">
+            <Label text={r.mode === 'ai_transfer' ? "Administrator ko'tarmasa, AI ga qaytadi" : "Administrator ko'tarmasa, AI ga"}>
               <select className={input} value={r.ring} onChange={e => setR(x => ({ ...x, ring: Number(e.target.value) }))}>
                 {RINGS.map(s => <option key={s} value={s}>{s} soniyadan keyin</option>)}
               </select>

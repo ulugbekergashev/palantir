@@ -2,7 +2,7 @@
  * Telefon liniyasi sinovi: kim javob beradi (sof qoida) va panel yo'llari — shahar raqami, ish vaqti, administrator telefoni,
  * Asterisk so'raydigan /api/voice/route. Sinov serverida ASTERISK_WSL=0: haqiqiy Asterisk'ka ham, tgvoice/asterisk/ fayllariga ham tegilmaydi.
  */
-import { routeNow, type LineRouting } from '../server/voice/route';
+import { routeNow, transferNow, type LineRouting } from '../server/voice/route';
 import type { Harness } from './e2e-crm';
 
 const at = (day: string, hhmm: string) => new Date(`${day}T${hhmm}:00`);
@@ -16,6 +16,12 @@ export function lineLogicTests(ok: Harness['ok']): void {
   ok("liniya: ish vaqti tugadi — AI", routeNow(DAY, at('2026-10-19', '20:00')) === 'ai' && routeNow(DAY, at('2026-10-19', '08:59')) === 'ai');
   ok('liniya: dam olish kuni — AI', routeNow(DAY, at('2026-10-25', '12:00')) === 'ai');
   ok("liniya: kechki smena yarim tundan o'tadi", routeNow({ ...DAY, days: [1, 2, 3, 4, 5, 6, 7], from: '20:00', to: '02:00' }, at('2026-10-19', '23:30')) === 'admin:20');
+  // «AI javob beradi, ish vaqtida kerak bo'lsa o'tkazadi»: qo'ng'iroqni har doim AI oladi; o'tkazish — faqat ish vaqtida
+  const SOFT: LineRouting = { ...DAY, mode: 'ai_transfer' };
+  ok("liniya: «kerak bo'lsa o'tkazadi» — qo'ng'iroqni ish vaqtida ham AI oladi", routeNow(SOFT, at('2026-10-19', '12:00')) === 'ai');
+  ok("liniya: ish vaqtida AI administratorga o'tkaza oladi (20 soniya)", transferNow(SOFT, at('2026-10-19', '12:00')) === 20);
+  ok("liniya: kechasi va dam olish kuni o'tkazilmaydi", transferNow(SOFT, at('2026-10-19', '21:00')) === null && transferNow(SOFT, at('2026-10-25', '12:00')) === null);
+  ok("liniya: boshqa rejimlarda AI o'tkazmaydi", transferNow(DAY, at('2026-10-19', '12:00')) === null && transferNow({ ...DAY, mode: 'ai' }, at('2026-10-19', '12:00')) === null);
 }
 
 export async function lineApiTests(h: Harness): Promise<void> {
@@ -35,6 +41,12 @@ export async function lineApiTests(h: Harness): Promise<void> {
   const route = async (k: string) => { const r = await fetch(`${base}/api/voice/route`, { headers: { authorization: `Bearer ${k}` } }); return { status: r.status, text: await r.text() }; };
   ok("liniya: Asterisk so'raydi — hozir ish vaqti: avval administrator", (await route(key)).text === 'admin:15', JSON.stringify(await route(key)));
   ok("liniya: noto'g'ri kalit — 401", (await route(`${key}x`)).status === 401);
+  const handoff = async (k: string) => { const r = await fetch(`${base}/api/voice/handoff`, { headers: { authorization: `Bearer ${k}` } }); return { status: r.status, json: await r.json().catch(() => ({})) as { ring?: number | null } }; };
+  ok("liniya: «avval administrator» rejimida AI o'zi o'tkazmaydi", (await handoff(key)).json.ring === null);
+  const soft = await api('/api/phone/line/routing', { method: 'PUT', token, body: { mode: 'ai_transfer', ring: 25, days: [1, 2, 3, 4, 5, 6, 7], from: '00:00', to: '23:59' } });
+  ok("liniya: «AI javob beradi, kerak bo'lsa o'tkazadi» saqlandi", soft.status === 200 && soft.json.line?.routing.mode === 'ai_transfer');
+  ok("liniya: bu rejimda qo'ng'iroqni AI oladi, ish vaqtida o'tkaza oladi (25 s)", (await route(key)).text === 'ai' && (await handoff(key)).json.ring === 25);
+  ok("liniya: o'tkazish so'rovi noto'g'ri kalit bilan — 401", (await handoff(`${key}x`)).status === 401);
   await api('/api/phone/line/routing', { method: 'PUT', token, body: { mode: 'ai', ring: 20, days: [1, 2, 3, 4, 5, 6], from: '09:00', to: '20:00' } });
   ok('liniya: «har doim AI» — Asterisk darhol AI ga ulaydi', (await route(key)).text === 'ai');
 
