@@ -278,7 +278,7 @@ export function startScheduler(bot: BotService): () => void {
         for (const biz of businesses.all()) {
           if (!biz.active || !biz.ownerChatId || biz.briefDate === today || biz.profile.morningBrief === false) continue;
           try {
-            await sendMorning(bot, biz, now);
+            if (await sendMorning(bot, biz, now)) businesses.update(biz.id, { briefSentDate: today });
           } catch (e) {
             console.error(`[jadval] xulosa (${biz.profile.name}):`, (e as Error).message);
             // Internet yo'q — «yuborildi» deb belgilanmaydi: besh daqiqadan keyin yana uriniladi (ertalabki oraliq ichida)

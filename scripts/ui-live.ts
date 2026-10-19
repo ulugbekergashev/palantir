@@ -92,6 +92,8 @@ try {
   await page.getByLabel("Cerebro'ga yozing").fill('Bugun nima qilishim kerak?');
   await page.getByLabel("Cerebro'ga yozing").press('Enter');
   ok("bosh ekran: yozilgan savolga javob shu yerda karta bo'lib chiqadi", await visible(page.getByRole('region', { name: 'Natijalar' }).getByText('Bugun:').first(), 15000));
+  ok("bosh ekran: «Bugun jamoa nima qildi» — xodimlarning bugungi ishi va jurnal", await visible(page.getByRole('heading', { name: 'Bugun jamoa nima qildi' }))
+    && await page.getByRole('heading', { name: 'Bugungi jurnal' }).isVisible());
   await shot('02a-home', true);
 
   console.log('\n# Yordamchi: suhbat');

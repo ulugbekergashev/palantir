@@ -14,6 +14,7 @@ import { api } from '../data/api';
 import { Markdown } from '../components/Markdown';
 import { useVoice, type VoiceMode } from '../lib/useVoice';
 import { Attention } from '../components/Attention';
+import { TeamDay } from '../components/TeamDay';
 import type { Notify } from '../components/Artifacts';
 
 const WEEKDAYS = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba'];
@@ -170,6 +171,9 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
             })}
           </div>
         </section>
+
+        {/* Har xodimning bugungi ishi va bugungi jurnal */}
+        <TeamDay tick={tick} />
       </main>
     </div>
   );

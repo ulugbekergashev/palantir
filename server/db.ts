@@ -87,7 +87,7 @@ function ensureColumns(table: string, columns: Record<string, string>): void {
   for (const [name, type] of Object.entries(columns)) if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
 }
 ensureColumns('replies', { booking: 'TEXT', booked_at: 'TEXT', question: 'TEXT', visit_change: 'TEXT', changed_at: 'TEXT' });
-ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT' });
+ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT' });
 ensureColumns('tasks', { call_to: 'TEXT', spoken: 'INTEGER NOT NULL DEFAULT 0', lead_id: 'TEXT' });
 ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT', next_step: 'TEXT', next_at: 'TEXT', phone_key: 'TEXT', patient_id: 'TEXT' });
 db.exec(`UPDATE leads SET channel = 'bot', bot_started = 1 WHERE tg_user_id IS NOT NULL AND channel = 'manual' AND ig_user_id IS NULL AND tg_access_hash IS NULL`);
@@ -148,6 +148,8 @@ export interface BusinessRow {
   outcome: string | null;
   /** Kechki «kun qanday o'tdi» savoli oxirgi marta qaysi kuni berilgan (YYYY-MM-DD) */
   eveningDate: string | null;
+  /** Ertalabki reja haqiqatan yuborilgan kun (briefDate — ko'rib chiqilgan kun, aytadigan narsa bo'lmasa ham) */
+  briefSentDate: string | null;
   createdAt: string;
 }
 
@@ -167,13 +169,14 @@ const toBusiness = (r: Raw): BusinessRow => ({
   setup: str(r.setup),
   outcome: str(r.outcome),
   eveningDate: str(r.evening_date),
+  briefSentDate: str(r.brief_sent_date),
   createdAt: String(r.created_at),
 });
 
 const BIZ_COLUMNS = {
   passwordHash: 'password_hash', profile: 'profile', ownerChatId: 'owner_chat_id', channelId: 'channel_id', linkCode: 'link_code',
   channelTitle: 'channel_title', active: 'active', briefDate: 'brief_date', interview: 'interview', ownerPhone: 'owner_phone',
-  setup: 'setup', outcome: 'outcome', eveningDate: 'evening_date',
+  setup: 'setup', outcome: 'outcome', eveningDate: 'evening_date', briefSentDate: 'brief_sent_date',
 } as const;
 
 export const businesses = {
@@ -246,6 +249,9 @@ export const tasks = {
   /** Haftalik yakun: oraliqda bajarilgan vazifalar soni (bajarilgan paytdagi updated_at bo'yicha) */
   doneBetween: (businessId: string, fromIso: string, toIso: string) =>
     Number((db.prepare("SELECT COUNT(*) n FROM tasks WHERE business_id = ? AND status = 'done' AND updated_at >= ? AND updated_at < ?").get(businessId, fromIso, toIso) as Raw).n),
+  /** Oraliqda egasiga yuborilgan eslatmalar soni (bosh ekran: «Bugun jamoa nima qildi») */
+  remindedBetween: (businessId: string, fromIso: string, toIso: string) =>
+    Number((db.prepare('SELECT COUNT(*) n FROM tasks WHERE business_id = ? AND reminded_at >= ? AND reminded_at < ?').get(businessId, fromIso, toIso) as Raw).n),
 };
 
 // ─── Mijozlar (lidlar) ────────────────────────────────────────────────────────
@@ -608,6 +614,9 @@ export const outbound = {
   },
   get: (businessId: string, id: string) => one('SELECT * FROM outbound WHERE business_id = ? AND id = ?', toOutbound, businessId, id),
   list: (businessId: string, limit = 50) => many('SELECT * FROM outbound WHERE business_id = ? ORDER BY created_at DESC LIMIT ?', toOutbound, businessId, limit),
+  /** Shu paytdan beri tayyorlangan xabarlar soni (bosh ekran: «Bugun jamoa nima qildi») */
+  countSince: (businessId: string, fromIso: string) =>
+    Number((db.prepare('SELECT COUNT(*) n FROM outbound WHERE business_id = ? AND created_at >= ?').get(businessId, fromIso) as Raw).n),
   /** Faqat qoralama holatidan o'tadi (ikki marta yuborilmasin) — o'zgargan bo'lsa true */
   finish: (businessId: string, id: string, status: 'sent' | 'cancelled', sentCount = 0) =>
     Number(run("UPDATE outbound SET status = ?, sent_count = ? WHERE business_id = ? AND id = ? AND status = 'draft'", status, sentCount, businessId, id).changes) > 0,

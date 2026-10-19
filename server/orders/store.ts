@@ -87,6 +87,13 @@ export const events = {
   /** Egasi ko'rmagan muammolar (bosh ekran: «Sizni kutyapti») — shundan beri */
   unseen: (bizId: string, sinceIso: string) =>
     sql.many("SELECT * FROM agent_events WHERE business_id = ? AND level IN ('warn', 'crit') AND seen_at IS NULL AND at >= ? ORDER BY at DESC LIMIT 20", toEvent, bizId, sinceIso),
+  /** Shu paytdan beri hamma xodimning yozuvlari (bosh ekran: «Bugun jamoa nima qildi»), yangisi oldin */
+  since: (bizId: string, sinceIso: string, limit = 12) =>
+    sql.many('SELECT * FROM agent_events WHERE business_id = ? AND at >= ? ORDER BY at DESC LIMIT ?', toEvent, bizId, sinceIso, limit),
+  /** Shu paytdan beri yozuvlar soni: xodim va daraja bo'yicha */
+  tally: (bizId: string, sinceIso: string) =>
+    sql.many('SELECT member, level, COUNT(*) n FROM agent_events WHERE business_id = ? AND at >= ? GROUP BY member, level',
+      r => ({ member: String(r.member) as OrderMember, level: String(r.level) as AgentEvent['level'], n: Number(r.n) }), bizId, sinceIso),
   /** Egasi ko'rdi */
   see: (bizId: string, id: string) => sql.run('UPDATE agent_events SET seen_at = ? WHERE business_id = ? AND id = ? AND seen_at IS NULL', sql.nowIso(), bizId, id).changes > 0,
   /** Hodisa kadri (yo'q yoki o'chgan bo'lsa — null) */

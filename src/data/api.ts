@@ -15,6 +15,12 @@ export interface AttentionItem {
   key: string; kind: 'camera' | 'request' | 'reply' | 'task' | 'order'; member: OrderMember; refId: string;
   title: string; body: string; at: string; phone: string | null; urgent: boolean;
 }
+/** «Bugun jamoa nima qildi» (server/teamDay.ts) */
+export interface TeamDay {
+  date: string;
+  members: { member: OrderMember; summary: string; facts: { label: string; value: number }[] }[];
+  timeline: AgentEvent[];
+}
 /** Telefon liniyasi (server/voice/line.ts LineView) */
 export interface PhoneLine {
   trunk: { host: string; port: number; login: string; number: string } | null;
@@ -117,6 +123,7 @@ export const api = {
   setCameraProfile: (id: string, profile: string) => call<{ camera: Camera }>(`/cameras/${id}/profile`, { method: 'PUT', body: { profile } }),
   // ─── «Sizni kutyapti»: hamma xodimdan egasining qarorini kutayotganlar (server/attention.ts) ───
   attention: () => call<{ items: AttentionItem[] }>('/attention'),
+  teamDay: () => call<TeamDay>('/team/day'),
   seeEvent: (id: string) => call<{ ok: true }>(`/agents/events/${id}/seen`, { body: {} }),
   // ─── Telefon liniyasi (Asterisk): shahar raqami, kim javob beradi, administrator telefoni ───
   phoneLine: () => call<{ line: PhoneLine }>('/phone/line'),
