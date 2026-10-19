@@ -9,6 +9,8 @@ import { iso } from '../../src/lib/week';
 import { CrmError } from './dentacrm';
 import { connectCrm, crmConnected, disconnectCrm, withCrm } from './index';
 import { daySummary, isRealDate } from './logic';
+import { env } from '../env';
+import { findLocalCrm } from './find';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -48,6 +50,8 @@ export function mountCrm(app: Express, { asBiz, bad, fail, statusOf }: Deps): vo
     resetConversation(biz.id);
     res.json({ status: statusOf(biz.id) });
   }));
+
+  app.get('/api/crm/find', asBiz(async (_req, res) => { res.json({ url: await findLocalCrm(undefined, env.crmAllowPrivate) }); }));
 
   app.delete('/api/crm', asBiz((_req, res, biz) => {
     disconnectCrm(biz.id);

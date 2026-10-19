@@ -199,6 +199,8 @@ export const api = {
   tgDisconnect: () => call<{ status: LiveStatus }>('/telegram-user', { method: 'DELETE' }),
   crmConnect: (v: { url: string; username: string; password: string }) => call<{ status: LiveStatus }>('/crm', { body: v }),
   crmDisconnect: () => call<{ status: LiveStatus }>('/crm', { method: 'DELETE' }),
+  /** Shu kompyuterdagi DentaCRM (lokal nashr) manzili — topilmasa null */
+  crmFind: () => call<{ url: string | null }>('/crm/find'),
   /** Klinikaning kuni (bosh sahifa). 409 — DentaCRM ulanmagan, 502 — javob bermayapti */
   crmDay: (date?: string) => call<{ day: ClinicDay }>(`/crm/day${date ? `?date=${date}` : ''}`),
   igLogin: () => call<{ status: LiveStatus }>('/instagram/login', { body: {} }),

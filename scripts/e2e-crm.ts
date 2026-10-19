@@ -10,6 +10,7 @@ import { CrmError, createDentaCrm } from '../server/crm/dentacrm';
 import { bookingProblem, briefLine, dayOff, daySummary, freeSlots, cleanName, hasFullName, isRealDate, normPhone, resolvePatient, slotRanges, normalizeBaseUrl, parseDaysOff, parseDoctorOff, searchPatients, type Appointment, type Clinic, type Doctor, type Patient, type Transaction } from '../server/crm/logic';
 import { clinicAlerts, comparisonRange, datesBetween, periodRange, periodReport, previousRange, spanDays, type DayData } from '../server/crm/report';
 import { payoutCategory, summarize } from '../server/crm/money';
+import { findLocalCrm } from '../server/crm/find';
 import { CRM_HASH, CRM_LOGIN, crm } from './fakeCrm';
 import { OWNER, ai, press, say, sent, sleep, waitFor, type Sent } from './fakes';
 
@@ -184,6 +185,13 @@ export async function crmConnectTests(h: Harness): Promise<void> {
   ok("xavfli manzil — 400", (await api('/api/crm', { token, body: { url: 'ftp://127.0.0.1', ...CRM_LOGIN } })).status === 400
     && (await api('/api/crm', { token, body: { url: 'http://a:b@127.0.0.1:3001', ...CRM_LOGIN } })).status === 400);
   ok('tokensiz ulab bo\'lmaydi — 401', (await api('/api/crm', { body: { url, ...CRM_LOGIN } })).status === 401);
+  // Shu kompyuterdagi DentaCRM'ni topish: DentaCRM kabi javob bersa — manzil; boshqa dastur, yopiq port, umumiy server — yo'q
+  ok('topish: DentaCRM javob bergan manzil topildi', await findLocalCrm(url) === url);
+  ok("topish: boshqa dastur (Cerebro'ning o'zi) va yopiq port — topilmadi", await findLocalCrm(h.base) === null && await findLocalCrm('http://127.0.0.1:1') === null);
+  ok("topish: umumiy serverda (mahalliy manzil taqiqlangan) so'ralmaydi", await findLocalCrm(url, false) === null);
+  const found = await api('/api/crm/find', { token });
+  ok('topish: panel yo\'li ishlaydi (bu kompyuterda 3001-portda DentaCRM yo\'q bo\'lsa — null)', found.status === 200 && 'url' in found.json, JSON.stringify(found.json));
+  ok("topish: tokensiz — 401", (await api('/api/crm/find')).status === 401);
   // Birinchi urinish CRM javobini kutib turganda ikkinchisi keladi (kechikishsiz bu poyga tasodifga bog'liq edi)
   crm.slowLogin = 600;
   const pair = await Promise.all([1, 2].map(() => api('/api/crm', { token, body: { url, username: CRM_LOGIN.username, password: 'xato' } })));

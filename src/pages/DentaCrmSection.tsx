@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Loader2, Unlink } from 'lucide-react';
 import type { LiveStatus } from '../types';
 import { api } from '../data/api';
@@ -17,7 +17,19 @@ const EMPTY = { url: '', username: '', password: '' };
 export function DentaCrm({ status, onStatus, notify }: DentaCrmProps) {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
+  const [found, setFound] = useState(false);
   const { account, problem } = status.crm;
+  // Shu kompyuterda DentaCRM ishlab turgan bo'lsa — manzil o'zi qo'yiladi (egasi yozgan bo'lsa tegilmaydi)
+  useEffect(() => {
+    if (account) return;
+    let stale = false;
+    api.crmFind().then(r => {
+      if (stale || !r.url) return;
+      setFound(true);
+      setForm(f => (f.url ? f : { ...f, url: r.url! }));
+    }).catch(() => {});
+    return () => { stale = true; };
+  }, [account]);
 
   const connect = async (e: FormEvent) => {
     e.preventDefault();
@@ -58,7 +70,8 @@ export function DentaCrm({ status, onStatus, notify }: DentaCrmProps) {
       <form onSubmit={connect} className="grid gap-2 sm:grid-cols-3">
         <label className="sm:col-span-3">
           <span className="mb-1 block text-xs font-semibold text-slate-600">DentaCRM manzili</span>
-          <TextInput value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="http://192.168.1.20:3001" autoComplete="off" aria-label="DentaCRM manzili" />
+          <TextInput value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="http://192.168.1.20:3001 yoki https://klinika.dentacrm.uz" autoComplete="off" aria-label="DentaCRM manzili" />
+          {found && <span className="mt-1 block text-xs text-emerald-700">Shu kompyuterda DentaCRM topildi — manzil qo'yildi. Login va parolni yozing.</span>}
         </label>
         <label>
           <span className="mb-1 block text-xs font-semibold text-slate-600">Login</span>
