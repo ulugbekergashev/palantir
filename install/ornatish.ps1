@@ -158,6 +158,17 @@ $closed = (Protect-Path $Root $true) -and $closed
 if ($closed) { Note "Ma'lumotlar va dastur papkasi faqat shu foydalanuvchiga ochiq qilindi" }
 else { Warn "Papkalarni yopib bo'lmadi (disk buni qo'llamasligi mumkin). Boshqa Windows foydalanuvchilari kalitlar va bazani o'qiy oladi - papkalarni o'z profilingiz ichiga ko'chiring." }
 
+# --- 4b. Ovoz xizmati va telefon liniyasi ------------------------------------
+# Panel ovozi, "Quloq" va AI qabulxona (shahar raqami) - tgvoice (Python) va Asterisk (WSL). Alohida: install\Telefon.cmd
+Step '4b/7  Ovoz xizmati va telefon liniyasi'
+$phoneReboot = $false
+$answer = Read-Host "   Ovoz xizmati va telefon liniyasi (AI qabulxona shahar raqamida) o'rnatilsinmi? Administrator huquqi so'raladi (h/y) [h]"
+if ($answer -notmatch '^[yY]') {
+  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'telefon.ps1')
+  if ($LASTEXITCODE -eq 3010) { $phoneReboot = $true }
+  elseif ($LASTEXITCODE -ne 0) { Warn "Ovoz xizmati yoki telefon liniyasi to'liq o'rnatilmadi. Qolgani ishlaydi; keyinroq: install\Telefon.cmd" }
+} else { Note "O'tkazib yuborildi. Keyinroq: install\Telefon.cmd" }
+
 # --- 5. Tekshiruv ------------------------------------------------------------
 Step '5/7  Tekshiruv (Telegram, Claude, ovoz, papka, port)'
 $checkFailed = $false
@@ -225,4 +236,5 @@ if ($adminPassword) {
   Note "Uni hozir yozib oling (u .env faylida ham turadi). Bu parol klinikaga berilmaydi - u sizniki."
 }
 if ($checkFailed) { Warn "Eslatma: tekshiruvdagi xatolarni tuzating (install\Tekshirish.cmd)." }
+if ($phoneReboot) { Warn "Telefon liniyasi uchun WSL o'rnatildi: kompyuterni QAYTA YOQING, keyin install\Telefon.cmd ni ishga tushiring." }
 Start-Process "http://localhost:$port/#/ulash"

@@ -228,8 +228,11 @@ class Server:
         self.customers = 0
         self.count = 0
         self.token = Token()
-        # AI qabulxona ovozli agent kaliti bilan ishlaydi (panel → ovozli agent kaliti, yoki tgvoice/README)
-        self.reception = bool(os.environ.get('VOICE_AGENT_KEY') or _env_has('VOICE_AGENT_KEY'))
+
+    @property
+    def reception(self) -> bool:
+        """AI qabulxona ovozli agent kaliti bilan ishlaydi: .env yoki ovoz.env (klinika kompyuterida Cerebro o'zi yaratadi) — har qo'ng'iroqda tekshiriladi"""
+        return bool(os.environ.get('VOICE_AGENT_KEY') or _env_has('VOICE_AGENT_KEY'))
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         try:

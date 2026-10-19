@@ -20,8 +20,12 @@ Anketa serveri tunnel yoki proksi ortida tursa (cloudflared, nginx), uning `.env
 | Instagram login-paroli | Klinikadan (egasi o'zi kiritadi) | Direct'ga javob |
 | Kameralarning RTSP manzili | Kamerani o'rnatgan usta yoki videoregistrator sozlamalari | Kamera nazorati |
 
-Klinikadagi kompyuter: Windows 10 yoki 11, doim yoniq va internetga ulangan, Google Chrome yoki Edge o'rnatilgan.
-**Kompyuter o'chiq yoki uyquda bo'lsa — Cerebro ishlamaydi.**
+| Uztelecom SIP: server manzili, login, parol, raqam (ixtiyoriy) | Klinika Uztelecom'dan oladi (yuridik shaxs) | Shahar raqamiga AI qabulxona javob beradi |
+
+Klinikadagi kompyuter: Windows 10 yoki 11 (64-bit), 8 GB xotira, doim yoniq va internetga ulangan, Google Chrome yoki Edge o'rnatilgan.
+Telefon liniyasi uchun yana: BIOS'da virtualizatsiya (VT-x / AMD-V) yoqilgan va o'rnatuvchida administrator huquqi bo'lsin.
+**Kompyuter o'chiq yoki uyquda bo'lsa — Cerebro ishlamaydi** (kechasi AI qabulxona ham javob bermaydi): BIOS'da «svet kelganda yoqilsin»
+(Restore on AC power loss → Power On) sozlamasini qo'ying, iloji bo'lsa kichik UPS qo'ying.
 
 ## 2. O'rnatish
 
@@ -31,6 +35,11 @@ Klinikadagi kompyuter: Windows 10 yoki 11, doim yoniq va internetga ulangan, Goo
    - kutubxonalarni yuklaydi va panelni yig'adi;
    - `.env` faylini yozadi: admin paroli, port, ma'lumotlar papkasi (`C:\CerebroData`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
    - dastur va ma'lumotlar papkasini kompyuterning boshqa Windows foydalanuvchilaridan yopadi;
+   - **ovoz xizmati va telefon liniyasini** o'rnatishni taklif qiladi (`install\telefon.ps1`, alohida — `install\Telefon.cmd`):
+     Python va ovoz kutubxonalari, «Quloq» modeli (≈45 MB), keyin administrator huquqi bilan WSL, Ubuntu 24.04 (≈340 MB, SHA256 tekshiriladi),
+     Asterisk, `.wslconfig` da mirrored tarmoq va brandmauer qoidalari (5060, 10000–10100 — faqat ichki tarmoq).
+     WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqib, `Telefon.cmd` ni yana bosing. Har qadam qayta bosilganda bor narsani o'tkazib yuboradi.
+     Ovozli agent kalitini Cerebro o'zi yaratadi (`DATA_DIR\ovoz.env`), Gemini kaliti — ulash ustasida;
    - Cerebro'ni avtoyuklashga qo'shadi, ish stoliga «Cerebro» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi.
 3. Oxirida ekranda **admin paroli** chiqadi — yozib oling. U sizniki, klinikaga berilmaydi.
 
@@ -57,6 +66,12 @@ Panel: ish stolidagi «Cerebro» yorlig'i. Usta: `http://localhost:3200/#/ulash`
 **Mijozlarga javob** rejimi: birinchi hafta **«Tasdiq bilan»** qoldiring — Cerebro javobni tayyorlaydi, egasi Telegramda «Yuborish» bosadi. Javoblar yoqsa, keyin «O'zi javob bersin»ga o'tkazing.
 
 Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: bot xabarni chatdan o'chiradi, hech qayerga saqlamaydi va panelga yo'naltiradi.
+
+**Telefon liniyasi** (panel → Sozlamalar → Telefon liniyasi):
+- Uztelecom ma'lumotlarini kiriting → «Saqlash va ulash»: holatda «Shahar raqami — ulangan» chiqishi kerak.
+- «Kim javob beradi»: har doim AI yoki «ish vaqtida — administrator, qolgan paytda — AI».
+- Administrator telefoni: qabulxona telefoniga Zoiper (yoki stol IP telefoni) → «Akkaunt yaratish» → server, login `admin`, parol.
+  Shu telefondan «2» ni tering — qabulxona mijozdek javob beradi (sinov: jadvalga yozilmaydi).
 
 ## 4. Ketishdan oldin tekshiring
 

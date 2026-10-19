@@ -2,8 +2,10 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { randomBytes } from 'node:crypto';
 import { join, resolve } from 'node:path';
 
-// .env — mahalliy ishga tushirish uchun (hostingda o'zgaruvchilar panelda beriladi)
-if (existsSync('.env')) process.loadEnvFile('.env');
+// .env — mahalliy ishga tushirish uchun (hostingda o'zgaruvchilar panelda beriladi).
+// DOTENV=0 — o'qilmaydi: sinov serverlari haqiqiy kalitlarni olmasin (Windows'da bo'sh qiymatli o'zgaruvchi umuman yo'q hisoblanadi —
+// «VOICELAB_API_KEY: ''» berilsa ham .env dagisi o'qilib qolardi)
+if (process.env.DOTENV !== '0' && existsSync('.env')) process.loadEnvFile('.env');
 
 const dataDir = resolve(process.env.DATA_DIR || 'data');
 mkdirSync(dataDir, { recursive: true });
