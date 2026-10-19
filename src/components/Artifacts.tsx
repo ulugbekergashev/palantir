@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
-import { Banknote, Check, CheckCircle2, Download, Eye, FileText, Loader2, RotateCcw, Send, Trash2, X } from 'lucide-react';
-import type { Artifact, Business, Doc, MoneyEntry, MoneyStatus, Outbound, Post, Task } from '../types';
+import { Banknote, Cctv, Check, CheckCircle2, Download, Eye, FileText, Loader2, RotateCcw, Send, Trash2, Users, X } from 'lucide-react';
+import type { Artifact, Business, CameraShot, Doc, MoneyEntry, MoneyStatus, Outbound, Post, Task } from '../types';
 import { api } from '../data/api';
 import { download, svgToPng } from '../lib/exportPng';
 import { dueLabel } from '../lib/week';
 import { Artboard, heightOf } from '../templates/Artboard';
+import { useEventImage } from './Journal';
 import { Markdown } from './Markdown';
 import { Button } from './ui';
 
@@ -183,6 +184,34 @@ export function TaskChip({ task, notify, onChange, now }: { task: Task; notify: 
   );
 }
 
+/** Kamera kadri: yordamchi egasi so'raganda kameraga qaradi — rasm, odamlar soni va savolga javob */
+export function ShotCard({ shot }: { shot: CameraShot }) {
+  const { src, lost } = useEventImage(shot.eventId);
+  const time = new Date(shot.at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return (
+    <figure className="max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {src
+        ? <img src={src} alt={`«${shot.cameraName}» kamerasi kadri, ${time}`} className="aspect-video w-full bg-slate-900 object-contain" />
+        : !lost && <div className="aspect-video w-full animate-pulse bg-slate-100" aria-hidden="true" />}
+      <figcaption className="space-y-1.5 p-3.5">
+        <div className="flex items-center gap-2 text-sm font-bold">
+          <Cctv className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+          <span className="truncate">{shot.cameraName}</span>
+          <span className="ml-auto text-xs font-normal tabular-nums text-slate-400">{time}</span>
+        </div>
+        {shot.people !== null && (
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+            <Users className="h-3.5 w-3.5" aria-hidden="true" />{shot.people ? `Hozir ${shot.people} kishi ko'rinyapti` : "Hozir hech kim ko'rinmayapti"}
+          </div>
+        )}
+        {shot.answer && <p className="text-sm leading-relaxed text-slate-700">{shot.answer}</p>}
+        {shot.problem && <p className="text-xs text-amber-700">{shot.problem}</p>}
+        {lost && shot.eventId && <p className="text-xs text-slate-400">Kadr o'chirilgan — eski kadrlar bir necha kundan keyin o'chadi.</p>}
+      </figcaption>
+    </figure>
+  );
+}
+
 /** Suhbatdagi narsa */
 export function ArtifactView({ a, biz, notify, onChange, now }: {
   a: Artifact; biz: Business; notify: Notify; onChange: (a: Artifact) => void; now: Date;
@@ -193,5 +222,6 @@ export function ArtifactView({ a, biz, notify, onChange, now }: {
     case 'outbound': return <FollowupCard outbound={a.outbound} notify={notify} onChange={o => onChange({ type: 'outbound', outbound: o })} />;
     case 'money': return <MoneyCard entry={a.entry} notify={notify} onChange={e => onChange({ type: 'money', entry: e })} />;
     case 'task': return <TaskChip task={a.task} notify={notify} now={now} onChange={t => onChange({ type: 'task', task: t })} />;
+    case 'camera': return <ShotCard shot={a.shot} />;
   }
 }

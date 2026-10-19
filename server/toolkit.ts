@@ -26,6 +26,8 @@ export interface ToolCtx {
   readStrangers?: boolean;
   /** Shu gapda qo'shilgan mijozlar soni (chegara: tools.ts MAX_LEADS_PER_TURN) */
   leadsSaved?: number;
+  /** Shu javob davomida kameraga necha marta qaraldi (chegara: camera/tools.ts) */
+  cameraLooks?: number;
 }
 
 /** Doimiy bilimga (fakt, narx, sahifa) yozishdan oldin: begona matn — rasmdagi yozuv yoki mijozning xabari — shu yo'l bilan bilimga aylanmasin */

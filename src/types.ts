@@ -328,13 +328,20 @@ export interface MoneyEntry {
   canUndo: boolean;
 }
 
+/**
+ * Egasi so'ragan kamera kadri (yordamchi kameraga qaradi). Rasm Kuzatuvchi jurnalida saqlanadi (eventId; kadr olinmagan bo'lsa null);
+ * people — odam topuvchi sanog'i (bilinmasa null), answer — savolga AI javobi, problem — nima bo'lmadi
+ */
+export interface CameraShot { eventId: string | null; cameraId: string; cameraName: string; people: number | null; answer: string | null; problem: string | null; at: string }
+
 /** Yordamchi javobi bilan birga yaratilgan narsa (panel va Telegramda ko'rsatiladi) */
 export type Artifact =
   | { type: 'document'; doc: Doc }
   | { type: 'post'; post: Post }
   | { type: 'outbound'; outbound: Outbound }
   | { type: 'money'; entry: MoneyEntry }
-  | { type: 'task'; task: Task };
+  | { type: 'task'; task: Task }
+  | { type: 'camera'; shot: CameraShot };
 
 /** Suhbat jurnali (panelda ko'rinadi) */
 export interface ChatEntry {

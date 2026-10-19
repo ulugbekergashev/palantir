@@ -24,7 +24,7 @@ import { DAY_OUTCOME, askOutcome, dropOutcome, takeOutcome, wantsOutcome } from 
 import { recallPatients } from './crm/index';
 import { patientName } from './crm/logic';
 import { fileKeyboard, settleFile, settleSuggestion } from './brain/learn';
-import { businesses, chatLog, inbox, leads, moneyEntries, outbound, posts, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
+import { businesses, cameras, chatLog, inbox, leads, moneyEntries, outbound, posts, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
 import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
@@ -37,6 +37,8 @@ import { phoneChanged } from './people';
 import { actorOf, setTeamOutlet } from './requests/index';
 import { replyCards } from './requests/store';
 import { linkStaff, listOpen, requestButton, requestReply, staffText, teamOutlet } from './requests/telegram';
+import { lookAt, lookRequest, shotCaption } from './camera/ask';
+import { events } from './orders/store';
 import { approveReply, clearBotOutlets, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
 export interface BotService {
@@ -197,6 +199,7 @@ function helpFor(biz: BusinessRow): string {
     "• Narxnoma yoki shartnoma namunasini fayl qilib yuboring (PDF, Word, Excel) — o'qib, bilimga qo'shaman",
     '• «Bugun nima qilishim kerak?»',
     '',
+    ...(cameras.list(biz.id).length ? ["/kamera — kameralardan hozirgi rasm (savol bilan: «/kamera qabulxonada kim bor»)"] : []),
     '/vazifalar — ochiq vazifalar',
     "/savollar — mijozlar ko'p so'raydigan savollarni birma-bir so'rayman, javobingizni eslab qolaman",
     '/yangi — yangi suhbat (oldingisini unutadi, vazifa va mijozlar qoladi)',
@@ -246,6 +249,10 @@ export function createBot(): BotService {
       const e = row ? entryView(row) : a.entry;
       const msg = await tg.sendMessage(chat, moneyText(e), { parse_mode: 'HTML', reply_markup: moneyKeyboard(e) });
       moneyEntries.setOwnerMessage(biz.id, e.id, msg.message_id);
+    } else if (a.type === 'camera') {
+      const image = a.shot.eventId ? events.image(biz.id, a.shot.eventId) : null;
+      if (image) await tg.sendPhoto(chat, { source: image, filename: 'kadr.jpg' }, { caption: shotCaption(a.shot) });
+      else await tg.sendMessage(chat, shotCaption(a.shot));
     }
     // Vazifa — javob matnida aytiladi, alohida xabar kerak emas
   }
@@ -305,7 +312,7 @@ export function createBot(): BotService {
     for (const a of reply.artifacts) {
       await sendArtifact(fresh, chat, a).catch(e => {
         console.error('[bot] yetkazilmadi:', a.type, (e as Error).message);
-        return tg.sendMessage(chat, `⚠️ ${a.type === 'document' ? 'Hujjat' : a.type === 'post' ? 'Rasm' : 'Xabar'} yuborilmadi — panelda ko'ring.`).catch(() => {});
+        return tg.sendMessage(chat, `⚠️ ${a.type === 'document' ? 'Hujjat' : a.type === 'post' ? 'Rasm' : a.type === 'camera' ? 'Kamera kadri' : 'Xabar'} yuborilmadi — panelda ko'ring.`).catch(() => {});
       });
     }
   }
@@ -429,6 +436,20 @@ export function createBot(): BotService {
   // So'rovlar (qo'ng'iroq qilish, qabul, shikoyat): egasi ham, qabulxona xodimi ham
   bot.command(['sorovlar', 'zayavki'], async ctx => {
     if (ctx.chat.type === 'private') await listOpen(ctx);
+  });
+
+  // Kameralardan hozirgi rasm: «/kamera Zal» — bitta kamera; «/kamera qabulxonada kim bor» — kadrga qarab javob (AI ko'zi)
+  bot.command(['kamera', 'camera'], async ctx => {
+    const biz = ownerOf(ctx);
+    if (!biz) return;
+    if (!cameras.list(biz.id).length) return ctx.reply("Kamera ulanmagan. Panel → «Kameralar» bo'limida qo'shing.");
+    const { list, question } = lookRequest(biz.id, ctx.payload?.slice(0, 300) ?? null);
+    const chat = String(ctx.chat.id);
+    await tg.sendChatAction(chat, 'upload_photo').catch(() => {});
+    for (const l of await lookAt(biz, list, question)) {
+      if (l.image) await tg.sendPhoto(chat, { source: l.image, filename: 'kadr.jpg' }, { caption: shotCaption(l.shot) });
+      else await tg.sendMessage(chat, shotCaption(l.shot));
+    }
   });
 
   bot.command('vazifalar', async ctx => {
@@ -971,6 +992,7 @@ export function createBot(): BotService {
               known();
               await tg.setMyCommands([
                 { command: 'vazifalar', description: 'Ochiq vazifalar' },
+                { command: 'kamera', description: 'Kameralardan hozirgi rasm' },
                 { command: 'yangi', description: 'Yangi suhbat' },
                 { command: 'help', description: 'Nima qila olaman' },
               ]).catch(() => {});

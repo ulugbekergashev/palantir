@@ -21,14 +21,21 @@ const TONE: Record<AgentEvent['level'], { cls: string; icon: typeof Info }> = {
   info: { cls: 'text-emerald-300 bg-emerald-400/10', icon: CircleCheck },
 };
 
-function Frame({ id, onOpen }: { id: string; onOpen: (url: string) => void }) {
+/** Jurnal yozuvining kadri (kirish bilan yuklanadi): src — tayyor bo'lsa, lost — o'chirilgan yoki yo'q (id yo'q — kadr olinmagan) */
+export function useEventImage(id: string | null): { src: string | null; lost: boolean } {
   const [src, setSrc] = useState<string | null>(null);
   const [lost, setLost] = useState(false);
   useEffect(() => {
+    if (!id) return;
     let url: string | null = null, gone = false;
     api.eventImage(id).then(b => { if (!gone && b.size) { url = URL.createObjectURL(b); setSrc(url); } }).catch(() => { if (!gone) setLost(true); });
     return () => { gone = true; if (url) URL.revokeObjectURL(url); };
   }, [id]);
+  return { src, lost: lost || !id };
+}
+
+function Frame({ id, onOpen }: { id: string; onOpen: (url: string) => void }) {
+  const { src, lost } = useEventImage(id);
   if (lost) return <span className="flex h-[72px] w-[128px] shrink-0 items-center justify-center rounded-xl border border-dashed border-glass/10 text-center text-[11px] text-[#7d838f]">kadr o'chirilgan</span>;
   if (!src) return <span className="block h-[72px] w-[128px] shrink-0 animate-pulse rounded-xl bg-glass/[0.05]" aria-hidden="true" />;
   return (

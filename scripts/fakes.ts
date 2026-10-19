@@ -321,6 +321,9 @@ export const ai = {
   /** Qo'ng'iroq tahlili so'rovlari (modelga borgan matn) va javobi (berilmasa — tayyor «qabulga yozildi») */
   calls_analysed: [] as string[],
   callAnalysis: null as ((user: string) => Record<string, unknown>) | null,
+  /** Kamera kuzatuvchisiga (orders/look.ts) borgan so'rov matnlari va javobi (berilmasa — tayyor tavsif) */
+  camera: [] as { text: string; hasImage: boolean }[],
+  cameraAnswer: null as ((text: string) => string) | null,
 };
 
 /**
@@ -447,7 +450,7 @@ function decide(messages: Msg[]): { content: Block[]; stop: string } {
   }
 
   // DentaCRM asboblari: kirish — egasining gapidagi JSON
-  const crmTool = ([['klinika kuni', 'clinic_day'], ['bemor top', 'find_patient'], ["bo'sh vaqt", 'free_slots'], ['qabulga yoz', 'book_appointment'], ['davr hisoboti', 'clinic_period'], ['klinika nazorati', 'clinic_alerts'], ['kamera hisobi', 'clinic_cameras'], ['narxlarni saqla', 'save_prices'], ["namunani o'qi", 'read_sample'], ['sahifa yoz', 'write_page'], ["sahifani o'qi", 'read_page'], ["to'lov yoz", 'record_payment'], ['xarajat yoz', 'record_expense'], ['maosh ber', 'pay_doctor']] as const).find(([k]) => said.includes(k));
+  const crmTool = ([['klinika kuni', 'clinic_day'], ['bemor top', 'find_patient'], ["bo'sh vaqt", 'free_slots'], ['qabulga yoz', 'book_appointment'], ['davr hisoboti', 'clinic_period'], ['klinika nazorati', 'clinic_alerts'], ['kamera hisobi', 'clinic_cameras'], ['kameraga qara', 'look_camera'], ['narxlarni saqla', 'save_prices'], ["namunani o'qi", 'read_sample'], ['sahifa yoz', 'write_page'], ["sahifani o'qi", 'read_page'], ["to'lov yoz", 'record_payment'], ['xarajat yoz', 'record_expense'], ['maosh ber', 'pay_doctor']] as const).find(([k]) => said.includes(k));
   if (crmTool) return call(crmTool[1], JSON.parse(/\{.*\}/s.exec(lastOwnerText(messages))?.[0] ?? '{}'));
 
   if (said.includes('namunadan sahifa')) return call('read_sample', JSON.parse(/\{.*\}/s.exec(lastOwnerText(messages))?.[0] ?? '{}'));
@@ -517,6 +520,17 @@ export const aiServer = createServer(async (req, res) => {
     const text = !hasImage ? 'Rasm kelmadi' : ai.vision ? ai.vision(String(blocks.find(b => b.type === 'text')?.text ?? '')) : canned;
     wire.log?.('Model', 'rasmni tasvirlash', { javob: text });
     return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 10 } });
+  }
+
+  // Kamera kuzatuvchisi (orders/look.ts): egasining savoliga kadrdan javob yoki topshiriq tekshiruvi (JSON)
+  if (String(body.system).startsWith('You are the camera watcher')) {
+    const blocks = Array.isArray(body.messages[0]?.content) ? body.messages[0].content : [];
+    const hasImage = blocks.some(b => b.type === 'image' && !!(b.source as { data?: string } | undefined)?.data);
+    const text = String(blocks.find(b => b.type === 'text')?.text ?? '');
+    ai.camera.push({ text, hasImage });
+    const answer = ai.cameraAnswer ? ai.cameraAnswer(text) : "Qabulxonada bir kishi stol yonida o'tiribdi.";
+    const out = text.includes('<check>') ? JSON.stringify({ alert: false, answer }) : answer;
+    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: out }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 10 } });
   }
 
   // Qo'ng'iroq yozuvi tahlili (callreview.ts): yozuv matni modelga qanday borganini sinov tekshiradi

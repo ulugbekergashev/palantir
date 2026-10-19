@@ -26,6 +26,7 @@ import { normPhone } from './crm/logic';
 import { phoneChanged } from './people';
 import { CRM_DEFS } from './crm/tools';
 import { REQUEST_DEFS } from './requests/tools';
+import { CAMERA_DEFS } from './camera/tools';
 import { ToolError, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
 
 export type { ToolCtx } from './toolkit';
@@ -379,7 +380,7 @@ const isCrmTool = (name: string) => Object.hasOwn(CRM_DEFS, name);
 
 /** Claude'ga beriladigan asboblar ro'yxati (suhbat davomida o'zgarmaydi). crm — DentaCRM ulangan biznes uchun klinika asboblari bilan */
 export function toolDefinitions(webSearch: boolean, crm = false): Anthropic.Beta.BetaToolUnion[] {
-  const defs = Object.entries(crm ? { ...DEFS, ...REQUEST_DEFS, ...CRM_DEFS } : { ...DEFS, ...REQUEST_DEFS }) as [string, ToolDef<z.ZodType>][];
+  const defs = Object.entries(crm ? { ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...CRM_DEFS } : { ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS }) as [string, ToolDef<z.ZodType>][];
   const custom: Anthropic.Beta.BetaToolUnion[] = defs.map(([name, d]) => ({
     name, description: d.description, input_schema: schemaOf(d.input),
   }));
@@ -391,7 +392,7 @@ export interface ToolOutcome { content: string; isError: boolean }
 export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promise<ToolOutcome> {
   // Klinika asboblari faqat DentaCRM ulangan biznesda ishlaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin)
   if (isCrmTool(name) && !crmConnected(ctx.biz.id)) return { content: "DentaCRM ulanmagan — egasi panel → Ulanishlar'da ulashi kerak", isError: true };
-  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...REQUEST_DEFS, ...CRM_DEFS };
+  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...CRM_DEFS };
   const d = Object.hasOwn(all, name) ? all[name] : undefined;
   if (!d) return { content: `Noma'lum asbob: ${name}`, isError: true };
   const parsed = d.input.safeParse(input);
