@@ -1,86 +1,54 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Menu } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import type { Business, LiveStatus } from './types';
 import { api, session } from './data/api';
-import { MOVED, PAGES, Sidebar, pageLabel, type Page } from './components/Sidebar';
+import { Rail } from './components/Rail';
+import { TEAM, isMember, useTeam } from './components/team';
 import { Button } from './components/ui';
-import { isMedical } from './lib/compliance';
-import { connectionHealth } from './lib/health';
-import { useFontsReady, useNow, useToast, useWide } from './lib/hooks';
-import { iso } from './lib/week';
-import { BrainPage } from './pages/BrainPage';
-import { CallsPage } from './pages/CallsPage';
-import { CamerasPage } from './pages/CamerasPage';
-import { ChatPage } from './pages/ChatPage';
-import { HomePage } from './pages/HomePage';
-import { InboxPage } from './pages/InboxPage';
-import { JournalPage } from './pages/JournalPage';
-import { RequestsPage } from './pages/RequestsPage';
-import { TelegramPage } from './pages/TelegramPage';
+import { useFontsReady, useNow, useToast } from './lib/hooks';
+import { routeFromHash, type Area, type Route } from './lib/nav';
+import { AiPage } from './pages/AiPage';
+import { AnalystArea, AssistantArea, ReceptionArea, SettingsArea, WatchArea } from './pages/TeamPages';
+import { MiyaArea } from './pages/VaultPage';
 
-/** Manzildagi bo'lim: #/journal, #/inbox… (bo'sh yoki notanish manzil — bosh sahifa) */
-const pageFromHash = (): Page => {
-  const p = window.location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
-  return PAGES.includes(p as Page) ? p as Page : Object.hasOwn(MOVED, p) ? MOVED[p] : 'home';
+/**
+ * Panel — bitta dastur, AI jamoa atrofida: bosh ekran (Cerebro, ovoz bilan), to'rt xodim (Qabulxona, Yordamchi, Kuzatuvchi,
+ * Tahlilchi), Miya (Obsidian kabi) va Sozlamalar. Chapda (telefonda — pastda) bir xil ustun. Ko'rinish qorong'i (index.css: .night).
+ */
+const TITLES: Record<Area, string> = {
+  ai: 'Cerebro', qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
+  tahlilchi: TEAM.tahlilchi.name, miya: 'Miya', sozlamalar: 'Sozlamalar',
 };
 
 export default function LiveApp() {
   useFontsReady();
   const now = useNow();
-  const wide = useWide();
   const [toast, setToast] = useToast();
-  const [page, setPageState] = useState<Page>(pageFromHash);
+  const [route, setRoute] = useState<Route>(() => routeFromHash());
   const [biz, setBiz] = useState<Business | null>(null);
   const [status, setStatus] = useState<LiveStatus | null>(null);
   const [error, setError] = useState('');
-  const [dueToday, setDueToday] = useState(0);
-  const [waiting, setWaiting] = useState(0);
-  const [openRequests, setOpenRequests] = useState(0);
-  const [menu, setMenu] = useState(false);
   const [offeringsRev, setOfferingsRev] = useState('');
+  const [tick, setTick] = useState(0);
   const loaded = useRef(false);
-  const menuButton = useRef<HTMLButtonElement>(null);
-  const menuWasOpen = useRef(false);
   const main = useRef<HTMLElement>(null);
   const opened = useRef(false);
-  // Tortma faqat tor ekranda bor: keng ekranda yon panel doim ochiq, sahifa esa to'silmaydi
-  const drawerOpen = menu && !wide;
-  // Klaviatura bilan ishlaganda: menyu ochilsa — diqqat uning ichiga, yopilsa — tugmaga qaytadi
-  useEffect(() => {
-    if (drawerOpen) document.querySelector<HTMLElement>('aside button[aria-current="page"]')?.focus();
-    else if (menuWasOpen.current) menuButton.current?.focus();
-    menuWasOpen.current = drawerOpen;
-  }, [drawerOpen]);
-
-  // Ekran kengayib yon panel doimiy bo'lsa, tortma «ochiq» bo'lib qolmaydi (yana torayganda o'zi ochilib ketmasin)
-  useEffect(() => { if (wide) setMenu(false); }, [wide]);
-  // Bo'lim almashganda: sahifa boshidan ko'rinadi, diqqat yangi mazmunga o'tadi (klaviatura va ekran o'quvchi uchun), oyna sarlavhasi yangilanadi
-  useEffect(() => {
-    document.title = `${pageLabel(page)} · Cerebro`;
-    if (!opened.current) { opened.current = true; return; }
-    window.scrollTo(0, 0);
-    main.current?.focus({ preventScroll: true });
-  }, [page]);
-
-  const notify = (text: string, isError = false) => setToast({ text, error: isError });
-  const setPage = (p: Page) => { setMenu(false); window.location.hash = `#/${p}`; };
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(false); };
-    window.addEventListener('keydown', onKey);
-    // Menyu ochiq turganda orqadagi sahifa aylanmaydi
-    document.documentElement.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', onKey); document.documentElement.style.overflow = ''; };
-  }, [drawerOpen]);
 
   useEffect(() => {
-    // Brauzerning «orqaga» tugmasi bilan sahifa almashsa ham menyu yopiladi
-    const on = () => { setMenu(false); setPageState(pageFromHash()); };
+    const on = () => setRoute(routeFromHash());
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
 
-  // Sozlamalar boshqa joyda ham o'zgaradi (ikkinchi miyadagi narxlar, yordamchi yozgani) — har bo'limga o'tganda yangisi olinadi
+  // Bo'lim almashganda: sahifa boshidan, diqqat yangi mazmunga (klaviatura va ekran o'quvchi uchun), oyna sarlavhasi
+  useEffect(() => {
+    document.title = route.area === 'ai' ? 'Cerebro' : `${TITLES[route.area]} · Cerebro`;
+    if (!opened.current) { opened.current = true; return; }
+    window.scrollTo(0, 0);
+    main.current?.focus({ preventScroll: true });
+  }, [route.area, route.tab]);
+
+  // Sozlamalar boshqa joyda ham o'zgaradi — har bo'limga o'tganda yangisi olinadi
   useEffect(() => {
     let stale = false;
     api.me().then(r => {
@@ -91,63 +59,47 @@ export default function LiveApp() {
       setOfferingsRev(r.offeringsRev);
     }).catch(e => { if (!stale && !loaded.current) setError((e as Error).message); });
     return () => { stale = true; };
-  }, [page]);
+  }, [route.area]);
 
-  // Bugungi va kechikkan vazifalar, tasdiq kutayotgan javoblar soni — menyudagi belgi. Bo'lim almashganda va shu ishlar bajarilganda yangilanadi
-  const refreshBadges = () => {
-    const today = `${iso(new Date())}T23:59`;
-    api.tasks('open').then(r => setDueToday(r.tasks.filter(t => t.dueAt && t.dueAt <= today).length)).catch(() => {});
-    api.inbox().then(r => setWaiting(r.threads.reduce((n, t) => n + t.pending, 0))).catch(() => {});
-    api.requests('open').then(r => setOpenRequests(r.open)).catch(() => {});
-  };
-  useEffect(refreshBadges, [page]);
-
+  const notify = (text: string, isError = false) => setToast({ text, error: isError });
+  const team = useTeam(status ?? ({ crm: { account: null } } as unknown as LiveStatus), tick);
+  const changed = () => setTick(t => t + 1);
   const logout = () => { session.set(null); window.location.hash = ''; window.location.reload(); };
 
   if (error) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
+      <div className="night flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-sm text-rose-700">{error}</p>
         <Button onClick={() => window.location.reload()}>Qayta urinish</Button>
       </div>
     );
   }
-  if (!biz || !status) return <div className="flex min-h-screen items-center justify-center text-slate-400"><Loader2 className="h-7 w-7 animate-spin" /></div>;
+  if (!biz || !status) return <div className="night flex min-h-screen items-center justify-center text-slate-400"><Loader2 className="h-7 w-7 animate-spin" /></div>;
 
-  const badges = { journal: dueToday, inbox: waiting, requests: openRequests };
-  const health = connectionHealth(status, isMedical(biz.industry));
+  const { area, tab } = route;
+  const common = { biz, status, now, notify, onChanged: changed, tab, tick, state: isMember(area) ? team?.[area] ?? null : null };
 
   return (
-    <div className="min-h-dvh lg:pl-64">
-      {/* Tor ekranda: yuqorida ingichka panel — menyu tugmasi va brend. Keng ekranda bo'limlar yon panelda doim ko'rinadi */}
-      {!wide && (
-        <header inert={drawerOpen} className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-slate-200 bg-paper/90 px-2 backdrop-blur">
-          <button ref={menuButton} type="button" onClick={() => setMenu(true)} aria-label="Menyu" aria-expanded={drawerOpen} className="relative flex h-10 w-10 items-center justify-center rounded-xl text-slate-700 transition-colors hover:bg-slate-200/80 active:bg-slate-200">
-            <Menu className="h-5 w-5" aria-hidden="true" />
-            {dueToday + waiting + openRequests > 0 && <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-paper bg-amber-500" aria-hidden="true" />}
-          </button>
-          <img src="/favicon.svg" alt="" className="h-7 w-7" />
-          <span className="text-[15px] font-extrabold tracking-tight">Cerebro</span>
-        </header>
-      )}
-      {drawerOpen && <div className="fixed inset-0 z-[45] bg-ink-950/50" onClick={() => setMenu(false)} aria-hidden="true" />}
-      <Sidebar wide={wide} open={drawerOpen} page={page} setPage={setPage} biz={biz} health={health} badges={badges} onLogout={logout} />
-      <div inert={drawerOpen} className="min-w-0">
-        {/* key: bo'lim almashganda mazmun yengil ko'tarilib chiqadi */}
-        <main key={page} ref={main} tabIndex={-1} className={`animate-rise mx-auto w-full px-4 py-4 outline-none sm:px-6 sm:py-6 lg:px-10 lg:py-8 ${page === 'chat' ? 'max-w-5xl' : 'max-w-6xl'}`}>
-          {page === 'home' && <HomePage biz={biz} status={status} now={now} notify={notify} onChanged={refreshBadges} />}
-          {page === 'chat' && <ChatPage biz={biz} status={status} notify={notify} now={now} />}
-          {page === 'cameras' && <CamerasPage notify={notify} />}
-          {page === 'requests' && <RequestsPage notify={notify} onChanged={refreshBadges} />}
-          {page === 'calls' && <CallsPage notify={notify} />}
-          {page === 'journal' && <JournalPage now={now} notify={notify} onChanged={refreshBadges} />}
-          {page === 'brain' && <BrainPage notify={notify} />}
-          {page === 'inbox' && <InboxPage notify={notify} onChanged={refreshBadges} />}
-          {page === 'telegram' && <TelegramPage status={status} onStatus={setStatus} biz={biz} onBiz={setBiz} offeringsRev={offeringsRev} onSaved={(b, rev) => { setBiz(b); setOfferingsRev(rev); }} notify={notify} />}
+    <div className="night min-h-dvh pb-20 lg:pb-0 lg:pl-[92px]">
+      <Rail area={area} team={team} ownerName={biz.ownerName} onLogout={logout} />
+      {area === 'ai' ? (
+        <main key="ai" ref={main} tabIndex={-1} className="outline-none">
+          <AiPage biz={biz} status={status} now={now} team={team} />
         </main>
-      </div>
+      ) : (
+        <main key={area} ref={main} tabIndex={-1} className={`animate-rise mx-auto w-full px-4 py-5 outline-none sm:px-6 sm:py-7 lg:px-10 lg:py-9 ${area === 'miya' ? 'max-w-[1500px]' : 'max-w-6xl'}`}>
+          {area === 'qabulxona' && <ReceptionArea {...common} />}
+          {area === 'yordamchi' && <AssistantArea {...common} />}
+          {area === 'kuzatuvchi' && <WatchArea {...common} />}
+          {area === 'tahlilchi' && <AnalystArea {...common} />}
+          {area === 'miya' && <MiyaArea tab={tab} notify={notify} />}
+          {area === 'sozlamalar' && (
+            <SettingsArea {...common} onStatus={setStatus} onBiz={setBiz} offeringsRev={offeringsRev} onSaved={(b, rev) => { setBiz(b); setOfferingsRev(rev); }} />
+          )}
+        </main>
+      )}
       {toast && (
-        <div role="status" className={`animate-pop fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lift lg:left-[calc(50%+8rem)] ${toast.error ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>
+        <div role="status" className={`animate-pop fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lift lg:bottom-5 lg:left-[calc(50%+46px)] ${toast.error ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>
           {toast.text}
         </div>
       )}

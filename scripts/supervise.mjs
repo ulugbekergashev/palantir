@@ -3,10 +3,12 @@
  *   node scripts/supervise.mjs         — ishga tushirish (oyna yopilguncha yoki «stop» buyrug'igacha ishlaydi)
  *   node scripts/supervise.mjs stop    — ishlab turgan nazoratchi va serverni tinch to'xtatish
  *   node scripts/supervise.mjs status  — ishlayaptimi
+ * Telefon liniyasi (tgvoice/sip_live.py — Asterisk WSL'da ↔ Gemini Live) sozlangan bo'lsa (.env: SIP_OWNER_PASSWORD va TG_CALL_PYTHON),
+ * u ham shu yerda yoqiladi va kuzatiladi: AI qabulxona kechasi ham, qarovsiz ishlaydi. Jurnali — DATA_DIR\logs\telefon.log
  * Oddiy Node skripti (tsx kerak emas): server buzilgan bo'lsa ham nazoratchi ishlaydi va sababini jurnalga yozadi.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -103,6 +105,37 @@ setInterval(() => {
 let child = null;
 let stopping = false;
 
+const PHONE_SCRIPT = join(ROOT, 'tgvoice', 'sip_live.py');
+const PHONE_PYTHON = process.env.TG_CALL_PYTHON;
+const phoneEnabled = !!(process.env.SIP_OWNER_PASSWORD && PHONE_PYTHON && existsSync(PHONE_PYTHON) && existsSync(PHONE_SCRIPT));
+let phone = null;
+
+/** Telefon liniyasi: to'xtab qolsa — server kabi kutib qayta yoqiladi */
+async function keepPhone() {
+  for (let wait = RESTART_MIN_MS; !stopping;) {
+    const startedAt = Date.now();
+    const out = openSync(join(LOGS, 'telefon.log'), 'a');
+    phone = spawn(PHONE_PYTHON, ['-X', 'faulthandler', PHONE_SCRIPT], { cwd: dirname(PHONE_SCRIPT), stdio: ['ignore', out, out], windowsHide: true });
+    const code = await new Promise(done => {
+      phone.once('exit', (c, signal) => done(c ?? signal ?? 1));
+      phone.once('error', e => { log(`telefon liniyasi ishga tushmadi: ${e.message}`); done(1); });
+    });
+    closeSync(out);
+    if (stopping) break;
+    if (Date.now() - startedAt >= HEALTHY_MS) wait = RESTART_MIN_MS;
+    log(`telefon liniyasi to'xtadi (kod: ${code}) — ${Math.round(wait / 1000)} soniyadan keyin qayta yoqiladi`);
+    await sleep(wait);
+    wait = Math.min(wait * 2, RESTART_MAX_MS);
+  }
+}
+
+/** Liniya o'zining yordamchi jarayonlari (WSL'ni yoqiq tutuvchi) bilan birga yopiladi */
+function stopPhone() {
+  if (!phone || phone.exitCode !== null) return;
+  if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(phone.pid), '/T', '/F'], { stdio: 'ignore' });
+  else phone.kill();
+}
+
 /** Serverga «tinch to'xta» deyiladi (yozilayotgan narsa oxiriga yetsin); vaqtida to'xtamasa — majburan */
 async function stop(reason) {
   if (stopping) return;
@@ -114,6 +147,7 @@ async function stop(reason) {
     for (let waited = 0; waited < STOP_WAIT_MS && c.exitCode === null; waited += 100) await sleep(100);
     if (c.exitCode === null) c.kill();
   }
+  stopPhone();
   dropPid();
   rmSync(STOP_FILE, { force: true });
   process.exit(0);
@@ -124,6 +158,10 @@ process.on('SIGHUP', () => { void stop('oyna yopildi'); });
 setInterval(() => { if (existsSync(STOP_FILE)) void stop("«stop» buyrug'i"); }, STOP_POLL_MS);
 
 log(`nazoratchi ishga tushdi (papka: ${ROOT}, ma'lumotlar: ${DATA})`);
+if (phoneEnabled) {
+  log('telefon liniyasi ham yoqiladi (tgvoice/sip_live.py)');
+  void keepPhone();
+}
 for (let wait = RESTART_MIN_MS; !stopping;) {
   const startedAt = Date.now();
   child = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });

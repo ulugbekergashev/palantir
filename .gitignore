@@ -34,3 +34,4 @@ tgvoice/tmp/
 tgvoice/*.txt
 !tgvoice/requirements.txt
 __pycache__/
+tgvoice/asterisk/pjsip_shahar.conf

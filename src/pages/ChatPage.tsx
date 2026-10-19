@@ -143,7 +143,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
   return (
     <div className={`flex h-[calc(100dvh-var(--shell-y))] flex-col ${empty ? 'justify-center' : ''}`}>
       <header className={`mb-3 flex flex-wrap items-center gap-3 ${empty ? 'hidden' : ''}`}>
-        <div className="mr-auto">
+        <div className="mr-auto" data-ph-text>
           <h1 className="text-[1.75rem] font-extrabold leading-tight tracking-tight">Yordamchi</h1>
           <p className="text-sm text-slate-500">Yozing, gapiring yoki fayl tashlang — vazifa, mijoz, hujjat, narxnoma. Telegram'dagi suhbat ham shu yerda.</p>
         </div>
@@ -154,7 +154,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
         <Button size="sm" variant="ghost" onClick={reset} title="Suhbatni yangidan boshlash"><RotateCcw className="h-3.5 w-3.5" /> Yangi suhbat</Button>
       </header>
 
-      <div className={empty ? 'pb-5' : 'flex-1 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 sm:p-6'} aria-live="polite">
+      <div data-chat-log className={empty ? 'pb-5' : 'flex-1 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 sm:p-6'} aria-live="polite">
         {entries === null ? (
           <div className="flex h-full items-center justify-center text-slate-400"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : entries.length === 0 && !pending ? (
@@ -166,7 +166,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
             {entries.map(e => (
               <div key={e.id} className={`flex ${e.role === 'owner' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[88%] space-y-2 ${e.role === 'owner' ? 'items-end' : ''}`}>
-                  <div className={`rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed ${e.role === 'owner' ? 'rounded-br-md bg-indigo-600 text-white' : 'rounded-bl-md bg-slate-100 text-slate-900'}`}>
+                  <div data-msg={e.role} className={`rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed ${e.role === 'owner' ? 'rounded-br-md bg-indigo-600 text-white' : 'rounded-bl-md bg-slate-100 text-slate-900'}`}>
                     {e.role === 'owner' ? <p className="whitespace-pre-line">{e.text}</p> : <Markdown text={e.text} />}
                   </div>
                   {e.artifacts.map((a, i) => (
@@ -178,7 +178,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
             ))}
             {pending && (
               <>
-                <div className="flex justify-end"><div className="max-w-[88%] rounded-2xl rounded-br-md bg-indigo-600/80 px-4 py-2.5 text-[15px] text-white"><p className="whitespace-pre-line">{pending}</p></div></div>
+                <div className="flex justify-end"><div data-msg="owner" className="max-w-[88%] rounded-2xl rounded-br-md bg-indigo-600/80 px-4 py-2.5 text-[15px] text-white"><p className="whitespace-pre-line">{pending}</p></div></div>
                 <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Cerebro ishlayapti…</div>
               </>
             )}
@@ -194,7 +194,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
           <button type="button" onClick={() => void interviewAct('stop')} disabled={busy} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-40">To'xtatish</button>
         </div>
       )}
-      <form onSubmit={e => { e.preventDefault(); void submit(text); }} className={`flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm focus-within:border-indigo-400 ${empty ? 'mx-auto w-full max-w-3xl' : 'mt-3'}`}>
+      <form data-chat-form onSubmit={e => { e.preventDefault(); void submit(text); }} className={`flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm focus-within:border-indigo-400 ${empty ? 'mx-auto w-full max-w-3xl' : 'mt-3'}`}>
         <textarea
           ref={input}
           value={text}

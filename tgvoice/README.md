@@ -51,11 +51,41 @@ O'zgartirish keyingi qo'ng'iroqdan kuchga kiradi. Suhbatlar `Qo'ng'iroqlar/` ga 
 VoiceLab v2 modeli (`VOICELAB_MODEL=lison-v2`) jonliroq, lekin gapga ~5 s — telefonda ishlatilmaydi. Jonli oqim
 (VoiceLab realtime TTS, kalitda `tts:realtime` ruxsati) bilan tezlashishi mumkin — hali sinalmagan.
 
+## Telefon liniyasi (SIP) — `sip_live.py`
+
+Oddiy telefon raqami (Uztelecom va boshqalar) uchun. Asterisk WSL'da (Ubuntu, `D:\WSL\cerebro`) qo'ng'iroqni ko'taradi va
+AudioSocket orqali `sip_live.py` ga uzatadi. Har qo'ng'iroq o'z Gemini Live suhbatini oladi, shuning uchun bir vaqtda bir nechta
+qo'ng'iroq ko'tariladi (`SIP_MAX_CALLS`, standart 4). Cheklov faqat liniyada: Uztelecom'da nechta kanal bo'lsa, shuncha.
+
+Kim qo'ng'iroq qilganini liniya belgilaydi (`asterisk/extensions.conf`), suhbatdagi gap emas:
+
+| Qayerdan | Rejim | AI nima qila oladi |
+|---|---|---|
+| Egasining SIP ilovasi (login `egasi`, parol `.env` dagi `SIP_OWNER_PASSWORD`, faqat Wi-Fi'dan) | egasi | xuddi Telegram qo'ng'irog'idagidek: vazifalar, Cerebro |
+| Shu ilovadan «2» raqami | mijoz (sinov) | mijoz nima eshitishini tekshirish |
+| Shahar raqami (`pjsip_shahar.conf`) | mijoz | faqat biznes haqidagi bilim va `leave_request` — so'rov egasiga vazifa bo'lib tushadi, bir daqiqada Telegram'ga eslatma |
+
+Mijozga egasining vazifalari, ismi va Telefon.md ko'rsatmasi berilmaydi (`/api/brain/phone?for=customer`).
+
+O'rnatish (bir marta): WSL va Ubuntu → `apt install asterisk` → `%USERPROFILE%\.wslconfig` da `networkingMode=mirrored` →
+brandmauerda UDP 5060 va 10000–10100 (faqat ichki tarmoq). Sozlamalarni o'zgartirgandan keyin:
+
+```
+wsl -d Cerebro -u root -- bash /mnt/d/Projects/cerebro/tgvoice/asterisk/install.sh
+tgvoice\.venv\Scripts\python.exe tgvoice\sip_live.py
+```
+
+Uztelecom ma'lumotlari kelganda: `asterisk/pjsip_shahar.conf.namuna` → `pjsip_shahar.conf` (git'ga tushmaydi), to'ldirib `install.sh`.
+Telefonsiz tekshiruv: `tgvoice\.venv\Scripts\python.exe tgvoice\check_sip.py` — Asterisk ichida «mijoz» savol beradi, yozuv `tmp/sinov.wav`.
+
 ## Fayllar
 
 | Fayl | Nima |
 |---|---|
 | `call_live.py` | Asosiy: Telegram ↔ Gemini Live, vazifa asboblari, eslatma rejimi (`--remind <id>`) |
+| `sip_live.py` | Telefon liniyasi: Asterisk (AudioSocket) ↔ Gemini Live, egasi va mijoz rejimlari, bir vaqtda bir nechta qo'ng'iroq |
+| `asterisk/` | Asterisk sozlamalari va `install.sh` (WSL ichiga o'rnatadi) |
+| `check_sip.py` | Telefonsiz tekshiruv: Asterisk ichida mijoz qo'ng'irog'i |
 | `login.py` | Akkauntga bir marta kirish |
 | `common.py` | Kalitlar `.env` dan (Cerebro bergan muhit o'zgaruvchilari ustun) |
 | `call.py` | Eski zanjir: VoiceLab ovozi bilan (VoiceLab varianti uchun asos) |

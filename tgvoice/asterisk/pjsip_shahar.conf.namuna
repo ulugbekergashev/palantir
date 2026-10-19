@@ -1,0 +1,40 @@
+; Uztelecom shahar raqami — namuna. Ma'lumotlar kelganda nusxa oling: pjsip_shahar.conf, <...> larni to'ldiring,
+; keyin: wsl -d Cerebro -u root -- bash /mnt/d/Projects/cerebro/tgvoice/asterisk/install.sh
+; Uztelecom beradi: raqam, server (softswitch) manzili, login va parol (ko'pincha raqamning o'zi), ba'zan VLAN.
+; Qo'ng'iroq qilganda raqam ko'rinishi (AON) — alohida xizmat, ulashda so'rang.
+
+[shahar]
+type=registration
+outbound_auth=shahar
+server_uri=sip:<softswitch>
+client_uri=sip:<raqam>@<softswitch>
+contact_user=<raqam>
+retry_interval=60
+
+[shahar]
+type=auth
+auth_type=userpass
+username=<login>
+password=<parol>
+
+[shahar]
+type=aor
+contact=sip:<softswitch>
+
+[shahar]
+type=endpoint
+context=shahar
+disallow=all
+allow=alaw,ulaw
+outbound_auth=shahar
+aors=shahar
+from_user=<raqam>
+from_domain=<softswitch>
+direct_media=no
+rtp_symmetric=yes
+force_rport=yes
+
+[shahar]
+type=identify
+endpoint=shahar
+match=<softswitch>

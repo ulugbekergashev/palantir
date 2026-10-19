@@ -1,0 +1,73 @@
+/**
+ * AI jamoa: har xodim kim, nima qiladi va hozir nima bilan band — bosh ekrandagi kartalar va xodim sahifasining sarlavhasi
+ * shu yerdan. Holat haqiqiy ma'lumotdan (so'rovlar, qo'ng'iroqlar, vazifalar, kameralar, DentaCRM), 30 soniyada yangilanadi.
+ */
+import { useEffect, useState } from 'react';
+import { Camera, ChartLine, Headset, UserRound, type LucideIcon } from 'lucide-react';
+import type { LiveStatus } from '../types';
+import { api } from '../data/api';
+import { iso } from '../lib/week';
+import type { Area } from '../lib/nav';
+
+export type Member = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi';
+
+export const TEAM: Record<Member, { name: string; role: string; about: string; icon: LucideIcon }> = {
+  qabulxona: { name: 'Qabulxona', role: 'Telefon · Instagram · Telegram', icon: Headset, about: "Mijozlarga kunu tun javob beradi, qabulga yozadi; o'zi hal qila olmaganini sizga so'rov qilib qoldiradi." },
+  yordamchi: { name: 'Yordamchi', role: "Sizning o'ng qo'lingiz", icon: UserRound, about: 'Eslatadi, hujjat tayyorlaydi, savolingizga javob beradi — ovoz bilan yoki yozib.' },
+  kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, about: 'Kreslo va kassani kuzatadi, kelganlar sonini jadval bilan solishtiradi.' },
+  tahlilchi: { name: 'Tahlilchi', role: 'Raqamlar · DentaCRM', icon: ChartLine, about: "Murojaatlar, qabul va tushum — kunlik va haftalik ko'rinishda." },
+};
+export const MEMBERS = Object.keys(TEAM) as Member[];
+export const isMember = (a: Area): a is Member => (MEMBERS as string[]).includes(a);
+
+export interface MemberState { status: string; detail: string; live: boolean; badge: number }
+
+/** tick — biror ish bajarilganda (so'rov yopildi, vazifa qo'shildi) darhol yangilash uchun */
+export function useTeam(status: LiveStatus, tick = 0): Record<Member, MemberState> | null {
+  const [team, setTeam] = useState<Record<Member, MemberState> | null>(null);
+  const crm = !!status.crm?.account;
+  useEffect(() => {
+    let stale = false;
+    const load = async () => {
+      const today = iso(new Date());
+      const [requests, calls, tasks, cameras, day] = await Promise.all([
+        api.requests('open').catch(() => null), api.calls().catch(() => null), api.tasks('open').catch(() => null),
+        api.cameras().catch(() => null), crm ? api.crmDay().then(r => r.day).catch(() => null) : Promise.resolve(null),
+      ]);
+      if (stale) return;
+      const callsToday = calls?.calls.filter(c => c.startedAt.slice(0, 10) === today) ?? [];
+      const talking = calls?.calls.some(c => c.status === 'talking' || c.status === 'ringing') ?? false;
+      const stamp = `${today}T${new Date().toTimeString().slice(0, 5)}`;
+      const late = tasks?.tasks.filter(t => t.dueAt && t.dueAt < stamp).length ?? 0;
+      const todayLeft = tasks?.tasks.filter(t => t.dueAt && t.dueAt >= stamp && t.dueAt.slice(0, 10) === today).length ?? 0;
+      const next = tasks?.tasks.filter(t => t.dueAt && t.dueAt >= stamp).sort((a, b) => (a.dueAt! < b.dueAt! ? -1 : 1))[0] ?? tasks?.tasks.find(t => t.dueAt && t.dueAt < stamp);
+      const cams = cameras?.cameras.length ?? 0;
+      setTeam({
+        qabulxona: {
+          live: talking, badge: requests?.open ?? 0,
+          status: talking ? 'Hozir qo‘ng‘iroqda' : 'Navbatchilikda',
+          detail: `Bugun ${callsToday.length} qo‘ng‘iroq${requests?.open ? ` · ${requests.open} so‘rov sizni kutyapti` : ''}`,
+        },
+        yordamchi: {
+          live: false, badge: late + todayLeft,
+          status: late ? `${late} ta kechikkan ish` : todayLeft ? `Bugun ${todayLeft} ish` : 'Bugun ish yo‘q',
+          detail: next ? `Keyingisi: ${next.title}` : 'Eslatma qo‘yish uchun ayting',
+        },
+        kuzatuvchi: {
+          live: cams > 0, badge: 0,
+          status: cams ? `${cams} kamera kuzatyapti` : 'Kamera ulanmagan',
+          detail: cams ? 'Kreslo va kassa — jadval bilan solishtiriladi' : 'Ulash — 2 daqiqa',
+        },
+        tahlilchi: {
+          live: !!day, badge: 0,
+          status: day ? `Bugun ${day.total} qabul · ${day.came} keldi` : crm ? 'DentaCRM javob bermadi' : 'DentaCRM ulanmagan',
+          detail: day ? `Tushum ${day.revenue.total.toLocaleString('uz-UZ')} so‘m` : 'Ulasangiz, qabul va tushumni aytadi',
+        },
+      });
+    };
+    void load();
+    const t = setInterval(() => { void load(); }, 30_000);
+    return () => { stale = true; clearInterval(t); };
+  }, [crm, tick]);
+  return team;
+}

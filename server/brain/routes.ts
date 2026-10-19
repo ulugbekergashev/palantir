@@ -4,11 +4,13 @@ import { z } from 'zod';
 import { MAX_OFFERINGS } from '../../src/lib/prices';
 import { knowledgeBlocks, resetConversation } from '../agent';
 import { businesses, chatLog, tasks, type BusinessRow } from '../db';
-import { addSample, brainView, confirmSuggestion, dropSuggestion, importPrices, packOf, pricesFromSuggestion, sampleFromSuggestion, saveAnswer } from './index';
+import { addSample, brainView, confirmSuggestion, dropSuggestion, importPrices, knowledgeText, packOf, pricesFromSuggestion, sampleFromSuggestion, saveAnswer } from './index';
 import { interviewSkip, interviewStart, interviewStop } from './interview';
 import { LIMITS, plain } from './logic';
 import { phoneGuide, saveCall, syncTasks } from './mirror';
-import { refresh, style, vault as knowledge } from './vault';
+import { MAX_NOTE, NoteError, noteTree, readNote, writeNote } from './files';
+import { obsidianLink } from './obsidian';
+import { refresh, style, vault as knowledge, vaultDir } from './vault';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -22,6 +24,7 @@ const QaSchema = z.object({ question: text(3, LIMITS.question).optional(), answe
   .refine(v => v.packId || v.question, 'savol kerak');
 const EditSchema = z.object({ question: text(3, LIMITS.question).optional(), answer: text(1, LIMITS.sample).optional(), remember: z.literal(true).optional() });
 const SampleSchema = z.object({ title: text(2, LIMITS.title), text: text(20, LIMITS.sample) });
+const NoteSchema = z.object({ path: z.string().min(4).max(400), content: z.string().max(MAX_NOTE) });
 const StyleSchema = z.object({ style: z.string().trim().max(LIMITS.style) });
 const PricesSchema = z.object({ items: z.array(z.object({ name: text(2, 80), price: z.number().min(0).max(100_000_000_000) })).min(1).max(MAX_OFFERINGS) });
 /** Telefon suhbati (tgvoice/call_live.py): mahalliy vaqt, «Amal» — bajarilgan ish (vazifa qo'shildi va h.k.) */
@@ -43,11 +46,17 @@ export function mountBrain(app: Express, { asBiz, bad, fail }: Deps): void {
 
   // Telefondagi AI qo'ng'iroq boshida biznesni biladi: kim bilan gaplashadi, Telefon.md dagi ko'rsatma va ovoz,
   // bilim (yordamchi bilan bir xil) va ochiq vazifalar
-  app.get('/api/brain/phone', asBiz((_req, res, biz) => {
+  // ?for=customer — shahar liniyasiga mijoz qo'ng'iroq qildi: mijozga aytsa bo'ladigan bilim (ovozli agentdagi kabi — filtr
+  // ushlaydigan fakt va qatorlarsiz). Egasining ismi, jamoasi, vazifalari va Telefon.md ko'rsatmasi — egasi bilan suhbat uchun, mijozga berilmaydi
+  app.get('/api/brain/phone', asBiz((req, res, biz) => {
+    const guide = phoneGuide(biz.id, biz.profile.ownerName);
+    if (req.query.for === 'customer') {
+      res.json({ business: biz.profile.name, owner: '', guide: '', voice: guide.voice, context: knowledgeText(biz) });
+      return;
+    }
     syncTasks(biz.id);
     const open = tasks.list(biz.id, 'open', 30);
     const list = open.map(t => `- [${t.id}] ${plain(t.title, LIMITS.title)}${t.dueAt ? ` (${t.dueAt.replace('T', ' ')})` : ''}`);
-    const guide = phoneGuide(biz.id, biz.profile.ownerName);
     res.json({
       business: biz.profile.name,
       owner: biz.profile.ownerName,
@@ -55,6 +64,32 @@ export function mountBrain(app: Express, { asBiz, bad, fail }: Deps): void {
       voice: guide.voice,
       context: [...knowledgeBlocks(biz), `<open_tasks>\n${list.length ? list.join('\n') : '(none)'}\n</open_tasks>`].filter(Boolean).join('\n\n'),
     });
+  }));
+
+  // «Ikkinchi miya»ni Obsidian'ning o'zida ochish: papka shu kompyuterdagi Obsidian ro'yxatiga qo'shiladi, havolani brauzer ochadi
+  // Miya panelda — Obsidian kabi: papkalar daraxti, sahifa (o'qish, saqlash), unga havola qilgan sahifalar. Fayllar Obsidian'dagi bilan bir
+  app.get('/api/brain/files', asBiz((_req, res, biz) => { res.json({ tree: noteTree(biz.id) }); }));
+  app.get('/api/brain/note', asBiz((req, res, biz) => {
+    try {
+      res.json({ note: readNote(biz.id, String(req.query.path ?? '')) });
+    } catch (e) {
+      if (e instanceof NoteError) return res.status(404).json({ error: e.message });
+      fail(res, e, 500);
+    }
+  }));
+  app.put('/api/brain/note', asBiz((req, res, biz) => {
+    const p = NoteSchema.safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    try {
+      res.json({ note: writeNote(biz.id, p.data.path, p.data.content) });
+    } catch (e) {
+      if (e instanceof NoteError) return res.status(400).json({ error: e.message });
+      fail(res, e, 500);
+    }
+  }));
+
+  app.get('/api/brain/obsidian', asBiz((_req, res, biz) => {
+    res.json({ url: obsidianLink(vaultDir(biz.id)) });
   }));
 
   // Qo'ng'iroq tugadi — suhbat Obsidian'ga (Qo'ng'iroqlar/)

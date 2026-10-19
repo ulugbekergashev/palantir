@@ -51,6 +51,12 @@ export async function mirrorTests({ ok, api, token, otherToken, dataDir }: Harne
   // Telefondagi AI: yordamchi bilan bir xil bilim + ochiq vazifalar
   const ctx = String((await api('/api/brain/phone', { token })).json.context);
   ok("telefon uchun bilim: profil, faktlar va faqat ochiq vazifalar", ctx.includes('<business_profile>') && ctx.includes('<saved_notes>') && ctx.includes(`[${wrong?.id}]`) && !ctx.includes(`[${a.id}]`), ctx.slice(0, 300));
+  // Shahar liniyasiga mijoz qo'ng'iroq qildi: biznes haqidagi bilim bor, egasining vazifalari va ko'rsatmasi yo'q
+  const forCustomer = (await api('/api/brain/phone?for=customer', { token })).json as { context: string; guide: string; owner: string };
+  const ownerName = ((await api('/api/me', { token })).json.business as { ownerName: string }).ownerName;
+  ok("mijoz liniyasiga: mijozga aytsa bo'ladigan bilim; egasining vazifalari, ismi va Telefon.md ko'rsatmasi yo'q", forCustomer.context.startsWith('Nomi:')
+    && !forCustomer.context.includes('<open_tasks>') && !forCustomer.context.includes(`[${wrong?.id}]`) && !forCustomer.context.includes('Owner:')
+    && !(ownerName && forCustomer.context.includes(ownerName)) && forCustomer.guide === '' && forCustomer.owner === '', forCustomer.context.slice(0, 300));
 
   // Telefon.md — har biznesga moslanadi: telefondagi AI shu sahifaga qarab gaplashadi
   const phoneFile = join(root, 'Telefon.md');

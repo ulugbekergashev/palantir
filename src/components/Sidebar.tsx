@@ -78,7 +78,8 @@ export function Sidebar({ wide, open, page, setPage, biz, health, badges = {}, o
   const drawer = wide ? { 'aria-label': 'Yon panel' } : { inert: !open, role: 'dialog', 'aria-modal': true, 'aria-label': 'Menyu' } as const;
   return (
     <aside {...drawer} className={`fixed inset-y-0 left-0 z-[46] flex h-dvh w-64 max-w-[85vw] flex-col overflow-y-auto overscroll-contain bg-ink-950 px-3 pb-3 pt-5 text-ink-200 transition-transform duration-200 ${wide || open ? 'translate-x-0' : '-translate-x-full'} ${open && !wide ? 'shadow-2xl' : ''}`}>
-      <div className="px-2"><Logo tone="ink" /></div>
+      {/* Logotip — AI bosh ekranga (#/ai) qaytish */}
+      <a href="#/ai" aria-label="Cerebro AI — bosh ekran" className="block rounded-xl px-2 py-1 no-underline transition-colors hover:bg-ink-900"><Logo tone="ink" subtitle="AI ekranga qaytish" /></a>
       <nav aria-label="Bo'limlar" className="mt-7 space-y-3">
         {GROUPS.map((group, n) => (
           <ul key={group[0]} className={`space-y-0.5 ${n ? 'border-t border-ink-800 pt-3' : ''}`}>

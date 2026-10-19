@@ -60,8 +60,10 @@ if ($Uninstall) {
   Step "Cerebro'ni to'xtatish va avtoyuklashdan olib tashlash"
   if (Get-Command node -ErrorAction SilentlyContinue) { node scripts\supervise.mjs stop }
   if (Test-Path $StartupLink) { Remove-Item $StartupLink -Force -Confirm:$false; Note "Avtoyuklash yorlig'i o'chirildi" }
-  $panelLink = Join-Path $Desktop 'Cerebro.url'
-  if (Test-Path $panelLink) { Remove-Item $panelLink -Force -Confirm:$false }
+  foreach ($name in 'Cerebro AI.lnk', 'Cerebro.url') {
+    $panelLink = Join-Path $Desktop $name
+    if (Test-Path $panelLink) { Remove-Item $panelLink -Force -Confirm:$false }
+  }
   Note "Tayyor. Ma'lumotlar (baza, ikkinchi miya, zaxira nusxalar) joyida qoldi: $(Read-EnvValue 'DATA_DIR')"
   exit 0
 }
@@ -179,8 +181,17 @@ $link.Save()
 Note "Kompyuter yonib, foydalanuvchi kirganda Cerebro o'zi ishga tushadi"
 $port = Read-EnvValue 'PORT'
 if (-not $port) { $port = $DefaultPort }
-[IO.File]::WriteAllLines((Join-Path $Desktop 'Cerebro.url'), @('[InternetShortcut]', "URL=http://localhost:$port"), (New-Object Text.UTF8Encoding($false)))
-Note "Ish stolida 'Cerebro' yorlig'i - panelni ochadi"
+# Yorliq Cerebro'ni (o'chiq bo'lsa) yoqadi va panelni ochadi; eski variant - faqat panel havolasi (Cerebro.url) - olib tashlanadi
+$oldPanelLink = Join-Path $Desktop 'Cerebro.url'
+if (Test-Path $oldPanelLink) { Remove-Item $oldPanelLink -Force -Confirm:$false }
+$panel = $shell.CreateShortcut((Join-Path $Desktop 'Cerebro AI.lnk'))
+$panel.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
+$panel.Arguments = "`"$(Join-Path $PSScriptRoot 'cerebro-ochish.vbs')`""
+$panel.WorkingDirectory = $Root
+$panel.IconLocation = Join-Path $Root 'Cerebro-logo\favicon\favicon.ico'
+$panel.Description = 'Cerebro: yoqish va panelni ochish'
+$panel.Save()
+Note "Ish stolida 'Cerebro AI' yorlig'i - Cerebro'ni yoqadi va panelni ochadi"
 
 $answer = Read-Host "   Kompyuter o'zi uxlab qolmasin (tarmoqqa ulangan paytda)? Shunda bot tunda ham javob beradi (h/y) [h]"
 if ($answer -notmatch '^[yY]') {

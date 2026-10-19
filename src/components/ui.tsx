@@ -82,12 +82,13 @@ export function Card({ title, description, action, children, className = '' }: {
 /** Sahifa boshi: nom, bir-ikki jumla izoh va (bo'lsa) o'ngda amallar. Ostidagi qalin bo'lak — daftar sahifasining belgisi */
 export function PageHeader({ title, description, children }: { title: string; description?: ReactNode; children?: ReactNode }) {
   return (
-    <header className="relative flex flex-wrap items-end gap-x-6 gap-y-3 border-b border-slate-200 pb-5 after:absolute after:-bottom-px after:left-0 after:h-0.5 after:w-10 after:bg-slate-900">
-      <div className="min-w-0 flex-1 basis-80">
+    // data-page-header: xodim sahifasida (AI jamoa) sarlavha matni yashiriladi — xodim sarlavhasi bor, tugmalar qoladi
+    <header data-page-header className="relative flex flex-wrap items-end gap-x-6 gap-y-3 border-b border-slate-200 pb-5 after:absolute after:-bottom-px after:left-0 after:h-0.5 after:w-10 after:bg-slate-900">
+      <div data-ph-text className="min-w-0 flex-1 basis-80">
         <h1 className="text-[1.75rem] font-extrabold leading-tight tracking-tight">{title}</h1>
         {description && <div className="mt-1.5 max-w-3xl space-y-1 text-sm leading-relaxed text-slate-500">{description}</div>}
       </div>
-      {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
+      {children && <div data-ph-actions className="flex flex-wrap items-center gap-2">{children}</div>}
     </header>
   );
 }
