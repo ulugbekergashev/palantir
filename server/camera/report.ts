@@ -15,6 +15,9 @@ sql.exec(`CREATE TABLE IF NOT EXISTS camera_reports (
 )`);
 
 const REPORT_WINDOW_H = 4;
+/** Yuborilmadi (Telegram yoki DentaCRM javob bermadi) — shuncha vaqtdan keyin yana uriniladi, har tekshiruvda emas */
+const RETRY_MS = 5 * 60_000;
+const retryAt = new Map<string, number>();
 
 const sentToday = (bizId: string, day: string) => !!sql.one('SELECT 1 x FROM camera_reports WHERE business_id = ? AND date = ?', r => r.x, bizId, day);
 
@@ -37,12 +40,14 @@ export async function reportTick(send: (biz: BusinessRow, html: string) => Promi
     const day = iso(now);
     for (const biz of businesses.all()) {
       if (!biz.active || !biz.ownerChatId || biz.profile.morningBrief === false || !cameras.list(biz.id).length || sentToday(biz.id, day)) continue;
+      if ((retryAt.get(biz.id) ?? 0) > now.getTime()) continue;
       try {
         const html = await cameraReport(biz, day, now);
         if (!html) continue;
         await send(biz, html);
         sql.run('INSERT OR IGNORE INTO camera_reports (business_id, date, sent_at) VALUES (?, ?, ?)', biz.id, day, sql.nowIso());
       } catch (e) {
+        retryAt.set(biz.id, now.getTime() + RETRY_MS);
         console.error(`[kamera] kechki hisobot (${biz.profile.name}):`, (e as Error).message);
       }
     }
