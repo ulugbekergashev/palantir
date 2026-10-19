@@ -9,6 +9,7 @@ import { resetClaude } from './claude';
 import { env, voiceEnabled } from './env';
 import { createApp } from './http';
 import { ffmpegAvailable, stopCameraEngine } from './camera/stream';
+import { flushAllWaits } from './camera/waiting';
 import { recoverMoney } from './crm/actions';
 import { closeDb, notices } from './db';
 import { recoverBookings } from './inbox/core';
@@ -89,6 +90,7 @@ const shutdown = () => {
   stopMonitor();
   stopInstagramApi();
   bot.stop();
+  flushAllWaits();
   stopCameraEngine();
   // Brauzer (Instagram) va Telegram seansi yopilishi kutiladi: chala yopilgan brauzer keyingi ishga tushishda profilni band qilib turardi
   const closed = Promise.race([Promise.allSettled([stopTelegramUser(), stopInstagram()]), new Promise(r => setTimeout(r, CLOSE_WAIT_MS))]);

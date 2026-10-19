@@ -10,6 +10,7 @@ import type { BotService } from '../bot';
 import { cameras, type BusinessRow } from '../db';
 import { resetConversation } from '../agent';
 import { cameraFrame } from '../camera/routes';
+import { maskImage } from '../camera/stream';
 import { askFrame, suggestZones } from './look';
 import { MIN_LOOK_EVERY, conditionHolds, countIn, inWindow } from './logic';
 import { parseOrder } from './parse';
@@ -157,7 +158,8 @@ export function mountOrders(app: Express, { asBiz, bad, fail, bot }: Deps): void
     const cam = cameras.get(biz.id, String(req.params.id));
     if (!cam) return res.status(404).json({ error: 'Kamera topilmadi' });
     const sent = Buffer.isBuffer(req.body) && req.body.length > 100 && req.body[0] === 0xff && req.body[1] === 0xd8 ? req.body : null;
-    const frame = cam.ip ? await cameraFrame(biz.id, cam.id) : sent;
+    // Brauzer surati panelda yopilgan bo'lsa ham, maxfiy joylar serverda yana yopiladi (yopilmasa — AI'ga bormaydi)
+    const frame = cam.ip ? await cameraFrame(biz.id, cam.id) : sent && await maskImage(sent, cam.zones.filter(z => z.kind === 'private')).catch(() => null);
     if (!frame) return res.status(409).json({ error: cam.ip ? 'Kameradan kadr olinmadi — kamera javob bermayapti' : "Kadr kelmadi — kamera tasviri ko'ringach qayta bosing" });
     try { res.json({ zones: await suggestZones(biz.id, cam, frame) }); } catch (e) { aiError(res, e); }
   }));

@@ -36,6 +36,18 @@ export function trackStep(tracks: readonly Track[], people: readonly Box[], zone
   return { tracks: kept, finished };
 }
 
+/** Ish vaqti (kun boshidan daqiqa) */
+export interface WorkHours { fromMin: number; toMin: number }
+export const DEFAULT_HOURS: WorkHours = { fromMin: 8 * 60, toMin: 21 * 60 };
+/** Egasining matnidan birinchi «HH:MM–HH:MM» («Du–Sh 9:00–20:00»); topilmasa yoki tushunarsiz bo'lsa — 08:00–21:00 */
+export function workHours(text?: string | null): WorkHours {
+  const m = /(\d{1,2})[:.](\d{2})\s*[–—-]\s*(\d{1,2})[:.](\d{2})/.exec(text ?? '');
+  if (!m) return DEFAULT_HOURS;
+  const fromMin = Number(m[1]) * 60 + Number(m[2]), toMin = Number(m[3]) * 60 + Number(m[4]);
+  return fromMin < toMin && toMin <= 24 * 60 ? { fromMin, toMin } : DEFAULT_HOURS;
+}
+export const inHours = (h: WorkHours, at: Date): boolean => { const m = at.getHours() * 60 + at.getMinutes(); return m >= h.fromMin && m < h.toMin; };
+
 /** Kreslo bandligi foizi shundan kam kuzatilgan bo'lsa aytilmaydi (bir necha daqiqadan foiz chiqarish — aldash) */
 const MIN_WATCH_MIN = 10;
 
@@ -43,13 +55,15 @@ const minutes = (ms: number) => Math.round(ms / 60_000);
 const overlap = (a0: number, a1: number, b0: number, b1: number) => Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
 
 /**
- * Kreslo bandligi: kamera shu kuni uzluksiz kuzatgan oraliqda (seenFrom..lastSeenAt, kun ichida) kresloda kimdir o'tirgan vaqt.
- * Kamera uzilgan bo'lsa, seenFrom keyinroq bo'ladi — undan oldingi o'tirishlar ham hisobdan chiqadi (foiz to'g'ri qoladi)
+ * Kreslo bandligi: ish vaqtida, kamera uzluksiz kuzatgan oraliqda (seenFrom..lastSeenAt) kresloda kimdir o'tirgan vaqt.
+ * Kechayu kunduz ishlaydigan kamerada tun hisobga kirmaydi; kamera uzilgan bo'lsa, seenFrom keyinroq bo'ladi — undan oldingi
+ * o'tirishlar ham hisobdan chiqadi (foiz to'g'ri qoladi)
  */
-export function chairUse(cams: readonly Camera[], sessions: readonly CameraSession[], dayStart: number, dayEnd: number, now: number): ChairUse[] {
+export function chairUse(cams: readonly Camera[], sessions: readonly CameraSession[], dayStart: number, now: number, hours: WorkHours): ChairUse[] {
+  const open = dayStart + hours.fromMin * 60_000, close = dayStart + hours.toMin * 60_000;
   return cams.flatMap(cam => cam.zones.filter(z => z.kind === 'chair').map((zone): ChairUse => {
-    const from = cam.seenFrom ? Math.max(dayStart, Date.parse(cam.seenFrom)) : 0;
-    const to = cam.lastSeenAt ? Math.min(dayEnd, now, Date.parse(cam.lastSeenAt)) : 0;
+    const from = cam.seenFrom ? Math.max(open, Date.parse(cam.seenFrom)) : 0;
+    const to = cam.lastSeenAt ? Math.min(close, now, Date.parse(cam.lastSeenAt)) : 0;
     const watched = Math.max(0, to - from);
     const busy = watched ? sessions.filter(s => s.cameraId === cam.id && s.zoneId === zone.id && s.kind === 'chair')
       .reduce((sum, s) => sum + overlap(Date.parse(s.startedAt), s.endedAt ? Date.parse(s.endedAt) : now, from, to), 0) : 0;

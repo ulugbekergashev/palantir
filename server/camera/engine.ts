@@ -9,7 +9,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
-import { ENGINE_FLAG, ffmpegInput, maskUrl, type Box, type EngineCamera, type FromEngine, type Look, type ToEngine } from './wire';
+import { ENGINE_FLAG, ffmpegInput, maskUrl, sourceKind, type Box, type EngineCamera, type FromEngine, type Look, type SourceKind, type ToEngine } from './wire';
 
 /** Model uchun kadr o'lchami (nisbat buzilsa ham zonalar to'g'ri tushadi: joylar kadr ulushida) va kadrlar orasi */
 const WIDTH = 480, HEIGHT = 270, FRAME_BYTES = WIDTH * HEIGHT * 3, FRAME_EVERY_SEC = 2;
@@ -23,10 +23,13 @@ const IDLE_MS = 200;
 
 const send = (m: FromEngine) => { try { process.send?.(m); } catch { /* server yopilgan */ } };
 
-interface Feed { cam: EngineCamera; proc: ChildProcess | null; pending: Buffer; latest: Buffer | null; lastFrameAt: number; wait: number; timer: NodeJS.Timeout | null; state: string }
+/** flip — HTTP manzil turi taxmini (surat yoki MJPEG) ishlamadi, boshqasi sinalmoqda; framed — shu ffmpeg jarayonidan kadr keldi */
+interface Feed { cam: EngineCamera; proc: ChildProcess | null; pending: Buffer; latest: Buffer | null; lastFrameAt: number; wait: number; timer: NodeJS.Timeout | null; state: string; flip: boolean; framed: boolean }
 const feeds = new Map<string, Feed>();
 let ffmpeg = 'ffmpeg';
 let testInput: string[] | null = null;
+let noRedirects = false;
+const other = (k: SourceKind): SourceKind => (k === 'still' ? 'mjpeg' : 'still');
 
 function setState(f: Feed, state: 'connecting' | 'ok' | 'error', message: string | null = null): void {
   const key = `${state}|${message ?? ''}`;
@@ -38,7 +41,10 @@ function setState(f: Feed, state: 'connecting' | 'ok' | 'error', message: string
 function start(f: Feed): void {
   f.timer = null;
   if (feeds.get(f.cam.id) !== f) return;
-  const input = testInput ?? ffmpegInput(f.cam.url, FRAME_EVERY_SEC);
+  const guess = sourceKind(f.cam.url);
+  const kind = guess !== 'rtsp' && f.flip ? other(guess) : guess;
+  const input = testInput ?? ffmpegInput(f.cam.url, FRAME_EVERY_SEC, { noRedirects, kind });
+  f.framed = false;
   const proc = spawn(ffmpeg, ['-nostdin', '-loglevel', 'error', ...input, '-an', '-vf', `fps=1/${FRAME_EVERY_SEC},scale=${WIDTH}:${HEIGHT}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   f.proc = proc;
   f.pending = Buffer.alloc(0);
@@ -54,6 +60,7 @@ function start(f: Feed): void {
     f.pending = Buffer.from(f.pending.subarray(whole * FRAME_BYTES));
     f.lastFrameAt = Date.now();
     f.wait = RESTART_MIN_MS;
+    f.framed = true;
     setState(f, 'ok');
   });
   proc.stderr.on('data', (chunk: Buffer) => { problem = maskUrl(String(chunk)).trim().split(/\r?\n/).at(-1)?.slice(0, 200) ?? problem; });
@@ -61,6 +68,8 @@ function start(f: Feed): void {
     if (f.proc !== proc) return;
     f.proc = null;
     if (feeds.get(f.cam.id) !== f) return;
+    // HTTP manzildan birorta kadr kelmadi — turi noto'g'ri taxmin qilingan bo'lishi mumkin (…/capture aslida MJPEG): keyingi safar boshqasi
+    if (!f.framed && guess !== 'rtsp') f.flip = !f.flip;
     setState(f, 'error', problem || why);
     f.timer = setTimeout(() => start(f), f.wait);
     f.wait = Math.min(f.wait * 2, RESTART_MAX_MS);
@@ -86,7 +95,7 @@ function sync(list: EngineCamera[]): void {
   }
   for (const cam of list) {
     if (feeds.has(cam.id)) continue;
-    const f: Feed = { cam, proc: null, pending: Buffer.alloc(0), latest: null, lastFrameAt: Date.now(), wait: RESTART_MIN_MS, timer: null, state: '' };
+    const f: Feed = { cam, proc: null, pending: Buffer.alloc(0), latest: null, lastFrameAt: Date.now(), wait: RESTART_MIN_MS, timer: null, state: '', flip: false, framed: false };
     feeds.set(cam.id, f);
     start(f);
   }
@@ -151,6 +160,7 @@ async function main(): Promise<void> {
     if (m?.type !== 'cameras') return;
     ffmpeg = m.ffmpeg;
     testInput = m.testInput;
+    noRedirects = m.noRedirects;
     sync(m.list);
   });
   const detect = await loadDetector();

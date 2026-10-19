@@ -21,7 +21,7 @@ import { join } from 'node:path';
 import { iso } from '../src/lib/week';
 import { findings, reconcile, unbilled, type Sitting } from '../server/camera/reconcile';
 import type { Appointment } from '../server/crm/logic';
-import { MAX_JUMP, attendance, chairUse, trackStep, waitStats, type Track } from '../server/camera/occupancy';
+import { MAX_JUMP, attendance, chairUse, trackStep, waitStats, workHours, type Track } from '../server/camera/occupancy';
 import type { Camera, CameraSession } from '../src/types';
 import { judgeLook, type TamperState } from '../server/camera/tamper';
 import { cameraPresets } from '../src/lib/presets';
@@ -72,9 +72,14 @@ ok("kutish: uzoq joyda paydo bo'lgan — yangi odam", jump.tracks.length === 2 &
 const T = (h: number, mm = 0) => new Date(2026, 9, 20, h, mm).toISOString();
 const cam = { id: 'k1', name: 'Kabinet', zones: [{ id: 'c1', kind: 'chair', name: 'Kreslo 1', x: 0, y: 0, w: 1, h: 1, doctorId: null }], seenFrom: T(9), lastSeenAt: T(12) } as unknown as Camera;
 const sess = (id: string, kind: 'chair' | 'waiting', from: string, to: string | null): CameraSession => ({ id, cameraId: 'k1', zoneId: kind === 'chair' ? 'c1' : 'w1', kind, zoneName: 'x', startedAt: from, endedAt: to });
-const use = chairUse([cam], [sess('a', 'chair', T(8), T(8, 30)), sess('b', 'chair', T(9, 30), T(10, 30)), sess('c', 'chair', T(11), null)], Date.parse(T(0)), Date.parse(T(24)), Date.parse(T(12)));
+const ALL_DAY = { fromMin: 0, toMin: 24 * 60 };
+const use = chairUse([cam], [sess('a', 'chair', T(8), T(8, 30)), sess('b', 'chair', T(9, 30), T(10, 30)), sess('c', 'chair', T(11), null)], Date.parse(T(0)), Date.parse(T(12)), ALL_DAY);
 ok("bandlik: kuzatilgan 3 soatdan 2 soati band — 67% (kamera ko'rmagan paytdagi o'tirish hisobga kirmaydi)", use.length === 1 && use[0].pct === 67 && use[0].busyMin === 120 && use[0].watchedMin === 180, JSON.stringify(use));
-ok("bandlik: kamera 10 daqiqadan kam kuzatgan — foiz aytilmaydi", chairUse([{ ...cam, seenFrom: T(11, 55) }], [], Date.parse(T(0)), Date.parse(T(24)), Date.parse(T(12)))[0].pct === null);
+ok("bandlik: kamera 10 daqiqadan kam kuzatgan — foiz aytilmaydi", chairUse([{ ...cam, seenFrom: T(11, 55) }], [], Date.parse(T(0)), Date.parse(T(12)), ALL_DAY)[0].pct === null);
+const allNight = { ...cam, seenFrom: T(0), lastSeenAt: T(20) } as Camera;
+const nightUse = chairUse([allNight], [sess('d', 'chair', T(10), T(16))], Date.parse(T(0)), Date.parse(T(20)), workHours('Du–Sh 9:00–19:00'))[0];
+ok("bandlik: kechayu kunduz ishlaydigan kamera — faqat ish vaqti (9–19) hisoblanadi: 6 soatdan 10 — 60%", nightUse.pct === 60 && nightUse.watchedMin === 600, JSON.stringify(nightUse));
+ok("ish vaqti: matndan olinadi, tushunarsiz bo'lsa — 08:00–21:00", workHours('Har kuni 08:30 - 20:00').fromMin === 510 && workHours('Du–Ju 9.00–18.00').toMin === 1080 && workHours('kelishilgan').fromMin === 480 && workHours('20:00–09:00').toMin === 1260);
 const ws = waitStats([sess('w', 'waiting', T(10), T(10, 5)), sess('x', 'waiting', T(10), T(10, 25)), sess('y', 'waiting', T(11), null), sess('z', 'chair', T(9), T(10))], 20, { people: 1, longestMs: 3 * 60_000 });
 ok("kutish hisobi: 2 kishi, o'rtacha 15, eng uzoq 25, 20 daqiqadan oshgan 1", ws.count === 2 && ws.avgMin === 15 && ws.maxMin === 25 && ws.longCount === 1 && ws.nowWaiting === 1 && ws.nowLongestMin === 3, JSON.stringify(ws));
 
@@ -94,11 +99,26 @@ ok("tamper: chiroq yoqildi (yorug'roq, o'sha manzara) — hech narsa", events.ev
 const moved = [22_000, 24_000, 26_000, 28_000].map(t => feed(L(flipped), t));
 ok("tamper: burildi — 4 soniya davom etgach bir marta", moved.join() === ',,moved,', moved.join());
 ok("tamper: burilgan manzara namunaga aylanmaydi", feed(L(flipped), 60_000) === null && ts!.told === 'moved');
-ok("tamper: joyiga qaytdi — «yana ko'ryapti»", feed(L(scene), 62_000) === 'restored');
-const dark = [64_000, 66_000, 68_000, 70_000].map(t => feed(L(grid(() => 4), 2, 4), t));
-ok("tamper: qora kadr — «ko'rmay qoldi» bir marta", dark.filter(Boolean).join() === 'covered', dark.join());
-ok("tamper: qorong'i shovqinli kadr «burildi» emas — o'sha «ko'rmay qoldi»", feed(L(grid(i => (i * 7919) % 25), 9, 12), 72_000) === null && ts!.told === 'covered');
-ok("tamper: bir zumlik to'silish — aytilmaydi", (() => { feed(L(scene), 74_000); const a = feed(L(grid(() => 120), 1, 120), 76_000); const b = feed(L(scene), 78_000); return a === null && b === null; })());
+const back = [62_000, 64_000, 66_000].map(t => feed(L(scene), t));
+ok("tamper: joyiga qaytdi — 4 soniya odatdagidek turgach «yana ko'ryapti»", back.join() === ',,restored', back.join());
+const black = (at: number) => feed(L(grid(() => 4), 2, 4), at);
+const dark = [68_000, 70_000, 72_000, 74_000].map(black);
+ok("tamper: qora kadr — «ko'rmay qoldi» bir marta", dark.join() === ',,covered,', dark.join());
+ok("tamper: qorong'i shovqinli kadr «burildi» emas — o'sha «ko'rmay qoldi»", feed(L(grid(i => (i * 7919) % 25), 9, 12), 76_000) === null && ts!.told === 'covered');
+const flap = [feed(L(scene), 78_000), black(80_000), black(82_000), black(86_000), feed(L(scene), 88_000)];
+ok("tamper: bitta yaxshi kadr tuzalish emas — «qoldi/tuzaldi» almashib turmaydi", flap.every(e => e === null) && ts!.told === 'covered', flap.join());
+const healed = [90_000, 92_000].map(t => feed(L(scene), t));
+ok("tamper: yaxshi kadrlar 4 soniya — endi tuzaldi", healed.join() === ',restored', healed.join());
+ok("tamper: bir zumlik to'silish — aytilmaydi", (() => { const a = feed(L(grid(() => 120), 1, 120), 94_000); const b = feed(L(scene), 96_000); return a === null && b === null; })());
+let night: TamperState | undefined;
+const nightFeed = (look: ReturnType<typeof L>, at: number, darkOk: boolean) => { const r = judgeLook(night, look, at, { ...TO, darkOk }); night = r.next; return r.event?.type ?? null; };
+nightFeed(L(scene), 0, false);
+const closed = [20_000, 22_000, 26_000, 40_000].map(t => nightFeed(L(grid(() => 3), 1, 3), t, true));
+ok("tamper: ish vaqtidan tashqarida chiroq o'chdi — xabar yo'q", closed.every(e => e === null) && night!.told === null, closed.join());
+const taped = [42_000, 44_000, 46_000].map(t => nightFeed(L(grid(() => 140), 1, 140), t, true));
+ok("tamper: ish vaqtidan tashqarida ham yorug' bir xil kadr (lenta, mato) — «ko'rmay qoldi»", taped.join() === ',,covered', taped.join());
+const workDark = [50_000, 52_000, 54_000].map(t => nightFeed(L(scene), t, false)).concat([60_000, 62_000, 64_000].map(t => nightFeed(L(grid(() => 3), 1, 3), t, false)));
+ok("tamper: ish vaqtida qorong'i — «ko'rmay qoldi»", workDark.filter(Boolean).join() === 'restored,covered', workDark.join());
 
 console.log('\n# Xodim joyi (sof)');
 const staffCam = { id: 's1', name: 'Qabulxona', zones: [{ id: 'st', kind: 'staff', name: 'Administrator', x: 0, y: 0, w: 1, h: 1, doctorId: null }] } as unknown as Camera;
@@ -208,6 +228,8 @@ try {
   const token = (await api('/api/login', { body: { login: 'shifo', password: 'secret12' } })).json.token;
   const other = (await api('/api/login', { body: { login: 'begona', password: 'secret12' } })).json.token;
   const me = (await api('/api/me', { token })).json;
+  // Sinov qaysi soatda yurgizilmasin — ish vaqti ichida (kechasi qora kadr ish vaqtidan tashqarida «normal» bo'lardi)
+  await api('/api/business', { method: 'PUT', token, body: { ...me.business, hours: '00:00–23:59' } });
   let mark = sent.length;
   say(OWNER, `/start ${String(me.status.linkUrl).split('start=')[1]}`);
   await waitFor('egasi ulandi', () => texts(mark).some(t => t.includes('Shifo Dent')));
@@ -327,11 +349,18 @@ try {
   for (let i = 0; i < 12; i++) { await api(`/api/cameras/${kabinet.id}/observe`, { token, body: { people: [] } }); await sleep(300); }
   const waited = (await api(`/api/cameras/summary?date=${today}`, { token })).json.summary as { waiting: { count: number; longCount: number; nowWaiting: number; alertMin: number }; chairUse: { name: string; pct: number | null; watchedMin: number }[]; sessions: { kind: string }[] };
   ok("ketishdi: ikkalasining kutishi yozildi, ikkalasi chegaradan uzoq", waited?.waiting?.count === 2 && waited.waiting.longCount === 2 && waited.waiting.nowWaiting === 0 && waited.waiting.alertMin === 0.1, JSON.stringify(waited?.waiting));
+  const oneWaits = { people: [{ x: 0.05, y: 0.2, w: 0.08, h: 0.3 }] };
+  for (let i = 0; i < 10; i++) { await api(`/api/cameras/${kabinet.id}/observe`, { token, body: oneWaits }); await sleep(300); }
+  const movedWait = (both.json.camera.zones as { kind: string }[]).map(z => (z.kind === 'waiting' ? { ...z, x: 0, y: 0, w: 0.26, h: 1 } : z));
+  await api(`/api/cameras/${kabinet.id}/zones`, { method: 'PUT', token, body: { zones: movedWait } });
+  const afterEdit = (await api(`/api/cameras/summary?date=${today}`, { token })).json.summary as { waiting: { count: number; nowWaiting: number } };
+  ok("kutish joyi qayta chizildi — kutayotgan odamning kutishi yo'qolmay yozildi", afterEdit.waiting.count === waited.waiting.count + 1 && afterEdit.waiting.nowWaiting === 0, JSON.stringify(afterEdit.waiting));
+  both.json.camera = (await api('/api/cameras', { token })).json.cameras.find((c: { id: string }) => c.id === kabinet.id);
   ok("kreslo bandligi: kamera hali kam kuzatgan — foiz yo'q, lekin kreslo ro'yxatda", waited?.chairUse?.length === 1 && waited.chairUse[0].name === 'Kreslo 1' && waited.chairUse[0].pct === null, JSON.stringify(waited?.chairUse));
   const tool = await api('/api/chat', { token, body: { text: 'kamera hisobi {}' } });
   const lastTool = ai.requests.filter(q => q.system.includes('Name: Shifo Dent')).at(-1)?.messages.at(-1)?.content;
   const res = Array.isArray(lastTool) ? JSON.parse(String(lastTool.find(b => b.type === 'tool_result')?.content ?? '{}')) : {};
-  ok("yordamchi kamera hisobida kutish va bandlik bor", tool.status === 200 && res.waiting?.waited_today === 2 && Array.isArray(res.chair_use) && res.chair_use[0]?.chair === 'Kreslo 1', JSON.stringify(res).slice(0, 220));
+  ok("yordamchi kamera hisobida kutish va bandlik bor", tool.status === 200 && res.waiting?.waited_today === afterEdit.waiting.count && Array.isArray(res.chair_use) && res.chair_use[0]?.chair === 'Kreslo 1', JSON.stringify(res).slice(0, 220));
 
   console.log("\n# Kamera burildi yoki yopildi (jonli: ffmpeg sinov tasviri)");
   const ownerTexts = () => sent.filter(m => m.method === 'sendMessage' && Number(m.params.chat_id) === OWNER).map(caption);

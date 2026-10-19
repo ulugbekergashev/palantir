@@ -26,13 +26,13 @@ export async function cameraReport(biz: BusinessRow, date = iso(new Date()), now
   const s = await daySummary(biz, date, now);
   const [y, m, d] = date.split('-').map(Number);
   const start = new Date(y, m - 1, d).toISOString();
-  const alerts = date === iso(now) ? events.since(biz.id, start, 200).filter(e => e.member === 'kuzatuvchi' && e.level !== 'info').length : 0;
+  const alerts = date === iso(now) ? events.tally(biz.id, start).filter(t => t.member === 'kuzatuvchi' && t.level !== 'info').reduce((n, t) => n + t.n, 0) : 0;
   return reportHtml(s, alerts, new Date(y, m - 1, d));
 }
 
 let running = false;
 /** Har tekshiruvda (orders/run.ts): hisobot vaqti kelgan va bugun yuborilmagan bizneslarga */
-export async function reportTick(send: (biz: BusinessRow, html: string) => Promise<unknown>, now = new Date()): Promise<void> {
+export async function reportTick(send: (biz: BusinessRow, html: string) => Promise<number | null>, now = new Date()): Promise<void> {
   const hour = now.getHours();
   if (running || hour < env.cameraReportHour || hour >= env.cameraReportHour + REPORT_WINDOW_H) return;
   running = true;
@@ -43,8 +43,10 @@ export async function reportTick(send: (biz: BusinessRow, html: string) => Promi
       if ((retryAt.get(biz.id) ?? 0) > now.getTime()) continue;
       try {
         const html = await cameraReport(biz, day, now);
+        // Aytadigan narsa yo'q — keyingi tekshiruvda yana qaraladi (faqat shu kompyuterdagi baza o'qiladi: DentaCRM ulangan bo'lsa hisobot bo'sh bo'lmaydi)
         if (!html) continue;
-        await send(biz, html);
+        // Bot ulanmagan yoki egasi chati yo'q — yuborilmadi, bugun yana uriniladi
+        if ((await send(biz, html)) == null) throw new Error('Telegram bot ulanmagan');
         sql.run('INSERT OR IGNORE INTO camera_reports (business_id, date, sent_at) VALUES (?, ?, ?)', biz.id, day, sql.nowIso());
       } catch (e) {
         retryAt.set(biz.id, now.getTime() + RETRY_MS);

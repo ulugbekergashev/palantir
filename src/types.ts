@@ -462,7 +462,7 @@ export interface CameraSummary {
  * eng uzoq yo'qligi (ikki o'tirish orasi). Kamera kimligini bilmaydi — zona nomi (masalan, «Administrator») bo'yicha
  */
 export interface Attendance { zoneId: string; name: string; cameraName: string; firstAt: string | null; lastAt: string | null; here: boolean; presentMin: number; longestAway: { from: string; to: string; min: number } | null }
-/** Kreslo bandligi: busyMin — kimdir o'tirgan, watchedMin — kamera kuzatgan daqiqalar; pct — kuzatilgani 10 daqiqadan kam bo'lsa null */
+/** Kreslo bandligi (ish vaqtida): busyMin — kimdir o'tirgan, watchedMin — kamera kuzatgan daqiqalar; pct — kuzatilgani 10 daqiqadan kam bo'lsa null */
 export interface ChairUse { zoneId: string; name: string; cameraName: string; busyMin: number; watchedMin: number; pct: number | null }
 /**
  * Kutish joyi: bugun necha kishi kutdi (count), o'rtacha va eng uzoq kutish, alertMin dan uzoq kutganlar soni;

@@ -37,7 +37,7 @@ import { phoneChanged } from './people';
 import { actorOf, setTeamOutlet } from './requests/index';
 import { replyCards } from './requests/store';
 import { linkStaff, listOpen, requestButton, requestReply, staffText, teamOutlet } from './requests/telegram';
-import { lookAt, lookRequest, shotCaption } from './camera/ask';
+import { MAX_LOOK_CAMERAS, lookAt, lookRequest, shotCaption } from './camera/ask';
 import { events } from './orders/store';
 import { approveReply, clearBotOutlets, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
@@ -450,6 +450,7 @@ export function createBot(): BotService {
       if (l.image) await tg.sendPhoto(chat, { source: l.image, filename: 'kadr.jpg' }, { caption: shotCaption(l.shot) });
       else await tg.sendMessage(chat, shotCaption(l.shot));
     }
+    if (list.length > MAX_LOOK_CAMERAS) await ctx.reply(`Bir so'rovda ${MAX_LOOK_CAMERAS} ta kamera ko'rsatiladi. Qolganini nomi bilan so'rang: /kamera ${list[MAX_LOOK_CAMERAS].name}`);
   });
 
   bot.command('vazifalar', async ctx => {

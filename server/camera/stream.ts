@@ -4,6 +4,8 @@
  * Kadr olish uchun kompyuterda ffmpeg bo'lishi kerak (FFMPEG_PATH yoki PATH); bo'lmasa IP kameralar o'chiq, veb-kamera ishlayveradi.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import type { CameraFeed } from '../../src/types';
 import { cameras } from '../db';
 import { env } from '../env';
@@ -19,6 +21,24 @@ let ffmpegOk: boolean | null = null;
 export function ffmpegAvailable(): boolean {
   ffmpegOk ??= spawnSync(env.ffmpeg, ['-version'], { stdio: 'ignore', windowsHide: true, timeout: 10_000 }).status === 0;
   return ffmpegOk;
+}
+
+let redirectsOpt: boolean | null = null;
+/** ffmpeg HTTP yo'naltirishni o'chira oladimi (-max_redirects; eski nashrda yo'q — u yerda parametr xato berardi) */
+function canBlockRedirects(): boolean {
+  redirectsOpt ??= /max_redirects/.test(spawnSync(env.ffmpeg, ['-hide_banner', '-h', 'protocol=http'], { encoding: 'utf8', windowsHide: true, timeout: 10_000 }).stdout ?? '');
+  return redirectsOpt;
+}
+
+/** Bulut serverlarining ichki «metadata» manzili — kamera bo'lishi mumkin emas (u yerdan server kalitlari o'g'irlanadi) */
+const METADATA = new Set(['169.254.169.254', 'fd00:ec2::254', '100.100.100.200', 'metadata', 'metadata.google.internal']);
+const bareHost = (hostname: string) => hostname.replace(/^\[|\]$/g, '').toLowerCase();
+/** Manzil nomi metadata IP'siga olib bormasligi (nomi boshqa bo'lsa ham) */
+export async function checkStreamHost(url: string): Promise<void> {
+  const host = bareHost(new URL(url).hostname);
+  if (isIP(host)) return;
+  const found = await lookup(host, { all: true }).catch(() => []);
+  if (found.some(a => METADATA.has(a.address.toLowerCase()))) throw new Error('Bu manzil kamera emas');
 }
 
 const testInput = (): string[] | null => {
@@ -39,10 +59,11 @@ export function parseStream(input: string): { url: string; host: string } {
   try { u = new URL(text); } catch { throw new Error("Kamera manzili noto'g'ri. Namuna: rtsp://admin:parol@192.168.1.64:554/Streaming/Channels/102"); }
   if (!['rtsp:', 'rtsps:', 'http:', 'https:'].includes(u.protocol)) throw new Error('Manzil rtsp:// (IP kamera) yoki http:// (telefon, MJPEG) bilan boshlanishi kerak');
   if (!u.hostname) throw new Error("Manzilda kamera IP'si yo'q");
+  if (METADATA.has(bareHost(u.hostname))) throw new Error('Bu manzil kamera emas');
   return { url: u.href, host: u.port ? `${u.hostname}:${u.port}` : u.hostname };
 }
 
-const inputArgs = (url: string): string[] => testInput() ?? ffmpegInput(url);
+const inputArgs = (url: string): string[] => testInput() ?? ffmpegInput(url, undefined, { noRedirects: canBlockRedirects() });
 
 /** Maxfiy joylar ffmpeg'ning o'zida qora bilan to'ldiriladi — yopilmagan kadr serverdan tashqariga chiqmaydi. Qiymatlar — kadr ulushi (0..1) */
 const maskFilter = (masks: readonly Box[]): string => masks.map(m => {
@@ -68,6 +89,26 @@ export function snapshot(url: string, timeoutMs = SNAPSHOT_TIMEOUT_MS, masks: re
       if (size <= SNAPSHOT_MAX_BYTES && image.length > 100 && image[0] === 0xff && image[1] === 0xd8) resolve(image);
       else reject(new Error(`Kameradan kadr olib bo'lmadi${problem ? `: ${problem}` : ''}. Manzil, login-parol va kamera yoqilganini tekshiring`));
     });
+  });
+}
+
+/** Panel yuborgan surat (brauzer kamerasi): maxfiy joylar serverda ham qora qilinadi. Bo'lmasa — o'sha surat */
+export function maskImage(jpeg: Buffer, masks: readonly Box[]): Promise<Buffer> {
+  if (!masks.length) return Promise.resolve(jpeg);
+  return new Promise((resolve, reject) => {
+    const proc = spawn(env.ffmpeg, ['-nostdin', '-loglevel', 'error', '-f', 'image2pipe', '-i', 'pipe:0', '-frames:v', '1', '-vf', `null${maskFilter(masks)}`, '-f', 'image2pipe', '-c:v', 'mjpeg', '-q:v', '5', 'pipe:1'],
+      { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+    const chunks: Buffer[] = [];
+    const timer = setTimeout(() => proc.kill(), SNAPSHOT_TIMEOUT_MS);
+    proc.stdout.on('data', (c: Buffer) => chunks.push(c));
+    proc.on('error', e => { clearTimeout(timer); reject(e); });
+    proc.on('exit', () => {
+      clearTimeout(timer);
+      const out = Buffer.concat(chunks);
+      if (out.length > 100 && out[0] === 0xff && out[1] === 0xd8) resolve(out); else reject(new Error('surat yopilmadi'));
+    });
+    proc.stdin.on('error', () => { /* ffmpeg erta yopildi — exit xabar beradi */ });
+    proc.stdin.end(jpeg);
   });
 }
 
@@ -101,7 +142,7 @@ function list(): ToEngine {
       return [];
     }
   });
-  return { type: 'cameras', list: cams, ffmpeg: env.ffmpeg, testInput: testInput() };
+  return { type: 'cameras', list: cams, ffmpeg: env.ffmpeg, testInput: testInput(), noRedirects: canBlockRedirects() };
 }
 
 function launch(): void {

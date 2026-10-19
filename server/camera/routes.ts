@@ -12,15 +12,15 @@ import { crmConnected, withCrm } from '../crm/index';
 import { businesses, cameraSessions, cameras, newId, type BusinessRow } from '../db';
 import { env } from '../env';
 import { open, seal } from '../secret';
-import { feedOf, ffmpegAvailable, parseStream, snapshot, startCameraEngine, syncEngine } from './stream';
+import { checkStreamHost, feedOf, ffmpegAvailable, parseStream, snapshot, startCameraEngine, syncEngine } from './stream';
 import { candidatePaths, discoverCameras, onvifStreamUri, withCredentials } from './discover';
 import { loginBlocked, loginFailed, loginOk } from '../auth';
 import { findings, reconcile, unbilled, type Sitting } from './reconcile';
 import { flush, step, type States, type ZoneEvent } from './sessions';
 import { orders } from '../orders/store';
 import { forgetWatchCache } from '../orders/watch';
-import { attendance, chairUse, waitStats } from './occupancy';
-import { settleWaits, waitingIn, waitingNow } from './waiting';
+import { attendance, chairUse, inHours, waitStats, workHours } from './occupancy';
+import { flushWaits, settleWaits, waitingIn, waitingNow } from './waiting';
 import { judgeLook, type TamperEvent, type TamperState } from './tamper';
 import type { Look } from './wire';
 
@@ -96,7 +96,8 @@ const looks = new Map<string, TamperState>();
 const forgetLook = (cameraId: string) => looks.delete(cameraId);
 
 function judgeFrame(biz: BusinessRow, cam: Camera, look: Look, now: number): void {
-  const r = judgeLook(looks.get(cam.id), look, now, { warmupMs: env.cameraTamperWarmupSec * 1000, holdMs: env.cameraTamperHoldSec * 1000 });
+  const darkOk = !inHours(workHours(biz.profile.hours), new Date(now));
+  const r = judgeLook(looks.get(cam.id), look, now, { warmupMs: env.cameraTamperWarmupSec * 1000, holdMs: env.cameraTamperHoldSec * 1000, darkOk });
   looks.set(cam.id, r.next);
   if (!r.event) return;
   for (const fn of lookListeners) {
@@ -144,7 +145,7 @@ function sweep(biz: BusinessRow, now = Date.now()): Camera[] {
 /** Bir kunning hisobi: kamera ko'rgani va (ulangan bo'lsa) DentaCRM bilan farqlar */
 export async function daySummary(biz: BusinessRow, date: string, now = new Date()): Promise<CameraSummary> {
   const cams = sweep(biz, now.getTime());
-  settleWaits(biz, cams, now.getTime());
+  settleWaits(cams, now.getTime());
   const [y, m, d] = date.split('-').map(Number);
   const dayStart = new Date(y, m - 1, d).getTime(), dayEnd = new Date(y, m - 1, d + 1).getTime();
   const sessions = cameraSessions.between(biz.id, new Date(dayStart).toISOString(), new Date(dayEnd).toISOString());
@@ -154,7 +155,7 @@ export async function daySummary(biz: BusinessRow, date: string, now = new Date(
   const waiting = hasWaiting ? waitStats(sessions, env.cameraWaitAlertMin, date === iso(now) ? waitingNow(cams, now.getTime()) : { people: 0, longestMs: 0 }) : null;
   const base = {
     date, seated: chairs.length, deskVisits: sessions.filter(s => s.kind === 'desk').length, sessions,
-    chairUse: chairUse(cams, sessions, dayStart, dayEnd, now.getTime()), waiting, attendance: attendance(cams, sessions, now.getTime()),
+    chairUse: chairUse(cams, sessions, dayStart, now.getTime(), workHours(biz.profile.hours)), waiting, attendance: attendance(cams, sessions, now.getTime()),
   };
   if (!crmConnected(biz.id)) return { ...base, crm: null, findings: [] };
   const zones = cams.flatMap(c => c.zones);
@@ -302,6 +303,7 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
     // Joyi o'zgarmagan zonaning seansi uzilmaydi (nomini tahrirlash o'tirgan bemorni ikkiga bo'lmasin)
     const moved = new Set(cam.zones.filter(o => !zones.some(n => n.id === o.id && sameBox(o, n))).map(o => o.id));
     reset(biz, cam, moved);
+    flushWaits(cam.id, moved);
     // Zonalar qayta chizildi — egasi kamerani yangi ko'rinishga moslagan: odatiy ko'rinish qaytadan o'rganiladi
     if (moved.size || zones.length !== cam.zones.length) forgetLook(cam.id);
     cameras.setZones(biz.id, cam.id, zones);
@@ -321,6 +323,7 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
       let stream: { url: string; host: string };
       try {
         stream = parseStream(p.data.url);
+        await checkStreamHost(stream.url);
         await snapshot(stream.url);
       } catch (e) {
         return res.status(400).json({ error: (e as Error).message });
@@ -362,6 +365,7 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
     orders.dropCamera(biz.id, cam.id);
     forgetWatchCache();
     shots.delete(cam.id);
+    flushWaits(cam.id);
     forgetLook(cam.id);
     syncEngine();
     res.json({ ok: true });

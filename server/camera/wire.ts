@@ -3,7 +3,8 @@ export interface EngineCamera { id: string; url: string }
 export type Box = { x: number; y: number; w: number; h: number };
 /** Kadr izi (kamera yopildi/burildi tekshiruvi): o'rtacha yorug'lik va kontrast (0..255), 32×18 kulrang kichik rasm */
 export interface Look { mean: number; std: number; thumb: number[] }
-export type ToEngine = { type: 'cameras'; list: EngineCamera[]; ffmpeg: string; testInput: string[] | null };
+/** noRedirects — ffmpeg HTTP yo'naltirishni o'chira oladi (eski nashrda bu parametr yo'q) */
+export type ToEngine = { type: 'cameras'; list: EngineCamera[]; ffmpeg: string; testInput: string[] | null; noRedirects: boolean };
 export type FromEngine =
   | { type: 'seen'; id: string; people: Box[]; look?: Look }
   | { type: 'state'; id: string; state: 'connecting' | 'ok' | 'error'; message: string | null }
@@ -26,14 +27,21 @@ export const sourceKind = (url: string): SourceKind => {
 const HTTP_ONLY = ['-protocol_whitelist', 'http,https,tcp,tls,crypto'];
 /**
  * ffmpeg kirish argumentlari. everySec — doimiy oqimda kadrlar orasi (surat manzili shu oraliqda so'raladi);
- * berilmasa — bitta kadr uchun (snapshot)
+ * berilmasa — bitta kadr uchun (snapshot). noRedirects — HTTP yo'naltirish ishlamaydi (boshqa manzilga o'tkazib yuborib bo'lmaydi);
+ * kind — manzil turi taxmini noto'g'ri chiqqanda (dvigatel boshqasini sinaydi)
  */
-export function ffmpegInput(url: string, everySec?: number): string[] {
-  const kind = sourceKind(url);
+export function ffmpegInput(url: string, everySec?: number, o: { noRedirects?: boolean; kind?: SourceKind } = {}): string[] {
+  const kind = o.kind ?? sourceKind(url);
   if (kind === 'rtsp') return ['-rtsp_transport', 'tcp', '-i', url];
-  if (kind === 'mjpeg') return [...HTTP_ONLY, '-use_wallclock_as_timestamps', '1', '-i', url];
-  return everySec ? [...HTTP_ONLY, '-f', 'image2', '-loop', '1', '-framerate', String(1 / everySec), '-re', '-i', url] : [...HTTP_ONLY, '-i', url];
+  const http = [...HTTP_ONLY, ...(o.noRedirects ? ['-max_redirects', '0'] : [])];
+  if (kind === 'mjpeg') return [...http, '-use_wallclock_as_timestamps', '1', '-i', url];
+  // image2 protokol parametrini (-max_redirects) qabul qilmaydi. Bu yo'l faqat dvigatelda — u odamlar sanog'ini chiqaradi, rasmni emas;
+  // tashqariga chiqadigan har kadr (panel, AI, Telegram) bitta-kadrli yo'ldan, yo'naltirish o'chiq holda olinadi
+  return everySec ? [...HTTP_ONLY, '-f', 'image2', '-loop', '1', '-framerate', String(1 / everySec), '-re', '-i', url] : [...http, '-i', url];
 }
 
 /** Manzildagi login va parol jurnalga ham, panelga ham chiqmaydi */
-export const maskUrl = (text: string): string => text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^/@\s]*@/gi, '$1***@');
+export const maskUrl = (text: string): string => text
+  .replace(/([a-z][a-z0-9+.-]*:\/\/)[^/@\s]*@/gi, '$1***@')
+  // HTTP kameralarda login-parol ko'pincha so'rov satrida: ?user=admin&pwd=…
+  .replace(/([?&;](?:user(?:name)?|usr|login|pwd|pass(?:word)?|token|key|auth)=)[^&\s'"]*/gi, '$1***');

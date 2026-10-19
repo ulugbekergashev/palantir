@@ -7,6 +7,7 @@ import { cameras } from '../db';
 import { events } from '../orders/store';
 import { ToolError, def } from '../toolkit';
 import { iso } from '../../src/lib/week';
+import { isRealDate } from '../crm/logic';
 import { MAX_LOOK_CAMERAS, lookAt, pickCameras } from './ask';
 import { cameraReport } from './report';
 
@@ -18,7 +19,7 @@ const plain = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<
 export const CAMERA_DEFS = {
   camera_day: def({
     description: "What the cameras counted on one day, as a ready Uzbek report: patients who sat in a chair, people at the cash desk, how busy each chair was, waiting area (how many waited, average and longest wait), staff seats (when someone came and left), discrepancies with DentaCRM if it is connected, and how many camera alerts there were today. Works without DentaCRM. Use for \"kameralar bugun nima ko'rdi\", \"bugun nechta odam kutdi\", \"administrator qachon keldi\". The camera does not know who a person is. Relay the report briefly; do not invent numbers.",
-    input: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('YYYY-MM-DD, default today') }),
+    input: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isRealDate, "taqvimda bunday sana yo'q").optional().describe('YYYY-MM-DD, default today') }),
     run: async (i, ctx) => {
       if (!cameras.list(ctx.biz.id).length) throw new ToolError("Kamera ulanmagan — egasi panel → «Kameralar» bo'limida qo'shadi");
       const date = i.date ?? iso(new Date());
