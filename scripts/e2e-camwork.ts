@@ -8,7 +8,8 @@
  *   kamera burildi yoki yopildi: sinov tasviri vaqt bo'yicha o'zgaradi (odatiy → aks → odatiy → qora → odatiy);
  *   maxfiy joy: kameradan chiqadigan rasmlarda (panel, Telegram) o'sha joy qora;
  *   tayyor qoidalar: kameradagi zonalarga moslanadi va server ularni qabul qiladi;
- *   xodim joyi: kim qachon keldi, ketdi, qancha joyida bo'ldi va eng uzoq yo'qligi.
+ *   xodim joyi: kim qachon keldi, ketdi, qancha joyida bo'ldi va eng uzoq yo'qligi;
+ *   kechki kamera hisoboti: Telegram'ga kuniga bir marta (AI'siz), yordamchining camera_day asbobi.
  * Kompyuterda ffmpeg bo'lmasa sinov o'tkazib yuboriladi. Haqiqiy kamera va haqiqiy model bu yerda yo'q.
  */
 process.env.TZ = 'Asia/Tashkent';
@@ -23,6 +24,7 @@ import { MAX_JUMP, attendance, chairUse, trackStep, waitStats, type Track } from
 import type { Camera, CameraSession } from '../src/types';
 import { judgeLook, type TamperState } from '../server/camera/tamper';
 import { cameraPresets } from '../src/lib/presets';
+import { reportHtml } from '../server/camera/reportText';
 import { OWNER, ai, aiServer, listen, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 
@@ -107,6 +109,21 @@ ok("xodim: bugun ko'rinmagan — «kelmagan»", none.firstAt === null && !none.h
 const goneHome = attendance([staffCam], [S2('a', T(9), T(18, 10))], Date.parse(T(20)))[0];
 ok("xodim: ketgan — oxirgi ketgan payt", !goneHome.here && goneHome.lastAt === T(18, 10) && goneHome.presentMin === 550);
 
+console.log('\n# Kechki kamera hisoboti (sof)');
+const daySum = (o: Record<string, unknown>) => ({ date: '2026-10-20', seated: 0, deskVisits: 0, crm: null, findings: [], sessions: [], ...o }) as never;
+ok("hisobot: aytadigan narsa yo'q — yuborilmaydi", reportHtml(daySum({}), 0) === null);
+const rep = reportHtml(daySum({
+  seated: 12, deskVisits: 15, crm: { visits: 14, payments: 13 },
+  chairUse: [{ zoneId: 'c', name: 'Kreslo <1>', cameraName: 'K', busyMin: 300, watchedMin: 480, pct: 63 }, { zoneId: 'd', name: 'Kreslo 2', cameraName: 'K', busyMin: 0, watchedMin: 5, pct: null }],
+  waiting: { count: 23, avgMin: 7, maxMin: 26, longCount: 2, alertMin: 20, nowWaiting: 0, nowLongestMin: 0 },
+  attendance: [{ zoneId: 's', name: 'Administrator', cameraName: 'Q', firstAt: T(8, 52), lastAt: T(19, 10), here: false, presentMin: 580, longestAway: { from: T(13), to: T(13, 45), min: 45 } }],
+  findings: [{ level: 'crit', text: 'Kreslo 1: 11:10–11:45 da kresloda bemor bor edi, CRM\'da bunday qabul yo\'q.' }, { level: 'ok', text: 'joyida' }],
+}), 3, new Date(2026, 9, 20)) ?? '';
+ok('hisobot: sarlavha, kreslo (CRM bilan), kassa, bandlik, kutish, xodim, farq va ogohlantirishlar',
+  rep.startsWith('📷 <b>Kameralar — bugun, 20-oktabr</b>') && rep.includes("Kresloga o'tirdi: <b>12</b> bemor (DentaCRM'da «keldi»: 14)") && rep.includes("to'lov yozilgan: 13")
+  && rep.includes('Kreslo &lt;1&gt; — 63%') && !rep.includes('Kreslo 2 —') && rep.includes("23 kishi, o'rtacha 7 daq, eng uzog'i 26 daq — 2 kishi 20 daqiqadan ko'p")
+  && rep.includes('Administrator: 08:52 keldi, 19:10 ketdi, joyida 9 soat 40 daq; eng uzoq yo\'qligi 45 daq') && rep.includes('Tekshiring</b> (1)') && rep.includes('3 marta ogohlantirdi'), rep);
+
 console.log('\n# Tayyor qoidalar (sof)');
 const Z = (id: string, kind: string, name: string) => ({ id, kind, name, x: 0, y: 0, w: 0.5, h: 0.5, doctorId: null });
 const camA = { id: 'ca', name: 'Qabulxona', zones: [Z('d1', 'desk', 'Kassa'), Z('w1', 'waiting', 'Divan')] } as unknown as Camera;
@@ -146,6 +163,8 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     CAMERA_TAMPER_WARMUP_SEC: '8', CAMERA_TAMPER_HOLD_SEC: '4',
     // Sinovda chegaralar soniyalarda: 1 s tursa — o'tirish, 2 s ko'rinmasa — turdi; to'lov kutilmaydi
     CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '2', CAMERA_PAY_GRACE_MIN: '0', CAMERA_WAIT_ALERT_MIN: '0.1',
+    // Kechki hisobot — hozirgi soatdan (to'rt soat ichida); topshiriqlar tekshiruvi tez-tez
+    CAMERA_REPORT_HOUR: String(new Date().getHours()), ORDERS_TICK_MS: '500',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -358,6 +377,26 @@ try {
   const staffTool = ai.requests.filter(q => q.system.includes('Name: Shifo Dent')).at(-1)?.messages.at(-1)?.content;
   const staffRes = Array.isArray(staffTool) ? JSON.parse(String(staffTool.find(b => b.type === 'tool_result')?.content ?? '{}')) : {};
   ok("yordamchi kamera hisobida xodim: qachon keldi va ketdi", staffRes.staff?.[0]?.seat === 'Administrator' && /^\d\d:\d\d$/.test(staffRes.staff[0].first_seen) && /^\d\d:\d\d$/.test(staffRes.staff[0].last_left), JSON.stringify(staffRes.staff));
+
+  console.log("\n# Kechki kamera hisoboti: Telegram va yordamchi");
+  const reports = () => sent.filter(m => m.method === 'sendMessage' && Number(m.params.chat_id) === OWNER && caption(m).includes('Kameralar — bugun'));
+  const firstReport = await waitFor('kechki hisobot', () => reports()[0], 20_000);
+  ok("hisobot egasiga keldi (aytadigan narsa paydo bo'lgach)", !!firstReport && caption(firstReport).includes("Kresloga o'tirdi"), firstReport && caption(firstReport).slice(0, 200));
+  await sleep(2500);
+  ok('hisobot kuniga bir marta', reports().length === 1, String(reports().length));
+  let call = 0;
+  ai.owner = messages => {
+    const last = messages[messages.length - 1];
+    const result = Array.isArray(last.content) ? last.content.find(b => b.type === 'tool_result') : undefined;
+    if (result) return { content: [{ type: 'text', text: 'Tayyor.' }], stop: 'end_turn' };
+    return { content: [{ type: 'tool_use', id: `toolu_cam${++call}`, name: 'camera_day', input: {} }], stop: 'tool_use' };
+  };
+  const dayAsk = await api('/api/chat', { token, body: { text: 'Kameralar bugun nima ko\'rdi?' } });
+  ai.owner = null;
+  const dayTool = ai.requests.filter(q => q.system.includes('Name: Shifo Dent')).at(-1)?.messages.at(-1)?.content;
+  const dayRes = Array.isArray(dayTool) ? dayTool.find(b => b.type === 'tool_result') : undefined;
+  const dayJson = (() => { try { return JSON.parse(String(dayRes?.content)); } catch { return {}; } })();
+  ok("yordamchi camera_day: tayyor hisobot matni, HTML'siz", dayAsk.status === 200 && !dayRes?.is_error && String(dayJson.report).includes('Kameralar — bugun') && String(dayJson.report).includes('Administrator') && !String(dayJson.report).includes('<b>'), String(dayJson.report).slice(0, 160));
 
   ok("begona biznes ro'yxatida kamera yo'q", ((await api('/api/cameras', { token: other })).json.cameras ?? []).length === 0);
   ok('kamera paroli jurnalga va Telegramga tushmagan', !log.includes(SECRET) && !JSON.stringify(sent.map(s => s.params)).includes(SECRET));

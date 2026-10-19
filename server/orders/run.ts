@@ -13,6 +13,7 @@ import { businesses, cameras, type BusinessRow } from '../db';
 import { notifyOwner } from '../inbox/core';
 import { cameraFrame, onCameraFrame, onCameraLook } from '../camera/routes';
 import { waitFrame } from '../camera/waiting';
+import { reportTick } from '../camera/report';
 import { checkFrame } from './look';
 import { events, orders } from './store';
 import { dueAt, dueEvery } from './logic';
@@ -90,6 +91,8 @@ export function startOrders(bot: BotService): () => void {
   const tick = () => {
     const now = new Date();
     if (pruned !== iso(now)) { pruned = iso(now); events.prune(); }
+    // Kechki kamera hisoboti (vaqti kelgan bo'lsa, kuniga bir marta)
+    void reportTick((b, html) => notifyOwner(b, html), now);
     for (const o of orders.active()) {
       if (busy.has(o.id) || (retryAt.get(o.id) ?? 0) > now.getTime()) continue;
       // Soatli ish yaratilgan kuni o'tib ketgan vaqt uchun darhol bajarilmasin: hisob yaratilgan paytdan

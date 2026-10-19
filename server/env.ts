@@ -147,6 +147,8 @@ export const env = {
   /** Kamera yopildi/burildi: odatiy ko'rinishni o'rganish (yoqilgandan keyin) va muammo shuncha soniya davom etsa — xabar */
   cameraTamperWarmupSec: Number(process.env.CAMERA_TAMPER_WARMUP_SEC) || 600,
   cameraTamperHoldSec: Number(process.env.CAMERA_TAMPER_HOLD_SEC) || 120,
+  /** Kechki kamera hisoboti shu soatdan (to'rt soat ichida, kuniga bir marta); 99 — yuborilmaydi */
+  cameraReportHour: process.env.CAMERA_REPORT_HOUR ? Number(process.env.CAMERA_REPORT_HOUR) : 20,
   cameraPayGraceMin: process.env.CAMERA_PAY_GRACE_MIN ? Math.max(0, Number(process.env.CAMERA_PAY_GRACE_MIN) || 0) : 30,
   /** IP kameralardan kadr oladigan dastur (ffmpeg). Yo'li berilmasa PATH'dan qidiriladi; topilmasa IP kameralar o'chiq (veb-kamera ishlayveradi) */
   ffmpeg: process.env.FFMPEG_PATH || 'ffmpeg',
