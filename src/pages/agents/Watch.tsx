@@ -7,7 +7,7 @@
  */
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowUp, CircleAlert, CircleCheck, Loader2, ScanEye, Users, Video } from 'lucide-react';
-import type { Camera, CameraSummary } from '../../types';
+import type { Attendance, Camera, CameraSummary } from '../../types';
 import { api } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { AgentOrb, HUE, Panel, Quiet, clock } from '../../components/agent';
@@ -173,6 +173,28 @@ function Occupancy({ s }: { s: CameraSummary | null | undefined }) {
   );
 }
 
+/** Xodim joylari: kim qachon keldi, ketdi va qancha joyida bo'ldi (kamera kimligini bilmaydi — joy nomi bo'yicha) */
+function Staff({ list }: { list: Attendance[] }) {
+  return (
+    <ul className="flex flex-col gap-3">
+      {list.map(a => (
+        <li key={a.zoneId} className="flex flex-col gap-1 border-b border-glass/[0.04] pb-3 last:border-0 last:pb-0">
+          <div className="flex items-center gap-2 text-[14px] text-[#f2f0ea]">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${a.here ? 'bg-emerald-400' : 'bg-glass/30'}`} aria-hidden="true" />
+            <span className="truncate font-medium">{a.name}</span>
+            <span className="truncate text-[12px] text-[#7d838f]">{a.cameraName}</span>
+            <span className="ml-auto shrink-0 text-[12px] text-[#a3a9b5]">{a.here ? 'joyida' : a.firstAt ? 'ketgan' : 'kelmagan'}</span>
+          </div>
+          <p className="text-[12.5px] tabular-nums text-[#a3a9b5]">
+            {a.firstAt ? `Keldi ${clock(a.firstAt)} · ${a.here || !a.lastAt ? 'hozir ham joyida' : `ketdi ${clock(a.lastAt)}`} · joyida ${hoursMin(a.presentMin)}` : "Bugun hali joyida ko'rinmadi"}
+          </p>
+          {a.longestAway && <p className="text-[12px] tabular-nums text-[#8a909c]">Eng uzoq yo'qligi: {clock(a.longestAway.from)}–{clock(a.longestAway.to)} ({hoursMin(a.longestAway.min)})</p>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function WatchEmpty() {
   return (
     <section className="flex flex-col items-center gap-6 rounded-[28px] border border-glass/[0.07] bg-[#0b0c10] px-6 py-14 text-center">
@@ -210,6 +232,7 @@ export function WatchNow({ data, notify, tick }: { data: WatchData | null; notif
           </Panel>
           <Panel title="DentaCRM bilan solishtirish"><Findings s={s} /></Panel>
           <Panel title="Kreslo va kutish"><Occupancy s={s} /></Panel>
+          {s?.attendance?.length ? <Panel title="Xodimlar"><Staff list={s.attendance} /></Panel> : null}
         </div>
       </div>
       <Panel title="Bugun kuzatilgan">

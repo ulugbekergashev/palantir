@@ -19,7 +19,7 @@ import { findings, reconcile, unbilled, type Sitting } from './reconcile';
 import { flush, step, type States, type ZoneEvent } from './sessions';
 import { orders } from '../orders/store';
 import { forgetWatchCache } from '../orders/watch';
-import { chairUse, waitStats } from './occupancy';
+import { attendance, chairUse, waitStats } from './occupancy';
 import { settleWaits, waitingIn, waitingNow } from './waiting';
 import { judgeLook, type TamperEvent, type TamperState } from './tamper';
 import type { Look } from './wire';
@@ -35,7 +35,7 @@ const unit = z.number().min(0).max(1);
 const BoxSchema = z.object({ x: unit, y: unit, w: unit.gt(0), h: unit.gt(0) }).refine(b => b.x + b.w <= 1.001 && b.y + b.h <= 1.001, 'kadrdan tashqarida');
 const ZonesSchema = z.object({
   zones: z.array(BoxSchema.and(z.object({
-    id: z.string().max(16).optional(), kind: z.enum(['chair', 'desk', 'waiting', 'private']), name: z.string().trim().min(1).max(40), doctorId: z.string().trim().max(60).nullable().optional(),
+    id: z.string().max(16).optional(), kind: z.enum(['chair', 'desk', 'waiting', 'private', 'staff']), name: z.string().trim().min(1).max(40), doctorId: z.string().trim().max(60).nullable().optional(),
   }))).max(MAX_ZONES),
 });
 const ObserveSchema = z.object({ people: z.array(BoxSchema).max(MAX_PEOPLE) });
@@ -108,7 +108,7 @@ function judgeFrame(biz: BusinessRow, cam: Camera, look: Look, now: number): voi
 export function observe(biz: BusinessRow, cam: Camera, people: { x: number; y: number; w: number; h: number }[], now = Date.now()): Record<string, 'empty' | 'entering' | 'open'> {
   const t = thresholds();
   // Kutish joyida bitta «band/bo'sh» seans emas — har odam alohida (waiting.ts, kadr tinglovchisi)
-  const r = step(live.get(cam.id) ?? {}, cam.zones.filter(z => z.kind === 'chair' || z.kind === 'desk'), people, now, t);
+  const r = step(live.get(cam.id) ?? {}, cam.zones.filter(z => z.kind === 'chair' || z.kind === 'desk' || z.kind === 'staff'), people, now, t);
   live.set(cam.id, r.states);
   apply(biz, cam, r.events);
   // Kadrlar uzoq uzilgan bo'lsa, kamera "yangidan ko'ra boshladi": o'sha oraliqdagi qabullar haqida hukm chiqarilmaydi
@@ -154,7 +154,7 @@ export async function daySummary(biz: BusinessRow, date: string, now = new Date(
   const waiting = hasWaiting ? waitStats(sessions, env.cameraWaitAlertMin, date === iso(now) ? waitingNow(cams, now.getTime()) : { people: 0, longestMs: 0 }) : null;
   const base = {
     date, seated: chairs.length, deskVisits: sessions.filter(s => s.kind === 'desk').length, sessions,
-    chairUse: chairUse(cams, sessions, dayStart, dayEnd, now.getTime()), waiting,
+    chairUse: chairUse(cams, sessions, dayStart, dayEnd, now.getTime()), waiting, attendance: attendance(cams, sessions, now.getTime()),
   };
   if (!crmConnected(biz.id)) return { ...base, crm: null, findings: [] };
   const zones = cams.flatMap(c => c.zones);

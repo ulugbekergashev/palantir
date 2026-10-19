@@ -402,9 +402,10 @@ export interface ClinicDay {
 /** Kamera zonasi: kadrning ulushlarida berilgan to'rtburchak (0..1). chair — kreslo, desk — kassa stoli */
 /**
  * chair — kreslo, desk — kassa stoli, waiting — kutish joyi (har odamning kutishi alohida sanaladi),
- * private — maxfiy joy: kameradan chiqadigan har rasmda (AI, Telegram, jurnal, panel) qora bilan yopiladi
+ * private — maxfiy joy: kameradan chiqadigan har rasmda (AI, Telegram, jurnal, panel) qora bilan yopiladi,
+ * staff — xodim joyi (administrator stoli ortida): qachon keldi, ketdi, qancha joyida bo'ldi
  */
-export type ZoneKind = 'chair' | 'desk' | 'waiting' | 'private';
+export type ZoneKind = 'chair' | 'desk' | 'waiting' | 'private' | 'staff';
 export interface CameraZone { id: string; kind: ZoneKind; name: string; x: number; y: number; w: number; h: number; /** Kreslo qaysi shifokorniki (DentaCRM'dagi id) */ doctorId: string | null }
 /** IP kameradan kadr olish holati: connecting — ulanmoqda, ok — kadrlar kelyapti, error — ulanib bo'lmadi (message — sababi) */
 export interface CameraFeed { state: 'connecting' | 'ok' | 'error'; message: string | null }
@@ -429,7 +430,14 @@ export interface CameraSummary {
   chairUse?: ChairUse[];
   /** Kutish joyi bo'lsa — kutishlar hisobi; bo'lmasa null */
   waiting?: WaitStats | null;
+  /** Xodim joylari: kim qachon keldi va ketdi */
+  attendance?: Attendance[];
 }
+/**
+ * Xodim joyi bo'yicha kun: birinchi kelgan va oxirgi ketgan payt (here — hozir joyida), joyida bo'lgan daqiqalar,
+ * eng uzoq yo'qligi (ikki o'tirish orasi). Kamera kimligini bilmaydi — zona nomi (masalan, «Administrator») bo'yicha
+ */
+export interface Attendance { zoneId: string; name: string; cameraName: string; firstAt: string | null; lastAt: string | null; here: boolean; presentMin: number; longestAway: { from: string; to: string; min: number } | null }
 /** Kreslo bandligi: busyMin — kimdir o'tirgan, watchedMin — kamera kuzatgan daqiqalar; pct — kuzatilgani 10 daqiqadan kam bo'lsa null */
 export interface ChairUse { zoneId: string; name: string; cameraName: string; busyMin: number; watchedMin: number; pct: number | null }
 /**

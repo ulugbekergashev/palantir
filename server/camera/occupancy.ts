@@ -2,7 +2,7 @@
  * Kutish joyi va kreslo bandligi — sof qoidalar (baza va vaqt yo'q): kadrdagi odamlarni kadrdan kadrga bog'lash,
  * kreslo qancha band bo'lgani va kutishlar hisobi. Jonli holat va yozish — waiting.ts.
  */
-import type { Camera, CameraSession, ChairUse, WaitStats } from '../../src/types';
+import type { Attendance, Camera, CameraSession, ChairUse, WaitStats } from '../../src/types';
 import { inZone, type Box } from './sessions';
 
 /** Kutayotgan odam: markazi (kadr ulushida), qachondan beri va oxirgi ko'ringan payt; told — uzoq kutgani aytildi */
@@ -66,4 +66,25 @@ export function waitStats(sessions: readonly CameraSession[], alertMin: number, 
     count: waits.length, avgMin: waits.length ? minutes(total / waits.length) : 0, maxMin: minutes(Math.max(0, ...waits)),
     longCount: waits.filter(w => w >= alertMin * 60_000).length, alertMin, nowWaiting: current.people, nowLongestMin: minutes(current.longestMs),
   };
+}
+
+/** Xodim joyidagi ikki o'tirish orasi shundan qisqa bo'lsa — «yo'qlik» emas (bir zum turib ketgan) */
+const AWAY_MIN = 5;
+
+/** Xodim joylari bo'yicha kun: kelgan, ketgan, joyida bo'lgan vaqt va eng uzoq yo'qligi */
+export function attendance(cams: readonly Camera[], sessions: readonly CameraSession[], now: number): Attendance[] {
+  return cams.flatMap(cam => cam.zones.filter(z => z.kind === 'staff').map((zone): Attendance => {
+    const mine = sessions.filter(s => s.cameraId === cam.id && s.zoneId === zone.id && s.kind === 'staff').sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1));
+    const end = (s: CameraSession) => (s.endedAt ? Date.parse(s.endedAt) : now);
+    let longestAway: Attendance['longestAway'] = null;
+    for (let i = 1; i < mine.length; i++) {
+      const gap = Date.parse(mine[i].startedAt) - end(mine[i - 1]);
+      if (gap >= AWAY_MIN * 60_000 && (!longestAway || gap > longestAway.min * 60_000)) longestAway = { from: mine[i - 1].endedAt!, to: mine[i].startedAt, min: minutes(gap) };
+    }
+    const last = mine.at(-1);
+    return {
+      zoneId: zone.id, name: zone.name, cameraName: cam.name, firstAt: mine[0]?.startedAt ?? null, lastAt: last ? last.endedAt : null, here: !!last && !last.endedAt,
+      presentMin: minutes(mine.reduce((sum, s) => sum + end(s) - Date.parse(s.startedAt), 0)), longestAway,
+    };
+  }));
 }

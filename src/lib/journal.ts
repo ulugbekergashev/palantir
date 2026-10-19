@@ -23,8 +23,8 @@ export function buildJournal(calls: Call[], summary: CameraSummary | null, threa
   ];
   const today: JournalItem[] = [
     ...calls.filter(c => dayOf(c.startedAt) === day).map((c): JournalItem => ({ key: `c${c.id}`, at: c.startedAt, kind: 'call', level: 'ok', text: `${c.name ?? c.phone} — ${c.outcome}${c.booked ? ` · ${c.booked}` : ''}`, page: 'calls' })),
-    // Kutish joyidagi har kutish jurnalga tushmaydi (kuniga o'nlab) — hisobi Kuzatuvchida
-    ...(summary?.sessions ?? []).filter(s => s.kind !== 'waiting').map((s): JournalItem => ({
+    // Kutish va xodim joyidagi har seans jurnalga tushmaydi (kuniga o'nlab) — hisobi Kuzatuvchida
+    ...(summary?.sessions ?? []).filter(s => s.kind === 'chair' || s.kind === 'desk').map((s): JournalItem => ({
       key: `s${s.id}`, at: s.startedAt, kind: 'camera', level: 'ok', page: 'cameras',
       text: `${s.zoneName}: ${s.kind === 'chair' ? "kresloga o'tirdi" : 'kassa oldida turdi'}${s.endedAt ? '' : ' (hozir ham shu yerda)'}`,
     })),

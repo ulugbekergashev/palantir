@@ -15,7 +15,7 @@ export function cameraPresets(cams: readonly Camera[], cameraId?: string): Prese
   if (!scope.length) return [];
   const one = cameraId ? scope[0] : undefined;
   const where = one ? `«${one.name}»da` : 'kameralarda';
-  const desk = firstZone(scope, 'desk'), waiting = firstZone(scope, 'waiting');
+  const desk = firstZone(scope, 'desk'), waiting = firstZone(scope, 'waiting'), staff = firstZone(scope, 'staff');
   const crowdCam = waiting?.cam ?? one;
   const crowdWhere = waiting ? `«${waiting.cam.name} · ${waiting.zone.name}»da` : where;
   const presets: Preset[] = [{
@@ -29,6 +29,12 @@ export function cameraPresets(cams: readonly Camera[], cameraId?: string): Prese
     text: `Ish vaqtida (09:00–19:00) «${desk.cam.name} · ${desk.zone.name}» 10 daqiqadan ko'p bo'sh qolsa ayt`,
     summary: `09:00–19:00 da «${desk.zone.name}» oldida 10 daqiqa hech kim bo'lmasa — xabar beraman`,
     spec: { kind: 'watch', cameraId: desk.cam.id, zoneId: desk.zone.id, condition: 'empty', people: 1, minutes: 10, from: '09:00', to: '19:00' },
+  });
+  if (staff) presets.push({
+    key: 'staff-away', title: "Xodim joyida bo'lmasa", hint: 'ish vaqtida 30 daqiqa',
+    text: `Ish vaqtida (09:00–19:00) «${staff.cam.name} · ${staff.zone.name}» 30 daqiqadan ko'p bo'sh qolsa ayt`,
+    summary: `09:00–19:00 da «${staff.zone.name}» 30 daqiqa joyida bo'lmasa — xabar beraman`,
+    spec: { kind: 'watch', cameraId: staff.cam.id, zoneId: staff.zone.id, condition: 'empty', people: 1, minutes: 30, from: '09:00', to: '19:00' },
   });
   presets.push({
     key: 'crowd', title: "Ko'p odam yig'ilsa", hint: "5 kishidan ko'p · 5 daqiqa",

@@ -15,6 +15,9 @@ import { MONEY_DEFS } from './moneyTools';
 import { PERIODS, periodRange, spanDays } from './report';
 import { DEFAULT_DURATION_MIN, bookingProblem, dayOff, daySummary, doctorName, freeSlots, isRealDate, patientName, searchPatients, type Patient } from './logic';
 
+/** ISO vaqt → «HH:MM» (mahalliy) */
+const clockOf = (at: string) => stamp(new Date(at)).slice(11);
+
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD').refine(isRealDate, "taqvimda bunday sana yo'q");
 /** Bir javobda yoziladigan qabullar: undan ko'pi — egasi alohida so'rasin */
 const MAX_BOOKINGS_PER_TURN = 3;
@@ -66,7 +69,7 @@ const CLINIC_DEFS = {
   }),
 
   clinic_cameras: def({
-    description: 'What the clinic cameras saw on one day, next to DentaCRM: how many patients actually sat in a dental chair versus appointments marked as arrived, how many people stood at the cash desk versus payments recorded, and the discrepancies between them (a patient in a chair with no such appointment in the CRM; an appointment marked as arrived while nobody was seen in the chair; a patient who sat in the chair at their appointment time but has no payment of any kind recorded that day). "findings" are ready Uzbek sentences. Use for "how many patients really came", "does the camera match the CRM", "anything suspicious at the clinic today". The camera does not know who a person is and does not see amounts of money: findings are things for the owner to check, never proof. "cameras": 0 means no camera is set up yet — say that plainly instead of implying everything matches. "chair_use": how busy each chair was, as a percent of the time its camera watched that day (null — watched too little to say). "waiting" (only if a waiting area is marked): how many people waited, average and longest wait in minutes, how many waited longer than the alert limit, and who is waiting right now.',
+    description: 'What the clinic cameras saw on one day, next to DentaCRM: how many patients actually sat in a dental chair versus appointments marked as arrived, how many people stood at the cash desk versus payments recorded, and the discrepancies between them (a patient in a chair with no such appointment in the CRM; an appointment marked as arrived while nobody was seen in the chair; a patient who sat in the chair at their appointment time but has no payment of any kind recorded that day). "findings" are ready Uzbek sentences. Use for "how many patients really came", "does the camera match the CRM", "anything suspicious at the clinic today". The camera does not know who a person is and does not see amounts of money: findings are things for the owner to check, never proof. "cameras": 0 means no camera is set up yet — say that plainly instead of implying everything matches. "chair_use": how busy each chair was, as a percent of the time its camera watched that day (null — watched too little to say). "waiting" (only if a waiting area is marked): how many people waited, average and longest wait in minutes, how many waited longer than the alert limit, and who is waiting right now. "staff" (only if a staff seat is marked, named after the person or role): when someone first sat there, when they last left, minutes present and the longest absence — the camera does not know who it is, only that the seat was taken.',
     input: z.object({ date: date.optional().describe('YYYY-MM-DD, default today') }),
     run: async (i, ctx) => {
       const s = await cameraDay(ctx.biz, i.date ?? iso(new Date()));
@@ -79,6 +82,12 @@ const CLINIC_DEFS = {
             waited_today: s.waiting.count, avg_wait_min: s.waiting.avgMin, longest_wait_min: s.waiting.maxMin, waited_over_limit: s.waiting.longCount,
             limit_min: s.waiting.alertMin, waiting_now: s.waiting.nowWaiting, longest_now_min: s.waiting.nowLongestMin,
           },
+        } : {}),
+        ...(s.attendance?.length ? {
+          staff: s.attendance.map(a => ({
+            seat: a.name, camera: a.cameraName, first_seen: a.firstAt && clockOf(a.firstAt), last_left: a.here ? 'still there' : a.lastAt && clockOf(a.lastAt), present_min: a.presentMin,
+            ...(a.longestAway ? { longest_away: `${clockOf(a.longestAway.from)}–${clockOf(a.longestAway.to)} (${a.longestAway.min} min)` } : {}),
+          })),
         } : {}),
       };
     },
