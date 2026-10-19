@@ -1,88 +1,170 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { Loader2, RefreshCw, Trash2, Video, Wifi } from 'lucide-react';
-import type { Camera, CameraFeed, CameraSummary, CameraTiming, CameraZone, ZoneKind, ZoneNow } from '../types';
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import { Loader2, Radar, RefreshCw, Trash2, Video, Wifi } from 'lucide-react';
+import type { Camera, CameraFeed, CameraTiming, CameraZone, FoundCamera, ZoneKind, ZoneNow } from '../types';
 import { loadPersonDetector, type PersonBox } from '../lib/personDetector';
 import { api } from '../data/api';
 import type { Notify } from '../components/Artifacts';
-import { Button, Card, PageHeader, inputClass } from '../components/ui';
+import { Button, inputClass } from '../components/ui';
 
 type Draft = Omit<CameraZone, 'id'> & { id?: string };
 const KIND: Record<ZoneKind, string> = { chair: 'Kreslo', desk: 'Kassa stoli' };
-const LEVEL = { ok: 'bg-emerald-500', warn: 'bg-amber-500', crit: 'bg-rose-500' };
 const FEED: Record<CameraFeed['state'], { dot: string; text: string }> = {
   ok: { dot: 'bg-emerald-500', text: 'kadr kelyapti' },
   connecting: { dot: 'bg-amber-500', text: 'ulanmoqda…' },
   error: { dot: 'bg-rose-500', text: 'kadr kelmayapti' },
 };
 const RTSP_SAMPLE = 'rtsp://admin:parol@192.168.1.64:554/Streaming/Channels/102';
-const clock = (isoTime: string) => new Date(isoTime).toLocaleTimeString('uz', { hour: '2-digit', minute: '2-digit' });
 const box = (z: { x: number; y: number; w: number; h: number }) => ({ left: `${z.x * 100}%`, top: `${z.y * 100}%`, width: `${z.w * 100}%`, height: `${z.h * 100}%` });
 
-/** Kameralar: kunlik hisob (kamera ko'rgani va CRM), kameralar ro'yxati va zonalarni chizish */
-export function CamerasPage({ notify }: { notify: Notify }) {
-  const [list, setList] = useState<Camera[] | null>(null);
-  const [summary, setSummary] = useState<CameraSummary | null>(null);
-  const [picked, setPicked] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [timing, setTiming] = useState<CameraTiming | null>(null);
-  const fail = (e: unknown) => notify((e as Error).message, true);
-  const load = () => Promise.all([api.cameras(), api.cameraSummary()]).then(([c, s]) => { setList(c.cameras); setTiming(c.timing); setSummary(s.summary); }).catch(fail);
-  useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 10_000); return () => clearInterval(t); }, []);
+/** Kamera nomi — u qayerda turgani: shu nom bilan jurnal va topshiriqlarda ko'rinadi */
+const PLACES = ['Qabulxona', '1-kabinet', '2-kabinet', '3-kabinet', 'Kirish eshigi', 'Kassa', 'Kutish zali'];
 
-  const add = () => api.addCamera(name.trim()).then(r => { setName(''); setPicked(r.camera.id); return load(); }).catch(fail);
-  const camera = list?.find(c => c.id === picked) ?? null;
-
+function Block({ title, hint, action, children }: { title: string; hint: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <div className="space-y-5">
-      <PageHeader title="Kameralar" description="Kamera ko'rganini DentaCRM bilan solishtiradi: kresloda kim o'tirdi, kassa oldida kim turdi, qayerda farq bor." />
-
-      {!summary || !list ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : (
-        <>
-          <Card title="Bugungi hisob" description={summary.crm ? "Kamera ko'rgani va DentaCRM yonma-yon" : "DentaCRM ulanmagan — hozircha faqat kamera ko'rgani"}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Count n={summary.seated} label="bemor kresloga o'tirdi" crm={summary.crm && `CRM'da ${summary.crm.visits} ta «keldi»`} />
-              <Count n={summary.deskVisits} label="kishi kassa oldida turdi" crm={summary.crm && `CRM'da ${summary.crm.payments} ta to'lov`} />
-            </div>
-            {summary.findings.length > 0 && (
-              <ul className="mt-4 space-y-2 text-sm">
-                {summary.findings.map((f, i) => <li key={i} className="flex gap-2"><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${LEVEL[f.level]}`} />{f.text}</li>)}
-              </ul>
-            )}
-            {summary.sessions.length > 0 && (
-              <ul className="mt-4 divide-y divide-slate-100 text-sm">
-                {summary.sessions.map(s => <li key={s.id} className="flex justify-between gap-3 py-1.5"><span>{s.zoneName}</span><span className="tabular-nums text-slate-500">{clock(s.startedAt)} – {s.endedAt ? clock(s.endedAt) : 'hozir'}</span></li>)}
-              </ul>
-            )}
-            {!summary.sessions.length && <p className="mt-4 text-sm text-slate-500">Bugun hali hech narsa ko'rilmadi. Kamera qo'shing va zonalarni belgilang — kadrlar kelishi bilan seanslar shu yerda paydo bo'ladi.</p>}
-          </Card>
-
-          <Card title="Kameralar" description="Har kamerada kreslo va kassa stolini belgilang: Cerebro aynan shu joylarni vaqtlaydi.">
-            <div className="flex flex-wrap gap-2">
-              {list.map(c => (
-                <Button key={c.id} size="sm" variant={c.id === picked ? 'primary' : 'secondary'} onClick={() => setPicked(c.id)}>
-                  {c.ip ? <Wifi className="h-4 w-4" /> : <Video className="h-4 w-4" />} {c.name}
-                  {c.feed && <span className={`h-2 w-2 rounded-full ${FEED[c.feed.state].dot}`} aria-label={FEED[c.feed.state].text} />}
-                </Button>
-              ))}
-              <form className="flex gap-2" onSubmit={e => { e.preventDefault(); if (name.trim()) void add(); }}>
-                <input className={inputClass} value={name} onChange={e => setName(e.target.value)} maxLength={40} placeholder="Yangi kamera nomi" aria-label="Yangi kamera nomi" />
-                <Button size="sm" type="submit" disabled={!name.trim()}>Qo'shish</Button>
-              </form>
-            </div>
-            {camera && <ZoneEditor key={`${camera.id}|${camera.ip ?? ''}`} camera={camera} timing={timing} notify={notify} onSaved={load} onRemoved={() => { setPicked(null); void load(); }} />}
-          </Card>
-        </>
-      )}
-    </div>
+    <section className="rounded-[22px] border border-glass/[0.07] bg-[#0b0c10] p-5">
+      <header className="mb-4 flex flex-wrap items-start gap-3">
+        <div className="mr-auto min-w-0"><h3 className="text-[16px] font-semibold text-[#f2f0ea]">{title}</h3><p className="mt-0.5 max-w-2xl text-[13px] leading-snug text-[#8a909c]">{hint}</p></div>
+        {action}
+      </header>
+      {children}
+    </section>
   );
 }
+const field = 'h-11 w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#6b717c] focus:border-glass/25';
+const label = 'flex flex-col gap-1.5 text-[12px] font-medium text-[#a3a9b5]';
 
-function Count({ n, label, crm }: { n: number; label: string; crm: string | null }) {
+/**
+ * Kuzatuvchi → Ulash: kamera qo'shish va zonalarni chizish. Ikki yo'l:
+ *   IP kamera (devordagi, klinika uchun) — tarmoqdan qidirib yoki RTSP manzil bilan; kadrni server oladi, kechayu kunduz ishlaydi;
+ *   shu kompyuter kamerasi — faqat sinash uchun: odamlarni brauzer sanaydi, sahifa ochiq turgandagina.
+ * Kunlik hisob va hodisalar — «Hozir» varag'ida.
+ */
+export function CamerasPage({ notify }: { notify: Notify }) {
+  const [list, setList] = useState<Camera[] | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [timing, setTiming] = useState<CameraTiming | null>(null);
+  const [found, setFound] = useState<FoundCamera[] | null>(null);
+  const [ffmpeg, setFfmpeg] = useState(true);
+  const [scanning, setScanning] = useState(false);
+  const [cred, setCred] = useState({ login: 'admin', password: '' });
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [manual, setManual] = useState({ name: '', url: '' });
+  const [local, setLocal] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const fail = (e: unknown) => notify((e as Error).message, true);
+  const load = () => api.cameras().then(c => { setList(c.cameras); setTiming(c.timing); }).catch(fail);
+  useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 10_000); return () => clearInterval(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const placeFor = (i: number) => PLACES[(list?.length ?? 0) + i] ?? `${(list?.length ?? 0) + i + 1}-kamera`;
+  const act = async (key: string, fn: () => Promise<unknown>) => { setBusy(key); try { await fn(); } catch (e) { fail(e); } finally { setBusy(null); } };
+  const scan = () => act('scan', async () => {
+    setScanning(true);
+    try {
+      const r = await api.discoverCameras();
+      setFound(r.found);
+      setFfmpeg(r.ffmpeg);
+      setNames(Object.fromEntries(r.found.filter(c => !c.connected).map((c, i) => [c.ip, placeFor(i)])));
+    } finally { setScanning(false); }
+  });
+  const connect = (c: FoundCamera) => act(c.ip, async () => {
+    const r = await api.connectCamera({ ip: c.ip, port: c.rtspPort, brand: c.brand, onvif: c.onvif, login: cred.login, password: cred.password, name: names[c.ip] || placeFor(0) });
+    setFound(f => f?.map(x => (x.ip === c.ip ? { ...x, connected: true } : x)) ?? null);
+    setPicked(r.camera.id);
+    await load();
+    notify(`${r.camera.name} ulandi — endi kreslo va kassani belgilang`);
+  });
+  /** RTSP manzil bilan: kamera yaratiladi va manzil ulanadi; ulanmasa — kamera o'chiriladi (yarim qolmasin) */
+  const connectUrl = () => act('url', async () => {
+    const name = manual.name.trim() || placeFor(0);
+    const id = (await api.addCamera(name)).camera.id;
+    try { await api.setCameraStream(id, manual.url.trim()); } catch (e) { await api.removeCamera(id).catch(() => {}); throw e; }
+    setManual({ name: '', url: '' });
+    setPicked(id);
+    await load();
+    notify(`${name} ulandi`);
+  });
+  const addLocal = () => act('local', async () => {
+    const r = await api.addCamera(local.trim() || 'Shu kompyuter');
+    setLocal('');
+    setPicked(r.camera.id);
+    await load();
+  });
+  const camera = list?.find(c => c.id === picked) ?? null;
+
+  if (!list) return <Loader2 className="mx-auto h-6 w-6 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" />;
   return (
-    <div className="rounded-xl border border-slate-200 p-4">
-      <div className="text-3xl font-extrabold tabular-nums">{n}</div>
-      <div className="font-semibold">{label}</div>
-      {crm && <div className="text-sm text-slate-500">{crm}</div>}
+    <div className="flex flex-col gap-5">
+      {!ffmpeg && <p role="alert" className="rounded-2xl bg-[#f5b454]/10 px-4 py-3 text-[14px] text-[#fde2b0]">Bu kompyuterda ffmpeg yo'q — IP kameralar ishlamaydi. O'rnating: <code>winget install Gyan.FFmpeg</code>, keyin Cerebro'ni qayta ishga tushiring.</p>}
+
+      {list.length > 0 && (
+        <Block title={`Kameralar · ${list.length}`} hint="Kamerani tanlang — kadr ustida kreslo va kassa stolini belgilaysiz. Kuzatuvchi aynan shu joylarni sanaydi.">
+          <div className="flex flex-wrap gap-2">
+            {list.map(c => (
+              <button key={c.id} type="button" onClick={() => setPicked(p => (p === c.id ? null : c.id))} aria-pressed={c.id === picked}
+                className={`flex min-h-10 items-center gap-2 rounded-xl border px-3.5 text-[14px] transition-colors ${c.id === picked ? 'border-[#f5b454]/40 bg-[#f5b454]/[0.08] text-[#f2f0ea]' : 'border-glass/10 text-[#d9dbe1] hover:bg-glass/5'}`}>
+                {c.ip ? <Wifi className="h-4 w-4" aria-hidden="true" /> : <Video className="h-4 w-4" aria-hidden="true" />}{c.name}
+                {c.feed && <span className={`h-2 w-2 rounded-full ${FEED[c.feed.state].dot}`} aria-label={FEED[c.feed.state].text} />}
+                {!c.ip && <span className="text-[11px] text-[#7d838f]">kompyuter</span>}
+              </button>
+            ))}
+          </div>
+          {camera && <ZoneEditor key={`${camera.id}|${camera.ip ?? ''}`} camera={camera} timing={timing} notify={notify} onSaved={load} onRemoved={() => { setPicked(null); void load(); }} />}
+        </Block>
+      )}
+
+      <Block title="IP kamera qo'shish (klinika uchun)" hint="Devordagi kamera yoki videoregistrator — shu kompyuter bilan bitta tarmoqda. Kadrni server o'zi oladi: kechayu kunduz ishlaydi, «Kameradan so'rang» va AI ko'zi ham ishlaydi."
+        action={(
+          <button type="button" onClick={() => { void scan(); }} disabled={!!busy} className="flex min-h-10 items-center gap-2 rounded-xl bg-[#f5b454] px-4 text-[14px] font-semibold text-[#07080b] disabled:opacity-50">
+            {scanning ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Radar className="h-4 w-4" aria-hidden="true" />}{found ? 'Qayta qidirish' : 'Tarmoqdan qidirish'}
+          </button>
+        )}>
+        {scanning && <p className="mb-3 flex items-center gap-2 text-[13px] text-[#a3a9b5]"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />ONVIF so'rovi va 554-port tekshirilmoqda — bir necha soniya…</p>}
+        {found && !scanning && (found.length === 0
+          ? <p className="mb-4 rounded-xl border border-dashed border-glass/10 px-4 py-3 text-[13px] text-[#a3a9b5]">Tarmoqda kamera topilmadi. Kamera yoqilganmi va shu routerga ulanganmi? Bo'lmasa — pastda manzili bilan ulang.</p>
+          : (
+            <div className="mb-5 flex flex-col gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className={label}>Kamera logini (hammasiga bir xil)<input className={field} value={cred.login} onChange={e => setCred({ ...cred, login: e.target.value })} autoComplete="off" /></label>
+                <label className={label}>Kamera paroli<input className={field} type="password" value={cred.password} onChange={e => setCred({ ...cred, password: e.target.value })} autoComplete="off" /></label>
+              </div>
+              <ul className="flex flex-col gap-2">
+                {found.map(c => (
+                  <li key={c.ip} className="flex flex-wrap items-center gap-3 rounded-2xl border border-glass/[0.06] bg-glass/[0.02] px-4 py-3">
+                    <Video className="h-5 w-5 text-[#7d838f]" aria-hidden="true" />
+                    <div className="min-w-40 flex-1">
+                      <p className="text-[14px] font-semibold text-[#f2f0ea]">{c.brand || "Noma'lum marka"} · <span className="tabular-nums">{c.ip}</span></p>
+                      <p className="text-[12px] text-[#7d838f]">{c.model || (c.onvif ? 'ONVIF' : `faqat RTSP porti ${c.rtspPort}`)}</p>
+                    </div>
+                    {c.connected ? <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[12px] font-semibold text-emerald-300">Ulangan</span> : (
+                      <>
+                        <input className={`${field} w-40`} aria-label="Qayerda turibdi" value={names[c.ip] ?? ''} onChange={e => setNames({ ...names, [c.ip]: e.target.value })} list="camera-places" />
+                        <button type="button" onClick={() => { void connect(c); }} disabled={!!busy} className="flex min-h-11 items-center gap-2 rounded-xl bg-[#f2f0ea] px-4 text-[14px] font-semibold text-[#07080b] disabled:opacity-50">
+                          {busy === c.ip && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Ulash
+                        </button>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        <datalist id="camera-places">{PLACES.map(p => <option key={p} value={p} />)}</datalist>
+        <form onSubmit={e => { e.preventDefault(); if (manual.url.trim()) void connectUrl(); }} className="grid gap-3 sm:grid-cols-[200px_minmax(0,1fr)_auto] sm:items-end">
+          <label className={label}>Qayerda turibdi<input className={field} value={manual.name} onChange={e => setManual({ ...manual, name: e.target.value })} placeholder={placeFor(0)} maxLength={40} list="camera-places" /></label>
+          <label className={label}>Yoki RTSP manzil (login va paroli bilan)<input className={field} value={manual.url} onChange={e => setManual({ ...manual, url: e.target.value })} placeholder={RTSP_SAMPLE} autoComplete="off" spellCheck={false} maxLength={300} /></label>
+          <button type="submit" disabled={!!busy || !manual.url.trim()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#f2f0ea] px-5 text-[14px] font-semibold text-[#07080b] disabled:opacity-40">
+            {busy === 'url' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wifi className="h-4 w-4" aria-hidden="true" />}Ulash
+          </button>
+          <p className="text-[12px] text-[#7d838f] sm:col-span-3">Yengil oqimni oling — Hikvision'da oxiri <code>102</code>, Dahua'da <code>subtype=1</code>. Manzil shifrlab saqlanadi.</p>
+        </form>
+      </Block>
+
+      <Block title="Shu kompyuter kamerasi (faqat sinash uchun)" hint="Odamlarni brauzer sanaydi — bu sahifa ochiq turgandagina. Kadr serverga bormaydi: «Kameradan so'rang» va AI ko'zi bu kamerada ishlamaydi.">
+        <form onSubmit={e => { e.preventDefault(); void addLocal(); }} className="flex flex-wrap gap-2">
+          <input className={`${field} max-w-xs`} value={local} onChange={e => setLocal(e.target.value)} maxLength={40} placeholder="Shu kompyuter" aria-label="Kompyuter kamerasi nomi" />
+          <button type="submit" disabled={!!busy} className="flex min-h-11 items-center gap-2 rounded-xl border border-glass/10 px-4 text-[14px] text-[#d9dbe1] hover:bg-glass/5 disabled:opacity-50"><Video className="h-4 w-4" aria-hidden="true" />Qo'shish</button>
+        </form>
+      </Block>
     </div>
   );
 }
@@ -204,7 +286,7 @@ function ZoneEditor({ camera, timing, notify, onSaved, onRemoved }: { camera: Ca
 
   return (
     <div className="mt-4 space-y-3">
-      {problem && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{problem}</p>}
+      {problem && <p role="alert" className="rounded-xl bg-[#f5b454]/10 p-3 text-sm text-[#fde2b0]">{problem}</p>}
       {isIp && camera.feed && (
         <p role="status" className="flex flex-wrap items-center gap-2 text-sm">
           <span className={`h-2 w-2 rounded-full ${FEED[camera.feed.state].dot}`} />
@@ -213,13 +295,13 @@ function ZoneEditor({ camera, timing, notify, onSaved, onRemoved }: { camera: Ca
           <span className="text-slate-500">Odamlarni server o'zi sanaydi — bu sahifa ochiq turishi shart emas.</span>
         </p>
       )}
-      {counting === 'on' && <p role="status" className="text-sm font-semibold text-emerald-700">Sanash yoqilgan: topilgan odamlar oq ramkada, zona holati uning yorlig'ida.</p>}
-      <div className="relative touch-none select-none overflow-hidden rounded-xl bg-slate-900" onPointerDown={e => { if (counting !== 'off') return; e.currentTarget.setPointerCapture(e.pointerId); const p = at(e); setDrag({ x0: p.x, y0: p.y, ...p }); }}
+      {counting === 'on' && <p role="status" className="text-sm font-semibold text-emerald-300">Sanash yoqilgan: topilgan odamlar oq ramkada, zona holati uning yorlig'ida.</p>}
+      <div className="relative mx-auto max-w-3xl touch-none select-none overflow-hidden rounded-xl bg-[#06070a]" onPointerDown={e => { if (counting !== 'off') return; e.currentTarget.setPointerCapture(e.pointerId); const p = at(e); setDrag({ x0: p.x, y0: p.y, ...p }); }}
         onPointerMove={e => { if (drag) setDrag({ ...drag, ...at(e) }); }} onPointerUp={finish} onPointerCancel={() => setDrag(null)}>
 {isIp
-          ? shot ? <img src={shot} alt={`${camera.name} kamerasi kadri`} draggable={false} className="block min-h-40 w-full" /> : <div className="flex min-h-40 items-center justify-center text-sm text-slate-400">Kadr olinmoqda…</div>
+          ? shot ? <img src={shot} alt={`${camera.name} kamerasi kadri`} draggable={false} className="block min-h-40 w-full" /> : <div className="flex min-h-40 items-center justify-center text-sm text-[#7d838f]">Kadr olinmoqda…</div>
           : <video ref={video} autoPlay muted playsInline onLoadedData={() => setReady(true)} aria-label={`${camera.name} kamerasi tasviri`} className="block min-h-40 w-full" />}
-        {zones.map((z, i) => <div key={i} className={`absolute border-2 ${z.kind === 'chair' ? 'border-emerald-400' : 'border-amber-400'}`} style={box(z)}><span className="bg-slate-900/70 px-1 text-xs font-semibold text-white">{z.name}{seen && z.id && seen.zones[z.id] ? ` · ${NOW[seen.zones[z.id]]}` : ''}</span></div>)}
+        {zones.map((z, i) => <div key={i} className={`absolute border-2 ${z.kind === 'chair' ? 'border-emerald-400' : 'border-amber-400'}`} style={box(z)}><span className="bg-black/70 px-1 text-xs font-semibold text-white">{z.name}{seen && z.id && seen.zones[z.id] ? ` · ${NOW[seen.zones[z.id]]}` : ''}</span></div>)}
         {seen?.people.map((p, i) => <div key={`p${i}`} className="absolute border-2 border-dashed border-white/90" style={box(p)} />)}
         {drag && <div className="absolute border-2 border-dashed border-white" style={box(rect(drag))} />}
       </div>
