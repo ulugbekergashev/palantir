@@ -25,6 +25,7 @@ import { crmClinicName, crmConnected } from './crm/index';
 import { COMMON_RULES, industryOf } from '../src/data/industries';
 import { runTool, toolDefinitions, type ToolCtx } from './tools';
 import { orders } from './orders/store';
+import { legalText } from './docs/legal';
 
 type Msg = Anthropic.Beta.BetaMessageParam;
 type Block = Anthropic.Beta.BetaContentBlockParam;
@@ -104,6 +105,7 @@ ${profile.playbook}
 ${COMMON_RULES}
 </how_this_business_works>`,
     ...knowledgeBlocks(b),
+    `<legal_details>\n${legalText(b.profile)}\n</legal_details>`,
     samples.length ? `<document_samples>\nSamples of the owner's own documents. Before writing a document of the same kind, read the sample with read_sample and follow it.\n${samples.map(s => `- [${s.id}] ${s.question}`).join('\n')}\n</document_samples>` : '',
     holidays.length ? `<upcoming_holidays>\n${holidays.map(h => `- ${h.date}: ${h.title.uz}${h.solemn ? ' (remembrance day)' : ''}`).join('\n')}\n</upcoming_holidays>` : '',
     recent.length

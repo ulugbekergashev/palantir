@@ -40,6 +40,7 @@ import { phoneChanged } from './people';
 import { mountOrders } from './orders/routes';
 import { mountAttention } from './attention';
 import { mountTeamDay } from './teamDay';
+import { mountInsights } from './insights/routes';
 
 type Handler = (req: Request, res: Response) => unknown;
 
@@ -392,7 +393,7 @@ export function createApp(bot: BotService) {
   app.get('/api/documents/:id/docx', asBiz(async (req, res, biz) => {
     const d = documents.get(biz.id, String(req.params.id));
     if (!d) return res.status(404).json({ error: 'Topilmadi' });
-    const buf = await markdownToDocx(d.title, d.markdown, biz.profile);
+    const buf = await markdownToDocx(d.title, d.markdown, biz.profile, d.kind);
     const name = docFileName(d.title);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="document.docx"; filename*=UTF-8''${encodeURIComponent(name)}`);
@@ -487,6 +488,7 @@ export function createApp(bot: BotService) {
   mountOrders(app, { asBiz, bad, fail, bot });
   mountAttention(app, { asBiz });
   mountTeamDay(app, { asBiz });
+  mountInsights(app, { asBiz });
   mountSetup(app, { asBiz, asAdmin, bad, fail, bot, statusOf: bizId => status(businesses.byId(bizId)!, bot) });
 
   // ─── Mijozlarga javob: rejim va yozishmalar ────────────────────────────────

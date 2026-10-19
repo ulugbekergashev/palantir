@@ -233,7 +233,7 @@ export function createBot(): BotService {
   // ─── Yetkazish: yordamchi javobi va narsalari ─────────────────────────────
   async function sendArtifact(biz: BusinessRow, chat: string, a: Artifact): Promise<void> {
     if (a.type === 'document') {
-      const buf = await markdownToDocx(a.doc.title, a.doc.markdown, biz.profile);
+      const buf = await markdownToDocx(a.doc.title, a.doc.markdown, biz.profile, a.doc.kind);
       await tg.sendDocument(chat, { source: buf, filename: docFileName(a.doc.title) }, { caption: `📄 ${cut(a.doc.title, 200)}` });
     } else if (a.type === 'post') {
       const p = posts.get(biz.id, a.post.id) ?? a.post;

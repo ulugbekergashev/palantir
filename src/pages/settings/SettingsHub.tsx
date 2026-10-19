@@ -1,10 +1,11 @@
 /**
  * Sozlamalar — jamoa qayerda ishlashi. Tepada har ulanishning holati (plitka: ulangan / ulanmagan / muammo), bosilgani pastda ochiladi:
- * Asosiy (ism, til, javob rejimi, mijozlar havolasi), Telegram, Instagram, DentaCRM, Telefon liniyasi; Kameralar — Kuzatuvchi'da.
+ * Asosiy (ism, til, javob rejimi, mijozlar havolasi), Rekvizitlar (hujjatlar uchun), Telegram, Instagram, DentaCRM, Telefon liniyasi;
+ * Kameralar — Kuzatuvchi'da.
  * Manzil: #/sozlamalar/<bo'lim>.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Camera as CameraIcon, MessageCircleHeart, Phone, Send, Settings, Sparkles, Stethoscope, type LucideIcon } from 'lucide-react';
+import { Camera as CameraIcon, Landmark, MessageCircleHeart, Phone, Send, Settings, Sparkles, Stethoscope, type LucideIcon } from 'lucide-react';
 import type { Business, LiveStatus } from '../../types';
 import { api, type PhoneLine } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
@@ -13,6 +14,7 @@ import { hrefOf } from '../../lib/nav';
 import { DentaCrm } from '../DentaCrmSection';
 import { ClientLink, Instagram, InstagramOfficial, OwnerBot, ReplyModeCard, SettingsCard, TelegramLogin } from '../TelegramPage';
 import { PhoneLineSettings } from './PhoneLine';
+import { Requisites } from './Requisites';
 
 type Tone = 'on' | 'off' | 'warn';
 interface Tile { id: string; name: string; icon: LucideIcon; tone: Tone; state: string; href?: string }
@@ -47,6 +49,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
   const igProblem = status.instagramApi.problem ?? status.instagram.problem;
   const tiles: Tile[] = [
     { id: 'asosiy', name: 'Asosiy', icon: Settings, tone: 'on', state: `${biz.name}${biz.ownerName ? ` · ${biz.ownerName}` : ''}` },
+    { id: 'rekvizitlar', name: 'Rekvizitlar', icon: Landmark, tone: biz.legal?.stir ? 'on' : 'off', state: biz.legal?.stir ? (biz.legal.name || `STIR ${biz.legal.stir}`) : 'shartnoma va hisob-varaq uchun' },
     { id: 'telegram', name: 'Telegram', icon: Send, tone: status.ownerLinked ? 'on' : 'off', state: status.ownerLinked ? (status.telegramUser.account ? 'bot va shaxsiy akkaunt' : 'bot ulangan') : 'ulanmagan' },
     { id: 'instagram', name: 'Instagram', icon: MessageCircleHeart, tone: ig ? (igProblem ? 'warn' : 'on') : 'off', state: ig ? (igProblem ? 'muammo bor' : 'ulangan') : 'ulanmagan' },
     ...(clinic ? [{ id: 'dentacrm', name: 'DentaCRM', icon: Stethoscope, tone: (status.crm.account ? (status.crm.problem ? 'warn' : 'on') : 'off') as Tone, state: status.crm.account ? (status.crm.problem ? 'muammo bor' : 'ulangan') : 'ulanmagan' }] : []),
@@ -83,6 +86,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
           </div>
         </div>
       )}
+      {active === 'rekvizitlar' && <div className="max-w-3xl"><Requisites key={JSON.stringify(biz.legal ?? {})} biz={biz} offeringsRev={offeringsRev} onSaved={onSaved} notify={notify} /></div>}
       {active === 'telegram' && (
         <div className="grid items-start gap-5 xl:grid-cols-2">
           <Part title="Cerebro bilan Telegram'da" hint="Eslatmalar, ertalabki reja va mijozlarga javob takliflari shu yerga keladi."><OwnerBot status={status} /></Part>

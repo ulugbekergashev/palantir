@@ -270,13 +270,9 @@ const paper: Intent = ctx => {
   const kind = DOCS.find(([re]) => re.test(ctx.t))?.[1];
   if (!kind || !/(tayyorla|yozib ber|tuzib ber|qilib ber|yoz$|tuz$)/.test(ctx.t)) return null;
   const done = got(ctx, 'create_document');
-  if (done) return say("Hujjat fayli (.docx) tayyor — pastda. Eslatma: bu faqat bo'sh qolip. Hujjat MATNINI yozish — haqiqiy modelning ishi, taqlid miya buni qila olmaydi.");
+  if (done) return say("Hujjat fayli (.docx) tayyor — pastda. Eslatma: stendda hujjatni taqlid yozuvchi yozadi (tayyor namuna). Haqiqiy matnni haqiqiy model yozadi.");
   const title = capital(ctx.raw.replace(/\b(tayyorla|yozib ber|tuzib ber|qilib ber|yoz|tuz)(ing|gin)?\b/gi, ' ').replace(/\s+/g, ' ').trim()).slice(0, 120);
-  const business = /^Name: (.+)$/m.exec(ctx.system)?.[1] ?? '________';
-  return call('create_document', {
-    title, kind,
-    markdown: `# ${title}\n\n**${business}**\n\nSana: ${ctx.today}\n\n1. Tomonlar: ________\n2. Mazmuni: ________\n3. Narx va to'lov: ________\n4. Muddat: ________\n\nImzo: ________`,
-  });
+  return call('create_document', { title, kind, brief: ctx.raw.slice(0, 2000) });
 };
 
 const followup: Intent = ctx => {

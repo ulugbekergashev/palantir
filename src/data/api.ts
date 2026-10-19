@@ -15,6 +15,14 @@ export interface AttentionItem {
   key: string; kind: 'camera' | 'request' | 'reply' | 'task' | 'order'; member: OrderMember; refId: string;
   title: string; body: string; at: string; phone: string | null; urgent: boolean;
 }
+/** Talab tahlili (server/insights/analyze.ts): sonlar bandlardan kodda sanalgan */
+export interface DemandGroup { name: string; count: number; share: number; examples: string[] }
+export interface Insights {
+  days: number; from: string; to: string; createdAt: string;
+  totals: { items: number; messages: number; calls: number; requests: number };
+  headline: string; themes: DemandGroup[]; unanswered: DemandGroup[]; objections: DemandGroup[];
+  actions: { title: string; why: string }[]; hours: number[]; days7: number[];
+}
 /** «Bugun jamoa nima qildi» (server/teamDay.ts) */
 export interface TeamDay {
   date: string;
@@ -124,6 +132,8 @@ export const api = {
   // ─── «Sizni kutyapti»: hamma xodimdan egasining qarorini kutayotganlar (server/attention.ts) ───
   attention: () => call<{ items: AttentionItem[] }>('/attention'),
   teamDay: () => call<TeamDay>('/team/day'),
+  insights: (days: number) => call<{ insights: Insights | null; running: boolean }>(`/insights?days=${days}`),
+  runInsights: (days: number) => call<{ insights: Insights }>('/insights', { body: { days } }),
   seeEvent: (id: string) => call<{ ok: true }>(`/agents/events/${id}/seen`, { body: {} }),
   // ─── Telefon liniyasi (Asterisk): shahar raqami, kim javob beradi, administrator telefoni ───
   phoneLine: () => call<{ line: PhoneLine }>('/phone/line'),

@@ -39,3 +39,6 @@ tgvoice/asterisk/pjsip_shahar.conf
 # Ovoz bilan chaqirish modellari (Vosk, ~50 MB): tgvoice/README.md dagi havoladan yuklanadi
 tgvoice/models/
 tgvoice/asterisk/pjsip_admin.conf
+
+# Sinov natijalari (scripts/doc-bench.ts)
+/tmp/

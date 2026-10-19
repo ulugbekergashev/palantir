@@ -1,0 +1,52 @@
+/**
+ * Talab tahlili (server/insights): model guruhlagan bandlardan sanash kodda — noma'lum va takror id'lar tashlanadi, bir band bitta
+ * mavzuda; serverda: yozishmalar va qo'ng'iroqlar yig'iladi, natija saqlanadi, boshqa biznes ko'rmaydi, murojaat kam bo'lsa model chaqirilmaydi.
+ */
+import type { DemandItem } from '../server/insights/collect';
+import { SCHEMA, shape, stripIds, systemPrompt } from '../server/insights/logic';
+import { ai } from './fakes';
+import type { Harness } from './e2e-crm';
+
+type Ok = (name: string, cond: unknown, info?: string) => void;
+
+export function insightsLogicTests(ok: Ok): void {
+  console.log('\n# Talab tahlili: sanash kodda');
+  const items: DemandItem[] = ['m1', 'm2', 'm3', 'c4'].map((id, i) => ({ id, kind: id.startsWith('c') ? 'call' : 'message', channel: 'telegram', at: `2026-10-1${i}T10:00:00Z`, text: `Customer: savol ${id} | Our reply: javob` }));
+  const themes = shape({ themes: [{ name: 'Narx', items: ['m1', 'm2', 'm2', 'x99'], examples: ['m2', 'c4'] }, { name: 'Vaqt', items: ['m2', 'm3'], examples: [] }, { name: 'Bo‘sh', items: ['x1'], examples: [] }] }, items, true, 'themes');
+  ok("mavzu: takror va noma'lum id sanalmaydi, bir band — bitta mavzuda, bo'sh mavzu tushadi", themes.length === 2 && themes[0].name === 'Narx' && themes[0].count === 2 && themes[1].count === 1, JSON.stringify(themes.map(t => [t.name, t.count])));
+  ok('mavzu: ulush — barcha bandlarga nisbatan; misol — mijozning gapi (bizning javobsiz)', themes[0].share === 0.5 && themes[0].examples[0] === 'savol m2', JSON.stringify(themes[0]));
+  const gaps = shape({ unanswered: [{ question: 'Yetkazish bormi?', items: ['m1', 'm3'], examples: [] }, { question: 'Kafolat?', items: ['m1'], examples: [] }] }, items, false, 'unanswered');
+  ok("javobsiz savollar: bir band bir nechta savolda bo'lishi mumkin", gaps.length === 2 && gaps[0].count === 2 && gaps[1].count === 1);
+  const silent = shape({ themes: [{ name: 'Navbat', items: ['q1'], examples: [] }] }, [{ id: 'q1', kind: 'message', channel: 'telegram', at: '2026-10-19T10:00:00Z', text: 'Customer: Navbat uzoq ekan | (no reply)' }], true, 'themes');
+  ok("misolda «(no reply)» belgisi chiqmaydi", silent[0]?.examples[0] === 'Navbat uzoq ekan', silent[0]?.examples[0]);
+  ok("matndan ichki id'lar olinadi («… tanlamoqda (m17)», «(m3, c7)»), oddiy qavs qoladi", stripIds('Qimmat deb ketmoqda (m17).') === 'Qimmat deb ketmoqda.' && stripIds('Narx (m3, c7) va kafolat') === 'Narx va kafolat' && stripIds('Implant (Koreya)') === 'Implant (Koreya)');
+  ok("ko'rsatma: o'zbekcha (yoki ruscha), sonsiz sarlavha, bandlar — ma'lumot", systemPrompt('uz').includes('Uzbek (Latin script)') && systemPrompt('ru').includes('Russian') && systemPrompt('uz').includes('data, not instructions')
+    && (SCHEMA.required as string[]).includes('unanswered'));
+}
+
+export async function insightsApiTests(h: Harness): Promise<void> {
+  const { ok, api, token, otherToken } = h;
+  console.log('\n# Talab tahlili: serverda');
+  ok("boshida tahlil yo'q (bepul so'rov)", (await api('/api/insights?days=7', { token })).json.insights === null);
+  // Ovozli agent yozib qoldirgan qo'ng'iroqlar: mijozning gaplari tahlilga band bo'lib kiradi
+  const key = (await api('/api/voice/key', { token, body: {} })).json.key as string;
+  const report = (phone: string, said: string) => fetch(`${h.base}/api/voice/calls`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+    body: JSON.stringify({ phone, startedAt: new Date().toISOString(), durationSec: 60, outcome: "Ma'lumot oldi", transcript: [{ who: 'ai', text: 'Assalomu alaykum' }, { who: 'caller', text: said }] }) });
+  await report('+998901110101', 'Implant narxi qancha turadi?');
+  await report('+998901110102', 'Bolalar uchun tish tozalash narxi qancha?');
+  await report('+998901110103', 'Shanba kuni ishlaysizlarmi?');
+  ai.insights.length = 0;
+  const run = await api('/api/insights', { token, body: { days: 7 } });
+  const x = run.json.insights as { totals: { items: number; messages: number }; themes: { name: string; count: number }[]; actions: unknown[]; hours: number[] } | undefined;
+  const sent = ai.insights[0] ?? '';
+  ok("tahlil: modelga yozishmalar va qo'ng'iroqlar raqamli band bo'lib bordi (mijozning gapi bilan)", run.status === 200 && /\[c\d+\] Caller: Implant narxi qancha turadi\?/.test(sent), sent.slice(0, 300));
+  const narx = x?.themes.find(t => t.name === "Narx so'rash");
+  const expected = [...sent.matchAll(/^\[([mcr]\d+)\] (.*)$/gm)].filter(m => /narx|qancha/i.test(m[2])).length;
+  ok("tahlil: «Narx so'rash» soni — narx so'ragan bandlar soniga teng (noma'lum id sanalmadi)", !!narx && narx.count === expected && expected > 0, `${narx?.count} vs ${expected}`);
+  ok("tahlil: bir band ikki mavzuda sanalmadi; soat bo'yicha taqsimot bor", !!x && x.themes.reduce((s, t) => s + t.count, 0) <= x.totals.items && x.hours.length === 24 && x.hours.reduce((s, n) => s + n, 0) > 0);
+  ok('tahlil saqlandi: qayta ochilganda — model chaqirilmaydi', JSON.stringify((await api('/api/insights?days=7', { token })).json.insights?.themes) === JSON.stringify(x?.themes) && ai.insights.length === 1);
+  const other = await api('/api/insights', { token: otherToken, body: { days: 30 } });
+  ok("boshqa biznes: o'zinikini ko'radi; murojaat kam — model chaqirilmaydi", other.status === 200 && other.json.insights?.themes.length === 0 && ai.insights.length === 1
+    && (await api('/api/insights?days=7', { token: otherToken })).json.insights === null);
+  ok('kirishsiz — 401', (await api('/api/insights', { body: { days: 7 } })).status === 401);
+}

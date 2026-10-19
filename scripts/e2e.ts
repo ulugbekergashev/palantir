@@ -22,6 +22,8 @@ import { brainApiTests, brainFlowTests, brainLogicTests, brainVaultTests } from 
 import { mirrorTests } from './e2e-mirror';
 import { orderApiTests, orderLogicTests } from './e2e-orders';
 import { lineApiTests, lineLogicTests } from './e2e-line';
+import { docsApiTests, docsLogicTests } from './e2e-docs';
+import { insightsApiTests, insightsLogicTests } from './e2e-insights';
 import { intakeExtractTests, intakeFlowTests } from './e2e-intake';
 import { interviewTests } from './e2e-interview';
 
@@ -120,6 +122,8 @@ try {
   cameraLogicTests(ok);
   orderLogicTests(ok);
   lineLogicTests(ok);
+  await docsLogicTests(ok);
+  insightsLogicTests(ok);
   commandTests(ok);
   journalTests(ok);
   brainLogicTests(ok);
@@ -272,6 +276,9 @@ try {
   const brainNow = (await api('/api/brain', { token })).json.brain as { pages: { question: string }[]; samples: unknown[] };
   ok("hujjat nusxasi miya papkasida (Hujjatlar/) va mundarijada; bilim emas — sahifalar orasida yo'q", mirrored.length === 1 && readFileSync(join(vaultRoot, 'Hujjatlar', mirrored[0]), 'utf8').includes('| Stol | 20 |')
     && readFileSync(join(vaultRoot, 'INDEKS.md'), 'utf8').includes('## Hujjatlar (1)') && !brainNow.pages.some(p => p.question.includes('Tijorat')), mirrored.join(', '));
+  // Hujjat ustasi: yozuvchi zanjiri (hujjatlar soni tekshirilgandan keyin — yangi hujjat qo'shadi)
+  await docsApiTests(crmHarness);
+  await insightsApiTests(crmHarness);
 
   console.log('\n# Yordamchi: post yasash olib tashlangan');
   mark = sent.length;

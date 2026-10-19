@@ -28,6 +28,10 @@ import { CRM_DEFS } from './crm/tools';
 import { REQUEST_DEFS } from './requests/tools';
 import { CAMERA_DEFS } from './camera/tools';
 import { ToolError, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
+import { DOC_KINDS } from './docs/playbooks';
+import { legalFields } from './docs/legal';
+import { LegalSchema } from './validate';
+import { writeDocument } from './docs/writer';
 
 export type { ToolCtx } from './toolkit';
 
@@ -213,18 +217,32 @@ const DEFS = {
   }),
 
   create_document: def({
-    description: 'Write a business document and give it to the owner as a Word (.docx) file: contract, commercial offer, invoice, price list, letter, job description, plan, report, meeting notes and similar. Use Markdown: # headings, - lists, 1. lists, **bold**, tables with | cells |. Fill in everything you know from the business profile; for unknown details (customer\'s passport, exact sums the owner did not give) leave a visible blank like "________" — never invent them.',
+    description: `Prepare a business document as a Word (.docx) file: contract, commercial offer, invoice for payment, act of completed work, price list, letter, plan, report, job description, meeting notes and similar.
+A dedicated writer drafts it with the business profile, the legal details, the price list, the customer's details and conversation and the owner's saved sample, checks it against Uzbek norms and fixes it — so do not write the document yourself. Put into the brief every fact this document needs: the other party, what exactly is sold or done, quantities, prices, discounts, terms, deadlines, payment schedule, special conditions. If a key fact is unknown and only the owner can give it (the price in an offer, the client of a contract), ask one short question first; the other party's legal details may stay blank.
+It takes a minute or two. Afterwards tell the owner in one or two sentences what the document contains and what they still need to fill in or confirm (missing); if legal_details_empty is true, suggest filling in the company details once in Sozlamalar → Rekvizitlar.`,
     input: z.object({
       title: short(120),
-      kind: z.enum(['contract', 'offer', 'invoice', 'price_list', 'letter', 'plan', 'report', 'other']),
-      markdown: short(40_000),
+      kind: z.enum(DOC_KINDS),
+      brief: short(6000).describe("Everything the document must contain, in the owner's words and with all the numbers"),
+      customer_id: short(20).nullable().optional().describe('The customer it is for (from list_leads or save_lead): their details and conversation are used'),
+      language: z.enum(['uz', 'ru']).nullable().optional().describe("The document's language; default — the business's document language"),
+      text: z.string().trim().max(40_000).nullable().optional().describe('Only when the owner dictated or pasted the complete exact text: it is put into the file as is, without the writer'),
     }),
-    run: (i, ctx) => {
-      const d = documents.create(ctx.biz.id, i.title, i.kind, i.markdown);
+    run: async (i, ctx) => {
+      const lang = i.language ?? ctx.biz.profile.contentLang ?? 'uz';
+      const done = i.text
+        ? { markdown: i.text, missing: [], problems: [], blanks: 0, reviewed: false }
+        : await writeDocument(ctx.biz, { title: i.title, kind: i.kind, lang, brief: i.brief, customerId: i.customer_id ?? null });
+      const d = documents.create(ctx.biz.id, i.title, i.kind, done.markdown);
       // Nusxasi ikkinchi miya papkasiga ham tushadi (Hujjatlar/) — egasi Obsidian'da topadi
       mirrorDocument(ctx.biz.id, d);
       ctx.artifacts.push({ type: 'document', doc: d });
-      return { document_id: d.id, status: 'the .docx file is delivered to the owner with your reply' };
+      return {
+        document_id: d.id, status: 'the .docx file is delivered to the owner with your reply',
+        missing: done.missing, blanks_left: done.blanks,
+        ...(done.problems.length ? { unresolved_checks: done.problems } : {}),
+        ...(!legalFields(ctx.biz.profile).some(f => f.key === 'stir') && ['contract', 'invoice', 'act'].includes(i.kind) ? { legal_details_empty: true } : {}),
+      };
     },
   }),
 
@@ -290,6 +308,26 @@ const DEFS = {
       businesses.update(fresh.id, { profile: { ...fresh.profile, offerings: merged.offerings } });
       refreshVault(fresh.id);
       return { added: merged.added, updated: merged.updated, total: merged.offerings.length, limit: MAX_OFFERINGS };
+    },
+  }),
+
+  save_requisites: def({
+    description: "Save the company's legal details used in contracts, invoices and acts, when the owner dictates or pastes them: legal name, STIR (INN), OKED, bank, account number, MFO, director, the basis the director acts on (Ustav, ishonchnoma), legal address, e-mail, VAT rate (0 — not a VAT payer). Only fields the owner stated; the others stay as they are. Unavailable in a turn that came with a photo or a file: show the owner what you read and save after they confirm in a text message.",
+    input: z.object({
+      name: opt(120), stir: opt(14), oked: opt(10), bank: opt(120), account: opt(30), mfo: opt(10),
+      director: opt(80), basis: opt(80), address: opt(200), email: opt(80),
+      vat_rate: z.number().min(0).max(30).nullable().optional(),
+    }),
+    run: (i, ctx) => {
+      // Rekvizitlar shartnomaga tushadi — begona matn (rasm, fayl) shu yo'l bilan rekvizitga aylanmasin
+      assertOwnWords(ctx);
+      const fresh = businesses.byId(ctx.biz.id) ?? ctx.biz;
+      const { vat_rate: vat, ...rest } = i;
+      const given = Object.fromEntries(Object.entries(rest).filter(([, v]) => typeof v === 'string' && v.trim()).map(([k, v]) => [k, (v as string).trim()]));
+      const parsed = LegalSchema.safeParse({ ...fresh.profile.legal, ...given, ...(typeof vat === 'number' ? { vatRate: vat } : {}) });
+      if (!parsed.success) throw new ToolError(`Rekvizit noto'g'ri: ${parsed.error.issues.map(x => `${x.path.join('.')} — ${x.message}`).join('; ')}`);
+      businesses.update(fresh.id, { profile: { ...fresh.profile, legal: parsed.data } });
+      return { saved: [...Object.keys(given), ...(typeof vat === 'number' ? ['vat_rate'] : [])], legal_details: legalFields({ ...fresh.profile, legal: parsed.data }).map(f => `${f.label}: ${f.value}`) };
     },
   }),
 
