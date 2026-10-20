@@ -337,10 +337,10 @@ async function liveTests(): Promise<void> {
     console.log("\n# Stend: shaxsiy Telegram va Instagram (o'zi javob beradi, 1 «daqiqa» kutib)");
     const person = (await world('/api/personal/send', { name: 'Madina', username: 'madina_95', text: 'Assalomu alaykum, implant qancha turadi?' })).json.userId as string;
     const fromOwner = await seen('shaxsiy Telegram javobi', s => s.personal.find((p: Json) => p.userId === person)?.lines.find((l: Json) => !l.mine && l.text.includes('4 500 000')), 40_000);
-    ok("shaxsiy Telegram: javob egasining akkauntidan ketdi", !!fromOwner && String(fromOwner.by).startsWith('Cerebro'), JSON.stringify(fromOwner));
+    ok("shaxsiy Telegram: javob egasining akkauntidan ketdi", !!fromOwner && String(fromOwner.by).startsWith('Palantir'), JSON.stringify(fromOwner));
     const thread = (await world('/api/instagram/send', { username: 'sardor.dev', name: 'Sardor', pending: true, text: 'Ish vaqtingiz qanday?' })).json.thread as string;
     const direct = await seen('Instagram javobi', s => s.instagram.find((t: Json) => t.id === thread)?.lines.find((l: Json) => !l.mine && l.text.includes('9:00–19:00')), 50_000);
-    ok("Instagram: «So'rovlar»dagi suhbat qabul qilindi va javob yozildi", !!direct && String(direct.by).startsWith('Cerebro') && !(await snapshot()).instagram.find((t: Json) => t.id === thread).pending, JSON.stringify(direct));
+    ok("Instagram: «So'rovlar»dagi suhbat qabul qilindi va javob yozildi", !!direct && String(direct.by).startsWith('Palantir') && !(await snapshot()).instagram.find((t: Json) => t.id === thread).pending, JSON.stringify(direct));
 
     console.log("\n# Stend: kamera — CRM'da yo'q o'tirish");
     const before = await snapshot();

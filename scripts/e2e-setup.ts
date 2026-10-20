@@ -39,7 +39,7 @@ ok('chala bot tokeni — sababi bilan', /35 belgi/.test(classifyLine('7412589630
 ok('Claude, Gemini, Groq kalitlari', classifyLine(CLAUDE)?.key === 'ANTHROPIC_API_KEY' && classifyLine(GEMINI)?.key === 'GEMINI_API_KEY' && classifyLine(`gsk_${'a'.repeat(52)}`)?.key === 'GROQ_API_KEY');
 ok('chala Gemini kaliti — xato', !!classifyLine('AIzaSyB7xK2')?.error);
 ok('Telegram API hash (32 hex)', classifyLine('0123456789abcdef0123456789abcdef')?.key === 'TG_API_HASH');
-ok("Cerebro Hub kodi: «chub.» — tanildi; chala kod — sababi bilan", classifyLine(`chub.aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`)?.key === 'CEREBRO_HUB' && !classifyLine(`chub.aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`)?.error
+ok("Palantir Hub kodi: «chub.» — tanildi; chala kod — sababi bilan", classifyLine(`chub.aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`)?.key === 'CEREBRO_HUB' && !classifyLine(`chub.aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`)?.error
   && !!classifyLine('chub.abc')?.error);
 ok('kamera, DentaCRM, Instagram, telefon', classifyLine('rtsp://admin:p@192.168.1.64:554/x')?.kind === 'rtsp' && classifyLine('https://shifo.dentacrm.uz')?.kind === 'crm'
   && classifyLine('instagram.com/shifodent')?.kind === 'instagram' && classifyLine('+998 90 123 45 67')?.kind === 'phone');
@@ -172,7 +172,7 @@ try {
   ok('kalitlar ro\'yxati — faqat admin', (await api('/api/admin/keys')).status === 401);
   const admin = (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token as string;
   const keys0 = (await api('/api/admin/keys', { token: admin })).json.keys as { name: string; source: string | null }[];
-  ok("ro'yxat: 9 ta kalit (Cerebro Hub kodi bilan), hammasi berilmagan", keys0.length === 9 && keys0.every(k => k.source === null));
+  ok("ro'yxat: 9 ta kalit (Palantir Hub kodi bilan), hammasi berilmagan", keys0.length === 9 && keys0.every(k => k.source === null));
   const put = (name: string, value: string, force = false) => api(`/api/admin/keys/${name}`, { method: 'PUT', token: admin, body: { value, force } });
   const wrongShape = await put('BOT_TOKEN', CLAUDE);
   ok("bot tokeni o'rniga Claude kaliti — rad, sababi bilan", wrongShape.status === 400 && /claude/i.test(wrongShape.json.error), wrongShape.json.error);

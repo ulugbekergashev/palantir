@@ -182,7 +182,7 @@ try {
   await shot(page, 'usta-yakun');
   ok('yakun: tayyor qadamlar sanaldi', await page.getByText(/\d\/8 tayyor/).isVisible());
   await page.getByRole('link', { name: "Kabinetga o'tish" }).click();
-  ok("«Kabinetga o'tish» — klinika kabineti ochildi (qayta kirishsiz)", await page.getByLabel("Cerebro'ga yozing").waitFor({ timeout: 8000 }).then(() => true, () => false));
+  ok("«Kabinetga o'tish» — klinika kabineti ochildi (qayta kirishsiz)", await page.getByLabel("Palantir'ga yozing").waitFor({ timeout: 8000 }).then(() => true, () => false));
   await shot(page, 'kabinet');
 
   const narrow = await browser.newPage({ viewport: { width: 390, height: 844 } });

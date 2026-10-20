@@ -208,7 +208,7 @@ export const api = {
   inbox: () => call<{ threads: InboxThread[]; settings: AutoReply }>('/inbox'),
   clientCard: (leadId: string) => call<{ card: ClientCardView }>(`/leads/${leadId}/card`),
   thread: (leadId: string) => call<{ lead: Lead; messages: InboxMessage[]; replies: ReplyDraft[] }>(`/inbox/${leadId}`),
-  /** replyId — shu tayyor javob tahrirlab yuborilyapti (Cerebro farqidan o'rganadi) */
+  /** replyId — shu tayyor javob tahrirlab yuborilyapti (Palantir farqidan o'rganadi) */
   writeTo: (leadId: string, text: string, replyId?: string | null) => call<{ messages: InboxMessage[]; replies: ReplyDraft[] }>(`/inbox/${leadId}/send`, { body: { text, ...(replyId ? { replyId } : {}) } }),
   sendReply: (id: string) => call<{ ok: true }>(`/replies/${id}/send`, { body: {} }),
   dismissReply: (id: string) => call<{ ok: true }>(`/replies/${id}/dismiss`, { body: {} }),

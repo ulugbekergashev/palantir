@@ -1,8 +1,8 @@
 /**
- * «Quloq» — egasi tugma bosmasdan «Cerebro» (yoki «Jarvis») deb chaqiradi va topshirig'ini aytadi. Mikrofon shu kompyuterda tinglanadi
+ * «Quloq» — egasi tugma bosmasdan «Palantir» (yoki «Jarvis») deb chaqiradi va topshirig'ini aytadi. Mikrofon shu kompyuterda tinglanadi
  * (tgvoice/wake.py, internetsiz); chaqiriq eshitilsa shu ulanishning o'zida jonli suhbat boshlanadi, tugagach yana tinglashga qaytadi.
  * Panelda boshqa jonli suhbat ochiq bo'lsa (sfera, chat, qabulxona sinovi) — quloq to'xtab turadi. Bir nechta oyna ochiq bo'lsa, faqat bittasi
- * tinglaydi (navigator.locks) — «Cerebro» ikki marta javob bermasin. Yoqilgani shu brauzerda eslab qolinadi.
+ * tinglaydi (navigator.locks) — «Palantir» ikki marta javob bermasin. Yoqilgani shu brauzerda eslab qolinadi.
  */
 import { useEffect, useRef, useState } from 'react';
 import { session } from '../data/api';
@@ -60,7 +60,7 @@ export function useWake() {
       live.current = true;
       setWord(e.word); setYou(''); setAi(''); setCards([]); setShown(true); setPhase('live');
     } else if (e.type === 'partial' || e.type === 'line') {
-      if (e.who === 'Siz') setYou(e.text); else if (e.who === 'Cerebro') setAi(e.text);
+      if (e.who === 'Siz') setYou(e.text); else if (e.who === 'Palantir') setAi(e.text);
     } else if (e.type === 'tool') {
       const card = cardOf(e, ++cardId.current);
       if (card) setCards(list => [card, ...list.filter(c => c.kind !== 'working' || card.kind === 'working')].slice(0, 3));
@@ -100,7 +100,7 @@ export function useWake() {
     } catch (e) {
       release();
       setPhase('error');
-      setError((e as Error).name === 'NotAllowedError' ? 'Mikrofonga ruxsat bering' : 'Quloq ulanmadi — Cerebro ovoz xizmati ishlayaptimi?');
+      setError((e as Error).name === 'NotAllowedError' ? 'Mikrofonga ruxsat bering' : 'Quloq ulanmadi — Palantir ovoz xizmati ishlayaptimi?');
       later(start, RETRY_MS);
     }
   };

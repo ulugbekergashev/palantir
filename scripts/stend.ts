@@ -163,7 +163,7 @@ function pumpPersonal(): void {
     // Kimga ketgani — soxta Telegram aniqlagan suhbatdosh (qo'lda qo'shilgan mijozga telefon bo'yicha yuborilsa, to.userId bo'sh bo'ladi)
     const id = String(s.userId ?? s.to.userId ?? '');
     const person = persons.get(id) ?? persons.set(id, { userId: id, name: String(s.to.name ?? s.to.username ?? s.to.phone ?? id), username: String(s.to.username ?? ''), lines: [] }).get(id)!;
-    person.lines.push({ mine: false, by: 'Cerebro (egasining akkauntidan)', text: s.text, at: s.at ?? Date.now() });
+    person.lines.push({ mine: false, by: 'Palantir (egasining akkauntidan)', text: s.text, at: s.at ?? Date.now() });
   }
   personalSeen = tgUser.sent.length;
 }
@@ -175,13 +175,13 @@ function instagramView(): { id: string; username: string; name: string; pending:
       id, username: t.user.username, name: t.user.full_name, pending: t.pending,
       lines: [...t.items].reverse().map(i => {
         const ours = i.user_id === IG_VIEWER.pk;
-        return { mine: !ours, by: !ours ? 'mijoz' : typed.has(i.text ?? '') ? 'Cerebro (egasining akkauntidan)' : 'egasi (telefonidan)', text: i.text ?? '', at: Math.round(Number(i.timestamp) / 1000) };
+        return { mine: !ours, by: !ours ? 'mijoz' : typed.has(i.text ?? '') ? 'Palantir (egasining akkauntidan)' : 'egasi (telefonidan)', text: i.text ?? '', at: Math.round(Number(i.timestamp) / 1000) };
       }),
     };
   });
 }
 
-/** CRM'ga kim yozgani id boshidan bilinadi: an/m/pn — tarmoq orqali (ya'ni Cerebro), st — stenddagi «administrator» */
+/** CRM'ga kim yozgani id boshidan bilinadi: an/m/pn — tarmoq orqali (ya'ni Palantir), st — stenddagi «administrator» */
 const origin = (id: unknown): string => (/^(an|m|pn)\d/.test(String(id)) ? 'cerebro' : /^st/.test(String(id)) ? 'stend' : '');
 function crmView(): Json {
   const today = iso(new Date());
@@ -280,7 +280,7 @@ const routes: Record<string, Handler> = {
 
   // Egasining shaxsiy Telegrami: unga notanish odam (mijoz) yozadi
   'POST /api/personal/send': b => {
-    // Avval Cerebro yuborganlari joyiga qo'yiladi — suhbatda tartib buzilmasin
+    // Avval Palantir yuborganlari joyiga qo'yiladi — suhbatda tartib buzilmasin
     pumpPersonal();
     const text = typed(b.text);
     need(text, "Xabar bo'sh");
@@ -290,7 +290,7 @@ const routes: Record<string, Handler> = {
     tgUser.incoming(TG_SESSION, id, text, { name: person.name, username: person.username || undefined });
     return { userId: id };
   },
-  // Egasi telefonidan o'zi javob yozdi (Cerebro buni ko'rib, o'z taklifini bekor qilishi kerak)
+  // Egasi telefonidan o'zi javob yozdi (Palantir buni ko'rib, o'z taklifini bekor qilishi kerak)
   'POST /api/personal/owner': b => {
     pumpPersonal();
     const person = persons.get(String(b.userId)), text = typed(b.text);
@@ -314,7 +314,7 @@ const routes: Record<string, Handler> = {
     return { ok: true };
   },
 
-  // Klinika administratori CRM'ning o'zida ishlaydi (Cerebro'siz): qabul qo'shadi, «keldi» qiladi, to'lov kiritadi
+  // Klinika administratori CRM'ning o'zida ishlaydi (Palantir'siz): qabul qo'shadi, «keldi» qiladi, to'lov kiritadi
   'POST /api/crm/appointment': b => {
     const doctor = crm.doctors.find(d => d.id === b.doctorId);
     const name = typed(b.patientName).slice(0, 60);
@@ -364,7 +364,7 @@ const routes: Record<string, Handler> = {
     return { ok: true };
   },
 
-  // Ovozli agent (tashqi xizmat) Cerebro'dan nimani oladi va unga nimani yozadi — shu darvoza orqali
+  // Ovozli agent (tashqi xizmat) Palantir'dan nimani oladi va unga nimani yozadi — shu darvoza orqali
   'GET /api/voice/knowledge': () => panel('/api/voice/knowledge', { token: voiceKey }),
   'GET /api/voice/slots': () => panel('/api/voice/slots', { token: voiceKey }),
   'POST /api/voice/book': b => panel('/api/voice/book', { token: voiceKey, body: b }),
@@ -502,7 +502,7 @@ async function setUp(dataDir: string): Promise<string> {
 }
 
 /**
- * Klinika kuni: botga yozgan mijozlar (Cerebro ularga yoza oladi) va qo'lda kiritilgan mijoz (faqat telefon), bugungi va kechikkan
+ * Klinika kuni: botga yozgan mijozlar (Palantir ularga yoza oladi) va qo'lda kiritilgan mijoz (faqat telefon), bugungi va kechikkan
  * keyingi qadamlar, bir necha kundan beri jim turganlar, qo'ng'iroq vazifasi; DentaCRM'da 6–12 oy oldin kelgan bemorlar.
  * Ertalabki rejada «bugungi qadamlar», «unutilganlar» va (dushanba tugmasi bilan) «qaytarish» bo'limlari to'la ko'rinadi
  */
@@ -530,7 +530,7 @@ async function seedDay(dataDir: string): Promise<void> {
       db.prepare('UPDATE leads SET updated_at = ?, created_at = ?, last_inbound_at = ? WHERE id = ?').run(at, at, at, l.id);
     }
   }
-  // Qo'lda kiritilgan (telefon orqali kelgan) — Cerebro unga yoza olmaydi: tayyorgarlikda qo'ng'iroq matni chiqadi
+  // Qo'lda kiritilgan (telefon orqali kelgan) — Palantir unga yoza olmaydi: tayyorgarlikda qo'ng'iroq matni chiqadi
   const manual = (await panel<{ lead: { id: string } }>('/api/leads', { body: { name: 'Sardor Toshmatov', phone: '+998935554433', note: "Ildiz davolash, narx so'ragan" } })).lead;
   await panel(`/api/leads/${manual.id}`, { method: 'PATCH', body: { stage: 'contacted', nextStep: 'davolash rejasi va narxini yuborish', nextAt: local(addDays(now, -1), '10:00') } });
   db.close();
@@ -602,7 +602,7 @@ async function main(): Promise<void> {
   let started = false, stopping = false;
   const stop = (code: number): never => { stopping = true; server.kill(); process.exit(code); };
   shutdown = () => stop(0);
-  server.stdout.on('data', d => { if (String(d).includes('Cerebro server')) started = true; });
+  server.stdout.on('data', d => { if (String(d).includes('Palantir server')) started = true; });
   server.on('exit', code => { if (!stopping) { if (code) console.error(`Server to'xtab qoldi (kod ${code})`); stop(code ? 1 : 0); } });
   process.on('SIGINT', () => stop(0));
   process.on('SIGTERM', () => stop(0));

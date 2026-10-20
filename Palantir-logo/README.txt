@@ -1,4 +1,4 @@
-CEREBRO — LOGO TO'PLAMI (Kub)
+PALANTIR — LOGO TO'PLAMI (Kub)
 ================================
 
 PAPKALAR
@@ -9,16 +9,16 @@ PAPKALAR
 
 
 QAYSI FAYL QAYERGA
-  cerebro-logo              Asosiy logo, yorug' fonda
-  cerebro-logo-qora-fon     Qora yoki to'q fonda
-  cerebro-logo-mono-qora    Bir rangli: muhr, blanka, shartnoma, gravyura
-  cerebro-logo-mono-oq      Rangli fon yoki rasm ustida, oq rangda
-  cerebro-belgi             Faqat belgi, yozuvsiz (yorug' fon)
-  cerebro-belgi-qora-fon    Faqat belgi, to'q fon uchun
-  cerebro-ikonka            Yumaloq burchakli ikonka (sayt, prezentatsiya)
-  cerebro-ikonka-kvadrat    App Store / Google Play uchun
+  palantir-logo              Asosiy logo, yorug' fonda
+  palantir-logo-qora-fon     Qora yoki to'q fonda
+  palantir-logo-mono-qora    Bir rangli: muhr, blanka, shartnoma, gravyura
+  palantir-logo-mono-oq      Rangli fon yoki rasm ustida, oq rangda
+  palantir-belgi             Faqat belgi, yozuvsiz (yorug' fon)
+  palantir-belgi-qora-fon    Faqat belgi, to'q fon uchun
+  palantir-ikonka            Yumaloq burchakli ikonka (sayt, prezentatsiya)
+  palantir-ikonka-kvadrat    App Store / Google Play uchun
                             (burchaklarni telefonning o'zi yumaloqlaydi)
-  cerebro-avatar-1080.png   Telegram, Instagram, Facebook profil rasmi
+  palantir-avatar-1080.png   Telegram, Instagram, Facebook profil rasmi
                             (doira shaklida kesilganda ham to'liq ko'rinadi)
 
 

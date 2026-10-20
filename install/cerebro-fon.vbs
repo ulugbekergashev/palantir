@@ -1,4 +1,4 @@
-' Cerebro'ni oynasiz (fonda) ishga tushiradi. Kompyuter yonganda shu fayl ishlaydi (Avtoyuklash papkasidagi yorliq orqali).
+' Palantir'ni oynasiz (fonda) ishga tushiradi. Kompyuter yonganda shu fayl ishlaydi (Avtoyuklash papkasidagi yorliq orqali).
 ' Nazoratchi (scripts\supervise.mjs) serverni yoqadi va to'xtab qolsa qayta yoqadi. Jurnal: DATA_DIR\logs
 Option Explicit
 Dim fso, shell, root

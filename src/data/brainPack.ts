@@ -1,6 +1,6 @@
 /**
  * Tayyor savollar: mijozlar eng ko'p so'raydigan, lekin javobi faqat egasining o'zida bo'lgan narsalar.
- * Bu yerda javob yo'q va bo'lmaydi ham — har biznes o'zinikini bir marta yozadi, keyin Cerebro o'zi javob beradi.
+ * Bu yerda javob yo'q va bo'lmaydi ham — har biznes o'zinikini bir marta yozadi, keyin Palantir o'zi javob beradi.
  * Narxlar jadvalda, manzil va ish vaqti «Biznes haqida» sahifasida turadi, shuning uchun ular bu ro'yxatda yo'q.
  */
 export interface PackQuestion { id: string; question: string; hint: string }

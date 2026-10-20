@@ -5,7 +5,7 @@ import { api } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { JournalRows } from '../components/JournalRows';
 import { Button, Card, MoreLink } from '../components/ui';
-import { askCerebro } from '../lib/ask';
+import { askPalantir } from '../lib/ask';
 import { isMedical } from '../lib/compliance';
 import { setupSteps } from '../lib/setup';
 import { useDayFeed } from '../lib/useDayFeed';
@@ -27,19 +27,19 @@ const greeting = (hour: number): string => (hour < 5 || hour >= 22 ? 'Xayrli tun
 /** Yordamchiga savol: matn suhbat sahifasiga topshiriladi, u yerda yuboriladi (suhbat mantig'i takrorlanmaydi) */
 function AskBar({ ai, clinic }: { ai: boolean; clinic: boolean }) {
   const [text, setText] = useState('');
-  const submit = (e: FormEvent) => { e.preventDefault(); if (text.trim()) askCerebro(text); };
+  const submit = (e: FormEvent) => { e.preventDefault(); if (text.trim()) askPalantir(text); };
   return (
     <div className="mt-6 max-w-3xl">
       <form onSubmit={submit} className="flex items-center gap-2 rounded-2xl border border-slate-300 bg-white p-2 pl-3 shadow-lift transition focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/15 hover:border-slate-400 focus-within:hover:border-indigo-500">
         <img src="/favicon.svg" alt="" className="h-8 w-8 shrink-0" />
-        <input value={text} onChange={e => setText(e.target.value)} aria-label="Cerebro'ga savol" placeholder="Cerebro'dan so'rang yoki topshiriq bering…" maxLength={2000} enterKeyHint="send"
+        <input value={text} onChange={e => setText(e.target.value)} aria-label="Palantir'ga savol" placeholder="Palantir'dan so'rang yoki topshiriq bering…" maxLength={2000} enterKeyHint="send"
           className="h-11 min-w-0 flex-1 bg-transparent px-1 text-base outline-none placeholder:text-slate-400" />
         <Button type="submit" variant="primary" disabled={!text.trim()}>So'rash <ArrowRight className="h-4 w-4" aria-hidden="true" /></Button>
       </form>
       <ul className="mt-3 flex flex-wrap gap-2" aria-label="Tayyor savollar">
         {(clinic ? QUICK_CLINIC : QUICK).map(q => (
           <li key={q}>
-            <button type="button" onClick={() => askCerebro(q)} className="rounded-full border border-slate-300 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-white hover:text-slate-900 active:bg-slate-100">{q}</button>
+            <button type="button" onClick={() => askPalantir(q)} className="rounded-full border border-slate-300 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-white hover:text-slate-900 active:bg-slate-100">{q}</button>
           </li>
         ))}
       </ul>

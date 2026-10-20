@@ -82,7 +82,7 @@ export const env = {
   /** So'rov eslatmalari shu soatlarda («8-21»): tungi so'rov ertalab eslatiladi, tunda karta ovozsiz keladi */
   requestHours: dayHours(process.env.REQUEST_HOURS),
 
-  /** Cerebro Hub (rasmiy Instagram uchun): manzili va klinika kaliti — CEREBRO_HUB kodidan (keys.ts o'rnatadi) */
+  /** Palantir Hub (rasmiy Instagram uchun): manzili va klinika kaliti — CEREBRO_HUB kodidan (keys.ts o'rnatadi) */
   hub: null as { url: string; clinicId: string; key: string } | null,
   /** Faqat sinov uchun: soxta Instagram Graph API */
   igGraphUrl: (process.env.IG_GRAPH_URL || 'https://graph.instagram.com').replace(/\/$/, ''),
@@ -121,7 +121,7 @@ export const env = {
   /** Yordamchi bir kunda DentaCRM'ga yoza oladigan qabullar soni (adashib yoki aldanib ko'p yozib yubormasin) */
   crmDailyBookings: Number(process.env.CRM_DAILY_BOOKINGS) || 40,
   /** Resepshn bir kunda egasining tasdig'isiz yoza oladigan qabullar (undan keyin — faqat tasdiq bilan) */
-  /** Bir kunda Cerebro orqali (egasi tasdiqlab) CRM'ga kiritiladigan pul yozuvlari soni */
+  /** Bir kunda Palantir orqali (egasi tasdiqlab) CRM'ga kiritiladigan pul yozuvlari soni */
   /**
    * Bir kunda bitta biznes uchun model so'rovlari chegarasi (API hisobi kutilmaganda bo'shab qolmasin: spam, aylanib qolgan suhbat).
    * owner — egasining yordamchisi (bitta gap bir necha so'rov bo'lishi mumkin), customer — mijozlarga javob

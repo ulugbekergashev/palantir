@@ -4,9 +4,9 @@
  *   mijoz yozdi → mijozlar ro'yxatiga (bir odam — bitta yozuv) → bir necha soniya kutiladi
  *   (odatda ketma-ket yozishadi) → Claude javob tayyorlaydi → rejimga qarab:
  *     draft — egasiga Telegramda karta: mijoz gapi, javob taklifi, «Yuborish / Kerak emas»;
- *     auto  — egasi belgilangan daqiqa ichida o'zi yozmasa, Cerebro yuboradi va egasiga aytadi.
+ *     auto  — egasi belgilangan daqiqa ichida o'zi yozmasa, Palantir yuboradi va egasiga aytadi.
  *             Bilmagan narsasini (narx yo'q, chegirma, buyurtma) baribir egasidan so'raydi.
- *   Egasi o'zi javob yozsa — Cerebro tayyorlagan taklif bekor bo'ladi.
+ *   Egasi o'zi javob yozsa — Palantir tayyorlagan taklif bekor bo'ladi.
  *
  * Kanallar (bot, shaxsiy Telegram, Instagram) bu yerga faqat "xabar keldi" va "yubor" orqali ulanadi.
  */
@@ -96,7 +96,7 @@ export async function sendToLead(biz: BusinessRow, lead: LeadRow, text: string, 
   }
   throw last ?? new Error(lead.channel === 'instagram'
     ? 'Instagram ulanmagan — panel → Ulanishlar'
-    : "Bu mijozga Cerebro yoza olmaydi: u botga yozmagan, shaxsiy Telegram esa ulanmagan");
+    : "Bu mijozga Palantir yoza olmaydi: u botga yozmagan, shaxsiy Telegram esa ulanmagan");
 }
 
 // ─── Kiruvchi xabar ───────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ async function handle(bizId: string, leadId: string): Promise<void> {
     d = await decide(biz, lead, thread);
   } catch (e) {
     console.error('[mijozlar] javob tayyorlanmadi:', (e as Error).message);
-    await forward(biz, lead, fresh, e instanceof AiLimitError ? "Bugungi AI chegarasi tugadi — bu xabarga o'zingiz javob bering" : "Cerebro javob tayyorlay olmadi — o'zingiz javob bering");
+    await forward(biz, lead, fresh, e instanceof AiLimitError ? "Bugungi AI chegarasi tugadi — bu xabarga o'zingiz javob bering" : "Palantir javob tayyorlay olmadi — o'zingiz javob bering");
     return;
   }
   // Claude o'ylayotganda yana yozgan bo'lsa — navbatdagi ishlov hammasini birga ko'radi
@@ -205,7 +205,7 @@ async function handle(bizId: string, leadId: string): Promise<void> {
     } catch (e) {
       // Kutilmagan xato (masalan, Telegram kartani qabul qilmadi): bemorning xabari javobsiz yo'qolmasin
       console.error('[mijozlar] qabul:', (e as Error).message);
-      return forward(biz, lead, fresh, "Cerebro qabulni oxiriga yetkaza olmadi — CRM'ni tekshirib, o'zingiz javob bering");
+      return forward(biz, lead, fresh, "Palantir qabulni oxiriga yetkaza olmadi — CRM'ni tekshirib, o'zingiz javob bering");
     }
   }
   if ((d.action === 'reschedule' || d.action === 'cancel_visit') && d.change) {
@@ -213,7 +213,7 @@ async function handle(bizId: string, leadId: string): Promise<void> {
       return await changeFlow(biz, lead, fresh, d, settings.mode);
     } catch (e) {
       console.error("[mijozlar] qabulni o'zgartirish:", (e as Error).message);
-      return forward(biz, lead, fresh, "Cerebro qabulni o'zgartira olmadi — CRM'ni tekshirib, o'zingiz javob bering");
+      return forward(biz, lead, fresh, "Palantir qabulni o'zgartira olmadi — CRM'ni tekshirib, o'zingiz javob bering");
     }
   }
   if (d.action === 'ignore' || !d.reply) {
@@ -416,7 +416,7 @@ export function recoverBookings(): void {
     // Tarmoqqa chiqilmaydi (server hali ko'tarilyapti, internet bo'lmasligi mumkin): xabar navbatga yoziladi va bot ulangach ketadi
     notices.add(biz.id, [
       `⚠️ <b>${lead ? who(lead) : 'Mijoz'}</b>`,
-      `Qabul yozilayotgan paytda Cerebro to'xtab qolgan: ${esc(bookingLine(r.booking))}`,
+      `Qabul yozilayotgan paytda Palantir to'xtab qolgan: ${esc(bookingLine(r.booking))}`,
       "CRM'da tekshiring: yozilgan bo'lsa — bemorga o'zingiz ayting, yozilmagan bo'lsa — qayta yozing.",
     ].join('\n'));
   }

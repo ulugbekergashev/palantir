@@ -1,5 +1,5 @@
 /**
- * «Xotira» — Cerebro nimani eslab qolgani, egasi ko'rib turishi uchun. Ikki xil eslash bor:
+ * «Xotira» — Palantir nimani eslab qolgani, egasi ko'rib turishi uchun. Ikki xil eslash bor:
  * suhbat (yozishma, ovoz, Telegram — bitta, bazada; 6 soat jim tursa yangi mavzu, oxirgi gaplar qisqa eslatma bo'lib o'tadi) va
  * doimiy xotira — Miya'dagi faktlar va sahifalar (har suhbatda, ovozda ham, esda turadi). Fakt shu yerda qo'shiladi va o'chiriladi.
  */

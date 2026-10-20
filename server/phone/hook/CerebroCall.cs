@@ -3,12 +3,12 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 
-[assembly: AssemblyTitle("Cerebro MicroSIP hook")]
-[assembly: AssemblyProduct("Cerebro")]
-[assembly: AssemblyDescription("MicroSIP qo'ng'iroq hodisasini Cerebro'ga uzatadi")]
+[assembly: AssemblyTitle("Palantir MicroSIP hook")]
+[assembly: AssemblyProduct("Palantir")]
+[assembly: AssemblyDescription("MicroSIP qo'ng'iroq hodisasini Palantir'ga uzatadi")]
 [assembly: AssemblyVersion("1.0.0.0")]
 
-// MicroSIP qo'ng'iroq hodisasini Cerebro'ga uzatadigan kichik yordamchi (DentaCRM'dagi jonli sinalgan yordamchining nusxasi).
+// MicroSIP qo'ng'iroq hodisasini Palantir'ga uzatadigan kichik yordamchi (DentaCRM'dagi jonli sinalgan yordamchining nusxasi).
 //
 // MicroSIP hodisada (microsip.ini: cmdIncomingCall, cmdCallAnswer, cmdCallStart, cmdCallEnd, cmdOutgoingCall) ko'rsatilgan
 // FAYLNI ochadi va raqamni parametr qilib beradi. Sozlamada faqat fayl yo'li bo'ladi, shuning uchun hodisa turi shu dastur
@@ -17,7 +17,7 @@ using System.Text;
 // Nega .cmd emas: qo'ng'iroq qiluvchi raqami (SIP «user» qismi) tashqaridan keladi va unda «&» kabi belgilar bo'lishi mumkin —
 // .cmd fayl cmd.exe orqali ishga tushadi va bunday raqam buyruq bo'lib bajarilib ketardi. Bu yerda raqam hech qanday qobiqdan o'tmaydi.
 //
-// Hodisa shu papkadagi «spool» ichiga kichik fayl bo'lib yoziladi; uni Cerebro (server/phone/microsip.ts) o'qib oladi.
+// Hodisa shu papkadagi «spool» ichiga kichik fayl bo'lib yoziladi; uni Palantir (server/phone/microsip.ts) o'qib oladi.
 // Tarmoq, port yoki kalit yo'q. Yig'ish: server/phone/hook.ts (Windows'ning o'zidagi csc.exe bilan)
 internal static class CerebroCall
 {

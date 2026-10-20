@@ -16,7 +16,7 @@ export const DOC_KINDS: Record<string, string> = {
   letter: 'Xat', plan: 'Reja', report: 'Hisobot', other: 'Hujjat',
 };
 
-const fileName = (title: string, ext: string) => `${title.replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'cerebro'}.${ext}`;
+const fileName = (title: string, ext: string) => `${title.replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'palantir'}.${ext}`;
 
 /** Bitta amal: tugma bosilganda kutish belgisi, xato — bildirishnomada */
 function useAction(notify: Notify) {

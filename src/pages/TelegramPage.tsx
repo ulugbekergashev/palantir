@@ -43,9 +43,9 @@ export function TelegramLogin({ status, onStatus, notify }: { status: LiveStatus
   if (account) {
     return (
       <div className="flex flex-wrap items-center gap-3">
-        <p className="text-sm text-slate-600">Ulangan: <b>{account}</b>. Mijozlar sizga yozsa, Cerebro ko'radi va javob beradi.</p>
+        <p className="text-sm text-slate-600">Ulangan: <b>{account}</b>. Mijozlar sizga yozsa, Palantir ko'radi va javob beradi.</p>
         <Button size="sm" variant="ghost" onClick={async () => {
-          if (!window.confirm("Shaxsiy Telegram uzilsinmi? Cerebro mijozlaringizga javob berishni to'xtatadi.")) return;
+          if (!window.confirm("Shaxsiy Telegram uzilsinmi? Palantir mijozlaringizga javob berishni to'xtatadi.")) return;
           onStatus((await api.tgDisconnect()).status);
         }}><Unlink className="h-3.5 w-3.5" /> Uzish</Button>
       </div>
@@ -55,7 +55,7 @@ export function TelegramLogin({ status, onStatus, notify }: { status: LiveStatus
   return (
     <>
       <p className="text-sm text-slate-600">
-        Cerebro akkauntingizga Telegram Desktop kabi kiradi («Faol seanslar»da <b>Cerebro</b> bo'lib ko'rinadi). Mijozlarga siz nomingizdan javob beradi, kerak bo'lsa birinchi bo'lib yozadi.
+        Palantir akkauntingizga Telegram Desktop kabi kiradi («Faol seanslar»da <b>Palantir</b> bo'lib ko'rinadi). Mijozlarga siz nomingizdan javob beradi, kerak bo'lsa birinchi bo'lib yozadi.
         Kontaktlaringizdagi tanishlaringizga tegmaydi. Istalgan vaqtda shu yerdan yoki Telegram → Qurilmalar'dan uzasiz.
       </p>
       <form onSubmit={submit} className="flex flex-wrap items-end gap-2">
@@ -74,7 +74,7 @@ export function TelegramLogin({ status, onStatus, notify }: { status: LiveStatus
 
 /**
  * Rasmiy Instagram (Instagram API with Instagram Login): egasi instagram.com'da kiradi va ruxsat beradi, Meta xabarlarni
- * Cerebro Hub orqali yuboradi. Akkaunt bloklanmaydi, lekin javob — mijozning oxirgi xabaridan 24 soat ichida
+ * Palantir Hub orqali yuboradi. Akkaunt bloklanmaydi, lekin javob — mijozning oxirgi xabaridan 24 soat ichida
  */
 export function InstagramOfficial({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
   const ig = status.instagramApi;
@@ -93,7 +93,7 @@ export function InstagramOfficial({ status, onStatus, notify }: { status: LiveSt
   }, [waiting]);
   const connect = () => api.igOfficialUrl().then(r => { window.open(r.url, '_blank', 'noopener'); setWaiting(true); }).catch(e => notify((e as Error).message, true));
   if (!ig.hub) {
-    return <p className="text-sm text-slate-600">Rasmiy ulanish uchun <b>Cerebro Hub kodi</b> kerak (ulash ustasi → kalitlar). Hub Meta xabarlarini shu kompyuterga yetkazadi — kompyuterda port ochish shart emas.</p>;
+    return <p className="text-sm text-slate-600">Rasmiy ulanish uchun <b>Palantir Hub kodi</b> kerak (ulash ustasi → kalitlar). Hub Meta xabarlarini shu kompyuterga yetkazadi — kompyuterda port ochish shart emas.</p>;
   }
   if (ig.account) {
     return (
@@ -113,7 +113,7 @@ export function InstagramOfficial({ status, onStatus, notify }: { status: LiveSt
   );
 }
 
-/** Instagram: shu kompyuterda brauzer oynasi ochiladi — egasi o'zi kiradi, keyin Cerebro fonda ishlaydi */
+/** Instagram: shu kompyuterda brauzer oynasi ochiladi — egasi o'zi kiradi, keyin Palantir fonda ishlaydi */
 export function Instagram({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
   const ig = status.instagram;
   const [busy, setBusy] = useState(false);
@@ -145,13 +145,13 @@ export function Instagram({ status, onStatus, notify }: { status: LiveStatus; on
   );
 
   if (!ig.available) {
-    return <p className="text-sm text-slate-500">Bu kompyuterda Google Chrome yoki Microsoft Edge topilmadi. Birini o'rnating — Cerebro Instagram'ga shu brauzer orqali kiradi.</p>;
+    return <p className="text-sm text-slate-500">Bu kompyuterda Google Chrome yoki Microsoft Edge topilmadi. Birini o'rnating — Palantir Instagram'ga shu brauzer orqali kiradi.</p>;
   }
   if (ig.waiting) {
     return (
       <div className="space-y-2">
         <p className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Loader2 className="h-4 w-4 animate-spin" /> Instagram oynasi ochildi — o'sha oynada akkauntingizga kiring</p>
-        <p className="text-xs text-slate-500">Oyna Cerebro o'rnatilgan kompyuterda ochiladi. Instagram kod so'rasa — o'sha oynaga yozing. Kirganingizdan keyin oyna o'zi yopiladi.</p>
+        <p className="text-xs text-slate-500">Oyna Palantir o'rnatilgan kompyuterda ochiladi. Instagram kod so'rasa — o'sha oynaga yozing. Kirganingizdan keyin oyna o'zi yopiladi.</p>
         <Button size="sm" variant="ghost" onClick={() => void api.igCancel().catch(() => {})}>Bekor qilish</Button>
       </div>
     );
@@ -160,10 +160,10 @@ export function Instagram({ status, onStatus, notify }: { status: LiveStatus; on
     return (
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-slate-600">Ulangan: <b>{ig.account}</b>.{!ig.problem && " Direct'ga yozganlarga Cerebro javob beradi."}</p>
+          <p className="text-sm text-slate-600">Ulangan: <b>{ig.account}</b>.{!ig.problem && " Direct'ga yozganlarga Palantir javob beradi."}</p>
           {ig.relogin && loginButton('Qayta kirish')}
           <Button size="sm" variant="ghost" onClick={async () => {
-            if (!window.confirm("Instagram uzilsinmi? Cerebro Direct'dagi mijozlarga javob berishni to'xtatadi.")) return;
+            if (!window.confirm("Instagram uzilsinmi? Palantir Direct'dagi mijozlarga javob berishni to'xtatadi.")) return;
             onStatus((await api.igDisconnect()).status);
           }}><Unlink className="h-3.5 w-3.5" /> Uzish</Button>
         </div>
@@ -174,12 +174,12 @@ export function Instagram({ status, onStatus, notify }: { status: LiveStatus; on
   return (
     <>
       <p className="text-sm text-slate-600">
-        Cerebro shu kompyuterda alohida brauzer oynasini ochadi — Instagram'ga o'zingiz kirasiz, parolingiz Cerebro'ga berilmaydi.
+        Palantir shu kompyuterda alohida brauzer oynasini ochadi — Instagram'ga o'zingiz kirasiz, parolingiz Palantir'ga berilmaydi.
         Keyin u fonda ishlaydi: Direct'ga va «So'rovlar»ga yozganlarga javob beradi, hech kimga birinchi bo'lib yozmaydi.
       </p>
       <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
         Bu Instagram'ning rasmiy yo'li emas: haddan tashqari faol ishlatilsa, Instagram akkauntni vaqtincha cheklashi mumkin.
-        Shuning uchun Cerebro kuniga belgilangan sondan ko'p yozmaydi va cheklov sezsa — to'xtab, sizga aytadi. Avval «Men tasdiqlayman» rejimida sinab ko'ring.
+        Shuning uchun Palantir kuniga belgilangan sondan ko'p yozmaydi va cheklov sezsa — to'xtab, sizga aytadi. Avval «Men tasdiqlayman» rejimida sinab ko'ring.
       </p>
       {ig.problem && <p className="text-sm text-rose-600">{ig.problem}</p>}
       {loginButton("Instagram'ga kirish")}
@@ -188,9 +188,9 @@ export function Instagram({ status, onStatus, notify }: { status: LiveStatus; on
 }
 
 const MODES: { value: ReplyMode; title: string; text: string }[] = [
-  { value: 'draft', title: 'Men tasdiqlayman', text: "Cerebro javob yozib, Telegram'da sizga ko'rsatadi. «Yuborish» ni bossangiz ketadi." },
-  { value: 'auto', title: "O'zi javob bersin", text: "Siz belgilangan vaqt ichida o'zingiz yozmasangiz, Cerebro yuboradi. Narx yo'q, chegirma, buyurtma kabi savollarda baribir sizdan so'raydi." },
-  { value: 'off', title: "O'chiq", text: "Cerebro mijozlarga javob tayyorlamaydi (bot xabarlari sizga shunchaki yetkaziladi)." },
+  { value: 'draft', title: 'Men tasdiqlayman', text: "Palantir javob yozib, Telegram'da sizga ko'rsatadi. «Yuborish» ni bossangiz ketadi." },
+  { value: 'auto', title: "O'zi javob bersin", text: "Siz belgilangan vaqt ichida o'zingiz yozmasangiz, Palantir yuboradi. Narx yo'q, chegirma, buyurtma kabi savollarda baribir sizdan so'raydi." },
+  { value: 'off', title: "O'chiq", text: "Palantir mijozlarga javob tayyorlamaydi (bot xabarlari sizga shunchaki yetkaziladi)." },
 ];
 
 export function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b: Business) => void; notify: Notify }) {
@@ -199,7 +199,7 @@ export function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b
     try { onBiz((await api.setAutoReply({ ...v, ...patch })).business); notify('Saqlandi'); } catch (e) { notify((e as Error).message, true); }
   };
   return (
-    <Card title="Mijozlarga javob" description="Bot, shaxsiy Telegram va Instagram'da yozgan mijozlarga Cerebro qanday javob beradi">
+    <Card title="Mijozlarga javob" description="Bot, shaxsiy Telegram va Instagram'da yozgan mijozlarga Palantir qanday javob beradi">
       <div role="radiogroup" aria-label="Javob rejimi" className="grid gap-2 sm:grid-cols-3">
         {MODES.map(m => (
           <button key={m.value} type="button" role="radio" aria-checked={v.mode === m.value} onClick={() => void save({ mode: m.value })}
@@ -240,7 +240,7 @@ export function SettingsCard({ biz, offeringsRev, onSaved, notify }: { biz: Busi
     } catch (e) { notify((e as Error).message, true); }
   };
   return (
-    <Card title="Sozlamalar" description="Cerebro sizga qanday murojaat qiladi va qaysi tilda yozadi. Manzil, ish vaqti, narxlar va boshqa bilimlar — «Ikkinchi miya»da.">
+    <Card title="Sozlamalar" description="Palantir sizga qanday murojaat qiladi va qaysi tilda yozadi. Manzil, ish vaqti, narxlar va boshqa bilimlar — «Ikkinchi miya»da.">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Biznes nomi"><TextInput value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} maxLength={60} /></Field>
         <Field label="Egasi (yordamchi shunday murojaat qiladi)"><TextInput value={draft.ownerName} onChange={e => setDraft({ ...draft, ownerName: e.target.value })} maxLength={60} /></Field>

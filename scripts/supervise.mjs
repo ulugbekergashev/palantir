@@ -1,5 +1,5 @@
 /**
- * Nazoratchi: Cerebro serverini ishga tushiradi va to'xtab qolsa qayta yoqadi (klinikadagi kompyuterda qarovsiz ishlash uchun).
+ * Nazoratchi: Palantir serverini ishga tushiradi va to'xtab qolsa qayta yoqadi (klinikadagi kompyuterda qarovsiz ishlash uchun).
  *   node scripts/supervise.mjs         — ishga tushirish (oyna yopilguncha yoki «stop» buyrug'igacha ishlaydi)
  *   node scripts/supervise.mjs stop    — ishlab turgan nazoratchi va serverni tinch to'xtatish
  *   node scripts/supervise.mjs status  — ishlayaptimi
@@ -29,7 +29,7 @@ const STOP_POLL_MS = 1_000, STOP_WAIT_MS = 8_000;
 /**
  * Nazoratchi PID faylini shu oraliqda «yangilab» turadi; shuncha vaqt yangilanmagan fayl — eskirgan.
  * Tok o'chib-yonganda eski fayl qoladi va undagi raqam boshqa dasturga o'tgan bo'lishi mumkin: faqat raqamga qarab
- * «ishlab turibdi» deyilsa Cerebro umuman yonmay qolardi, «stop» esa begona dasturni yopib yuborardi
+ * «ishlab turibdi» deyilsa Palantir umuman yonmay qolardi, «stop» esa begona dasturni yopib yuborardi
  */
 const BEAT_MS = 5_000, STALE_MS = 30_000;
 
@@ -61,14 +61,14 @@ const command = process.argv[2] ?? 'run';
 
 if (command === 'status') {
   const pid = runningPid();
-  console.log(pid ? `Cerebro ishlayapti (nazoratchi jarayoni ${pid})` : 'Cerebro ishlamayapti');
+  console.log(pid ? `Palantir ishlayapti (nazoratchi jarayoni ${pid})` : 'Palantir ishlamayapti');
   process.exit(pid ? 0 : 1);
 }
 
 if (command === 'stop') {
   const pid = runningPid();
   if (!pid) {
-    console.log('Cerebro ishlamayapti');
+    console.log('Palantir ishlamayapti');
     process.exit(0);
   }
   writeFileSync(STOP_FILE, String(Date.now()));
@@ -80,12 +80,12 @@ if (command === 'stop') {
     else try { process.kill(pid); } catch { /* shu orada o'zi to'xtagan */ }
   }
   rmSync(STOP_FILE, { force: true });
-  console.log("Cerebro to'xtatildi");
+  console.log("Palantir to'xtatildi");
   process.exit(0);
 }
 
 if (runningPid()) {
-  console.log(`Cerebro allaqachon ishlab turibdi (nazoratchi jarayoni ${runningPid()}). To'xtatish: node scripts/supervise.mjs stop`);
+  console.log(`Palantir allaqachon ishlab turibdi (nazoratchi jarayoni ${runningPid()}). To'xtatish: node scripts/supervise.mjs stop`);
   process.exit(0);
 }
 // Eskirgan fayl o'chiriladi; «wx» — ikki nazoratchi bir vaqtda boshlansa faqat bittasi yozadi
@@ -93,7 +93,7 @@ rmSync(PID_FILE, { force: true });
 try {
   writeFileSync(PID_FILE, String(process.pid), { flag: 'wx' });
 } catch {
-  console.log('Cerebro allaqachon ishga tushirilmoqda (boshqa nazoratchi)');
+  console.log('Palantir allaqachon ishga tushirilmoqda (boshqa nazoratchi)');
   process.exit(0);
 }
 rmSync(STOP_FILE, { force: true });

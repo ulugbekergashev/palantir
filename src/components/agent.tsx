@@ -1,6 +1,6 @@
 /**
  * AI xodim sahifalarining umumiy qismlari — bosh ekran (sfera) bilan bir uslubda: har xodimning o'z rangidagi sferasi,
- * katta sarlavha va bugungi raqamlar, «xodimdan so'rang» qatori (javob Cerebro yordamchisidan), bo'lim kartasi, varaqlar.
+ * katta sarlavha va bugungi raqamlar, «xodimdan so'rang» qatori (javob Palantir yordamchisidan), bo'lim kartasi, varaqlar.
  */
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowUp, Loader2 } from 'lucide-react';
@@ -110,7 +110,7 @@ export function Quiet({ children }: { children: ReactNode }) {
   return <p className="rounded-2xl border border-dashed border-glass/10 px-4 py-6 text-center text-[14px] leading-relaxed text-[#8a909c]">{children}</p>;
 }
 
-/** «Xodimdan so'rang»: savol Cerebro yordamchisiga, shu xodim haqida ekani aytiladi; javob shu yerda */
+/** «Xodimdan so'rang»: savol Palantir yordamchisiga, shu xodim haqida ekani aytiladi; javob shu yerda */
 export function AgentAsk({ member, placeholder, chips = [] }: { member: Member; placeholder: string; /** Tez buyruqlar: bosilsa — darhol yuboriladi */ chips?: string[] }) {
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);

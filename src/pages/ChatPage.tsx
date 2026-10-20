@@ -1,7 +1,7 @@
 /**
- * Cerebro bilan suhbat — yozishma, ovozli xabar, jonli ovoz va Telegram bitta oqimda (bitta suhbat, bazada).
+ * Palantir bilan suhbat — yozishma, ovozli xabar, jonli ovoz va Telegram bitta oqimda (bitta suhbat, bazada).
  * Chapda — suhbat (kun bo'yicha; ovozli suhbat — alohida karta, telefondan va Telegram'dan kelgani belgisi bilan), pastda — yozish,
- * fayl, ovozli xabar va jonli suhbat (sfera). O'ngda — Xotira: Cerebro nimani doim eslab turadi (MemoryPanel).
+ * fayl, ovozli xabar va jonli suhbat (sfera). O'ngda — Xotira: Palantir nimani doim eslab turadi (MemoryPanel).
  */
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AudioLines, ChevronDown, Loader2, Mic, Paperclip, Phone, RotateCcw, Send, Square } from 'lucide-react';
@@ -41,7 +41,7 @@ function dayTitle(at: string): string {
   return `${d.getDate()}-${MONTHS[d.getMonth()]}`;
 }
 
-/** Ovozli suhbat yozuvi (server: brain/routes.ts voiceEntry) — sarlavha va «Siz:/Cerebro:/✓» qatorlari */
+/** Ovozli suhbat yozuvi (server: brain/routes.ts voiceEntry) — sarlavha va «Siz:/Palantir:/✓» qatorlari */
 function VoiceSession({ e }: { e: ChatEntry }) {
   const [open, setOpen] = useState(false);
   const [head, ...rows] = e.text.split('\n');
@@ -58,7 +58,7 @@ function VoiceSession({ e }: { e: ChatEntry }) {
           const done = l.startsWith('✓'), me = l.startsWith('Siz:');
           return (
             <li key={i} className={done ? 'text-emerald-300' : me ? 'text-[#a3a9b5]' : 'text-[#e4e3de]'}>
-              {done ? l : <><span className="mr-1.5 text-[12px] font-semibold text-[#7d838f]">{me ? 'Siz' : 'Cerebro'}</span>{l.replace(/^(Siz|Cerebro):\s*/, '')}</>}
+              {done ? l : <><span className="mr-1.5 text-[12px] font-semibold text-[#7d838f]">{me ? 'Siz' : 'Palantir'}</span>{l.replace(/^(Siz|Palantir|Cerebro):\s*/, '')}</>}
             </li>
           );
         })}
@@ -210,12 +210,12 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
 
   return (
     <div className="grid h-[calc(100dvh-var(--shell-y))] min-h-[560px] gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <section aria-label="Cerebro bilan suhbat" className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-glass/[0.07] bg-[#0a0b0f]">
+      <section aria-label="Palantir bilan suhbat" className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-glass/[0.07] bg-[#0a0b0f]">
         <div aria-hidden="true" className="pointer-events-none absolute -left-24 -top-40 h-[380px] w-[380px] rounded-full" style={{ background: `radial-gradient(closest-side, ${h.glow}, transparent)` }} />
         <header className="relative flex flex-wrap items-center gap-3 border-b border-glass/[0.06] px-5 py-4 sm:px-6">
           <AgentOrb member="yordamchi" size={40} live={live.active} />
           <div className="mr-auto min-w-0">
-            <h1 className="text-[17px] font-semibold text-[#f2f0ea]">Cerebro bilan suhbat</h1>
+            <h1 className="text-[17px] font-semibold text-[#f2f0ea]">Palantir bilan suhbat</h1>
             <p className="text-[13px] text-[#8a909c]">Yozing, gapiring yoki fayl tashlang. Telegram va ovozli suhbatlar ham shu yerda.</p>
           </div>
           {!status.ai && <span className="rounded-full bg-[#f5b454]/15 px-3 py-1 text-[12px] font-semibold text-[#fde2b0]">AI ulanmagan</span>}
@@ -257,7 +257,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
               {pending && (
                 <>
                   <div className="flex justify-end"><div data-msg="owner" className="max-w-[86%] rounded-[20px] rounded-br-md bg-glass/[0.06] px-4 py-2.5 text-[15px] text-[#d9dbe1]"><p className="whitespace-pre-line">{pending}</p></div></div>
-                  <p className="flex items-center gap-2 text-[14px] text-[#a3a9b5]"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Cerebro ishlayapti…</p>
+                  <p className="flex items-center gap-2 text-[14px] text-[#a3a9b5]"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Palantir ishlayapti…</p>
                 </>
               )}
             </div>
@@ -272,7 +272,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
             <div className="min-w-0 flex-1 text-[14px]">
               {live.error ? <p role="alert" className="text-rose-200">{live.error}</p> : (
                 <>
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#c7c8ff]">{live.mode === 'connecting' ? 'Ulanmoqda…' : live.mode === 'thinking' ? 'Bajaryapti…' : live.mode === 'speaking' ? 'Cerebro gapiryapti' : 'Eshityapti — gapiring'}</p>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#c7c8ff]">{live.mode === 'connecting' ? 'Ulanmoqda…' : live.mode === 'thinking' ? 'Bajaryapti…' : live.mode === 'speaking' ? 'Palantir gapiryapti' : 'Eshityapti — gapiring'}</p>
                   {live.ai ? <p className="truncate text-[#f2f0ea]">{live.ai}</p> : live.you ? <p className="truncate text-[#a3a9b5]">«{live.you}»</p> : null}
                 </>
               )}
@@ -283,7 +283,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
 
         {interview && (
           <div className="relative mx-4 mb-2 flex flex-wrap items-center gap-2 text-[13px] text-[#a3a9b5] sm:mx-6">
-            <span>Cerebro savol beryapti — javobingizni yozing.</span>
+            <span>Palantir savol beryapti — javobingizni yozing.</span>
             <button type="button" onClick={() => { void interviewAct('skip'); }} disabled={busy} className="rounded-full border border-glass/10 px-3 py-1 text-[12px] hover:bg-glass/5 disabled:opacity-40">O'tkazib yuborish</button>
             <button type="button" onClick={() => { void interviewAct('stop'); }} disabled={busy} className="rounded-full border border-glass/10 px-3 py-1 text-[12px] hover:bg-glass/5 disabled:opacity-40">To'xtatish</button>
           </div>
@@ -302,7 +302,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
               {rec ? <Square className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-5 w-5" aria-hidden="true" />}
             </button>
           )}
-          <button type="button" onClick={() => { void live.toggle(); }} aria-pressed={live.active} aria-label={live.active ? 'Jonli suhbatni tugatish' : 'Jonli suhbat — gaplashib oling'} title="Jonli suhbat: Cerebro ovoz bilan javob beradi"
+          <button type="button" onClick={() => { void live.toggle(); }} aria-pressed={live.active} aria-label={live.active ? 'Jonli suhbatni tugatish' : 'Jonli suhbat — gaplashib oling'} title="Jonli suhbat: Palantir ovoz bilan javob beradi"
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${live.active ? 'bg-[#8b8cff] text-[#07080b]' : 'text-[#c7c8ff] hover:bg-[#8b8cff]/10'}`}>
             <AudioLines className="h-5 w-5" aria-hidden="true" />
           </button>

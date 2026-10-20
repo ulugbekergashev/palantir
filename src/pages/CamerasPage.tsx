@@ -97,7 +97,7 @@ export function CamerasPage({ notify }: { notify: Notify }) {
   if (!list) return <Loader2 className="mx-auto h-6 w-6 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" />;
   return (
     <div className="flex flex-col gap-5">
-      {!ffmpeg && <p role="alert" className="rounded-2xl bg-[#f5b454]/10 px-4 py-3 text-[14px] text-[#fde2b0]">Bu kompyuterda ffmpeg yo'q — IP kameralar ishlamaydi. O'rnating: <code>winget install Gyan.FFmpeg</code>, keyin Cerebro'ni qayta ishga tushiring.</p>}
+      {!ffmpeg && <p role="alert" className="rounded-2xl bg-[#f5b454]/10 px-4 py-3 text-[14px] text-[#fde2b0]">Bu kompyuterda ffmpeg yo'q — IP kameralar ishlamaydi. O'rnating: <code>winget install Gyan.FFmpeg</code>, keyin Palantir'ni qayta ishga tushiring.</p>}
 
       {list.length > 0 && (
         <Block title={`Kameralar · ${list.length}`} hint="Kamerani tanlang — kadr ustida kreslo va kassa stolini belgilaysiz. Kuzatuvchi aynan shu joylarni sanaydi.">

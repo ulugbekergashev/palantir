@@ -85,8 +85,8 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
       )}
       {active === 'telegram' && (
         <div className="grid items-start gap-5 xl:grid-cols-2">
-          <Part title="Cerebro bilan Telegram'da" hint="Eslatmalar, ertalabki reja va mijozlarga javob takliflari shu yerga keladi."><OwnerBot status={status} /></Part>
-          <Part title="Shaxsiy Telegram" hint="Mijozlaringiz yozadigan akkaunt — ularga Cerebro javob beradi (siz tanlagan rejimda)."><TelegramLogin status={status} onStatus={onStatus} notify={notify} /></Part>
+          <Part title="Palantir bilan Telegram'da" hint="Eslatmalar, ertalabki reja va mijozlarga javob takliflari shu yerga keladi."><OwnerBot status={status} /></Part>
+          <Part title="Shaxsiy Telegram" hint="Mijozlaringiz yozadigan akkaunt — ularga Palantir javob beradi (siz tanlagan rejimda)."><TelegramLogin status={status} onStatus={onStatus} notify={notify} /></Part>
         </div>
       )}
       {active === 'instagram' && (

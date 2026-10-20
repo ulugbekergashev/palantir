@@ -69,7 +69,7 @@ const stopBackups = startBackups();
 const stopMonitor = startMonitor();
 
 const open = !env.listenHost || env.listenHost === '0.0.0.0' || env.listenHost === '::';
-console.log(`Cerebro server: http://localhost:${env.port}${open ? ' (hamma tarmoq interfeyslari)' : ` (${env.listenHost})`}`);
+console.log(`Palantir server: http://localhost:${env.port}${open ? ' (hamma tarmoq interfeyslari)' : ` (${env.listenHost})`}`);
 console.log(`  bot:  ${!bot.enabled ? "o'chiq (BOT_TOKEN yo'q)" : bot.username() ? `@${bot.username()}` : "ulanmoqda (Telegram hozircha javob bermadi — o'zi qayta urinadi)"}`);
 console.log(`  AI:   ${env.aiEnabled ? `${env.aiModel}${env.webSearch ? ' + internetdan qidirish' : ''}` : "o'chiq (ANTHROPIC_API_KEY yo'q)"}`);
 console.log(`  ovoz: ${voiceEnabled() ? [env.voicelabKey && 'VoiceLab', env.geminiKey && 'Gemini', env.groqKey && 'Groq'].filter(Boolean).join(' → ') : "o'chiq (VOICELAB_API_KEY / GEMINI_API_KEY / GROQ_API_KEY yo'q)"}`);

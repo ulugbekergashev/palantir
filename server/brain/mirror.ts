@@ -22,11 +22,11 @@ const DONE_SHOWN = 20;
 const MAX_TITLE = 200;
 const LINE = /^\s*[-*]\s+\[([ xX-])\]\s+(.*?)\s*$/;
 const ID = /\s\^([A-Za-z0-9]{4,16})$/;
-/** Cerebro yozgan vaqt: «📅 2026-10-18 09:00» */
+/** Palantir yozgan vaqt: «📅 2026-10-18 09:00» */
 const DUE = /\s*📅\s*(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})$/;
 /** Egasi qo'shgan yangi qatorda belgisiz vaqt ham qabul qilinadi: «- [ ] Akmalga qo'ng'iroq 2026-10-20 15:00» */
 const PLAIN_DUE = /\s+(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})$/;
-const HELP = "> Cerebro yozadi va o'qiydi. Katakchani belgilasangiz — bajarildi; `[-]` — bekor; nom yoki 📅 vaqtni o'zgartirsangiz — Cerebro'da ham o'zgaradi. "
+const HELP = "> Palantir yozadi va o'qiydi. Katakchani belgilasangiz — bajarildi; `[-]` — bekor; nom yoki 📅 vaqtni o'zgartirsangiz — Palantir'da ham o'zgaradi. "
   + "Yangi vazifa: `- [ ] Nima qilish 2026-10-20 15:00` (vaqt ixtiyoriy). Oxiridagi ^kod — vazifa raqami, o'zgartirmang.";
 
 interface Seen { status: TaskStatus; title: string; dueAt: string | null }
@@ -145,7 +145,7 @@ export function phoneGuide(bizId: string, ownerName: string): { text: string; vo
 
 // ─── Telefon suhbatlari ──────────────────────────────────────────────────────
 
-export interface CallLine { at: string; who: 'Siz' | 'Cerebro' | 'Amal'; text: string }
+export interface CallLine { at: string; who: 'Siz' | 'Palantir' | 'Amal'; text: string }
 export interface CallRecord { startedAt: string; seconds: number; withWhom: string; lines: CallLine[] }
 
 const one = (s: string): string => inert(s.replace(/\s+/g, ' ').trim());

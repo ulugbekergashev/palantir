@@ -1,5 +1,5 @@
 /**
- * Ikkinchi miya: Cerebro biznes haqida bilgan narsalar va ular qayerdan keladi.
+ * Ikkinchi miya: Palantir biznes haqida bilgan narsalar va ular qayerdan keladi.
  * Yozilish yo'llari: egasi o'zi yozadi (panel, tayyor savollar), mijozga bergan javobini «eslab qol» deydi (taklif → tasdiq),
  * tayyor javobni tuzatib yuboradi (tuzatish), yoki papkadagi faylni Obsidian'da o'zgartiradi. Hammasi fayllarda turadi (vault.ts).
  */
@@ -60,12 +60,12 @@ export const filterOptions = (biz: BusinessRow): { medical: boolean } => ({ medi
 
 /**
  * Bilimdagi matnda reklama filtri ushlaydigan so'z bo'lsa («kafolat», «og'riqsiz»…), egasi buni bilishi kerak. Filtr bilimni emas,
- * Cerebro yozgan javobni tekshiradi: javobda shu so'z chiqsa, xabar o'zi ketmaydi — tasdiqqa keladi («o'rgatdim, lekin baribir
+ * Palantir yozgan javobni tekshiradi: javobda shu so'z chiqsa, xabar o'zi ketmaydi — tasdiqqa keladi («o'rgatdim, lekin baribir
  * mendan so'rayapti»). Telefonda tasdiqlatib bo'lmaydi, shuning uchun bunday bilim ovozli agentga berilmaydi (knowledgeText).
  */
 export function filterWarning(text: string, opts: { medical: boolean }): string | undefined {
   const issue = check(text, opts)[0];
-  return issue ? `«${issue.phrase}» — reklama filtri ushlaydigan so'z (${issue.why.toLowerCase()}). Cerebro javobida shu so'z chiqsa, xabar mijozga o'zi ketmaydi — sizga tasdiqqa keladi; telefonda esa bu aytilmaydi. Maslahat: ${issue.hint}.` : undefined;
+  return issue ? `«${issue.phrase}» — reklama filtri ushlaydigan so'z (${issue.why.toLowerCase()}). Palantir javobida shu so'z chiqsa, xabar mijozga o'zi ketmaydi — sizga tasdiqqa keladi; telefonda esa bu aytilmaydi. Maslahat: ${issue.hint}.` : undefined;
 }
 
 export function brainView(biz: BusinessRow): BrainView {

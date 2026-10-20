@@ -56,7 +56,7 @@ export function BusinessPage({ biz, offeringsRev, onSaved, notify }: { biz: Busi
     <div className="space-y-5 pb-20">
       <header>
         <h1 className="text-2xl font-extrabold tracking-tight">Biznes profili</h1>
-        <p className="text-sm text-slate-500">Cerebro shu ma'lumotdan foydalanadi: hujjatlarda rekvizit, postlarda narx va aloqa. O'zidan narx yoki chegirma qo'shmaydi.</p>
+        <p className="text-sm text-slate-500">Palantir shu ma'lumotdan foydalanadi: hujjatlarda rekvizit, postlarda narx va aloqa. O'zidan narx yoki chegirma qo'shmaydi.</p>
       </header>
 
       <div className="grid gap-5 xl:grid-cols-2">

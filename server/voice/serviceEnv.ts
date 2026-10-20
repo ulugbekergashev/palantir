@@ -38,7 +38,7 @@ export function syncVoiceEnv(): void {
   const had = read();
   const key = agentKey(had.VOICE_AGENT_KEY);
   const lines = [
-    '# Cerebro yozadi (server/voice/serviceEnv.ts) — qo\'lda o\'zgartirmang; .env dagi qiymat ustun',
+    '# Palantir yozadi (server/voice/serviceEnv.ts) — qo\'lda o\'zgartirmang; .env dagi qiymat ustun',
     ...(process.env.GEMINI_API_KEY ? [`GEMINI_API_KEY=${process.env.GEMINI_API_KEY}`] : []),
     ...(key ? [`VOICE_AGENT_KEY=${key}`] : []),
   ];

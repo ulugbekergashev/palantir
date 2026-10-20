@@ -36,7 +36,7 @@ export function Logo({ subtitle = 'AI yordamchi', tone = 'paper' }: { subtitle?:
     <div className="flex items-center gap-2.5">
       <img src="/favicon.svg" alt="" className="h-9 w-9 shrink-0" />
       <div className="leading-tight">
-        <div className={`text-[17px] font-extrabold tracking-tight ${tone === 'ink' ? 'text-white' : ''}`}>Cerebro</div>
+        <div className={`text-[17px] font-extrabold tracking-tight ${tone === 'ink' ? 'text-white' : ''}`}>Palantir</div>
         <div className={`text-[11px] font-medium ${tone === 'ink' ? 'text-ink-400' : 'text-slate-500'}`}>{subtitle}</div>
       </div>
     </div>
@@ -79,7 +79,7 @@ export function Sidebar({ wide, open, page, setPage, biz, health, badges = {}, o
   return (
     <aside {...drawer} className={`fixed inset-y-0 left-0 z-[46] flex h-dvh w-64 max-w-[85vw] flex-col overflow-y-auto overscroll-contain bg-ink-950 px-3 pb-3 pt-5 text-ink-200 transition-transform duration-200 ${wide || open ? 'translate-x-0' : '-translate-x-full'} ${open && !wide ? 'shadow-2xl' : ''}`}>
       {/* Logotip — AI bosh ekranga (#/ai) qaytish */}
-      <a href="#/ai" aria-label="Cerebro AI — bosh ekran" className="block rounded-xl px-2 py-1 no-underline transition-colors hover:bg-ink-900"><Logo tone="ink" subtitle="AI ekranga qaytish" /></a>
+      <a href="#/ai" aria-label="Palantir AI — bosh ekran" className="block rounded-xl px-2 py-1 no-underline transition-colors hover:bg-ink-900"><Logo tone="ink" subtitle="AI ekranga qaytish" /></a>
       <nav aria-label="Bo'limlar" className="mt-7 space-y-3">
         {GROUPS.map((group, n) => (
           <ul key={group[0]} className={`space-y-0.5 ${n ? 'border-t border-ink-800 pt-3' : ''}`}>

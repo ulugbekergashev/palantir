@@ -1,5 +1,5 @@
 /**
- * Instagram Direct — rasmiy yo'l (Instagram API with Instagram Login), Cerebro Hub orqali.
+ * Instagram Direct — rasmiy yo'l (Instagram API with Instagram Login), Palantir Hub orqali.
  *
  *   ulash   — panel hubdan kirish havolasini oladi → egasi instagram.com'da kiradi va ruxsat beradi → hub 60 kunlik tokenni
  *             navbatga qo'yadi → shu modul oladi, shifrlab saqlaydi va akkauntni webhook'larga yozdiradi (subscribed_apps);
@@ -103,7 +103,7 @@ async function onToken(p: Record<string, unknown>): Promise<void> {
     await notifyOwner(biz, `⚠️ Instagram @${esc(username)} ulandi, lekin xabarlarga obuna bo'lmadi: ${esc((e as Error).message)}`).catch(() => null);
     return;
   }
-  await notifyOwner(biz, `📸 Instagram @${esc(username)} rasmiy ulandi — Direct'ga yozganlarga Cerebro javob beradi (sozlamangiz bo'yicha).`).catch(() => null);
+  await notifyOwner(biz, `📸 Instagram @${esc(username)} rasmiy ulandi — Direct'ga yozganlarga Palantir javob beradi (sozlamangiz bo'yicha).`).catch(() => null);
 }
 
 async function onEntry(p: Record<string, unknown>): Promise<void> {
@@ -135,7 +135,7 @@ let running = false;
 const hubState = { okAt: Date.now(), error: null as string | null };
 /** Hub bilan aloqa shuncha vaqtdan beri yo'q bo'lsa — muammo (null — joyida) */
 export function hubProblem(now = Date.now()): string | null {
-  return env.hub && hubState.error && now - hubState.okAt > 60_000 ? `Cerebro Hub bilan aloqa yo'q: ${hubState.error}` : null;
+  return env.hub && hubState.error && now - hubState.okAt > 60_000 ? `Palantir Hub bilan aloqa yo'q: ${hubState.error}` : null;
 }
 let stopFlag = false;
 let cursor = 0;
@@ -224,7 +224,7 @@ export function instagramApiStatus(bizId: string): IgApiStatus {
 /** Egasi brauzerda ochadigan Instagram kirish havolasi (hub imzolaydi) */
 export async function instagramApiConnectUrl(biz: BusinessRow): Promise<string> {
   const hub = env.hub;
-  if (!hub) throw new IgApiError("Cerebro Hub kodi kiritilmagan — ulash ustasi → kalitlar");
+  if (!hub) throw new IgApiError("Palantir Hub kodi kiritilmagan — ulash ustasi → kalitlar");
   const r = await fetch(`${hub.url}/api/ig/connect-url`, { method: 'POST', headers: { authorization: `Bearer ${hub.key}`, 'content-type': 'application/json' }, body: JSON.stringify({ businessId: biz.id }), signal: AbortSignal.timeout(15_000) });
   const j = await r.json().catch(() => ({})) as { url?: string; error?: string };
   if (!r.ok || !j.url) throw new IgApiError(j.error ?? `Hub javob bermadi (${r.status})`);
