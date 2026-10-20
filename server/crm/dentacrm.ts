@@ -91,6 +91,23 @@ const PatientSchema = z.object({ id, firstName: label(80).catch(''), lastName: l
 const TransactionSchema = z.object({ id, patientName: label(80).catch(''), patientId: id.nullish().transform(v => v ?? null).catch(null), amount: money, type: label(40), service: text(80), status: label(40).pipe(z.string().min(1)), doctorId: id.nullish().transform(v => v ?? null).catch(null), doctorName: text(80), date: text(40) });
 
 const ExpenseSchema = z.object({ id, date: text(40), amount: money, category: label(40), title: text(120), doctorId: id.nullish().transform(v => v ?? null).catch(null) });
+
+// Tahlil uchun (insights/dataset.ts): statistik maydonlar — ism, telefon, izoh va tibbiy yozuv olinmaydi
+const when = z.union([z.string(), z.number()]).nullish().transform(v => { if (v == null || v === '') return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d.toISOString(); }).catch(null);
+const optId = id.nullish().transform(v => v ?? null).catch(null);
+const VisitStatSchema = z.object({
+  id, patientId: optId, doctorId: optId, doctorName: text(80), type: text(60), date: day, time: clock.nullish().transform(v => v ?? null).catch(null),
+  duration: z.coerce.number().int().nonnegative().max(24 * 60).catch(30), status: label(40).catch(''), callStatus: text(30),
+  enteredAt: when, finishedAt: when, review: z.object({ rating: z.coerce.number().int().min(1).max(5) }).nullish().catch(null),
+}).transform(({ review, ...v }) => ({ ...v, rating: review?.rating ?? null }));
+const PaymentStatSchema = z.object({
+  id, patientId: optId, appointmentId: optId, amount: money, discountAmount: money.nullish().transform(v => v ?? 0).catch(0), type: text(40), service: text(80),
+  category: text(40), status: text(40), doctorId: optId, doctorName: text(80), date: text(40), createdAt: when,
+});
+const PatientStatSchema = z.object({ id, gender: text(12), dob: text(20), createdAt: when, label: text(20), status: text(30) });
+export type VisitStat = z.infer<typeof VisitStatSchema>;
+export type PaymentStat = z.infer<typeof PaymentStatSchema>;
+export type PatientStat = z.infer<typeof PatientStatSchema>;
 const CreatedSchema = z.object({ id });
 
 export interface CrmConfig { baseUrl: string; username: string; password: string }
@@ -118,6 +135,8 @@ export interface DentaCrm {
   createExpense(e: NewExpense): Promise<string>;
   removeTransaction(id: string): Promise<void>;
   removeExpense(id: string): Promise<void>;
+  /** Tahlil uchun hamma qabul, to'lov va bemorlarning statistik maydonlari (insights/dataset.ts); buzuq qator tashlanadi */
+  statsExport(): Promise<{ visits: VisitStat[]; payments: PaymentStat[]; patients: PatientStat[] }>;
 }
 
 interface Cached<T> { at: number; value: Promise<T> }
@@ -300,6 +319,16 @@ export function createDentaCrm(cfg: CrmConfig): DentaCrm {
       return created;
     },
     expenses: async () => many(ExpenseSchema, await call({ method: 'GET', path: cid => `/api/expenses?${q(cid)}`, timeoutMs: PATIENTS_TIMEOUT_MS, limit: EXPENSES_BODY_LIMIT }), 'xarajatlar', false),
+    // Sanasiz so'rov — hamma yozuv (tahlil uchun bir marta); katta klinikada ham sig'adigan chegara bilan
+    async statsExport() {
+      const bulk = (path: string) => call({ method: 'GET', path: cid => `${path}?${q(cid)}`, timeoutMs: PATIENTS_TIMEOUT_MS, limit: PATIENTS_BODY_LIMIT });
+      const [visits, payments, patients] = await Promise.all([bulk('/api/appointments'), bulk('/api/transactions'), bulk('/api/patients')]);
+      return {
+        visits: many(VisitStatSchema, visits, 'qabullar (tahlil)', false),
+        payments: many(PaymentStatSchema, payments, "to'lovlar (tahlil)", false),
+        patients: many(PatientStatSchema, patients, 'bemorlar (tahlil)', false),
+      };
+    },
     // Faqat ikkala nashr ham qabul qiladigan maydonlar: bulut nashri notanish maydonli so'rovni rad etadi
     createTransaction: t => create('/api/transactions', clinicId => ({ ...t, clinicId, status: 'Paid', discountAmount: 0, discountPercent: 0 })),
     createExpense: e => create('/api/expenses', clinicId => ({ ...e, clinicId, note: 'Cerebro orqali kiritildi' })),

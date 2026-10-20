@@ -25,10 +25,22 @@ type Params = Omit<Anthropic.Beta.MessageCreateParamsNonStreaming, 'betas' | 'fa
 
 /** Modelga so'rov. Kunlik chegaradan oshsa — AiLimitError; aks holda so'rov va tokenlari biznes hisobiga yoziladi */
 export async function think(bizId: string, kind: AiKind, params: Params): Promise<Anthropic.Beta.BetaMessage> {
+  return ask(bizId, kind, () => claude().beta.messages.create({ ...params, ...FALLBACK }));
+}
+
+/**
+ * O'sha so'rov oqim bilan (striming): javob o'nlab daqiqa yozilsa ham ulanish uzilmaydi — Python'da uzoq tahlil (insights/deep.ts) uchun.
+ * Hisob va chegara — think bilan bir xil
+ */
+export async function thinkStream(bizId: string, kind: AiKind, params: Params): Promise<Anthropic.Beta.BetaMessage> {
+  return ask(bizId, kind, () => claude().beta.messages.stream({ ...params, ...FALLBACK }).finalMessage());
+}
+
+async function ask(bizId: string, kind: AiKind, send: () => Promise<Anthropic.Beta.BetaMessage>): Promise<Anthropic.Beta.BetaMessage> {
   const day = iso(new Date()), limit = DAILY[kind]();
   if (aiUsage.calls(bizId, day, kind) >= limit) throw new AiLimitError(kind, limit);
   aiUsage.hit(bizId, day, kind);
-  const res = await claude().beta.messages.create({ ...params, ...FALLBACK });
+  const res = await send();
   const u = res.usage;
   // Hisob yozilmasa ham (disk to'lgan) pulli javob yo'qolmasin
   try {

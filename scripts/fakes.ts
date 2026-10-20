@@ -328,6 +328,8 @@ export const ai = {
   docs: [] as { stage: 'write' | 'review'; system: string; user: string; effort?: string }[],
   /** Talab tahliliga (insights/analyze.ts) borgan bandlar matni */
   insights: [] as string[],
+  /** Chuqur tahlil so'rovlari: yuklangan fayllar, konteyner (davom ettirilganda), asboblar */
+  deep: [] as { files: string[]; container: string | null; tools: Block[] }[],
 };
 
 /**
@@ -509,7 +511,57 @@ export const speechlabServer = createServer(async (req, res) => {
   json(res, { error: 'topilmadi' }, 404);
 });
 
+/**
+ * Oqim bilan javob (stream: true — insights/deep.ts): tayyor xabar SSE hodisalariga bo'linadi. Matn — text_delta, asbob kirishi —
+ * input_json_delta, natija bloklari — bir bo'lakda (SDK ularni shunday yig'adi)
+ */
+function sse(res: ServerResponse, message: Record<string, any>): void {
+  res.writeHead(200, { 'content-type': 'text/event-stream' });
+  const send = (type: string, data: Record<string, unknown>) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
+  send('message_start', { message: { ...message, content: [], stop_reason: null, usage: { input_tokens: message.usage.input_tokens, output_tokens: 0 } } });
+  (message.content as Block[]).forEach((b, index) => {
+    if (b.type === 'text') {
+      send('content_block_start', { index, content_block: { type: 'text', text: '' } });
+      send('content_block_delta', { index, delta: { type: 'text_delta', text: b.text } });
+    } else if (b.type === 'server_tool_use' || b.type === 'tool_use') {
+      send('content_block_start', { index, content_block: { ...b, input: {} } });
+      send('content_block_delta', { index, delta: { type: 'input_json_delta', partial_json: JSON.stringify(b.input) } });
+    } else send('content_block_start', { index, content_block: b });
+    send('content_block_stop', { index });
+  });
+  send('message_delta', { delta: { stop_reason: message.stop_reason, stop_sequence: null, stop_details: null }, usage: { output_tokens: message.usage.output_tokens } });
+  send('message_stop', {});
+  res.end();
+}
+
+/** Soxta Files API (chuqur tahlil, insights/deep.ts): yuklangan CSV'lar va «Python muhitida» yaratilgan grafik */
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+export const files = new Map<string, { name: string; bytes: Buffer; uploaded: boolean }>([['file_chart1', { name: 'qaytish.png', bytes: PNG, uploaded: false }]]);
+export const filesLog: { uploaded: { name: string; text: string }[]; deleted: string[] } = { uploaded: [], deleted: [] };
+let fileSeq = 0;
+async function filesApi(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const path = new URL(req.url ?? '/', 'http://x').pathname;
+  const meta = (id: string, f: { name: string; bytes: Buffer }) => ({ id, type: 'file', filename: f.name, mime_type: f.name.endsWith('.png') ? 'image/png' : 'text/csv', size_bytes: f.bytes.length, created_at: new Date().toISOString(), downloadable: true });
+  if (path === '/v1/files' && req.method === 'POST') {
+    const raw = await readBody(req);
+    const text = raw.toString('utf8');
+    const name = /filename="([^"]+)"/.exec(text)?.[1] ?? 'fayl';
+    const content = text.split(/\r\n\r\n/).slice(1).join('\r\n\r\n').replace(/\r\n--[^\r\n]*--\r\n?$/, '');
+    const id = `file_up${++fileSeq}`;
+    files.set(id, { name, bytes: Buffer.from(content), uploaded: true });
+    filesLog.uploaded.push({ name, text: content });
+    return json(res, meta(id, files.get(id)!));
+  }
+  const m = /^\/v1\/files\/([\w-]+)(\/content)?$/.exec(path);
+  const f = m ? files.get(m[1]) : undefined;
+  if (!m || !f) return json(res, { type: 'error', error: { type: 'not_found_error', message: 'File not found' } }, 404);
+  if (req.method === 'DELETE') { files.delete(m[1]); filesLog.deleted.push(f.name); return json(res, { id: m[1], type: 'file_deleted' }); }
+  if (m[2]) { res.writeHead(200, { 'content-type': 'application/octet-stream' }); return void res.end(f.bytes); }
+  return json(res, meta(m[1], f));
+}
+
 export const aiServer = createServer(async (req, res) => {
+  if (req.url?.startsWith('/v1/files')) return filesApi(req, res);
   const body = JSON.parse((await readBody(req)).toString()) as { system: string; messages: Msg[]; tools: Block[]; thinking: unknown; model: string };
   ai.calls++;
   const beta = String(req.headers['anthropic-beta'] ?? '');
@@ -554,6 +606,26 @@ export const aiServer = createServer(async (req, res) => {
       actions: [{ title: "Narxlarni Miya'ga qo'shing", why: `${price.length} kishi narx so'radi` }],
     });
     return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 10 } });
+  }
+
+  // Chuqur tahlil (insights/deep.ts): 1-javob — «pause_turn» va grafik fayli (uzoq ish davom ettirilishi tekshiriladi), 2-javob — topilmalar JSON
+  if (String(body.system).startsWith("You are the business's senior data analyst")) {
+    const paused = body.messages.length > 1;
+    ai.deep.push({ files: (body.messages[0]?.content as Block[]).filter(b => b.type === 'container_upload').map(b => String(b.file_id)), container: (body as { container?: string }).container ?? null, tools: body.tools });
+    const container = { id: 'cont_sinov', expires_at: new Date(Date.now() + 3_600_000).toISOString() };
+    const content = paused
+      ? [{ type: 'text', text: '```json\n' + JSON.stringify({
+        headline: "Gigiyenadan boshlagan bemorlar ko'proq qaytadi.",
+        findings: [{ title: 'Gigiyena qaytishni oshiradi', metric: '2.4x', detail: '90 kun ichida qaytish: gigiyena 52% (n=40), boshqalar 22% (n=120)', evidence: 'visits.csv, birinchi tashrif turi bo‘yicha', action: 'Yangi bemorlarga birinchi qabulda gigiyena taklif qiling', impact: 'high', chart: 'qaytish.png' },
+          { title: 'Kichik namuna', metric: '—', detail: 'x', evidence: '', action: '', impact: 'zo‘r', chart: '../../maxfiy.png' }],
+        quality: ["To'lovlarning bir qismida qabul kodi yo'q"], next: ['Kamera ulangach kreslo bandligini solishtirish'],
+      }) + '\n```' }]
+      : [{ type: 'server_tool_use', id: 'srvtoolu_1', name: 'bash_code_execution', input: { command: 'python analyse.py' } },
+        { type: 'bash_code_execution_tool_result', tool_use_id: 'srvtoolu_1', content: { type: 'bash_code_execution_result', stdout: 'ok', stderr: '', return_code: 0, content: [{ type: 'bash_code_execution_output', file_id: 'file_chart1' }] } }];
+    const message = { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, container, content, stop_reason: paused ? 'end_turn' : 'pause_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 10 } };
+    // Uzoq tahlil oqim bilan so'raladi (ulanish uzilmasin) — sinov buni ham tekshiradi
+    if (!(body as { stream?: boolean }).stream) return fail('chuqur tahlil oqimsiz (stream: true emas) so\'raldi');
+    return sse(res, message);
   }
 
   // Hujjat tekshiruvchisi: avtomatik topilma bo'lmasa — «OK», bo'lsa — hisobi tuzatilgan to'liq hujjat

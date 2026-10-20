@@ -4,7 +4,7 @@
  */
 import type { DemandItem } from '../server/insights/collect';
 import { SCHEMA, shape, stripIds, systemPrompt } from '../server/insights/logic';
-import { ai } from './fakes';
+import { ai, filesLog } from './fakes';
 import type { Harness } from './e2e-crm';
 
 type Ok = (name: string, cond: unknown, info?: string) => void;
@@ -49,4 +49,23 @@ export async function insightsApiTests(h: Harness): Promise<void> {
   ok("boshqa biznes: o'zinikini ko'radi; murojaat kam — model chaqirilmaydi", other.status === 200 && other.json.insights?.themes.length === 0 && ai.insights.length === 1
     && (await api('/api/insights?days=7', { token: otherToken })).json.insights === null);
   ok('kirishsiz — 401', (await api('/api/insights', { body: { days: 7 } })).status === 401);
+
+  console.log('\n# Chuqur tahlil: Python muhitida hamma ma\'lumot (soxta model)');
+  ok("boshida chuqur tahlil yo'q", (await api('/api/insights/deep', { token })).json.result === null);
+  ai.deep.length = 0;
+  const started = await api('/api/insights/deep', { token, body: {} });
+  ok('boshlandi — fonda (202), ikkinchi bosish — 429', started.status === 202 && !!started.json.running && (await api('/api/insights/deep', { token, body: {} })).status === 429);
+  let deep: { result: { id: string; findings: { title: string; impact: string; chart: string | null }[]; charts: string[]; data: { name: string; rows: number }[] } | null; running: string | null; error: string | null } = { result: null, running: 'x', error: null };
+  for (let i = 0; i < 60 && deep.running; i++) { await new Promise(r => setTimeout(r, 250)); deep = (await api('/api/insights/deep', { token })).json; }
+  const r = deep.result;
+  ok('tugadi: topilmalar va grafik saqlandi', !!r && r.findings.length === 2 && r.charts.includes('qaytish.png') && r.findings[0].chart === 'qaytish.png', JSON.stringify(deep).slice(0, 300));
+  ok("tekshiruv: yolg'on grafik yo'li va noto'g'ri baho filtrlandi", !!r && r.findings[1].chart === null && r.findings[1].impact === 'medium');
+  ok("modelga: CSV'lar Python muhitiga yuklandi (DentaCRM qabullari ham), uzoq ish o'sha konteynerda davom etdi", ai.deep.length === 2 && ai.deep[0].files.length >= 3 && ai.deep[1].container === 'cont_sinov'
+    && ai.deep[0].tools.some(t => t.type === 'code_execution_20260521') && filesLog.uploaded.some(f => f.name === 'visits.csv'), JSON.stringify(filesLog.uploaded.map(f => f.name)));
+  const all = filesLog.uploaded.map(f => f.text).join('\n');
+  ok("maxfiylik: CSV'larda bemor va mijozning ismi, telefoni yo'q (faqat kod)", all.length > 0 && !/Ali Valiyev|Valiyev|Aziz Karimov|\+?998\d{9}|901234567/.test(all) && /\bP[0-9a-f]{10}\b/.test(all), all.slice(0, 200));
+  ok("yuklangan fayllar oxirida o'chirildi (Anthropic'da qolmaydi)", filesLog.uploaded.every(f => filesLog.deleted.includes(f.name)));
+  const chart = await fetch(`${h.base}/api/insights/deep/chart/${r?.id}/qaytish.png`, { headers: { authorization: `Bearer ${token}` } });
+  ok('grafik panelga beriladi; boshqa biznesga — 404', chart.status === 200 && (await fetch(`${h.base}/api/insights/deep/chart/${r?.id}/qaytish.png`, { headers: { authorization: `Bearer ${otherToken}` } })).status === 404);
+  ok("grafik yo'lida ../ — 404", (await fetch(`${h.base}/api/insights/deep/chart/${r?.id}/..%2F..%2Fcerebro.db`, { headers: { authorization: `Bearer ${token}` } })).status === 404);
 }

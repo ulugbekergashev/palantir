@@ -15,6 +15,7 @@ import { useDayFeed } from '../lib/useDayFeed';
 import { iso } from '../lib/week';
 import { AnalystBody, PeriodSwitch, analystStats, useAnalystData } from './agents/Analyst';
 import { DemandBody } from './agents/Demand';
+import { DiscoveriesBody } from './agents/Discoveries';
 import { AssistantDesk, dueGroup, useAssistantData } from './agents/Assistant';
 import { ReceptionToday, useReceptionData } from './agents/Reception';
 import { WatchCameras, WatchNow, useWatchData } from './agents/Watch';
@@ -124,18 +125,19 @@ export function WatchArea({ tab, notify, state, tick }: Common) {
 }
 
 export function AnalystArea({ tab, biz, status, notify, state }: Common) {
-  const active = pick(tab, ['raqamlar', 'talab', 'hisobot', 'topshiriqlar']);
+  const active = pick(tab, ['raqamlar', 'kashfiyotlar', 'talab', 'hisobot', 'topshiriqlar']);
   const [period, setPeriod] = useState<'today' | 'yesterday' | 'week' | 'month'>('week');
   const data = useAnalystData(period, notify);
   return (
     <div className="space-y-6">
       <AgentHero member="tahlilchi" state={state} stats={analystStats(data?.dashboard ?? null, data?.funnel ?? null)}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <AgentTabs area="tahlilchi" active={active} tabs={[{ id: 'raqamlar', label: 'Raqamlar' }, { id: 'talab', label: 'Talab' }, { id: 'hisobot', label: "To'liq hisobot" }, { id: 'topshiriqlar', label: 'Topshiriqlar' }]} />
+          <AgentTabs area="tahlilchi" active={active} tabs={[{ id: 'raqamlar', label: 'Raqamlar' }, { id: 'kashfiyotlar', label: 'Kashfiyotlar' }, { id: 'talab', label: 'Talab' }, { id: 'hisobot', label: "To'liq hisobot" }, { id: 'topshiriqlar', label: 'Topshiriqlar' }]} />
           {active === 'raqamlar' && <PeriodSwitch value={period} onChange={setPeriod} />}
         </div>
       </AgentHero>
       {active === 'raqamlar' && <AnalystBody data={data} />}
+      {active === 'kashfiyotlar' && <DiscoveriesBody notify={notify} />}
       {active === 'talab' && <DemandBody notify={notify} />}
       {active === 'hisobot' && <Dashboard status={status} clinic={isMedical(biz.industry)} notify={notify} />}
       {active === 'topshiriqlar' && <OrdersPanel member="tahlilchi" notify={notify} />}
