@@ -34,6 +34,12 @@ async function until<T>(what: string, fn: () => Promise<T | null | undefined | f
   console.log(`    (kutildi, bo'lmadi: ${what})`);
   return undefined;
 }
+/** Manba faylini o'zgartiradi; topilmasa — sinov yiqiladi (Windows'da git CRLF bilan beradi: jim o'tib ketmasin) */
+function edit(text: string, find: string | RegExp, put: string): string {
+  const out = text.replace(find, put);
+  if (out === text) throw new Error(`sinov manbasida topilmadi: ${String(find)}`);
+  return out;
+}
 const schema = () => { const d = new DatabaseSync(join(DATA, 'cerebro.db'), { readOnly: true }); try { return Number((d.prepare('PRAGMA user_version').get() as { user_version: number }).user_version); } finally { d.close(); } };
 const holat = () => JSON.parse(readFileSync(join(DATA, 'yangilash', 'holat.json'), 'utf8')) as { result: string; to: string; reason?: string };
 
@@ -134,10 +140,10 @@ try {
   release('v4', '9.0.4', () => {
     // Avvalgi 9.0.3 dagi buzuqlik olib tashlanadi; migratsiya v3 qo'shiladi; sinov rejimida ishlaydi, haqiqiysida — baza ochilgach yiqiladi
     const index = join(SRC, 'server', 'index.ts');
-    writeFileSync(index, readFileSync(index, 'utf8').replace("throw new Error('buzuq nashr');\n", '')
-      .replace("await import('./main');", "if (process.env.CEREBRO_DRY_RUN !== '1') { await import('./db'); process.exit(1); }\nawait import('./main');"));
+    writeFileSync(index, edit(edit(readFileSync(index, 'utf8'), "throw new Error('buzuq nashr');\n", ''),
+      "await import('./main');", "if (process.env.CEREBRO_DRY_RUN !== '1') { await import('./db'); process.exit(1); }\nawait import('./main');"));
     const migrate = join(SRC, 'server', 'migrate.ts');
-    writeFileSync(migrate, readFileSync(migrate, 'utf8').replace('];\nexport const SCHEMA_VERSION', "  { version: 3, about: 'sinov', up: db => db.exec('ALTER TABLE businesses ADD COLUMN sinov TEXT') },\n];\nexport const SCHEMA_VERSION"));
+    writeFileSync(migrate, edit(readFileSync(migrate, 'utf8'), /\];\r?\nexport const SCHEMA_VERSION/, "  { version: 3, about: 'sinov', up: db => db.exec('ALTER TABLE businesses ADD COLUMN sinov TEXT') },\n];\nexport const SCHEMA_VERSION"));
   });
   const before = schema();
   const failing = await update('v4');
