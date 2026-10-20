@@ -115,7 +115,8 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 |---|---|
 | To'xtatish / ishga tushirish | `install\Toxtatish.cmd` / `install\Ishga-tushirish.cmd` |
 | Nima bo'lganini ko'rish | `C:\CerebroData\logs\` — har kunga bitta fayl (`2026-10-14.log`), 14 kun saqlanadi. `supervisor.log` — qachon to'xtab, qachon qayta yongani |
-| Zaxira nusxa | Har kuni o'zi olinadi: `C:\CerebroData\backups\KUN\` (baza, «ikkinchi miya», maxfiy kalit), 14 kun. Boshqa diskka olish: `.env` da `BACKUP_DIR=D:\CerebroZaxira` |
+| Zaxira nusxa | Har kuni o'zi olinadi: `C:\CerebroData\backups\KUN\` (baza, «ikkinchi miya», maxfiy kalit), 14 kun. Boshqa diskka olish: `.env` da `BACKUP_DIR=D:\CerebroZaxira`. Hub kodi bo'lsa — shu nusxa **shifrlanib hubga ham** yuboriladi (sotuvchining ochiq kaliti bilan: hub ham, klinika ham ocha olmaydi), oxirgi 7 kuni turadi — kompyuter yoki disk buzilsa ham ma'lumot qoladi |
+| Tashqi zaxiradan tiklash | Sotuvchi: faylni hubdan oladi (`/admin/backups`), `npm run restore-backup -- <fayl.czb>` bilan ochadi (maxfiy kalit `~/.cerebro/zaxira-kaliti.pem`) — chiqqan uchta narsa bilan pastdagidek tiklanadi |
 | Tiklash | Cerebro'ni to'xtating → `C:\CerebroData` dagi `cerebro.db-wal` va `cerebro.db-shm` fayllarini o'chiring → zaxira papkasidagi `cerebro.db`, `miya`, `session.secret` ni `C:\CerebroData` ga ko'chiring → ishga tushiring |
 | Dasturni yangilash | **O'zi**: har kecha 3:00 da yangi reliz bo'lsa — imzosi tekshiriladi, bazaning nusxasida sinab ko'riladi, keyin o'rnatiladi; yangi nashr ishga tushmasa eskisi va baza o'zi qaytariladi (`logs\yangilash.log`, natijasi hub holatida). Qo'lda: `npm run update`. O'chirish: `.env` da `UPDATE_AUTO=0` |
 | AI xarajati | Admin sahifasida oxirgi 7 kun: so'rovlar soni va taxminiy dollar. Aniq hisob — platform.claude.com |
@@ -139,6 +140,7 @@ Kamera sozlamalari (`.env`): kechki kamera hisoboti soati — `CAMERA_REPORT_HOU
 | Har kech «kamera ko'rmay qoldi» | Ish vaqti noto'g'ri yozilgan: ish vaqtidan tashqarida chiroq o'chishi xabar bermaydi. «Biznes haqida»da ish vaqtini tuzating |
 | Telefon kamera uziladi | Telefon zaryadda, Wi-Fi'da, «IP Webcam» ochiq va ekran o'chib qolmasin (ilova sozlamasi) |
 | Panel ochilmayapti | `Ishga-tushirish.cmd`. Bo'lmasa `logs\supervisor.log` ning oxirini o'qing |
+| Masofadan yordam kerak | Egasi botga **/diagnostika** yozadi (yoki admin paneli → «Diagnostika»): holat, kanallardagi muammolar va jurnallar oxiri (kalitlarsiz) hubga boradi — sotuvchi `GET /admin/diag` dan o'qiydi. Hub kodi bo'lmasa — fayl keladi, egasi uni sotuvchiga uzatadi |
 | Instagram javob bermay qoldi | Panel → Sozlamalar → Instagram: muammo matnini o'qing (token, Hub aloqasi). Kerak bo'lsa rasmiy ulanishni qayta ulang. Mijozning oxirgi xabaridan 24 soat o'tgan bo'lsa — Instagram javobga ruxsat bermaydi |
 | Kamera: «ffmpeg eski» | HTTP kamera faqat yangi ffmpeg bilan ulanadi: `winget upgrade Gyan.FFmpeg`, keyin Cerebro'ni qayta ishga tushiring (yoki kameraning `rtsp://` manzilini bering) |
 

@@ -42,6 +42,7 @@ import { mountAttention } from './attention';
 import { mountTeamDay } from './teamDay';
 import { mountInsights } from './insights/routes';
 import { APP_VERSION } from './version';
+import { diagnostics, sendDiagnostics } from './diagnostics';
 
 type Handler = (req: Request, res: Response) => unknown;
 
@@ -570,6 +571,18 @@ export function createApp(bot: BotService) {
       days.set(key, { ...d, calls: d.calls + r.calls, input: d.input + r.input, output: d.output + r.output, cacheRead: d.cacheRead + r.cacheRead, cacheWrite: d.cacheWrite + r.cacheWrite });
     }
     res.json({ model: env.aiModel, usage: [...days.values()].map(d => ({ ...d, usd: Math.round(costUsd(d) * 100) / 100 })) });
+  }));
+
+  /** Diagnostika: hub kodi bo'lsa — hubga (sotuvchi oladi); bo'lmasa — matnning o'zi (panel faylga yuklab beradi) */
+  app.post('/api/admin/diag', asAdmin(async (_req, res) => {
+    try {
+      const file = await sendDiagnostics();
+      if (file) return res.json({ sent: true, file });
+      const d = diagnostics();
+      res.json({ sent: false, name: d.name, text: d.text });
+    } catch (e) {
+      res.status(502).json({ error: (e as Error).message });
+    }
   }));
 
   app.use('/api', (_req, res) => { res.status(404).json({ error: 'Topilmadi' }); });

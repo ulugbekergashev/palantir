@@ -11,10 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Business } from '../src/types';
 import { iso, stamp } from '../src/lib/week';
-import {
-  CUSTOMER, OWNER, TG_SESSION, VOICE_BYTES, addedToChannel, ai, aiServer, igWeb, igWebServer, listen, press, say, sendAudio, sendDocument, sendPhoto, sendVoice, sent,
-  shareContact, sleep, speechlab, speechlabServer, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, type Sent,
-} from './fakes';
+import { CUSTOMER, OWNER, TG_SESSION, VOICE_BYTES, addedToChannel, ai, aiServer, igWeb, igWebServer, listen, press, say, sendAudio, sendDocument, sendPhoto, sendVoice, sent, shareContact, sleep, speechlab, speechlabServer, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, type Sent, stopProcess } from './fakes';
 import { crm, crmServer } from './fakeCrm';
 import { crmConnectTests, crmLogicTests, crmReceptionTests, crmToolTests, type Harness } from './e2e-crm';
 import { cameraApiTests, cameraLogicTests, cameraToolTests, commandTests, journalTests } from './e2e-camera';
@@ -598,6 +595,14 @@ try {
   mark = sent.length;
   say(8008, 'Salom');
   ok('begona odam: tushuntirish oladi', await waitFor('begona', () => after(mark, 8008, has('Cerebro'))));
+  // Diagnostika: hub kodi yo'q — fayl egasiga keladi (sotuvchiga uzatish uchun); begona odamga hech narsa
+  mark = sent.length;
+  say(OWNER, '/diagnostika');
+  const diagDoc = await waitFor('diagnostika', () => after(mark, OWNER, s => s.method === 'sendDocument'));
+  say(8008, '/diagnostika');
+  await sleep(700);
+  ok("/diagnostika: hub yo'q — fayl egasiga keldi, begonaga hech narsa", !!diagDoc && String(diagDoc.params.caption ?? '').includes('Diagnostika')
+    && !after(mark, 8008, s => s.method === 'sendDocument'), String(diagDoc?.params.caption ?? ''));
 
   console.log('\n# Suhbat tarixi butunligi');
   ok("Claude'ga har doim to'g'ri tarix ketdi (faqat oxiriga qo'shildi, asbob natijalari joyida)", ai.violations.length === 0, ai.violations.join('; '));
@@ -606,7 +611,7 @@ try {
   console.error(e);
   results.push(false);
 } finally {
-  server.kill();
+  await stopProcess(server);
   tgServer.close();
   aiServer.close();
   sttServer.close();

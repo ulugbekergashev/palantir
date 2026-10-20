@@ -16,15 +16,22 @@
  *      (versiya, baza nashri, diskdagi joy, kanallardagi ochiq muammolar — mijoz ma'lumoti emas). HUB_OFFLINE_MS dan beri
  *      ko'rinmasa — sotuvchiga Telegram'da bir marta (kompyuter o'chgan bo'lsa o'zi ayta olmaydi), qaytsa — «yana aloqada».
  *      Ro'yxat: GET /admin/clinics (admin kaliti bilan).
+ *   5. Tashqi zaxira: klinika kunlik zaxirasini sotuvchining ochiq kaliti bilan shifrlab /api/backup ga yuboradi — hub uni o'qiy olmaydi,
+ *      faqat saqlaydi (har klinikaga oxirgi HUB_BACKUP_KEEP ta). GET /admin/backups — ro'yxat, /admin/backups/<klinika>/<fayl> — yuklab olish;
+ *      ochish: scripts/restore-backup.ts (sotuvchining maxfiy kaliti bilan).
+ *   6. Diagnostika: egasi botga /diagnostika yozsa (yoki admin panelidan) — klinika holati va jurnallar oxiri /api/diag ga keladi
+ *      (kalitlarsiz); GET /admin/diag — ro'yxat, /admin/diag/<klinika>/<fayl> — o'qish. Har klinikaga oxirgi 10 tasi.
  *
  * Sozlama (muhit o'zgaruvchilari): IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL, HUB_VERIFY_TOKEN, HUB_ADMIN_KEY, PORT, HUB_DB;
  * nazorat uchun HUB_BOT_TOKEN (sotuvchining boti) va HUB_ALERT_CHAT (xabar boradigan chat), HUB_OFFLINE_MS (standart 15 daqiqa).
  * Ishga tushirish: npm run hub
  */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, openSync, closeSync, readFileSync, readSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 const cfg = {
@@ -46,7 +53,14 @@ const cfg = {
   telegramApi: (process.env.HUB_TELEGRAM_API_ROOT || 'https://api.telegram.org').replace(/\/+$/, ''),
   offlineMs: Number(process.env.HUB_OFFLINE_MS) || 15 * 60_000,
   watchMs: Number(process.env.HUB_WATCH_MS) || 60_000,
+  backupDir: resolve(process.env.HUB_BACKUP_DIR || join(dirname(resolve(process.env.HUB_DB || 'hub-data/hub.db')), 'zaxira')),
+  backupKeep: Number(process.env.HUB_BACKUP_KEEP) || 7,
+  backupMaxBytes: (Number(process.env.HUB_BACKUP_MAX_MB) || 512) * 1_048_576,
+  diagDir: resolve(process.env.HUB_DIAG_DIR || join(dirname(resolve(process.env.HUB_DB || 'hub-data/hub.db')), 'diagnostika')),
 };
+const DIAG_KEEP = 10;
+/** Tashqi zaxira fayli shu belgi bilan boshlanadi (server/offsiteCrypto.ts) — boshqa narsa saqlanmaydi */
+const BACKUP_MAGIC = Buffer.from('CEREBRO-ZAXIRA-1\n');
 const SCOPES = 'instagram_business_basic,instagram_business_manage_messages';
 const STATE_TTL_MS = 3_600_000;
 const PULL_WAIT_MS = 25_000;
@@ -138,7 +152,9 @@ function cleanStatus(v: unknown) {
   });
   const u = o.lastUpdate ? record(o.lastUpdate) : null;
   const lastUpdate = u ? { from: text(u.from, 40), to: text(u.to, 40), result: text(u.result, 20), reason: text(u.reason, 500), at: text(u.at, 40) } : null;
-  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), problems, lastUpdate, at: now() };
+  const b = o.lastOffsite ? record(o.lastOffsite) : null;
+  const lastOffsite = b ? { day: text(b.day, 10), ok: b.ok === true, size: num(b.size), error: text(b.error, 300), at: text(b.at, 40) } : null;
+  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), problems, lastUpdate, lastOffsite, at: now() };
 }
 
 /** OAuth holati: klinika, biznes, muddat — imzolangan (begona odam boshqa klinika nomidan ulay olmasin) */
@@ -187,6 +203,79 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
         online: !!r.seen_at && Date.now() - Date.parse(r.seen_at) < cfg.offlineMs, status: r.status ? JSON.parse(r.status) as unknown : null,
       })),
     });
+  }
+
+  // Klinika: shifrlangan kunlik zaxira (hub ocha olmaydi) — oqim bilan faylga, hajmi cheklangan; oxirgi backupKeep tasi qoladi
+  if (p === '/api/backup' && req.method === 'POST') {
+    const clinic = clinicOf(req);
+    if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    const day = url.searchParams.get('day') ?? '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return send(res, 400, { error: 'day: YYYY-MM-DD' });
+    const dir = join(cfg.backupDir, clinic), tmp = join(dir, `.${day}-${randomBytes(4).toString('hex')}`), file = join(dir, `${day}.czb`);
+    mkdirSync(dir, { recursive: true });
+    let size = 0;
+    const limit = new Transform({ transform(chunk: Buffer, _e, done) { size += chunk.length; done(size > cfg.backupMaxBytes ? new Error('juda katta') : null, chunk); } });
+    try {
+      await pipeline(req, limit, createWriteStream(tmp));
+      const head = Buffer.alloc(BACKUP_MAGIC.length), fd = openSync(tmp, 'r');
+      try { readSync(fd, head, 0, head.length, 0); } finally { closeSync(fd); }
+      if (!head.equals(BACKUP_MAGIC)) throw new Error('zaxira fayli emas');
+      renameSync(tmp, file);
+    } catch (e) {
+      rmSync(tmp, { force: true });
+      return send(res, (e as Error).message === 'juda katta' ? 413 : 400, { error: (e as Error).message });
+    }
+    const all = readdirSync(dir).filter(n => /^\d{4}-\d{2}-\d{2}\.czb$/.test(n)).sort();
+    for (const old of all.slice(0, Math.max(0, all.length - cfg.backupKeep))) rmSync(join(dir, old), { force: true });
+    return send(res, 200, { ok: true, size });
+  }
+
+  // Admin: tashqi zaxiralar ro'yxati va yuklab olish (shifrlangan holida)
+  if (p === '/admin/backups' && req.method === 'GET') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const list = existsSync(cfg.backupDir) ? readdirSync(cfg.backupDir).filter(c => /^[0-9a-f]{10}$/.test(c)).flatMap(clinic =>
+      readdirSync(join(cfg.backupDir, clinic)).filter(n => /^\d{4}-\d{2}-\d{2}\.czb$/.test(n)).map(name => {
+        const st = statSync(join(cfg.backupDir, clinic, name));
+        return { clinicId: clinic, file: name, size: st.size, at: st.mtime.toISOString() };
+      })) : [];
+    return send(res, 200, { backups: list });
+  }
+  const download = /^\/admin\/backups\/([0-9a-f]{10})\/(\d{4}-\d{2}-\d{2}\.czb)$/.exec(p);
+  if (download && req.method === 'GET') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const file = join(cfg.backupDir, download[1], download[2]);
+    if (!existsSync(file)) return send(res, 404, { error: 'topilmadi' });
+    res.setHeader('content-type', 'application/octet-stream');
+    res.setHeader('content-disposition', `attachment; filename="${download[1]}-${download[2]}"`);
+    await pipeline(createReadStream(file), res);
+    return;
+  }
+
+  // Klinika: diagnostika (egasi yoki admin so'raganda) — sotuvchi yordam berishi uchun
+  if (p === '/api/diag' && req.method === 'POST') {
+    const clinic = clinicOf(req);
+    if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    const raw = await readRaw(req);
+    if (!raw || !raw.length) return send(res, 413, { error: 'bo\'sh yoki juda katta' });
+    const dir = join(cfg.diagDir, clinic), file = `${now().replace(/[:.]/g, '-')}.txt`;
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, file), raw);
+    const all = readdirSync(dir).filter(n => n.endsWith('.txt')).sort();
+    for (const old of all.slice(0, Math.max(0, all.length - DIAG_KEEP))) rmSync(join(dir, old), { force: true });
+    return send(res, 200, { ok: true, file });
+  }
+  if (p === '/admin/diag' && req.method === 'GET') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const list = existsSync(cfg.diagDir) ? readdirSync(cfg.diagDir).filter(c => /^[0-9a-f]{10}$/.test(c)).flatMap(clinic =>
+      readdirSync(join(cfg.diagDir, clinic)).filter(n => n.endsWith('.txt')).map(file => ({ clinicId: clinic, file, size: statSync(join(cfg.diagDir, clinic, file)).size }))) : [];
+    return send(res, 200, { diagnostics: list });
+  }
+  const diag = /^\/admin\/diag\/([0-9a-f]{10})\/([\w-]+\.txt)$/.exec(p);
+  if (diag && req.method === 'GET') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const file = join(cfg.diagDir, diag[1], diag[2]);
+    if (!existsSync(file)) return send(res, 404, { error: 'topilmadi' });
+    return send(res, 200, readFileSync(file, 'utf8'), 'text/plain');
   }
 
   // Klinika: holat (5 daqiqada) — nazorat ro'yxati uchun; mijoz ma'lumoti kelmaydi
@@ -330,6 +419,9 @@ async function watch(): Promise<void> {
 setInterval(() => { void watch(); }, cfg.watchMs).unref();
 
 const server = createServer((req, res) => { route(req, res).catch(e => { console.error('[hub]', e); if (!res.headersSent) send(res, 500, { error: 'ichki xato' }); }); });
+// Bo'sh ulanish klientdan (fetch — ~4 s) uzoqroq ushlanadi: aks holda klinika qayta foydalanayotgan ulanishni hub yopib qo'yishi mumkin (ECONNRESET)
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
 server.listen(cfg.port, () => {
   console.log(`Cerebro Hub: http://localhost:${cfg.port}`);
   console.log(`  Instagram: ${cfg.appId && cfg.appSecret && cfg.publicUrl ? `ilova ${cfg.appId}, ${cfg.publicUrl}` : "sozlanmagan (IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL)"}`);

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { CheckCircle2, KeyRound, Loader2, LogOut, Plus, Power, Wand2 } from 'lucide-react';
 import { adminApi, session, type AdminBusiness, type AdminUsage } from '../data/api';
+import { download } from '../lib/download';
 import { Logo } from '../components/Logo';
 import { Button, ButtonLink, Card, Field, TextInput } from '../components/ui';
 import { AnketaAdmin } from './AnketaAdmin';
@@ -147,6 +148,17 @@ export function AdminPage() {
 
       <Card title="AI xarajati — oxirgi 7 kun" description={usage ? `Model: ${usage.model}. Dollar taxminiy: aniq hisob va qoldiq — platform.claude.com` : undefined}>
         {usage ? <UsageTable rows={usage.rows} /> : <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" />}
+      </Card>
+
+      <Card title="Diagnostika" description="Sotuvchi masofadan yordam berishi uchun: holat, kanallardagi muammolar va jurnallar oxiri (kalitlarsiz). Hub kodi bo'lsa — hubga yuboriladi, bo'lmasa — fayl bo'lib yuklab olinadi">
+        <Button disabled={busy} onClick={async () => {
+          setBusy(true);
+          try {
+            const r = await adminApi.diagnostics();
+            if (r.sent) setMsg({ text: `Diagnostika hubga yuborildi (${r.file})` });
+            else { download(new Blob([r.text], { type: 'text/plain;charset=utf-8' }), r.name); setMsg({ text: 'Diagnostika fayli yuklab olindi — sotuvchiga yuboring' }); }
+          } catch (err) { fail(err); } finally { setBusy(false); }
+        }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Diagnostika</Button>
       </Card>
     </div>
   );

@@ -3,14 +3,16 @@
  * Oxirgi BACKUP_KEEP kun saqlanadi. Tiklash: server to'xtatiladi, DATA_DIR dagi cerebro.db-wal va cerebro.db-shm o'chiriladi
  * (eski jurnal yangi baza ustiga «qayta ijro» qilinmasin), keyin shu papkadagi uchta narsa DATA_DIR ga qaytariladi.
  * Kalit (session.secret) ham kerak: usiz bazadagi ulanish parollari (DentaCRM, Telegram seansi) ochilmaydi.
+ * Hub kodi bo'lsa — shu nusxa shifrlanib hubga ham yuboriladi (offsite.ts); yuborilmasa — har soatlik tekshiruvda qayta uriniladi.
  */
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { iso } from '../src/lib/week';
 import { copyDb } from './db';
 import { env } from './env';
+import { sendOffsite } from './offsite';
 
-const FIRST_MS = 2 * 60_000, CHECK_MS = 60 * 60_000;
+const FIRST_MS = Number(process.env.BACKUP_FIRST_MS) || 2 * 60_000, CHECK_MS = 60 * 60_000;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Bugungi nusxa hali bo'lmasa — oladi. Qaytaradi: yangi nusxa papkasi yoki null (bor edi) */
@@ -39,13 +41,17 @@ function prune(): void {
 
 export function startBackups(): () => void {
   if (!(env.backupKeep > 0)) return () => {};
+  /** Hubga hali yetmagan nusxa */
+  let offsite: string | null = null;
   const run = () => {
     try {
       const made = backupNow();
-      if (made) console.log(`[zaxira] nusxa olindi: ${made}`);
+      if (made) { console.log(`[zaxira] nusxa olindi: ${made}`); offsite = made; }
     } catch (e) {
       console.error('[zaxira] nusxa olinmadi:', (e as Error).message);
     }
+    const dir = offsite;
+    if (dir) void sendOffsite(dir, basename(dir)).then(sent => { if (sent && offsite === dir) offsite = null; });
   };
   const first = setTimeout(run, FIRST_MS), timer = setInterval(run, CHECK_MS);
   return () => { clearTimeout(first); clearInterval(timer); };

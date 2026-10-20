@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { businesses } from './db';
 import { freeMb } from './disk';
+import { lastOffsite } from './offsite';
 import { env } from './env';
 import { onKeyChange } from './keys';
 import { SCHEMA_VERSION } from './migrate';
@@ -30,6 +31,8 @@ export function heartbeatStatus() {
     problems: active.flatMap(b => openProblems(b.id).map(p => ({ business: b.profile.name, label: p.label, problem: p.problem, since: p.since }))),
     // Yangilovchining oxirgi natijasi (scripts/update.mjs): «qaytarildi» yoki «sinov» — sotuvchi bilsin
     lastUpdate: lastUpdate(),
+    // Shifrlangan tashqi nusxa (offsite.ts): oxirgisi qachon va yetdimi
+    lastOffsite: lastOffsite(),
   };
 }
 

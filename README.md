@@ -74,7 +74,7 @@ Qarovsiz ishlash uchun nima bor:
 - **Internetsiz yonish**: panel darhol ochiladi, bot va shaxsiy Telegram fonda o'zi ulanadi; uzilish paytidagi eslatma va egasiga aytiladigan xabarlar bazadagi navbatda turadi va aloqa tiklangach ketadi.
 - **Bitta papka — bitta nusxa**: shu `DATA_DIR` bilan ikkinchi nusxa ishga tushmaydi (bazani ochmasdan chiqadi).
 - **Baza nashri** (`server/migrate.ts`): tuzilmaning qo'shimcha bo'lmagan o'zgarishi raqamli migratsiya bilan bir marta bajariladi, undan oldin bazaning to'liq nusxasi `BACKUP_DIR/oldin-v<N>-….db` ga olinadi. Baza dasturdan yangiroq bo'lsa (dastur eski nashrga qaytarilgan) server ochilmaydi.
-- **Jurnal**: `DATA_DIR/logs/KUN.log`, 14 kun; kalitga o'xshagan narsa yozilmaydi. **Zaxira**: har kuni `BACKUP_DIR/KUN/` (baza, ikkinchi miya, maxfiy kalit), 14 kun.
+- **Jurnal**: `DATA_DIR/logs/KUN.log`, 14 kun; kalitga o'xshagan narsa yozilmaydi. **Zaxira**: har kuni `BACKUP_DIR/KUN/` (baza, ikkinchi miya, maxfiy kalit), 14 kun. Hub kodi bo'lsa — nusxa sotuvchining ochiq kaliti bilan shifrlanib hubga ham yuboriladi (`server/offsite.ts`; ochish — `npm run restore-backup`).
   Tiklash: serverni to'xtating, `DATA_DIR` dagi `cerebro.db-wal` va `cerebro.db-shm` ni o'chiring, zaxiradagi uchta narsani ko'chiring.
 - **AI xarajati**: har so'rov biznes hisobiga yoziladi (admin sahifasida 7 kun), kunlik chegaralar — `AI_DAILY_OWNER`, `AI_DAILY_CUSTOMER`, bitta suhbatga kuniga 40 ta javob.
 - **IP kameralar (RTSP)**: kamera manzili panelda kiritiladi; alohida jarayon (ffmpeg + odam topuvchi model) kadrlarni kechayu kunduz sanaydi — sahifa ochiq turishi shart emas.

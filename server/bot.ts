@@ -31,6 +31,7 @@ import { env, voiceEnabled } from './env';
 import { SilenceError, transcribe } from './stt';
 import { MAX_PHOTO_BYTES, describePhoto, photoMessage } from './vision';
 import { reviewCall } from './callreview';
+import { diagnostics, sendDiagnostics } from './diagnostics';
 import { toOgg } from './tts';
 import { phoneChanged } from './people';
 import { actorOf, setTeamOutlet } from './requests/index';
@@ -423,6 +424,20 @@ export function createBot(): BotService {
       else await tg.sendMessage(chat, shotCaption(l.shot));
     }
     if (list.length > MAX_LOOK_CAMERAS) await ctx.reply(`Bir so'rovda ${MAX_LOOK_CAMERAS} ta kamera ko'rsatiladi. Qolganini nomi bilan so'rang: /kamera ${list[MAX_LOOK_CAMERAS].name}`);
+  });
+
+  // Diagnostika: sotuvchi so'raganda egasi yozadi — hubga; hub kodi bo'lmasa fayl bo'lib shu chatga (sotuvchiga uzatish uchun)
+  bot.command(['diagnostika', 'diag'], async ctx => {
+    const biz = ownerOf(ctx);
+    if (!biz) return;
+    try {
+      const file = await sendDiagnostics();
+      if (file) return void await ctx.reply(`🩺 Diagnostika sotuvchiga yuborildi (${file}).`);
+      const d = diagnostics();
+      await tg.sendDocument(String(ctx.chat.id), { source: Buffer.from(d.text), filename: d.name }, { caption: '🩺 Diagnostika — shu faylni sotuvchiga yuboring' });
+    } catch (e) {
+      await ctx.reply(`Diagnostika yuborilmadi: ${(e as Error).message}`);
+    }
   });
 
   bot.command('vazifalar', async ctx => {

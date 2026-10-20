@@ -255,6 +255,7 @@ export const adminApi = {
   businesses: () => call<{ businesses: AdminBusiness[] }>('/admin/businesses', { admin: true }),
   create: (b: { name: string; industry: string; login: string; password: string }) => call<{ id: string }>('/admin/businesses', { body: b, admin: true }),
   usage: () => call<{ model: string; usage: AdminUsage[] }>('/admin/usage', { admin: true }),
+  diagnostics: () => call<{ sent: true; file: string } | { sent: false; name: string; text: string }>('/admin/diag', { body: {}, admin: true }),
   update: (id: string, patch: { active?: boolean; password?: string }) => call<{ ok: true }>(`/admin/businesses/${id}`, { method: 'PATCH', body: patch, admin: true }),
   keys: () => call<{ keys: KeyView[] }>('/admin/keys', { admin: true }),
   removeKey: (name: KeyName) => call<{ key: KeyView }>(`/admin/keys/${name}`, { method: 'DELETE', admin: true }),
