@@ -110,14 +110,16 @@ try {
   await page.goto(`${base}/#/ulash`);
   await page.getByLabel('Admin paroli').fill('admin-pass-1');
   await page.getByRole('button', { name: 'Kirish' }).click();
+  // Kirish va klinika yaratish — scrypt (ataylab og'ir): yuklangan CI kompyuterida bir necha soniya olishi mumkin
+  await page.getByLabel('Klinika nomi').waitFor({ timeout: 20000 });
   await page.getByLabel('Klinika nomi').fill('Shifo Dent');
   await shot(page, 'usta-klinika-yangi');
   await page.getByRole('button', { name: "Klinikani qo'shish" }).click();
-  ok("klinika qo'shildi, login-parol ko'rsatildi", await page.getByText("Klinika qo'shildi").waitFor({ timeout: 5000 }).then(() => true, () => false));
+  ok("klinika qo'shildi, login-parol ko'rsatildi", await page.getByText("Klinika qo'shildi").waitFor({ timeout: 15000 }).then(() => true, () => false));
   await page.getByLabel('Anketa kodi').fill(code.toLowerCase());
   await page.getByLabel('Anketa serveri').fill(base);
   await page.getByRole('button', { name: 'Yuklash' }).click();
-  ok('anketa kod bilan yuklandi', await page.getByText('Yuklandi:').waitFor({ timeout: 8000 }).then(() => true, () => false));
+  ok('anketa kod bilan yuklandi', await page.getByText('Yuklandi:').waitFor({ timeout: 15000 }).then(() => true, () => false));
   await shot(page, 'usta-anketa-yuklandi');
 
   await page.getByRole('button', { name: 'Davom etish' }).click();
