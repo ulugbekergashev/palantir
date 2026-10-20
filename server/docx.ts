@@ -101,10 +101,10 @@ function logoRun(dataUrl: string | undefined): ImageRun | null {
 /** Ish blanki: logo, nom (brend rangida), aloqa satri va ostidan chiziq */
 function letterhead(biz: Business, look: Look, brand: string): Header {
   const logo = logoRun(biz.brand.logo);
-  const contacts = [biz.legal?.address || biz.address, biz.phone, biz.website, biz.legal?.email].filter(Boolean).join('  ·  ');
+  const contacts = [biz.address, biz.phone, biz.website].filter(Boolean).join('  ·  ');
   return new Header({
     children: [
-      new Paragraph({ children: [...(logo ? [logo, new TextRun('  ')] : []), new TextRun({ text: biz.legal?.name || biz.name, bold: true, size: 28, color: brand, font: look.font })] }),
+      new Paragraph({ children: [...(logo ? [logo, new TextRun('  ')] : []), new TextRun({ text: biz.name, bold: true, size: 28, color: brand, font: look.font })] }),
       new Paragraph({
         border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: brand, space: 4 } },
         spacing: { after: 120 },

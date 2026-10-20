@@ -12,22 +12,6 @@ export const AutoReplySchema = z.object({
   delayMin: z.number().int().min(0).max(120),
 });
 
-/** Rekvizitlar: raqamli maydonlar — faqat raqam (bo'shliqsiz ham, bo'shliq bilan ham) */
-const digits = (max: number) => z.string().trim().max(max).regex(/^[\d\s]*$/, 'faqat raqam');
-export const LegalSchema = z.object({
-  name: text(120).optional(),
-  stir: digits(14).optional(),
-  oked: digits(10).optional(),
-  bank: text(120).optional(),
-  account: digits(30).optional(),
-  mfo: digits(10).optional(),
-  director: text(80).optional(),
-  basis: text(80).optional(),
-  address: text(200).optional(),
-  email: text(80).optional(),
-  vatRate: z.number().min(0).max(30).optional(),
-});
-
 export const BusinessSchema = z.object({
   name: text(60).min(1),
   ownerName: text(60),
@@ -58,7 +42,6 @@ export const BusinessSchema = z.object({
     years: z.number().int().min(0).max(70).optional(),
     photo: image(900_000).optional(),
   })).max(30),
-  legal: LegalSchema.optional(),
 }) satisfies z.ZodType<Business>;
 
 /** Yangi biznes: bo'sh profil (egasi panelda to'ldiradi) */

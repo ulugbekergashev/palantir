@@ -58,30 +58,6 @@ export interface Business {
   brand: Brand;
   offerings: Offering[];
   team: Member[];
-  /** Yuridik rekvizitlar — shartnoma, hisob-varaq, dalolatnomada o'zi to'ldiriladi (server/docs) */
-  legal?: LegalDetails;
-}
-
-/** Korxona rekvizitlari (hammasi ixtiyoriy: bo'lmagani hujjatda bo'sh qoladi va egasiga aytiladi) */
-export interface LegalDetails {
-  /** Yuridik nomi: «"Cerebro AI" MChJ» */
-  name?: string;
-  /** STIR (INN) */
-  stir?: string;
-  oked?: string;
-  bank?: string;
-  /** Hisob raqami (h/r) */
-  account?: string;
-  mfo?: string;
-  /** Rahbar (F.I.Sh.) */
-  director?: string;
-  /** Rahbar qaysi asosda ish yuritadi: Ustav, ishonchnoma… */
-  basis?: string;
-  /** Yuridik manzil (bo'lmasa — biznes manzili) */
-  address?: string;
-  email?: string;
-  /** QQS stavkasi, foiz: 0 — QQS to'lovchisi emas; berilmagan — noma'lum */
-  vatRate?: number;
 }
 
 /**

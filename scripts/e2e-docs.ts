@@ -1,11 +1,12 @@
 /**
  * Hujjat ustasi (server/docs, server/docx.ts): summa so'z bilan, jadval hisobi va boshqa avtomatik tekshiruvlar, Word ko'rinishi —
- * sof funksiyalar; keyin serverda: rekvizitlar (panel va yordamchi orqali), yozuvchi → tekshiruv → tekshiruvchi zanjiri soxta model bilan.
+ * sof funksiyalar, ikkinchi miyadan tanlash; keyin serverda: miyadagi kompaniya kartasi yozuvchiga yetadi, yozuvchi → tekshiruv →
+ * tekshiruvchi zanjiri soxta model bilan.
  */
 import JSZip from 'jszip';
 import type { Business } from '../src/types';
 import { blanks, missingKnown, missingSections, parseDraft, tableMath, textProblems } from '../server/docs/checks';
-import { legalFields, legalText, vatText } from '../server/docs/legal';
+import { brainBlock, labelOf, pickBrain, type BrainFile } from '../server/docs/brain';
 import { playbook, reviewSystem, writerSystem } from '../server/docs/playbooks';
 import { amountWords, fillWords, numberWords } from '../server/docs/words';
 import { markdownToDocx } from '../server/docx';
@@ -17,7 +18,6 @@ type Ok = (name: string, cond: unknown, info?: string) => void;
 const BIZ: Business = {
   name: 'Mebel Uyi', ownerName: 'Aziz', industry: "mebel do'koni", phone: '+998 90 123 45 67', address: 'Toshkent, Chilonzor 5',
   brand: { primary: '#0F766E', accent: '#F59E0B' }, offerings: [], team: [],
-  legal: { name: '«Mebel Uyi» MChJ', stir: '305123456', bank: '«Kapitalbank» ATB', account: '20208000900123456001', mfo: '01088', director: 'Karimov Aziz', basis: 'Ustav', vatRate: 0 },
 };
 
 const xml = async (buf: Buffer, file = 'word/document.xml') => (await (await JSZip.loadAsync(buf)).file(file)?.async('string')) ?? '';
@@ -55,9 +55,18 @@ export async function docsLogicTests(ok: Ok): Promise<void> {
     && parseDraft('# A\n<!-- missing: none -->').missing.length === 0);
   ok("bo'sh joylar sanaladi", blanks('STIR: ________, h/r: ________, ___') === 2);
 
-  ok("rekvizitlar: to'ldirilgani modelga ro'yxat bo'lib boradi, QQS holati bilan", legalText(BIZ).includes('STIR: 305123456') && legalText(BIZ).includes("QQS to'lovchisi emas"));
-  ok("rekvizitlar: bo'sh — modelga «to'qima» deyiladi", legalText({ ...BIZ, legal: undefined }).includes('not filled in') && vatText({ ...BIZ, legal: { vatRate: 12 } }) === "QQS to'lovchisi, stavka 12%");
-  ok("rekvizitlar: yuridik manzil bo'lmasa — biznes manzili", legalFields(BIZ).find(f => f.key === 'address')?.value === 'Toshkent, Chilonzor 5');
+  const files: BrainFile[] = [
+    { path: 'Bilim/Biznes haqida.md', label: labelOf('Bilim/Biznes haqida.md'), text: 'Mebel Uyi — ofis mebeli, Chilonzor' },
+    { path: 'Kutyapti/Eski shartnoma.md', label: labelOf('Kutyapti/Eski shartnoma.md'), text: '«Mebel Uyi» MChJ, STIR 305 123 456, h/r 20208000900123456001, MFO 01088, direktor Rahimov Bobur' },
+    { path: "Qo'ng'iroqlar/2026-10-18 19-55.md", label: labelOf("Qo'ng'iroqlar/2026-10-18 19-55.md"), text: 'Egasi: ertaga bankka boraman' },
+    { path: 'Bilim/Retsept.md', label: labelOf('Bilim/Retsept.md'), text: `${'x'.repeat(5000)} palov retsepti` },
+  ];
+  const forContract = pickBrain(files, 'shartnoma rekvizitlar Aliyev stol yetkazib berish', true);
+  ok("miya: shartnomaga rekvizitli fayl (hatto tasdiqlanmagan bo'lsa ham) birinchi, «Biznes haqida» bor, aloqasiz fayl yo'q", forContract[0]?.path === 'Kutyapti/Eski shartnoma.md'
+    && forContract.some(f => f.path === 'Bilim/Biznes haqida.md') && !forContract.some(f => f.path === 'Bilim/Retsept.md'), forContract.map(f => f.path).join(', '));
+  ok("miya: hajm chegarasi — sig'magani tashlanadi", pickBrain(files, 'palov retsepti shartnoma rekvizitlar', true, 200).every(f => f.text.length <= 200));
+  ok("miya: fayl qayerdan ekani modelga aytiladi; bo'sh miya — ochiq aytiladi", labelOf('Kutyapti/x.md').includes('not yet confirmed') && labelOf('Bilim/Namunalar/x.md').includes('sample')
+    && brainBlock(forContract).includes('kind="not yet confirmed') && brainBlock([]).includes('empty'));
   const sys = writerSystem('contract', 'uz', '2026-10-20');
   ok('yozuvchi ko\'rsatmasi: tekshirilgan normalar (670-I: 0,5% va 0,4%, 50%; ZRU-547), tuzilma, til', sys.includes('No. 670-I') && sys.includes('0.5%') && sys.includes('0.4%') && sys.includes('ZRU-547')
     && sys.includes('FORS-MAJOR') && sys.includes('Uzbek, Latin script') && sys.includes('{{words:'));
@@ -72,29 +81,24 @@ export async function docsLogicTests(ok: Ok): Promise<void> {
   const zip = await JSZip.loadAsync(offer);
   const header = zip.file(/word\/header\d*\.xml/)[0];
   const hx = header ? await header.async('string') : '';
-  ok("Word (taklif): ish blanki — yuridik nom va aloqa, brend rangi", hx.includes('«Mebel Uyi» MChJ') && hx.includes('+998 90 123 45 67') && hx.includes('0F766E'));
+  ok("Word (taklif): ish blanki — yuridik nom va aloqa, brend rangi", hx.includes('Mebel Uyi') && hx.includes('+998 90 123 45 67') && hx.includes('0F766E'));
   const ox = await xml(offer);
   ok("Word (taklif): jadval boshi brend rangida, raqam o'ngga tekislangan", ox.includes('w:fill="0F766E"') && /<w:jc w:val="(right|end)"\/>/.test(ox));
 }
 
 export async function docsApiTests(h: Harness): Promise<void> {
-  const { ok, api, token, otherToken } = h;
-  console.log('\n# Hujjat ustasi: rekvizitlar va yozuvchi zanjiri (soxta model)');
-  const me = (await api('/api/me', { token })).json;
-  const biz = me.business as Business;
-  const rev = me.offeringsRev as string;
-  ok("rekvizit: STIR'da harf — 400", (await api('/api/business', { method: 'PUT', token, body: { ...biz, offeringsRev: rev, legal: { stir: '30A' } } })).status === 400);
-
+  const { ok, api, token } = h;
+  console.log('\n# Hujjat ustasi: ikkinchi miyadan yozish (soxta model)');
+  // Egasi miyaga kompaniya kartasini qo'ygan (Obsidian'da yoki fayl tashlab) — alohida forma yo'q
+  const card = await api('/api/brain/note', { method: 'PUT', token, body: { path: 'Bilim/Kompaniya kartasi.md', content: '# Kompaniya kartasi\n«Mebel Uyi» MChJ, STIR 305 123 456, h/r 20208000900123456001, MFO 01088, direktor Rahimov Bobur' } });
+  ok('miya: kompaniya kartasi yozildi (oddiy eslatma)', card.status === 200, JSON.stringify(card.json).slice(0, 200));
   const say = async (text: string) => (await api('/api/chat', { token, body: { text } })).json;
-  await say("Rekvizitlarimni saqla: STIR 305 123 456, Kapitalbank, h/r 20208000900123456001, MFO 01088, direktor Karimov Aziz");
-  const saved = ((await api('/api/me', { token })).json.business as Business).legal;
-  ok("rekvizit: yordamchi saqladi (save_requisites) — STIR, bank, QQSsiz", saved?.stir === '305 123 456' && saved.bank === '«Kapitalbank» ATB' && saved.vatRate === 0, JSON.stringify(saved));
-  ok("rekvizit: boshqa biznesda yo'q", !((await api('/api/me', { token: otherToken })).json.business as Business).legal?.stir);
 
   ai.docs.length = 0;
   await say('Aliyevga tijorat taklifi tayyorla, xato');
   const write = ai.docs.find(d => d.stage === 'write'), review = ai.docs.find(d => d.stage === 'review');
-  ok("yozuvchiga: qo'llanma, normalar, rekvizitlar, brief; chuqur o'ylab (effort high)", !!write && write.system.includes('commercial offer') && write.user.includes('<legal_details>') && write.user.includes('305 123 456')
+  ok("yozuvchiga: qo'llanma, ikkinchi miya (kompaniya kartasi), brief; chuqur o'ylab (effort high)", !!write && write.system.includes('commercial offer') && write.user.includes('<second_brain>')
+    && write.user.includes('Kompaniya kartasi') && write.user.includes('305 123 456')
     && write.user.includes('20 ta stol') && write.effort === 'high', write?.effort);
   ok("tekshiruvchiga: avtomatik topilma — jadvaldagi hisob xatosi", !!review && review.user.includes('<automatic_findings>') && /31 000 000|30 000 000/.test(/<automatic_findings>[\s\S]*?<\/automatic_findings>/.exec(review.user)?.[0] ?? ''));
   const doc = (await api('/api/documents', { token })).json.documents?.[0] as { markdown: string; title: string } | undefined;

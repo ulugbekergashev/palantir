@@ -40,8 +40,11 @@ const biz = businesses.create(`bench${Date.now()}`, 'x', {
     { id: 'o3', name: 'Kamera moduli (oylik)', price: 500_000 },
   ],
   team: [],
-  legal: { name: '«Cerebro AI» MChJ', stir: '311222333', oked: '62010', bank: '«Kapitalbank» ATB Toshkent filiali', account: '20208000400111222001', mfo: '01088', director: "Ergashev Ulug'bek", basis: 'Ustav', vatRate: 0 },
 });
+// Rekvizitlar — miyada (egasi fayl tashlagan yoki yozgandek), profilda emas
+const { vaultDir } = await import('../server/brain/vault');
+mkdirSync(join(vaultDir(biz.id), 'Bilim'), { recursive: true });
+writeFileSync(join(vaultDir(biz.id), 'Bilim', 'Kompaniya kartasi.md'), "# Kompaniya kartasi\n\n«Cerebro AI» MChJ\nSTIR: 311 222 333 · OKED: 62010\nBank: «Kapitalbank» ATB Toshkent filiali, MFO 01088\nH/r: 20208000400111222001\nDirektor: Ergashev Ulug'bek (Ustav asosida)\nQQS to'lovchisi emas.\n");
 
 const CASES: { kind: Kind; title: string; brief: string }[] = [
   {
@@ -59,7 +62,7 @@ async function oldWay(kind: Kind, title: string, brief: string): Promise<string>
   const res = await think(biz.id, 'owner', {
     model: env.aiModel, max_tokens: 16_000,
     system: `You are Cerebro, the business owner's assistant. Write a business document and give it to the owner as a Word file. Use Markdown: # headings, - lists, 1. lists, **bold**, tables with | cells |. Fill in everything you know from the business profile; for unknown details leave a visible blank like "________" — never invent them. Reply with the document only.`,
-    messages: [{ role: 'user', content: `${factsText(biz, { kind, customerId: null })}\n\nOwner: ${title}. ${brief}` }],
+    messages: [{ role: 'user', content: `${factsText(biz, { kind, customerId: null, title, brief })}\n\nOwner: ${title}. ${brief}` }],
     thinking: { type: 'adaptive', display: 'omitted' },
     output_config: { effort: 'medium' },
   });
@@ -83,7 +86,7 @@ for (const c of CASES.filter(x => !only || x.kind === only)) {
   const [A, B] = newIsA ? [fresh.markdown, oldMd] : [oldMd, fresh.markdown];
   const judged = await think(biz.id, 'owner', {
     model: env.aiModel, max_tokens: 4000, system: JUDGE,
-    messages: [{ role: 'user', content: `${factsText(biz, { kind: c.kind, customerId: null })}\n\n<brief>${c.brief}</brief>\n\n<A>\n${A}\n</A>\n\n<B>\n${B}\n</B>` }],
+    messages: [{ role: 'user', content: `${factsText(biz, { kind: c.kind, customerId: null, title: c.title, brief: c.brief })}\n\n<brief>${c.brief}</brief>\n\n<A>\n${A}\n</A>\n\n<B>\n${B}\n</B>` }],
     thinking: { type: 'adaptive', display: 'omitted' }, output_config: { effort: 'high' },
   });
   const raw = judged.content.flatMap(b => (b.type === 'text' ? [b.text] : [])).join('');

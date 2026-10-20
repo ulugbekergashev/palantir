@@ -471,9 +471,6 @@ function decide(messages: Msg[]): { content: Block[]; stop: string } {
   if (said.includes('eslat')) return call('create_task', { title: 'Bankka borish', due_at: `${tomorrow}T10:00` });
   if (said.includes("mijoz qo'sh")) return call('save_lead', { name: 'Aziz Karimov', phone: '+998901234567', note: "2 ta stol so'radi", source: 'tanish orqali' });
   if (said.includes('rahmat xabar')) return call('list_leads', { days: 7 });
-  if (said.includes('rekvizit')) {
-    return call('save_requisites', { name: '«Mebel Uyi» MChJ', stir: '305 123 456', bank: '«Kapitalbank» ATB', account: '20208000900123456001', mfo: '01088', director: 'Karimov Aziz', basis: 'Ustav', vat_rate: 0 });
-  }
   if (said.includes('taklif')) {
     return call('create_document', {
       title: 'Tijorat taklifi — Aliyev', kind: 'offer',
