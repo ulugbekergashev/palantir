@@ -25,6 +25,21 @@ jobs:
       - name: ffmpeg
         run: choco install ffmpeg -y --no-progress
       - run: npm ci --no-audit --no-fund
+      # O'rnatgich Windows PowerShell 5.1 da ishlaydi: sintaksis, faqat ASCII (5.1 boshqa belgilarni buzib o'qiydi),
+      # avtomatik kirishning LSA ombori va parol tekshiruvi (runner administrator — haqiqiy kirishga tegilmaydi)
+      - name: PowerShell skriptlari
+        shell: powershell
+        run: |
+          $bad = 0
+          foreach ($f in Get-ChildItem install -Filter *.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            foreach ($e in $errors) { $bad++; Write-Host "$($f.Name):$($e.Extent.StartLineNumber): $($e.Message)" }
+            if (Select-String -Path $f.FullName -Pattern '[^\x00-\x7F]') { $bad++; Write-Host "$($f.Name): ASCII bo'lmagan belgi bor" }
+          }
+          if ($bad) { exit 1 }
+          powershell -NoProfile -ExecutionPolicy Bypass -File install/avtokirish.ps1 -SelfTest
+          exit $LASTEXITCODE
       - name: Kamera modeli (SHA256 bilan)
         run: npm run camera:model
       - run: npm run typecheck

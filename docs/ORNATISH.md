@@ -24,7 +24,8 @@ Anketa serveri tunnel yoki proksi ortida tursa (cloudflared, nginx), uning `.env
 Klinikadagi kompyuter: Windows 10 yoki 11 (64-bit), 8 GB xotira, doim yoniq va internetga ulangan, Google Chrome yoki Edge o'rnatilgan.
 Telefon liniyasi uchun yana: BIOS'da virtualizatsiya (VT-x / AMD-V) yoqilgan va o'rnatuvchida administrator huquqi bo'lsin.
 **Kompyuter o'chiq yoki uyquda bo'lsa — Cerebro ishlamaydi** (kechasi AI qabulxona ham javob bermaydi): BIOS'da «svet kelganda yoqilsin»
-(Restore on AC power loss → Power On) sozlamasini qo'ying, iloji bo'lsa kichik UPS qo'ying.
+(Restore on AC power loss → Power On) sozlamasini qo'ying, iloji bo'lsa kichik UPS qo'ying. Kompyuter yongach hech kim kirmasa ham Cerebro ishlashi uchun
+o'rnatgich **avtomatik kirishni** taklif qiladi (pastda).
 
 ## 2. O'rnatish
 
@@ -39,7 +40,11 @@ Telefon liniyasi uchun yana: BIOS'da virtualizatsiya (VT-x / AMD-V) yoqilgan va 
      Asterisk, `.wslconfig` da mirrored tarmoq va brandmauer qoidalari (5060, 10000–10100 — faqat ichki tarmoq).
      WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqib, `Telefon.cmd` ni yana bosing. Har qadam qayta bosilganda bor narsani o'tkazib yuboradi.
      Ovozli agent kalitini Cerebro o'zi yaratadi (`DATA_DIR\ovoz.env`), Gemini kaliti — ulash ustasida;
-   - Cerebro'ni avtoyuklashga qo'shadi, ish stoliga «Cerebro» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi.
+   - Cerebro'ni avtoyuklashga qo'shadi, ish stoliga «Cerebro» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi;
+   - **avtomatik kirishni** taklif qiladi: svet o'chib-yonganda Windows shu foydalanuvchi bilan o'zi kiradi, Cerebro ishga tushadi va ekran darhol
+     qulflanadi (kompyuter yonidagi odam parolsiz kira olmaydi; odam o'zi kirganda qulflanmaydi). Windows paroli bir marta so'raladi, haqiqiy kirish
+     bilan tekshiriladi va registrda ochiq emas, Windows'ning LSA maxfiy omborida saqlanadi. Keyinroq yoqish yoki o'chirish: `install\Avtokirish.cmd` (`-Off`).
+     Microsoft hisobi emas, **mahalliy** parolli foydalanuvchi bo'lgani ma'qul.
 3. Oxirida ekranda **admin paroli** chiqadi — yozib oling. U sizniki, klinikaga berilmaydi.
 
 **Qaysi Windows foydalanuvchisi ostida o'rnatish kerak.** Cerebro shu foydalanuvchi kirganda ishlaydi va kalitlar, baza, bemorlar yozishmasi faqat unga ochiq bo'ladi.
@@ -99,7 +104,7 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 - [ ] Maxfiy joy belgilangan bo'lsa: `/kamera` rasmida o'sha joy qora.
 - [ ] Kreslo zonalarida DentaCRM shifokor id'si yozilgan; «Tayyor qoidalar»dan kamida «Kechasi odam ko'rinsa» yoqilgan.
 - [ ] Kamerani qo'l bilan 2–3 daqiqa yopib ko'ring — egasiga «kamera ko'rmay qoldi» keldi, ochgach «yana ko'ryapti» (birinchi 10 daqiqada kamera odatiy ko'rinishini o'rganadi — undan keyin sinang).
-- [ ] Kompyuterni **o'chirib-yoqing**: 1–2 daqiqadan keyin bot o'zi javob beryaptimi?
+- [ ] Kompyuterni **o'chirib-yoqing** va hech narsaga tegmang: 1–2 daqiqadan keyin bot o'zi javob beryaptimi, ekran qulflanganmi?
 - [ ] Kompyuter uxlamaydigan qilingan (Sozlamalar → Quvvat → «Hech qachon»).
 - [ ] Egasiga aytildi: kompyuter o'chirilmaydi; shu Windows foydalanuvchisi bilan kirilgan bo'lishi kerak.
 

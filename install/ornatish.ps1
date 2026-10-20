@@ -1,6 +1,6 @@
 # Cerebro'ni klinika kompyuteriga o'rnatadi (Windows 10/11, PowerShell 5.1).
 #   install\Ornatish.cmd               - o'rnatish (yoki yangilangan dasturni qayta yig'ish)
-#   install\Ornatish.cmd -Uninstall    - avtoyuklashdan olib tashlash va to'xtatish (ma'lumotlar o'chmaydi)
+#   install\Ornatish.cmd -Uninstall    - avtoyuklashdan olib tashlash va to'xtatish (ma'lumotlar o'chmaydi; avtomatik kirish o'chiriladi)
 # Qadamlar: Node.js tekshiruvi -> kutubxonalar -> panelni yig'ish -> .env (kalitlar) -> tekshiruv -> avtoyuklash -> ishga tushirish.
 # Bu faylda faqat ASCII belgilar: PowerShell 5.1 boshqa belgilarni buzib o'qiydi.
 param([switch]$Uninstall)
@@ -16,6 +16,15 @@ $Startup = [Environment]::GetFolderPath('Startup')
 $Desktop = [Environment]::GetFolderPath('Desktop')
 $StartupLink = Join-Path $Startup 'Cerebro.lnk'
 $Launcher = Join-Path $PSScriptRoot 'cerebro-fon.vbs'
+$AutoLogon = Join-Path $PSScriptRoot 'avtokirish.ps1'
+$Winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+$Me = "$($env:USERDOMAIN)\$($env:USERNAME)"
+
+# Windows shu foydalanuvchi bilan o'zi kiradimi (install\avtokirish.ps1 yoqgan)
+function AutoLogon-Mine {
+  $w = Get-ItemProperty -Path $Winlogon -ErrorAction SilentlyContinue
+  return ($w.AutoAdminLogon -eq '1' -and $w.DefaultUserName -eq $env:USERNAME)
+}
 
 function Step([string]$text) { Write-Host ''; Write-Host "== $text" -ForegroundColor Cyan }
 function Note([string]$text) { Write-Host "   $text" }
@@ -60,6 +69,11 @@ if ($Uninstall) {
   Step "Cerebro'ni to'xtatish va avtoyuklashdan olib tashlash"
   if (Get-Command node -ErrorAction SilentlyContinue) { node scripts\supervise.mjs stop }
   if (Test-Path $StartupLink) { Remove-Item $StartupLink -Force -Confirm:$false; Note "Avtoyuklash yorlig'i o'chirildi" }
+  if (AutoLogon-Mine) {
+    Note "Avtomatik kirish o'chirilmoqda (administrator huquqi so'raladi)..."
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $AutoLogon -Off
+    if ($LASTEXITCODE -ne 0) { Warn "Avtomatik kirish o'chirilmadi. Keyinroq: install\Avtokirish.cmd -Off" }
+  }
   foreach ($name in 'Cerebro AI.lnk', 'Cerebro.url') {
     $panelLink = Join-Path $Desktop $name
     if (Test-Path $panelLink) { Remove-Item $panelLink -Force -Confirm:$false }
@@ -190,6 +204,17 @@ $link.WorkingDirectory = $Root
 $link.Description = 'Cerebro (fonda)'
 $link.Save()
 Note "Kompyuter yonib, foydalanuvchi kirganda Cerebro o'zi ishga tushadi"
+# Svet o'chib-yonganda hech kim kirmasa ham ishga tushsin: Windows o'zi kiradi, Cerebro ekranni darhol qulflaydi (cerebro-fon.vbs)
+if (AutoLogon-Mine) {
+  Note "Avtomatik kirish yoqilgan ($Me): svet o'chib-yonganda Cerebro o'zi ishga tushadi"
+} else {
+  $answer = Read-Host "   Svet o'chib-yonganda Cerebro o'zi ishga tushsinmi? Windows '$Me' bilan o'zi kiradi va ekranni darhol qulflaydi; Windows parolingiz va administrator huquqi so'raladi (h/y) [h]"
+  if ($answer -notmatch '^[yY]') {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $AutoLogon -User $Me
+    if ($LASTEXITCODE -eq 0) { Note "Avtomatik kirish yoqildi" }
+    else { Warn "Avtomatik kirish yoqilmadi: svet o'chib-yonganda kimdir Windows'ga kirmaguncha Cerebro ishlamaydi. Keyinroq: install\Avtokirish.cmd" }
+  } else { Warn "Svet o'chib-yonganda kimdir Windows'ga kirmaguncha Cerebro ishlamaydi. Keyinroq yoqish: install\Avtokirish.cmd" }
+}
 $port = Read-EnvValue 'PORT'
 if (-not $port) { $port = $DefaultPort }
 # Yorliq Cerebro'ni (o'chiq bo'lsa) yoqadi va panelni ochadi; eski variant - faqat panel havolasi (Cerebro.url) - olib tashlanadi
@@ -229,7 +254,7 @@ Note "Cerebro ishlayapti: http://localhost:$port"
 Write-Host ''
 Write-Host '== Tayyor. Keyingi qadamlar (docs\ORNATISH.md da batafsil):' -ForegroundColor Green
 Note "Brauzerda ulash ustasi ochiladi: http://localhost:$port/#/ulash - admin paroli bilan kiring va qadamlarni tartib bilan bajaring:"
-Note "   klinika va anketa -> kalitlar -> egasining Telegrami -> DentaCRM -> kameralar -> shaxsiy Telegram -> Instagram -> bo'shliqlar"
+Note "   klinika va anketa -> kalitlar -> egasining Telegrami -> DentaCRM -> kameralar -> Instagram -> bo'shliqlar"
 if ($adminPassword) {
   Write-Host ''
   Write-Host "   ADMIN PAROLI: $adminPassword" -ForegroundColor Yellow
