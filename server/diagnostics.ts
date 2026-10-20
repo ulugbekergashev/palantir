@@ -23,7 +23,7 @@ export function diagnostics(now = new Date()): { name: string; text: string } {
   const status = heartbeatStatus();
   const settings = {
     port: env.port, listenHost: env.listenHost, dataDir: env.dataDir, backupDir: env.backupDir, backupKeep: env.backupKeep,
-    aiModel: env.aiModel, ai: env.aiEnabled, voice: voiceEnabled(), bot: !!env.botToken, hub: env.hub ? new URL(env.hub.url).host : null,
+    aiModel: env.aiModel, aiEffort: { owner: env.aiEffortOwner, customer: env.aiEffortCustomer }, ai: env.aiEnabled, voice: voiceEnabled(), bot: !!env.botToken, hub: env.hub ? new URL(env.hub.url).host : null,
     tgPersonal: env.tgPersonal, igViaBrowser: env.igViaBrowser, tgCall: env.tgCall, recordingsKeepDays: env.recordingsKeepDays,
     updateAuto: process.env.UPDATE_AUTO !== '0',
   };

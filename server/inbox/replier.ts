@@ -196,7 +196,7 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
     system: REPLIER_SYSTEM + (medical ? MEDICAL_RULES : '') + (schedule ? (visits.length ? CLINIC_RULES.replace(/\n- You cannot change or cancel[^\n]*/, '') + CHANGE_RULES : CLINIC_RULES) : ''),
     messages: [{ role: 'user', content: user }],
     thinking: { type: 'adaptive', display: 'omitted' },
-    output_config: { effort: 'low', format: { type: 'json_schema', schema: visits.length ? CHANGE_SCHEMA : schedule ? CLINIC_SCHEMA : SCHEMA } },
+    output_config: { effort: env.aiEffortCustomer, format: { type: 'json_schema', schema: visits.length ? CHANGE_SCHEMA : schedule ? CLINIC_SCHEMA : SCHEMA } },
   });
   if (res.stop_reason === 'refusal') {
     return { action: 'ask_owner', reply: '', question: '', booking: null, change: null, noteForOwner: "Cerebro bu xabarga javob yozmadi — o'zingiz javob bering", leadNote: '', customerName: '', customerPhone: '', followUp: '', followUpDays: 0, request: null };
