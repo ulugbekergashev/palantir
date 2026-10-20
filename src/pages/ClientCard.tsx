@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { CalendarDays, Loader2, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Play, Send, Stethoscope } from 'lucide-react';
+import { CalendarDays, Loader2, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Play, Send, Stethoscope, Trash2 } from 'lucide-react';
 import type { Call, ClientCardView, LeadRequest } from '../types';
 import { api } from '../data/api';
 import type { Notify } from '../components/Artifacts';
+import { Button } from '../components/ui';
 import { prettyPhone } from '../lib/phone';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -48,7 +49,36 @@ function CallRow({ c, notify }: { c: Call; notify: Notify }) {
  * Mijoz kartasi: bitta odam hamma kanallarda — qayerda yozishadi, so'rovlari, qo'ng'iroqlari (yozuv bilan) va DentaCRM bemori
  * (oxirgi tashrif, balans, yaqin qabullari)
  */
-export function ClientCard({ leadId, notify }: { leadId: string; notify: Notify }) {
+/** Mijoz o'z ma'lumotini o'chirishni so'rasa: ikki bosqichli — avval nima o'chishi va nima qolishi aytiladi */
+function Forget({ leadId, name, notify, onDone }: { leadId: string; name: string; notify: Notify; onDone: () => void }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const go = () => {
+    setBusy(true);
+    api.forgetLead(leadId).then(() => { notify("Mijoz ma'lumoti o'chirildi"); onDone(); }).catch(e => { notify((e as Error).message, true); setBusy(false); });
+  };
+  return (
+    <Block title="Ma'lumotni o'chirish">
+      {!asking ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="flex-1 text-sm text-slate-600">Mijoz so'rasa — uning kartasi va unga bog'liq hamma narsa butunlay o'chadi.</p>
+          <Button size="sm" variant="danger" onClick={() => setAsking(true)}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Mijozni o'chirish</Button>
+        </div>
+      ) : (
+        <div role="alert" className="rounded-xl bg-rose-50 p-3">
+          <p className="text-sm font-semibold text-rose-900">«{name}»: karta, yozishmalar, javob takliflari, vazifalar, so'rovlar, qo'ng'iroqlar va ularning yozuvlari o'chadi. Qaytarib bo'lmaydi.</p>
+          <p className="mt-1 text-xs text-rose-800">Qoladi: DentaCRM'dagi bemor kartasi (u yerda alohida o'chiriladi), Telegram chatlaridagi eski xabarlar va kunlik zaxira nusxalari (bir necha kunda almashadi).</p>
+          <div className="mt-3 flex gap-2">
+            <Button size="sm" variant="danger" disabled={busy} onClick={go}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />} Ha, o'chirish</Button>
+            <Button size="sm" disabled={busy} onClick={() => setAsking(false)}>Bekor qilish</Button>
+          </div>
+        </div>
+      )}
+    </Block>
+  );
+}
+
+export function ClientCard({ leadId, notify, onForgotten }: { leadId: string; notify: Notify; /** Karta o'chirildi — ro'yxat yangilansin, suhbat yopilsin */ onForgotten: () => void }) {
   const [card, setCard] = useState<ClientCardView | null>(null);
   useEffect(() => {
     let gone = false;
@@ -124,6 +154,8 @@ export function ClientCard({ leadId, notify }: { leadId: string; notify: Notify 
       <Block title="Qo'ng'iroqlar" count={card.calls.length}>
         {!card.calls.length ? <p className="text-sm text-slate-500">Qo'ng'iroq bo'lmagan.</p> : <ul className="divide-y divide-slate-100">{card.calls.map(c => <CallRow key={c.id} c={c} notify={notify} />)}</ul>}
       </Block>
+
+      <Forget leadId={leadId} name={card.lead.name || (card.lead.phone ? prettyPhone(card.lead.phone) : 'Mijoz')} notify={notify} onDone={onForgotten} />
     </div>
   );
 }

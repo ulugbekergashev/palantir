@@ -320,6 +320,18 @@ try {
     await waitFor('AI', () => ai.requests.some(r => r.tools?.some(t => t.name === 'list_requests')), 8000);
     return ai.requests.some(r => (r.tools ?? []).some(t => t.name === 'open_request'));
   })()));
+
+  console.log("\n# Mijoz so'rasa — ma'lumotini o'chirish");
+  const target = dil[0]!.id;
+  const ofTarget = async () => ((await api('/api/requests?which=all', { token })).json.requests as LeadRequest[]).filter(r => r.leadId === target);
+  const reqsBefore = (await ofTarget()).length;
+  const msgsBefore = ((await api(`/api/inbox/${target}`, { token })).json.messages ?? []).length;
+  const forgot = await api(`/api/leads/${target}`, { method: 'DELETE', token });
+  const leadsLeft = (await api('/api/leads', { token })).json.leads as Lead[];
+  const thread2 = (await api(`/api/inbox/${target}`, { token })).json;
+  ok("karta, yozishmalari va so'rovlari o'chdi; boshqa mijoz joyida", forgot.status === 200 && reqsBefore > 0 && msgsBefore > 0 && !leadsLeft.some(l => l.id === target)
+    && !(await ofTarget()).length && !(thread2.messages ?? []).length && leadsLeft.length > 0, `so'rov ${reqsBefore}, xabar ${msgsBefore}`);
+  ok("qayta o'chirish — 404", (await api(`/api/leads/${target}`, { method: 'DELETE', token })).status === 404);
 } catch (e) {
   console.error(e);
   results.push(false);

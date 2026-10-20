@@ -207,6 +207,8 @@ export const api = {
 
   inbox: () => call<{ threads: InboxThread[]; settings: AutoReply }>('/inbox'),
   clientCard: (leadId: string) => call<{ card: ClientCardView }>(`/leads/${leadId}/card`),
+  /** Mijoz so'rasa: karta, yozishmalar, so'rovlar, qo'ng'iroqlar va yozuvlari — butunlay */
+  forgetLead: (leadId: string) => call<{ ok: true }>(`/leads/${leadId}`, { method: 'DELETE' }),
   thread: (leadId: string) => call<{ lead: Lead; messages: InboxMessage[]; replies: ReplyDraft[] }>(`/inbox/${leadId}`),
   /** replyId — shu tayyor javob tahrirlab yuborilyapti (Palantir farqidan o'rganadi) */
   writeTo: (leadId: string, text: string, replyId?: string | null) => call<{ messages: InboxMessage[]; replies: ReplyDraft[] }>(`/inbox/${leadId}/send`, { body: { text, ...(replyId ? { replyId } : {}) } }),
