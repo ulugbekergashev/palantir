@@ -25,10 +25,12 @@ const ok = (name: string, cond: unknown, info = '') => {
 const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-ipcam-'));
 const PORT = 3297, base = `http://127.0.0.1:${PORT}`;
 const SECRET = 'JUDA-MAXFIY-PAROL';
+/** Shu ishga tushirishning ffmpeg'larini ajratish uchun: testsrc davomiyligi (soniya) — jarayon raqami bilan */
+const MARK = 900_000 + process.pid;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
     ...process.env, DOTENV: '0', ASTERISK_WSL: '0', PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '', ANTHROPIC_API_KEY: '', VOICELAB_API_KEY: '', GEMINI_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', ADMIN_PASSWORD: 'admin-pass-1', SESSION_SECRET: 'ipcam-secret', BACKUP_KEEP: '0',
-    CAMERA_TEST_INPUT: JSON.stringify(['-re', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=5']),
+    CAMERA_TEST_INPUT: JSON.stringify(['-re', '-f', 'lavfi', '-i', `testsrc=size=640x360:rate=5:duration=${MARK}`]),
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -92,7 +94,16 @@ try {
   await stopProcess(server);
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
 }
-const left = spawnSync(process.platform === 'win32' ? 'tasklist' : 'ps', process.platform === 'win32' ? [] : ['-A'], { encoding: 'utf8' }).stdout.split('\n').filter(l => /ffmpeg/i.test(l)).length;
+// Server to'xtagach kamera dvigateli o'z ffmpeg'ini bir lahzadan keyin yopadi (Windows'da server darhol o'ldiriladi) — 10 soniyagacha kutiladi.
+// Faqat shu sinovning ffmpeg'i sanaladi (testsrc dagi MARK bo'yicha): shu kompyuterda boshqa sinov ham ishlayotgan bo'lishi mumkin
+const ffmpegCount = () => {
+  const lines = process.platform === 'win32'
+    ? spawnSync('powershell', ['-NoProfile', '-Command', "Get-CimInstance Win32_Process -Filter \"Name='ffmpeg.exe'\" | ForEach-Object { $_.CommandLine }"], { encoding: 'utf8' }).stdout
+    : spawnSync('ps', ['-A', '-o', 'args='], { encoding: 'utf8' }).stdout;
+  return lines.split('\n').filter(l => /ffmpeg/i.test(l) && l.includes(`duration=${MARK}`)).length;
+};
+let left = ffmpegCount();
+for (let i = 0; i < 40 && left > 0; i++) { await sleep(250); left = ffmpegCount(); }
 ok('server to\'xtagach ffmpeg jarayonlari qolmadi', left === 0, `${left} ta`);
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} o'tdi`);
