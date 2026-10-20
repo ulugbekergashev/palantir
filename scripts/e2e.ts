@@ -75,7 +75,8 @@ const has = (needle: string) => (s: Sent) => textOf(s).includes(needle);
 const buttons = (s: Sent | undefined) => ((s?.params.reply_markup as { inline_keyboard?: { callback_data?: string; text: string }[][] })?.inline_keyboard ?? []).flat();
 
 try {
-  for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali ishga tushmadi */ } await sleep(250); }
+  // 60 soniyagacha: kompyuter band bo'lsa (boshqa sinovlar, tahlil) server 20 soniyadan sekin ishga tushadi
+  for (let i = 0; i < 240; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali ishga tushmadi */ } await sleep(250); }
 
   console.log('\n# Admin va kirish');
   ok("admin: noto'g'ri parol — 401", (await api('/api/admin/login', { body: { password: 'xato' } })).status === 401);

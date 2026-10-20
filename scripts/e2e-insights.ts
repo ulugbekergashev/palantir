@@ -4,12 +4,34 @@
  */
 import type { DemandItem } from '../server/insights/collect';
 import { SCHEMA, shape, stripIds, systemPrompt } from '../server/insights/logic';
+import { ageAt, crmTables } from '../server/insights/tables';
 import { ai, filesLog } from './fakes';
 import type { Harness } from './e2e-crm';
 
 type Ok = (name: string, cond: unknown, info?: string) => void;
 
 export function insightsLogicTests(ok: Ok): void {
+  console.log('\n# Chuqur tahlil jadvallari (DentaCRM → CSV)');
+  const t = crmTables({
+    visits: [
+      { id: 'a1', patientId: 'p1', doctorId: 'd1', doctorName: 'Rustamov', type: 'Implant', date: '2026-10-01', time: '10:00', duration: 60, status: 'No-Show', callStatus: 'confirmed', enteredAt: null, finishedAt: null, rating: null },
+      { id: 'a2', patientId: 'p1', doctorId: 'd1', doctorName: 'Rustamov', type: 'Implant', date: '2026-10-08', time: '10:00', duration: 60, status: 'Completed', callStatus: null, enteredAt: new Date('2026-10-08T10:20:00').toISOString(), finishedAt: new Date('2026-10-08T11:05:00').toISOString(), rating: 5 },
+    ],
+    payments: [
+      { id: 't1', patientId: 'p1', appointmentId: 'a2', amount: 4_500_000, discountAmount: 0, type: 'card', service: 'Implant', category: null, status: 'Paid', doctorId: 'd1', doctorName: 'Rustamov', date: '2026-10-08', createdAt: null },
+      { id: 't2', patientId: 'p1', appointmentId: 'a2', amount: 999, discountAmount: 0, type: 'cash', service: 'x', category: null, status: 'Cancelled', doctorId: null, doctorName: null, date: '2026-10-08', createdAt: null },
+    ],
+    patients: [{ id: 'p1', gender: 'female', dob: '15.03.1980', createdAt: null, label: null, status: 'Active' }],
+  }, (k, id) => `${k}${id}`, '2026-09-01', '2026-10-20');
+  const rows = t.find(f => f.name === 'visits.csv')!.csv.split('\n');
+  const head = rows[0].split(','), first = rows[1].split(','), second = rows[2].split(',');
+  const col = (r: string[], c: string) => r[head.indexOf(c)];
+  ok("birinchi yozilishga kelmagan bemor — first_booking=1, ikkinchi qabul — 0 (kelmaslik birinchi qabulda ko'rinadi)", col(first, 'first_booking') === '1' && col(first, 'no_show') === '1' && col(second, 'first_booking') === '0', `${rows[1]} | ${rows[2]}`);
+  ok("kutish va kreslo vaqti, yosh (DD.MM.YYYY dan), jins; to'lov qabulga bog'landi, bekor qilingani sanalmadi", col(second, 'wait_min') === '20' && col(second, 'chair_min') === '45' && col(second, 'age') === '46'
+    && col(second, 'gender') === 'F' && col(second, 'paid') === '4500000', rows[2]);
+  ok("CSV'da ism yo'q, faqat kod", !t.some(f => /Valiyev|female/.test(f.csv)) && t.find(f => f.name === 'patients.csv')!.csv.includes('Pp1'));
+  ok("yosh: YYYY-MM-DD ham, noto'g'ri sana — bo'sh", ageAt('1990-12-31', '2026-10-20') === 35 && ageAt('ertaga', '2026-10-20') === null);
+
   console.log('\n# Talab tahlili: sanash kodda');
   const items: DemandItem[] = ['m1', 'm2', 'm3', 'c4'].map((id, i) => ({ id, kind: id.startsWith('c') ? 'call' : 'message', channel: 'telegram', at: `2026-10-1${i}T10:00:00Z`, text: `Customer: savol ${id} | Our reply: javob` }));
   const themes = shape({ themes: [{ name: 'Narx', items: ['m1', 'm2', 'm2', 'x99'], examples: ['m2', 'c4'] }, { name: 'Vaqt', items: ['m2', 'm3'], examples: [] }, { name: 'Bo‘sh', items: ['x1'], examples: [] }] }, items, true, 'themes');

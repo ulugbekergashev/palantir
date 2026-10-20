@@ -14,7 +14,7 @@ const SANDBOX = process.env.DATA_DIR;
 const { env } = await import('../server/env');
 if (resolve(env.dataDir) !== resolve(SANDBOX)) throw new Error(`Sinov bazasi emas: ${env.dataDir}`);
 const { businesses } = await import('../server/db');
-const { crmTables, toCsv, local } = await import('../server/insights/dataset');
+const { crmTables, toCsv, local } = await import('../server/insights/tables');
 const { runDeepAnalysis } = await import('../server/insights/deep');
 const { hashPassword } = await import('../server/auth');
 type Visit = import('../server/crm/dentacrm').VisitStat;

@@ -11,7 +11,8 @@ import { toFile } from '@anthropic-ai/sdk';
 import { claude, thinkStream } from '../claude';
 import { newId, sql, type BusinessRow } from '../db';
 import { env } from '../env';
-import { buildDataset, type Dataset } from './dataset';
+import { buildDataset } from './dataset';
+import type { Dataset } from './tables';
 
 export interface Finding { title: string; metric: string; detail: string; evidence: string; action: string; impact: 'high' | 'medium' | 'low'; chart: string | null }
 export interface DeepInsights {
