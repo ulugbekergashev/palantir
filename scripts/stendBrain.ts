@@ -372,7 +372,7 @@ const clinicDay: Intent = ctx => {
   ].join('\n'));
 };
 
-const FROM: Record<string, string> = { customer: 'mijoz', owner: 'siz', cerebro: 'Cerebro' };
+const FROM: Record<string, string> = { customer: 'mijoz', owner: 'siz', cerebro: 'Palantir' };
 const conversations: Intent = ctx => {
   if (!/kim(lar)?\s+yoz|nima deb yoz|yozishma|xabarlar|nima so'ra/.test(ctx.t)) return null;
   const done = got(ctx, 'recent_conversations');

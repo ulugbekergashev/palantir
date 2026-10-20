@@ -85,7 +85,7 @@ function ChatThread({ thread, notify, onChanged }: { thread: InboxThread; notify
             className="max-h-32 min-h-11 flex-1 resize-none bg-transparent py-2.5 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f]" />
           <button type="submit" disabled={!text.trim() || busy} aria-label="Yuborish" className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#3fd6c3] text-[#07080b] disabled:opacity-40"><ArrowUp className="h-5 w-5" aria-hidden="true" /></button>
         </form>
-      ) : <p className="m-3 rounded-xl bg-glass/[0.03] px-4 py-3 text-[13px] text-[#8a909c]">Bu mijozga Cerebro yoza olmaydi (kanal ulanmagan) — raqami bo'lsa, qo'ng'iroq qiling.</p>}
+      ) : <p className="m-3 rounded-xl bg-glass/[0.03] px-4 py-3 text-[13px] text-[#8a909c]">Bu mijozga Palantir yoza olmaydi (kanal ulanmagan) — raqami bo'lsa, qo'ng'iroq qiling.</p>}
     </div>
   );
 }

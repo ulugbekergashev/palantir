@@ -1,6 +1,6 @@
 /**
  * Tashqi zaxira: kunlik zaxira (backup.ts — baza, «ikkinchi miya», maxfiy kalit) sotuvchining ochiq kaliti bilan shifrlanib
- * Cerebro Hub'ga yuboriladi (hub kodi bo'lsa). Kompyuter yoki disk buzilsa ham ma'lumot yo'qolmaydi; hub uni o'qiy olmaydi.
+ * Palantir Hub'ga yuboriladi (hub kodi bo'lsa). Kompyuter yoki disk buzilsa ham ma'lumot yo'qolmaydi; hub uni o'qiy olmaydi.
  * Natija DATA_DIR/zaxira-tashqi.json da — hub holatida ko'rinadi. Yuborilmasa — ertaga keyingisi yuboriladi.
  */
 import { existsSync, lstatSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';

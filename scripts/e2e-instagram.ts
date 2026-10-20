@@ -1,5 +1,5 @@
 /**
- * Rasmiy Instagram sinovi — Cerebro Hub (haqiqiy jarayon) + Cerebro server + soxta Meta (instagram.com OAuth va graph.instagram.com):
+ * Rasmiy Instagram sinovi — Palantir Hub (haqiqiy jarayon) + Palantir server + soxta Meta (instagram.com OAuth va graph.instagram.com):
  *   sof qoidalar: 24 soat / 7 kun (Human Agent), 1000 baytdan uzun javob bo'laklarga, hub kodi;
  *   yo'l: hub klinika kodini beradi → kod kalit sifatida → «Instagram'ni rasmiy ulash» → Instagram'da ruxsat → hub kodni tokenga
  *   almashtiradi (ilova siri faqat hubda) → token klinikaga navbat orqali → obuna (subscribed_apps) → Meta webhook (imzo tekshiriladi)
@@ -119,7 +119,7 @@ try {
     GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_API_ID: '', TG_API_HASH: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '',
     CEREBRO_HUB: clinic.code, IG_GRAPH_URL: META,
   });
-  ok('Cerebro ishga tushdi', await up(`${base}/api/health`));
+  ok('Palantir ishga tushdi', await up(`${base}/api/health`));
   const admin = (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token;
   await api('/api/admin/businesses', { token: admin, body: { name: 'Shifo Dent', industry: 'stomatologiya', login: 'shifo', password: 'secret12' } });
   const token = (await api('/api/login', { body: { login: 'shifo', password: 'secret12' } })).json.token;
@@ -141,9 +141,9 @@ try {
   const toCallback = await fetch(link, { redirect: 'manual' });
   const page = await fetch(String(toCallback.headers.get('location')).replace(/#_$/, ''));
   ok('egasi ruxsat berdi → hub sahifasi «Instagram ulandi @shifo_dent»', (await page.text()).includes('shifo_dent'));
-  ok("kod tokenga hubda almashtirildi (ilova siri bilan), Cerebro sirni bilmaydi", meta.tokenForms[0]?.get('client_secret') === APP_SECRET && !log.includes(APP_SECRET));
+  ok("kod tokenga hubda almashtirildi (ilova siri bilan), Palantir sirni bilmaydi", meta.tokenForms[0]?.get('client_secret') === APP_SECRET && !log.includes(APP_SECRET));
   const connected = await (async () => { for (let i = 0; i < 40; i++) { const s = (await api('/api/me', { token })).json.status.instagramApi; if (s?.account) return s; await sleep(250); } return null; })();
-  ok('Cerebro tokenni hubdan oldi: @shifo_dent, 60 kunlik', connected?.account === '@shifo_dent' && Date.parse(connected.expiresAt) > Date.now() + 50 * 86_400_000, JSON.stringify(connected));
+  ok('Palantir tokenni hubdan oldi: @shifo_dent, 60 kunlik', connected?.account === '@shifo_dent' && Date.parse(connected.expiresAt) > Date.now() + 50 * 86_400_000, JSON.stringify(connected));
   ok("akkaunt xabarlarga obuna qilindi (subscribed_apps=messages)", await waitFor('obuna', () => meta.subscribed.includes('messages')));
   ok('egasiga: «rasmiy ulandi»', await waitFor('egasiga', () => to(OWNER, mark, 'rasmiy ulandi')));
   const forged = await fetch(`${HUB}/ig/callback?code=CODE-1&state=${encodeURIComponent('eyJjIjoiYSJ9.soxta')}`);

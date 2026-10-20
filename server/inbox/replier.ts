@@ -5,7 +5,7 @@
  *   ignore    — javob shart emas ("ok", spam, biznesga aloqasiz shaxsiy gap)
  *   book      — faqat klinikada (DentaCRM ulangan): bemor shifokor, kun va vaqtni tanladi, ismi va telefoni bor.
  *               Bu faqat taklif: qabulni core.ts tekshirib yozadi (crm/reception.ts)
- * Yordamchining egasi bilan suhbatidan alohida: bu yerda Cerebro biznes nomidan mijoz bilan gaplashadi.
+ * Yordamchining egasi bilan suhbatidan alohida: bu yerda Palantir biznes nomidan mijoz bilan gaplashadi.
  */
 import type { InboxMessage, LeadChannel, RequestKind } from '../../src/types';
 import { isMedical } from '../../src/lib/compliance';
@@ -214,7 +214,7 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
     output_config: { effort: env.aiEffortCustomer, format: { type: 'json_schema', schema: visits.length ? CHANGE_SCHEMA : schedule ? CLINIC_SCHEMA : SCHEMA } },
   });
   if (res.stop_reason === 'refusal') {
-    return { action: 'ask_owner', reply: '', question: '', booking: null, change: null, noteForOwner: "Cerebro bu xabarga javob yozmadi — o'zingiz javob bering", leadNote: '', customerName: '', customerPhone: '', followUp: '', followUpDays: 0, request: null };
+    return { action: 'ask_owner', reply: '', question: '', booking: null, change: null, noteForOwner: "Palantir bu xabarga javob yozmadi — o'zingiz javob bering", leadNote: '', customerName: '', customerPhone: '', followUp: '', followUpDays: 0, request: null };
   }
   if (res.stop_reason === 'max_tokens') throw new Error('javob uzilib qoldi (max_tokens)');
   const text = res.content.filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text').map(b => b.text).join('');

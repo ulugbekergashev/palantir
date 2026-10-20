@@ -1,7 +1,7 @@
 #!/bin/bash
 # Asterisk sozlamalarini WSL ichiga o'rnatadi (har o'zgartirishdan keyin qayta ishga tushiring):
 #   wsl -d Cerebro -u root -- bash /mnt/d/Projects/cerebro/tgvoice/asterisk/install.sh
-# Egasining SIP paroli Cerebro'ning .env faylidan (SIP_OWNER_PASSWORD) olinadi — bu faylda saqlanmaydi.
+# Egasining SIP paroli Palantir'ning .env faylidan (SIP_OWNER_PASSWORD) olinadi — bu faylda saqlanmaydi.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$HERE/../../.env"
@@ -29,7 +29,7 @@ if [ -f "$HERE/pjsip_admin.conf" ]; then
 elif [ ! -f "$DEST/pjsip_admin.conf" ]; then
   printf '[admin]\ntype=auth\nauth_type=userpass\nusername=admin\npassword=%s\n' "$(head -c 24 /dev/urandom | base64 | tr -d '/+=')" > "$DEST/pjsip_admin.conf"
 fi
-# Kim javob beradi — Asterisk Cerebro'dan so'raydi (extensions.conf, [kiruvchi]): manzil va ovozli agent kaliti
+# Kim javob beradi — Asterisk Palantir'dan so'raydi (extensions.conf, [kiruvchi]): manzil va ovozli agent kaliti
 key="$(grep -E '^VOICE_AGENT_KEY=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r"'"'" || true)"
 port="$(grep -E '^PORT=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r"'"'" || true)"
 printf '[globals]\nCEREBRO_URL=http://127.0.0.1:%s\nCEREBRO_KEY=%s\n' "${port:-3200}" "$key" > "$DEST/extensions_cerebro.conf"

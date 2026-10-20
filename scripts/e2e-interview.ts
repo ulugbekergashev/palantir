@@ -1,5 +1,5 @@
 /**
- * Birinchi kun suhbati sinovlari: Cerebro tayyor savollarni o'zi so'raydi, egasining javoblari darhol bilimga yoziladi.
+ * Birinchi kun suhbati sinovlari: Palantir tayyor savollarni o'zi so'raydi, egasining javoblari darhol bilimga yoziladi.
  * Bu yo'lda model chaqirilmaydi — suhbat ochiq turganda egasining gapi javob deb olinadi.
  */
 import type { BrainView } from '../src/types';
@@ -11,7 +11,7 @@ const buttons = (s: Sent | undefined) => ((s?.params.reply_markup as { inline_ke
 
 export async function interviewTests(h: Harness): Promise<void> {
   const { ok, api, token, otherToken } = h;
-  console.log("\n# Birinchi kun suhbati: Cerebro tayyor savollarni o'zi so'raydi");
+  console.log("\n# Birinchi kun suhbati: Palantir tayyor savollarni o'zi so'raydi");
   const brain = async () => (await api('/api/brain', { token })).json.brain as BrainView;
   const chat = async (text: string, as = token) => ((await api('/api/chat', { token: as, body: { text } })).json.entries ?? []) as { role: string; text: string }[];
   const answerOf = async (id: string) => (await brain()).pack.find(q => q.id === id)?.answer ?? null;

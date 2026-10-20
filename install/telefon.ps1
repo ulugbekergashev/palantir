@@ -173,7 +173,7 @@ Step "Ovoz xizmati: kutubxonalar (bir necha daqiqa)"
 Run 'pip' { & $VenvPython -m pip install --disable-pip-version-check -q -r (Join-Path $Voice 'requirements.txt') }
 Note 'Kutubxonalar tayyor'
 
-Step "'Quloq' modeli (Cerebro / Jarvis deb chaqirish)"
+Step "'Quloq' modeli (Palantir / Jarvis deb chaqirish)"
 $models = Join-Path $Voice 'models'
 if (Test-Path (Join-Path $models $WakeModel)) { Note 'Model bor' } else {
   New-Item -ItemType Directory -Force $models | Out-Null
@@ -191,7 +191,7 @@ Step 'Ovoz xizmati: sozlamalar (.env)'
 if (-not (Test-Path '.env')) { Fail ".env yo'q - avval install\Ornatish.cmd ni ishga tushiring" }
 Add-EnvValue 'TG_CALL_PYTHON' $VenvPython
 Add-EnvValue 'TG_CALL_SCRIPT' (Join-Path $Voice 'call_live.py')
-# Egasining SIP ilovasi uchun parol (telefon liniyasi); ovozli agent kalitini Cerebro o'zi yaratadi (DATA_DIR\ovoz.env)
+# Egasining SIP ilovasi uchun parol (telefon liniyasi); ovozli agent kalitini Palantir o'zi yaratadi (DATA_DIR\ovoz.env)
 Add-EnvValue 'SIP_OWNER_PASSWORD' (New-Password 20)
 Note 'Gemini kaliti panelda kiritiladi (ulash ustasi) - ovoz xizmati uni o''zi oladi'
 

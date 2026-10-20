@@ -88,7 +88,7 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
           <div className="mt-4 rounded-xl bg-emerald-50 px-3.5 py-3 text-sm text-emerald-900">
             <p className="font-bold">Klinika qo'shildi. Egasiga bering:</p>
             <p className="mt-1 font-mono">login: {created.login} · parol: {created.password}</p>
-            <Button size="sm" className="mt-2" onClick={() => copy(`Cerebro kabineti\nLogin: ${created.login}\nParol: ${created.password}`)}><Copy className="h-3.5 w-3.5" /> Nusxalash</Button>
+            <Button size="sm" className="mt-2" onClick={() => copy(`Palantir kabineti\nLogin: ${created.login}\nParol: ${created.password}`)}><Copy className="h-3.5 w-3.5" /> Nusxalash</Button>
           </div>
         )}
       </Card>
@@ -97,7 +97,7 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
         <Card title="Anketa" description="Egasi o'rnatishdan oldin telefonidan to'ldirgan bo'lsa: manzil, ish vaqti, narxlar va ko'p so'raladigan savollarga javoblar shu yerdan tushadi. To'ldirmagan bo'lsa — o'tkazib yuboring.">
           <form onSubmit={byCode} className="grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto] sm:items-end">
             <Field label="Anketa kodi"><TextInput value={code} onChange={e => setCode(e.target.value)} placeholder="K7QM-2XPA" className="font-mono uppercase tracking-widest" required /></Field>
-            <Field label="Anketa serveri" hint="Siz anketa yaratgan Cerebro manzili"><TextInput value={source} onChange={e => setSource(e.target.value)} placeholder="https://cerebro.sizning-domen.uz" type="url" required /></Field>
+            <Field label="Anketa serveri" hint="Siz anketa yaratgan Palantir manzili"><TextInput value={source} onChange={e => setSource(e.target.value)} placeholder="https://palantir.sizning-domen.uz" type="url" required /></Field>
             <Button type="submit" variant="primary" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Yuklash</Button>
           </form>
           <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-semibold text-indigo-700 hover:text-indigo-900">

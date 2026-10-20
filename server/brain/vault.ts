@@ -1,7 +1,7 @@
 /**
  * Ikkinchi miya — papka. Bilim bazada emas, oddiy Markdown fayllarda turadi; Obsidian shu papkani «vault» sifatida ochadi.
  *
- *   INDEKS.md, Narxlar.md     Cerebro yozadi: mundarija va profildagi narxlar nusxasi (qo'lda o'zgartirilgani saqlanmaydi)
+ *   INDEKS.md, Narxlar.md     Palantir yozadi: mundarija va profildagi narxlar nusxasi (qo'lda o'zgartirilgani saqlanmaydi)
  *   QOIDALAR.md               papka qanday tuzilgani (bir marta yoziladi, egasi o'zgartirishi mumkin)
  *   Bilim/Faktlar.md          har qator — bitta fakt
  *   Bilim/Uslub.md            mijozlarga qanday yozish
@@ -39,8 +39,8 @@ const KIND_WORD: Record<KnowledgeKind, string> = { qa: 'savol', fix: 'tuzatish',
 const FACTS = `${ACTIVE}/Faktlar.md`, STYLE = `${ACTIVE}/Uslub.md`, ABOUT = `${ACTIVE}/Biznes haqida.md`;
 /** Obsidian izohi (%% ... %%): egasiga ko'rsatma, modelga berilmaydi. «10%% dan 20%% gacha» kabi oddiy matn izoh emas */
 export const COMMENT = /(?<![\p{L}\p{N}%])%%[\s\S]*?%%(?![\p{L}\p{N}%])/gu;
-const GENERATED = "> Bu sahifani Cerebro yozadi. Qo'lda o'zgartirsangiz, keyingi yangilanishda ustidan yoziladi.";
-const DRAFT_HEADING = '## Cerebro yozgan', SENT_HEADING = '## Egasi yuborgan';
+const GENERATED = "> Bu sahifani Palantir yozadi. Qo'lda o'zgartirsangiz, keyingi yangilanishda ustidan yoziladi.";
+const DRAFT_HEADING = '## Palantir yozgan', SENT_HEADING = '## Egasi yuborgan';
 /** Bundan katta fayl o'qilmaydi (adashib tashlangan kitob butun so'rovni to'ldirib yubormasin) */
 const MAX_FILE_BYTES = 200_000;
 const MAX_NAME = 80;
@@ -363,7 +363,7 @@ export const facts = {
   add(bizId: string, text: string): Note {
     const note = { id: newId(8), text: text.replace(/\s+/g, ' ').trim(), createdAt: new Date().toISOString() };
     const lines = factLinesIn(vaultDir(bizId), true);
-    const head = lines.length ? lines : ['# Faktlar', '', 'Har qator — bitta fakt. Cerebro ularni hujjat va javoblarda ishlatadi.', ''];
+    const head = lines.length ? lines : ['# Faktlar', '', 'Har qator — bitta fakt. Palantir ularni hujjat va javoblarda ishlatadi.', ''];
     const before = head.join('\n').trimEnd();
     // Ro'yxatning birinchi qatori sarlavha matnidan bo'sh qator bilan ajraladi
     put(vaultDir(bizId), FACTS, `${before}${FACT_LINE.test(before.split('\n').at(-1) ?? '') ? '\n' : '\n\n'}- ${note.text} ^${note.id}\n`);
@@ -391,7 +391,7 @@ export const style = {
   },
 };
 
-// ─── Cerebro yozadigan sahifalar ─────────────────────────────────────────────
+// ─── Palantir yozadigan sahifalar ─────────────────────────────────────────────
 
 const link = (file: string, label: string): string => `[[${file.replace(/\.md$/i, '')}|${label.replace(/[[\]|]/g, ' ').slice(0, 120)}]]`;
 
@@ -432,16 +432,16 @@ function rebuild(biz: BusinessRow, root: string): void {
   ].join('\n'));
   const priced = biz.profile.offerings.map(o => `| ${o.name.replace(/\|/g, '/')} | ${o.price ? o.price.toLocaleString('ru').replace(/\s/g, ' ') : '—'} |`);
   put(root, 'Narxlar.md', [
-    '# Narxlar', '', "> Bu sahifani Cerebro narxlar jadvalidan yozadi (panel → «Ikkinchi miya» → Narxlar, yoki yordamchiga ayting). Bu yerda o'zgartirilgani saqlanmaydi.", '',
+    '# Narxlar', '', "> Bu sahifani Palantir narxlar jadvalidan yozadi (panel → «Ikkinchi miya» → Narxlar, yoki yordamchiga ayting). Bu yerda o'zgartirilgani saqlanmaydi.", '',
     ...(priced.length ? ["| Xizmat | Narx (so'm) |", '|---|---|', ...priced] : ['Hali kiritilmagan.']), '',
   ].join('\n'));
 }
 
 const RULES = `# Bu papka qanday tuzilgan
 
-Bu — Cerebro'ning ikkinchi miyasi: biznes haqida bilgan hamma narsasi shu fayllarda. Papkani Obsidian'da oching («Open folder as vault»).
+Bu — Palantir'ning ikkinchi miyasi: biznes haqida bilgan hamma narsasi shu fayllarda. Papkani Obsidian'da oching («Open folder as vault»).
 
-- **Bilim/** — tasdiqlangan bilim. Cerebro mijozlarga faqat shu yerdagi narsadan javob beradi.
+- **Bilim/** — tasdiqlangan bilim. Palantir mijozlarga faqat shu yerdagi narsadan javob beradi.
   - **Savollar/** — har fayl bitta savol: sarlavha — savol, matn — javob.
   - **Faktlar.md** — har qator bitta fakt. **Uslub.md** — mijozlarga qanday yozish.
   - **Tuzatishlar/**, **Namunalar/** — tuzatishlaringiz va hujjat namunalari.
@@ -449,10 +449,10 @@ Bu — Cerebro'ning ikkinchi miyasi: biznes haqida bilgan hamma narsasi shu fayl
 - **Kutyapti/** — sizning tasdig'ingizni kutayotganlar. Mijozlarga aytilmaydi. Savolni **Bilim/Savollar** ga (tuzatishni — **Bilim/Tuzatishlar** ga) ko'chirsangiz — tasdiqlangan bo'ladi; o'chirsangiz — rad etilgan.
 - **Manbalar/** — siz suhbatga tashlagan fayllarning asli (PDF, Word, Excel). O'qilgan matni **Kutyapti**'ga tushadi va tasdig'ingizni kutadi.
 - **Hujjatlar/** — yordamchi tayyorlagan shartnoma, taklif va xatlar nusxasi. Bu bilim emas: mijozlarga javobda ishlatilmaydi. Word fayli — panelda («Ikkinchi miya» → Hujjatlar).
-- **Vazifalar.md** — vazifa va eslatmalar. Katakchani belgilasangiz — bajarildi, \`[-]\` — bekor; nom yoki vaqtni (📅) o'zgartirsangiz — Cerebro'da ham o'zgaradi; yangi qator \`- [ ] Nima qilish 2026-10-20 15:00\` — yangi vazifa.
+- **Vazifalar.md** — vazifa va eslatmalar. Katakchani belgilasangiz — bajarildi, \`[-]\` — bekor; nom yoki vaqtni (📅) o'zgartirsangiz — Palantir'da ham o'zgaradi; yangi qator \`- [ ] Nima qilish 2026-10-20 15:00\` — yangi vazifa.
 - **Qo'ng'iroqlar/** — telefon suhbatlari: nima qilindi va suhbat matni.
 - **Telefon.md** — telefondagi AI qanday gaplashadi: salomlashish, murojaat, ohang, ovoz (\`ovoz: standart\` yoki Gemini ovozi nomi). O'zgartirsangiz — keyingi qo'ng'iroqdan.
-- **INDEKS.md**, **Narxlar.md** — Cerebro o'zi yozadi; qo'lda o'zgartirmang.
+- **INDEKS.md**, **Narxlar.md** — Palantir o'zi yozadi; qo'lda o'zgartirmang.
 
 Narxlar, qabullar va to'lovlar bu yerda emas — ular panelda va CRM'da.
 `;
@@ -463,7 +463,7 @@ function about(biz: BusinessRow | null): string {
   const contacts = p ? [p.phone && `- Telefon: ${p.phone}`, p.address && `- Manzil: ${p.address}`, p.hours && `- Ish vaqti: ${p.hours}`, p.instagram && `- Instagram: ${p.instagram}`, p.website && `- Sayt: ${p.website}`].filter(Boolean) : [];
   const team = (p?.team ?? []).map(m => `- ${m.name} — ${m.role}${m.years ? `, ${m.years} yil tajriba` : ''}`);
   const body = [p?.description?.trim(), contacts.join('\n'), team.length ? `## Jamoa\n${team.join('\n')}` : ''].filter(Boolean).join('\n\n');
-  return `# Biznes haqida\n\n${body || '%% Shu yerga yozing: manzil, ish vaqti, telefon, kimlar ishlaydi. Cerebro mijozlarga shu sahifadan javob beradi. %%'}\n`;
+  return `# Biznes haqida\n\n${body || '%% Shu yerga yozing: manzil, ish vaqti, telefon, kimlar ishlaydi. Palantir mijozlarga shu sahifadan javob beradi. %%'}\n`;
 }
 
 /** «Telefon» sahifasi: telefondagi AI uchun standart ko'rsatma — o'rnatuvchi klinikaga qarab o'zgartiradi */
@@ -482,7 +482,7 @@ ovoz: standart
 Egasiga ismi bilan, hurmat bilan murojaat qil: {ism}.
 
 ## Salomlashish
-Assalomu alaykum, {ism}! Cerebro eshitadi.
+Assalomu alaykum, {ism}! Palantir eshitadi.
 
 ## Qanday gaplashsin
 - Iliq va hurmat bilan, xuddi tajribali yordamchi kabi.
@@ -504,7 +504,7 @@ function create(biz: BusinessRow, dir: string): void {
   const first = !existsSync(marker);
   for (const k of first ? tableKnowledge.list(biz.id) : []) save(root, k);
   const old = first ? tableNotes.list(biz.id) : [];
-  if (old.length) put(root, FACTS, `# Faktlar\n\nHar qator — bitta fakt. Cerebro ularni hujjat va javoblarda ishlatadi.\n\n${old.map(n => `- ${n.text.replace(/\s+/g, ' ').trim()} ^${n.id}`).join('\n')}\n`);
+  if (old.length) put(root, FACTS, `# Faktlar\n\nHar qator — bitta fakt. Palantir ularni hujjat va javoblarda ishlatadi.\n\n${old.map(n => `- ${n.text.replace(/\s+/g, ' ').trim()} ^${n.id}`).join('\n')}\n`);
   if (first && biz.profile.replyStyle?.trim()) put(root, STYLE, `# Uslub\n\n${biz.profile.replyStyle.trim()}\n`);
   rebuild(biz, root);
   // Windows'da antivirus yoki indekslovchi yangi fayllarni bir zum band qiladi — bir necha marta uriniladi

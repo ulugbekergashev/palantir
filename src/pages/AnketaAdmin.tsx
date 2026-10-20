@@ -20,7 +20,7 @@ export function AnketaAdmin({ onError, onInfo }: { onError: (e: unknown) => void
 
   const link = (code: string) => `${window.location.origin}/#/anketa/${code}`;
   const copy = (a: AnketaView) => {
-    const text = `Assalomu alaykum! Cerebro'ni o'rnatishdan oldin shu anketani to'ldiring (10–15 daqiqa, telefondan ham bo'ladi):\n${link(a.code)}\nKod: ${a.code}`;
+    const text = `Assalomu alaykum! Palantir'ni o'rnatishdan oldin shu anketani to'ldiring (10–15 daqiqa, telefondan ham bo'ladi):\n${link(a.code)}\nKod: ${a.code}`;
     void navigator.clipboard?.writeText(text).then(() => onInfo('Xabar nusxalandi — egasiga Telegram\'da yuboring'), () => onInfo(link(a.code)));
   };
   const create = async (e: FormEvent) => {

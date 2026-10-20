@@ -1,13 +1,13 @@
-"""Umumiy: kalitlar Cerebro'ning .env faylidan va DATA_DIR/ovoz.env dan o'qiladi (bu yerda nusxasi saqlanmaydi).
+"""Umumiy: kalitlar Palantir'ning .env faylidan va DATA_DIR/ovoz.env dan o'qiladi (bu yerda nusxasi saqlanmaydi).
 
-ovoz.env ni Cerebro serveri yozadi (server/voice/serviceEnv.ts): panelda kiritilgan kalitlar (Gemini) va klinika kompyuterida o'zi
+ovoz.env ni Palantir serveri yozadi (server/voice/serviceEnv.ts): panelda kiritilgan kalitlar (Gemini) va klinika kompyuterida o'zi
 yaratilgan ovozli agent kaliti. .env dagi qiymat ustun. Fayl o'zgarsa (kalit panelda almashdi) — keyingi so'rovda yangisi olinadi."""
 import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 SESSION = str(ROOT / 'dentacrm')
-# Kalitlar Cerebro'ning .env faylidan (tgvoice/ — loyiha ichida, .env bir pog'ona yuqorida)
+# Kalitlar Palantir'ning .env faylidan (tgvoice/ — loyiha ichida, .env bir pog'ona yuqorida)
 ENV_FILE = ROOT.parent / '.env'
 
 
@@ -43,7 +43,7 @@ def _current() -> dict[str, str]:
 
 
 def env(name: str, default: str | None = None) -> str:
-    # Cerebro ishga tushirganda (eslatma qo'ng'irog'i) manzil va kalitni muhit o'zgaruvchisida beradi — u ustun
+    # Palantir ishga tushirganda (eslatma qo'ng'irog'i) manzil va kalitni muhit o'zgaruvchisida beradi — u ustun
     value = os.environ.get(name) or _current().get(name, default)
     if not value:
         raise SystemExit(f"{name} topilmadi — {ENV_FILE} ga qo'shing (yoki panelda kiriting)")

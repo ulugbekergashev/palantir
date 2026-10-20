@@ -1,10 +1,11 @@
-"""Uyg'otuvchi so'z: «Cerebro» yoki «Jarvis» — shu kompyuterning o'zida (Vosk, internetsiz, bepul), panel mikrofoni tinglab turganda.
+"""Uyg'otuvchi so'z: «Palantir» yoki «Jarvis» — shu kompyuterning o'zida (Vosk, internetsiz, bepul), panel mikrofoni tinglab turganda.
 
 Vosk'ning kichik rus modeli faqat cheklangan lug'at bilan ishlaydi: uyg'otuvchi so'zlar va ko'p uchraydigan to'ldiruvchi so'zlar.
-To'ldiruvchilar oddiy gapni o'ziga «tortadi» — shunda o'zbekcha va ruscha gap uyg'otuvchi so'zga yopishib qolmaydi. «Cerebro» bu
-modelda «серебро» bo'lib eshitiladi. Uyg'otuvchiga o'xshash so'zlar (ребро, царь…) to'ldiruvchiga qo'shilmaydi — ular haqiqiy
-chaqiriqni ham «o'g'irlaydi». Sinov (Gemini TTS, 3 ovoz, uz/ru): 12 oddiy gapdan 0 tasida yolg'on, 15 chaqiriqdan 13 tasi topildi
-(yolg'iz baqirib aytilgan «Cerebro!» ikki marta o'tib ketdi). Topish oraliq natijada — gap tugashini kutmaydi.
+To'ldiruvchilar oddiy gapni o'ziga «tortadi» — shunda o'zbekcha va ruscha gap uyg'otuvchi so'zga yopishib qolmaydi. «Palantir» bu
+modelning lug'atida o'zi bor («палантир»; ingliz va o'zbek kichik modellarida yo'q). Uyg'otuvchiga o'xshash so'zlar (палатин, паланкин,
+пала, тир…) to'ldiruvchiga qo'shilmaydi — ular haqiqiy chaqiriqni ham «o'g'irlaydi». Topish oraliq natijada — gap tugashini kutmaydi.
+Dastur avval Cerebro deb atalgan («серебро» bilan topilardi). Palantir sinovi (Windows inglizcha TTS, 2 ovoz): 10 chaqiriqdan 10 tasi
+topildi, 14 oddiy gapdan 1 tasida yolg'on («plant a tree»). O'zbekcha va ruscha jonli ovoz bilan hali sinalmagan.
 
 Model: tgvoice/models/vosk-model-small-ru-0.22 (https://alphacephei.com/vosk/models, Apache-2.0) — WAKE_MODEL bilan boshqasi."""
 import json
@@ -14,7 +15,7 @@ from common import env
 
 MODEL_DIR = Path(env('WAKE_MODEL', str(Path(__file__).parent / 'models' / 'vosk-model-small-ru-0.22')))
 RATE = 16000
-WAKE_WORDS = {'серебро': 'Cerebro', 'джарвис': 'Jarvis'}
+WAKE_WORDS = {'палантир': 'Palantir', 'джарвис': 'Jarvis'}
 FILLERS = """я ты он она мы вы они и в не на что с как а то все так его но да к у же вот за бы по только мне было от меня нет о из ему
 теперь когда даже ну ли если уже или ни быть был до вас вам там потом себя ничего ей может тут где есть надо для тебя их чем была
 сам без чего раз тоже себе под будет тогда кто этот того потому какой совсем здесь один мой тем чтобы сейчас были куда зачем всех
@@ -46,7 +47,7 @@ def _load():
 
 
 class WakeSpotter:
-    """16 kHz 16-bit mono PCM bo'laklari → topilgan so'z («Cerebro» / «Jarvis») yoki None"""
+    """16 kHz 16-bit mono PCM bo'laklari → topilgan so'z («Palantir» / «Jarvis») yoki None"""
 
     def __init__(self):
         from vosk import KaldiRecognizer

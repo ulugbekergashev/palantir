@@ -1,6 +1,6 @@
 /**
  * Qo'ng'iroq yozuvini tahlil qilish: egasi botga yozuv tashlaydi (telefonning o'z «Zapis»i, PBX yozuvi) —
- * Cerebro uni matnga aylantiradi (gapiruvchilar ajratilgan) va qisqa tahlil beradi: nima haqida, mijoz nima xohladi,
+ * Palantir uni matnga aylantiradi (gapiruvchilar ajratilgan) va qisqa tahlil beradi: nima haqida, mijoz nima xohladi,
  * kelishildimi, xodim qanday gaplashdi, nima o'tkazib yuborildi, keyingi qadam.
  * Yozuv matni begona odamning gapi: modelga ma'lumot sifatida beriladi, ko'rsatma sifatida emas.
  */

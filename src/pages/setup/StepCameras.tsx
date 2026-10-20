@@ -84,7 +84,7 @@ export function StepCameras({ setup, routed, onCount, notify }: { setup: SetupVi
   const expected = setup?.has.cameras ?? 0;
   return (
     <div className="space-y-4">
-      {!ffmpeg && <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">Bu kompyuterda ffmpeg yo'q — IP kameralar ishlamaydi. O'rnating: <code className="font-mono">winget install Gyan.FFmpeg</code>, keyin Cerebro'ni qayta ishga tushiring.</p>}
+      {!ffmpeg && <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">Bu kompyuterda ffmpeg yo'q — IP kameralar ishlamaydi. O'rnating: <code className="font-mono">winget install Gyan.FFmpeg</code>, keyin Palantir'ni qayta ishga tushiring.</p>}
       <Card title="Klinika tarmog'idagi kameralar" description={`Kompyuter kameralar bilan bitta routerga ulangan bo'lishi kerak.${expected ? ` Anketada: ${expected} ta kamera${setup?.has.cameraBrand ? `, ${setup.has.cameraBrand}` : ''}.` : ''}`}
         action={<Button variant={found ? 'secondary' : 'primary'} onClick={scan} disabled={scanning}>{scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />} {found ? 'Qayta qidirish' : 'Tarmoqdan qidirish'}</Button>}>
         {scanning && <p className="flex items-center gap-2 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> ONVIF so'rovi va 554-port tekshirilmoqda — bir necha soniya…</p>}

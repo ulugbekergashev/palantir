@@ -1,5 +1,5 @@
 /**
- * Bo'shliqlar: Cerebro mijozga to'g'ri javob berishi uchun yetishmagan yoki bir-biriga zid narsalar — ikki xil narx, yozilmagan manzil,
+ * Bo'shliqlar: Palantir mijozga to'g'ri javob berishi uchun yetishmagan yoki bir-biriga zid narsalar — ikki xil narx, yozilmagan manzil,
  * ish vaqti, telefon. Taxmin qilinmaydi: egasidan birinchi kun suhbatida (Telegram yoki panel) bittalab so'raladi, javob o'z joyiga yoziladi.
  * Ko'p so'raladigan savollar (brainPack) bu yerda emas — ular suhbatda bo'shliqlardan keyin keladi.
  */

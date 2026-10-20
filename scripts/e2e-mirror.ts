@@ -63,7 +63,7 @@ export async function mirrorTests({ ok, api, token, otherToken, dataDir }: Harne
   const me = (await api('/api/me', { token })).json.business as { name: string; ownerName: string };
   let phone = (await api('/api/brain/phone', { token })).json as { business: string; owner: string; guide: string; voice: string | null };
   ok("Telefon.md yaratilgan va mundarijada; AI'ga: biznes nomi, egasi, ko'rsatma, standart ovoz (izohsiz)", phone.business === me.name && phone.owner === me.ownerName
-    && phone.voice === 'standart' && phone.guide.includes('## Salomlashish') && phone.guide.includes(`Assalomu alaykum, ${me.ownerName}! Cerebro eshitadi.`) && !phone.guide.includes('{ism}') && !phone.guide.includes("AI'ga berilmaydi") && !/ovoz:/i.test(phone.guide)
+    && phone.voice === 'standart' && phone.guide.includes('## Salomlashish') && phone.guide.includes(`Assalomu alaykum, ${me.ownerName}! Palantir eshitadi.`) && !phone.guide.includes('{ism}') && !phone.guide.includes("AI'ga berilmaydi") && !/ovoz:/i.test(phone.guide)
     && readFileSync(join(root, 'INDEKS.md'), 'utf8').includes('[[Telefon|Telefon]]'), JSON.stringify(phone).slice(0, 300));
   writeFileSync(phoneFile, readFileSync(phoneFile, 'utf8').replace('ovoz: standart', 'ovoz: Aoede').replace('## Qanday gaplashsin', "## Qanday gaplashsin\n- Har qo'ng'iroq oxirida «Tabassum klinikasi xizmatingizda» de."));
   phone = (await api('/api/brain/phone', { token })).json;
@@ -78,7 +78,7 @@ export async function mirrorTests({ ok, api, token, otherToken, dataDir }: Harne
 
   // Qo'ng'iroq tugadi — Obsidian'ga sahifa
   const body = (startedAt: string) => ({ startedAt, seconds: 89, withWhom: "Ulug'bek (Telegram)", lines: [
-    { at: '20:37:06', who: 'Cerebro', text: 'Assalomu alaykum, Ulug\'bek aka!' },
+    { at: '20:37:06', who: 'Palantir', text: 'Assalomu alaykum, Ulug\'bek aka!' },
     { at: '20:37:10', who: 'Siz', text: 'Ertaga <script>x</script> universitetni eslat' },
     { at: '20:37:12', who: 'Amal', text: "Vazifa qo'shildi: Universitet — 2026-11-02 09:00" },
   ] });

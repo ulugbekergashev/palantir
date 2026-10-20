@@ -3,7 +3,7 @@
  * Hammasi shu kompyuterdagi bazadan (yozishmalar, qo'ng'iroqlar, so'rovlar, mijozlar, javoblar) — tashqi xizmatga murojaat yo'q.
  *
  * Murojaat: mijoz bir kunda yozgan xabarlari — bitta murojaat (bir odam uch kun yozsa — uchta); kiruvchi qo'ng'iroq — bitta.
- * Javob vaqti: murojaatdagi birinchi xabardan biz yozgan birinchi javobgacha (egasi, xodim yoki Cerebro).
+ * Javob vaqti: murojaatdagi birinchi xabardan biz yozgan birinchi javobgacha (egasi, xodim yoki Palantir).
  */
 import { daysIn, previousPeriod, type DashboardView, type Kpi, type Period, type RecentItem, type TeamRow } from '../src/lib/dashboard';
 import { iso } from '../src/lib/week';

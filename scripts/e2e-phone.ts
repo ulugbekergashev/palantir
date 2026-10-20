@@ -167,7 +167,7 @@ try {
   ok("jurnal: gaplashildi, ~9 soniya, yozuv bor, tahlil tayyor", talk?.direction === 'out' && talk.durationSec >= 8 && talk.hasRecording && talk.review === 'done' && talk.analysis?.outcome === 'booked', JSON.stringify(talk ?? {}).slice(0, 200));
   const audio = await fetch(`${base}/api/calls/${talk?.id}/audio`, { headers: { authorization: `Bearer ${token}` } });
   ok('panel: yozuvni tinglash (mp3)', audio.status === 200 && audio.headers.get('content-type') === 'audio/mpeg' && (await audio.arrayBuffer()).byteLength === 20_000);
-  ok("MicroSIP papkasidan yozuv olib ketildi (Cerebro data papkasida)", fs.readdirSync(path.join(hookDir, 'rec')).length === 0 && fs.existsSync(path.join(dataDir, 'recordings', `${talk?.id}.mp3`)));
+  ok("MicroSIP papkasidan yozuv olib ketildi (Palantir data papkasida)", fs.readdirSync(path.join(hookDir, 'rec')).length === 0 && fs.existsSync(path.join(dataDir, 'recordings', `${talk?.id}.mp3`)));
   const req = (await api('/api/requests', { token })).json.requests[0];
   ok("so'rovga natija: «Qo'ng'iroq qilindi» va tahlil xulosasi (yopishni xodim qiladi)", req?.result?.includes("Qo'ng'iroq qilindi") && req.result.includes('ertaga 10:00'), req?.result);
   const lead = (await api('/api/leads', { token })).json.leads[0];

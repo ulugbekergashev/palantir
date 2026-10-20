@@ -1,6 +1,6 @@
 /**
- * AI bosh ekran (#/ai): egasi qo'l bilan emas, ovoz bilan ishlaydi. Markazda Cerebro — bosing va gapiring: jonli suhbat
- * (Gemini Live, telefondagi yordamchining o'zi), javob ovozda va ekranda; asbob natijasi (vazifalar, Cerebro javobi) karta bo'lib chiqadi.
+ * AI bosh ekran (#/ai): egasi qo'l bilan emas, ovoz bilan ishlaydi. Markazda Palantir — bosing va gapiring: jonli suhbat
+ * (Gemini Live, telefondagi yordamchining o'zi), javob ovozda va ekranda; asbob natijasi (vazifalar, Palantir javobi) karta bo'lib chiqadi.
  * Pastda AI jamoa — Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi: har biri hozir nima qilayotgani haqiqiy ma'lumotdan.
  * Kartani bosish — o'sha xodimning sahifasi (qobiq: LiveApp, chap ustun — Rail). O'rtada «Sizni kutyapti» — hamma xodimdan egasining qarorini
  * kutayotganlar (components/Attention.tsx).
@@ -25,7 +25,7 @@ const STATE_TEXT: Record<VoiceMode, string> = {
   connecting: 'Ulanmoqda…',
   listening: 'Eshityapman',
   thinking: 'Bajaryapman…',
-  speaking: 'Cerebro gapiryapti',
+  speaking: 'Palantir gapiryapti',
 };
 
 const greeting = (h: number) => (h < 5 ? 'Xayrli tun' : h < 12 ? 'Xayrli tong' : h < 18 ? 'Xayrli kun' : 'Xayrli kech');
@@ -44,7 +44,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
     try {
       const r = await api.say(q);
       const answer = [...r.entries].reverse().find(x => x.role === 'assistant');
-      if (answer) { setAi(''); push({ id: nextId(), kind: 'answer', title: 'Cerebro', body: answer.text }); }
+      if (answer) { setAi(''); push({ id: nextId(), kind: 'answer', title: 'Palantir', body: answer.text }); }
       setTyped('');
     } catch (e) {
       setError((e as Error).message);
@@ -68,12 +68,12 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
       <main className="relative z-10 mx-auto flex max-w-5xl flex-col items-center px-5 pb-10 sm:px-8">
         <p className="mt-4 text-center text-sm text-[#9ba1ad] sm:mt-8">{greeting(now.getHours())}{owner ? `, ${owner}` : ''}</p>
 
-        {/* Sfera — Cerebro'ning o'zi. Bosish: suhbatni boshlash / tugatish */}
+        {/* Sfera — Palantir'ning o'zi. Bosish: suhbatni boshlash / tugatish */}
         <button
           type="button"
           onClick={() => { void toggle(); }}
           aria-pressed={active}
-          aria-label={active ? 'Suhbatni tugatish' : 'Cerebro bilan gaplashish'}
+          aria-label={active ? 'Suhbatni tugatish' : 'Palantir bilan gaplashish'}
           className="group relative mt-6 flex h-56 w-56 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[#a9aaff] focus-visible:ring-offset-4 focus-visible:ring-offset-[#06070a] sm:h-64 sm:w-64"
         >
           <div
@@ -98,7 +98,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
         </p>
         {error && <p role="alert" className="mt-3 rounded-xl bg-rose-500/10 px-4 py-2 text-sm text-rose-200">{error}</p>}
 
-        {/* Jonli matn: siz nima dedingiz — Cerebro nima deyapti */}
+        {/* Jonli matn: siz nima dedingiz — Palantir nima deyapti */}
         <section aria-live="polite" className="mt-8 flex min-h-28 w-full max-w-3xl flex-col items-center gap-3 text-center">
           {you && <p className="text-base text-[#9ba1ad]">«{you}»</p>}
           {ai && <p className="text-2xl font-semibold leading-snug tracking-tight sm:text-[28px]">{ai}</p>}
@@ -111,7 +111,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
           )}
         </section>
 
-        {/* Natijalar: asbob nima qildi — ro'yxat, eslatma, Cerebro javobi */}
+        {/* Natijalar: asbob nima qildi — ro'yxat, eslatma, Palantir javobi */}
         {cards.length > 0 && (
           <section aria-label="Natijalar" className="mt-6 grid w-full max-w-3xl gap-3">
             {cards.map(c => (
@@ -136,7 +136,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
 
         {/* Ovoz noqulay bo'lsa — yozib so'rash */}
         <form onSubmit={submit} className="mt-8 flex w-full max-w-2xl items-center gap-2 rounded-2xl border border-glass/10 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/25">
-          <label htmlFor="ai-ask" className="sr-only">Cerebro'ga yozing</label>
+          <label htmlFor="ai-ask" className="sr-only">Palantir'ga yozing</label>
           <input id="ai-ask" value={typed} onChange={e => setTyped(e.target.value)} placeholder="Yoki yozing: «Akmalga ertaga qo‘ng‘iroq qilishni eslat»" className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f]" />
           <button type="submit" disabled={!typed.trim() || busyText} aria-label="Yuborish" className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#8b8cff] text-[#06070a] transition-opacity disabled:opacity-40">
             <ArrowUp className="h-5 w-5" aria-hidden="true" />

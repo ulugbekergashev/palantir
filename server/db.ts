@@ -263,9 +263,9 @@ export interface LeadRow extends Lead {
   tgUserId: string | null;
   tgAccessHash: string | null;
   igUserId: string | null;
-  /** Instagram'dagi suhbat (Direct) — Cerebro shu suhbatga yozadi */
+  /** Instagram'dagi suhbat (Direct) — Palantir shu suhbatga yozadi */
   igThread: string | null;
-  /** Cerebro botida /start bosgan — bot unga yoza oladi */
+  /** Palantir botida /start bosgan — bot unga yoza oladi */
   botStarted: boolean;
   postId: string | null;
   /** Telegram tasdiqlagan raqam (personRules.ts: proofFor): mijoz botda tugma bilan o'z raqamini yuborgan */
@@ -365,7 +365,7 @@ export const leads = {
       id, businessId, p.name, p.username, p.phone ?? null, phoneKey(p.phone), p.tgUserId ?? null, p.tgAccessHash ?? null, p.igUserId ?? null, p.igThread ?? null, channel, source, now, now, now);
     return { lead: leads.get(businessId, id)!, created: true };
   },
-  /** Egasi birinchi yozgan odam (Cerebro Telegram'da topib yozdi) — Telegram id'si saqlanadi */
+  /** Egasi birinchi yozgan odam (Palantir Telegram'da topib yozdi) — Telegram id'si saqlanadi */
   setTelegramPeer: (businessId: string, id: string, tgUserId: string, accessHash: string) =>
     run("UPDATE leads SET tg_user_id = ?, tg_access_hash = ?, channel = CASE WHEN channel = 'manual' THEN 'telegram' ELSE channel END WHERE business_id = ? AND id = ?",
       tgUserId, accessHash, businessId, id),
@@ -411,7 +411,7 @@ export const leads = {
 
 // ─── Ulanishlar: shaxsiy Telegram, Instagram (maxfiy qismi shifrlangan) ──────
 
-/** instagram — brauzer orqali (egasining akkaunti); instagram_api — rasmiy Instagram API (Meta ilovasi, Cerebro Hub orqali) */
+/** instagram — brauzer orqali (egasining akkaunti); instagram_api — rasmiy Instagram API (Meta ilovasi, Palantir Hub orqali) */
 export type ConnectionKind = 'telegram' | 'instagram' | 'instagram_api' | 'dentacrm' | 'sip_line';
 export interface ConnectionRow { businessId: string; kind: ConnectionKind; secret: string; account: Record<string, string>; meta: Record<string, string>; updatedAt: string }
 
@@ -474,7 +474,7 @@ export const inbox = {
     many('SELECT lead_id, MAX(created_at) AS at FROM inbox WHERE business_id = ? GROUP BY lead_id ORDER BY at DESC LIMIT ?', r => String(r.lead_id), businessId, limit),
 };
 
-/** question — Cerebro egasidan so'ragan umumiy savol (javobini eslab qolish mumkin); o'rganilgach bo'shatiladi */
+/** question — Palantir egasidan so'ragan umumiy savol (javobini eslab qolish mumkin); o'rganilgach bo'shatiladi */
 export type ReplyRow = ReplyDraft & { businessId: string; ownerMessageId: number | null; question: string | null };
 
 const BOOKING_FIELDS = ['doctorId', 'doctorName', 'date', 'time', 'name', 'phone'] as const;
@@ -575,7 +575,7 @@ export interface OutboundRow extends Outbound { businessId: string; ownerMessage
 
 const toOutbound = (r: Raw): OutboundRow => {
   const ids = JSON.parse(String(r.lead_ids)) as string[];
-  // Cerebro yoza oladiganlar: botga yozgan, shaxsiy Telegram yoki Instagram orqali yozishgan
+  // Palantir yoza oladiganlar: botga yozgan, shaxsiy Telegram yoki Instagram orqali yozishgan
   const reachable = ids.filter(id => leads.get(String(r.business_id), id)?.reachable).length;
   return {
     id: String(r.id), businessId: String(r.business_id), text: String(r.text), leadIds: ids, reachable,

@@ -1,7 +1,7 @@
 """Administratorga o'tkazish tekshiruvi — Gemini'siz, haqiqiy Asterisk'da: «mijoz» qo'ng'iroq qiladi (sinov_otkazish), AI o'rnida
 soxta AI (9096) qo'ng'iroqni sip_live.redirect_to_operator bilan administratorga buradi. Administrator telefoni ulanmagan bo'lsa,
 Asterisk qo'ng'iroqni AI'ga 3-rejimda («administrator ko'tarmadi») qaytarishi kerak.
-Telefon liniyasi o'rnatilgan bo'lishi kerak (install.sh); sip_live.py ishlashi shart emas, Cerebro serveri — kerak (kim javob beradi).
+Telefon liniyasi o'rnatilgan bo'lishi kerak (install.sh); sip_live.py ishlashi shart emas, Palantir serveri — kerak (kim javob beradi).
 Ishga tushirish:  tgvoice\\.venv\\Scripts\\python.exe tgvoice\\check_transfer.py"""
 import asyncio
 import struct
@@ -68,7 +68,8 @@ async def main() -> int:
     except asyncio.TimeoutError:
         pass
     srv.close()
-    log = wsl(f"grep -h 'Cerebro: {CALLER}\\|Cerebro: administrator' /var/log/asterisk/messages* 2>/dev/null | tail -4")
+    # Eski o'rnatilgan extensions.conf jurnalga «Cerebro:» deb yozadi (install.sh qayta yurgunicha)
+    log = wsl(f"grep -hE '(Palantir|Cerebro): ({CALLER}|administrator)' /var/log/asterisk/messages* 2>/dev/null | tail -4")
     status = next((line.rsplit('— ', 1)[-1].strip() for line in reversed(log.splitlines()) if 'administrator —' in line), '?')
 
     checks = [

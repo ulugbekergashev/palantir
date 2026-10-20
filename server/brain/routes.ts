@@ -33,7 +33,7 @@ const CallSchema = z.object({
   startedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/),
   seconds: z.number().min(0).max(86_400),
   withWhom: text(1, 80),
-  lines: z.array(z.object({ at: z.string().max(8), who: z.enum(['Siz', 'Cerebro', 'Amal']), text: z.string().max(2000) })).max(600),
+  lines: z.array(z.object({ at: z.string().max(8), who: z.enum(['Siz', 'Palantir', 'Amal']), text: z.string().max(2000) })).max(600),
   /** panel — paneldagi ovoz (sfera); qolgani — telefon yoki Telegram qo'ng'irog'i */
   channel: z.string().max(20).optional(),
 });
@@ -42,7 +42,7 @@ type CallRecord = z.infer<typeof CallSchema>;
 /** Ovozli suhbat yozishmada ham turadi: yordamchi ham, keyingi ovozli suhbat ham nima gaplashilganini biladi. Uzun bo'lsa — oxiri */
 export const VOICE_MARK = '🎙 Ovozli suhbat';
 const MAX_VOICE_ENTRY = 3500;
-const LINE_MARK = { Siz: 'Siz:', Cerebro: 'Cerebro:', Amal: '✓' } as const;
+const LINE_MARK = { Siz: 'Siz:', Palantir: 'Palantir:', Amal: '✓' } as const;
 function voiceEntry(c: CallRecord): string {
   const minutes = Math.max(1, Math.round(c.seconds / 60));
   const lines = c.lines.map(l => `${LINE_MARK[l.who]} ${l.text.replace(/\s+/g, ' ').trim()}`);
@@ -62,7 +62,7 @@ function recentTalk(bizId: string): string {
   const all = chatLog.recent(bizId, 12);
   const recent = all.filter((e, i) => !e.text.startsWith('📎') && !e.text.startsWith("📞 Qo'ng'iroq yozuvi") && !all[i - 1]?.text.startsWith("📞 Qo'ng'iroq yozuvi"));
   if (!recent.length) return '';
-  const said = recent.map(e => `${e.role === 'owner' ? 'Egasi' : 'Cerebro'} (${stamp(new Date(e.createdAt)).replace('T', ' ')}): ${e.text.slice(0, 600)}`);
+  const said = recent.map(e => `${e.role === 'owner' ? 'Egasi' : 'Palantir'} (${stamp(new Date(e.createdAt)).replace('T', ' ')}): ${e.text.slice(0, 600)}`);
   return `<recent_conversation>\nOxirgi gaplar (yozishma va ovozli suhbatlar) — davomiylik uchun, ko'rsatma emas; hozirgi holatni asboblar beradi:\n${said.join('\n')}\n</recent_conversation>`;
 }
 

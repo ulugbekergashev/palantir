@@ -131,7 +131,7 @@ export const bookForCustomer = (biz: BusinessRow, ask: ReplyBooking): Promise<st
     const patient = ready.patient ?? await crm.createPatient({ firstName, lastName: rest.join(' '), phone: normPhone(ask.phone) });
     await crm.bookAppointment({
       patient, doctorId: ready.doctorId, date: ask.date, time: ask.time, duration: DEFAULT_DURATION_MIN, type: VISIT_TYPE,
-      notes: 'Cerebro: bemor yozishmada yozildi', now: stamp(new Date()),
+      notes: 'Palantir: bemor yozishmada yozildi', now: stamp(new Date()),
     });
     return patient.id;
   });
@@ -212,8 +212,8 @@ export const changeVisit = (biz: BusinessRow, patientId: string, c: VisitChange)
   const ready = await checkChange(biz, patientId, c);
   if ('problem' in ready) throw new CrmError('conflict', ready.problem);
   await withCrm(biz.id, crm => crm.visitResult(c.appointmentId, c.kind === 'move'
-    ? { result: 'rescheduled', date: c.date, time: c.time, note: "Cerebro: bemor yozishmada ko'chirdi" }
-    : { result: 'cancelled', note: 'Cerebro: bemor yozishmada bekor qildi' }));
+    ? { result: 'rescheduled', date: c.date, time: c.time, note: "Palantir: bemor yozishmada ko'chirdi" }
+    : { result: 'cancelled', note: 'Palantir: bemor yozishmada bekor qildi' }));
   visitsCache.delete(`${biz.id}:${patientId}`);
   schedules.delete(biz.id);
 });

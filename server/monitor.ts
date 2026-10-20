@@ -1,6 +1,6 @@
 /**
  * Kanallar nazorati: har daqiqada har bir biznesning ulanishlari tekshiriladi — kompyuter diski, DentaCRM (bitta yengil so'rov bilan), rasmiy Instagram
- * va Cerebro Hub, MicroSIP, IP kameralar. Muammo GRACE dan uzoq davom etsa — egasiga bir marta xabar; tiklansa — «yana ishlayapti».
+ * va Palantir Hub, MicroSIP, IP kameralar. Muammo GRACE dan uzoq davom etsa — egasiga bir marta xabar; tiklansa — «yana ishlayapti».
  * Bir lahzalik uzilish bezovta qilmaydi. Brauzerdagi Instagram va shaxsiy Telegram o'zlari xabar beradi — bu yerda takrorlanmaydi.
  */
 import { iso } from '../src/lib/week';
