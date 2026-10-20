@@ -329,7 +329,7 @@ export const ai = {
   /** Talab tahliliga (insights/analyze.ts) borgan bandlar matni */
   insights: [] as string[],
   /** Chuqur tahlil so'rovlari: yuklangan fayllar, konteyner (davom ettirilganda), asboblar */
-  deep: [] as { files: string[]; container: string | null; tools: Block[] }[],
+  deep: [] as { files: string[]; container: string | null; tools: Block[]; cache: unknown }[],
 };
 
 /**
@@ -518,7 +518,7 @@ export const speechlabServer = createServer(async (req, res) => {
 function sse(res: ServerResponse, message: Record<string, any>): void {
   res.writeHead(200, { 'content-type': 'text/event-stream' });
   const send = (type: string, data: Record<string, unknown>) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
-  send('message_start', { message: { ...message, content: [], stop_reason: null, usage: { input_tokens: message.usage.input_tokens, output_tokens: 0 } } });
+  send('message_start', { message: { ...message, content: [], stop_reason: null, usage: { ...message.usage, output_tokens: 0 } } });
   (message.content as Block[]).forEach((b, index) => {
     if (b.type === 'text') {
       send('content_block_start', { index, content_block: { type: 'text', text: '' } });
@@ -611,8 +611,10 @@ export const aiServer = createServer(async (req, res) => {
   // Chuqur tahlil (insights/deep.ts): 1-javob — «pause_turn» va grafik fayli (uzoq ish davom ettirilishi tekshiriladi), 2-javob — topilmalar JSON
   if (String(body.system).startsWith("You are the business's senior data analyst")) {
     const paused = body.messages.length > 1;
-    ai.deep.push({ files: (body.messages[0]?.content as Block[]).filter(b => b.type === 'container_upload').map(b => String(b.file_id)), container: (body as { container?: string }).container ?? null, tools: body.tools });
+    ai.deep.push({ files: (body.messages[0]?.content as Block[]).filter(b => b.type === 'container_upload').map(b => String(b.file_id)), container: (body as { container?: string }).container ?? null, tools: body.tools, cache: (body as { cache_control?: unknown }).cache_control ?? null });
     const container = { id: 'cont_sinov', expires_at: new Date(Date.now() + 3_600_000).toISOString() };
+    // Har tahlilda «Python» grafikni qaytadan yaratadi (oldingisi tahlil oxirida o'chirilgan)
+    if (!paused) files.set('file_chart1', { name: 'qaytish.png', bytes: PNG, uploaded: false });
     const content = paused
       ? [{ type: 'text', text: '```json\n' + JSON.stringify({
         headline: "Gigiyenadan boshlagan bemorlar ko'proq qaytadi.",
@@ -622,7 +624,8 @@ export const aiServer = createServer(async (req, res) => {
       }) + '\n```' }]
       : [{ type: 'server_tool_use', id: 'srvtoolu_1', name: 'bash_code_execution', input: { command: 'python analyse.py' } },
         { type: 'bash_code_execution_tool_result', tool_use_id: 'srvtoolu_1', content: { type: 'bash_code_execution_result', stdout: 'ok', stderr: '', return_code: 0, content: [{ type: 'bash_code_execution_output', file_id: 'file_chart1' }] } }];
-    const message = { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, container, content, stop_reason: paused ? 'end_turn' : 'pause_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 10 } };
+    const message = { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, container, content, stop_reason: paused ? 'end_turn' : 'pause_turn', stop_sequence: null, stop_details: null,
+      usage: { input_tokens: 1000, output_tokens: 2000, cache_read_input_tokens: 50_000, cache_creation_input_tokens: 4000 } };
     // Uzoq tahlil oqim bilan so'raladi (ulanish uzilmasin) — sinov buni ham tekshiradi
     if (!(body as { stream?: boolean }).stream) return fail('chuqur tahlil oqimsiz (stream: true emas) so\'raldi');
     return sse(res, message);

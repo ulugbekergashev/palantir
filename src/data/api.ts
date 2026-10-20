@@ -27,7 +27,7 @@ export interface Insights {
 export interface DeepFinding { title: string; metric: string; detail: string; evidence: string; action: string; impact: 'high' | 'medium' | 'low'; chart: string | null }
 export interface DeepInsights {
   id: string; createdAt: string; from: string; to: string; data: { name: string; rows: number }[]; notes: string[];
-  headline: string; findings: DeepFinding[]; quality: string[]; next: string[]; charts: string[];
+  headline: string; findings: DeepFinding[]; quality: string[]; next: string[]; charts: string[]; cost?: number;
 }
 /** «Bugun jamoa nima qildi» (server/teamDay.ts) */
 export interface TeamDay {
@@ -142,8 +142,8 @@ export const api = {
   teamDay: () => call<TeamDay>('/team/day'),
   insights: (days: number) => call<{ insights: Insights | null; running: boolean }>(`/insights?days=${days}`),
   runInsights: (days: number) => call<{ insights: Insights }>('/insights', { body: { days } }),
-  deepInsights: () => call<{ result: DeepInsights | null; running: string | null; error: string | null }>('/insights/deep'),
-  runDeepInsights: () => call<{ running: string }>('/insights/deep', { body: {} }),
+  deepInsights: () => call<{ result: DeepInsights | null; running: string | null; error: string | null; notice: string | null }>('/insights/deep'),
+  runDeepInsights: (force = false) => call<{ running: string }>('/insights/deep', { body: { force } }),
   deepChart: async (run: string, file: string) => (await send(`/insights/deep/chart/${encodeURIComponent(run)}/${encodeURIComponent(file)}`, { method: 'GET' })).blob(),
   seeEvent: (id: string) => call<{ ok: true }>(`/agents/events/${id}/seen`, { body: {} }),
   // ─── Telefon liniyasi (Asterisk): shahar raqami, kim javob beradi, administrator telefoni ───

@@ -137,8 +137,8 @@ for (const f of files) writeFileSync(`tmp/chuqur-demo/csv/${f.name}`, f.csv);
 console.log("ma'lumot:", files.map(f => `${f.name} ${f.rows}`).join(' · '));
 
 const t0 = Date.now();
-const x = await runDeepAnalysis(biz, DAYS, { files, from, to, notes: [] });
-console.log(`\ntahlil: ${Math.round((Date.now() - t0) / 1000)} s · ${x.findings.length} topilma · ${x.charts.length} grafik\n`);
+const x = await runDeepAnalysis(biz, { days: DAYS, prepared: { files, from, to, notes: [] }, force: true });
+console.log(`\ntahlil: ${Math.round((Date.now() - t0) / 1000)} s · $${x.cost} · ${x.findings.length} topilma · ${x.charts.length} grafik\n`);
 console.log(`XULOSA: ${x.headline}\n`);
 for (const f of x.findings) console.log(`[${f.impact}] ${f.title} — ${f.metric}\n   ${f.detail}\n   → ${f.action}${f.chart ? `  (grafik: ${f.chart})` : ''}\n`);
 if (x.quality.length) console.log(`MA'LUMOT SIFATI:\n${x.quality.map(q => `  - ${q}`).join('\n')}`);

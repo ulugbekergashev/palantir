@@ -4,7 +4,7 @@
  * kerak, grafik. Fonda bir necha daqiqa ishlaydi — sahifa holatni o'zi so'rab turadi; oxirgi natija saqlanadi (ochilganda pul ketmaydi).
  */
 import { useEffect, useState } from 'react';
-import { ChevronDown, Database, FlaskConical, Lightbulb, Loader2, Plus, TriangleAlert } from 'lucide-react';
+import { ChevronDown, Database, FlaskConical, Info, Lightbulb, Loader2, Plus, TriangleAlert } from 'lucide-react';
 import { api, type DeepFinding, type DeepInsights } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { Panel, Quiet } from '../../components/agent';
@@ -60,16 +60,17 @@ export function DiscoveriesBody({ notify }: { notify: Notify }) {
   const [data, setData] = useState<DeepInsights | null | undefined>(undefined);
   const [running, setRunning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     let stale = false;
-    const load = () => api.deepInsights().then(r => { if (!stale) { setData(r.result); setRunning(r.running); setError(r.error); } }).catch(e => notify((e as Error).message, true));
+    const load = () => api.deepInsights().then(r => { if (!stale) { setData(r.result); setRunning(r.running); setError(r.error); setNotice(r.notice); } }).catch(e => notify((e as Error).message, true));
     void load();
     const t = setInterval(() => { setNow(Date.now()); if (running) void load(); }, POLL_MS);
     return () => { stale = true; clearInterval(t); };
   }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
-  const start = async () => {
-    try { setRunning((await api.runDeepInsights()).running); setError(null); } catch (e) { notify((e as Error).message, true); }
+  const start = async (force = false) => {
+    try { setRunning((await api.runDeepInsights(force)).running); setError(null); setNotice(null); } catch (e) { notify((e as Error).message, true); }
   };
   const task = async (f: DeepFinding) => {
     try { await api.addTask({ title: f.action.slice(0, 200) || f.title, dueAt: `${iso(addDays(new Date(), 1))}T10:00`, notes: `${f.title}: ${f.detail}`.slice(0, 1000) }); notify('Topshiriq qo‘shildi — ertaga 10:00'); } catch (e) { notify((e as Error).message, true); }
@@ -81,7 +82,7 @@ export function DiscoveriesBody({ notify }: { notify: Notify }) {
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#34d399]/12 text-[#86efc4]"><FlaskConical className="h-5 w-5" aria-hidden="true" /></span>
       <div className="min-w-0 flex-1">
         <h2 className="text-[16px] font-semibold text-[#f2f0ea]">Chuqur tahlil</h2>
-        <p className="mt-0.5 text-[13px] leading-snug text-[#8a909c]">Tahlilchi hamma ma'lumotni — qabullar, to'lovlar, kamera, qo'ng'iroqlar, yozishmalar — o'zi kesib-kesib ko'radi: kim, qachon keladi va ketadi, o'rtacha vaqt va summa, qaysi guruhda nima farq qiladi, qayerda g'ayrioddiy narsa bor. Har topilma raqam bilan isbotlanadi. 3–8 daqiqa; har tahlil API'dan taxminan 2–5 $.</p>
+        <p className="mt-0.5 text-[13px] leading-snug text-[#8a909c]">Tahlilchi hamma ma'lumotni — qabullar, to'lovlar, kamera, qo'ng'iroqlar, yozishmalar — o'zi kesib-kesib ko'radi: kim, qachon keladi va ketadi, o'rtacha vaqt va summa, qaysi guruhda nima farq qiladi, qayerda g'ayrioddiy narsa bor. Har topilma raqam bilan isbotlanadi. 3–8 daqiqa; har tahlilning narxi natija ostida yoziladi. Ma'lumot deyarli o'zgarmagan bo'lsa, qayta tahlil qilinmaydi — pul ketmaydi.</p>
       </div>
       <button type="button" onClick={() => { void start(); }} disabled={!!running} className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#f2f0ea] px-5 text-[13.5px] font-semibold text-[#07080b] disabled:opacity-50">
         {running ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Tahlil qilinyapti… {elapsed} daq</> : data ? 'Qayta tahlil qilish' : 'Chuqur tahlil qilish'}
@@ -94,6 +95,12 @@ export function DiscoveriesBody({ notify }: { notify: Notify }) {
     <div className="flex flex-col gap-5">
       {head}
       {error && !running && <p className="flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-[13.5px] text-rose-200"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{error}</p>}
+      {notice && !running && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-glass/[0.08] bg-glass/[0.03] px-4 py-3 sm:flex-row sm:items-center">
+          <p className="flex min-w-0 flex-1 items-start gap-2 text-[13.5px] leading-snug text-[#c9ccd4]"><Info className="mt-0.5 h-4 w-4 shrink-0 text-[#86efc4]" aria-hidden="true" />{notice}</p>
+          <button type="button" onClick={() => { void start(true); }} className="h-9 shrink-0 rounded-lg border border-glass/[0.12] px-3 text-[12.5px] font-medium text-[#c9ccd4] hover:bg-glass/[0.06]">Baribir qayta tahlil qilish</button>
+        </div>
+      )}
       {!data ? <Quiet>Hali chuqur tahlil qilinmagan. «Chuqur tahlil qilish»ni bosing — natija shu yerda saqlanadi.</Quiet> : (
         <>
           <section className="rounded-[22px] border border-[#34d399]/20 bg-[#34d399]/[0.05] p-5">
@@ -102,6 +109,7 @@ export function DiscoveriesBody({ notify }: { notify: Notify }) {
               <Database className="h-3.5 w-3.5" aria-hidden="true" />{data.from} — {data.to}
               {data.data.map(d => <span key={d.name}>{d.name.replace('.csv', '')}: {d.rows}</span>)}
               <span>· {when(data.createdAt)} da</span>
+              {data.cost !== undefined && <span>· narxi ≈ ${data.cost.toFixed(2)}</span>}
             </p>
             {data.notes.length > 0 && <p className="mt-1 text-[12px] text-[#7d838f]">{data.notes.join(' · ')}</p>}
           </section>

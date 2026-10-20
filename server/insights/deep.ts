@@ -8,10 +8,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
 import { toFile } from '@anthropic-ai/sdk';
-import { claude, thinkStream } from '../claude';
+import { claude, costUsd, thinkStream } from '../claude';
 import { newId, sql, type BusinessRow } from '../db';
 import { env } from '../env';
 import { buildDataset } from './dataset';
+import { staleReason } from './rerun';
 import type { Dataset } from './tables';
 
 export interface Finding { title: string; metric: string; detail: string; evidence: string; action: string; impact: 'high' | 'medium' | 'low'; chart: string | null }
@@ -19,7 +20,11 @@ export interface DeepInsights {
   id: string; createdAt: string; from: string; to: string;
   data: { name: string; rows: number }[]; notes: string[];
   headline: string; findings: Finding[]; quality: string[]; next: string[]; charts: string[];
+  /** Taxminiy narx, $ (eski natijalarda yo'q) */
+  cost?: number;
 }
+/** Ma'lumot oxirgi tahlildan beri deyarli o'zgarmagan — model chaqirilmadi */
+export class FreshEnough extends Error {}
 
 const MAX_TURNS = 8;
 const MAX_FINDINGS = 15;
@@ -37,9 +42,10 @@ export const ANALYST = `You are the business's senior data analyst. The owner wa
 The data files are CSVs in your working directory (described in the message). Customer and patient codes are pseudonymous; there are no names or message texts.
 Work like this:
 1. Load every file with pandas; check rows, date ranges, missing values and obvious errors. Note data-quality problems.
-2. Explore broadly before concluding: averages and distributions (visit length, waiting time, check size, revenue per patient, reply time); time patterns (hour × weekday, week-over-week trend); segments (gender, age bands, new vs returning, doctor, service type, channel, VIP); the funnel (inquiry → visit → payment, no-shows, cancellations, reminder-call results); returning (share of patients who come back within 30/90/180 days); doctors (load, chair minutes, average check, rating, no-show rate); anomalies (days, hours or doctors far from normal — IQR or z-score; sudden drops or spikes; camera chair time vs visits in the CRM; payments without visits and visits without payments); combinations of factors (e.g. gender × hour × service).
+2. Explore broadly before concluding. Do it systematically in code, not one combination at a time: for each key metric (no-show, waiting, chair minutes, check size, rating, coming back) compare every segment of every dimension and of every pair of dimensions with the rest, keep those with n ≥ 20 and a large effect, then verify the strongest. Cover: averages and distributions (visit length, waiting time, check size, revenue per patient, reply time); time patterns (hour × weekday, week-over-week trend); segments (gender, age bands, new vs returning, doctor, service type, channel, VIP); the funnel (inquiry → visit → payment, no-shows, cancellations, reminder-call results); returning (share of patients who come back within 30/90/180 days); doctors (load, chair minutes, average check, rating, no-show rate); anomalies (days, hours or doctors far from normal — IQR or z-score; sudden drops or spikes; camera chair time vs visits in the CRM; payments without visits and visits without payments); combinations of factors (e.g. gender × hour × service).
 3. Prove, don't guess: keep a pattern only with its sample size and effect size; with fewer than 20 cases say it is tentative or drop it; prefer medians and IQR; for every comparison give both numbers. Correlation is not cause — say so where it matters.
-4. Save 3–6 clear charts as PNG files (matplotlib, readable labels) in /tmp/outputs/.
+4. Work economically — every printed line is re-read at each later step: batch many checks into one code run, print only compact aggregate tables (no raw rows or whole dataframes, about 40 lines per run at most), never re-print what you already know.
+5. Save 3–6 clear charts as PNG files (matplotlib, readable labels) in /tmp/outputs/.
 Finally reply with only a JSON object in a \`\`\`json block:
 {"headline": "two sentences — the most important thing", "findings": [{"title": "short", "metric": "the key number, e.g. 38% / 2.4x / −1.2 mln so'm", "detail": "what exactly, with numbers and sample size", "evidence": "how it was computed", "action": "what the owner should do", "impact": "high|medium|low", "chart": "file name or null"}], "quality": ["data problems worth fixing"], "next": ["questions worth checking once more data exists"]}
 8–15 findings ranked by business impact (money or patients). Write everything in Uzbek (Latin script); keep numbers as numbers. No patient-level details.`;
@@ -80,10 +86,15 @@ const describe = (d: Dataset) => [
   ...(d.notes.length ? ['Not available:', ...d.notes.map(n => `- ${n}`)] : []),
 ].join('\n');
 
-/** prepared — tayyor to'plam (namoyish va sinov uchun); bo'lmasa biznesning o'z ma'lumotidan yig'iladi */
-export async function runDeepAnalysis(biz: BusinessRow, days = 365, prepared?: Dataset): Promise<DeepInsights> {
+/**
+ * prepared — tayyor to'plam (namoyish va sinov uchun); bo'lmasa biznesning o'z ma'lumotidan yig'iladi.
+ * force — ma'lumot deyarli o'zgarmagan bo'lsa ham qayta tahlil (aks holda FreshEnough, pul ketmaydi)
+ */
+export async function runDeepAnalysis(biz: BusinessRow, { days = 365, prepared, force = false }: { days?: number; prepared?: Dataset; force?: boolean } = {}): Promise<DeepInsights> {
   const data = prepared ?? await buildDataset(biz, days);
   if (!data.files.some(f => f.rows >= 10)) throw new Error("Tahlil uchun ma'lumot hali kam — DentaCRM'ni ulang yoki mijozlar yozib, qo'ng'iroq qilgan sari qayta urining");
+  const stale = force ? null : staleReason(deepStore.latest(biz.id), data.files);
+  if (stale) throw new FreshEnough(stale);
   const client = claude();
   const uploaded: string[] = [];
   const run = newId(10);
@@ -95,13 +106,18 @@ export async function runDeepAnalysis(biz: BusinessRow, days = 365, prepared?: D
     }];
     let container: string | undefined, final = '';
     const outputs: string[] = [];
+    const used = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       const res = await thinkStream(biz.id, 'owner', {
         model: env.aiModel, max_tokens: 32_000, system: ANALYST, messages,
         tools: [{ type: 'code_execution_20260521', name: 'code_execution' }],
         thinking: { type: 'adaptive', display: 'omitted' }, output_config: { effort: 'high' },
+        // Python'ning har qadamida oldingi suhbat qayta o'qiladi — keshdan 20 baravar arzon
+        cache_control: { type: 'ephemeral' },
         ...(container ? { container } : {}),
       });
+      const u = res.usage;
+      used.input += u.input_tokens; used.output += u.output_tokens; used.cacheRead += u.cache_read_input_tokens ?? 0; used.cacheWrite += u.cache_creation_input_tokens ?? 0;
       container = res.container?.id ?? container;
       outputs.push(...outputFiles(res.content));
       // Uzoq ish: server to'xtab turdi — javobni qaytarib davom ettiramiz
@@ -110,6 +126,8 @@ export async function runDeepAnalysis(biz: BusinessRow, days = 365, prepared?: D
       final = textOf(res.content);
       break;
     }
+    const cost = Math.round(costUsd(used) * 1000) / 1000;
+    console.log(`[tahlil] ${biz.id}: $${cost} (kirish ${used.input}, keshdan ${used.cacheRead}, keshga ${used.cacheWrite}, chiqish ${used.output})`);
     const parsed = parseFindings(final);
     if (!parsed) throw new Error("Tahlil natijasini o'qib bo'lmadi — qayta urinib ko'ring");
     // Grafiklar: faqat rasm fayllari, xavfsiz nom bilan
@@ -130,7 +148,7 @@ export async function runDeepAnalysis(biz: BusinessRow, days = 365, prepared?: D
     const result: DeepInsights = {
       id: run, createdAt: new Date().toISOString(), from: data.from, to: data.to,
       data: data.files.map(f => ({ name: f.name, rows: f.rows })), notes: data.notes, ...parsed,
-      findings: parsed.findings.map(f => ({ ...f, chart: f.chart && charts.includes(f.chart) ? f.chart : null })), charts,
+      findings: parsed.findings.map(f => ({ ...f, chart: f.chart && charts.includes(f.chart) ? f.chart : null })), charts, cost,
     };
     deepStore.save(biz.id, result);
     return result;

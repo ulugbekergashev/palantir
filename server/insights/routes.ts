@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import type { Express, Request, Response } from 'express';
 import type { BusinessRow } from '../db';
 import { analyzeDemand, insightsStore } from './analyze';
-import { chartsDir, deepStore, runDeepAnalysis } from './deep';
+import { chartsDir, deepStore, FreshEnough, runDeepAnalysis } from './deep';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps { asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler }
@@ -18,6 +18,8 @@ const daysOf = (v: unknown) => (PERIODS.includes(Number(v)) ? Number(v) : 7);
 /** Chuqur tahlil: biznes → boshlangan payt; oxirgi xato (panel ko'rsatadi) */
 const deepRunning = new Map<string, string>();
 const deepError = new Map<string, string>();
+/** Qayta tahlil kerak bo'lmadi (ma'lumot deyarli o'zgarmagan) — sababi */
+const deepNotice = new Map<string, string>();
 const SAFE = /^[\w-]{1,40}$/, CHART_FILE = /^[\w.-]{1,80}\.(png|jpe?g|svg)$/i;
 
 export function mountInsights(app: Express, { asBiz }: Deps): void {
@@ -41,15 +43,21 @@ export function mountInsights(app: Express, { asBiz }: Deps): void {
   }));
 
   app.get('/api/insights/deep', asBiz((_req, res, biz) => {
-    res.json({ result: deepStore.latest(biz.id), running: deepRunning.get(biz.id) ?? null, error: deepError.get(biz.id) ?? null });
+    res.json({ result: deepStore.latest(biz.id), running: deepRunning.get(biz.id) ?? null, error: deepError.get(biz.id) ?? null, notice: deepNotice.get(biz.id) ?? null });
   }));
-  app.post('/api/insights/deep', asBiz((_req, res, biz) => {
+  /** { force: true } — ma'lumot deyarli o'zgarmagan bo'lsa ham qayta tahlil (egasi «baribir» desa) */
+  app.post('/api/insights/deep', asBiz((req, res, biz) => {
     if (deepRunning.has(biz.id)) return res.status(429).json({ error: 'Tahlil davom etyapti — tugashini kuting' });
     const startedAt = new Date().toISOString();
     deepRunning.set(biz.id, startedAt);
     deepError.delete(biz.id);
-    void runDeepAnalysis(biz)
-      .catch(e => { deepError.set(biz.id, (e as Error).message); console.error('[tahlil] chuqur:', (e as Error).message); })
+    deepNotice.delete(biz.id);
+    void runDeepAnalysis(biz, { force: (req.body as { force?: unknown } | undefined)?.force === true })
+      .catch(e => {
+        if (e instanceof FreshEnough) return void deepNotice.set(biz.id, e.message);
+        deepError.set(biz.id, (e as Error).message);
+        console.error('[tahlil] chuqur:', (e as Error).message);
+      })
       .finally(() => deepRunning.delete(biz.id));
     res.status(202).json({ running: startedAt });
   }));

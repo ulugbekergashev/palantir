@@ -4,6 +4,7 @@
  */
 import type { DemandItem } from '../server/insights/collect';
 import { SCHEMA, shape, stripIds, systemPrompt } from '../server/insights/logic';
+import { staleReason } from '../server/insights/rerun';
 import { ageAt, crmTables } from '../server/insights/tables';
 import { ai, filesLog } from './fakes';
 import type { Harness } from './e2e-crm';
@@ -11,6 +12,16 @@ import type { Harness } from './e2e-crm';
 type Ok = (name: string, cond: unknown, info?: string) => void;
 
 export function insightsLogicTests(ok: Ok): void {
+  console.log('\n# Chuqur tahlil: qachon qayta qilinadi (har tahlil pulli)');
+  const prev = { createdAt: '2026-10-20T08:00:00.000Z', data: [{ name: 'visits.csv', rows: 900 }, { name: 'calls.csv', rows: 100 }] };
+  const at = new Date('2026-10-21T08:00:00.000Z');
+  ok('birinchi tahlil — qilinadi', staleReason(null, prev.data, at) === null);
+  ok("ertasi kuni +5% qator — qilinmaydi, sababi va keyingi sana aytiladi", /\+50 qator, 5%.*10% ko'payganda yoki 2026-10-27/.test(staleReason(prev, [{ name: 'visits.csv', rows: 940 }, { name: 'calls.csv', rows: 110 }], at) ?? ''), String(staleReason(prev, [{ name: 'visits.csv', rows: 940 }, { name: 'calls.csv', rows: 110 }], at)));
+  ok("+10% qator — qilinadi", staleReason(prev, [{ name: 'visits.csv', rows: 990 }, { name: 'calls.csv', rows: 110 }], at) === null);
+  ok('yangi manba (kamera ulandi) — kam bo\'lsa ham qilinadi', staleReason(prev, [...prev.data, { name: 'camera_sessions.csv', rows: 12 }], at) === null);
+  ok("bo'sh yangi fayl manba hisoblanmaydi", staleReason(prev, [...prev.data, { name: 'requests.csv', rows: 0 }], at) !== null);
+  ok('hafta to\'ldi — o\'zgarmagan bo\'lsa ham qilinadi', staleReason(prev, prev.data, new Date('2026-10-27T08:00:00.000Z')) === null);
+
   console.log('\n# Chuqur tahlil jadvallari (DentaCRM → CSV)');
   const t = crmTables({
     visits: [
@@ -90,4 +101,21 @@ export async function insightsApiTests(h: Harness): Promise<void> {
   const chart = await fetch(`${h.base}/api/insights/deep/chart/${r?.id}/qaytish.png`, { headers: { authorization: `Bearer ${token}` } });
   ok('grafik panelga beriladi; boshqa biznesga — 404', chart.status === 200 && (await fetch(`${h.base}/api/insights/deep/chart/${r?.id}/qaytish.png`, { headers: { authorization: `Bearer ${otherToken}` } })).status === 404);
   ok("grafik yo'lida ../ — 404", (await fetch(`${h.base}/api/insights/deep/chart/${r?.id}/..%2F..%2Fcerebro.db`, { headers: { authorization: `Bearer ${token}` } })).status === 404);
+
+  console.log('\n# Chuqur tahlil narxi: kesh, narx hisobi, keraksiz qayta tahlil yo\'q');
+  ok('har so\'rovda kesh yoqilgan (Python qadamlari oldingi suhbatni keshdan o\'qiydi)', ai.deep.length === 2 && ai.deep.every(d => JSON.stringify(d.cache) === '{"type":"ephemeral"}'), JSON.stringify(ai.deep.map(d => d.cache)));
+  // 2 javob × (kirish 1000 × $4 + keshdan 50 000 × $0.2 + keshga 4000 × $5 + chiqish 2000 × $20) / 1 mln = $0.148
+  ok('narx hisoblandi va saqlandi — keshdan o\'qish va keshga yozish ham sanaldi', (r as { cost?: number } | null)?.cost === 0.148, String((r as { cost?: number } | null)?.cost));
+  const waitDeep = async () => {
+    let s: { result: { id: string; charts: string[] } | null; running: string | null; error: string | null; notice: string | null } = { result: null, running: 'x', error: null, notice: null };
+    for (let i = 0; i < 60 && s.running; i++) { await new Promise(res => setTimeout(res, 250)); s = (await api('/api/insights/deep', { token })).json; }
+    return s;
+  };
+  ai.deep.length = 0;
+  ok('ma\'lumot o\'zgarmagan: qayta bosish — 202', (await api('/api/insights/deep', { token, body: {} })).status === 202);
+  const same = await waitDeep();
+  ok("…model chaqirilmadi, natija o'sha, egasiga sababi aytildi", ai.deep.length === 0 && same.result?.id === r?.id && !same.error && /kam o'zgardi.*pul sarflanmadi/.test(same.notice ?? ''), JSON.stringify(same).slice(0, 300));
+  ok('«Baribir» (force) — yangi tahlil, xabar tozalandi', (await api('/api/insights/deep', { token, body: { force: true } })).status === 202);
+  const forced = await waitDeep();
+  ok('…model chaqirildi, yangi natija, grafik yana bor', ai.deep.length === 2 && !!forced.result && forced.result.id !== r?.id && forced.result.charts.includes('qaytish.png') && forced.notice === null && !forced.error, JSON.stringify(forced).slice(0, 300));
 }
