@@ -144,7 +144,7 @@ function Channels({ status, phone, cameras, d, clinic }: { status: LiveStatus; p
     <Rail title="Kanallar" action={<a href="#/telegram" className="text-xs font-semibold text-indigo-700 hover:underline">Ulanishlar</a>}>
       <ul className="space-y-2">
         <ChannelRow icon={Instagram} name="Instagram Direct" dot={ig.dot} state={ig.state} count={k.instagram} />
-        <ChannelRow icon={Send} name="Telegram" dot={status.bot ? (status.ownerLinked ? 'ok' : 'warn') : 'off'} state={status.bot ? `@${status.bot}${status.telegramUser.account ? ' + shaxsiy' : ''}` : 'bot ulanmagan'} count={k.telegram} />
+        <ChannelRow icon={Send} name="Telegram" dot={status.bot ? (status.ownerLinked ? 'ok' : 'warn') : 'off'} state={status.bot ? `@${status.bot}${status.telegramUser.account || status.telegramBusiness.account ? ' + shaxsiy' : ''}` : 'bot ulanmagan'} count={k.telegram} />
         <ChannelRow icon={PhoneCall} name="Telefon" dot={phone?.mine ? (phone.noAccount ? 'warn' : 'ok') : 'off'} state={phone?.mine ? `MicroSIP${phone.recording ? ' · yozib olinadi' : ''}` : 'ulanmagan'} count={k.calls} />
         {(clinic || status.crm.account) && <ChannelRow icon={Stethoscope} name="DentaCRM" dot={status.crm.account ? (status.crm.problem ? 'warn' : 'ok') : 'off'} state={status.crm.problem ? 'muammo' : status.crm.account ? 'ulangan' : 'ulanmagan'} />}
         <ChannelRow icon={Camera} name="Kameralar" dot={!cameras.length ? 'off' : live === cameras.length ? 'ok' : 'warn'} state={cameras.length ? `${live}/${cameras.length} onlayn` : "qo'shilmagan"} />

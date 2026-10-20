@@ -82,6 +82,7 @@ export function ReceptionToday({ data, reload, notify, status, onChanged, tick }
     { name: 'Telegram bot', on: !!status.bot },
     { name: 'Instagram', on: !!(status.instagramApi?.account || status.instagram?.account) },
     ...(status.telegramUser?.enabled ? [{ name: 'Shaxsiy Telegram', on: !!status.telegramUser.account }] : []),
+    ...(status.telegramBusiness?.account ? [{ name: 'Telegram Business', on: true }] : []),
   ];
   const changed = () => { reload(); onChanged(); };
 

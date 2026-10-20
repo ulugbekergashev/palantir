@@ -40,6 +40,7 @@ import { replyCards } from './requests/store';
 import { linkStaff, listOpen, requestButton, requestReply, staffText, teamOutlet } from './requests/telegram';
 import { MAX_LOOK_CAMERAS, lookAt, lookRequest, shotCaption } from './camera/ask';
 import { events } from './orders/store';
+import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
 import { approveReply, clearBotOutlets, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
 export interface BotService {
@@ -371,6 +372,14 @@ export function createBot(): BotService {
 
   // ─── Buyruqlar ─────────────────────────────────────────────────────────────
   const ownerOf = (ctx: Context) => (ctx.chat?.type === 'private' ? businesses.byOwnerChat(String(ctx.chat.id)) : undefined);
+
+  // Telegram Business (Bot API 7.2): Telegraf 4.16 bu yangilanishlarni tanimaydi — xom holda, boshqa ishlovchilardan oldin
+  bot.use(async (ctx, next) => {
+    const u = ctx.update as { business_connection?: BusinessConnection; business_message?: BusinessMessage };
+    if (u.business_connection) return onBusinessConnection(u.business_connection, tg);
+    if (u.business_message) return onBusinessMessage(u.business_message);
+    return next();
+  });
 
   bot.start(async ctx => {
     if (ctx.chat.type !== 'private') return;
@@ -903,6 +912,7 @@ export function createBot(): BotService {
     await refreshFollowup(biz.id, id);
   }
 
+  startTelegramBusiness(tg);
   registerSender('bot', {
     can: (_biz, lead) => lead.botStarted && !!lead.tgUserId,
     async send(_biz, lead, text) {
@@ -946,7 +956,7 @@ export function createBot(): BotService {
                 { command: 'help', description: 'Nima qila olaman' },
               ]).catch(() => {});
               // Xabar olish to'xtamaguncha shu yerda turadi; uzilsa — pastda sababi yoziladi va qayta boshlanadi
-              await bot.launch({ dropPendingUpdates: false, allowedUpdates: ['message', 'callback_query', 'my_chat_member'] });
+              await bot.launch({ dropPendingUpdates: false, allowedUpdates: ['message', 'callback_query', 'my_chat_member', ...BUSINESS_UPDATES] });
               if (stopped) return;
               wait = RETRY_MIN_MS;
             } catch (e) {

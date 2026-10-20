@@ -38,6 +38,7 @@ import { clientCard } from './clientCard';
 import { MAX_PERIOD_DAYS, daysIn, periodDays, type PeriodKey } from '../src/lib/dashboard';
 import { phoneChanged } from './people';
 import { forgetLead } from './forget';
+import { telegramBusinessStatus } from './inbox/telegramBusiness';
 import { mountOrders } from './orders/routes';
 import { mountAttention } from './attention';
 import { mountTeamDay } from './teamDay';
@@ -57,6 +58,7 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
     linkUrl: username ? `https://t.me/${username}?start=o-${biz.linkCode}` : null,
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
     telegramUser: { enabled: env.tgPersonal, available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
+    telegramBusiness: telegramBusinessStatus(biz.id),
     instagram: { enabled: env.igViaBrowser, available: instagramAvailable(), ...instagramStatus(biz.id) },
     instagramApi: instagramApiStatus(biz.id),
     crm: crmStatus(biz.id),

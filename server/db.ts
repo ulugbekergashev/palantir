@@ -283,6 +283,8 @@ const toLead = (r: Raw): LeadRow => {
   const viaTelegram = (channel === 'telegram' || channel === 'manual') && !!((r.tg_user_id && r.tg_access_hash) || r.username || (r.phone && channel === 'manual'))
     && connected(businessId, 'telegram');
   const viaInstagram = channel === 'instagram' && !!r.ig_thread && (connected(businessId, 'instagram') || connected(businessId, 'instagram_api'));
+  // Telegram Business: egasining shaxsiy chatiga yozgan mijozga bot egasi nomidan yoza oladi (24 soat ichida — telegramBusiness.ts)
+  const viaBusiness = channel === 'telegram' && !!r.tg_user_id && connected(businessId, 'tg_business');
   return {
     id: String(r.id),
     businessId,
@@ -294,7 +296,7 @@ const toLead = (r: Raw): LeadRow => {
     igUserId: str(r.ig_user_id),
     igThread: str(r.ig_thread),
     botStarted,
-    reachable: botStarted || viaTelegram || viaInstagram,
+    reachable: botStarted || viaTelegram || viaInstagram || viaBusiness,
     channel,
     lastInboundAt,
     stage: String(r.stage) as LeadStage,
@@ -412,7 +414,8 @@ export const leads = {
 // ─── Ulanishlar: shaxsiy Telegram, Instagram (maxfiy qismi shifrlangan) ──────
 
 /** instagram — brauzer orqali (egasining akkaunti); instagram_api — rasmiy Instagram API (Meta ilovasi, Palantir Hub orqali) */
-export type ConnectionKind = 'telegram' | 'instagram' | 'instagram_api' | 'dentacrm' | 'sip_line';
+/** tg_business — egasining Telegram Business akkaunti, bot chat-bot sifatida (inbox/telegramBusiness.ts) */
+export type ConnectionKind = 'telegram' | 'tg_business' | 'instagram' | 'instagram_api' | 'dentacrm' | 'sip_line';
 export interface ConnectionRow { businessId: string; kind: ConnectionKind; secret: string; account: Record<string, string>; meta: Record<string, string>; updatedAt: string }
 
 const toConnection = (r: Raw): ConnectionRow => ({
