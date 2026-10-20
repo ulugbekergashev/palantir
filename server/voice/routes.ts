@@ -4,7 +4,6 @@
  * Agent panel foydalanuvchisi emas: unga faqat shu yo'llarga yaraydigan alohida kalit beriladi (bazada xeshi turadi, panelda qayta yaratiladi).
  * Agentning gapiga ishonilmaydi: chegaralar server o'zi yozgan qabullardan sanaladi, javobda boshqa bemorlar haqida hech narsa chiqmaydi.
  */
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { z } from 'zod';
 import { knowledgeText } from '../brain/index';
@@ -16,7 +15,9 @@ import { env } from '../env';
 import { notifyOwner } from '../inbox/core';
 import { leadForPhone } from '../people';
 import { openRequest } from '../requests/index';
+import { newVoiceKey, voiceKeyOwner } from './agentKey';
 import { applyLine, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk, transferNow } from './line';
+import { adoptVoiceKey } from './serviceEnv';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -31,23 +32,11 @@ const UNAVAILABLE = "Bu vaqtga yozib bo'lmadi. Boshqa vaqt taklif qiling yoki ad
 const HANDOFF = "Bu so'rovni administrator hal qiladi — qo'ng'iroqni unga uzating.";
 const LIMIT = "Hozir qabulga yozib bo'lmaydi — qo'ng'iroqni administratorga uzating.";
 
-const digest = (secret: string) => createHash('sha256').update(secret).digest();
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
-/** Yangi kalit: eski kalit shu zahoti ishlamay qoladi. Kalitning o'zi bir marta ko'rsatiladi */
-export function newVoiceKey(bizId: string): string {
-  const secret = randomBytes(32).toString('base64url');
-  voiceKeys.set(bizId, digest(secret).toString('hex'));
-  return `${bizId}.${secret}`;
-}
-
 function bizOf(req: Request): BusinessRow | null {
-  const [bizId, secret] = (req.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '').split('.');
-  const stored = bizId && secret ? voiceKeys.hash(bizId) : null;
-  if (!stored) return null;
-  const expected = Buffer.from(stored, 'hex'), given = digest(secret);
-  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
-  const biz = businesses.byId(bizId);
+  const bizId = voiceKeyOwner(req.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '');
+  const biz = bizId ? businesses.byId(bizId) : undefined;
   return biz?.active ? biz : null;
 }
 
@@ -95,7 +84,11 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   // Panel: qo'ng'iroqlar ro'yxati va agent kaliti
   app.get('/api/calls', asBiz((_req, res, biz) => res.json({ calls: calls.recent(biz.id) })));
   app.get('/api/voice/key', asBiz((_req, res, biz) => res.json({ exists: !!voiceKeys.hash(biz.id) })));
-  app.post('/api/voice/key', asBiz((_req, res, biz) => res.json({ key: newVoiceKey(biz.id) })));
+  app.post('/api/voice/key', asBiz((_req, res, biz) => {
+    const key = newVoiceKey(biz.id);
+    adoptVoiceKey(biz.id, key);
+    res.json({ key });
+  }));
 
   // Agent: bo'sh vaqtlar (model o'qiydigan matn)
   // Asterisk har kiruvchi qo'ng'iroqda so'raydi (extensions.conf, [kiruvchi]): «admin:20» — avval administrator telefoni, yoki «ai»
