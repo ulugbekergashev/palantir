@@ -12,7 +12,7 @@ import { costUsd } from './claude';
 import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
 import { facts as notes, refresh as refreshVault } from './brain/vault';
 import { syncTasks } from './brain/mirror';
-import { aiUsage, businesses, chatLog, documents, inbox, leads, moneyEntries, outbound, posts, publicLead, replies, tasks, type BusinessRow } from './db';
+import { aiUsage, businesses, chatLog, documents, inbox, leads, moneyEntries, outbound, publicLead, replies, tasks, type BusinessRow } from './db';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
 import { SilenceError, transcribe } from './stt';
@@ -52,7 +52,6 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
     voice: voiceEnabled(),
     ownerLinked: !!biz.ownerChatId,
     linkUrl: username ? `https://t.me/${username}?start=o-${biz.linkCode}` : null,
-    channel: biz.channelId ? { id: biz.channelId, title: biz.channelTitle } : null,
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
     telegramUser: { enabled: env.tgPersonal, available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
     instagram: { enabled: env.igViaBrowser, available: instagramAvailable(), ...instagramStatus(biz.id) },
@@ -64,7 +63,6 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
 /** Jurnaldagi narsaning hozirgi holati (post joylangan, xabar yuborilgan…) */
 function current(bizId: string, a: Artifact): Artifact {
   switch (a.type) {
-    case 'post': { const p = posts.get(bizId, a.post.id); return p ? { type: 'post', post: p } : a; }
     case 'outbound': { const o = outbound.get(bizId, a.outbound.id); return o ? { type: 'outbound', outbound: o } : a; }
     case 'task': { const t = tasks.get(bizId, a.task.id); return t ? { type: 'task', task: t } : a; }
     case 'money': { const m = moneyEntries.get(bizId, a.entry.id); return m ? { type: 'money', entry: entryView(m) } : a; }
@@ -400,22 +398,6 @@ export function createApp(bot: BotService) {
     res.send(buf);
   }));
 
-  // ─── Postlar ───────────────────────────────────────────────────────────────
-  app.get('/api/posts', asBiz((_req, res, biz) => { res.json({ posts: posts.list(biz.id) }); }));
-
-  // Post yasash olib tashlangan: eski qoralamani ko'rish va o'chirish qoldi, joylash va kanal ulash yopiq.
-  // (Kanal ulashda faqat bot admin ekani tekshirilardi — boshqa biznes begona kanalga eski postini joylashi mumkin edi.)
-  const RETIRED = 'Post joylash va kanal ulash olib tashlangan';
-  app.post('/api/posts/:id/publish', asBiz((_req, res) => { res.status(410).json({ error: RETIRED }); }));
-
-  app.delete('/api/posts/:id', asBiz((req, res, biz) => {
-    const p = posts.get(biz.id, String(req.params.id));
-    if (!p) return res.status(404).json({ error: 'Topilmadi' });
-    if (p.status === 'published') return res.status(409).json({ error: 'Joylangan postni bu yerdan o\'chirib bo\'lmaydi' });
-    posts.setStatus(biz.id, p.id, 'deleted');
-    res.json({ ok: true });
-  }));
-
   // ─── Eslab qolingan faktlar ────────────────────────────────────────────────
   app.get('/api/notes', asBiz((_req, res, biz) => { res.json({ notes: notes.list(biz.id) }); }));
 
@@ -431,14 +413,6 @@ export function createApp(bot: BotService) {
     if (!notes.remove(biz.id, String(req.params.id))) return res.status(404).json({ error: 'Topilmadi' });
     resetConversation(biz.id);
     res.json({ ok: true });
-  }));
-
-  // ─── Telegram kanal ────────────────────────────────────────────────────────
-  app.post('/api/channel', asBiz((_req, res) => { res.status(410).json({ error: RETIRED }); }));
-
-  app.delete('/api/channel', asBiz((_req, res, biz) => {
-    businesses.update(biz.id, { channelId: null, channelTitle: null });
-    res.json({ status: status(businesses.byId(biz.id)!, bot) });
   }));
 
   // ─── Shaxsiy Telegram: kirish qadamlari ────────────────────────────────────
@@ -557,7 +531,7 @@ export function createApp(bot: BotService) {
     res.json({
       businesses: businesses.all().map(b => ({
         id: b.id, login: b.login, name: b.profile.name, industry: b.profile.industry, active: b.active, createdAt: b.createdAt,
-        ownerLinked: !!b.ownerChatId, channel: b.channelTitle,
+        ownerLinked: !!b.ownerChatId,
       })),
     });
   }));

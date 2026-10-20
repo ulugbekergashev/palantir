@@ -1,13 +1,13 @@
 /**
  * Baza: bitta SQLite fayl (Node'ning o'zidagi node:sqlite).
- * Biznes profili — JSON; vazifalar, mijozlar, hujjatlar, postlar, xabarlar,
+ * Biznes profili — JSON; vazifalar, mijozlar, hujjatlar, xabarlar,
  * eslab qolingan faktlar va suhbatlar — alohida jadvallarda.
  * Har bir so'rov biznes id'si bilan cheklangan (bizneslar bir-birini ko'rmaydi).
  */
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { randomBytes } from 'node:crypto';
 import type {
-  Artifact, Business, ChatEntry, ContentItem, Doc, InboxMessage, Lead, LeadChannel, LeadStage, Note, Outbound, OutboundStatus, Post, PostStatus,
+  Artifact, Business, ChatEntry, Doc, InboxMessage, Lead, LeadChannel, LeadStage, Note, Outbound, OutboundStatus,
   MoneyEntry, MoneyKind, MoneyStatus, ReplyBooking, ReplyDraft, ReplyStatus, Task, TaskStatus, VisitChange,
 } from '../src/types';
 import type { Call, CallLine, Camera, CameraSession, CameraZone, Knowledge, KnowledgeKind, ZoneKind } from '../src/types';
@@ -29,7 +29,7 @@ try {
 db.exec(`
 CREATE TABLE IF NOT EXISTS businesses (
   id TEXT PRIMARY KEY, login TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, profile TEXT NOT NULL,
-  owner_chat_id TEXT UNIQUE, link_code TEXT NOT NULL UNIQUE, channel_id TEXT, channel_title TEXT,
+  owner_chat_id TEXT UNIQUE, link_code TEXT NOT NULL UNIQUE,
   active INTEGER NOT NULL DEFAULT 1, brief_date TEXT, created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS tasks (
@@ -45,10 +45,6 @@ CREATE INDEX IF NOT EXISTS leads_biz ON leads (business_id, created_at);
 CREATE INDEX IF NOT EXISTS leads_tg ON leads (tg_user_id, updated_at);
 CREATE TABLE IF NOT EXISTS documents (
   id TEXT PRIMARY KEY, business_id TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL, markdown TEXT NOT NULL, created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS posts (
-  id TEXT PRIMARY KEY, business_id TEXT NOT NULL, item TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft',
-  channel_message_id INTEGER, published_at TEXT, owner_message_id INTEGER, created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS outbound (
   id TEXT PRIMARY KEY, business_id TEXT NOT NULL, text TEXT NOT NULL, lead_ids TEXT NOT NULL,
@@ -143,8 +139,6 @@ export interface BusinessRow {
   profile: Business;
   ownerChatId: string | null;
   linkCode: string;
-  channelId: string | null;
-  channelTitle: string | null;
   active: boolean;
   /** Ertalabki xulosa oxirgi marta qaysi kuni yuborilgan (YYYY-MM-DD) */
   briefDate: string | null;
@@ -170,8 +164,6 @@ const toBusiness = (r: Raw): BusinessRow => ({
   profile: JSON.parse(String(r.profile)) as Business,
   ownerChatId: str(r.owner_chat_id),
   linkCode: String(r.link_code),
-  channelId: str(r.channel_id),
-  channelTitle: str(r.channel_title),
   active: Number(r.active) === 1,
   briefDate: str(r.brief_date),
   interview: str(r.interview),
@@ -184,8 +176,8 @@ const toBusiness = (r: Raw): BusinessRow => ({
 });
 
 const BIZ_COLUMNS = {
-  passwordHash: 'password_hash', profile: 'profile', ownerChatId: 'owner_chat_id', channelId: 'channel_id', linkCode: 'link_code',
-  channelTitle: 'channel_title', active: 'active', briefDate: 'brief_date', interview: 'interview', ownerPhone: 'owner_phone',
+  passwordHash: 'password_hash', profile: 'profile', ownerChatId: 'owner_chat_id', linkCode: 'link_code',
+  active: 'active', briefDate: 'brief_date', interview: 'interview', ownerPhone: 'owner_phone',
   setup: 'setup', outcome: 'outcome', eveningDate: 'evening_date', briefSentDate: 'brief_sent_date',
 } as const;
 
@@ -569,37 +561,6 @@ export const documents = {
   },
   get: (businessId: string, id: string) => one('SELECT * FROM documents WHERE business_id = ? AND id = ?', toDoc, businessId, id),
   list: (businessId: string, limit = 200) => many('SELECT * FROM documents WHERE business_id = ? ORDER BY created_at DESC LIMIT ?', toDoc, businessId, limit),
-};
-
-// ─── Postlar ──────────────────────────────────────────────────────────────────
-
-export interface PostRow extends Post { businessId: string; ownerMessageId: number | null; channelMessageId: number | null }
-
-const toPost = (r: Raw): PostRow => ({
-  id: String(r.id),
-  businessId: String(r.business_id),
-  item: JSON.parse(String(r.item)) as ContentItem,
-  status: String(r.status) as PostStatus,
-  inChannel: r.channel_message_id != null,
-  channelMessageId: num(r.channel_message_id),
-  publishedAt: str(r.published_at),
-  ownerMessageId: num(r.owner_message_id),
-  createdAt: String(r.created_at),
-});
-
-export const posts = {
-  create(businessId: string, item: ContentItem): PostRow {
-    const id = item.id;
-    run('INSERT INTO posts (id, business_id, item, created_at) VALUES (?, ?, ?, ?)', id, businessId, JSON.stringify(item), nowIso());
-    return posts.get(businessId, id)!;
-  },
-  get: (businessId: string, id: string) => one('SELECT * FROM posts WHERE business_id = ? AND id = ?', toPost, businessId, id),
-  list: (businessId: string, limit = 100) => many("SELECT * FROM posts WHERE business_id = ? AND status <> 'deleted' ORDER BY created_at DESC LIMIT ?", toPost, businessId, limit),
-  setItem: (businessId: string, id: string, item: ContentItem) => run('UPDATE posts SET item = ? WHERE business_id = ? AND id = ?', JSON.stringify(item), businessId, id),
-  setStatus: (businessId: string, id: string, status: PostStatus) => run('UPDATE posts SET status = ? WHERE business_id = ? AND id = ?', status, businessId, id),
-  setPublished: (businessId: string, id: string, channelMessageId: number | null) =>
-    run("UPDATE posts SET status = 'published', published_at = ?, channel_message_id = ? WHERE business_id = ? AND id = ?", nowIso(), channelMessageId, businessId, id),
-  setOwnerMessage: (businessId: string, id: string, messageId: number) => run('UPDATE posts SET owner_message_id = ? WHERE business_id = ? AND id = ?', messageId, businessId, id),
 };
 
 // ─── Mijozlarga xabar (follow-up) ─────────────────────────────────────────────

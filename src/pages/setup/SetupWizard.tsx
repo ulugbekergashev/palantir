@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, Check, Loader2, LogOut } from 'lucide-react';
 import { adminApi, api, session, type AdminBusiness } from '../../data/api';
-import { Logo } from '../../components/Sidebar';
+import { Logo } from '../../components/Logo';
 import { Button, Field, TextInput } from '../../components/ui';
 import { useFontsReady, useToast } from '../../lib/hooks';
 import type { KeyView, LiveStatus, SetupView } from '../../types';

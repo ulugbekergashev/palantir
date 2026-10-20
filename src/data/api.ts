@@ -245,7 +245,6 @@ export interface AdminBusiness {
   active: boolean;
   createdAt: string;
   ownerLinked: boolean;
-  channel: string | null;
 }
 
 /** Bir biznesning bir kunlik AI xarajati (taxminiy dollar — server narxlar jadvalidan hisoblaydi) */

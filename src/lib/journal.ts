@@ -1,4 +1,4 @@
-import type { Page } from '../components/Sidebar';
+import type { Page } from './nav';
 import type { Call, CameraSummary, InboxThread } from '../types';
 
 /** Jurnal qatori: nima bo'ldi va batafsili qaysi bo'limda. at — voqea vaqti (kutayotgan ishlarda yo'q) */

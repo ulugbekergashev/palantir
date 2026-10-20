@@ -288,15 +288,15 @@ try {
   say(OWNER, 'Dam olish kunlari aksiyasi haqida post qil');
   const noPost = await waitFor('post javobi', () => after(mark, OWNER, has("Noma'lum asbob")));
   ok("post asbobi modelga berilmaydi; chaqirilsa ham ishlamaydi — rasm ham, qoralama ham yo'q", !!noPost && !ai.requests.at(-1)!.tools.some(t => (t as { name?: string }).name === 'make_post') && !ai.requests.at(-1)!.system.includes('branded posts')
-    && !after(mark, OWNER, s => s.method === 'sendPhoto') && ((await api('/api/posts', { token })).json.posts as unknown[]).length === 0, textOf(noPost ?? ({ params: {} } as Sent)));
+    && !after(mark, OWNER, s => s.method === 'sendPhoto') && (await api('/api/posts', { token })).status === 404, textOf(noPost ?? ({ params: {} } as Sent)));
 
-  console.log('\n# Kanal va post joylash yopilgan');
+  console.log('\n# Kanal va post joylash olib tashlangan');
   const ch = await api('/api/channel', { token, body: { channel: '@test_channel' } });
   mark = sent.length;
   addedToChannel(OWNER);
   await sleep(700);
-  ok("kanal ulash yopilgan: so'rov — 410, bot kanalga admin qilinsa ham ulanmaydi; post joylash — 410", ch.status === 410 && !after(mark, OWNER, has('Kanal ulandi')) && (await api('/api/me', { token })).json.status.channel === null
-    && (await api('/api/posts/any/publish', { token, body: {} })).status === 410, JSON.stringify(ch.json));
+  ok("kanal va post yo'llari yo'q (404); bot kanalga admin qilinsa ham hech narsa bo'lmaydi", ch.status === 404 && !after(mark, OWNER, has('Kanal')) && !('channel' in (await api('/api/me', { token })).json.status)
+    && (await api('/api/posts/any/publish', { token, body: {} })).status === 404, JSON.stringify(ch.json));
 
   console.log('\n# Ovozli xabar');
   mark = sent.length;

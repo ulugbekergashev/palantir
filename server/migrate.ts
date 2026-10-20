@@ -16,6 +16,15 @@ interface Migration { version: number; about: string; up: (db: DatabaseSync) => 
 
 export const MIGRATIONS: Migration[] = [
   { version: 1, about: "bazaning nashri shu yerdan yuritiladi (tuzilma o'zgarmaydi)", up: () => {} },
+  {
+    version: 2,
+    about: 'postlar va Telegram kanal olib tashlandi: posts jadvali, businesses.channel_id va channel_title',
+    up: db => {
+      db.exec('DROP TABLE IF EXISTS posts');
+      const have = new Set((db.prepare('PRAGMA table_info(businesses)').all() as { name: string }[]).map(c => c.name));
+      for (const column of ['channel_id', 'channel_title']) if (have.has(column)) db.exec(`ALTER TABLE businesses DROP COLUMN ${column}`);
+    },
+  },
 ];
 export const SCHEMA_VERSION = MIGRATIONS.at(-1)?.version ?? 0;
 

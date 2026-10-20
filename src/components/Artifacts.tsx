@@ -1,10 +1,9 @@
-import { useRef, useState } from 'react';
-import { Banknote, Cctv, Check, CheckCircle2, Download, Eye, FileText, Loader2, RotateCcw, Send, Trash2, Users, X } from 'lucide-react';
-import type { Artifact, Business, CameraShot, Doc, MoneyEntry, MoneyStatus, Outbound, Post, Task } from '../types';
+import { useState } from 'react';
+import { Banknote, Cctv, Check, CheckCircle2, Download, Eye, FileText, Loader2, RotateCcw, Send, Users, X } from 'lucide-react';
+import type { Artifact, CameraShot, Doc, MoneyEntry, MoneyStatus, Outbound, Task } from '../types';
 import { api } from '../data/api';
-import { download, svgToPng } from '../lib/exportPng';
+import { download } from '../lib/download';
 import { dueLabel } from '../lib/week';
-import { Artboard, heightOf } from '../templates/Artboard';
 import { useEventImage } from './Journal';
 import { Markdown } from './Markdown';
 import { Button } from './ui';
@@ -45,43 +44,6 @@ export function DocCard({ doc, notify, compact = false }: { doc: Doc; notify: No
         </Button>
       </div>
       {open && <Markdown text={doc.markdown} className="mt-3 max-h-[480px] overflow-y-auto rounded-xl bg-slate-50 p-4 text-sm leading-relaxed" />}
-    </div>
-  );
-}
-
-/** Eski post (post yasash olib tashlangan): rasmni yuklab olish va qoralamani o'chirish qoldi */
-export function PostCard({ post, biz, notify, onChange }: {
-  post: Post; biz: Business; notify: Notify; onChange: (p: Post) => void;
-}) {
-  const ref = useRef<SVGSVGElement>(null);
-  const [busy, run] = useAction(notify);
-  const lang = biz.contentLang ?? 'uz';
-  const story = post.item.kind === 'story';
-  return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className={story ? 'mx-auto w-3/5 pt-3' : ''}>
-        <Artboard ref={ref} item={post.item} lang={lang} biz={biz} className={`block h-auto w-full ${story ? 'rounded-xl border border-slate-200' : ''}`} />
-      </div>
-      <div className="space-y-3 p-3.5">
-        <p className="line-clamp-4 whitespace-pre-line text-sm text-slate-700">{post.item.caption[lang]}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          {post.status === 'published'
-            ? <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700"><CheckCircle2 className="h-4 w-4" /> {post.inChannel ? 'Kanalga joylandi' : 'Joylandi'}</span>
-            : post.status === 'deleted' && <span className="text-xs font-bold text-slate-400">O'chirilgan</span>}
-          <Button size="sm" disabled={!!busy} onClick={() => run('png', async () => {
-            if (!ref.current) return;
-            download(await svgToPng(ref.current, 1080, heightOf(post.item)), fileName(post.item.design[lang].title, 'png'));
-          })}>
-            {busy === 'png' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} PNG
-          </Button>
-          <Button size="sm" disabled={!!busy} onClick={() => run('txt', async () => { await navigator.clipboard.writeText(post.item.caption[lang]); notify('Matn nusxalandi'); })}>Matnni nusxalash</Button>
-          {post.status === 'draft' && (
-            <Button size="sm" variant="danger" className="ml-auto" disabled={!!busy} onClick={() => run('del', async () => { await api.deletePost(post.id); onChange({ ...post, status: 'deleted' }); })}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
@@ -213,15 +175,16 @@ export function ShotCard({ shot }: { shot: CameraShot }) {
 }
 
 /** Suhbatdagi narsa */
-export function ArtifactView({ a, biz, notify, onChange, now }: {
-  a: Artifact; biz: Business; notify: Notify; onChange: (a: Artifact) => void; now: Date;
+export function ArtifactView({ a, notify, onChange, now }: {
+  a: Artifact; notify: Notify; onChange: (a: Artifact) => void; now: Date;
 }) {
   switch (a.type) {
     case 'document': return <DocCard doc={a.doc} notify={notify} />;
-    case 'post': return <div className="max-w-sm"><PostCard post={a.post} biz={biz} notify={notify} onChange={p => onChange({ type: 'post', post: p })} /></div>;
     case 'outbound': return <FollowupCard outbound={a.outbound} notify={notify} onChange={o => onChange({ type: 'outbound', outbound: o })} />;
     case 'money': return <MoneyCard entry={a.entry} notify={notify} onChange={e => onChange({ type: 'money', entry: e })} />;
     case 'task': return <TaskChip task={a.task} notify={notify} now={now} onChange={t => onChange({ type: 'task', task: t })} />;
     case 'camera': return <ShotCard shot={a.shot} />;
+    // Eski yozuvlardagi olib tashlangan turlar (post) — ko'rsatilmaydi
+    default: return null;
   }
 }

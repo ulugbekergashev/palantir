@@ -84,7 +84,7 @@ export function AssistantArea({ tab, biz, status, now, notify, onChanged, state,
       </AgentHero>
       {active === 'stol' && <AssistantDesk data={data} reload={reload} notify={notify} onChanged={onChanged} owner={(biz.ownerName || '').split(' ')[0]} />}
       {/* Suhbat ekran bo'yiga cho'ziladi: sarlavha egallagan joy hisobga olinadi */}
-      {active === 'suhbat' && <div className="[--shell-y:10.5rem]"><ChatPage biz={biz} status={status} notify={notify} now={now} /></div>}
+      {active === 'suhbat' && <div className="[--shell-y:10.5rem]"><ChatPage status={status} notify={notify} now={now} /></div>}
       {active === 'jurnal' && <div className="agent-body"><JournalPage now={now} notify={notify} onChanged={changed} /></div>}
       {active === 'topshiriqlar' && (
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">

@@ -45,7 +45,7 @@ export interface Business {
   hours?: string;
   instagram?: string;
   website?: string;
-  /** Postlar va hujjatlar qaysi tilda (bo'lmasa — o'zbekcha) */
+  /** Hujjatlar, mijozlarga matnlar va ovoz qaysi tilda (bo'lmasa — o'zbekcha) */
   contentLang?: Lang;
   /** Ertalabki qisqa xulosa (bugungi vazifalar, yangi mijozlar) */
   morningBrief?: boolean;
@@ -71,40 +71,6 @@ export interface AutoReply {
   /** Shaxsiy Telegram: kontaktlardagi odamlarga ham javob bersinmi (odatda — yo'q, ular tanishlar) */
   contacts: boolean;
   delayMin: number;
-}
-
-// ─── Post rasmi (shablon) ────────────────────────────────────────────────────
-
-export type TemplateId = 'promo' | 'tip' | 'team' | 'holiday' | 'list' | 'poll';
-export type ItemKind = 'post' | 'story';
-
-/** Rasmga tushadigan matnlar */
-export interface Design {
-  /** Yuqoridagi kichik yorliq: "Aksiya", "Foydali maslahat" */
-  kicker: string;
-  title: string;
-  /** Katta belgi: "-20%", "Bepul" */
-  badge?: string;
-  /** list shablonida har qator "chap|o'ng" */
-  lines: string[];
-  /** Pastdagi chaqiruv: "Buyurtma: @bot" */
-  cta?: string;
-  footnote?: string;
-}
-
-/** Shablon chizadigan narsa (post, storis) */
-export interface ContentItem {
-  id: string;
-  kind: ItemKind;
-  template: TemplateId;
-  /** Dizayn uslubi: 0 — rangli fon, 1 — oq fon, 2 — gradient */
-  style: number;
-  seed: number;
-  memberId?: string;
-  /** Xotira kuni kabi — bezaksiz, sokin uslub */
-  solemn?: boolean;
-  design: Record<Lang, Design>;
-  caption: Record<Lang, string>;
 }
 
 // ─── Yordamchi ishlari ───────────────────────────────────────────────────────
@@ -224,17 +190,6 @@ export interface Doc {
   createdAt: string;
 }
 
-export type PostStatus = 'draft' | 'published' | 'deleted';
-
-export interface Post {
-  id: string;
-  item: ContentItem;
-  status: PostStatus;
-  inChannel: boolean;
-  publishedAt: string | null;
-  createdAt: string;
-}
-
 export type OutboundStatus = 'draft' | 'sent' | 'cancelled';
 
 /** Mijozlarga xabar (follow-up): egasi tasdiqlagach yuboriladi */
@@ -337,7 +292,6 @@ export interface CameraShot { eventId: string | null; cameraId: string; cameraNa
 /** Yordamchi javobi bilan birga yaratilgan narsa (panel va Telegramda ko'rsatiladi) */
 export type Artifact =
   | { type: 'document'; doc: Doc }
-  | { type: 'post'; post: Post }
   | { type: 'outbound'; outbound: Outbound }
   | { type: 'money'; entry: MoneyEntry }
   | { type: 'task'; task: Task }
@@ -360,7 +314,6 @@ export interface LiveStatus {
   voice: boolean;
   ownerLinked: boolean;
   linkUrl: string | null;
-  channel: { id: string; title: string | null } | null;
   /** Instagram bio va reklama uchun: bosgan odam botga tushadi, raqamini qoldiradi */
   generalLink: string | null;
   /**

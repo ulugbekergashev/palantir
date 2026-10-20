@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { CheckCircle2, KeyRound, Loader2, LogOut, Plus, Power, Wand2 } from 'lucide-react';
 import { adminApi, session, type AdminBusiness, type AdminUsage } from '../data/api';
-import { Logo } from '../components/Sidebar';
+import { Logo } from '../components/Logo';
 import { Button, ButtonLink, Card, Field, TextInput } from '../components/ui';
 import { AnketaAdmin } from './AnketaAdmin';
 
@@ -124,7 +124,7 @@ export function AdminPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-slate-400">
-                <tr><th className="py-2 pr-3">Biznes</th><th className="pr-3">Soha</th><th className="pr-3">Login</th><th className="pr-3">Telegram</th><th className="pr-3">Kanal</th><th /></tr>
+                <tr><th className="py-2 pr-3">Biznes</th><th className="pr-3">Soha</th><th className="pr-3">Login</th><th className="pr-3">Telegram</th><th /></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {list.map(c => (
@@ -133,7 +133,6 @@ export function AdminPage() {
                     <td className="pr-3 text-slate-600">{c.industry || '—'}</td>
                     <td className="pr-3 text-slate-600">{c.login}</td>
                     <td className="pr-3">{c.ownerLinked ? <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-label="ulangan" /> : <span className="text-slate-400">—</span>}</td>
-                    <td className="pr-3 text-slate-600">{c.channel ?? '—'}</td>
                     <td className="whitespace-nowrap text-right">
                       <Button size="sm" variant="ghost" onClick={() => resetPassword(c)}><KeyRound className="h-3.5 w-3.5" /> Parol</Button>
                       <Button size="sm" variant={c.active ? 'danger' : 'ghost'} onClick={() => toggle(c)}><Power className="h-3.5 w-3.5" /> {c.active ? "O'chirish" : 'Yoqish'}</Button>
