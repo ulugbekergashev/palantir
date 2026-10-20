@@ -12,6 +12,7 @@
  */
 import { businesses, connections, inbox, type BusinessRow, type LeadRow } from '../db';
 import { env } from '../env';
+import { forgetInstagram } from '../forget';
 import { open, seal } from '../secret';
 import { isOurEcho, notifyOwner, onIncoming, onOwnerOutgoing, registerSender } from './core';
 import { splitForInstagram, windowRule } from './igRules';
@@ -130,6 +131,38 @@ async function onEntry(p: Record<string, unknown>): Promise<void> {
   }
 }
 
+/** Egasi ilovani Instagram'dan olib tashladi: token endi ishlamaydi — ulanish o'chadi, yozishmalar qoladi */
+async function onRevoked(p: Record<string, unknown>): Promise<void> {
+  const biz = businesses.byId(String(p.businessId ?? ''));
+  const c = biz && connections.get(biz.id, KIND);
+  if (!biz || !c || c.account.id !== String(p.igUserId ?? '')) return;
+  connections.remove(biz.id, KIND);
+  await notifyOwner(biz, `⚠️ Instagram @${esc(c.account.username)}'da Palantir ilovasi olib tashlandi — rasmiy ulanish uzildi, Direct xabarlari endi kelmaydi. Qayta ulash: panel → Ulanishlar.`).catch(() => null);
+}
+
+/** Meta orqali ma'lumotni o'chirish so'rovi: token va Instagram'dan kelgan ma'lumot o'chadi, keyin hubga «bajarildi» (holat sahifasi uchun) */
+async function onDelete(p: Record<string, unknown>): Promise<void> {
+  const biz = businesses.byId(String(p.businessId ?? ''));
+  if (biz) {
+    if (connections.get(biz.id, KIND)?.account.id === String(p.igUserId ?? '')) connections.remove(biz.id, KIND);
+    const gone = forgetInstagram(biz.id);
+    console.log(`[instagram] Meta so'rovi bilan o'chirildi: ${gone.messages} ta xabar, ${gone.leads} ta karta`);
+    await notifyOwner(biz, `🗑 Instagram akkaunti egasi Meta orqali ma'lumotni o'chirishni so'radi: rasmiy ulanish uzildi, Instagram'dan kelgan ${gone.messages} ta xabar va faqat Instagram'dan tanilgan ${gone.leads} ta mijoz kartasi o'chirildi.`).catch(() => null);
+  }
+  const hub = env.hub, code = String(p.code ?? '');
+  if (!hub || !code) return;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const r = await fetch(`${hub.url}/api/ig/deleted`, { method: 'POST', headers: { authorization: `Bearer ${hub.key}`, 'content-type': 'application/json' }, body: JSON.stringify({ code }), signal: AbortSignal.timeout(10_000) });
+      if (r.ok) return;
+      throw new Error(`hub ${r.status}`);
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      await new Promise(r => setTimeout(r, attempt * 2_000));
+    }
+  }
+}
+
 let running = false;
 /** Hub bilan aloqa: oxirgi muvaffaqiyatli so'rov va oxirgi xato (kanallar nazorati uchun) */
 const hubState = { okAt: Date.now(), error: null as string | null };
@@ -153,6 +186,8 @@ async function pullLoop(): Promise<void> {
         try {
           if (e.kind === 'ig_token') await onToken(e.payload);
           else if (e.kind === 'ig_entry') await onEntry(e.payload);
+          else if (e.kind === 'ig_revoked') await onRevoked(e.payload);
+          else if (e.kind === 'ig_delete') await onDelete(e.payload);
         } catch (err) {
           console.error(`[instagram] hub voqeasi (${e.kind}):`, (err as Error).message);
         }

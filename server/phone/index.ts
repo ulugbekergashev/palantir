@@ -29,10 +29,11 @@ import {
   windowsSystem, writeState, type MicrosipEnv, type MicrosipEvent, type MicrosipStatus, type MicrosipSystem, type SpoolReader,
 } from './microsip';
 import { AUDIO_EXT, MIME, findRecording, moveRecording } from './recordings';
-import { phoneCalls, type PhoneCallRow } from './store';
+import { RECORDINGS_DIR, phoneCalls, type PhoneCallRow } from './store';
+
+export { RECORDINGS_DIR };
 
 const STATE_DIR = path.join(env.dataDir, 'microsip');
-export const RECORDINGS_DIR = path.join(env.dataDir, 'recordings');
 /** MicroSIP yozuv faylini suhbat tugagach yopadi — shuncha kutib qidiriladi, topilmasa yana bir marta */
 const RECORDING_WAITS_MS = [2_500, 10_000];
 const SWEEP_MS = 30_000;

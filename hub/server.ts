@@ -22,7 +22,13 @@
  *   6. Diagnostika: egasi botga /diagnostika yozsa (yoki admin panelidan) — klinika holati va jurnallar oxiri /api/diag ga keladi
  *      (kalitlarsiz); GET /admin/diag — ro'yxat, /admin/diag/<klinika>/<fayl> — o'qish. Har klinikaga oxirgi 10 tasi.
  *
+ *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
+ *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
+ *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
+ *      Instagram'dan kelgan ma'lumotni o'chirish; klinika bajargach /api/ig/deleted — holat sahifasi «bajarildi».
+ *
  * Sozlama (muhit o'zgaruvchilari): IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL, HUB_VERIFY_TOKEN, HUB_ADMIN_KEY, PORT, HUB_DB;
+ * ochiq sahifalar uchun HUB_OPERATOR (xizmatni taqdim etuvchi, yuridik nomi) va HUB_CONTACT_EMAIL;
  * nazorat uchun HUB_BOT_TOKEN (sotuvchining boti) va HUB_ALERT_CHAT (xabar boradigan chat), HUB_OFFLINE_MS (standart 15 daqiqa).
  * Ishga tushirish: npm run hub
  */
@@ -33,6 +39,7 @@ import { pipeline } from 'node:stream/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
 
 const cfg = {
   port: Number(process.env.PORT) || 3400,
@@ -57,6 +64,8 @@ const cfg = {
   backupKeep: Number(process.env.HUB_BACKUP_KEEP) || 7,
   backupMaxBytes: (Number(process.env.HUB_BACKUP_MAX_MB) || 512) * 1_048_576,
   diagDir: resolve(process.env.HUB_DIAG_DIR || join(dirname(resolve(process.env.HUB_DB || 'hub-data/hub.db')), 'diagnostika')),
+  operator: process.env.HUB_OPERATOR || 'Palantir',
+  contactEmail: process.env.HUB_CONTACT_EMAIL || '',
 };
 const DIAG_KEEP = 10;
 /** Tashqi zaxira fayli shu belgi bilan boshlanadi (server/offsiteCrypto.ts) — boshqa narsa saqlanmaydi */
@@ -75,11 +84,17 @@ CREATE TABLE IF NOT EXISTS clinics (id TEXT PRIMARY KEY, name TEXT NOT NULL, key
 CREATE TABLE IF NOT EXISTS accounts (ig_user_id TEXT PRIMARY KEY, clinic_id TEXT NOT NULL, business_id TEXT NOT NULL, username TEXT, connected_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, clinic_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS events_clinic ON events (clinic_id, seq);
-CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS deletions (code TEXT PRIMARY KEY, ig_user_id TEXT NOT NULL, clinic_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, done_at TEXT);`);
 // Eski hub bazasiga nazorat ustunlari: status — oxirgi holat (JSON), alerted_at — «aloqa yo'q» aytilgan payt
 {
   const have = new Set((db.prepare('PRAGMA table_info(clinics)').all() as { name: string }[]).map(c => c.name));
   for (const [name, type] of [['status', 'TEXT'], ['alerted_at', 'TEXT']]) if (!have.has(name)) db.exec(`ALTER TABLE clinics ADD COLUMN ${name} ${type}`);
+}
+// Ilova doirasidagi foydalanuvchi id'si (/me → id): Meta signed_request'da qaysi id kelishi aniq emas — ikkalasi bo'yicha topiladi
+{
+  const have = new Set((db.prepare('PRAGMA table_info(accounts)').all() as { name: string }[]).map(c => c.name));
+  if (!have.has('app_user_id')) db.exec('ALTER TABLE accounts ADD COLUMN app_user_id TEXT');
 }
 
 /** OAuth holatini imzolash kaliti: birinchi ishga tushishda yaratiladi va bazada qoladi */
@@ -136,6 +151,17 @@ function clinicOf(req: IncomingMessage): string | null {
   db.prepare('UPDATE clinics SET seen_at = ? WHERE id = ?').run(now(), id);
   return id;
 }
+const legal = (): LegalInfo => ({ operator: cfg.operator, email: cfg.contactEmail, publicUrl: cfg.publicUrl || `http://127.0.0.1:${cfg.port}` });
+/** Meta signed_request: «imzo.ma'lumot» (base64url); imzo — ma'lumot qismining ilova siri bilan HMAC-SHA256'i */
+function signedRequest(v: string): { user_id?: string | number } | null {
+  const [sig, payload] = v.split('.');
+  if (!sig || !payload || !cfg.appSecret) return null;
+  if (!sameText(sig.replace(/=+$/, ''), createHmac('sha256', cfg.appSecret).update(payload).digest('base64url'))) return null;
+  try {
+    const j = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { algorithm?: string; user_id?: string | number };
+    return String(j.algorithm).toUpperCase() === 'HMAC-SHA256' ? j : null;
+  } catch { return null; }
+}
 const page = (title: string, text: string) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
 <body style="font:16px system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 16px;color:#13161d"><h1 style="font-size:1.4rem">${title}</h1><p>${text}</p></body>`;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -182,7 +208,48 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://hub');
   const p = url.pathname;
 
-  if (p === '/health') return send(res, 200, { ok: true, instagram: !!(cfg.appId && cfg.appSecret && cfg.publicUrl) });
+  if (p === '/health') return send(res, 200, { ok: true, instagram: !!(cfg.appId && cfg.appSecret && cfg.publicUrl), legal: !!cfg.contactEmail });
+
+  // Ochiq sahifalar (Meta ilovasi sozlamasida ko'rsatiladi)
+  if (req.method === 'GET' && p === '/privacy') return send(res, 200, privacyPage(legal()), 'text/html');
+  if (req.method === 'GET' && p === '/terms') return send(res, 200, termsPage(legal()), 'text/html');
+  if (req.method === 'GET' && p === '/data-deletion') return send(res, 200, deletionPage(legal()), 'text/html');
+  if (req.method === 'GET' && p === '/data-deletion/status') {
+    const row = db.prepare('SELECT code, status, created_at, done_at FROM deletions WHERE code = ?').get(url.searchParams.get('id') ?? '') as { code: string; status: string; created_at: string; done_at: string | null } | undefined;
+    const view: DeletionView | null = row ? { code: row.code, status: row.status === 'done' ? 'done' : 'pending', createdAt: row.created_at, doneAt: row.done_at } : null;
+    return send(res, row ? 200 : 404, deletionStatusPage(legal(), view), 'text/html');
+  }
+
+  // Meta: egasi ilovani Instagram'dan olib tashladi (deauthorize) yoki ma'lumotni o'chirishni so'radi (data deletion)
+  if (req.method === 'POST' && (p === '/ig/deauthorize' || p === '/ig/data-deletion')) {
+    const raw = await readRaw(req);
+    const signed = signedRequest(new URLSearchParams(raw?.toString() ?? '').get('signed_request') ?? '');
+    if (!signed?.user_id) return send(res, 400, { error: 'signed_request' });
+    const uid = String(signed.user_id), deleting = p === '/ig/data-deletion';
+    const code = deleting ? randomBytes(8).toString('hex') : '';
+    const found = db.prepare('SELECT ig_user_id, clinic_id, business_id FROM accounts WHERE ig_user_id = ? OR app_user_id = ?').all(uid, uid) as { ig_user_id: string; clinic_id: string; business_id: string }[];
+    for (const a of found) {
+      db.prepare('DELETE FROM accounts WHERE ig_user_id = ?').run(a.ig_user_id);
+      // Klinika hali olmagan xabarlar ham o'chadi
+      db.prepare("DELETE FROM events WHERE clinic_id = ? AND kind = 'ig_entry' AND json_extract(payload, '$.entry.id') = ?").run(a.clinic_id, a.ig_user_id);
+      enqueue(a.clinic_id, deleting ? 'ig_delete' : 'ig_revoked', { businessId: a.business_id, igUserId: a.ig_user_id, ...(deleting ? { code } : {}) });
+    }
+    console.log(`[hub] Meta: ${deleting ? "ma'lumotni o'chirish so'rovi" : 'ilova olib tashlandi'} — ${found.length ? `${found.length} ta akkaunt` : "bog'langan akkaunt yo'q"}`);
+    if (!deleting) return send(res, 200, { ok: true });
+    // Hubda bu akkauntdan hech narsa qolmagan bo'lsa — darhol bajarildi; aks holda klinika bajargach (/api/ig/deleted)
+    db.prepare('INSERT INTO deletions (code, ig_user_id, clinic_id, status, created_at, done_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(code, uid, found[0]?.clinic_id ?? null, found.length ? 'pending' : 'done', now(), found.length ? null : now());
+    return send(res, 200, { url: `${legal().publicUrl}/data-deletion/status?id=${code}`, confirmation_code: code });
+  }
+
+  // Klinika: Meta so'ragan o'chirishni bajardi
+  if (p === '/api/ig/deleted' && req.method === 'POST') {
+    const clinic = clinicOf(req);
+    if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    const body = JSON.parse((await readRaw(req))?.toString() || '{}') as { code?: string };
+    const r = db.prepare("UPDATE deletions SET status = 'done', done_at = ? WHERE code = ? AND clinic_id = ? AND status = 'pending'").run(now(), String(body.code ?? ''), clinic);
+    return send(res, 200, { ok: true, updated: Number(r.changes) });
+  }
 
   // Admin: yangi klinika — ulanish kodi bir marta ko'rsatiladi (bazada faqat xeshi)
   if (p === '/admin/clinics' && req.method === 'POST') {
@@ -324,10 +391,11 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       const token = String(longLived.access_token);
       const me = await graphJson(await fetch(`${cfg.graphUrl}/${cfg.graphVersion}/me?fields=user_id,username`, { headers: { authorization: `Bearer ${token}` } }));
       // Webhook'dagi entry.id — Instagram professional akkaunt id'si (user_id)
-      const igUserId = String(me.user_id ?? me.id), username = String(me.username ?? '');
-      db.prepare(`INSERT INTO accounts (ig_user_id, clinic_id, business_id, username, connected_at) VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT (ig_user_id) DO UPDATE SET clinic_id = excluded.clinic_id, business_id = excluded.business_id, username = excluded.username, connected_at = excluded.connected_at`)
-        .run(igUserId, state.c, state.b, username, now());
+      const igUserId = String(me.user_id ?? me.id), username = String(me.username ?? ''), appUserId = me.id ? String(me.id) : null;
+      db.prepare(`INSERT INTO accounts (ig_user_id, clinic_id, business_id, username, connected_at, app_user_id) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT (ig_user_id) DO UPDATE SET clinic_id = excluded.clinic_id, business_id = excluded.business_id, username = excluded.username,
+          connected_at = excluded.connected_at, app_user_id = excluded.app_user_id`)
+        .run(igUserId, state.c, state.b, username, now(), appUserId);
       enqueue(state.c, 'ig_token', { businessId: state.b, igUserId, username, token, expiresIn: Number(longLived.expires_in) || 5_184_000, permissions: first.permissions ?? null });
       return send(res, 200, page('✓ Instagram ulandi', `@${esc(username)} — Palantir endi Direct xabarlarini oladi va javob beradi. Bu oynani yopishingiz mumkin.`), 'text/html');
     } catch (e) {
@@ -425,7 +493,9 @@ server.headersTimeout = 66_000;
 server.listen(cfg.port, () => {
   console.log(`Palantir Hub: http://localhost:${cfg.port}`);
   console.log(`  Instagram: ${cfg.appId && cfg.appSecret && cfg.publicUrl ? `ilova ${cfg.appId}, ${cfg.publicUrl}` : "sozlanmagan (IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL)"}`);
-  console.log(`  webhook: ${cfg.publicUrl || '<HUB_PUBLIC_URL>'}/ig/webhook · OAuth: ${cfg.publicUrl || '<HUB_PUBLIC_URL>'}/ig/callback`);
+  const pub = cfg.publicUrl || '<HUB_PUBLIC_URL>';
+  console.log(`  webhook: ${pub}/ig/webhook · OAuth: ${pub}/ig/callback · deauthorize: ${pub}/ig/deauthorize · data deletion: ${pub}/ig/data-deletion`);
+  console.log(`  sahifalar: ${pub}/privacy, /terms, /data-deletion — ${cfg.contactEmail ? `${cfg.operator}, ${cfg.contactEmail}` : "HUB_CONTACT_EMAIL berilmagan: Meta aloqa manzilisiz siyosatni qabul qilmaydi"}`);
   console.log(`  nazorat: ${cfg.botToken && cfg.alertChat ? `klinika ${Math.round(cfg.offlineMs / 60_000)} daqiqa ko'rinmasa — Telegram ${cfg.alertChat}` : "Telegram'ga aytilmaydi (HUB_BOT_TOKEN, HUB_ALERT_CHAT)"}`);
 });
 const stop = () => { server.close(); db.close(); process.exit(0); };
