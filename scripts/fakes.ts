@@ -13,7 +13,18 @@ export const readBody = (req: IncomingMessage) => new Promise<Buffer>(res => {
   req.on('data', c => chunks.push(c));
   req.on('end', () => res(Buffer.concat(chunks)));
 });
-export const listen = (srv: ReturnType<typeof createServer>) => new Promise<number>(res => srv.listen(0, '127.0.0.1', () => res((srv.address() as { port: number }).port)));
+/**
+ * Soxta server bo'sh ulanishni klientdan (fetch — taxminan 4 s) uzoqroq ushlaydi: Node'ning 5 soniyalik standartida server
+ * ulanishni klient undan qayta foydalanayotgan paytda yopib qo'yishi mumkin edi (ECONNRESET) — eslatma «vaqtincha xato» bo'lib
+ * keyinga qolar va sinov tasodifan yiqilardi. Node 19+ da server.close() bo'sh ulanishlarni o'zi yopadi — sinov oxirida kutmaydi
+ */
+const KEEP_ALIVE_MS = 65_000;
+export const patient = <T extends ReturnType<typeof createServer>>(srv: T): T => {
+  srv.keepAliveTimeout = KEEP_ALIVE_MS;
+  srv.headersTimeout = KEEP_ALIVE_MS + 1_000;
+  return srv;
+};
+export const listen = (srv: ReturnType<typeof createServer>) => new Promise<number>(res => patient(srv).listen(0, '127.0.0.1', () => res((srv.address() as { port: number }).port)));
 export const json = (res: ServerResponse, body: unknown, code = 200) => { res.statusCode = code; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(body)); };
 
 /**
@@ -37,7 +48,7 @@ export const VOICE_BYTES = Buffer.from('OggS-fake-voice-bytes');
 /** Sinovda «yuborilgan» hujjatlar: bot ularni file_id bo'yicha yuklab oladi */
 const tgFiles = new Map<string, Buffer>();
 
-export const tgServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+export const tgServer = patient(createServer(async (req: IncomingMessage, res: ServerResponse) => {
   const url = req.url ?? '';
   if (url.startsWith('/file/')) {
     const doc = tgFiles.get(/\/doc\/([\w-]+)$/.exec(url)?.[1] ?? '');
@@ -88,7 +99,7 @@ export const tgServer = createServer(async (req: IncomingMessage, res: ServerRes
       return reply({ message_id: Number(params.message_id), date: 0, chat: { id: Number(params.chat_id), type: 'private' } });
     default: return reply(true);
   }
-});
+}));
 
 const user = (id: number) => ({ id, is_bot: false, first_name: id === OWNER ? 'Aziz' : 'Mijoz', username: id === OWNER ? 'aziz' : 'mijoz1', ...tgNames.get(id) });
 const chat = (id: number) => ({ id, type: 'private', first_name: 'X' });
@@ -169,7 +180,7 @@ export const tgUser = {
   },
 };
 export const TG_SESSION = 'sess-+998901112233';
-export const tgUserServer = createServer(async (req, res) => {
+export const tgUserServer = patient(createServer(async (req, res) => {
   const body = JSON.parse((await readBody(req)).toString() || '{}');
   const account = { id: '9000', name: 'Aziz Egasi', username: 'aziz_owner', phone: String(body.phone ?? '') };
   if (req.url !== '/updates') wire.log?.('Shaxsiy Telegram', req.url === '/send' ? `xabar yuborildi → ${String(body.to?.name ?? body.to?.username ?? body.to?.userId ?? '')}` : String(req.url), req.url === '/send' ? { to: body.to, text: body.text } : { phone: body.phone });
@@ -198,7 +209,7 @@ export const tgUserServer = createServer(async (req, res) => {
     }
     default: return json(res, { error: 'NOT_FOUND' }, 404);
   }
-});
+}));
 
 // ─── Soxta Instagram (brauzer ichidagi instagram.com, IG_FAKE_URL) ────────────
 interface IgUserF { pk: string; username: string; full_name: string; friendship_status: { following: boolean } }
@@ -239,7 +250,7 @@ export const igWeb = {
 };
 const igThreadJson = (id: string, t: { v2: string; user: IgUserF; items: IgItemF[] }) =>
   ({ thread_id: id, thread_v2_id: t.v2, users: [t.user], items: t.items.slice(0, 20), is_group: false, last_activity_at: t.items[0]?.timestamp ?? '0' });
-export const igWebServer = createServer(async (req, res) => {
+export const igWebServer = patient(createServer(async (req, res) => {
   const body = JSON.parse((await readBody(req)).toString() || '{}');
   const reply = (status: number, payload: unknown, url = 'https://www.instagram.com/direct/inbox/') => json(res, { status, url, body: typeof payload === 'string' ? payload : JSON.stringify(payload) });
   switch (req.url) {
@@ -279,11 +290,11 @@ export const igWebServer = createServer(async (req, res) => {
     }
     default: return json(res, { error: 'NOT_FOUND' }, 404);
   }
-});
+}));
 
 // ─── Soxta ovoz xizmati ───────────────────────────────────────────────────────
 export const stt = { text: 'Bugun nima qilishim kerak?', queue: [] as string[], geminiFails: false, gemini: 0, groq: 0, lastAudio: Buffer.alloc(0), lastMime: '' };
-export const sttServer = createServer(async (req, res) => {
+export const sttServer = patient(createServer(async (req, res) => {
   const body = await readBody(req);
   /** Navbatdagi ovozli xabarning matni (stend har xabarga o'zinikini qo'yadi); navbat bo'sh bo'lsa — stt.text */
   const heard = (): string => {
@@ -301,7 +312,7 @@ export const sttServer = createServer(async (req, res) => {
   }
   stt.groq++;
   return json(res, { text: heard() });
-});
+}));
 
 // ─── Soxta Claude ─────────────────────────────────────────────────────────────
 type Block = Record<string, any>;
@@ -494,7 +505,7 @@ export const speechlab = {
   /** Keyingi POST shu kod bilan rad etiladi (bir marta) */
   failNext: 0,
 };
-export const speechlabServer = createServer(async (req, res) => {
+export const speechlabServer = patient(createServer(async (req, res) => {
   const body = await readBody(req);
   const url = req.url ?? '';
   if (req.method === 'POST' && url === '/agent-calls') {
@@ -509,7 +520,7 @@ export const speechlabServer = createServer(async (req, res) => {
   const m = /^\/agent-calls\/(\d+)$/.exec(url);
   if (req.method === 'GET' && m) return json(res, { id: Number(m[1]), status: speechlab.outcome, finished: true, duration_sec: speechlab.outcome === 'done' ? 20 : 0 });
   json(res, { error: 'topilmadi' }, 404);
-});
+}));
 
 /**
  * Oqim bilan javob (stream: true — insights/deep.ts): tayyor xabar SSE hodisalariga bo'linadi. Matn — text_delta, asbob kirishi —
@@ -560,7 +571,7 @@ async function filesApi(req: IncomingMessage, res: ServerResponse): Promise<void
   return json(res, meta(m[1], f));
 }
 
-export const aiServer = createServer(async (req, res) => {
+export const aiServer = patient(createServer(async (req, res) => {
   if (req.url?.startsWith('/v1/files')) return filesApi(req, res);
   const body = JSON.parse((await readBody(req)).toString()) as { system: string; messages: Msg[]; tools: Block[]; thinking: unknown; model: string };
   ai.calls++;
@@ -716,4 +727,4 @@ export const aiServer = createServer(async (req, res) => {
     id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content, stop_reason: stop, stop_sequence: null,
     stop_details: null, usage: { input_tokens: 10, output_tokens: 20 },
   });
-});
+}));
