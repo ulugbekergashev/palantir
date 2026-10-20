@@ -136,7 +136,9 @@ function cleanStatus(v: unknown) {
     const q = record(x);
     return { business: text(q.business, 80), label: text(q.label, 80), problem: text(q.problem, 300), since: text(q.since, 40) };
   });
-  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), problems, at: now() };
+  const u = o.lastUpdate ? record(o.lastUpdate) : null;
+  const lastUpdate = u ? { from: text(u.from, 40), to: text(u.to, 40), result: text(u.result, 20), reason: text(u.reason, 500), at: text(u.at, 40) } : null;
+  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), problems, lastUpdate, at: now() };
 }
 
 /** OAuth holati: klinika, biznes, muddat — imzolangan (begona odam boshqa klinika nomidan ulay olmasin) */

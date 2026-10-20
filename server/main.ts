@@ -53,6 +53,11 @@ for (const r of recoverMoney()) notices.add(r.businessId, `⚠️ <b>${r.title}<
 recoverBookings();
 // Port — tarmoqqa bog'liq ishlardan oldin: internet bo'lmasa ham panel ochiladi, port band bo'lsa bot navbatiga tegilmaydi
 const server = await listen(createApp(bot));
+if (env.dryRun) {
+  // Yangilovchining sinovi: tashqi dunyoga hech narsa ulanmaydi, yangilovchi tekshirib bo'lgach jarayonni to'xtatadi
+  console.log(`Cerebro sinov rejimida: http://localhost:${env.port}`);
+  await new Promise<never>(() => {});
+}
 await Promise.race([bot.start(), new Promise(r => setTimeout(r, BOT_WAIT_MS))]);
 // Rasmiy Instagram (hub orqali) birinchi: ikkalasi ulangan biznesda javob rasmiy yo'l bilan ketadi
 startInstagramApi();

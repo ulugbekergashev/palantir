@@ -49,6 +49,11 @@ export const env = {
   recordingsKeepDays: process.env.RECORDINGS_KEEP_DAYS && Number.isFinite(Number(process.env.RECORDINGS_KEEP_DAYS)) ? Number(process.env.RECORDINGS_KEEP_DAYS) : 90,
   /** Ma'lumotlar diskida shundan kam bo'sh joy qolsa (MB) — egasiga aytiladi */
   diskMinFreeMb: Number(process.env.DISK_MIN_FREE_MB) || 2048,
+  /**
+   * Yangilashdan oldingi sinov (scripts/update.mjs): baza nusxasida faqat panel va baza ko'tariladi — bot, kanallar, jadval,
+   * kameralar va tashqi xizmatlar yoqilmaydi
+   */
+  dryRun: process.env.CEREBRO_DRY_RUN === '1',
   /** Cerebro Hub'ga holat yuborish oralig'i (hub kodi bo'lsa) */
   heartbeatMs: Number(process.env.HEARTBEAT_MS) || 5 * 60_000,
   /** @BotFather tokeni. Bo'lmasa — panel ishlaydi, Telegram o'chiq */

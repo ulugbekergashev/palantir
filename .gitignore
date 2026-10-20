@@ -42,3 +42,6 @@ tgvoice/asterisk/pjsip_admin.conf
 
 # Sinov natijalari (scripts/doc-bench.ts)
 /tmp/
+
+# Reliz arxivi (npm run release)
+/reliz/

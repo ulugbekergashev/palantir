@@ -52,6 +52,7 @@ jobs:
       - run: npm run test:phone
       - run: npm run test:instagram
       - run: npm run test:hub
+      - run: npm run test:update
       - run: npm run test:tgcall
       - run: npm run test:ipcam
       - run: npm run test:camwork

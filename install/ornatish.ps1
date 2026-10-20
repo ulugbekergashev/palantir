@@ -117,15 +117,20 @@ if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
 node scripts\supervise.mjs status | Out-Null
 if ($LASTEXITCODE -eq 0) { Note "Ishlab turgan Cerebro to'xtatilmoqda..."; node scripts\supervise.mjs stop }
 
-# --- 2. Kutubxonalar ---------------------------------------------------------
-Step '2/7  Kutubxonalar (bir necha daqiqa, internet kerak)'
-Run 'npm ci' { npm ci --no-audit --no-fund }
-
-# --- 3. Panel va kamera modeli -----------------------------------------------
-Step '3/7  Kamera modeli va panel'
-npm run --silent camera:model
-if ($LASTEXITCODE -ne 0) { Warn "Kamera modeli yuklanmadi - kamera nazorati ishlamaydi. Keyinroq: npm run camera:model, so'ng npm run build" }
-Run 'npm run build' { npm run --silent build }
+# --- 2-3. Kutubxonalar, kamera modeli va panel -------------------------------
+# Reliz arxivi (files.json bor): kutubxonalar Windows uchun yig'ilgan, panel va kamera modeli tayyor - internetsiz ham o'rnatiladi.
+# Dasturchi nusxasi: hammasi shu yerda yuklanadi va yig'iladi.
+if ((Test-Path 'files.json') -and (Test-Path 'node_modules') -and (Test-Path 'dist\index.html')) {
+  Step '2-3/7  Reliz arxivi: kutubxonalar, kamera modeli va panel tayyor'
+  Note "Nashr: $((Get-Content 'files.json' -Raw | ConvertFrom-Json).version). Keyingi nashrlar har kecha o'zi o'rnatiladi (scripts\update.mjs)"
+} else {
+  Step '2/7  Kutubxonalar (bir necha daqiqa, internet kerak)'
+  Run 'npm ci' { npm ci --no-audit --no-fund }
+  Step '3/7  Kamera modeli va panel'
+  npm run --silent camera:model
+  if ($LASTEXITCODE -ne 0) { Warn "Kamera modeli yuklanmadi - kamera nazorati ishlamaydi. Keyinroq: npm run camera:model, so'ng npm run build" }
+  Run 'npm run build' { npm run --silent build }
+}
 
 # --- 4. Sozlamalar (.env) ----------------------------------------------------
 Step '4/7  Sozlamalar (.env)'

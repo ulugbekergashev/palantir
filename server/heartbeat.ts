@@ -4,15 +4,20 @@
  * (o'chgan kompyuter o'zi ayta olmaydi). Mijozlar, xabarlar va ismlar yuborilmaydi. Hub kodi kiritilmagan bo'lsa — hech narsa.
  */
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { businesses } from './db';
 import { freeMb } from './disk';
 import { env } from './env';
 import { onKeyChange } from './keys';
 import { SCHEMA_VERSION } from './migrate';
 import { openProblems } from './monitor';
+import { APP_VERSION } from './version';
 
-export const APP_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 const startedAt = new Date().toISOString();
+
+function lastUpdate(): unknown {
+  try { return JSON.parse(readFileSync(join(env.dataDir, 'yangilash', 'holat.json'), 'utf8')); } catch { return null; }
+}
 
 export function heartbeatStatus() {
   const active = businesses.all().filter(b => b.active);
@@ -23,6 +28,8 @@ export function heartbeatStatus() {
     diskFreeMb: freeMb(env.dataDir),
     businesses: active.length,
     problems: active.flatMap(b => openProblems(b.id).map(p => ({ business: b.profile.name, label: p.label, problem: p.problem, since: p.since }))),
+    // Yangilovchining oxirgi natijasi (scripts/update.mjs): «qaytarildi» yoki «sinov» — sotuvchi bilsin
+    lastUpdate: lastUpdate(),
   };
 }
 

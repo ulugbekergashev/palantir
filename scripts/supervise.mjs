@@ -6,6 +6,8 @@
  * Telefon liniyasi (tgvoice/sip_live.py — Asterisk WSL'da ↔ Gemini Live) sozlangan bo'lsa (.env: SIP_OWNER_PASSWORD va TG_CALL_PYTHON),
  * u ham shu yerda yoqiladi va kuzatiladi: AI qabulxona kechasi ham, qarovsiz ishlaydi. Jurnali — DATA_DIR\logs\telefon.log
  * Oddiy Node skripti (tsx kerak emas): server buzilgan bo'lsa ham nazoratchi ishlaydi va sababini jurnalga yozadi.
+ * Yangilash: har kecha UPDATE_HOUR da (standart 3:00) yangilovchi (scripts/update.mjs) alohida jarayonda ishga tushadi — yangi nashr
+ * bo'lsa u nazoratchini o'zi to'xtatib, fayllarni almashtirib, qayta yoqadi. Dasturchi nusxasida (.git bor) va UPDATE_AUTO=0 da — o'chiq.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
@@ -157,7 +159,23 @@ process.on('SIGTERM', () => { void stop('tizim buyrug\'i'); });
 process.on('SIGHUP', () => { void stop('oyna yopildi'); });
 setInterval(() => { if (existsSync(STOP_FILE)) void stop("«stop» buyrug'i"); }, STOP_POLL_MS);
 
-log(`nazoratchi ishga tushdi (papka: ${ROOT}, ma'lumotlar: ${DATA})`);
+const UPDATE_HOUR = process.env.UPDATE_HOUR ? Number(process.env.UPDATE_HOUR) : 3;
+const UPDATE_AUTO = process.env.UPDATE_AUTO !== '0' && !existsSync(join(ROOT, '.git'));
+const UPDATE_STAMP = join(DATA, 'yangilash', 'tekshirildi.txt');
+/** Kuniga bir marta, belgilangan soatda: yangilovchi nazoratchidan mustaqil (detached) — u nazoratchini to'xtatganda o'zi tirik qoladi */
+function maybeUpdate() {
+  const now = new Date(), two = n => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+  if (stopping || now.getHours() !== UPDATE_HOUR) return;
+  try { if (readFileSync(UPDATE_STAMP, 'utf8').trim() === today) return; } catch { /* hali tekshirilmagan */ }
+  mkdirSync(dirname(UPDATE_STAMP), { recursive: true });
+  writeFileSync(UPDATE_STAMP, today);
+  log('yangi nashr tekshirilmoqda (scripts/update.mjs, jurnali: logs/yangilash.log)');
+  spawn(process.execPath, ['scripts/update.mjs'], { cwd: ROOT, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+}
+if (UPDATE_AUTO) setInterval(maybeUpdate, 60_000);
+
+log(`nazoratchi ishga tushdi (papka: ${ROOT}, ma'lumotlar: ${DATA}${UPDATE_AUTO ? `, yangilash har kuni ${UPDATE_HOUR}:00 da` : ''})`);
 if (phoneEnabled) {
   log('telefon liniyasi ham yoqiladi (tgvoice/sip_live.py)');
   void keepPhone();

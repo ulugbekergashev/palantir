@@ -29,7 +29,8 @@ o'rnatgich **avtomatik kirishni** taklif qiladi (pastda).
 
 ## 2. O'rnatish
 
-1. `cerebro` papkasini kompyuterga ko'chiring, masalan `C:\Cerebro` (ichida `install`, `server`, `src` papkalari bo'ladi).
+1. GitHub'dagi oxirgi relizdan `cerebro-<nashr>.zip` ni yuklab oling (Releases), masalan `C:\Cerebro` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
+   Reliz arxivida kutubxonalar, panel va kamera modeli tayyor — o'rnatish internetsiz ham o'tadi. Keyingi nashrlar har kecha o'zi o'rnatiladi.
 2. `install\Ornatish.cmd` ni ikki marta bosing. U o'zi:
    - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'rnatishni taklif qiladi. Node.js o'rnatilgach oynani yopib, `Ornatish.cmd` ni **qayta** bosing;
    - kutubxonalarni yuklaydi va panelni yig'adi;
@@ -116,7 +117,7 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 | Nima bo'lganini ko'rish | `C:\CerebroData\logs\` — har kunga bitta fayl (`2026-10-14.log`), 14 kun saqlanadi. `supervisor.log` — qachon to'xtab, qachon qayta yongani |
 | Zaxira nusxa | Har kuni o'zi olinadi: `C:\CerebroData\backups\KUN\` (baza, «ikkinchi miya», maxfiy kalit), 14 kun. Boshqa diskka olish: `.env` da `BACKUP_DIR=D:\CerebroZaxira` |
 | Tiklash | Cerebro'ni to'xtating → `C:\CerebroData` dagi `cerebro.db-wal` va `cerebro.db-shm` fayllarini o'chiring → zaxira papkasidagi `cerebro.db`, `miya`, `session.secret` ni `C:\CerebroData` ga ko'chiring → ishga tushiring |
-| Dasturni yangilash | Yangi `cerebro` papkasini eskisining ustiga ko'chiring (`.env` qoladi) → `install\Ornatish.cmd`. Ma'lumotlar `C:\CerebroData` da — tegilmaydi |
+| Dasturni yangilash | **O'zi**: har kecha 3:00 da yangi reliz bo'lsa — imzosi tekshiriladi, bazaning nusxasida sinab ko'riladi, keyin o'rnatiladi; yangi nashr ishga tushmasa eskisi va baza o'zi qaytariladi (`logs\yangilash.log`, natijasi hub holatida). Qo'lda: `npm run update`. O'chirish: `.env` da `UPDATE_AUTO=0` |
 | AI xarajati | Admin sahifasida oxirgi 7 kun: so'rovlar soni va taxminiy dollar. Aniq hisob — platform.claude.com |
 | Kalitni almashtirish | `/#/ulash` → «Kalitlar»: yangisini qo'ying — tekshiriladi va server to'xtamasdan kuchga kiradi. Kalitlar bazada shifrlangan (`session.secret` bilan); `.env` dagisi faqat panelda berilmagan bo'lsa ishlaydi |
 | Olib tashlash | `install\Ornatish.cmd -Uninstall` (ma'lumotlar o'chmaydi) |
