@@ -106,13 +106,13 @@ function PhoneCard({ notify }: { notify: Notify }) {
     work().then(r => { setS(r.phone); notify(done); }).catch(e => {
       const msg = (e as Error).message;
       // Boshqa dastur (DentaCRM) ulagan bo'lsa — egasi so'rab, keyin o'tkazadi
-      if (/boshqa dasturga ulangan/.test(msg) && window.confirm(`${msg}\n\nCerebro'ga o'tkazilsinmi?`)) return act(() => api.connectPhone(true), done);
+      if (/boshqa dasturga ulangan/.test(msg) && window.confirm(`${msg}\n\nPalantir'ga o'tkazilsinmi?`)) return act(() => api.connectPhone(true), done);
       notify(msg, true);
     }).finally(() => setBusy(false));
   };
   if (!s) return null;
   return (
-    <Card title="Klinika telefoni (MicroSIP)" description="MicroSIP — kompyuterdagi bepul softfon; istalgan SIP operator bilan ishlaydi (UTEL, Uztelecom, Sipuni, OnlinePBX). Ulanganda Cerebro har bir qo'ng'iroqni ko'radi, suhbatni yozib oladi va so'rov kartasidagi «📞 Kompyuterdan» tugmasi bilan raqam teradi.">
+    <Card title="Klinika telefoni (MicroSIP)" description="MicroSIP — kompyuterdagi bepul softfon; istalgan SIP operator bilan ishlaydi (UTEL, Uztelecom, Sipuni, OnlinePBX). Ulanganda Palantir har bir qo'ng'iroqni ko'radi, suhbatni yozib oladi va so'rov kartasidagi «📞 Kompyuterdan» tugmasi bilan raqam teradi.">
       {!s.available ? <p className="text-sm text-slate-500">MicroSIP faqat Windows kompyuterda ishlaydi.</p>
         : !s.exePath ? <p className="text-sm text-slate-600">MicroSIP topilmadi. microsip.org'dan o'rnating, operator bergan SIP login bilan hisob qo'shing, keyin shu yerda «Ulash»ni bosing.</p>
         : s.otherBusiness ? <p className="text-sm text-amber-700">Bu kompyuterdagi MicroSIP boshqa biznesga ulangan.</p>

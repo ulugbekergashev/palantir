@@ -1,8 +1,8 @@
 {
-  "name": "cerebro",
+  "name": "palantir",
   "private": true,
   "version": "0.1.0",
-  "description": "Cerebro — har qanday biznes uchun AI yordamchi (Telegram + panel)",
+  "description": "Palantir — har qanday biznes uchun AI yordamchi (Telegram + panel)",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n server,web -c green,blue \"npm:dev:server\" \"npm:dev:web\"",

@@ -21,7 +21,7 @@ const STATE: Record<MoneyStatus, string> = {
   draft: 'Hali tasdiqlanmagan', running: 'Hozir yozilmoqda — kuting', done: "Allaqachon CRM'ga yozilgan", cancelled: 'Bu taklif bekor qilingan',
   failed: "Bu taklif yozilmagan — yordamchidan qayta so'rang", unknown: "Natijasi noma'lum — CRM'da tekshiring", undone: 'Bu yozuv ortga qaytarilgan',
 };
-const INTERRUPTED = "Cerebro ish paytida to'xtab qolgan — bu yozuvning holatini DentaCRM'da tekshiring";
+const INTERRUPTED = "Palantir ish paytida to'xtab qolgan — bu yozuvning holatini DentaCRM'da tekshiring";
 
 /** Bir biznesning pul yozuvlari navbat bilan: «bunday yozuv bormi» tekshiruvi va yozishning o'zi orasiga boshqasi kirmaydi */
 const queues = new Map<string, Promise<unknown>>();
@@ -70,7 +70,7 @@ export async function confirmEntry(biz: BusinessRow, id: string): Promise<MoneyR
   midnight.setHours(0, 0, 0, 0);
   const used = moneyEntries.usedSince(biz.id, midnight.toISOString());
   if (payload.amount > env.crmMaxAmount) throw new Error("Summa bitta yozuv chegarasidan katta — DentaCRM'da kiriting");
-  if (used.count >= env.crmDailyMoney || used.sum + payload.amount > env.crmDailySum) throw new Error("Bugun Cerebro orqali kiritiladigan pul yozuvlari chegarasiga yetildi — qolganini DentaCRM'da kiriting");
+  if (used.count >= env.crmDailyMoney || used.sum + payload.amount > env.crmDailySum) throw new Error("Bugun Palantir orqali kiritiladigan pul yozuvlari chegarasiga yetildi — qolganini DentaCRM'da kiriting");
   if (!moneyEntries.move(biz.id, id, ['draft'], 'running')) throw new Error(STATE.running);
   let crmId: string;
   try {

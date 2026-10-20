@@ -1,5 +1,5 @@
 /**
- * Cerebro Hub ulanish kodi: hub manzili va klinika kaliti bitta qatorda — «chub.<manzil base64url>.<klinika id>.<maxfiy qism>».
+ * Palantir Hub ulanish kodi: hub manzili va klinika kaliti bitta qatorda — «chub.<manzil base64url>.<klinika id>.<maxfiy qism>».
  * Hub admini (o'rnatuvchi) yaratadi, ulash ustasida «kalit» sifatida kiritiladi.
  */
 export interface HubCode { url: string; clinicId: string; key: string }

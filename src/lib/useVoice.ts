@@ -15,7 +15,7 @@ const when = (due: string | null | undefined) => (due ? due.replace('T', ' ').sl
 /** Asbob natijasi → ekrandagi karta (yo'q bo'lsa — faqat gap) */
 export function cardOf(e: Extract<VoiceEvent, { type: 'tool' }>, id: number): VoiceCard | null {
   const r = e.result ?? {};
-  if (e.state === 'start') return e.name === 'cerebro' ? { id, kind: 'working', title: 'Cerebro bajaryapti', body: String(e.args.request ?? '') } : null;
+  if (e.state === 'start') return e.name === 'palantir' ? { id, kind: 'working', title: 'Palantir bajaryapti', body: String(e.args.request ?? '') } : null;
   if ('error' in r) return { id, kind: 'done', title: 'Bajarilmadi', body: String(r.error) };
   if (e.name === 'list_tasks') {
     const tasks = (r.tasks as { title: string; due_at: string | null; holati?: string }[] | undefined) ?? [];
@@ -23,7 +23,7 @@ export function cardOf(e: Extract<VoiceEvent, { type: 'tool' }>, id: number): Vo
   }
   if (e.name === 'add_task') return { id, kind: 'done', title: 'Eslatma qo‘yildi', body: [r.title, when(r.due_at as string | null)].filter(Boolean).join(' · ') };
   if (e.name === 'update_task') return { id, kind: 'done', title: r.status === 'done' ? 'Bajarildi' : r.status === 'cancelled' ? 'Bekor qilindi' : 'Vaqti o‘zgardi', body: [r.title, when(r.due_at as string | null)].filter(Boolean).join(' · ') };
-  if (e.name === 'cerebro') return { id, kind: 'answer', title: 'Cerebro', body: String(r.result ?? '') };
+  if (e.name === 'palantir') return { id, kind: 'answer', title: 'Palantir', body: String(r.result ?? '') };
   if (e.name === 'book_appointment') return { id, kind: 'booked', title: 'Qabulga yozildi', body: String(r.booked ?? '') };
   if (e.name === 'leave_request') return { id, kind: 'request', title: "So'rov qoldirildi", body: String(e.args.request ?? '') };
   return null;
@@ -71,7 +71,7 @@ export function useVoice(kind: 'owner' | 'customer' = 'owner') {
     if (e.type === 'ready') { setMode('listening'); setError(''); }
     else if (e.type === 'partial' || e.type === 'line') {
       if (e.who === 'Siz') { setYou(e.text); if (e.type === 'partial') setAi(''); }
-      else if (e.who === 'Cerebro') setAi(e.text);
+      else if (e.who === 'Palantir') setAi(e.text);
     } else if (e.type === 'tool') {
       working.current += e.state === 'start' ? 1 : -1;
       setMode(working.current > 0 ? 'thinking' : 'listening');
@@ -94,7 +94,7 @@ export function useVoice(kind: 'owner' | 'customer' = 'owner') {
     } catch (e) {
       bump(-1);
       setMode('idle');
-      setError((e as Error).name === 'NotAllowedError' ? 'Mikrofonga ruxsat bering (manzil satridagi belgi)' : 'Ovozli suhbat ochilmadi — Cerebro telefon liniyasi ishlayaptimi?');
+      setError((e as Error).name === 'NotAllowedError' ? 'Mikrofonga ruxsat bering (manzil satridagi belgi)' : 'Ovozli suhbat ochilmadi — Palantir telefon liniyasi ishlayaptimi?');
     }
   };
 

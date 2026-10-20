@@ -111,7 +111,7 @@ function Vault({ notify }: { notify: Notify }) {
       setNote(r.note);
       setDraft(r.note.content);
       setEditing(false);
-      notify('Saqlandi — Cerebro endi shuni biladi');
+      notify('Saqlandi — Palantir endi shuni biladi');
       void loadTree();
     } catch (e) {
       notify((e as Error).message, true);
@@ -250,7 +250,7 @@ export function MiyaArea({ tab, notify }: { tab: string | null; notify: Notify }
           <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#8b8cff]/15 text-[#c7c8ff]"><Brain className="h-7 w-7" aria-hidden="true" /></span>
           <div className="min-w-0 flex-1">
             <h1 className="text-[28px] font-bold leading-tight tracking-tight text-[#f2f0ea]">Miya</h1>
-            <p className="mt-0.5 text-sm text-[#a3a9b5]">Cerebro bilgan hamma narsa — oddiy sahifalar. Bu yerda yoki Obsidian'da yozing: jamoa shundan javob beradi.</p>
+            <p className="mt-0.5 text-sm text-[#a3a9b5]">Palantir bilgan hamma narsa — oddiy sahifalar. Bu yerda yoki Obsidian'da yozing: jamoa shundan javob beradi.</p>
           </div>
         </div>
         <nav aria-label="Varaqlar" className="flex flex-wrap gap-1.5">

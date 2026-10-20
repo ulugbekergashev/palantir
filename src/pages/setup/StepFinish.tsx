@@ -29,7 +29,7 @@ export function StepGaps({ setup, onSetup, notify }: { setup: SetupView; onSetup
   return (
     <div className="space-y-4">
       <Card title={allDone ? "Bo'shliq yo'q" : `${gaps.length} ta bo'shliq${left ? `, ${left} ta javobsiz savol` : ''}`}
-        description={allDone ? "Cerebro mijozlarga narx, manzil, ish vaqti va ko'p so'raladigan savollar bo'yicha o'zi javob bera oladi." : "Har biri qayerdan kelgani yozilgan. Egasi javob berishi bilan o'z joyiga yoziladi: narx — jadvalga, manzil va ish vaqti — «Biznes haqida» sahifasiga."}
+        description={allDone ? "Palantir mijozlarga narx, manzil, ish vaqti va ko'p so'raladigan savollar bo'yicha o'zi javob bera oladi." : "Har biri qayerdan kelgani yozilgan. Egasi javob berishi bilan o'z joyiga yoziladi: narx — jadvalga, manzil va ish vaqti — «Biznes haqida» sahifasiga."}
         action={!allDone && <Button variant={asked ? 'secondary' : 'primary'} onClick={ask} disabled={busy || asked || !setup.status.ownerLinked}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {asked ? "So'raldi" : "Egasidan Telegram'da so'rash"}</Button>}>
         {!setup.status.ownerLinked && !allDone && <p className="mb-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">Avval egasi Telegram'ni ulasin («Egasining Telegram'i» qadami) — savollar o'sha yerga boradi.</p>}
         {gaps.length > 0 && (

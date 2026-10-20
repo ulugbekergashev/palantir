@@ -20,11 +20,11 @@ export function setupSteps(status: LiveStatus, clinic: boolean, brain: BrainView
     },
     brain && {
       key: 'prices', done: brain.priced > 0, href: '#/brain', go: 'Miya', title: 'Narxlarni kiriting',
-      text: brain.priced > 0 ? `${brain.priced} ta xizmatning narxi kiritilgan — Cerebro narxni shu ro'yxatdan aytadi.` : "Cerebro narxni faqat siz kiritgan ro'yxatdan aytadi. Excel yoki Word'dan nusxalab tashlasangiz bo'ldi.",
+      text: brain.priced > 0 ? `${brain.priced} ta xizmatning narxi kiritilgan — Palantir narxni shu ro'yxatdan aytadi.` : "Palantir narxni faqat siz kiritgan ro'yxatdan aytadi. Excel yoki Word'dan nusxalab tashlasangiz bo'ldi.",
     },
     brain && brain.pack.length > 0 && {
       key: 'answers', done: answered === brain.pack.length, href: '#/brain', go: 'Miya', title: "Ko'p so'raladigan savollarga javob yozing",
-      text: `${answered}/${brain.pack.length} ta savolga javob yozilgan. Javobi bor savolga Cerebro o'zi javob beradi, yo'g'ini sizdan so'raydi.`,
+      text: `${answered}/${brain.pack.length} ta savolga javob yozilgan. Javobi bor savolga Palantir o'zi javob beradi, yo'g'ini sizdan so'raydi.`,
     },
   ];
   return steps.filter((s): s is SetupStep => !!s);

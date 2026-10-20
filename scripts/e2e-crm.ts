@@ -187,7 +187,7 @@ export async function crmConnectTests(h: Harness): Promise<void> {
   ok('tokensiz ulab bo\'lmaydi — 401', (await api('/api/crm', { body: { url, ...CRM_LOGIN } })).status === 401);
   // Shu kompyuterdagi DentaCRM'ni topish: DentaCRM kabi javob bersa — manzil; boshqa dastur, yopiq port, umumiy server — yo'q
   ok('topish: DentaCRM javob bergan manzil topildi', await findLocalCrm(url) === url);
-  ok("topish: boshqa dastur (Cerebro'ning o'zi) va yopiq port — topilmadi", await findLocalCrm(h.base) === null && await findLocalCrm('http://127.0.0.1:1') === null);
+  ok("topish: boshqa dastur (Palantir'ning o'zi) va yopiq port — topilmadi", await findLocalCrm(h.base) === null && await findLocalCrm('http://127.0.0.1:1') === null);
   ok("topish: umumiy serverda (mahalliy manzil taqiqlangan) so'ralmaydi", await findLocalCrm(url, false) === null);
   const found = await api('/api/crm/find', { token });
   ok('topish: panel yo\'li ishlaydi (bu kompyuterda 3001-portda DentaCRM yo\'q bo\'lsa — null)', found.status === 200 && 'url' in found.json, JSON.stringify(found.json));

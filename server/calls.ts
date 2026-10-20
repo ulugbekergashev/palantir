@@ -1,7 +1,7 @@
 /**
  * Telefon qilib eslatish: SpeechLab'ning AI agenti egasiga qo'ng'iroq qiladi va eslatmani o'zbekcha aytadi
  * (speechlab.uz/docs — «AI agent qo'ng'iroqlari»). Telefon liniyasi va agent SpeechLab panelida sozlanadi;
- * agent yo'riqnomasida {{eslatma}} va {{vaqt}} o'zgaruvchilari ishlatiladi — Cerebro ularni har qo'ng'iroqda yuboradi.
+ * agent yo'riqnomasida {{eslatma}} va {{vaqt}} o'zgaruvchilari ishlatiladi — Palantir ularni har qo'ng'iroqda yuboradi.
  * Qo'ng'iroq Telegram eslatmasining o'rnini bosmaydi: eslatma baribir Telegram'ga ham keladi.
  */
 import { env } from './env';

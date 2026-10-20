@@ -34,7 +34,7 @@ export function AnketaPage() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    document.title = 'Anketa · Cerebro';
+    document.title = 'Anketa · Palantir';
     anketaApi.get(code).then(r => { setData(r.anketa.data); setStatus(r.anketa.status); }).catch(e => setError((e as Error).message));
   }, [code]);
 
@@ -91,15 +91,15 @@ export function AnketaPage() {
     <div className="mx-auto max-w-2xl space-y-4 px-4 py-6 sm:py-10">
       <header className="space-y-3">
         <Logo subtitle="Anketa" />
-        <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight">{data.name || 'Biznesingiz'} — Cerebro uchun ma'lumot</h1>
-        <p className="text-sm leading-relaxed text-slate-600">Shu yerga yozganingizdan Cerebro mijozlarga javob beradi: manzil, ish vaqti, narxlar va ko'p so'raladigan savollar. Bilganingizni yozing — qolganini o'rnatish kuni so'raymiz. Har o'zgarish o'zi saqlanadi.</p>
+        <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight">{data.name || 'Biznesingiz'} — Palantir uchun ma'lumot</h1>
+        <p className="text-sm leading-relaxed text-slate-600">Shu yerga yozganingizdan Palantir mijozlarga javob beradi: manzil, ish vaqti, narxlar va ko'p so'raladigan savollar. Bilganingizni yozing — qolganini o'rnatish kuni so'raymiz. Har o'zgarish o'zi saqlanadi.</p>
         <p className="flex gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> Bu yerga parol, bot tokeni yoki kalit yozmang — ular o'rnatish kuni klinika kompyuterida kiritiladi.</p>
       </header>
 
       <Card title="Klinika">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Nomi"><TextInput value={data.name} onChange={e => change({ name: e.target.value })} maxLength={60} /></Field>
-          <Field label="Egasining ismi" hint="Cerebro sizga shunday murojaat qiladi"><TextInput value={data.ownerName} onChange={e => change({ ownerName: e.target.value })} maxLength={60} /></Field>
+          <Field label="Egasining ismi" hint="Palantir sizga shunday murojaat qiladi"><TextInput value={data.ownerName} onChange={e => change({ ownerName: e.target.value })} maxLength={60} /></Field>
           <Field label="Qabulxona telefoni"><TextInput type="tel" value={data.phone} onChange={e => change({ phone: e.target.value })} placeholder="+998 71 200 45 67" maxLength={40} /></Field>
           <Field label="Soha"><TextInput value={data.industry} onChange={e => change({ industry: e.target.value })} placeholder="stomatologiya" maxLength={80} /></Field>
           <div className="sm:col-span-2"><Field label="Manzil"><TextInput value={data.address} onChange={e => change({ address: e.target.value })} placeholder="Chilonzor 9-kvartal, 14-uy" maxLength={160} /></Field></div>

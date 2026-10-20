@@ -43,7 +43,7 @@ const NEW_PRICES: (string | number)[][] = [['Xizmat', "Narx (so'm)"], ['Plomba',
 const WAITING = { question: 'Yakshanba kuni ishlaysizmi?', answer: 'Yakshanba dam olamiz, shanba kuni 15:00 gacha ishlaymiz' };
 /** «Biznes haqida» — profil formasi o'rniga: manzil, ish vaqti, jamoa oddiy sahifada (soxta klinika ma'lumoti) */
 const ABOUT_PAGE = "# Biznes haqida\n\nTabassum Dental — oilaviy stomatologiya klinikasi.\n\n- Manzil: Toshkent, Chilonzor 7-mavze, 12-uy\n- Ish vaqti: dushanba–shanba 9:00–19:00, yakshanba dam\n- Telefon: +998 71 200 00 00\n\n## Jamoa\n- Rustam Rustamov — terapevt\n- Nodira Aliyeva — ortodont\n";
-/** Egasi Obsidian'da o'zi yozgan sahifa: Cerebro uni ham o'qiydi */
+/** Egasi Obsidian'da o'zi yozgan sahifa: Palantir uni ham o'qiydi */
 const OWN_PAGE = { file: 'Implant.md', text: "# Implant\n\nImplant ikki bosqichda qo'yiladi: avval implantning o'zi, 3–4 oydan keyin koronka. Birinchi ko'rikda panoram rentgen qilinadi.\n\nBog'liq: [[Narxlar]]\n" };
 const ZONE = { x: 0.3, y: 0.25, w: 0.4, h: 0.55 };
 const PERSON = [{ x: 0.42, y: 0.34, w: 0.16, h: 0.36 }];
@@ -150,7 +150,7 @@ async function main(): Promise<void> {
   process.on('exit', () => { server.kill(); });
   let started = false, stopping = false;
   const stop = (code: number): never => { stopping = true; server.kill(); crmServer.close(); process.exit(code); };
-  server.stdout.on('data', d => { if (String(d).includes('Cerebro server')) started = true; });
+  server.stdout.on('data', d => { if (String(d).includes('Palantir server')) started = true; });
   // Ctrl+C serverga ham boradi va u o'zi (kod 0) to'xtaydi — bu xato emas
   server.on('exit', code => {
     if (stopping) return;
@@ -163,7 +163,7 @@ async function main(): Promise<void> {
 
   const { token, voiceKey, cameraIds, vault } = await setUp(crmPort, dataDir);
   console.log(`\nSimulyatsiya ishlayapti. Brauzerda oching:  ${base}\n  login: ${ACCOUNT.login}    parol: ${ACCOUNT.password}\n`);
-  console.log("Birinchi 2 daqiqada:\n  ~10 s  Kabinet 1 ga bemor o'tiradi — CRM'da qabuli bor\n  ~35 s  Kabinet 2 ga odam o'tiradi — CRM'da qabul yo'q: Kameralar va Jurnalda farq chiqadi\n  ~45 s  uchta qo'ng'iroq deyarli bir vaqtda keladi\n  ~80 s  Kabinet 1 dagi bemor kassada to'laydi — CRM'da «keldi» va to'lov paydo bo'ladi\nKeyin har 2 daqiqada: Kabinet 1 ga yangi bemor (qabuli bor, to'laydi) va bitta qo'ng'iroq.\nIkkinchi miya: narxlar va 13 savoldan 4 tasiga javob bor; bitta javobingiz va suhbatga tashlangan bitta Excel narxnoma «Eslab qolaymi?» deb kutyapti (Jurnalda ham). Suhbatda «savollar» deb yozsangiz, Cerebro qolgan savollarni o'zi so'raydi.\n");
+  console.log("Birinchi 2 daqiqada:\n  ~10 s  Kabinet 1 ga bemor o'tiradi — CRM'da qabuli bor\n  ~35 s  Kabinet 2 ga odam o'tiradi — CRM'da qabul yo'q: Kameralar va Jurnalda farq chiqadi\n  ~45 s  uchta qo'ng'iroq deyarli bir vaqtda keladi\n  ~80 s  Kabinet 1 dagi bemor kassada to'laydi — CRM'da «keldi» va to'lov paydo bo'ladi\nKeyin har 2 daqiqada: Kabinet 1 ga yangi bemor (qabuli bor, to'laydi) va bitta qo'ng'iroq.\nIkkinchi miya: narxlar va 13 savoldan 4 tasiga javob bor; bitta javobingiz va suhbatga tashlangan bitta Excel narxnoma «Eslab qolaymi?» deb kutyapti (Jurnalda ham). Suhbatda «savollar» deb yozsangiz, Palantir qolgan savollarni o'zi so'raydi.\n");
   console.log(`Miya papkasi (Obsidian'da «Open folder as vault»):\n  ${vault}\n`);
   console.log("Panel 10–15 soniyada o'zi yangilanadi. To'xtatish: Ctrl+C\n");
 

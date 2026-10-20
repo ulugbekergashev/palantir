@@ -90,7 +90,7 @@ export async function fetchAnketa(source: string, code: string): Promise<AnketaD
   // DentaCRM manziliga qo'llanadigan qoida: xavfli manzillar yopiq, umumiy serverda (CRM_ALLOW_PRIVATE=0) ichki tarmoq ham
   let base: string;
   try { base = normalizeBaseUrl(source, env.crmAllowPrivate); } catch (e) {
-    throw new Error(/DentaCRM/.test((e as Error).message) ? "Anketa serveri manzili noto'g'ri. Namuna: https://cerebro.example.uz" : (e as Error).message);
+    throw new Error(/DentaCRM/.test((e as Error).message) ? "Anketa serveri manzili noto'g'ri. Namuna: https://palantir.example.uz" : (e as Error).message);
   }
   const unreachable = new Error("Anketa serveriga ulanib bo'lmadi — manzil va internetni tekshiring");
   const r = await fetch(`${base}/api/anketa/${encodeURIComponent(code)}`, { redirect: 'manual', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }).catch(() => { throw unreachable; });
@@ -99,7 +99,7 @@ export async function fetchAnketa(source: string, code: string): Promise<AnketaD
   if (!r.ok) throw unreachable;
   const text = await readCapped(r, MAX_REMOTE_BYTES).catch(() => { throw new Error('Anketa juda katta yoki uzilib keldi'); });
   let body: { anketa?: { status?: string; data?: unknown } };
-  try { body = JSON.parse(text); } catch { throw new Error("Bu manzil Cerebro anketa serveri emas"); }
+  try { body = JSON.parse(text); } catch { throw new Error("Bu manzil Palantir anketa serveri emas"); }
   if (body.anketa?.status === 'new') throw new Error("Egasi anketani hali to'ldirmagan");
   const p = parseAnketa(body.anketa?.data);
   if (!p.ok) throw new Error(p.error);

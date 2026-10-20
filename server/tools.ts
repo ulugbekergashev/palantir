@@ -60,23 +60,23 @@ function complianceErrors(ctx: ToolCtx, texts: string[]): string[] {
 
 const DEFS = {
   create_task: def({
-    description: 'Create a task or reminder for the owner. When the owner gives a time, set due_at (local time) and Cerebro sends a Telegram reminder at that moment with Done/Snooze buttons. A date without a time means 09:00. Leave due_at out for tasks with no deadline. If the owner asks to be phoned ("qo\'ng\'iroq qilib eslat", "telefon qil", "позвони"), set call: true — at due_at an AI voice agent calls the owner and says the reminder in Uzbek, and the Telegram reminder comes as well. For "call me 30 minutes before the meeting", due_at is the meeting time minus 30 minutes.',
+    description: 'Create a task or reminder for the owner. When the owner gives a time, set due_at (local time) and Palantir sends a Telegram reminder at that moment with Done/Snooze buttons. A date without a time means 09:00. Leave due_at out for tasks with no deadline. If the owner asks to be phoned ("qo\'ng\'iroq qilib eslat", "telefon qil", "позвони"), set call: true — at due_at an AI voice agent calls the owner and says the reminder in Uzbek, and the Telegram reminder comes as well. For "call me 30 minutes before the meeting", due_at is the meeting time minus 30 minutes.',
     input: z.object({
       title: short(200).describe('What to do, short and clear, in the owner\'s language. With call: true this is what the voice agent says, so write it as a full phrase'),
       due_at: localTime.nullable().optional().describe('Local time YYYY-MM-DDTHH:MM'),
       notes: opt(1000),
       call: z.boolean().optional().describe('true only when the owner explicitly asked to be phoned for this reminder or to hear it by voice'),
       phone: short(30).optional().describe("The owner's own phone number for the call, only if the owner said it in this conversation"),
-      customer_id: short(20).optional().describe('The customer this task is about (a meeting, call or proposal) — from list_leads or save_lead. When the owner marks such a task done, Cerebro asks how it went'),
+      customer_id: short(20).optional().describe('The customer this task is about (a meeting, call or proposal) — from list_leads or save_lead. When the owner marks such a task done, Palantir asks how it went'),
     }),
     run: (i, ctx) => {
       if (i.call && !i.due_at) throw new ToolError("Qo'ng'iroq uchun vaqt kerak — egasidan qachon qo'ng'iroq qilishni so'ra");
       let callTo: string | null = null, callNote: string | undefined;
       if (i.call && !callsEnabled() && tgCallEnabled()) {
-        callNote = "At due_at Cerebro calls the owner through Telegram (an AI voice in Uzbek): it says the reminder and can mark it done or move it. The Telegram reminder comes as well. No phone number is needed.";
+        callNote = "At due_at Palantir calls the owner through Telegram (an AI voice in Uzbek): it says the reminder and can mark it done or move it. The Telegram reminder comes as well. No phone number is needed.";
       } else if (i.call && !callsEnabled()) {
         callNote = speechEnabled()
-          ? "Phone calls are not set up yet (no phone line). Instead, at due_at Cerebro sends the owner a spoken voice message in Uzbek in Telegram. Tell the owner exactly that — do not promise a phone call."
+          ? "Phone calls are not set up yet (no phone line). Instead, at due_at Palantir sends the owner a spoken voice message in Uzbek in Telegram. Tell the owner exactly that — do not promise a phone call."
           : "Phone calls are not set up on this server. The reminder will come only as a Telegram message — tell the owner this plainly, do not promise a call.";
       } else if (i.call) {
         const said = i.phone ? normPhone(i.phone) : '';
@@ -143,7 +143,7 @@ const DEFS = {
   }),
 
   list_leads: def({
-    description: 'List customers and prospects with their ids. "channel" is where they talk to the business (bot, telegram = the owner\'s own Telegram, instagram, manual). "reachable": true means Cerebro can message them now.',
+    description: 'List customers and prospects with their ids. "channel" is where they talk to the business (bot, telegram = the owner\'s own Telegram, instagram, manual). "reachable": true means Palantir can message them now.',
     input: z.object({
       stage: z.enum(['all', 'new', 'contacted', 'won', 'lost']).optional().describe('Default: all'),
       days: z.number().int().min(1).max(365).optional().describe('Only those added in the last N days'),

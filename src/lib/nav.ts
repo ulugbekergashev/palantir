@@ -1,5 +1,5 @@
 /**
- * Panel tuzilishi — AI jamoa: bosh ekran (Cerebro, ovoz), to'rt xodim, Miya va Sozlamalar. Manzil: #/<bo'lim>/<varaq>.
+ * Panel tuzilishi — AI jamoa: bosh ekran (Palantir, ovoz), to'rt xodim, Miya va Sozlamalar. Manzil: #/<bo'lim>/<varaq>.
  * Eski manzillar (#/requests, #/journal…) ham ishlayveradi — o'z xodimiga olib boradi; sahifa o'z manzilini o'zi o'qisa
  * (#/inbox/<mijoz>), u buzilmaydi: manzil qayta yozilmaydi.
  */

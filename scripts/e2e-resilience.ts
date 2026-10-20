@@ -106,7 +106,7 @@ try {
   ok('shu papka bilan ikkinchi nusxa ishga tushmaydi (kod 78)', second.status === 78, `kod ${second.status}`);
   ok('birinchi nusxa ishlashda davom etadi', (await api('/api/health')).status === 200);
   const logFile = join(dataDir, 'logs', `${iso(new Date())}.log`);
-  ok('jurnal fayli yozilgan', existsSync(logFile) && readFileSync(logFile, 'utf8').includes('Cerebro server'));
+  ok('jurnal fayli yozilgan', existsSync(logFile) && readFileSync(logFile, 'utf8').includes('Palantir server'));
   // Zaxira: serverning o'z moduli orqali, shu papkada (server ishlab turganda)
   const backup = spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', '-e', "import('./server/backup.ts').then(m => { console.log(m.backupNow() ?? 'bor'); process.exit(0); })"], { env: ENV, encoding: 'utf8', timeout: 60_000 });
   const day = join(dataDir, 'backups', iso(new Date()));

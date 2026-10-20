@@ -21,7 +21,7 @@ export function labelOf(rel: string): string {
   if (rel.startsWith('Bilim/')) return 'confirmed knowledge';
   if (rel.startsWith('Kutyapti/')) return "not yet confirmed — read from a file or message the owner sent";
   if (rel.startsWith('Hujjatlar/')) return 'a document prepared earlier';
-  if (rel.startsWith("Qo'ng'iroqlar/")) return "transcript of the owner's call with Cerebro";
+  if (rel.startsWith("Qo'ng'iroqlar/")) return "transcript of the owner's call with Palantir";
   if (rel === 'Narxlar.md') return 'price list';
   return "owner's note";
 }

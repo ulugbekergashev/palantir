@@ -36,7 +36,7 @@ export function findRecording(dir: string, call: { answeredAt: number; endedAt: 
   return hits[0] ? { file: hits[0].file, ext: hits[0].ext, size: hits[0].size } : null;
 }
 
-/** Faylni Cerebro'ning yozuvlar papkasiga ko'chiradi (MicroSIP papkasi bo'shab turadi). Qaytadi — yangi nom */
+/** Faylni Palantir'ning yozuvlar papkasiga ko'chiradi (MicroSIP papkasi bo'shab turadi). Qaytadi — yangi nom */
 export function moveRecording(found: FoundRecording, targetDir: string, callId: string): string {
   fs.mkdirSync(targetDir, { recursive: true });
   const name = `${callId}.${found.ext}`;

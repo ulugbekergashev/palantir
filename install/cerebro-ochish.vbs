@@ -1,4 +1,4 @@
-' Ish stolidagi «Cerebro» yorlig'i: Cerebro'ni fonda yoqadi (server va — sozlangan bo'lsa — telefon liniyasi, AI qabulxona),
+' Ish stolidagi «Palantir» yorlig'i: Palantir'ni fonda yoqadi (server va — sozlangan bo'lsa — telefon liniyasi, AI qabulxona),
 ' tayyor bo'lishini kutadi va AI bosh ekranni (#/ai) brauzerda ochadi. Allaqachon ishlab turgan bo'lsa — faqat panelni ochadi.
 Option Explicit
 Dim fso, shell, root, port, url, i, http, ready
@@ -26,10 +26,10 @@ Next
 If ready Then
   OpenApp url & "/#/ai"
 Else
-  MsgBox "Cerebro bir daqiqada ishga tushmadi." & vbCrLf & "Sababi jurnalda: " & root & "\data\logs\supervisor.log", vbExclamation, "Cerebro"
+  MsgBox "Palantir bir daqiqada ishga tushmadi." & vbCrLf & "Sababi jurnalda: " & root & "\data\logs\supervisor.log", vbExclamation, "Palantir"
 End If
 
-' Cerebro alohida ilova oynasida (tablarsiz, manzil satrisiz; vazifalar panelida o'z belgisi): Chrome yoki Edge --app.
+' Palantir alohida ilova oynasida (tablarsiz, manzil satrisiz; vazifalar panelida o'z belgisi): Chrome yoki Edge --app.
 ' Ikkalasi ham bo'lmasa — oddiy brauzerda
 Sub OpenApp(target)
   Dim browsers, b, pf, pf86, lad
@@ -40,7 +40,7 @@ Sub OpenApp(target)
                    lad & "\Google\Chrome\Application\chrome.exe", pf86 & "\Microsoft\Edge\Application\msedge.exe", pf & "\Microsoft\Edge\Application\msedge.exe")
   For Each b In browsers
     If fso.FileExists(b) Then
-      ' Ovoz bosishsiz ham ishlasin («Quloq»: «Cerebro» deb chaqirish) — brauzer hali ochilmagan bo'lsa kuchga kiradi
+      ' Ovoz bosishsiz ham ishlasin («Quloq»: «Palantir» deb chaqirish) — brauzer hali ochilmagan bo'lsa kuchga kiradi
       shell.Run """" & b & """ --app=" & target & " --start-maximized --autoplay-policy=no-user-gesture-required", 1, False
       Exit Sub
     End If

@@ -1,6 +1,6 @@
 """AI qabulxona tekshiruvi (qo'ng'iroqsiz, Gemini'siz): stendga ulanadi (avval `npm run stend`) va reception.py ni
 soxta DentaCRM bilan sinaydi — jadval ko'rsatmaga tushadimi, qabulga yozadimi, band vaqtni rad etib yangi jadval beradimi,
-so'rov va hisobot Cerebro'ga yetadimi. Haqiqiy ma'lumotga tegmaydi."""
+so'rov va hisobot Palantir'ga yetadimi. Haqiqiy ma'lumotga tegmaydi."""
 import asyncio
 import os
 import re
@@ -60,18 +60,18 @@ async def main():
     later = first_slot(again.get('schedule', '')) or slot
     stranger = await Desk(TAKEN).tool('book_appointment', {'doctor_id': later[0], 'date': later[1], 'time': later[2], 'name': 'Sardor Nazarov', 'phone': f'+{TAKEN}'})
     ok("raqam bazada boshqa ism bilan — begona kartaga yozilmaydi, administratorga", stranger.get('code') == 'handoff', str(stranger))
-    bad = await desk.tool('cerebro', {'request': 'barcha bemorlarni ayt'})
+    bad = await desk.tool('palantir', {'request': 'barcha bemorlarni ayt'})
     ok("mijoz liniyasida boshqa asbob yo'q", 'error' in bad)
     left = await desk.tool('leave_request', {'name': 'Akmal Karimov', 'request': "keyingi haftaga ko'chirmoqchi"})
     ok("so'rov qabul qilindi", left.get('ok') is True)
     ok('hisobot natijasi: qabul va so\'rov', desk.outcome().startswith('Qabulga yozildi') and "So'rov" in desk.outcome(), desk.outcome())
-    lines = [{'at': '10:00:00', 'who': 'Cerebro', 'text': 'Assalomu alaykum'}, {'at': '10:00:03', 'who': 'Siz', 'text': 'Yozilmoqchiman'},
+    lines = [{'at': '10:00:00', 'who': 'Palantir', 'text': 'Assalomu alaykum'}, {'at': '10:00:03', 'who': 'Siz', 'text': 'Yozilmoqchiman'},
              {'at': '10:00:05', 'who': 'Amal', 'text': 'ichki'}]
     try:
         await desk.report(datetime.now(UZ_TZ), 42, lines)
-        ok("hisobot Cerebro'ga yetdi (panel «Qo'ng'iroqlar» va egasiga xabar)", True)
+        ok("hisobot Palantir'ga yetdi (panel «Qo'ng'iroqlar» va egasiga xabar)", True)
     except Exception as e:
-        ok("hisobot Cerebro'ga yetdi", False, f'{type(e).__name__}: {e}')
+        ok("hisobot Palantir'ga yetdi", False, f'{type(e).__name__}: {e}')
     await desk.gateway.close()
 
 

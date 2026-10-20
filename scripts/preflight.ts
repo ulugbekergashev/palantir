@@ -59,7 +59,7 @@ function local(): void {
     say('fail', `Ma'lumotlar papkasi: ${env.dataDir}`, `yozib bo'lmadi: ${(e as Error).message}`);
   }
   const inRepo = env.dataDir.startsWith(resolve('.'));
-  say(inRepo ? 'warn' : 'ok', 'Ma\'lumotlar dastur papkasidan tashqarida', inRepo ? 'DATA_DIR dastur papkasi ichida — dasturni yangilaganda o\'chib ketmasin: masalan DATA_DIR=C:\\CerebroData' : '');
+  say(inRepo ? 'warn' : 'ok', 'Ma\'lumotlar dastur papkasidan tashqarida', inRepo ? 'DATA_DIR dastur papkasi ichida — dasturni yangilaganda o\'chib ketmasin: masalan DATA_DIR=C:\\PalantirData' : '');
   say(env.backupKeep > 0 ? 'ok' : 'warn', 'Zaxira nusxa', env.backupKeep > 0 ? `har kuni, ${env.backupKeep} kun saqlanadi: ${env.backupDir}` : 'o\'chirilgan (BACKUP_KEEP=0)');
 
   if (!env.adminPassword) say('warn', 'ADMIN_PASSWORD', 'berilmagan — admin sahifasi yopiq, yangi biznes qo\'shib bo\'lmaydi');
@@ -70,7 +70,7 @@ function local(): void {
 
 async function port(): Promise<void> {
   const health = await get(`http://127.0.0.1:${env.port}/api/health`).then(r => (r.ok ? r.json() as Promise<{ ok?: boolean }> : null)).catch(() => null);
-  if (health?.ok) return say('ok', `Port ${env.port}`, 'Cerebro hozir ishlab turibdi');
+  if (health?.ok) return say('ok', `Port ${env.port}`, 'Palantir hozir ishlab turibdi');
   const free = await new Promise<boolean>(done => {
     const s = createServer();
     s.once('error', () => done(false));
@@ -163,7 +163,7 @@ async function extras(): Promise<void> {
   say(instagramAvailable() ? 'ok' : 'warn', 'Instagram (brauzer)', instagramAvailable() ? 'Chrome yoki Edge topildi (egasi panelda bir marta kiradi)' : 'Chrome yoki Edge topilmadi — o\'rnating yoki IG_BROWSER da yo\'lini bering');
 }
 
-process.stdout.write('Cerebro — o\'rnatish tekshiruvi\n\n');
+process.stdout.write('Palantir — o\'rnatish tekshiruvi\n\n');
 local();
 await port();
 await telegram();

@@ -1,6 +1,6 @@
 # tgvoice — Telegram orqali AI qo'ng'iroq
 
-Telefon liniyasisiz qo'ng'iroq: Cerebro eslatma vaqtida egasiga **Telegram orqali** qo'ng'iroq qiladi. AI (Gemini Live)
+Telefon liniyasisiz qo'ng'iroq: Palantir eslatma vaqtida egasiga **Telegram orqali** qo'ng'iroq qiladi. AI (Gemini Live)
 o'zbekcha eslatadi, «bajarildi», «yarim soatga sur» desa — bajaradi. Qo'ng'iroq egasining telefonida oddiy Telegram
 qo'ng'irog'idek jiringlaydi.
 
@@ -22,8 +22,8 @@ tgvoice\.venv\Scripts\python.exe -m pip install -r tgvoice\requirements.txt
 TG_API_ID=...        # my.telegram.org → API development tools (qo'ng'iroq qiladigan akkaunt bilan)
 TG_API_HASH=...
 GEMINI_API_KEY=...   # klinikada — pullik tarif (bepulida Google ma'lumotdan foydalanishi mumkin)
-TG_CALL_PYTHON=C:/Cerebro/tgvoice/.venv/Scripts/python.exe
-TG_CALL_SCRIPT=C:/Cerebro/tgvoice/call_live.py
+TG_CALL_PYTHON=C:/Palantir/tgvoice/.venv/Scripts/python.exe
+TG_CALL_SCRIPT=C:/Palantir/tgvoice/call_live.py
 ```
 
 Akkauntga kirish (kod va parolni egasining o'zi kiritadi, hech qayerga yuborilmaydi):
@@ -61,7 +61,7 @@ Kim qo'ng'iroq qilganini liniya belgilaydi (`asterisk/extensions.conf`), suhbatd
 
 | Qayerdan | Rejim | AI nima qila oladi |
 |---|---|---|
-| Egasining SIP ilovasi (login `egasi`, parol `.env` dagi `SIP_OWNER_PASSWORD`, faqat Wi-Fi'dan) | egasi | xuddi Telegram qo'ng'irog'idagidek: vazifalar, Cerebro |
+| Egasining SIP ilovasi (login `egasi`, parol `.env` dagi `SIP_OWNER_PASSWORD`, faqat Wi-Fi'dan) | egasi | xuddi Telegram qo'ng'irog'idagidek: vazifalar, Palantir |
 | Shu ilovadan «2» raqami | mijoz (sinov) | mijoz nima eshitishini tekshirish |
 | Shahar raqami (`pjsip_shahar.conf`) | mijoz | faqat biznes haqidagi bilim va `leave_request` — so'rov egasiga vazifa bo'lib tushadi, bir daqiqada Telegram'ga eslatma |
 
@@ -79,15 +79,15 @@ Uztelecom ma'lumotlari kelganda: panel → **Sozlamalar → Telefon liniyasi** (
 o'zi yoziladi va Asterisk qo'ng'iroqlarni uzmasdan qayta yuklanadi (`install.sh reload`). Qo'lda: `asterisk/pjsip_shahar.conf.namuna`.
 
 Kim javob beradi (shu sahifada): «har doim AI» yoki «ish vaqtida avval administrator, ko'tarmasa yoki ish vaqtidan tashqari — AI».
-Asterisk har qo'ng'iroqda Cerebro'dan so'raydi (`[kiruvchi]` → `/api/voice/route`, ovozli agent kaliti bilan), shuning uchun ish vaqti
-o'zgarsa qayta yuklash kerak emas; Cerebro javob bermasa ham — AI. Administrator telefoni: Zoiper, login `admin`, parolni panel yaratadi
-(`pjsip_admin.conf`, git'ga tushmaydi). Qaror `messages.log` da: `Cerebro: <raqam> — kim javob beradi: …`.
+Asterisk har qo'ng'iroqda Palantir'dan so'raydi (`[kiruvchi]` → `/api/voice/route`, ovozli agent kaliti bilan), shuning uchun ish vaqti
+o'zgarsa qayta yuklash kerak emas; Palantir javob bermasa ham — AI. Administrator telefoni: Zoiper, login `admin`, parolni panel yaratadi
+(`pjsip_admin.conf`, git'ga tushmaydi). Qaror `messages.log` da: `Palantir: <raqam> — kim javob beradi: …`.
 Telefonsiz tekshiruv: `tgvoice\.venv\Scripts\python.exe tgvoice\check_sip.py` — Asterisk ichida «mijoz» savol beradi, yozuv `tmp/sinov.wav`.
 
-## «Quloq» — panelda «Cerebro» deb chaqirish (`wake.py`)
+## «Quloq» — panelda «Palantir» deb chaqirish (`wake.py`)
 
 Panelning chap ustunidagi «Quloq» yoqilsa, brauzer mikrofoni `web_live.py` ga (mode `wake`) oqadi va shu kompyuterda tinglanadi —
-internetga hech narsa ketmaydi. «Cerebro» yoki «Jarvis» eshitilsa, shu ulanishning o'zida Gemini Live suhbati boshlanadi
+internetga hech narsa ketmaydi. «Palantir» yoki «Jarvis» eshitilsa, shu ulanishning o'zida Gemini Live suhbati boshlanadi
 (chaqiriqdan keyingi gap ham yo'qolmaydi), istalgan sahifada pastda suhbat oynasi chiqadi; tugagach yana tinglaydi.
 
 Model (bir marta, ~45 MB, Apache-2.0), `tgvoice/models/` ga (git'ga tushmaydi):
@@ -107,15 +107,15 @@ Boshqa model: `WAKE_MODEL=<papka>`.
 | `call_live.py` | Asosiy: Telegram ↔ Gemini Live, vazifa asboblari, eslatma rejimi (`--remind <id>`) |
 | `sip_live.py` | Telefon liniyasi: Asterisk (AudioSocket) ↔ Gemini Live, egasi va mijoz rejimlari, bir vaqtda bir nechta qo'ng'iroq |
 | `web_live.py` | Panel ovozi: egasi, qabulxona sinovi (mijoz) va «quloq» (chaqiriqni kutish) rejimlari |
-| `wake.py` | «Cerebro» / «Jarvis» chaqirig'ini topish (Vosk, internetsiz) |
+| `wake.py` | «Palantir» / «Jarvis» chaqirig'ini topish (Vosk, internetsiz) |
 | `asterisk/` | Asterisk sozlamalari va `install.sh` (WSL ichiga o'rnatadi) |
 | `check_sip.py` | Telefonsiz tekshiruv: Asterisk ichida mijoz qo'ng'irog'i |
 | `login.py` | Akkauntga bir marta kirish |
-| `common.py` | Kalitlar `.env` dan (Cerebro bergan muhit o'zgaruvchilari ustun) |
+| `common.py` | Kalitlar `.env` dan (Palantir bergan muhit o'zgaruvchilari ustun) |
 | `call.py` | Eski zanjir: VoiceLab ovozi bilan (VoiceLab varianti uchun asos) |
 | `check_live.py`, `check_player.py`, `check_voicelab.py` | Qo'ng'iroqsiz tekshiruvlar (oxirgisi VoiceLab kreditini ishlatadi) |
 | `latency.py` | Javob tezligini o'lchash |
 | `voices_live.py` | Ovoz namunalarini egasining Telegramiga yuborish |
 
 Qo'lda sinov qo'ng'irog'i: `tgvoice\.venv\Scripts\python.exe tgvoice\call_live.py <username>`.
-Cerebro'dagi avtomatik sinov (telefon jiringlamaydi): `npm run test:tgcall`.
+Palantir'dagi avtomatik sinov (telefon jiringlamaydi): `npm run test:tgcall`.
