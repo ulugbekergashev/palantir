@@ -24,7 +24,8 @@ jobs:
       # IP kamera sinovlari uchun: yangi ffmpeg (-max_redirects bor — HTTP kameralarning to'liq sinovi ishlaydi)
       - name: ffmpeg
         run: choco install ffmpeg -y --no-progress
-      - run: npm ci --no-audit --no-fund
+      # GitHub runner'larida npm tarmog'i ba'zan uziladi (ECONNRESET): qayta urinishlar bilan
+      - run: npm ci --no-audit --no-fund --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
       # O'rnatgich Windows PowerShell 5.1 da ishlaydi: sintaksis, faqat ASCII (5.1 boshqa belgilarni buzib o'qiydi),
       # avtomatik kirishning LSA ombori va parol tekshiruvi (runner administrator — haqiqiy kirishga tegilmaydi)
       - name: PowerShell skriptlari
@@ -74,7 +75,8 @@ jobs:
           cache: npm
       - name: ffmpeg
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-      - run: npm ci --no-audit --no-fund
+      # GitHub runner'larida npm tarmog'i ba'zan uziladi (ECONNRESET): qayta urinishlar bilan
+      - run: npm ci --no-audit --no-fund --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:resilience
