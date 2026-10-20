@@ -16,7 +16,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { Lead, LeadRequest } from '../src/types';
 import { phoneKey, prettyPhone } from '../src/lib/phone';
 import { iso, stamp } from '../src/lib/week';
-import { namesFit, patientFor, samePerson } from '../server/personRules';
+import { namesFit, patientFor, patientHasPhone, phoneVerified, proofFor, samePerson } from '../server/personRules';
 import { cleanDue, daytime, firstRemind } from '../server/requests/timing';
 import { CUSTOMER, OWNER, ai, aiServer, igWeb, igWebServer, listen, press, say, sent, shareContact, sleep, tgNames, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
@@ -39,6 +39,13 @@ const pts = [
 ];
 ok("bemor: to'liq ism mos — o'sha; telefon oilaniki va ism yo'q — hech kim", patientFor(pts, 'Dilnoza Karimova', '94 444 55 66')?.id === 'p1' && patientFor(pts, null, '944445566') === null);
 ok('bemor: ism yo\'q, telefonda bitta bemor (ikkinchi raqami) — o\'sha', patientFor(pts, 'Sardor', '+998975556677')?.id === 'p3');
+const V = (o: Partial<{ tgUserId: string; phone: string; phoneProof: string }>) => ({ tgUserId: null, phone: null, phoneProof: null, ...o });
+ok("raqam tasdig'i: o'sha Telegram akkaunt va o'sha raqam (yozilishi boshqacha bo'lsa ham)",
+  phoneVerified(V({ tgUserId: '5', phone: '+998 94 444 55 66', phoneProof: proofFor('5', '998944445566') })));
+ok("tasdiq boshqa akkauntga yoki boshqa raqamga o'tmaydi; tasdiqsiz — yo'q",
+  !phoneVerified(V({ tgUserId: '6', phone: '+998944445566', phoneProof: proofFor('5', '998944445566') }))
+  && !phoneVerified(V({ tgUserId: '5', phone: '+998901112233', phoneProof: proofFor('5', '998944445566') })) && !phoneVerified(V({ tgUserId: '5', phone: '+998944445566' })));
+ok('tasdiqlangan raqam bemorniki: asosiy yoki qo\'shimcha raqami', patientHasPhone(pts[0], '94 444 55 66') && patientHasPhone(pts[2], '975556677') && !patientHasPhone(pts[2], '944445566'));
 
 console.log('\n# Eslatma vaqti (sof)');
 const H = { from: 8, to: 21 };
@@ -203,6 +210,49 @@ try {
   await waitFor('toast', () => answerOf(ownerPress));
   ok('egasi ham bossa — «allaqachon bajarilgan (Aziza)»', String(answerOf(ownerPress)?.params.text ?? '').includes('Allaqachon bajarilgan (Aziza)'), String(answerOf(ownerPress)?.params.text));
   ok("panel: ochiq so'rov yo'q, yopilgani tarixda", (await api('/api/requests', { token })).json.open === 0 && (await api('/api/requests?which=closed', { token })).json.requests[0]?.doneBy === 'Aziza');
+
+  console.log('\n# Qabul faqat Telegram tasdiqlagan raqam bilan ochiladi');
+  const replierSystem = () => String(ai.requests.filter(r => String(r.system).includes('Appointments (this business is a clinic)')).at(-1)?.system ?? '');
+  const lastPrompt = () => ai.replier.at(-1)?.user ?? '';
+  const answered = (n: number) => waitFor('model javobi', () => ai.replier.length > n, 15_000);
+  ai.customer = () => decision({ action: 'ask_owner', reply: "Rahmat! Ma'lumotni tekshirib, javob beramiz." });
+  let asked = ai.replier.length;
+  igWeb.incoming('t1', 'Ertangi qabulim soat nechada edi?', { pk: '8001', username: 'dilnoza_ig', name: 'Dilnoza' });
+  await answered(asked);
+  ok("o'sha bemor Instagram'dan so'rasa — qabullari modelga bormaydi, savol xodimga (ask_owner)",
+    !lastPrompt().includes('<customer_appointments>') && replierSystem().includes('use "ask_owner"') && !replierSystem().includes('/raqam'), lastPrompt().slice(-400));
+
+  const STRANGER = 7007;
+  tgNames.set(STRANGER, { first_name: 'Begona' });
+  mark = sent.length;
+  say(STRANGER, `/start ${String(me.status.generalLink).split('start=')[1]}`);
+  await waitFor('bot salom (begona)', () => to(STRANGER, mark, 'Assalomu alaykum'));
+  ai.customer = () => decision({ reply: 'Qaysi kun qulay?', customer_name: 'Dilnoza Karimova', customer_phone: '+998 94 444 55 66' });
+  asked = ai.replier.length;
+  say(STRANGER, 'Men Dilnoza Karimova, 94 444 55 66');
+  await answered(asked);
+  const strangerCard = async () => ((await api('/api/leads', { token })).json.leads as Lead[]).find(l => l.channel === 'bot' && l.id !== dil[0]?.id);
+  let linked: Lead | undefined;
+  for (let i = 0; i < 50 && !linked?.patientId; i++) { linked = await strangerCard(); await sleep(100); }
+  ai.customer = () => decision({ reply: 'Raqamingizni /raqam bilan yuboring' });
+  asked = ai.replier.length;
+  say(STRANGER, 'Ertangi qabulimni bekor qiling');
+  await answered(asked);
+  ok("begona boshqa bemorning ismi va raqamini yozsa: karta bemorga bog'lanadi (egasi uchun), lekin qabullari modelga bormaydi — /raqam bilan tasdiqlash so'raladi",
+    linked?.patientId === 'p4' && !lastPrompt().includes('<customer_appointments>') && replierSystem().includes('/raqam'), JSON.stringify(linked));
+  mark = sent.length;
+  say(STRANGER, '/raqam');
+  ok('/raqam — raqam tugmasi qayta chiqadi', await waitFor('raqam tugmasi', () => sent.slice(mark).some(s => s.method === 'sendMessage' && Number(s.params.chat_id) === STRANGER
+    && JSON.stringify(s.params.reply_markup ?? {}).includes('request_contact'))));
+  mark = sent.length;
+  shareContact(STRANGER, '998335550011');
+  await waitFor('tasdiqlandi (begona)', () => to(STRANGER, mark, 'tasdiqlandi'));
+  asked = ai.replier.length;
+  say(STRANGER, 'Ertangi qabulimni bekor qiling');
+  await answered(asked);
+  const own = await strangerCard();
+  ok("o'z (boshqa) raqamini tasdiqlasa: bemor bog'lanishi olib tashlanadi, qabullar yo'q, /raqam endi so'ralmaydi",
+    !own?.patientId && phoneKey(own?.phone ?? null) === '335550011' && !lastPrompt().includes('<customer_appointments>') && !replierSystem().includes('/raqam'), JSON.stringify(own));
 
   console.log('\n# Qabulni ko\'chirish va bekor qilish (DentaCRM)');
   ai.customer = () => decision({

@@ -35,3 +35,15 @@ export function patientFor(list: Patient[], name: string | null, phone: string):
   const sharing = key ? list.filter(p => phoneKey(p.phone) === key || phoneKey(p.secondaryPhone) === key) : [];
   return sharing.length === 1 ? sharing[0] : null;
 }
+
+/** Botda «Raqamni yuborish» tugmasi bilan yuborilgan o'z raqami: Telegram akkaunti va raqam birga — boshqa akkauntga yoki raqamga o'tmaydi */
+export const proofFor = (tgUserId: string, phone: string): string => `${tgUserId}:${phoneKey(phone)}`;
+
+/** Karta telefoni Telegram tasdiqlagan raqammi (yozishmada aytilgan raqam — tasdiq emas) */
+export function phoneVerified(l: Pick<LeadRow, 'tgUserId' | 'phone' | 'phoneProof'>): boolean {
+  return !!l.tgUserId && !!l.phone && l.phoneProof === proofFor(l.tgUserId, l.phone);
+}
+
+/** Tasdiqlangan raqam bemorning o'zinikimi (DentaCRM kartasidagi asosiy yoki qo'shimcha raqam) */
+export const patientHasPhone = (p: Pick<Patient, 'phone' | 'secondaryPhone'>, phone: string): boolean =>
+  !!phoneKey(phone) && (phoneKey(p.phone) === phoneKey(phone) || phoneKey(p.secondaryPhone) === phoneKey(phone));

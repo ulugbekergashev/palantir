@@ -9,7 +9,7 @@
 import { leads, sql, type BusinessRow, type LeadRow } from './db';
 import { crmConnected, withCrm } from './crm/index';
 import type { Patient } from './crm/logic';
-import { fullerName, namesFit, patientFor, samePerson } from './personRules';
+import { fullerName, namesFit, patientFor, patientHasPhone, phoneVerified, samePerson } from './personRules';
 // Kartalar qo'shilganda so'rovlar va qo'ng'iroqlar ham ko'chadi — ularning jadvali shu yerda tayyor bo'lsin
 import './requests/store';
 
@@ -28,10 +28,10 @@ function absorb(bizId: string, keep: LeadRow, drop: LeadRow): void {
   const latest = (a: string | null, b: string | null) => (!a ? b : !b ? a : a > b ? a : b);
   sql.tx(() => {
     sql.run(`UPDATE leads SET name = ?, username = COALESCE(username, ?), tg_user_id = COALESCE(tg_user_id, ?), tg_access_hash = COALESCE(tg_access_hash, ?),
-      ig_user_id = COALESCE(ig_user_id, ?), ig_thread = COALESCE(ig_thread, ?), bot_started = MAX(bot_started, ?), patient_id = COALESCE(patient_id, ?),
+      ig_user_id = COALESCE(ig_user_id, ?), ig_thread = COALESCE(ig_thread, ?), bot_started = MAX(bot_started, ?), patient_id = COALESCE(patient_id, ?), phone_proof = COALESCE(phone_proof, ?),
       source = COALESCE(source, ?), post_id = COALESCE(post_id, ?), stage = ?, note = ?, next_step = ?, next_at = ?, last_inbound_at = ?,
       created_at = MIN(created_at, ?), updated_at = ? WHERE business_id = ? AND id = ?`,
-      fullerName(keep.name, drop.name), drop.username, drop.tgUserId, drop.tgAccessHash, drop.igUserId, drop.igThread, drop.botStarted ? 1 : 0, drop.patientId ?? null,
+      fullerName(keep.name, drop.name), drop.username, drop.tgUserId, drop.tgAccessHash, drop.igUserId, drop.igThread, drop.botStarted ? 1 : 0, drop.patientId ?? null, drop.phoneProof,
       drop.source, drop.postId, stage, note, nextStep, nextAt, latest(keep.lastInboundAt, drop.lastInboundAt),
       drop.createdAt, sql.nowIso(), bizId, keep.id);
     for (const table of ['inbox', 'replies', 'tasks', 'requests', 'calls']) {
@@ -71,6 +71,21 @@ export async function linkPatient(biz: BusinessRow, leadId: string): Promise<str
   // Bemor kartasidagi ism — haqiqiy ism (Telegram'dagi laqabdan to'liqrog'i)
   if (full && fullerName(lead.name, full) === full) leads.update(biz.id, lead.id, { name: full });
   return p.id;
+}
+
+/**
+ * Mijoz yozishmada o'z qabullarini ko'ra, ko'chira va bekor qila oladimi: faqat botda, Telegram tasdiqlagan raqam bilan va bog'langan
+ * bemorning DentaCRM'dagi raqami ham shu bo'lsa. Yozishmada aytilgan ism va raqam yetmaydi — boshqa odamning ma'lumotini bilgan
+ * begona uning qabulini ko'chira olmasin. Boshqa kanallarda qabul haqidagi savol xodimga o'tadi
+ */
+export async function patientTrusted(biz: BusinessRow, lead: LeadRow, channel: LeadRow['channel']): Promise<boolean> {
+  if (channel !== 'bot' || !lead.patientId || !phoneVerified(lead) || !crmConnected(biz.id)) return false;
+  try {
+    const p = (await withCrm(biz.id, crm => crm.patients())).find(x => x.id === lead.patientId);
+    return !!p && patientHasPhone(p, lead.phone!);
+  } catch {
+    return false;
+  }
 }
 
 /**

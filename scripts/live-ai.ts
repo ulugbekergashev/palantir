@@ -75,6 +75,7 @@ console.log('\n# Mavjud qabulni ko\'chirish va bekor qilish (haqiqiy Claude + so
 const { crm, crmServer, CRM_LOGIN } = await import('./fakeCrm');
 const { listen } = await import('./fakes');
 const { connectCrm } = await import('../server/crm/index');
+const { proofFor } = await import('../server/personRules');
 const { iso } = await import('../src/lib/week');
 const crmPort = await listen(crmServer);
 const tomorrow = iso(new Date(Date.now() + 86_400_000));
@@ -82,10 +83,14 @@ crm.seed(iso(new Date()), tomorrow);
 crm.appointments.push({ id: 'up1', patientId: 'p4', patientName: 'Dilnoza Karimova', doctorId: 'd1', doctorName: 'Rustam Rustamov', type: "Ko'rik", date: tomorrow, time: '11:00', duration: 30, status: 'Pending', notes: null, clinicId: 'c1', reminderSent: false });
 const clinic = businesses.create('live-clinic', 'x', profile);
 await connectCrm(clinic, { url: `http://127.0.0.1:${crmPort}`, ...CRM_LOGIN });
+// Bemor botda o'z raqamini tugma bilan yuborgan (Telegram tasdiqlagan): faqat shunda qabullarini ko'radi va o'zgartira oladi
+let patientTg = 9000;
 async function patientChat(text: string) {
-  const lead = leads.add(clinic.id, { name: 'Dilnoza Karimova', phone: '+998944445566', note: null, source: 'Instagram' });
+  const tg = String(++patientTg), phone = '+998944445566';
+  const lead = leads.fromTelegram(clinic.id, tg, 'Dilnoza Karimova', null, 'Telegram havola', null);
+  leads.update(clinic.id, lead.id, { phone, phoneProof: proofFor(tg, phone) });
   leads.setPatient(clinic.id, lead.id, 'p4');
-  inbox.add(clinic.id, { leadId: lead.id, channel: 'instagram', direction: 'in', by: 'customer', text });
+  inbox.add(clinic.id, { leadId: lead.id, channel: 'bot', direction: 'in', by: 'customer', text });
   const d = await decide(clinic, leads.get(clinic.id, lead.id)!, inbox.thread(clinic.id, lead.id, 30));
   return { d, info: `${d.action} — «${d.reply.slice(0, 160)}» · o'zgarish: ${d.change ? `${d.change.kind} ${d.change.appointmentId} ${d.change.date} ${d.change.time}` : "yo'q"}` };
 }

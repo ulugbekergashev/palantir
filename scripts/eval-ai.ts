@@ -16,6 +16,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs, parseEnv } from 'node:util';
 import type { Case, Result } from './eval/cases';
+import type { BusinessRow, LeadRow } from '../server/db';
+import type { LeadChannel } from '../src/types';
 
 const { values: a } = parseArgs({
   options: {
@@ -58,7 +60,10 @@ const broken = CASES.flatMap(c => {
   const e = c.expect, problems: string[] = [];
   const named = [...e.tools ?? [], ...e.anyTool ?? [], ...e.forbid ?? [], ...Object.keys(e.input ?? {})];
   problems.push(...named.filter(t => !known.has(t)).map(t => `noma'lum asbob ${t}`));
-  if (c.kind === 'owner' && (!c.text || c.thread || e.action || e.request !== undefined || e.phoneEndsWith || e.booking !== undefined)) problems.push("egasi holati: text kerak, mijoz tekshiruvlari bo'lmaydi");
+  if (c.kind === 'owner' && (!c.text || c.thread || c.patient || e.action || e.request !== undefined || e.phoneEndsWith || e.booking !== undefined || e.change !== undefined)) {
+    problems.push("egasi holati: text kerak, mijoz tekshiruvlari bo'lmaydi");
+  }
+  if (c.patient && !c.clinic) problems.push('bemor holati klinikada bo\'ladi (clinic: true)');
   if (c.kind === 'customer' && (!c.thread?.length || c.text || named.length || e.noTools)) problems.push("mijoz holati: thread kerak, asbob tekshiruvlari bo'lmaydi");
   if (CASES.filter(x => x.id === c.id).length > 1) problems.push('id takrorlangan');
   return problems.map(p => `${c.id}: ${p}`);
@@ -86,11 +91,15 @@ const { connectCrm } = await import('../server/crm/index');
 const { crm, crmServer, CRM_LOGIN } = await import('./fakeCrm');
 const { listen } = await import('./fakes');
 const { addDays, iso } = await import('../src/lib/week');
+const { proofFor } = await import('../server/personRules');
 
 const startDay = iso(new Date());
 const crmUrl = `http://127.0.0.1:${await listen(crmServer)}`;
-crm.seed(startDay, iso(addDays(new Date(), 1)));
+const tomorrow = iso(addDays(new Date(), 1));
+crm.seed(startDay, tomorrow);
 crm.seedHistory(n => iso(addDays(new Date(), -n)));
+// Bemor holatlari (Case.patient) uchun: Dilnoza Karimovaning ertangi qabuli
+crm.appointments.push({ id: 'up1', patientId: 'p4', patientName: 'Dilnoza Karimova', doctorId: 'd1', doctorName: 'Rustam Rustamov', type: "Ko'rik", date: tomorrow, time: '11:00', duration: 30, status: 'Pending', notes: null, clinicId: 'c1', reminderSent: false });
 
 const profile = {
   ...emptyBusiness('Shifo Dent', 'stomatologiya'), ownerName: 'Aziz', phone: '+998 71 200 00 00', address: 'Toshkent, Chilonzor 5',
@@ -133,12 +142,30 @@ function judge(c: Case, r: Result): string[] {
     if (e.request !== undefined && (r.request?.kind ?? null) !== e.request) why.push(`so'rov: ${r.request?.kind ?? "yo'q"}, kutilgan: ${e.request ?? "yo'q"}`);
     if (e.phoneEndsWith && !r.request?.phone.replace(/\D/g, '').endsWith(e.phoneEndsWith)) why.push(`raqam «${r.request?.phone ?? ''}», kutilgan …${e.phoneEndsWith}`);
     if (e.booking !== undefined && JSON.stringify(r.booking) !== JSON.stringify(e.booking)) why.push(`qabul: ${JSON.stringify(r.booking)}, kutilgan: ${JSON.stringify(e.booking)}`);
+    const changeOk = e.change === null ? !r.change : !!r.change && Object.entries(e.change ?? {}).every(([k, v]) => r.change![k as keyof typeof r.change] === v);
+    if (e.change !== undefined && !changeOk) why.push(`o'zgarish: ${JSON.stringify(r.change)}, kutilgan: ${JSON.stringify(e.change)}`);
   }
   for (const re of e.replyHas ?? []) if (!re.test(r.reply)) why.push(`javobda yo'q: ${re}`);
   for (const re of e.replyNot ?? []) if (re.test(r.reply)) why.push(`javobda bo'lmasligi kerak edi: «${r.reply.match(re)?.[0]}»`);
   const extra = e.check?.(r);
   if (typeof extra === 'string') why.push(extra);
   return why;
+}
+
+/** Yozayotgan mijoz: noma'lum odam Instagram'dan yoki bemor Dilnoza Karimova (Case.patient) */
+function customer(biz: BusinessRow, as: Case['patient']): { lead: LeadRow; channel: LeadChannel } {
+  if (!as) return { lead: leads.add(biz.id, { name: null, phone: null, note: null, source: 'Instagram' }), channel: 'instagram' };
+  const phone = '+998944445566';
+  if (as === 'patient-instagram') {
+    const lead = leads.add(biz.id, { name: 'Dilnoza Karimova', phone, note: null, source: 'Instagram' });
+    leads.setPatient(biz.id, lead.id, 'p4');
+    return { lead, channel: 'instagram' };
+  }
+  const tg = String(9000 + seq);
+  const lead = leads.fromTelegram(biz.id, tg, 'Dilnoza Karimova', null, 'Telegram havola', null);
+  leads.update(biz.id, lead.id, { phone, phoneProof: as === 'patient' ? proofFor(tg, phone) : null });
+  leads.setPatient(biz.id, lead.id, 'p4');
+  return { lead, channel: 'bot' };
 }
 
 let seq = 0;
@@ -156,14 +183,15 @@ async function runCase(c: Case): Promise<Run> {
       toolErrors = trace.errors;
       result = { kind: 'owner', reply: r.text, calls: trace.calls };
     } else {
-      const lead = leads.add(biz.id, { name: null, phone: null, note: null, source: 'Instagram' });
+      const { lead, channel } = customer(biz, c.patient);
       const lines = c.thread!, t = Date.now() - lines.length * 60_000;
-      lines.forEach(([dir, text], i) => inbox.add(biz.id, { leadId: lead.id, channel: 'instagram', direction: dir, by: dir === 'in' ? 'customer' : 'cerebro', text, at: new Date(t + i * 60_000).toISOString() }));
+      lines.forEach(([dir, text], i) => inbox.add(biz.id, { leadId: lead.id, channel, direction: dir, by: dir === 'in' ? 'customer' : 'cerebro', text, at: new Date(t + i * 60_000).toISOString() }));
       const d = await decide(biz, leads.get(biz.id, lead.id)!, inbox.thread(biz.id, lead.id, 30));
-      const { request: q, booking: b } = d;
+      const { request: q, booking: b, change: ch } = d;
       result = {
         kind: 'customer', action: d.action, reply: d.reply,
         request: q && { kind: q.kind, phone: q.phone, dueAt: q.dueAt, summary: q.summary }, booking: b && { doctorId: b.doctorId, date: b.date, time: b.time },
+        change: ch && { kind: ch.kind, appointmentId: ch.appointmentId, date: ch.date, time: ch.time },
       };
     }
   } catch (e) {
@@ -180,7 +208,8 @@ function shown(r: Result): string[] {
   const lines = [`javob: «${r.reply.replace(/\s+/g, ' ').slice(0, 220)}»`];
   if (r.kind === 'owner') return [...lines, `asboblar: ${r.calls.map(x => x.name).join(', ') || "yo'q"}`];
   const { request: q, booking: b } = r;
-  return [...lines, `tur: ${r.action} · so'rov: ${q ? `${q.kind} ${q.phone}` : "yo'q"}${b ? ` · qabul: ${b.doctorId} ${b.date} ${b.time}` : ''}`];
+  const ch = r.change;
+  return [...lines, `tur: ${r.action} · so'rov: ${q ? `${q.kind} ${q.phone}` : "yo'q"}${b ? ` · qabul: ${b.doctorId} ${b.date} ${b.time}` : ''}${ch ? ` · o'zgarish: ${ch.kind} ${ch.appointmentId} ${ch.date} ${ch.time}` : ''}`];
 }
 
 const runs = new Map<string, Run[]>(cases.map(c => [c.id, []]));

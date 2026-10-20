@@ -17,6 +17,8 @@ import { replierBrain } from '../brain/index';
 import { facts as notes } from '../brain/vault';
 import type { BusinessRow, LeadRow } from '../db';
 import { env } from '../env';
+import { patientTrusted } from '../people';
+import { phoneVerified } from '../personRules';
 
 export interface Decision {
   action: 'reply' | 'ask_owner' | 'ignore' | 'book' | 'reschedule' | 'cancel_visit';
@@ -109,6 +111,16 @@ Appointments (this business is a clinic)
 - When you have everything, use action "book": set book_doctor_id, book_date (YYYY-MM-DD) and book_time (HH:MM), fill customer_name and customer_phone, and write "reply" as the confirmation the customer receives after the booking is saved (doctor, date, time). For every other action leave the three book_ fields "".
 - You cannot change or cancel an appointment, and you cannot see the customer's existing appointments. If the customer wants to move or cancel a visit, or asks about one they already have, use "ask_owner".`;
 
+/** Botda raqami tasdiqlanmagan mijoz o'z qabulini so'rasa: xodimga emas — raqamni tugma bilan yuborishga (bot.ts: /raqam) */
+const VERIFY_RULE = `
+- You cannot see this customer's existing appointments until they confirm their phone number in Telegram. If they ask about, or want to move or cancel, a visit they already have, use "reply": ask them to tap /raqam and send their number with the button that appears, then write again.`;
+const NO_VISITS_RULE = /\n- You cannot change or cancel[^\n]*/;
+
+function clinicRules(withVisits: boolean, verify: boolean): string {
+  if (withVisits) return CLINIC_RULES.replace(NO_VISITS_RULE, '') + CHANGE_RULES;
+  return verify ? CLINIC_RULES.replace(NO_VISITS_RULE, VERIFY_RULE) : CLINIC_RULES;
+}
+
 /** Qabul yozilgani haqidagi gap (lotin, kirill, ruscha): bunday javob faqat «book» amali bilan, qabul haqiqatan yozilgach ketishi mumkin */
 const CLAIM_LATIN = /yozib qo'y|yozdik|yozdim|yozildi|yozib oldi|ro'yxatga ol|ro'yxatdan o'tkaz|band qildi|bron qil|navbat(ga)? (ol|qo'y)|navbatingiz|tasdiqlandi|tasdiqladi|qabulingiz tasdiq|belgilandi|belgiladi|belgilab qo'y|qo'shdik|qo'shib qo'y|zapisal/;
 const CLAIM_CYRILLIC = /ёзиб қўй|ёзиб қўя|ёздик|ёздим|ёзилди|рўйхатга ол|банд қилди|брон қил|тасдиқланди|тасдиқлади|белгиланди|записал|записан|запись (подтвержд|оформлен|принят)|бронь оформ|забронир/;
@@ -173,8 +185,11 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
   const who = inline([lead.name, lead.username && `@${lead.username}`, lead.phone].filter(Boolean).join(', '), 160) || 'unknown';
   // Klinika: shifokorlar va bo'sh vaqtlar CRM'dan (CRM javob bermasa — qabulsiz, oddiy javob beruvchi)
   const schedule = await scheduleText(biz.id);
-  // Bemorga bog'langan mijoz: uning yaqin qabullari — ko'chirish va bekor qilishni o'zi hal qiladi
-  const visits = schedule && lead.patientId ? await upcomingVisits(biz.id, lead.patientId) : [];
+  // Bemorga bog'langan va raqami tasdiqlangan mijoz (people.ts: patientTrusted): uning yaqin qabullari — ko'chirish va bekor qilishni
+  // o'zi hal qiladi. Kim yozgani — oxirgi kirgan xabarning kanali (bitta kartada bot ham, Instagram ham bo'lishi mumkin)
+  const channel = thread.filter(m => m.direction === 'in').at(-1)?.channel ?? lead.channel;
+  const visits = schedule && await patientTrusted(biz, lead, channel) ? await upcomingVisits(biz.id, lead.patientId!) : [];
+  const verify = !!schedule && channel === 'bot' && !phoneVerified(lead);
   const brain = replierBrain(biz);
   const user = [
     `<business_profile>\n${profileText(biz)}\n</business_profile>`,
@@ -193,7 +208,7 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
     model: env.aiModel,
     // O'ylash ham shu hisobdan: kichik chegarada javob JSON'i yarmida uzilib qolardi
     max_tokens: 8000,
-    system: REPLIER_SYSTEM + (medical ? MEDICAL_RULES : '') + (schedule ? (visits.length ? CLINIC_RULES.replace(/\n- You cannot change or cancel[^\n]*/, '') + CHANGE_RULES : CLINIC_RULES) : ''),
+    system: REPLIER_SYSTEM + (medical ? MEDICAL_RULES : '') + (schedule ? clinicRules(visits.length > 0, verify) : ''),
     messages: [{ role: 'user', content: user }],
     thinking: { type: 'adaptive', display: 'omitted' },
     output_config: { effort: env.aiEffortCustomer, format: { type: 'json_schema', schema: visits.length ? CHANGE_SCHEMA : schedule ? CLINIC_SCHEMA : SCHEMA } },

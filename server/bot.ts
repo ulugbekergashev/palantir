@@ -34,6 +34,7 @@ import { reviewCall } from './callreview';
 import { diagnostics, sendDiagnostics } from './diagnostics';
 import { toOgg } from './tts';
 import { phoneChanged } from './people';
+import { proofFor } from './personRules';
 import { actorOf, setTeamOutlet } from './requests/index';
 import { replyCards } from './requests/store';
 import { linkStaff, listOpen, requestButton, requestReply, staffText, teamOutlet } from './requests/telegram';
@@ -392,6 +393,12 @@ export function createBot(): BotService {
     await ctx.reply(biz ? helpFor(biz) : 'Bu Cerebro — biznes uchun AI yordamchi. Ulanish: panel → «Telegram».');
   });
 
+  // Mijoz: raqam tugmasi qayta (tugma bir martalik). Klinikada o'z qabulini yozishmada ko'rish uchun raqam shu tugma bilan tasdiqlanadi
+  bot.command(['raqam', 'nomer'], async ctx => {
+    if (ctx.chat.type !== 'private' || ownerOf(ctx)) return;
+    await ctx.reply("Raqamingizni pastdagi tugma bilan yuboring.\nОтправьте номер кнопкой ниже.", contactKeyboard);
+  });
+
   bot.command('yangi', async ctx => {
     const biz = ownerOf(ctx);
     if (!biz) return;
@@ -649,10 +656,14 @@ export function createBot(): BotService {
     if (!lead || !biz) return ctx.reply("Qaysi biznes bilan bog'lanmoqchisiz? Havolani qayta bosing.", Markup.removeKeyboard());
     const phone = contact.phone_number.startsWith('+') ? contact.phone_number : `+${contact.phone_number}`;
     const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || lead.name;
-    leads.update(biz.id, lead.id, { phone, name });
+    // Tugma bilan yuborilgan o'z raqami (user_id — yuboruvchining o'zi) Telegram tasdiqlagan; kontaktlardan ulashilgan karta — tasdiq emas
+    const own = contact.user_id === ctx.from.id;
+    leads.update(biz.id, lead.id, { phone, name, phoneProof: own ? proofFor(String(ctx.from.id), phone) : null });
     // Shu raqam bilan Instagram'da yoki qo'ng'iroqda kelgan karta bo'lsa — bitta odam, bitta karta
     const updated = phoneChanged(biz, lead.id)!;
-    await ctx.reply("Rahmat! ✅ Tez orada bog'lanamiz.\nСпасибо! Скоро свяжемся.", Markup.removeKeyboard());
+    await ctx.reply(own && crmConnected(biz.id)
+      ? "Rahmat! ✅ Raqamingiz tasdiqlandi — savolingizni yozing, qabulingiz haqida ham.\nСпасибо! Номер подтверждён — напишите вопрос, в том числе о вашей записи."
+      : "Rahmat! ✅ Tez orada bog'lanamiz.\nСпасибо! Скоро свяжемся.", Markup.removeKeyboard());
     await toOwner(biz, updated, [
       '🆕 <b>Yangi mijoz</b>',
       `👤 ${esc(personName(updated))}${updated.username ? ` (@${esc(updated.username)})` : ''}`,
