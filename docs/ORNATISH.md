@@ -18,7 +18,7 @@ Anketa serveri tunnel yoki proksi ortida tursa (cloudflared, nginx), uning `.env
 | TG_API_ID va TG_API_HASH (ixtiyoriy) | my.telegram.org → API development tools (bir marta, hamma klinikalarga bitta) | Egasining **shaxsiy** Telegramiga yozgan mijozlarga javob. Bo'lmasa bu imkoniyat o'chiq |
 | DentaCRM manzili, login, parol | Klinikadan | Qabullar, bemorlar, tushum |
 | Instagram login-paroli | Klinikadan (egasi o'zi kiritadi) | Direct'ga javob |
-| Kameralarning RTSP manzili | Kamerani o'rnatgan usta yoki videoregistrator sozlamalari | Kamera nazorati |
+| Kameralarning RTSP manzili (yoki HTTP/MJPEG manzili) | Kamerani o'rnatgan usta yoki videoregistrator sozlamalari. Kamera yo'q kabinetga — eski Android telefon («IP Webcam» ilovasi) | Kamera nazorati |
 
 | Uztelecom SIP: server manzili, login, parol, raqam (ixtiyoriy) | Klinika Uztelecom'dan oladi (yuridik shaxs) | Shahar raqamiga AI qabulxona javob beradi |
 
@@ -58,6 +58,20 @@ Panel: ish stolidagi «Cerebro» yorlig'i. Usta: `http://localhost:3200/#/ulash`
 5. **Kameralar**: «Tarmoqdan qidirish» — kameralar o'zi topiladi (ONVIF va 554-port), markasi va modeli bilan. Login-parolni bir marta kiritasiz, har kameraga joyini yozasiz («Qabulxona», «1-kabinet») → «Ulash». RTSP manzili kameradan so'raladi (yengil oqim), bo'lmasa markaning odatiy yo'llari sinab ko'riladi; ulangach kadri ko'rinadi. Kreslo va kassa zonalarini kabinetdagi «Kameralar» bo'limida kadr ustida chizasiz. Topilmagan kamerani `rtsp://` manzili bilan «Kalitlar» qadamiga qo'yish mumkin:
    - Hikvision: `rtsp://admin:PAROL@192.168.1.64:554/Streaming/Channels/102` (`102` — 1-kamera, yengil oqim; 2-kamera — `202`)
    - Dahua: `rtsp://admin:PAROL@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1`
+   - RTSP'siz kamera: HTTP manzili — MJPEG oqim yoki surat (`http://admin:PAROL@192.168.1.70/snapshot.jpg`)
+   - **Telefon kamera sifatida**: Android'ga «IP Webcam» ilovasi → «Start server» → `http://TELEFON-IP:8080/video`. Telefonni zaryadga ulab, devorga mahkamlang; ilova sozlamasida ekran o'chib qolmasin.
+
+   **Zonalar** (Kuzatuvchi → Ulash → kamera → kadr ustida to'rtburchak torting yoki **«AI belgilasin»** — AI kadrga qarab taklif qiladi, siz joyini tuzatib «Zonalarni saqlash»ni bosasiz):
+   | Zona turi | Nima beradi |
+   |---|---|
+   | Kreslo (shifokor id'si bilan) | Kim kresloda qancha o'tirdi, kreslo necha foiz band, DentaCRM bilan solishtirish: qabulsiz o'tirish, «keldi» deb belgilangan-u ko'rinmagan bemor, **to'lovsiz qabul** |
+   | Kassa stoli | Kassa oldida turganlar va CRM'dagi to'lovlar |
+   | Kutish joyi | Har bemor qancha kutgani; 20 daqiqadan ko'p kutsa — egasiga xabar |
+   | Xodim joyi (masalan, «Administrator») | Qachon keldi, qachon ketdi, eng uzoq yo'qligi |
+   | Maxfiy joy | Kameradan chiqadigan **har rasmda** qora bilan yopiladi (AI, Telegram, jurnal, panel) — pul qutisi, kompyuter ekrani, kiyinish joyi |
+
+   Keyin Kuzatuvchi → «Topshiriqlar» → **«Tayyor qoidalar»**dan kerakligini bir bosishda yoqing: kechasi odam ko'rinsa, kassa bo'sh qolsa, ko'p odam yig'ilsa, ertalab tartib, yopilgandan keyin.
+   Kreslo bandligi va «kechasi chiroq o'chdi» qaysi soatlar ish vaqti ekaniga qarab hisoblanadi: anketadagi (yoki «Biznes haqida»dagi) **ish vaqti** to'g'ri yozilganini tekshiring («Du–Sh 9:00–20:00»). Yozilmagan bo'lsa — 08:00–21:00.
 6. **Shaxsiy Telegram** (Telegram API ID va hash kiritilgan bo'lsa): raqam anketadan yoki kalitlar maydonidan → kod → (bo'lsa) ikki bosqichli parol.
 7. **Instagram**: «Instagram oynasini ochish» — egasi login-parolini ochilgan oynada o'zi kiritadi. Pastdagi «Chegaralar»ni o'qing.
 8. **Bo'shliqlar**: usta hamma ma'lumotni tekshirib, yetishmagan va zid joylarni ko'rsatadi — bitta xizmatga ikki xil narx, yozilmagan kunlar, manzil, telefon. «Egasidan Telegram'da so'rash» — bot egasiga bittalab so'raydi (narx savolida tugmalar bilan), javob o'z joyiga yoziladi: narx — jadvalga, manzil va ish vaqti — «Biznes haqida» sahifasiga. Keyin ko'p so'raladigan savollar keladi. Ro'yxat egasi javob bergan sari ekranda qisqaradi.
@@ -81,6 +95,10 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 - [ ] Boshqa telefondan botga bemor sifatida yozildi («narxlar qancha?») — egasiga javob taklifi keldi, «Yuborish» ishladi.
 - [ ] Bemor sifatida qabulga yozilib ko'rildi — qabul DentaCRM'da paydo bo'ldi (keyin o'chirib tashlang).
 - [ ] Kameralar sahifasida har kamera holati «kadr kelyapti».
+- [ ] Egasi botga `/kamera` yozdi — har kameradan rasm keldi; «/kamera qabulxonada kim bor» — kadrga qarab javob keldi.
+- [ ] Maxfiy joy belgilangan bo'lsa: `/kamera` rasmida o'sha joy qora.
+- [ ] Kreslo zonalarida DentaCRM shifokor id'si yozilgan; «Tayyor qoidalar»dan kamida «Kechasi odam ko'rinsa» yoqilgan.
+- [ ] Kamerani qo'l bilan 2–3 daqiqa yopib ko'ring — egasiga «kamera ko'rmay qoldi» keldi, ochgach «yana ko'ryapti» (birinchi 10 daqiqada kamera odatiy ko'rinishini o'rganadi — undan keyin sinang).
 - [ ] Kompyuterni **o'chirib-yoqing**: 1–2 daqiqadan keyin bot o'zi javob beryaptimi?
 - [ ] Kompyuter uxlamaydigan qilingan (Sozlamalar → Quvvat → «Hech qachon»).
 - [ ] Egasiga aytildi: kompyuter o'chirilmaydi; shu Windows foydalanuvchisi bilan kirilgan bo'lishi kerak.
@@ -98,7 +116,9 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 | Kalitni almashtirish | `/#/ulash` → «Kalitlar»: yangisini qo'ying — tekshiriladi va server to'xtamasdan kuchga kiradi. Kalitlar bazada shifrlangan (`session.secret` bilan); `.env` dagisi faqat panelda berilmagan bo'lsa ishlaydi |
 | Olib tashlash | `install\Ornatish.cmd -Uninstall` (ma'lumotlar o'chmaydi) |
 
-Kunlik chegaralar (`.env` da o'zgartiriladi): egasining yordamchisi — 600 so'rov (`AI_DAILY_OWNER`), mijozlarga javob — 400 (`AI_DAILY_CUSTOMER`), rasm — 50 (`AI_DAILY_PHOTOS`). Chegara tugasa Cerebro buni egasiga aytadi va pul sarflamaydi.
+Kunlik chegaralar (`.env` da o'zgartiriladi): egasining yordamchisi — 600 so'rov (`AI_DAILY_OWNER`), mijozlarga javob — 400 (`AI_DAILY_CUSTOMER`), rasm — 50 (`AI_DAILY_PHOTOS`), kamera AI ko'zi — 150 (`AI_DAILY_CAMERA`). Chegara tugasa Cerebro buni egasiga aytadi va pul sarflamaydi.
+
+Kamera sozlamalari (`.env`): kechki kamera hisoboti soati — `CAMERA_REPORT_HOUR=20` (99 — yuborilmaydi), uzoq kutish chegarasi — `CAMERA_WAIT_ALERT_MIN=20`, «to'lov yozilmagan» deyishdan oldin kutish — `CAMERA_PAY_GRACE_MIN=30`, «yopildi/burildi» qancha davom etsa xabar — `CAMERA_TAMPER_HOLD_SEC=120`.
 
 ## 6. Muammo chiqsa
 
@@ -110,13 +130,17 @@ Kunlik chegaralar (`.env` da o'zgartiriladi): egasining yordamchisi — 600 so'r
 | «Bugungi AI chegarasi tugadi» | Kunlik chegara: ertaga o'zi ochiladi yoki `.env` da oshiring |
 | «Shaxsiy Telegram uzildi» | Egasi telefonida «Faol seanslar»dan Cerebro'ni tugatgan: panelda qayta ulang |
 | Kamera: «kadr kelmayapti» | Kamera yoki registrator o'chgan, IP o'zgargan, parol almashgan. Manzilni qayta kiriting |
+| «Kamera burilgan yoki joyi o'zgargan» | Kamerani joyiga qaytaring. Ataylab burilgan bo'lsa — zonalarni qayta chizing (kamera yangi ko'rinishni qaytadan o'rganadi) |
+| Har kech «kamera ko'rmay qoldi» | Ish vaqti noto'g'ri yozilgan: ish vaqtidan tashqarida chiroq o'chishi xabar bermaydi. «Biznes haqida»da ish vaqtini tuzating |
+| Telefon kamera uziladi | Telefon zaryadda, Wi-Fi'da, «IP Webcam» ochiq va ekran o'chib qolmasin (ilova sozlamasi) |
 | Panel ochilmayapti | `Ishga-tushirish.cmd`. Bo'lmasa `logs\supervisor.log` ning oxirini o'qing |
 | Instagram javob bermay qoldi | Instagram qayta kirishni so'ragan: panelda Instagram'ni qayta ulang |
 
 ## 7. Chegaralar — klinikaga oldindan ayting
 
 - **Instagram** rasmiy yo'l bilan emas, egasining akkaunti orqali brauzerda ishlaydi. Instagram buni avtomatlashtirish deb topib, akkauntni vaqtincha cheklashi mumkin. Shuning uchun: kuniga 120 tadan ko'p xabar yuborilmaydi, birinchi hafta faqat «Tasdiq bilan» rejimi. Haqiqiy Instagram'da hali sinalmagan — birinchi klinikada o'zingiz kuzating.
-- **Kameralar** odamni tanimaydi va pulni ko'rmaydi: faqat «kresloda shuncha vaqt odam o'tirdi», «kassa oldida odam turdi» deb sanaydi va CRM bilan solishtiradi. Farqlar — tekshirish uchun sabab, ayb emas. Tasvir hech qayerga saqlanmaydi va kompyuterdan chiqmaydi.
+- **Kameralar** odamni tanimaydi va pulni ko'rmaydi: faqat «kresloda shuncha vaqt odam o'tirdi», «kassa oldida odam turdi», «kutish joyida shuncha kutdi» deb sanaydi va CRM bilan solishtiradi. Farqlar — tekshirish uchun sabab, ayb emas.
+  Odamlarni sanash shu kompyuterning o'zida bo'ladi, oqim hech qayerga yuborilmaydi. **Kadr kompyuterdan faqat shunda chiqadi**: egasi so'raganda (`/kamera`, «kameraga qara», «AI belgilasin») yoki uning topshirig'i bo'yicha — AI'ga (Claude) va egasining Telegram'iga; ogohlantirish kadrlari Kuzatuvchi jurnalida 14 kun saqlanadi. Maxfiy joylar har rasmda qora. Buni klinikaga ayting va kamerani bemorlar yechinadigan joyga qaratmang.
 - **Shaxsiy Telegram** uzilgan paytda (internet yo'q) kelgan xabarlarni Cerebro ko'rmay qolishi mumkin — egasi telefonida o'zi ko'radi.
 - **Qo'ng'iroqlarga javob beradigan ovozli agent** bu dasturda yo'q (faqat ulash joyi bor).
 - Panel faqat shu kompyuterda ochiladi. Egasi hamma narsani telefonidagi Telegram botdan boshqaradi.
