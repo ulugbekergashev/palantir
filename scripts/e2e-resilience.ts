@@ -13,6 +13,8 @@ import { request } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { SCHEMA_VERSION } from '../server/migrate';
 import { iso, stamp } from '../src/lib/week';
 import { OWNER, say, sent, sleep, tgServer, waitFor } from './fakes';
 
@@ -110,6 +112,24 @@ try {
   const day = join(dataDir, 'backups', iso(new Date()));
   ok('zaxira nusxa olindi (baza)', existsSync(join(day, 'cerebro.db')), (backup.stderr || backup.stdout).trim().slice(0, 200));
   ok('yarim yozilgan nusxa qolmadi', !readdirSync(join(dataDir, 'backups')).some(n => n.startsWith('.yozilmoqda')));
+
+  console.log('\n# Baza nashri');
+  const version = (file: string) => { const d = new DatabaseSync(file); const v = Number((d.prepare('PRAGMA user_version').get() as { user_version: number }).user_version); d.close(); return v; };
+  const setVersion = (file: string, v: number) => { const d = new DatabaseSync(file); d.exec(`PRAGMA user_version = ${v}`); d.close(); };
+  ok("yangi baza darhol oxirgi nashrda", version(join(dataDir, 'cerebro.db')) === SCHEMA_VERSION, `v${version(join(dataDir, 'cerebro.db'))}`);
+  // Alohida papka: bazani faqat db moduli ochadi (server emas) — tuzilmani joriy kod yaratadi, keyin «nashrsiz eski baza» qilinadi
+  const oldDir = mkdtempSync(join(tmpdir(), 'cerebro-nashr-')), oldDb = join(oldDir, 'cerebro.db');
+  const openDb = () => spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', '-e', "import('./server/db.ts').then(() => process.exit(0))"], { env: { ...ENV, DATA_DIR: oldDir, BACKUP_DIR: '' }, encoding: 'utf8', timeout: 60_000 });
+  openDb();
+  setVersion(oldDb, 0);
+  const migrated = openDb();
+  const before = readdirSync(join(oldDir, 'backups')).filter(n => /^oldin-v\d+-.+\.db$/.test(n));
+  ok('eski baza: avval nusxa olindi, keyin oxirgi nashrga o\'tdi', migrated.status === 0 && before.length === 1 && version(oldDb) === SCHEMA_VERSION, `${migrated.status} ${before.join(',')} ${(migrated.stderr || '').trim().slice(0, 200)}`);
+  setVersion(oldDb, SCHEMA_VERSION + 1);
+  const tooNew = openDb();
+  ok('baza dasturdan yangiroq — ochilmaydi (kod 78, sababi aytiladi)', tooNew.status === 78 && /yangiroq nashr/.test(tooNew.stderr), `kod ${tooNew.status}`);
+  ok("yangiroq bazaga tegilmadi", version(oldDb) === SCHEMA_VERSION + 1);
+  rmSync(oldDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

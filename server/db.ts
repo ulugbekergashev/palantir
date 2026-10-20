@@ -13,9 +13,19 @@ import type {
 import type { Call, CallLine, Camera, CameraSession, CameraZone, Knowledge, KnowledgeKind, ZoneKind } from '../src/types';
 import { phoneKey } from '../src/lib/phone';
 import { env } from './env';
+import { EXIT_DO_NOT_RESTART } from './guard';
+import { SchemaTooNew, migrate } from './migrate';
 
 const db = new DatabaseSync(env.dbFile);
 db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
+try {
+  migrate(db, env.backupDir);
+} catch (e) {
+  if (!(e instanceof SchemaTooNew)) throw e;
+  // Qayta urinish tuzatmaydi: nazoratchi qayta yoqmasin
+  console.error(`[baza] ${e.message}`);
+  process.exit(EXIT_DO_NOT_RESTART);
+}
 db.exec(`
 CREATE TABLE IF NOT EXISTS businesses (
   id TEXT PRIMARY KEY, login TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, profile TEXT NOT NULL,
