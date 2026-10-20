@@ -49,6 +49,8 @@ export const env = {
   recordingsKeepDays: process.env.RECORDINGS_KEEP_DAYS && Number.isFinite(Number(process.env.RECORDINGS_KEEP_DAYS)) ? Number(process.env.RECORDINGS_KEEP_DAYS) : 90,
   /** Ma'lumotlar diskida shundan kam bo'sh joy qolsa (MB) — egasiga aytiladi */
   diskMinFreeMb: Number(process.env.DISK_MIN_FREE_MB) || 2048,
+  /** Cerebro Hub'ga holat yuborish oralig'i (hub kodi bo'lsa) */
+  heartbeatMs: Number(process.env.HEARTBEAT_MS) || 5 * 60_000,
   /** @BotFather tokeni. Bo'lmasa — panel ishlaydi, Telegram o'chiq */
   botToken: process.env.BOT_TOKEN || '',
   /** Faqat sinov uchun: soxta Telegram API manzili */

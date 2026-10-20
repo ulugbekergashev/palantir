@@ -19,6 +19,7 @@ import { refreshTelegramUser, startTelegramUser, stopTelegramUser, telegramUserA
 import { startScheduler } from './scheduler';
 import { startPhone, startRecordingRetention, stopPhone } from './phone/index';
 import { startMonitor } from './monitor';
+import { startHeartbeat } from './heartbeat';
 import { startOrders } from './orders/run';
 import { startVoiceEnv } from './voice/serviceEnv';
 
@@ -68,6 +69,8 @@ const stopRetention = startRecordingRetention();
 const stopBackups = startBackups();
 // Kanallar nazorati: CRM, rasmiy Instagram va hub, MicroSIP, IP kameralar — uzilsa egasiga aytiladi
 const stopMonitor = startMonitor();
+// Hub kodi bo'lsa: holat 5 daqiqada (kompyuter o'chsa hub sotuvchiga aytadi)
+const stopHeartbeat = startHeartbeat();
 
 const open = !env.listenHost || env.listenHost === '0.0.0.0' || env.listenHost === '::';
 console.log(`Cerebro server: http://localhost:${env.port}${open ? ' (hamma tarmoq interfeyslari)' : ` (${env.listenHost})`}`);
@@ -92,6 +95,7 @@ const shutdown = () => {
   stopPhone();
   stopRetention();
   stopMonitor();
+  stopHeartbeat();
   stopInstagramApi();
   bot.stop();
   flushAllWaits();

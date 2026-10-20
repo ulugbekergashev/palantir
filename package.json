@@ -26,6 +26,7 @@
     "test:instagram": "tsx scripts/e2e-instagram.ts",
     "test:dashboard": "vite build && tsx scripts/e2e-dashboard.ts",
     "hub": "tsx hub/server.ts",
+    "test:hub": "tsx scripts/e2e-hub.ts",
     "test:tgcall": "tsx scripts/e2e-tgcall.ts",
     "test:ipcam": "tsx scripts/e2e-ipcam.ts",
     "test:camwork": "tsx scripts/e2e-camwork.ts",
