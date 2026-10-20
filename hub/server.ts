@@ -1,5 +1,5 @@
 /**
- * Cerebro Hub — rasmiy Instagram (Meta) bilan klinikalar orasidagi kichik bulut xizmati. Meta'ga bitta ilova va bitta ochiq HTTPS manzil
+ * Palantir Hub — rasmiy Instagram (Meta) bilan klinikalar orasidagi kichik bulut xizmati. Meta'ga bitta ilova va bitta ochiq HTTPS manzil
  * kerak; klinika kompyuterlari esa internetga port ochmaydi. Hub:
  *
  *   1. OAuth: klinika «Instagram'ni ulash» bosadi → hub imzolagan havola → instagram.com'da egasi kiradi va ruxsat beradi →
@@ -329,7 +329,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
         ON CONFLICT (ig_user_id) DO UPDATE SET clinic_id = excluded.clinic_id, business_id = excluded.business_id, username = excluded.username, connected_at = excluded.connected_at`)
         .run(igUserId, state.c, state.b, username, now());
       enqueue(state.c, 'ig_token', { businessId: state.b, igUserId, username, token, expiresIn: Number(longLived.expires_in) || 5_184_000, permissions: first.permissions ?? null });
-      return send(res, 200, page('✓ Instagram ulandi', `@${esc(username)} — Cerebro endi Direct xabarlarini oladi va javob beradi. Bu oynani yopishingiz mumkin.`), 'text/html');
+      return send(res, 200, page('✓ Instagram ulandi', `@${esc(username)} — Palantir endi Direct xabarlarini oladi va javob beradi. Bu oynani yopishingiz mumkin.`), 'text/html');
     } catch (e) {
       console.error('[hub] OAuth:', (e as Error).message);
       return send(res, 502, page('Ulanmadi', `Instagram javobi: ${esc((e as Error).message).slice(0, 200)}. Panelga qayting va qayta urining.`), 'text/html');
@@ -423,7 +423,7 @@ const server = createServer((req, res) => { route(req, res).catch(e => { console
 server.keepAliveTimeout = 65_000;
 server.headersTimeout = 66_000;
 server.listen(cfg.port, () => {
-  console.log(`Cerebro Hub: http://localhost:${cfg.port}`);
+  console.log(`Palantir Hub: http://localhost:${cfg.port}`);
   console.log(`  Instagram: ${cfg.appId && cfg.appSecret && cfg.publicUrl ? `ilova ${cfg.appId}, ${cfg.publicUrl}` : "sozlanmagan (IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL)"}`);
   console.log(`  webhook: ${cfg.publicUrl || '<HUB_PUBLIC_URL>'}/ig/webhook · OAuth: ${cfg.publicUrl || '<HUB_PUBLIC_URL>'}/ig/callback`);
   console.log(`  nazorat: ${cfg.botToken && cfg.alertChat ? `klinika ${Math.round(cfg.offlineMs / 60_000)} daqiqa ko'rinmasa — Telegram ${cfg.alertChat}` : "Telegram'ga aytilmaydi (HUB_BOT_TOKEN, HUB_ALERT_CHAT)"}`);

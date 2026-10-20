@@ -1,4 +1,4 @@
-# Cerebro'ni klinika kompyuteriga o'rnatadi (Windows 10/11, PowerShell 5.1).
+# Palantir'ni klinika kompyuteriga o'rnatadi (Windows 10/11, PowerShell 5.1).
 #   install\Ornatish.cmd               - o'rnatish (yoki yangilangan dasturni qayta yig'ish)
 #   install\Ornatish.cmd -Uninstall    - avtoyuklashdan olib tashlash va to'xtatish (ma'lumotlar o'chmaydi; avtomatik kirish o'chiriladi)
 # Qadamlar: Node.js tekshiruvi -> kutubxonalar -> panelni yig'ish -> .env (kalitlar) -> tekshiruv -> avtoyuklash -> ishga tushirish.
@@ -10,11 +10,14 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 $MinNode = 24
-$DefaultData = 'C:\CerebroData'
+$DefaultData = 'C:\PalantirData'
 $DefaultPort = 3200
 $Startup = [Environment]::GetFolderPath('Startup')
 $Desktop = [Environment]::GetFolderPath('Desktop')
-$StartupLink = Join-Path $Startup 'Cerebro.lnk'
+$StartupLink = Join-Path $Startup 'Palantir.lnk'
+# Dastur avval Cerebro deb atalgan: o'sha nomdagi yorliqlar qolsa, ikkita yorliq turadi
+$OldStartupLink = Join-Path $Startup 'Cerebro.lnk'
+$OldPanelLinks = @('Cerebro AI.lnk', 'Cerebro.url')
 $Launcher = Join-Path $PSScriptRoot 'cerebro-fon.vbs'
 $AutoLogon = Join-Path $PSScriptRoot 'avtokirish.ps1'
 $Winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
@@ -66,15 +69,17 @@ function Read-EnvValue([string]$name) {
 
 # --- Olib tashlash -----------------------------------------------------------
 if ($Uninstall) {
-  Step "Cerebro'ni to'xtatish va avtoyuklashdan olib tashlash"
+  Step "Palantir'ni to'xtatish va avtoyuklashdan olib tashlash"
   if (Get-Command node -ErrorAction SilentlyContinue) { node scripts\supervise.mjs stop }
-  if (Test-Path $StartupLink) { Remove-Item $StartupLink -Force -Confirm:$false; Note "Avtoyuklash yorlig'i o'chirildi" }
+  foreach ($startupFile in $StartupLink, $OldStartupLink) {
+    if (Test-Path $startupFile) { Remove-Item $startupFile -Force -Confirm:$false; Note "Avtoyuklash yorlig'i o'chirildi" }
+  }
   if (AutoLogon-Mine) {
     Note "Avtomatik kirish o'chirilmoqda (administrator huquqi so'raladi)..."
     & powershell -NoProfile -ExecutionPolicy Bypass -File $AutoLogon -Off
     if ($LASTEXITCODE -ne 0) { Warn "Avtomatik kirish o'chirilmadi. Keyinroq: install\Avtokirish.cmd -Off" }
   }
-  foreach ($name in 'Cerebro AI.lnk', 'Cerebro.url') {
+  foreach ($name in @('Palantir AI.lnk') + $OldPanelLinks) {
     $panelLink = Join-Path $Desktop $name
     if (Test-Path $panelLink) { Remove-Item $panelLink -Force -Confirm:$false }
   }
@@ -115,7 +120,7 @@ if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
 
 # Yangilashda: ishlab turgan nusxa to'xtatiladi (fayllar band bo'lmasin), oxirida qayta yoqiladi
 node scripts\supervise.mjs status | Out-Null
-if ($LASTEXITCODE -eq 0) { Note "Ishlab turgan Cerebro to'xtatilmoqda..."; node scripts\supervise.mjs stop }
+if ($LASTEXITCODE -eq 0) { Note "Ishlab turgan Palantir to'xtatilmoqda..."; node scripts\supervise.mjs stop }
 
 # --- 2-3. Kutubxonalar, kamera modeli va panel -------------------------------
 # Reliz arxivi (files.json bor): kutubxonalar Windows uchun yig'ilgan, panel va kamera modeli tayyor - internetsiz ham o'rnatiladi.
@@ -149,7 +154,7 @@ if (-not $fresh) {
   Note "Bot tokeni va AI kalitlari bu yerda so'ralmaydi: o'rnatish oxirida ulash ustasi ochiladi - kalitlarni o'sha yerga qo'yasiz, u har birini darhol tekshiradi."
   $adminPassword = New-Password 16
   $lines = @(
-    "# Cerebro sozlamalari ($(Get-Date -Format 'yyyy-MM-dd') da o'rnatildi). Hamma imkoniyatlar: .env.example",
+    "# Palantir sozlamalari ($(Get-Date -Format 'yyyy-MM-dd') da o'rnatildi). Hamma imkoniyatlar: .env.example",
     "ADMIN_PASSWORD=$adminPassword",
     '# Bot tokeni, Claude, Gemini, Telegram API kalitlari - panelda: http://localhost:3200/#/ulash (shifrlanib bazada turadi).',
     '# Shu yerga yozilsa ham ishlaydi, lekin paneldagisi ustun.',
@@ -158,7 +163,7 @@ if (-not $fresh) {
     'LISTEN_HOST=127.0.0.1',
     "DATA_DIR=$data",
     "FFMPEG_PATH=$ffmpegPath",
-    '# Zaxira nusxalar papkasi: boshqa disk yoki fleshka bolgani yaxshi (masalan D:\CerebroZaxira)',
+    '# Zaxira nusxalar papkasi: boshqa disk yoki fleshka bolgani yaxshi (masalan D:\PalantirZaxira)',
     "# BACKUP_DIR=$data\backups"
   )
   # BOM'siz UTF-8: Node .env ni shunday o'qiydi
@@ -202,37 +207,40 @@ if ($checkFailed) { Warn "Tekshiruvda xato bor. O'rnatish davom etadi, lekin xat
 # --- 6. Avtoyuklash va yorliqlar ---------------------------------------------
 Step '6/7  Avtoyuklash va yorliqlar'
 $shell = New-Object -ComObject WScript.Shell
+if (Test-Path $OldStartupLink) { Remove-Item $OldStartupLink -Force -Confirm:$false }
 $link = $shell.CreateShortcut($StartupLink)
 $link.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
 $link.Arguments = "`"$Launcher`""
 $link.WorkingDirectory = $Root
-$link.Description = 'Cerebro (fonda)'
+$link.Description = 'Palantir (fonda)'
 $link.Save()
-Note "Kompyuter yonib, foydalanuvchi kirganda Cerebro o'zi ishga tushadi"
-# Svet o'chib-yonganda hech kim kirmasa ham ishga tushsin: Windows o'zi kiradi, Cerebro ekranni darhol qulflaydi (cerebro-fon.vbs)
+Note "Kompyuter yonib, foydalanuvchi kirganda Palantir o'zi ishga tushadi"
+# Svet o'chib-yonganda hech kim kirmasa ham ishga tushsin: Windows o'zi kiradi, Palantir ekranni darhol qulflaydi (cerebro-fon.vbs)
 if (AutoLogon-Mine) {
-  Note "Avtomatik kirish yoqilgan ($Me): svet o'chib-yonganda Cerebro o'zi ishga tushadi"
+  Note "Avtomatik kirish yoqilgan ($Me): svet o'chib-yonganda Palantir o'zi ishga tushadi"
 } else {
-  $answer = Read-Host "   Svet o'chib-yonganda Cerebro o'zi ishga tushsinmi? Windows '$Me' bilan o'zi kiradi va ekranni darhol qulflaydi; Windows parolingiz va administrator huquqi so'raladi (h/y) [h]"
+  $answer = Read-Host "   Svet o'chib-yonganda Palantir o'zi ishga tushsinmi? Windows '$Me' bilan o'zi kiradi va ekranni darhol qulflaydi; Windows parolingiz va administrator huquqi so'raladi (h/y) [h]"
   if ($answer -notmatch '^[yY]') {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $AutoLogon -User $Me
     if ($LASTEXITCODE -eq 0) { Note "Avtomatik kirish yoqildi" }
-    else { Warn "Avtomatik kirish yoqilmadi: svet o'chib-yonganda kimdir Windows'ga kirmaguncha Cerebro ishlamaydi. Keyinroq: install\Avtokirish.cmd" }
-  } else { Warn "Svet o'chib-yonganda kimdir Windows'ga kirmaguncha Cerebro ishlamaydi. Keyinroq yoqish: install\Avtokirish.cmd" }
+    else { Warn "Avtomatik kirish yoqilmadi: svet o'chib-yonganda kimdir Windows'ga kirmaguncha Palantir ishlamaydi. Keyinroq: install\Avtokirish.cmd" }
+  } else { Warn "Svet o'chib-yonganda kimdir Windows'ga kirmaguncha Palantir ishlamaydi. Keyinroq yoqish: install\Avtokirish.cmd" }
 }
 $port = Read-EnvValue 'PORT'
 if (-not $port) { $port = $DefaultPort }
-# Yorliq Cerebro'ni (o'chiq bo'lsa) yoqadi va panelni ochadi; eski variant - faqat panel havolasi (Cerebro.url) - olib tashlanadi
-$oldPanelLink = Join-Path $Desktop 'Cerebro.url'
-if (Test-Path $oldPanelLink) { Remove-Item $oldPanelLink -Force -Confirm:$false }
-$panel = $shell.CreateShortcut((Join-Path $Desktop 'Cerebro AI.lnk'))
+# Yorliq Palantir'ni (o'chiq bo'lsa) yoqadi va panelni ochadi; eski nomdagi yorliqlar (Cerebro AI, Cerebro.url) olib tashlanadi
+foreach ($name in $OldPanelLinks) {
+  $oldPanelLink = Join-Path $Desktop $name
+  if (Test-Path $oldPanelLink) { Remove-Item $oldPanelLink -Force -Confirm:$false }
+}
+$panel = $shell.CreateShortcut((Join-Path $Desktop 'Palantir AI.lnk'))
 $panel.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
 $panel.Arguments = "`"$(Join-Path $PSScriptRoot 'cerebro-ochish.vbs')`""
 $panel.WorkingDirectory = $Root
-$panel.IconLocation = Join-Path $Root 'Cerebro-logo\favicon\favicon.ico'
-$panel.Description = 'Cerebro: yoqish va panelni ochish'
+$panel.IconLocation = Join-Path $Root 'Palantir-logo\favicon\favicon.ico'
+$panel.Description = 'Palantir: yoqish va panelni ochish'
 $panel.Save()
-Note "Ish stolida 'Cerebro AI' yorlig'i - Cerebro'ni yoqadi va panelni ochadi"
+Note "Ish stolida 'Palantir AI' yorlig'i - Palantir'ni yoqadi va panelni ochadi"
 
 $answer = Read-Host "   Kompyuter o'zi uxlab qolmasin (tarmoqqa ulangan paytda)? Shunda bot tunda ham javob beradi (h/y) [h]"
 if ($answer -notmatch '^[yY]') {
@@ -254,7 +262,7 @@ for ($i = 0; $i -lt 60 -and -not $up; $i++) {
 if (-not $up) {
   Fail "Server 60 soniyada javob bermadi. Jurnal: $(Read-EnvValue 'DATA_DIR')\logs  (oxirgi fayl). Qo'lda ko'rish: npm start"
 }
-Note "Cerebro ishlayapti: http://localhost:$port"
+Note "Palantir ishlayapti: http://localhost:$port"
 
 Write-Host ''
 Write-Host '== Tayyor. Keyingi qadamlar (docs\ORNATISH.md da batafsil):' -ForegroundColor Green

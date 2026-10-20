@@ -1,10 +1,10 @@
 /**
  * Hub nazorati sinovi:  npm run test:hub
- *   klinika holatini yuboradi (versiya, baza nashri, disk) → admin ro'yxatida ko'rinadi → kompyuter o'chdi (Cerebro to'xtatildi) →
- *   HUB_OFFLINE_MS dan keyin sotuvchiga Telegram'da bir marta «aloqa yo'q» → Cerebro qayta yondi → «yana aloqada».
+ *   klinika holatini yuboradi (versiya, baza nashri, disk) → admin ro'yxatida ko'rinadi → kompyuter o'chdi (Palantir to'xtatildi) →
+ *   HUB_OFFLINE_MS dan keyin sotuvchiga Telegram'da bir marta «aloqa yo'q» → Palantir qayta yondi → «yana aloqada».
  *   Tashqi zaxira: kunlik zaxira shifrlanib hubga keladi, hub uni o'qiy olmaydi, sotuvchining maxfiy kaliti (va restore-backup) ochadi.
  *   Diagnostika: admin panelidan hubga — holat va jurnallar, kalitlarsiz.
- * Haqiqiy hub va Cerebro jarayonlari, soxta Telegram (sotuvchining boti ham, klinika boti ham — bitta soxta server).
+ * Haqiqiy hub va Palantir jarayonlari, soxta Telegram (sotuvchining boti ham, klinika boti ham — bitta soxta server).
  */
 process.env.TZ = 'Asia/Tashkent';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
@@ -72,7 +72,7 @@ try {
     CEREBRO_HUB: clinic.code, HEARTBEAT_MS: '400',
   };
   let cerebro = start('server/index.ts', cerebroEnv);
-  ok('Cerebro ishga tushdi', await up(`${base}/api/health`));
+  ok('Palantir ishga tushdi', await up(`${base}/api/health`));
   const seen = await until('holat', async () => (await adminList()).find(c => c.id === clinic.clinicId && c.status?.version), 15_000);
   ok(`admin ro'yxatida: aloqada, versiya ${VERSION}, baza v${SCHEMA_VERSION}, diskdagi joy`, !!seen && seen.online && seen.status!.version === VERSION && seen.status!.schema === SCHEMA_VERSION
     && seen.status!.diskFreeMb > 0 && Array.isArray(seen.status!.problems), JSON.stringify(seen?.status));
@@ -103,7 +103,7 @@ try {
   const diag = await (await fetch(`${base}/api/admin/diag`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${cerebroAdmin}` }, body: '{}' })).json() as { sent?: boolean; file?: string };
   ok('admin panelidan diagnostika hubga yuborildi', diag.sent === true && !!diag.file, JSON.stringify(diag));
   const diagText = await (await fetch(`${HUB}/admin/diag/${clinic.clinicId}/${diag.file}`, { headers: admin })).text();
-  ok("ichida holat va nashr bor; admin paroli va hub kaliti yo'q", diagText.startsWith('Cerebro diagnostika') && diagText.includes(`"version": "${VERSION}"`)
+  ok("ichida holat va nashr bor; admin paroli va hub kaliti yo'q", diagText.startsWith('Palantir diagnostika') && diagText.includes(`"version": "${VERSION}"`)
     && !diagText.includes('admin-pass-1') && !diagText.includes(parseHubCode(clinic.code)!.key.split('.')[1]), diagText.slice(0, 80));
   ok("diagnostikani admin kalitsiz o'qib bo'lmaydi", (await fetch(`${HUB}/admin/diag/${clinic.clinicId}/${diag.file}`)).status === 401);
 
@@ -119,7 +119,7 @@ try {
   console.log('\n# Kompyuter qayta yondi');
   mark = sent.length;
   cerebro = start('server/index.ts', cerebroEnv);
-  ok('Cerebro qayta ishga tushdi', await up(`${base}/api/health`));
+  ok('Palantir qayta ishga tushdi', await up(`${base}/api/health`));
   ok('sotuvchiga: «Shifo Dent» yana aloqada', !!(await waitFor('yana aloqada', () => toVendor(mark, '«Shifo Dent» yana aloqada')[0], 15_000)));
   ok("admin ro'yxatida — yana aloqada", (await adminList()).find(c => c.id === clinic.clinicId)!.online);
 } catch (e) {

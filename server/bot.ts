@@ -1,5 +1,5 @@
 /**
- * Cerebro boti (bitta bot — hamma bizneslar uchun).
+ * Palantir boti (bitta bot — hamma bizneslar uchun).
  *
  * Egasi:   /start o-<kod> (paneldagi havola) → ulanadi. Keyin yozadi yoki ovozli
  *          xabar yuboradi — yordamchi bajaradi. Hujjat — .docx fayl; mijozlarga xabar — «Yuborish» tugmasi bilan.
@@ -174,7 +174,7 @@ function helpFor(biz: BusinessRow): string {
       '• «Tabassum klinikasiga tijorat taklifi tayyorla»',
     ];
   return [
-    `Men — Cerebro, biznesingiz uchun AI yordamchi. Oddiy gapiring${voiceEnabled() ? ' yoki ovozli xabar yuboring' : ''}. Masalan:`,
+    `Men — Palantir, biznesingiz uchun AI yordamchi. Oddiy gapiring${voiceEnabled() ? ' yoki ovozli xabar yuboring' : ''}. Masalan:`,
     '',
     ...examples,
     "• Narxnoma yoki shartnoma namunasini fayl qilib yuboring (PDF, Word, Excel) — o'qib, bilimga qo'shaman",
@@ -306,7 +306,7 @@ export function createBot(): BotService {
     // eski havolani ko'rgan odam keyin ulana olmaydi; yangi havola faqat panelda (parol bilan) ko'rinadi
     businesses.update(biz.id, { ownerChatId: chat, linkCode: businesses.newLinkCode() });
     if (previous && previous !== chat) {
-      await tg.sendMessage(previous, "⚠️ Cerebro boshqa Telegram akkauntiga ulandi va endi shu yerda ishlamaydi. Buni siz qilmagan bo'lsangiz — panel → «Telegram» bo'limidagi yangi havola orqali qayta ulaning (o'sha zahoti begona akkaunt uziladi) va havolani hech kimga bermang.").catch(() => {});
+      await tg.sendMessage(previous, "⚠️ Palantir boshqa Telegram akkauntiga ulandi va endi shu yerda ishlamaydi. Buni siz qilmagan bo'lsangiz — panel → «Telegram» bo'limidagi yangi havola orqali qayta ulaning (o'sha zahoti begona akkaunt uziladi) va havolani hech kimga bermang.").catch(() => {});
     }
     const name = biz.profile.ownerName ? `, ${biz.profile.ownerName}` : '';
     await ctx.reply(`✅ Ulandi: «${biz.profile.name}». Assalomu alaykum${name}!\n\n${helpFor(businesses.byId(biz.id) ?? biz)}`);
@@ -354,7 +354,7 @@ export function createBot(): BotService {
         text, extId: `b${ctx.message!.message_id}`, source: lead.source ?? 'Telegram havola',
       });
     } else {
-      // Rasm yoki fayl: egasiga asl nusxasi (Cerebro rasmni o'qimaydi)
+      // Rasm yoki fayl: egasiga asl nusxasi (Palantir rasmni o'qimaydi)
       inbox.add(biz.id, { leadId: lead.id, channel: 'bot', direction: 'in', by: 'customer', text: '[rasm yoki fayl]', extId: `b${ctx.message!.message_id}` });
       const who = `${esc(personName(lead))}${lead.username && lead.name ? ` (@${esc(lead.username)})` : ''}${lead.phone ? ` · ${esc(lead.phone)}` : ''}`;
       await toOwner(biz, lead, `💬 <b>${who}</b> yubordi:`, { chat: ctx.chat!.id, message: ctx.message!.message_id });
@@ -384,12 +384,12 @@ export function createBot(): BotService {
     const biz = ownerOf(ctx);
     await ctx.reply(biz
       ? `«${biz.profile.name}» ulangan.\n\n${helpFor(biz)}`
-      : "Assalomu alaykum! Bu Cerebro — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz, paneldagi «Telegramni ulash» havolasini bosing.");
+      : "Assalomu alaykum! Bu Palantir — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz, paneldagi «Telegramni ulash» havolasini bosing.");
   });
 
   bot.help(async ctx => {
     const biz = ownerOf(ctx);
-    await ctx.reply(biz ? helpFor(biz) : 'Bu Cerebro — biznes uchun AI yordamchi. Ulanish: panel → «Telegram».');
+    await ctx.reply(biz ? helpFor(biz) : 'Bu Palantir — biznes uchun AI yordamchi. Ulanish: panel → «Telegram».');
   });
 
   bot.command('yangi', async ctx => {
@@ -553,7 +553,7 @@ export function createBot(): BotService {
       const lead = leads.get(biz.id, id);
       if (!lead) return toast(ctx, 'Mijoz topilmadi');
       await toast(ctx, 'Tayyorlayapman…');
-      const prompt = `Customer id ${lead.id} has had no contact for a while and has no next step. Look at them with list_leads (lead_id), then prepare a short, warm follow-up message with draft_followup and set the next step with update_lead. If Cerebro cannot message them, write in two sentences what I should say when I phone them.`;
+      const prompt = `Customer id ${lead.id} has had no contact for a while and has no next step. Look at them with list_leads (lead_id), then prepare a short, warm follow-up message with draft_followup and set the next step with update_lead. If Palantir cannot message them, write in two sentences what I should say when I phone them.`;
       // Jurnalga mijozning ismi (begona matn) egasining gapi bo'lib yozilmasin — keyingi suhbatlarga «egasi aytgan» bo'lib o'tardi
       return detach('qayta yozish', () => handleOwner(ctx, biz, prompt, false, { display: '✍️ Unutilgan mijozga qayta yozish matnini tayyorla' }));
     }
@@ -727,7 +727,7 @@ export function createBot(): BotService {
     if (await staffText(ctx, text)) return;
     const lead = leads.latestForUser(String(ctx.from.id));
     if (lead) return customerMessage(ctx, lead, text);
-    await ctx.reply("Assalomu alaykum! Bu Cerebro — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz, paneldagi «Telegramni ulash» havolasini bosing.");
+    await ctx.reply("Assalomu alaykum! Bu Palantir — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz, paneldagi «Telegramni ulash» havolasini bosing.");
   });
 
   // Mijoz rasm yoki fayl yuborsa — egasiga nusxasi

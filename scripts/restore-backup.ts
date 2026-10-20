@@ -3,7 +3,7 @@
  *   npm run restore-backup -- <fayl.czb> [--key ~/.cerebro/zaxira-kaliti.pem] [--out <papka>]
  * Faylni hubdan olish: curl -H "Authorization: Bearer <HUB_ADMIN_KEY>" -o z.czb https://<hub>/admin/backups/<klinika>/<YYYY-MM-DD>.czb
  * (ro'yxat: /admin/backups). Natija papkasida cerebro.db, miya/, session.secret — klinikada tiklash xuddi mahalliy zaxira kabi:
- * Cerebro to'xtatiladi, DATA_DIR dagi cerebro.db-wal va cerebro.db-shm o'chiriladi, shu uchtasi DATA_DIR ga ko'chiriladi.
+ * Palantir to'xtatiladi, DATA_DIR dagi cerebro.db-wal va cerebro.db-shm o'chiriladi, shu uchtasi DATA_DIR ga ko'chiriladi.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';

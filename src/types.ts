@@ -49,7 +49,7 @@ export interface Business {
   contentLang?: Lang;
   /** Ertalabki qisqa xulosa (bugungi vazifalar, yangi mijozlar) */
   morningBrief?: boolean;
-  /** Mijozlar yozganda (bot, shaxsiy Telegram, Instagram) Cerebro qanday javob beradi */
+  /** Mijozlar yozganda (bot, shaxsiy Telegram, Instagram) Palantir qanday javob beradi */
   autoReply?: AutoReply;
   /** Qabulxona xodimlari ulangan bo'lsa ham so'rovlar (qo'ng'iroq qilish va h.k.) nusxasi egasiga keladimi (bo'lmasa — ha) */
   requestsCopy?: boolean;
@@ -96,7 +96,7 @@ export interface Task {
 
 export type LeadStage = 'new' | 'contacted' | 'won' | 'lost';
 
-/** Mijoz qayerda yozishadi: Cerebro boti, egasining shaxsiy Telegrami, Instagram yoki qo'lda qo'shilgan */
+/** Mijoz qayerda yozishadi: Palantir boti, egasining shaxsiy Telegrami, Instagram yoki qo'lda qo'shilgan */
 export type LeadChannel = 'bot' | 'telegram' | 'instagram' | 'manual';
 
 export interface Lead {
@@ -104,7 +104,7 @@ export interface Lead {
   name: string | null;
   phone: string | null;
   username: string | null;
-  /** Cerebro unga yoza oladimi (botga yozgan, shaxsiy Telegramda yoki Instagram Direct'da yozishgan) */
+  /** Palantir unga yoza oladimi (botga yozgan, shaxsiy Telegramda yoki Instagram Direct'da yozishgan) */
   reachable: boolean;
   channel: LeadChannel;
   lastInboundAt: string | null;
@@ -216,7 +216,7 @@ export interface InboxMessage {
   leadId: string;
   channel: LeadChannel;
   direction: 'in' | 'out';
-  /** Kim yozgan: mijoz, egasining o'zi yoki Cerebro */
+  /** Kim yozgan: mijoz, egasining o'zi yoki Palantir */
   by: 'customer' | 'owner' | 'cerebro';
   text: string;
   createdAt: string;
@@ -326,7 +326,7 @@ export interface LiveStatus {
    * waiting — ochilgan oynada egasi kirishini kutyapti; problem — nega ishlamayapti; relogin — qayta kirish yordam beradi
    */
   instagram: { enabled: boolean; available: boolean; account: string | null; waiting: boolean; problem: string | null; relogin: boolean };
-  /** Rasmiy Instagram (Meta ilovasi, Cerebro Hub orqali): hub — hub kodi kiritilgan; account — «@username»; humanAgent — 7 kungacha javob ruxsati */
+  /** Rasmiy Instagram (Meta ilovasi, Palantir Hub orqali): hub — hub kodi kiritilgan; account — «@username»; humanAgent — 7 kungacha javob ruxsati */
   instagramApi: { hub: boolean; account: string | null; problem: string | null; expiresAt: string | null; humanAgent: boolean };
   /** Klinikaning DentaCRM'i: account — "Klinika nomi · manzil"; problem — nega ishlamayapti */
   crm: { account: string | null; problem: string | null };
@@ -484,7 +484,7 @@ export type KnowledgeKind = 'qa' | 'fix' | 'sample' | 'page';
 export interface Knowledge {
   id: string;
   kind: KnowledgeKind;
-  /** qa — mijoz savoli; fix — Cerebro yozgan javob; sample — hujjat nomi */
+  /** qa — mijoz savoli; fix — Palantir yozgan javob; sample — hujjat nomi */
   question: string;
   /** qa — javob; fix — egasi yuborgan matn; sample — hujjat matni */
   answer: string;
@@ -499,7 +499,7 @@ export interface Knowledge {
   prices?: number;
 }
 
-/** «Ikkinchi miya» sahifasi: Cerebro biznes haqida bilgan hamma narsa */
+/** «Ikkinchi miya» sahifasi: Palantir biznes haqida bilgan hamma narsa */
 export interface BrainView {
   facts: Note[];
   qa: Knowledge[];
@@ -538,7 +538,7 @@ export interface KeyView {
 }
 export type KeyCheck = { ok: true; info: string; warn?: string } | { ok: false; error: string; canForce: boolean };
 
-/** Bo'shliq: Cerebro'ga yetishmagan yoki zid narsa — egasidan so'raladi */
+/** Bo'shliq: Palantir'ga yetishmagan yoki zid narsa — egasidan so'raladi */
 export interface Gap {
   /** gap:… — suhbatdagi savol id'si shu bilan boshlanadi */
   id: string;

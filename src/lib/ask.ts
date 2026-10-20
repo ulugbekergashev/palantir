@@ -4,7 +4,7 @@
  */
 let waiting: string | null = null;
 
-export function askCerebro(text: string): void {
+export function askPalantir(text: string): void {
   waiting = text.trim() || null;
   window.location.hash = '#/chat';
 }

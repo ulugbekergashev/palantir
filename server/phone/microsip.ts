@@ -2,10 +2,10 @@
  * MicroSIP (kompyuterdagi softfon, istalgan SIP operator bilan: UTEL, Uztelecom, Sipuni…) bilan bog'lanish.
  * DentaCRM'dagi (dentalocal/electron/microsipCore.ts) jonli sinalgan ulanishdan ko'chirilgan; qo'shimchasi — suhbatni yozib olish.
  *
- *   1. Cerebro'dan qo'ng'iroq:  microsip.exe <raqam>  (ishlab turgan MicroSIP raqamni teradi).
- *   2. MicroSIP → Cerebro:      microsip.ini [Settings] cmdIncomingCall / cmdCallAnswer / cmdCallStart / cmdCallEnd / cmdOutgoingCall —
+ *   1. Palantir'dan qo'ng'iroq:  microsip.exe <raqam>  (ishlab turgan MicroSIP raqamni teradi).
+ *   2. MicroSIP → Palantir:      microsip.ini [Settings] cmdIncomingCall / cmdCallAnswer / cmdCallStart / cmdCallEnd / cmdOutgoingCall —
  *      MicroSIP shu FAYLNI ishga tushiradi, raqam parametr bo'lib keladi. U yerda kichik yordamchi (cerebro-call.exe nusxalari)
- *      turadi: hodisani «spool» papkasiga fayl qilib yozadi, Cerebro o'qib oladi.
+ *      turadi: hodisani «spool» papkasiga fayl qilib yozadi, Palantir o'qib oladi.
  *   3. Yozuv: autoRecording=1, recordingPath — yordamchi papkasidagi «rec», recordingFormat — mp3 (lame_enc.dll bo'lsa) yoki wav.
  *
  * Muhim (MicroSIP manba kodidan va 3.22.18 bilan jonli sinovdan, 2026-10-10):
@@ -44,7 +44,7 @@ export const RECORD_DIR_NAME = 'rec';
 /** Yordamchi yozadigan fayl nomi: vaqt (17 raqam) + 8 ta o'n oltilik belgi */
 const SPOOL_FILE = /^\d{17}-[0-9a-f]{8}\.evt$/;
 const SPOOL_MAX_BYTES = 512;
-/** Cerebro yopiq paytda yig'ilib qolgan hodisalar shundan eski bo'lsa tashlab yuboriladi */
+/** Palantir yopiq paytda yig'ilib qolgan hodisalar shundan eski bo'lsa tashlab yuboriladi */
 const SPOOL_MAX_AGE_MS = 14 * 86_400_000;
 const SPOOL_MAX_FILES = 500;
 const SPOOL_POLL_MS = 3000;
@@ -199,7 +199,7 @@ export function parseSpoolEvent(content: string, fallbackTime: Date): MicrosipEv
 // ─── Fayllar qayerda ─────────────────────────────────────────────────────────
 
 export interface MicrosipEnv {
-  /** Holat fayli (microsip.json) turadigan papka — Cerebro'ning data papkasi */
+  /** Holat fayli (microsip.json) turadigan papka — Palantir'ning data papkasi */
   stateDir: string;
   /** Yig'ilgan yordamchi (cerebro-call.exe) */
   hookSourceExe: string;
@@ -564,7 +564,7 @@ export async function dialNumber(env: MicrosipEnv, sys: MicrosipSystem, rawNumbe
   return state.connectedAt && state.noAccount ? { ok: true, noAccount: true } : { ok: true };
 }
 
-/** Yordamchining yangi nusxasi (Cerebro yangilangan) — ulangan papkadagi nusxalar ham yangilanadi. Band bo'lsa — keyingi safar */
+/** Yordamchining yangi nusxasi (Palantir yangilangan) — ulangan papkadagi nusxalar ham yangilanadi. Band bo'lsa — keyingi safar */
 export function refreshHookFiles(env: MicrosipEnv): void {
   const { hookDir } = readState(env);
   if (!isOurHookDir(hookDir, env) || !fs.existsSync(hookDir) || !fs.existsSync(env.hookSourceExe)) return;

@@ -149,7 +149,7 @@ export async function brainApiTests(h: Harness): Promise<void> {
   ok("miya: o'chirildi", removed.status === 200 && !brainOf(removed).qa.length && (await api(`/api/brain/${qaId}`, { method: 'DELETE', token })).status === 404);
 }
 
-/** Oqim: egasining javobi → «eslab qolaymi?» → keyingi mijozga Cerebro o'zi javob beradi; tuzatish; yordamchi asboblari. DentaCRM ulangan biznesda */
+/** Oqim: egasining javobi → «eslab qolaymi?» → keyingi mijozga Palantir o'zi javob beradi; tuzatish; yordamchi asboblari. DentaCRM ulangan biznesda */
 export async function brainFlowTests(h: Harness): Promise<void> {
   console.log('\n# Ikkinchi miya: egasining javobidan o\'rganish');
   const { ok, api, token } = h;
@@ -200,7 +200,7 @@ export async function brainFlowTests(h: Harness): Promise<void> {
   await sleep(400);
   ok('eski tugma qayta bosilsa hech narsa o\'zgarmaydi', JSON.stringify((await brain()).pack) === JSON.stringify(learned.pack));
 
-  // Keyingi mijoz: Cerebro egasidan so'ramaydi — o'zi javob taklif qiladi
+  // Keyingi mijoz: Palantir egasidan so'ramaydi — o'zi javob taklif qiladi
   await join(C3);
   const card3 = await asks(C3, "Salom! Bo'lib to'lash bormi?");
   const seen = ai.replier.at(-1)!.user;
@@ -264,7 +264,7 @@ export async function brainFlowTests(h: Harness): Promise<void> {
   ok("yordamchi: hujjat namunalari ro'yxati ko'rsatmada, matnini asbob bilan o'qiydi", !!read && textOf(read).includes('Kafolat xati') && ai.requests.at(-1)!.system.includes('<document_samples>') && ai.requests.at(-1)!.system.includes(`[${sampleId}] Kafolat xati`), textOf(read ?? ({ params: {} } as Sent)));
 }
 
-/** Papka: bilim fayllarda turadi; Obsidian'da qilingan ish (tahrir, ko'chirish, o'chirish, yangi sahifa) Cerebro'ga ko'rinadi */
+/** Papka: bilim fayllarda turadi; Obsidian'da qilingan ish (tahrir, ko'chirish, o'chirish, yangi sahifa) Palantir'ga ko'rinadi */
 export async function brainVaultTests(h: Harness): Promise<void> {
   const { ok, api, otherToken: token, dataDir } = h;
   type Brain = import('../src/types').BrainView;
@@ -284,7 +284,7 @@ export async function brainVaultTests(h: Harness): Promise<void> {
   // Egasi Obsidian'da javobni o'zgartirdi va o'z tegini qo'shdi
   writeFileSync(file(qa), text(qa).replace('Ha, shahar ichida bepul', "Ha, 500 000 so'mdan bepul").replace('---\n', '---\ntags: [yetkazish]\n'));
   const edited = (await brain()).qa.find(k => k.question === 'Yetkazib berasizmi?');
-  ok("papka: faylda o'zgartirilgan javob Cerebro'ga ko'rinadi", edited?.answer === "Ha, 500 000 so'mdan bepul", JSON.stringify(edited));
+  ok("papka: faylda o'zgartirilgan javob Palantir'ga ko'rinadi", edited?.answer === "Ha, 500 000 so'mdan bepul", JSON.stringify(edited));
   await api(`/api/brain/${edited?.id}`, { method: 'PATCH', token, body: { answer: 'Ha, 500 mingdan yuqorisiga bepul' } });
   ok("papka: panel orqali tahrirda egasi qo'shgan xossa saqlanadi", text(qa).includes('tags: [yetkazish]') && text(qa).includes('Ha, 500 mingdan yuqorisiga bepul'), text(qa));
 
@@ -338,7 +338,7 @@ export async function brainVaultTests(h: Harness): Promise<void> {
   ok("papka: BOM'li fayl to'g'ri o'qiladi; g'alati fayllar sahifani yiqitmaydi", odd.status === 200 && bom?.question === 'BOM bilan saqlangan savol?' && bom.answer === 'Javobi toza', JSON.stringify(bom));
 
   // Tuzatish fayli (unda shu mijozga atalgan gap bo'ladi) Savollar'ga ko'chirilsa ham savol-javobga aylanmaydi
-  writeFileSync(file('Bilim/Savollar/Tuzatish x.md'), '---\nid: fixmoved01\ntur: tuzatish\nmanba: edit\n---\n# Tuzatish\n\n## Cerebro yozgan\nSalom Aziz aka\n\n## Egasi yuborgan\nSizga 20% qilamiz\n');
+  writeFileSync(file('Bilim/Savollar/Tuzatish x.md'), '---\nid: fixmoved01\ntur: tuzatish\nmanba: edit\n---\n# Tuzatish\n\n## Palantir yozgan\nSalom Aziz aka\n\n## Egasi yuborgan\nSizga 20% qilamiz\n');
   const afterMove = await brain();
   ok("papka: tuzatish fayli Savollar'ga ko'chirilsa ham savol-javob bo'lmaydi (boshqa mijozlarga aytilmaydi)", !afterMove.qa.some(k => k.id === 'fixmoved01') && afterMove.fixes.some(k => k.id === 'fixmoved01' && k.status === 'active') && !(await said()).includes('Sizga 20%'), JSON.stringify(afterMove.fixes));
 

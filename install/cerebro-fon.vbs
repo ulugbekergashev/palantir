@@ -1,6 +1,6 @@
-' Cerebro'ni oynasiz (fonda) ishga tushiradi. Kompyuter yonganda shu fayl ishlaydi (Avtoyuklash papkasidagi yorliq orqali).
+' Palantir'ni oynasiz (fonda) ishga tushiradi. Kompyuter yonganda shu fayl ishlaydi (Avtoyuklash papkasidagi yorliq orqali).
 ' Nazoratchi (scripts\supervise.mjs) serverni yoqadi va to'xtab qolsa qayta yoqadi. Jurnal: DATA_DIR\logs
-' Svet o'chib-yonib Windows o'zi kirgan bo'lsa (install\avtokirish.ps1) - ekran darhol qulflanadi: Cerebro ishlayveradi,
+' Svet o'chib-yonib Windows o'zi kirgan bo'lsa (install\avtokirish.ps1) - ekran darhol qulflanadi: Palantir ishlayveradi,
 ' kompyuter yonidagi odam esa parolsiz kira olmaydi. Odam o'zi kirganda qulflanmaydi.
 Option Explicit
 Dim fso, shell, root

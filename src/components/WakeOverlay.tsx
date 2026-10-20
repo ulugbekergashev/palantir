@@ -1,5 +1,5 @@
 /**
- * «Cerebro» deb chaqirilganda istalgan sahifada pastda chiqadigan suhbat oynasi: sfera (ovozga qarab), egasi nima dedi, Cerebro
+ * «Palantir» deb chaqirilganda istalgan sahifada pastda chiqadigan suhbat oynasi: sfera (ovozga qarab), egasi nima dedi, Palantir
  * nima deyapti va bajargan ishlari (karta). Suhbat tugagach bir necha soniya turib yopiladi; quloq yana tinglashga qaytadi.
  */
 import { Square, X } from 'lucide-react';
@@ -12,7 +12,7 @@ export function WakeOverlay({ wake }: { wake: Wake }) {
   const h = HUE.yordamchi;
   const live = wake.phase === 'live';
   return (
-    <section role="dialog" aria-label="Cerebro bilan ovozli suhbat" aria-live="polite"
+    <section role="dialog" aria-label="Palantir bilan ovozli suhbat" aria-live="polite"
       className="fixed inset-x-4 bottom-20 z-50 mx-auto max-w-[560px] animate-rise overflow-hidden rounded-[26px] border border-[#8b8cff]/25 bg-[#0b0c12]/95 p-5 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)] backdrop-blur lg:bottom-8 lg:left-[92px]">
       <div aria-hidden="true" className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full" style={{ background: `radial-gradient(closest-side, ${h.glow}, transparent)` }} />
       <div className="relative flex items-center gap-4">

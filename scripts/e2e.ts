@@ -335,7 +335,7 @@ try {
   sendPhoto(OWNER, "Shu chekni ko'r");
   const photoReply = await waitFor('rasmga javob', () => after(mark, OWNER, s => s.method === 'sendMessage'));
   const visionReq = ai.requests.slice(beforePhoto).find(r => String(r.system).startsWith('You look at a photo'));
-  const agentReq = ai.requests.slice(beforePhoto).find(r => String(r.system).startsWith('You are Cerebro'));
+  const agentReq = ai.requests.slice(beforePhoto).find(r => String(r.system).startsWith('You are Palantir'));
   const shownTo = JSON.stringify(agentReq?.messages.at(-1) ?? '');
   const picture = Array.isArray(visionReq?.messages[0]?.content) ? visionReq.messages[0].content.find(b => b.type === 'image') : undefined;
   ok("rasm alohida so'rov bilan o'qiladi (eng katta o'lchami, izohi bilan)", !!picture && picture.source?.media_type === 'image/jpeg' && picture.source.data === VOICE_BYTES.toString('base64') && JSON.stringify(visionReq?.messages[0]).includes("Shu chekni ko'r"));
@@ -388,7 +388,7 @@ try {
   const bobur = (await leadsNow()).find(l => l.name === 'Bobur')!;
   await sleep(600);
   let thread = (await api(`/api/inbox/${bobur.id}`, { token })).json.messages as { direction: string; by: string; text: string }[];
-  ok("yozishmada: mijoz gapi va Cerebro javobi (qaytib kelgan nusxa egasiniki deb yozilmadi)",
+  ok("yozishmada: mijoz gapi va Palantir javobi (qaytib kelgan nusxa egasiniki deb yozilmadi)",
     thread.length === 2 && thread[1].by === 'cerebro' && !thread.some(m => m.by === 'owner'));
 
   mark = sent.length;
@@ -414,13 +414,13 @@ try {
   await sleep(900);
   ok('kutish vaqtida — hali yubormaydi (egasiga imkon)', !tgUser.sent.some(m => m.to.userId === '6002'));
   const auto = await waitFor('avto javob', () => tgUser.sent.find(m => m.to.userId === '6002'));
-  ok("egasi yozmadi — Cerebro o'zi javob berdi", auto?.text.includes('10:00') && Date.now() - tAuto >= 1500, `${Date.now() - tAuto} ms`);
+  ok("egasi yozmadi — Palantir o'zi javob berdi", auto?.text.includes('10:00') && Date.now() - tAuto >= 1500, `${Date.now() - tAuto} ms`);
   ok('egasiga: «javob berdim»', await waitFor('xabar', () => after(mark, OWNER, s => textOf(s).includes('🤖') && textOf(s).includes('Sardor'))));
   tgUser.incoming(TG_SESSION, '6003', 'Ish vaqtingiz?', { name: 'Kamola' });
   await sleep(700);
   tgUser.ownerTyped(TG_SESSION, '6003', 'Hozir aytaman');
   await sleep(2500);
-  ok("egasi kutish vaqtida o'zi yozsa — Cerebro yozmaydi", !tgUser.sent.some(m => m.to.userId === '6003'));
+  ok("egasi kutish vaqtida o'zi yozsa — Palantir yozmaydi", !tgUser.sent.some(m => m.to.userId === '6003'));
   mark = sent.length;
   tgUser.incoming(TG_SESSION, '6004', 'Chegirma bormi?', { name: 'Jamshid' });
   ok("o'zi rejimida ham bilmagan narsasini egasidan so'raydi", await waitFor('karta', () => after(mark, OWNER, s => has('Jamshid')(s) && buttons(s).length === 2)));
@@ -484,7 +484,7 @@ try {
   igWeb.ownerTyped('t1', "Qo'shimcha: yetkazib berish bepul");
   await sleep(2500);
   thread = (await api(`/api/inbox/${dilnoza!.id}`, { token })).json.messages;
-  ok("Cerebro javobi Direct'da qaytib ko'rinsa — egasiniki deb yozilmadi; egasining telefondan yozgani yozildi",
+  ok("Palantir javobi Direct'da qaytib ko'rinsa — egasiniki deb yozilmadi; egasining telefondan yozgani yozildi",
     thread.filter(m => m.direction === 'in').length === 1 && thread.filter(m => m.by === 'cerebro').length === 1
     && thread.filter(m => m.by === 'owner').length === 1 && thread.some(m => m.by === 'owner' && m.text.startsWith("Qo'shimcha")),
     thread.map(m => `${m.by}:${m.text.slice(0, 12)}`).join(' | '));
@@ -535,7 +535,7 @@ try {
   // Telefon qo'ng'irog'i (tgvoice/call_live.py): javob ovozda o'qiladi — qisqa, belgisiz, tez o'ylab
   const beforePhone = ai.requests.length;
   const phone = await api('/api/chat', { token, body: { text: 'Bugun nima ishlarim bor?', phone: true } });
-  const phoneReq = ai.requests.slice(beforePhone).find(r => String(r.system).startsWith('You are Cerebro'));
+  const phoneReq = ai.requests.slice(beforePhone).find(r => String(r.system).startsWith('You are Palantir'));
   ok("telefon: jurnalda 📞, modelga «live phone call» belgisi, tez o'ylash (effort low)", phone.status === 200 && phone.json.entries?.[0]?.text === '📞 Bugun nima ishlarim bor?'
     && JSON.stringify(phoneReq?.messages.at(-1) ?? '').includes('live phone call') && phoneReq?.effort === 'low', JSON.stringify({ e: phone.json.entries?.[0]?.text, effort: phoneReq?.effort }));
   // Qo'ng'iroqda hujjat so'raldi: telefonda ko'rsatib bo'lmaydi — egasining Telegram'iga boradi, AI'ga «yuborildi» deyiladi
@@ -548,9 +548,9 @@ try {
   const phoneNoDeliver = await api('/api/chat', { token, body: { text: 'Aliyevga tijorat taklifi tayyorla', phone: true } });
   await new Promise(r => setTimeout(r, 300));
   ok("telefon: deliver so'ralmasa Telegram'ga yuborilmaydi", phoneNoDeliver.json.delivered === false && !after(mark, OWNER, s => s.method === 'sendDocument'));
-  const plainReq = ai.requests.slice(beforePhone).filter(r => String(r.system).startsWith('You are Cerebro'));
+  const plainReq = ai.requests.slice(beforePhone).filter(r => String(r.system).startsWith('You are Palantir'));
   ok("oddiy chat: telefon belgisi yo'q, o'ylash o'rtacha", plainReq.length > 0 && !ai.requests.slice(0, beforePhone).some(r => JSON.stringify(r.messages.at(-1) ?? '').includes('live phone call'))
-    && ai.requests.slice(0, beforePhone).filter(r => String(r.system).startsWith('You are Cerebro')).every(r => r.effort === 'medium'));
+    && ai.requests.slice(0, beforePhone).filter(r => String(r.system).startsWith('You are Palantir')).every(r => r.effort === 'medium'));
   await mirrorTests(crmHarness);
   await api('/api/chat', { token, body: { text: "Buni eslab qol: 500 mingdan yuqori buyurtmaga yetkazish bepul" } });
   ok('yordamchi eslab qoldi', ((await api('/api/notes', { token })).json.notes as { text: string }[]).some(n => n.text.includes('yetkazish bepul')));
@@ -594,7 +594,7 @@ try {
   ok("/vazifalar: ro'yxat va tugmalar", tl && textOf(tl).includes('Bankka borish') && buttons(tl).length >= 2);
   mark = sent.length;
   say(8008, 'Salom');
-  ok('begona odam: tushuntirish oladi', await waitFor('begona', () => after(mark, 8008, has('Cerebro'))));
+  ok('begona odam: tushuntirish oladi', await waitFor('begona', () => after(mark, 8008, has('Palantir'))));
   // Diagnostika: hub kodi yo'q — fayl egasiga keladi (sotuvchiga uzatish uchun); begona odamga hech narsa
   mark = sent.length;
   say(OWNER, '/diagnostika');

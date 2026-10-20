@@ -1,13 +1,13 @@
-"""Panel ovozi: egasi panelda (AI bosh ekran) Cerebro bilan jonli gaplashadi — brauzer ↔ Gemini Live, telefondagi bilan bir xil
-yordamchi (vazifalar, Cerebro, Obsidian, Telefon.md ovozi). sip_live.py ichida ishlaydi (nazoratchi yoqadi), port SIP_WEB_PORT.
+"""Panel ovozi: egasi panelda (AI bosh ekran) Palantir bilan jonli gaplashadi — brauzer ↔ Gemini Live, telefondagi bilan bir xil
+yordamchi (vazifalar, Palantir, Obsidian, Telefon.md ovozi). sip_live.py ichida ishlaydi (nazoratchi yoqadi), port SIP_WEB_PORT.
 
-Brauzer WebSocket orqali: birinchi xabar {"token": "<panel kaliti>", "mode": "owner" | "customer" | "wake"} — kalit Cerebro'da tekshiriladi
+Brauzer WebSocket orqali: birinchi xabar {"token": "<panel kaliti>", "mode": "owner" | "customer" | "wake"} — kalit Palantir'da tekshiriladi
 (egasi bo'lmasa — yopiladi). customer — egasi qabulxonani sinaydi: AI unga mijozdek javob beradi (reception.py, sinov rejimi —
-jadvalga yozilmaydi, so'rov ochilmaydi); wake — «quloq»: mikrofon shu kompyuterda tinglanadi (wake.py, internetsiz), «Cerebro» yoki
+jadvalga yozilmaydi, so'rov ochilmaydi); wake — «quloq»: mikrofon shu kompyuterda tinglanadi (wake.py, internetsiz), «Palantir» yoki
 «Jarvis» eshitilsa — {type: wake, word} va shu ulanishning o'zida egasi bilan suhbat boshlanadi (chaqiriqdan keyingi gap ham Live'ga boradi);
 keyin mikrofon 16 kHz PCM (ikkilik xabarlar), javobda AI ovozi 24 kHz PCM va matn/amal xabarlari (JSON):
   partial  {who, text}        — gap aytilayotgan paytdagi matn
-  line     {who, text}        — tugagan gap (who: Siz | Cerebro | Amal)
+  line     {who, text}        — tugagan gap (who: Siz | Palantir | Amal)
   tool     {name, state, args, result} — asbob ishlayapti / natija (ekranda karta bo'lib chiqadi)
   interrupt                    — odam gapni bo'ldi: brauzer AI ovozini darhol to'xtatadi
 Faqat shu kompyuterdan (127.0.0.1) va panel sahifasidan (Origin: localhost)."""
@@ -31,14 +31,14 @@ IN_RATE, OUT_RATE = 16000, 24000
 IN_CHUNK = IN_RATE * 40 // 1000 * 2          # Live'ga 40 ms bo'laklarda
 MAX_SESSIONS = 2
 MAX_LISTENERS = 2
-# Chaqiriq topilgach Live'ga shu qadar oldingi ovoz ham beriladi: «Cerebro, ertaga…» — buyruq qayta aytilmasin
+# Chaqiriq topilgach Live'ga shu qadar oldingi ovoz ham beriladi: «Palantir, ertaga…» — buyruq qayta aytilmasin
 WAKE_REPLAY_CHUNKS = 40
 # Chaqiriqdan keyin odam odatda biroz to'xtab, keyin buyruqni aytadi — bu pauza gap tugadi deb olinmasin
 WAKE_SILENCE_MS = 1300
 # Chaqirilgan suhbat: shuncha jim tursa (na odam, na AI gapirmasa) yopiladi — xonadagi mikrofon Live'ga bekor ochiq qolmasin
 WAKE_IDLE_S = 25
 WAKE_LIMIT_S = 300
-WAKE_NOTE = ("\n\nEgasi seni panelda ovoz bilan chaqirdi («Cerebro» yoki «Jarvis» deb). Salomlashma: chaqiriqdan keyingi buyrug'ini eshit va "
+WAKE_NOTE = ("\n\nEgasi seni panelda ovoz bilan chaqirdi («Palantir» yoki «Jarvis» deb). Salomlashma: chaqiriqdan keyingi buyrug'ini eshit va "
              "darhol bajar. Faqat chaqirib, boshqa hech narsa demasa — qisqa «Ha, eshitaman» de. Ishi bitgach, egasi yana "
              "so'ramasa — qisqa «Xo'p» deb end_call. Mikrofon xonada ochiq — atrofdagilar ham eshitadi: tushum, qarz, bemorlarning "
              "ismi va telefoni kabi maxfiy ma'lumotni ovoz chiqarib aytma — «ekranga chiqardim» de (natija panelda karta bo'lib ko'rinadi).")
@@ -62,7 +62,7 @@ class WebBridge(Bridge):
             self.greeted.set()
             self.silence_ms = WAKE_SILENCE_MS
             self.call_limit_s = WAKE_LIMIT_S
-        self.cerebro.http.headers['Authorization'] = f'Bearer {token}'
+        self.palantir.http.headers['Authorization'] = f'Bearer {token}'
         self.who = who
         self.desk = Desk('', test=True) if customer else None
         self.tag = '[panel sinov] ' if customer else '[panel] '

@@ -1,11 +1,11 @@
-# Cerebro'ni klinikaga o'rnatish
+# Palantir'ni klinikaga o'rnatish
 
 Bu qo'llanma o'rnatuvchi uchun: klinikaga borishdan oldin nima tayyorlash, joyida nima qilish va ketishdan oldin nimani tekshirish.
 Bir klinika — bitta kompyuter — bitta bot. O'rnatish 30–40 daqiqa oladi (internet tezligiga qarab).
 
 ## 1. Borishdan oldin tayyorlang
 
-**Anketa (2–3 kun oldin).** O'zingizning Cerebro serveringizda (internetdan ochiladigan, masalan cloudflared orqali): `/#/admin` → «Anketalar» → klinika nomi → «Anketa yaratish». Havola va kod nusxalanadi — egasiga Telegram'da yuboring.
+**Anketa (2–3 kun oldin).** O'zingizning Palantir serveringizda (internetdan ochiladigan, masalan cloudflared orqali): `/#/admin` → «Anketalar» → klinika nomi → «Anketa yaratish». Havola va kod nusxalanadi — egasiga Telegram'da yuboring.
 Egasi telefonidan 10–15 daqiqada to'ldiradi: manzil, ish vaqti, narxlar, ko'p so'raladigan savollar, nimalari bor (Instagram, Telegram raqami, DentaCRM, kameralar). Parol va token anketaga **yozilmaydi** — yozsa, anketa saqlanmaydi.
 Admin sahifasidagi ro'yxatda holati ko'rinadi: «ochilmagan», «to'ldirilmoqda», «yuborilgan». Anketa 60 kundan keyin o'zi o'chadi.
 Anketa serveri tunnel yoki proksi ortida tursa (cloudflared, nginx), uning `.env` ida `TRUST_PROXY=1` qiling: aks holda noto'g'ri kod urinishlari hamma egalar uchun bitta deb sanaladi va 8 ta xato kod hammaning anketasini 15 daqiqaga yopib qo'yadi. Bir nechta biznesga xizmat qiladigan umumiy serverda `CRM_ALLOW_PRIVATE=0` ham qiling — anketa, DentaCRM va kameralar ichki tarmoq manzillariga ulanmaydi.
@@ -16,45 +16,45 @@ Anketa serveri tunnel yoki proksi ortida tursa (cloudflared, nginx), uning `.env
 | **Claude API kaliti** | platform.claude.com → API keys. Hisobda mablag' bo'lsin | Yordamchining «miyasi». Kalitda oylik chegara (spend limit) qo'ying |
 | Gemini kaliti (ixtiyoriy, bepul) | aistudio.google.com | Ovozli xabarlarni matnga aylantiradi. Bo'lmasa ovoz o'chiq |
 | DentaCRM manzili, login, parol | Klinikadan | Qabullar, bemorlar, tushum |
-| Cerebro Hub kodi (`chub.…`) va klinikaning **professional** Instagram akkaunti | Hub kodi — sizdan ([INSTAGRAM.md](INSTAGRAM.md), 4-qadam); akkaunt Meta ilovasida tester bo'lishi kerak | Direct'ga rasmiy yo'l bilan javob. Login-parol Cerebro'ga berilmaydi |
+| Palantir Hub kodi (`chub.…`) va klinikaning **professional** Instagram akkaunti | Hub kodi — sizdan ([INSTAGRAM.md](INSTAGRAM.md), 4-qadam); akkaunt Meta ilovasida tester bo'lishi kerak | Direct'ga rasmiy yo'l bilan javob. Login-parol Palantir'ga berilmaydi |
 | Kameralarning RTSP manzili (yoki HTTP/MJPEG manzili) | Kamerani o'rnatgan usta yoki videoregistrator sozlamalari. Kamera yo'q kabinetga — eski Android telefon («IP Webcam» ilovasi) | Kamera nazorati |
 
 | Uztelecom SIP: server manzili, login, parol, raqam (ixtiyoriy) | Klinika Uztelecom'dan oladi (yuridik shaxs) | Shahar raqamiga AI qabulxona javob beradi |
 
 Klinikadagi kompyuter: Windows 10 yoki 11 (64-bit), 8 GB xotira, doim yoniq va internetga ulangan, Google Chrome yoki Edge o'rnatilgan.
 Telefon liniyasi uchun yana: BIOS'da virtualizatsiya (VT-x / AMD-V) yoqilgan va o'rnatuvchida administrator huquqi bo'lsin.
-**Kompyuter o'chiq yoki uyquda bo'lsa — Cerebro ishlamaydi** (kechasi AI qabulxona ham javob bermaydi): BIOS'da «svet kelganda yoqilsin»
-(Restore on AC power loss → Power On) sozlamasini qo'ying, iloji bo'lsa kichik UPS qo'ying. Kompyuter yongach hech kim kirmasa ham Cerebro ishlashi uchun
+**Kompyuter o'chiq yoki uyquda bo'lsa — Palantir ishlamaydi** (kechasi AI qabulxona ham javob bermaydi): BIOS'da «svet kelganda yoqilsin»
+(Restore on AC power loss → Power On) sozlamasini qo'ying, iloji bo'lsa kichik UPS qo'ying. Kompyuter yongach hech kim kirmasa ham Palantir ishlashi uchun
 o'rnatgich **avtomatik kirishni** taklif qiladi (pastda).
 
 ## 2. O'rnatish
 
-1. GitHub'dagi oxirgi relizdan `cerebro-<nashr>.zip` ni yuklab oling (Releases), masalan `C:\Cerebro` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
+1. GitHub'dagi oxirgi relizdan `cerebro-<nashr>.zip` ni yuklab oling (Releases), masalan `C:\Palantir` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
    Reliz arxivida kutubxonalar, panel va kamera modeli tayyor — o'rnatish internetsiz ham o'tadi. Keyingi nashrlar har kecha o'zi o'rnatiladi.
 2. `install\Ornatish.cmd` ni ikki marta bosing. U o'zi:
    - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'rnatishni taklif qiladi. Node.js o'rnatilgach oynani yopib, `Ornatish.cmd` ni **qayta** bosing;
    - kutubxonalarni yuklaydi va panelni yig'adi;
-   - `.env` faylini yozadi: admin paroli, port, ma'lumotlar papkasi (`C:\CerebroData`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
+   - `.env` faylini yozadi: admin paroli, port, ma'lumotlar papkasi (`C:\PalantirData`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
    - dastur va ma'lumotlar papkasini kompyuterning boshqa Windows foydalanuvchilaridan yopadi;
    - **ovoz xizmati va telefon liniyasini** o'rnatishni taklif qiladi (`install\telefon.ps1`, alohida — `install\Telefon.cmd`):
      Python va ovoz kutubxonalari, «Quloq» modeli (≈45 MB), keyin administrator huquqi bilan WSL, Ubuntu 24.04 (≈340 MB, SHA256 tekshiriladi),
      Asterisk, `.wslconfig` da mirrored tarmoq va brandmauer qoidalari (5060, 10000–10100 — faqat ichki tarmoq).
      WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqib, `Telefon.cmd` ni yana bosing. Har qadam qayta bosilganda bor narsani o'tkazib yuboradi.
-     Ovozli agent kalitini Cerebro o'zi yaratadi (`DATA_DIR\ovoz.env`), Gemini kaliti — ulash ustasida;
-   - Cerebro'ni avtoyuklashga qo'shadi, ish stoliga «Cerebro» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi;
-   - **avtomatik kirishni** taklif qiladi: svet o'chib-yonganda Windows shu foydalanuvchi bilan o'zi kiradi, Cerebro ishga tushadi va ekran darhol
+     Ovozli agent kalitini Palantir o'zi yaratadi (`DATA_DIR\ovoz.env`), Gemini kaliti — ulash ustasida;
+   - Palantir'ni avtoyuklashga qo'shadi, ish stoliga «Palantir» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi;
+   - **avtomatik kirishni** taklif qiladi: svet o'chib-yonganda Windows shu foydalanuvchi bilan o'zi kiradi, Palantir ishga tushadi va ekran darhol
      qulflanadi (kompyuter yonidagi odam parolsiz kira olmaydi; odam o'zi kirganda qulflanmaydi). Windows paroli bir marta so'raladi, haqiqiy kirish
      bilan tekshiriladi va registrda ochiq emas, Windows'ning LSA maxfiy omborida saqlanadi. Keyinroq yoqish yoki o'chirish: `install\Avtokirish.cmd` (`-Off`).
      Microsoft hisobi emas, **mahalliy** parolli foydalanuvchi bo'lgani ma'qul.
 3. Oxirida ekranda **admin paroli** chiqadi — yozib oling. U sizniki, klinikaga berilmaydi.
 
-**Qaysi Windows foydalanuvchisi ostida o'rnatish kerak.** Cerebro shu foydalanuvchi kirganda ishlaydi va kalitlar, baza, bemorlar yozishmasi faqat unga ochiq bo'ladi.
-Eng yaxshisi — egasining (yoki faqat Cerebro uchun ochilgan) alohida parolli foydalanuvchisi. Hamma xodim bitta umumiy foydalanuvchi bilan ishlasa, ular `.env` va bazani ocha oladi — buni egasiga ayting.
+**Qaysi Windows foydalanuvchisi ostida o'rnatish kerak.** Palantir shu foydalanuvchi kirganda ishlaydi va kalitlar, baza, bemorlar yozishmasi faqat unga ochiq bo'ladi.
+Eng yaxshisi — egasining (yoki faqat Palantir uchun ochilgan) alohida parolli foydalanuvchisi. Hamma xodim bitta umumiy foydalanuvchi bilan ishlasa, ular `.env` va bazani ocha oladi — buni egasiga ayting.
 Zaxira nusxani fleshkaga olsangiz: unda baza va uni ochadigan kalit yonma-yon turadi — fleshka yo'qolsa hammasi ochiq.
 
 ## 3. Klinikani sozlash — ulash ustasi
 
-Panel: ish stolidagi «Cerebro» yorlig'i. Usta: `http://localhost:3200/#/ulash` (admin paroli bilan). Chapda qadamlar va «klinikada o'tgan vaqt», har qadam tayyor bo'lsa yashil belgi oladi; qadamlarni istalgan tartibda bosish mumkin.
+Panel: ish stolidagi «Palantir» yorlig'i. Usta: `http://localhost:3200/#/ulash` (admin paroli bilan). Chapda qadamlar va «klinikada o'tgan vaqt», har qadam tayyor bo'lsa yashil belgi oladi; qadamlarni istalgan tartibda bosish mumkin.
 
 1. **Klinika**: «Yangi klinika» → nomi (login va parol o'zi yaratiladi — nusxalab egasiga bering). Keyin **anketa kodi** va o'z serveringiz manzili → «Yuklash»: manzil, ish vaqti, narxlar, javoblar shu kompyuterga tushadi. Internet bo'lmasa — anketa sahifasidan yuklab olingan `.json` faylni tanlang.
 2. **Kalitlar**: bot tokeni, Claude va Gemini kalitlari, kamera `rtsp://` manzili, DentaCRM havolasi, Telegram raqami — **hammasini bitta maydonga** qo'ying. Usta har qatorning turini o'zi taniydi (AI'siz, qolip bo'yicha), kalitni haqiqiy xizmatda tekshiradi va shifrlab saqlaydi; qolganini o'z qadamiga o'tkazadi. Tanimagan qatorni (masalan, DentaCRM paroli) bir tugma bilan belgilaysiz. Server to'xtamaydi: bot shu zahoti yangi token bilan ulanadi.
@@ -83,7 +83,7 @@ Panel: ish stolidagi «Cerebro» yorlig'i. Usta: `http://localhost:3200/#/ulash`
 
 Egasining shaxsiy Telegrami, Instagram'ni brauzer orqali ulash va Telegram orqali AI qo'ng'iroq keyinga qoldirilgan: standart o'chiq va ustada ko'rinmaydi (`.env`: `TG_PERSONAL`, `IG_VIA_BROWSER`, `TG_CALL`).
 
-**Mijozlarga javob** rejimi: birinchi hafta **«Tasdiq bilan»** qoldiring — Cerebro javobni tayyorlaydi, egasi Telegramda «Yuborish» bosadi. Javoblar yoqsa, keyin «O'zi javob bersin»ga o'tkazing.
+**Mijozlarga javob** rejimi: birinchi hafta **«Tasdiq bilan»** qoldiring — Palantir javobni tayyorlaydi, egasi Telegramda «Yuborish» bosadi. Javoblar yoqsa, keyin «O'zi javob bersin»ga o'tkazing.
 
 Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: bot xabarni chatdan o'chiradi, hech qayerga saqlamaydi va panelga yo'naltiradi.
 
@@ -117,13 +117,13 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 | Nima bo'lganini ko'rish | `C:\CerebroData\logs\` — har kunga bitta fayl (`2026-10-14.log`), 14 kun saqlanadi. `supervisor.log` — qachon to'xtab, qachon qayta yongani |
 | Zaxira nusxa | Har kuni o'zi olinadi: `C:\CerebroData\backups\KUN\` (baza, «ikkinchi miya», maxfiy kalit), 14 kun. Boshqa diskka olish: `.env` da `BACKUP_DIR=D:\CerebroZaxira`. Hub kodi bo'lsa — shu nusxa **shifrlanib hubga ham** yuboriladi (sotuvchining ochiq kaliti bilan: hub ham, klinika ham ocha olmaydi), oxirgi 7 kuni turadi — kompyuter yoki disk buzilsa ham ma'lumot qoladi |
 | Tashqi zaxiradan tiklash | Sotuvchi: faylni hubdan oladi (`/admin/backups`), `npm run restore-backup -- <fayl.czb>` bilan ochadi (maxfiy kalit `~/.cerebro/zaxira-kaliti.pem`) — chiqqan uchta narsa bilan pastdagidek tiklanadi |
-| Tiklash | Cerebro'ni to'xtating → `C:\CerebroData` dagi `cerebro.db-wal` va `cerebro.db-shm` fayllarini o'chiring → zaxira papkasidagi `cerebro.db`, `miya`, `session.secret` ni `C:\CerebroData` ga ko'chiring → ishga tushiring |
+| Tiklash | Palantir'ni to'xtating → `C:\CerebroData` dagi `cerebro.db-wal` va `cerebro.db-shm` fayllarini o'chiring → zaxira papkasidagi `cerebro.db`, `miya`, `session.secret` ni `C:\CerebroData` ga ko'chiring → ishga tushiring |
 | Dasturni yangilash | **O'zi**: har kecha 3:00 da yangi reliz bo'lsa — imzosi tekshiriladi, bazaning nusxasida sinab ko'riladi, keyin o'rnatiladi; yangi nashr ishga tushmasa eskisi va baza o'zi qaytariladi (`logs\yangilash.log`, natijasi hub holatida). Qo'lda: `npm run update`. O'chirish: `.env` da `UPDATE_AUTO=0` |
 | AI xarajati | Admin sahifasida oxirgi 7 kun: so'rovlar soni va taxminiy dollar. Aniq hisob — platform.claude.com |
 | Kalitni almashtirish | `/#/ulash` → «Kalitlar»: yangisini qo'ying — tekshiriladi va server to'xtamasdan kuchga kiradi. Kalitlar bazada shifrlangan (`session.secret` bilan); `.env` dagisi faqat panelda berilmagan bo'lsa ishlaydi |
 | Olib tashlash | `install\Ornatish.cmd -Uninstall` (ma'lumotlar o'chmaydi) |
 
-Kunlik chegaralar (`.env` da o'zgartiriladi): egasining yordamchisi — 600 so'rov (`AI_DAILY_OWNER`), mijozlarga javob — 400 (`AI_DAILY_CUSTOMER`), rasm — 50 (`AI_DAILY_PHOTOS`), kamera AI ko'zi — 150 (`AI_DAILY_CAMERA`). Chegara tugasa Cerebro buni egasiga aytadi va pul sarflamaydi.
+Kunlik chegaralar (`.env` da o'zgartiriladi): egasining yordamchisi — 600 so'rov (`AI_DAILY_OWNER`), mijozlarga javob — 400 (`AI_DAILY_CUSTOMER`), rasm — 50 (`AI_DAILY_PHOTOS`), kamera AI ko'zi — 150 (`AI_DAILY_CAMERA`). Chegara tugasa Palantir buni egasiga aytadi va pul sarflamaydi.
 
 Kamera sozlamalari (`.env`): kechki kamera hisoboti soati — `CAMERA_REPORT_HOUR=20` (99 — yuborilmaydi), uzoq kutish chegarasi — `CAMERA_WAIT_ALERT_MIN=20`, «to'lov yozilmagan» deyishdan oldin kutish — `CAMERA_PAY_GRACE_MIN=30`, «yopildi/burildi» qancha davom etsa xabar — `CAMERA_TAMPER_HOLD_SEC=120`.
 
@@ -142,11 +142,11 @@ Kamera sozlamalari (`.env`): kechki kamera hisoboti soati — `CAMERA_REPORT_HOU
 | Panel ochilmayapti | `Ishga-tushirish.cmd`. Bo'lmasa `logs\supervisor.log` ning oxirini o'qing |
 | Masofadan yordam kerak | Egasi botga **/diagnostika** yozadi (yoki admin paneli → «Diagnostika»): holat, kanallardagi muammolar va jurnallar oxiri (kalitlarsiz) hubga boradi — sotuvchi `GET /admin/diag` dan o'qiydi. Hub kodi bo'lmasa — fayl keladi, egasi uni sotuvchiga uzatadi |
 | Instagram javob bermay qoldi | Panel → Sozlamalar → Instagram: muammo matnini o'qing (token, Hub aloqasi). Kerak bo'lsa rasmiy ulanishni qayta ulang. Mijozning oxirgi xabaridan 24 soat o'tgan bo'lsa — Instagram javobga ruxsat bermaydi |
-| Kamera: «ffmpeg eski» | HTTP kamera faqat yangi ffmpeg bilan ulanadi: `winget upgrade Gyan.FFmpeg`, keyin Cerebro'ni qayta ishga tushiring (yoki kameraning `rtsp://` manzilini bering) |
+| Kamera: «ffmpeg eski» | HTTP kamera faqat yangi ffmpeg bilan ulanadi: `winget upgrade Gyan.FFmpeg`, keyin Palantir'ni qayta ishga tushiring (yoki kameraning `rtsp://` manzilini bering) |
 
 ## 7. Chegaralar — klinikaga oldindan ayting
 
-- **Instagram** rasmiy yo'l bilan (Meta ilovasi, Cerebro Hub) ishlaydi: mijozning oxirgi xabaridan keyin 24 soat ichida javob berish mumkin (Meta «Human Agent» ruxsatini bersa — 7 kun). Meta ilovasi App Review'dan o'tmaguncha faqat ilovada tester qilib qo'shilgan akkauntlar ulanadi. Haqiqiy Meta bilan hali sinalmagan — birinchi klinikada o'zingiz kuzating; birinchi hafta faqat «Tasdiq bilan» rejimi.
+- **Instagram** rasmiy yo'l bilan (Meta ilovasi, Palantir Hub) ishlaydi: mijozning oxirgi xabaridan keyin 24 soat ichida javob berish mumkin (Meta «Human Agent» ruxsatini bersa — 7 kun). Meta ilovasi App Review'dan o'tmaguncha faqat ilovada tester qilib qo'shilgan akkauntlar ulanadi. Haqiqiy Meta bilan hali sinalmagan — birinchi klinikada o'zingiz kuzating; birinchi hafta faqat «Tasdiq bilan» rejimi.
 - **Kameralar** odamni tanimaydi va pulni ko'rmaydi: faqat «kresloda shuncha vaqt odam o'tirdi», «kassa oldida odam turdi», «kutish joyida shuncha kutdi» deb sanaydi va CRM bilan solishtiradi. Farqlar — tekshirish uchun sabab, ayb emas.
   Odamlarni sanash shu kompyuterning o'zida bo'ladi, oqim hech qayerga yuborilmaydi. **Kadr kompyuterdan faqat shunda chiqadi**: egasi so'raganda (`/kamera`, «kameraga qara», «AI belgilasin») yoki uning topshirig'i bo'yicha — AI'ga (Claude) va egasining Telegram'iga; ogohlantirish kadrlari Kuzatuvchi jurnalida 14 kun saqlanadi. Maxfiy joylar har rasmda qora. Buni klinikaga ayting va kamerani bemorlar yechinadigan joyga qaratmang.
 - **AI qabulxona (telefon liniyasi)** o'rnatiladi, lekin haqiqiy shahar raqamida hali sinalmagan: birinchi klinikada «ish vaqtida — administrator, qolgan paytda — AI» rejimidan boshlang va qo'ng'iroqlarni Qo'ng'iroqlar sahifasida kuzating.

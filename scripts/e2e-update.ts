@@ -101,12 +101,12 @@ try {
   console.log('\n# 1. Yangi nashr');
   release('v1', '9.0.1', () => {
     writeFileSync(join(SRC, 'server', 'yangi-modul.ts'), 'export const YANGI = 1;\n');
-    rmSync(join(SRC, 'Cerebro-logo', 'README.txt'));
+    rmSync(join(SRC, 'Palantir-logo', 'README.txt'));
   });
   const first = await update('v1');
   ok('yangilovchi: 0 kodi bilan tugadi', first.code === 0, first.out.split('\n').slice(-3).join(' | '));
   ok('yangi nashr ishlayapti: 9.0.1, holat — ok', (await appHealth())?.version === '9.0.1' && holat().result === 'ok');
-  ok("relizdagi yangi fayl keldi, olib tashlangani yo'q", existsSync(join(APP, 'server', 'yangi-modul.ts')) && !existsSync(join(APP, 'Cerebro-logo', 'README.txt')));
+  ok("relizdagi yangi fayl keldi, olib tashlangani yo'q", existsSync(join(APP, 'server', 'yangi-modul.ts')) && !existsSync(join(APP, 'Palantir-logo', 'README.txt')));
   ok('ish fayllari saqlandi: tgvoice/.venv, shahar raqami sozlamasi', readFileSync(join(APP, 'tgvoice', '.venv', 'belgi.txt'), 'utf8') === 'venv'
     && existsSync(join(APP, 'tgvoice', 'asterisk', 'pjsip_shahar.conf')));
   ok('.env va baza joyida (biznes saqlangan)', readFileSync(join(APP, '.env'), 'utf8') === envText

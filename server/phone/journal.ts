@@ -20,7 +20,7 @@ export interface OpenCall {
   endedAt: number | null;
 }
 
-/** Raqam ikki marta terilsa (yoki «terildi»ni ham Cerebro, ham MicroSIP yuborsa) — bitta yozuv */
+/** Raqam ikki marta terilsa (yoki «terildi»ni ham Palantir, ham MicroSIP yuborsa) — bitta yozuv */
 export const DUPLICATE_DIAL_MS = 20_000;
 /** Bir necha soniyada qayta jiringlasa — o'sha qo'ng'iroq */
 export const RERING_AFTER_MISS_MS = 5_000;

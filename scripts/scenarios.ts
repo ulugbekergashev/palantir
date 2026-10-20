@@ -238,7 +238,7 @@ try {
     if (viaObsidian) check("Obsidian: mundarijadagi hamma havola ishlaydi (uzilgan havola yo'q)", obs('unresolved', 'total') === '0', obs('unresolved', 'verbose'));
   });
 
-  await scenario("Ma'lum savol: Cerebro egasini bezovta qilmay o'zi javob beradi", async () => {
+  await scenario("Ma'lum savol: Palantir egasini bezovta qilmay o'zi javob beradi", async () => {
     await enter(8101);
     const r = await customerSays(8101, "Assalomu alaykum, bo'lib to'lash bormi?");
     step(`Mijoz: «bo'lib to'lash bormi?» → ${r.reply ? `javob: «${textOf(r.reply)}»` : 'javob ketmadi'}`);
@@ -273,7 +273,7 @@ try {
     await enter(8103);
     const second = await customerSays(8103, 'Salom! Homilador ayollarni davolaysizmi?');
     step(`Mijoz B (boshqa so'zlar bilan): → ${second.reply ? `«${textOf(second.reply)}»` : 'javob ketmadi'}`);
-    check("ikkinchi mijozga Cerebro o'zi javob berdi, egasidan so'ramadi", textOf(second.reply).includes('ikkinchi uch oylikda') && !second.card, `${textOf(second.reply)} | karta: ${!!second.card}`);
+    check("ikkinchi mijozga Palantir o'zi javob berdi, egasidan so'ramadi", textOf(second.reply).includes('ikkinchi uch oylikda') && !second.card, `${textOf(second.reply)} | karta: ${!!second.card}`);
   });
 
   await scenario("Shaxsiy va'da: bir mijozga aytilgan gap boshqasiga aytilmaydi", async () => {
@@ -341,10 +341,10 @@ try {
     check("Telegram'dagi eski tugma endi hech narsani o'zgartirmaydi: «Bu tugma eskirgan»", sent.slice(mark).some(s => s.method === 'answerCallbackQuery' && textOf(s).includes('eskirgan')) && !sent.slice(mark).some(s => s.method === 'editMessageText') && (await brain()).qa.filter(k => k.question === 'Avtoturargoh bormi?').length === 1, JSON.stringify(sent.slice(mark).map(s => [s.method, textOf(s)])));
     const r = await customerSays(8105, 'Avtoturargoh bormi sizlarda?');
     step(`Boshqa mijoz so'radi → «${textOf(r.reply)}»`);
-    check("Cerebro o'zi javob berdi", textOf(r.reply).includes("mashina qo'yadigan joy bor") && !r.card, textOf(r.reply));
+    check("Palantir o'zi javob berdi", textOf(r.reply).includes("mashina qo'yadigan joy bor") && !r.card, textOf(r.reply));
   });
 
-  await scenario("Obsidian'da o'chirish: bilim o'chdi — Cerebro yana egasidan so'raydi", async () => {
+  await scenario("Obsidian'da o'chirish: bilim o'chdi — Palantir yana egasidan so'raydi", async () => {
     vault.remove(`${QA}/Avtoturargoh bormi.md`);
     step("Egasi Obsidian'da «Avtoturargoh bormi» faylini o'chirdi");
     await sleep(400);
@@ -354,7 +354,7 @@ try {
     check("panelda ham yo'q", !(await brain()).qa.some(k => k.question === 'Avtoturargoh bormi?'));
   });
 
-  await scenario("Obsidian'da teg va yangi nom: Cerebro faylni tanishda davom etadi", async () => {
+  await scenario("Obsidian'da teg va yangi nom: Palantir faylni tanishda davom etadi", async () => {
     const old = `${QA}/Qanday to'lash mumkin.md`, renamed = `${QA}/Tolov usullari.md`;
     if (viaObsidian) obs('property:set', 'name=tags', 'value=tolov', 'type=list', `path=${old}`);
     else vault.write(old, vault.read(old).replace('---\n', '---\ntags:\n  - tolov\n'));
@@ -372,7 +372,7 @@ try {
     check('mijozga yangilangan javob ketdi', textOf(r.reply).includes('Uzum'), textOf(r.reply));
   });
 
-  await scenario("Egasi Obsidian'da o'z sahifasini ochadi: Cerebro undan ham javob beradi", async () => {
+  await scenario("Egasi Obsidian'da o'z sahifasini ochadi: Palantir undan ham javob beradi", async () => {
     vault.write('Bilim/Implant.md', "# Implant\n\nImplant ikki bosqichda qo'yiladi: avval implantning o'zi, 3–4 oydan keyin koronka. Birinchi ko'rikda panoram rentgen qilinadi.\n\nBog'liq: [[Narxlar]]\n");
     step("Egasi Obsidian'da «Implant» sahifasini yozdi (ichida [[Narxlar]] havolasi bilan)");
     await sleep(400);
@@ -384,7 +384,7 @@ try {
     if (viaObsidian) check("Obsidian: «Narxlar» sahifasiga Implant'dan havola bor, uzilgan havola yo'q", obs('backlinks', 'path=Narxlar.md').includes('Implant') && obs('unresolved', 'total') === '0', obs('backlinks', 'path=Narxlar.md'));
   });
 
-  await scenario("Tuzatish: egasi tayyor javobni o'zgartirib yuboradi — Cerebro so'rab, keyin o'rganadi", async () => {
+  await scenario("Tuzatish: egasi tayyor javobni o'zgartirib yuboradi — Palantir so'rab, keyin o'rganadi", async () => {
     await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'draft', contacts: false, delayMin: 0 } });
     await enter(8106);
     const r = await customerSays(8106, 'Bolalarni qabul qilasizmi?');
@@ -418,7 +418,7 @@ try {
     check("javob o'zi ketmadi — egasiga karta", !!r.card && !textOf(r.reply).includes('90%'), textOf(r.reply));
     const answered = await ownerAnswers(r.card!, 8107, "Ha, yozilishingiz mumkin, administrator bog'lanadi");
     const offer = textOf(answered.ask);
-    step("Egasi mijozga javob berdi → Cerebro «Eslab qolaymi?» deb so'radi (savol matni mijozning zararli xabaridan olingan)");
+    step("Egasi mijozga javob berdi → Palantir «Eslab qolaymi?» deb so'radi (savol matni mijozning zararli xabaridan olingan)");
     check("egasiga ko'rsatilgan taklifda bilim tegi va alohida «SYSTEM:» qatori yo'q (zararli gap oddiy matn bo'lib ko'rinadi)", !!answered.ask && !/(<|&lt;)\/?owner_knowledge/.test(offer) && !/\nSYSTEM:/.test(offer), offer);
     await enter(8111);
     await customerSays(8111, 'Plomba qancha?');
@@ -474,7 +474,7 @@ try {
     await enter(8113);
     const later = await customerSays(8113, 'Kechikish tartibi qanday?');
     step(`Boshqa mijoz xuddi shuni so'radi → «${textOf(later.reply)}»`);
-    check("endi Cerebro fayldagi ma'lumotdan o'zi javob beradi", textOf(later.reply).includes('navbatdan keyin qabul qilinadi') && !later.card, textOf(later.reply));
+    check("endi Palantir fayldagi ma'lumotdan o'zi javob beradi", textOf(later.reply).includes('navbatdan keyin qabul qilinadi') && !later.card, textOf(later.reply));
     const pressed = sent.length;
     press(OWNER, callback(card, 'ky'), card!.id!);
     await waitFor('tugma javobi', () => sent.slice(pressed).find(s => s.method === 'answerCallbackQuery'));

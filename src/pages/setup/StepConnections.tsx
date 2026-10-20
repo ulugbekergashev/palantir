@@ -85,7 +85,7 @@ export function StepTelegram({ status, setup, routed, refresh, notify }: { statu
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   if (!status.telegramUser.available) return <Note>Shaxsiy Telegram uchun «Kalitlar» qadamida Telegram API ID va API hash kerak (my.telegram.org → API development tools; bir marta, hamma klinikalarga bitta).</Note>;
-  if (status.telegramUser.account) return <Done title={`Ulandi: ${status.telegramUser.account}`}>Shu raqamga yozgan mijozlarga Cerebro javob tayyorlaydi; egasi tasdiqlamaguncha yuborilmaydi.</Done>;
+  if (status.telegramUser.account) return <Done title={`Ulandi: ${status.telegramUser.account}`}>Shu raqamga yozgan mijozlarga Palantir javob tayyorlaydi; egasi tasdiqlamaguncha yuborilmaydi.</Done>;
   const run = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -117,7 +117,7 @@ export function StepInstagram({ status, routed, setup, refresh, onStatus, notify
   const [busy, setBusy] = useState(false);
   usePoll(ig.waiting, refresh);
   const handle = routed.instagram.replace(/^.*instagram\.com\//i, '').replace(/[/?].*$/, '') || setup?.has.instagram;
-  // Asosiy yo'l — rasmiy (Meta, Cerebro Hub orqali); brauzer orqali faqat serverda yoqilgan bo'lsa (IG_VIA_BROWSER)
+  // Asosiy yo'l — rasmiy (Meta, Palantir Hub orqali); brauzer orqali faqat serverda yoqilgan bo'lsa (IG_VIA_BROWSER)
   if (!ig.enabled) return <Card title={handle ? `@${handle}` : "Klinikaning Instagram'i"}><InstagramOfficial status={status} onStatus={onStatus} notify={notify} /></Card>;
   if (!ig.available) return <Note>Bu kompyuterda Chrome yoki Edge topilmadi — Instagram uchun bittasini o'rnating.</Note>;
   if (ig.account && !ig.problem) return <Done title={`Ulandi: @${ig.account}`}>Direct'dagi yozishmalar «Mijozlar» bo'limiga tushadi. Birinchi hafta — faqat egasining tasdig'i bilan.</Done>;
@@ -126,7 +126,7 @@ export function StepInstagram({ status, routed, setup, refresh, onStatus, notify
     try { onStatus((await api.igLogin()).status); } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
   };
   return (
-    <Card title={handle ? `@${handle} — egasi kiradi` : "Egasining Instagram'i"} description="Tugmani bosing: shu kompyuterda brauzer oynasi ochiladi. Login va parolni egasi o'zi kiritadi — ular Cerebro'da saqlanmaydi.">
+    <Card title={handle ? `@${handle} — egasi kiradi` : "Egasining Instagram'i"} description="Tugmani bosing: shu kompyuterda brauzer oynasi ochiladi. Login va parolni egasi o'zi kiritadi — ular Palantir'da saqlanmaydi.">
       {ig.problem && <p className="mb-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">{ig.problem}</p>}
       {ig.waiting
         ? <p className="flex items-center gap-2 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Ochilgan oynada egasi kirishini kutyapman… <Button size="sm" variant="ghost" onClick={() => void api.igCancel().then(refresh)}>Bekor qilish</Button></p>

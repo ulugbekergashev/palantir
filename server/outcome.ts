@@ -1,5 +1,5 @@
 /**
- * Vazifa natijasi: uchrashuv, qo'ng'iroq, taklif yoki mijozga bog'liq vazifa bajarildi deb belgilansa, Cerebro natijasini so'raydi.
+ * Vazifa natijasi: uchrashuv, qo'ng'iroq, taklif yoki mijozga bog'liq vazifa bajarildi deb belgilansa, Palantir natijasini so'raydi.
  * Egasining keyingi gapi (shu oraliqda) yordamchiga shu vazifa haqida ekanini aytib uzatiladi: yordamchi mijozni yangilaydi
  * (bosqich, izoh, keyingi qadam) va kerak bo'lsa keyingi vazifani qo'yadi. Holat bazada (businesses.outcome) — server qayta yonsa ham turadi.
  */

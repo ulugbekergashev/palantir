@@ -143,7 +143,7 @@ export const crmServer = patient(createServer(async (req, res) => {
     crm.tokens.add(token);
     return json(res, { success: true, role: 'CLINIC_ADMIN', name: 'Tabassum Dental', clinicId: CLINIC, token });
   }
-  // Lokal nashrdagi kabi: litsenziya holati kirishsiz ochiq (Cerebro shu bilan shu kompyuterdagi DentaCRM'ni topadi)
+  // Lokal nashrdagi kabi: litsenziya holati kirishsiz ochiq (Palantir shu bilan shu kompyuterdagi DentaCRM'ni topadi)
   if (path === '/api/license/status' && req.method === 'GET') return json(res, { activated: !crm.unlicensed, machineId: 'FAKE-HWID-0001', displayId: 'FAKE-HWI...', clinicExists: true });
   // Litsenziya tekshiruvi kirishdan boshqa hamma yo'lda, tokendan oldin
   if (crm.unlicensed) return json(res, { error: 'LICENSE_REQUIRED' }, 403);

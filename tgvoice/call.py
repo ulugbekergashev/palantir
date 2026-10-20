@@ -1,5 +1,5 @@
-"""Telegram orqali jonli qo'ng'iroq: DentaCRM akkauntidan egasiga qo'ng'iroq qilib, Cerebro yordamchisi bilan ovozda gaplashish.
-Quloq — VoiceLab jonli STT, miya — Cerebro (panel chati: vazifa, eslatma, eslab qolish… hammasi), og'iz — VoiceLab TTS (Lola).
+"""Telegram orqali jonli qo'ng'iroq: DentaCRM akkauntidan egasiga qo'ng'iroq qilib, Palantir yordamchisi bilan ovozda gaplashish.
+Quloq — VoiceLab jonli STT, miya — Palantir (panel chati: vazifa, eslatma, eslab qolish… hammasi), og'iz — VoiceLab TTS (Lola).
 Ishga tushirish:  tgvoice\\.venv\\Scripts\\python.exe tgvoice\\call.py <username yoki +998...>
 Eski zanjir (VoiceLab ovozi bilan) — asosiysi call_live.py; «ovoz: voicelab:…» imkoniyati shu asosda qilinadi.
 Suhbat navbatma-navbat: AI gapirayotganda tinglanmaydi (aks-sado bo'lmasligi uchun). «Xayr» — qo'ng'iroq tugaydi."""
@@ -35,7 +35,7 @@ MAX_UTTERANCE_S = 25
 CALL_LIMIT_S = 300
 VOICELAB = 'https://api.voicelab.uz'
 CEREBRO = env('CEREBRO_URL', 'http://127.0.0.1:3200')
-GREETING = "Assalomu alaykum, Ulug'bek aka! Cerebro eshitadi. Nima qilay?"
+GREETING = "Assalomu alaykum, Ulug'bek aka! Palantir eshitadi. Nima qilay?"
 VOICE_NAME = env('VOICE_NAME', 'Madina')   # VoiceLab ovozi (ro'yxat: /v1/voices?language=uz)
 VOICE_MODEL = env('VOICE_MODEL', 'lison-v2')  # v2 — jonliroq (belgisi 1,5 kredit), lison — oddiy (1 kredit)
 GOODBYE = re.compile(r"\b(xayr|hayr|bo'ldi rahmat|rahmat bo'ldi)\b", re.I)
@@ -107,7 +107,7 @@ class Voice:
 
 
 class Brain:
-    """Cerebro yordamchisi: panel chati orqali — gap jurnalga «📞» bilan tushadi, asboblar (vazifa, eslatma…) ishlaydi"""
+    """Palantir yordamchisi: panel chati orqali — gap jurnalga «📞» bilan tushadi, asboblar (vazifa, eslatma…) ishlaydi"""
     def __init__(self):
         self.http = httpx.AsyncClient(base_url=CEREBRO, timeout=120)
 
@@ -119,7 +119,7 @@ class Brain:
     async def think(self, heard: str) -> str:
         r = await self.http.post('/api/chat', json={'text': heard, 'phone': True})
         if r.status_code != 200:
-            return "Kechirasiz, Cerebro hozir javob bera olmadi."
+            return "Kechirasiz, Palantir hozir javob bera olmadi."
         entries = r.json().get('entries') or []
         return entries[-1]['text'] if entries else ''
 
@@ -174,7 +174,7 @@ class Call:
     async def say(self, text: str):
         t0 = time.monotonic()
         pcm = await self.voice.speak(text)
-        log('Cerebro', f"{text}   (ovoz {time.monotonic() - t0:.1f} s)")
+        log('Palantir', f"{text}   (ovoz {time.monotonic() - t0:.1f} s)")
         await self.play(pcm)
 
     async def run(self):
@@ -197,7 +197,7 @@ class Call:
                 await self.say("Xo'p, Ulug'bek aka, xayr!")
                 return
             reply = spoken(await self.brain.think(heard))
-            log('…', f"Cerebro o'yladi {time.monotonic() - t1:.1f} s")
+            log('…', f"Palantir o'yladi {time.monotonic() - t1:.1f} s")
             await self.say(reply or "Kechirasiz, tushunmadim. Qaytarib ayting.")
         await self.say("Vaqt tugadi. Rahmat, xayr!")
 
@@ -233,7 +233,7 @@ async def main():
     except NotInCallError:
         log('—', "suhbatdosh go'shakni qo'ydi")
     except (RuntimeError, httpx.HTTPError, websockets.WebSocketException) as e:
-        # Ovoz xizmati (masalan, VoiceLab krediti tugadi) yoki Cerebro javob bermadi — qo'ng'iroq toza yopiladi
+        # Ovoz xizmati (masalan, VoiceLab krediti tugadi) yoki Palantir javob bermadi — qo'ng'iroq toza yopiladi
         log('—', f"xizmat xatosi, qo'ng'iroq yopildi: {str(e)[:160]}")
     finally:
         try:

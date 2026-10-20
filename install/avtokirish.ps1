@@ -1,5 +1,5 @@
-# Svet o'chib-yonganda Cerebro o'zi ishga tushsin: Windows shu foydalanuvchi bilan o'zi kiradi (avtomatik kirish), keyin
-# cerebro-fon.vbs ekranni darhol qulflaydi - Cerebro ishlayveradi, kompyuter yonidagi odam esa parolsiz kira olmaydi.
+# Svet o'chib-yonganda Palantir o'zi ishga tushsin: Windows shu foydalanuvchi bilan o'zi kiradi (avtomatik kirish), keyin
+# cerebro-fon.vbs ekranni darhol qulflaydi - Palantir ishlayveradi, kompyuter yonidagi odam esa parolsiz kira olmaydi.
 # Hamma narsa (bot, MicroSIP, telefon liniyasi WSL'da) odatdagi foydalanuvchi sessiyasida ishlaydi.
 # Parol registrda ochiq yozilmaydi: LSA maxfiy omborida (Sysinternals Autologon kabi). Administrator huquqi kerak.
 #   avtokirish.ps1 [-User DOMEN\nom] - yoqish (parol so'raladi va haqiqiy kirish bilan tekshiriladi); standart - joriy foydalanuvchi
@@ -20,7 +20,7 @@ function Fail([string]$text) { Write-Host "   X $text" -ForegroundColor Red; Don
 function Is-Admin { ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) }
 
 # Administrator huquqi o'zi so'raladi. Foydalanuvchi nomi undan OLDIN olinadi: boshqa administrator hisobi bilan tasdiqlansa,
-# avtomatik kirish o'sha administratorga emas, Cerebro ishlaydigan foydalanuvchiga sozlansin
+# avtomatik kirish o'sha administratorga emas, Palantir ishlaydigan foydalanuvchiga sozlansin
 if (-not $Off -and -not $SelfTest -and -not $User) { $User = "$($env:USERDOMAIN)\$($env:USERNAME)" }
 if (-not (Is-Admin) -and -not $SelfTest) {
   $again = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-Pause')
@@ -168,6 +168,6 @@ if ((Get-ItemProperty -Path $PasswordLess -Name DevicePasswordLessBuildVersion -
   Set-ItemProperty -Path $PasswordLess -Name DevicePasswordLessBuildVersion -Value 0
   Warn "'Faqat Windows Hello bilan kirish' o'chirildi - usiz avtomatik kirish ishlamaydi"
 }
-Note "Avtomatik kirish yoqildi: svet o'chib-yonganda Cerebro 1-2 daqiqada o'zi ishga tushadi, ekran qulflangan bo'ladi"
+Note "Avtomatik kirish yoqildi: svet o'chib-yonganda Palantir 1-2 daqiqada o'zi ishga tushadi, ekran qulflangan bo'ladi"
 Note "BIOS'da 'Restore on AC power loss -> Power On' ham qo'yilgan bo'lsin (docs\ORNATISH.md)"
 Done 0

@@ -1,5 +1,5 @@
 /**
- * Telefon (MicroSIP) — klinika kompyuteridagi softfon Cerebro'ga ulanadi:
+ * Telefon (MicroSIP) — klinika kompyuteridagi softfon Palantir'ga ulanadi:
  *
  *   MicroSIP hodisasi → qo'ng'iroqlar jurnali (journal.ts) → qo'ng'iroq tugadi:
  *     · mijoz kartasi — telefon bo'yicha (bitta odam: Instagram, bot va qo'ng'iroq birga);
@@ -8,7 +8,7 @@
  *     · gaplashildi → yozuv fayli topiladi → matn va tahlil (analysis.ts) → mijoz kartasi, so'rov, egasiga qisqa xabar.
  *   «📞 Kompyuterdan» (so'rov kartasi, panel) → MicroSIP raqamni teradi; keyingi qo'ng'iroq shu so'rovga bog'lanadi.
  *
- * MicroSIP Cerebro server ishlayotgan kompyuterda bo'lishi kerak (hodisa va yozuvlar fayl orqali keladi).
+ * MicroSIP Palantir server ishlayotgan kompyuterda bo'lishi kerak (hodisa va yozuvlar fayl orqali keladi).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -266,7 +266,7 @@ export interface PhoneStatus extends MicrosipStatus { available: boolean; mine: 
 export function phoneProblem(bizId: string): string | null {
   const st = readState(menv);
   if (st.businessId !== bizId || !st.connectedAt) return null;
-  if (!activeDirs(menv)) return "MicroSIP yordamchisi topilmadi — qo'ng'iroqlar Cerebro'ga kelmayapti. Panel → Qo'ng'iroqlar → «Ulash»ni qayta bosing";
+  if (!activeDirs(menv)) return "MicroSIP yordamchisi topilmadi — qo'ng'iroqlar Palantir'ga kelmayapti. Panel → Qo'ng'iroqlar → «Ulash»ni qayta bosing";
   if (st.noAccount) return "MicroSIP'da operator hisobi (SIP login) yo'q — qo'ng'iroq ketmaydi";
   return null;
 }
@@ -281,7 +281,7 @@ export async function phoneStatus(biz: BusinessRow): Promise<PhoneStatus> {
 const CONNECT_ERRORS: Record<string, string> = {
   not_found: "MicroSIP topilmadi — o'rnating (microsip.org) yoki manzilini MICROSIP_EXE bilan ko'rsating",
   ini_missing: "MicroSIP sozlama fayli (MicroSIP.ini) topilmadi — MicroSIP'ni bir marta ochib, yoping",
-  hooks_taken: "MicroSIP boshqa dasturga ulangan (masalan DentaCRM). «Baribir ulash» bilan Cerebro'ga o'tkazing",
+  hooks_taken: "MicroSIP boshqa dasturga ulangan (masalan DentaCRM). «Baribir ulash» bilan Palantir'ga o'tkazing",
   exit_failed: "MicroSIP yopilmadi — qo'ng'iroq tugaganini tekshirib, qayta urining",
   helper_missing: "MicroSIP yordamchisi yig'ilmadi",
 };

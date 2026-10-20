@@ -1,16 +1,16 @@
 /**
- * Panel ovozi: egasi Cerebro bilan jonli gaplashadi (AI bosh ekran). Brauzer ↔ tgvoice/web_live.py ↔ Gemini Live —
- * telefondagi yordamchining o'zi (vazifalar, Cerebro, Obsidian). Mikrofon 16 kHz PCM bo'lib ketadi, AI ovozi 24 kHz PCM bo'lib keladi
+ * Panel ovozi: egasi Palantir bilan jonli gaplashadi (AI bosh ekran). Brauzer ↔ tgvoice/web_live.py ↔ Gemini Live —
+ * telefondagi yordamchining o'zi (vazifalar, Palantir, Obsidian). Mikrofon 16 kHz PCM bo'lib ketadi, AI ovozi 24 kHz PCM bo'lib keladi
  * va navbat bilan chalinadi; odam gapni bo'lsa, server «interrupt» yuboradi — chalinayotgan ovoz darhol to'xtaydi.
  * Aks-sadoni brauzerning o'zi tozalaydi (echoCancellation).
  */
 
-export type Who = 'Siz' | 'Cerebro' | 'Amal';
+export type Who = 'Siz' | 'Palantir' | 'Amal';
 export type VoiceEvent =
   | { type: 'ready' }
   /** «Quloq» rejimi: server chaqiriqni kutyapti (mikrofon shu kompyuterda tinglanadi) */
   | { type: 'listening' }
-  /** «Cerebro» yoki «Jarvis» deyildi — shu ulanishda suhbat boshlanadi */
+  /** «Palantir» yoki «Jarvis» deyildi — shu ulanishda suhbat boshlanadi */
   | { type: 'wake'; word: string }
   | { type: 'partial' | 'line'; who: Who; text: string }
   | { type: 'tool'; name: string; state: 'start' | 'done'; args: Record<string, unknown>; result?: Record<string, unknown> }
@@ -31,10 +31,10 @@ const IN_RATE = 16_000, OUT_RATE = 24_000;
 /** Serverga 40 ms dan yuboriladi */
 const SEND_SAMPLES = IN_RATE / 25;
 
-const WORKLET = `class CerebroMic extends AudioWorkletProcessor {
+const WORKLET = `class PalantirMic extends AudioWorkletProcessor {
   process(inputs) { const ch = inputs[0] && inputs[0][0]; if (ch) this.port.postMessage(ch.slice(0)); return true; }
 }
-registerProcessor('cerebro-mic', CerebroMic);`;
+registerProcessor('cerebro-mic', PalantirMic);`;
 
 /** kind: owner — egasining yordamchisi; customer — qabulxonani mijoz bo'lib sinash; wake — «quloq»: chaqiriqni kutadi (tgvoice/web_live.py) */
 export async function startVoice(token: string, on: (e: VoiceEvent) => void, kind: 'owner' | 'customer' | 'wake' = 'owner'): Promise<VoiceSession> {

@@ -1,8 +1,8 @@
 /**
  * Instagram Direct — egasining o'z akkaunti orqali, Meta ilovasisiz.
  *
- * Cerebro shu kompyuterdagi Chrome (yoki Edge)ni alohida profil bilan ochadi:
- *   ulash  — ko'rinadigan oynada egasi Instagram'ga o'zi kiradi (parol Cerebro'ga berilmaydi,
+ * Palantir shu kompyuterdagi Chrome (yoki Edge)ni alohida profil bilan ochadi:
+ *   ulash  — ko'rinadigan oynada egasi Instagram'ga o'zi kiradi (parol Palantir'ga berilmaydi,
  *            ikki bosqichli tekshiruv ham o'sha oynada). Keyin brauzer ko'rinmas holda ishlaydi;
  *   o'qish — har ~40 soniyada Direct (asosiy, «Umumiy» va «So'rovlar») sahifaning ichidan,
  *            instagram.com o'zi ishlatadigan so'rov bilan olinadi;
@@ -10,7 +10,7 @@
  *
  * Bu Instagram'ning rasmiy yo'li emas — akkaunt cheklanishi mumkin. Shuning uchun: faqat yozgan
  * odamga javob (birinchi bo'lib yozilmaydi), kunlik chegara, tasodifiy kechikishlar; Instagram
- * qayta kirishni so'rasa yoki cheklov qo'ysa — Cerebro to'xtaydi va egasiga aytadi.
+ * qayta kirishni so'rasa yoki cheklov qo'ysa — Palantir to'xtaydi va egasiga aytadi.
  *
  * Ikki haydovchi: Playwright (haqiqiy brauzer) va sinov uchun soxta (IG_FAKE_URL).
  */
@@ -332,7 +332,7 @@ const nextPoll = new Map<string, number>();
 const attaching = new Set<string>();
 const retryAt = new Map<string, number>();
 
-/** Cerebro yuborgan xabar Direct'da qaytib ko'rinadi — egasiniki deb o'ylamaslik uchun */
+/** Palantir yuborgan xabar Direct'da qaytib ko'rinadi — egasiniki deb o'ylamaslik uchun */
 const ours = new Map<string, number>();
 const oursKey = (bizId: string, thread: string, text: string) => `${bizId}|${thread}|${text.replace(/\s+/g, ' ').trim()}`;
 function isOurs(bizId: string, thread: string, text: string): boolean {
@@ -346,7 +346,7 @@ function isOurs(bizId: string, thread: string, text: string): boolean {
 function problemOf(c: ConnectionRow): { text: string; relogin: boolean } | null {
   if (c.meta.problem) return { text: c.meta.problem, relogin: true };
   const until = Number(c.meta.pausedUntil ?? 0);
-  if (until > Date.now()) return { text: `Instagram cheklov qo'ygan — Cerebro ${stamp(new Date(until)).replace('T', ' ')} gacha Instagram'da hech narsa qilmaydi`, relogin: false };
+  if (until > Date.now()) return { text: `Instagram cheklov qo'ygan — Palantir ${stamp(new Date(until)).replace('T', ' ')} gacha Instagram'da hech narsa qilmaydi`, relogin: false };
   return null;
 }
 
@@ -365,10 +365,10 @@ async function trouble(bizId: string, e: unknown): Promise<void> {
     if (e.kind === 'login') {
       connections.patchMeta(bizId, 'instagram', { problem: e.message });
       await need().detach(bizId, false).catch(() => {});
-      if (biz) await notifyOwner(biz, `⚠️ ${e.message}. Cerebro Instagram'da javob berishni to'xtatdi.\nQayta ulash: panel → Ulanishlar → «Instagram'ga kirish».`).catch(() => {});
+      if (biz) await notifyOwner(biz, `⚠️ ${e.message}. Palantir Instagram'da javob berishni to'xtatdi.\nQayta ulash: panel → Ulanishlar → «Instagram'ga kirish».`).catch(() => {});
     } else {
       connections.patchMeta(bizId, 'instagram', { pausedUntil: String(Date.now() + PAUSE_MS) });
-      if (biz) await notifyOwner(biz, `⚠️ ${e.message}. Akkauntingiz xavfsizligi uchun Cerebro 12 soat Instagram'da hech narsa qilmaydi — mijozlarga o'zingiz javob bering.`).catch(() => {});
+      if (biz) await notifyOwner(biz, `⚠️ ${e.message}. Akkauntingiz xavfsizligi uchun Palantir 12 soat Instagram'da hech narsa qilmaydi — mijozlarga o'zingiz javob bering.`).catch(() => {});
     }
     return;
   }
