@@ -57,6 +57,9 @@ try {
   await api('/api/admin/businesses', { token: admin, body: { name: 'Shifo Dent', industry: 'stomatologiya', login: 'shifo', password: 'secret12' } });
   const token = (await api('/api/login', { body: { login: 'shifo', password: 'secret12' } })).json.token;
   const me = (await api('/api/me', { token })).json;
+  // Bu server TG_PERSONAL / IG_VIA_BROWSER'siz: keyinga qoldirilgan kanallar standart holatda o'chiq va panel ularni ko'rsatmaydi
+  ok("keyinga qoldirilgan: shaxsiy Telegram va brauzer orqali Instagram o'chiq", me.status.telegramUser.enabled === false && me.status.telegramUser.available === false
+    && me.status.instagram.enabled === false && me.status.instagram.available === false, JSON.stringify({ tg: me.status.telegramUser, ig: me.status.instagram }));
   const mark = sent.length;
   say(OWNER, `/start ${String(me.status.linkUrl).split('start=')[1]}`);
   await waitFor('egasi', () => sent.slice(mark).some(s => String(s.params.text ?? '').includes('Shifo Dent')));

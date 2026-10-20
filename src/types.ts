@@ -363,13 +363,16 @@ export interface LiveStatus {
   channel: { id: string; title: string | null } | null;
   /** Instagram bio va reklama uchun: bosgan odam botga tushadi, raqamini qoldiradi */
   generalLink: string | null;
-  /** Egasining shaxsiy Telegrami: available — serverda TG_API_ID bor; account — ulangan akkaunt */
-  telegramUser: { available: boolean; account: string | null };
   /**
-   * Egasining Instagrami (shu kompyuterdagi brauzer orqali): available — Chrome/Edge topildi;
+   * Egasining shaxsiy Telegrami: enabled — serverda yoqilgan (TG_PERSONAL=1; o'chiq bo'lsa panelda ko'rinmaydi);
+   * available — TG_API_ID ham bor; account — ulangan akkaunt
+   */
+  telegramUser: { enabled: boolean; available: boolean; account: string | null };
+  /**
+   * Egasining Instagrami (shu kompyuterdagi brauzer orqali, zaxira yo'l): enabled — serverda yoqilgan (IG_VIA_BROWSER=1); available — Chrome/Edge topildi;
    * waiting — ochilgan oynada egasi kirishini kutyapti; problem — nega ishlamayapti; relogin — qayta kirish yordam beradi
    */
-  instagram: { available: boolean; account: string | null; waiting: boolean; problem: string | null; relogin: boolean };
+  instagram: { enabled: boolean; available: boolean; account: string | null; waiting: boolean; problem: string | null; relogin: boolean };
   /** Rasmiy Instagram (Meta ilovasi, Cerebro Hub orqali): hub — hub kodi kiritilgan; account — «@username»; humanAgent — 7 kungacha javob ruxsati */
   instagramApi: { hub: boolean; account: string | null; problem: string | null; expiresAt: string | null; humanAgent: boolean };
   /** Klinikaning DentaCRM'i: account — "Klinika nomi · manzil"; problem — nega ishlamayapti */

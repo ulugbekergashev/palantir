@@ -4,6 +4,7 @@ import { CheckCircle2, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { api } from '../../data/api';
 import { Button, Card, Field, TextInput } from '../../components/ui';
 import type { LiveStatus, SetupView } from '../../types';
+import { InstagramOfficial } from '../TelegramPage';
 import type { Routed } from './StepKeys';
 
 type Notify = (text: string, error?: boolean) => void;
@@ -116,6 +117,8 @@ export function StepInstagram({ status, routed, setup, refresh, onStatus, notify
   const [busy, setBusy] = useState(false);
   usePoll(ig.waiting, refresh);
   const handle = routed.instagram.replace(/^.*instagram\.com\//i, '').replace(/[/?].*$/, '') || setup?.has.instagram;
+  // Asosiy yo'l — rasmiy (Meta, Cerebro Hub orqali); brauzer orqali faqat serverda yoqilgan bo'lsa (IG_VIA_BROWSER)
+  if (!ig.enabled) return <Card title={handle ? `@${handle}` : "Klinikaning Instagram'i"}><InstagramOfficial status={status} onStatus={onStatus} notify={notify} /></Card>;
   if (!ig.available) return <Note>Bu kompyuterda Chrome yoki Edge topilmadi — Instagram uchun bittasini o'rnating.</Note>;
   if (ig.account && !ig.problem) return <Done title={`Ulandi: @${ig.account}`}>Direct'dagi yozishmalar «Mijozlar» bo'limiga tushadi. Birinchi hafta — faqat egasining tasdig'i bilan.</Done>;
   const login = async () => {

@@ -589,7 +589,7 @@ async function main(): Promise<void> {
   const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
     env: {
       ...process.env, ...TIMING, PORT: String(PANEL_PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, DB_FILE: join(dataDir, 'cerebro.db'), ADMIN_PASSWORD, SESSION_SECRET: randomBytes(32).toString('hex'),
-      BOT_TOKEN: '123:STEND', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_FAKE_URL: `http://127.0.0.1:${igPort}`,
+      BOT_TOKEN: '123:STEND', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, TG_PERSONAL: '1', IG_VIA_BROWSER: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_FAKE_URL: `http://127.0.0.1:${igPort}`,
       // Ovoz xizmatining ikkala manzili ham soxtaga qaraydi: haqiqiy kalit .env'da bo'lsa ham tashqariga chiqmaydi
       VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', GEMINI_API_KEY: 'stend', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, GROQ_API_KEY: '', GROQ_STT_URL: `http://127.0.0.1:${sttPort}/groq`, CRM_ALLOW_PRIVATE: '1',
       // Ertalabki xulosa odatda 08:00 da keladi — stendda ishga tushgan soatda bir marta keladi

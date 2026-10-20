@@ -21,6 +21,9 @@ export const STEPS: StepInfo[] = [
   { key: 'done', title: 'Tayyor', lead: "Klinikadan ketishdan oldin oxirgi ko'rinish." },
 ];
 
+/** Shu serverdagi qadamlar: shaxsiy Telegram keyinga qoldirilgan bo'lsa (TG_PERSONAL) uning qadami ko'rinmaydi */
+export const visibleSteps = (s: LiveStatus | null): StepInfo[] => STEPS.filter(x => x.key !== 'tg' || !!s?.telegramUser.enabled);
+
 export interface WizardFacts {
   hasBiz: boolean;
   status: LiveStatus | null;
@@ -46,7 +49,12 @@ export function stepState(key: StepKey, f: WizardFacts): StepState {
       return setup?.has.crm === 'none' || setup?.has.crm === 'other' ? 'skip' : '';
     case 'cams': return f.cameras > 0 ? 'ok' : setup && setup.has.cameras === 0 && setup.anketa ? 'skip' : '';
     case 'tg': return s?.telegramUser.account ? 'ok' : s && !s.telegramUser.available ? 'warn' : '';
-    case 'ig': return s?.instagram.account ? (s.instagram.problem ? 'warn' : 'ok') : '';
+    case 'ig': {
+      // Rasmiy ulanish asosiy; brauzer orqali — zaxira (yoqilgan bo'lsa)
+      const account = s?.instagramApi.account || s?.instagram.account;
+      const problem = s?.instagramApi.account ? s.instagramApi.problem : s?.instagram.problem;
+      return account ? (problem ? 'warn' : 'ok') : '';
+    }
     case 'gaps': {
       if (!setup) return '';
       return !setup.gaps.length && setup.pack.answered === setup.pack.total ? 'ok' : 'warn';

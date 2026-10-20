@@ -281,7 +281,7 @@ function fake(base: string): Driver {
 
 // ─── Ulash va kanalga bog'lash ────────────────────────────────────────────────
 
-const pickDriver = (): Driver | null => (env.tgUserFakeUrl ? fake(env.tgUserFakeUrl) : env.tgApiId && env.tgApiHash ? gramjs() : null);
+const pickDriver = (): Driver | null => (!env.tgPersonal ? null : env.tgUserFakeUrl ? fake(env.tgUserFakeUrl) : env.tgApiId && env.tgApiHash ? gramjs() : null);
 let driver: Driver | null = pickDriver();
 export const telegramUserAvailable = () => !!driver;
 

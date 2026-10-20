@@ -51,7 +51,7 @@ const PORT = 3292, base = `http://127.0.0.1:${PORT}`;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
     ...process.env, DOTENV: '0', ASTERISK_WSL: '0', PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '', ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '',
-    TG_API_ID: '', TG_API_HASH: '', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
+    TG_API_ID: '', TG_API_HASH: '', TG_PERSONAL: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
     TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, ANTHROPIC_BASE_URL: `http://127.0.0.1:${keysPort}`, GEMINI_API_ROOT: `http://127.0.0.1:${keysPort}`,
     ADMIN_PASSWORD: 'admin-pass-1', SESSION_SECRET: 'ui-setup-secret', TICK_MS: '700', BACKUP_KEEP: '0',
     CAMERA_TEST_INPUT: JSON.stringify(['-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=5']), CAMERA_PROBE_TARGETS: `127.0.0.1:${udpPort}`, CAMERA_SCAN_HOSTS: `127.0.0.1:${scanPort}`,

@@ -4,7 +4,7 @@ import { CheckCircle2, CircleDashed, CircleMinus, CircleAlert, Loader2, Send } f
 import { api, session } from '../../data/api';
 import { Button, ButtonLink, Card } from '../../components/ui';
 import type { SetupView } from '../../types';
-import { STEPS, stepState, type StepState, type WizardFacts } from './wizard';
+import { stepState, visibleSteps, type StepState, type WizardFacts } from './wizard';
 
 type Notify = (text: string, error?: boolean) => void;
 const POLL_MS = 4_000;
@@ -54,7 +54,8 @@ const TONE: Record<StepState, string> = { ok: 'text-emerald-600', warn: 'text-am
 const WORD: Record<StepState, string> = { ok: 'tayyor', warn: 'chala', skip: 'kerak emas', '': 'qilinmagan' };
 
 export function StepDone({ facts, elapsed, onGo }: { facts: WizardFacts; elapsed: string; onGo: (i: number) => void }) {
-  const rows = STEPS.filter(s => s.key !== 'done');
+  // Ustaning o'zidagi tartib bilan bir xil: onGo indeksi o'sha ro'yxatga mos
+  const rows = visibleSteps(facts.status).filter(s => s.key !== 'done');
   const states = rows.map(s => stepState(s.key, facts));
   const ready = states.filter(s => s === 'ok' || s === 'skip').length;
   return (

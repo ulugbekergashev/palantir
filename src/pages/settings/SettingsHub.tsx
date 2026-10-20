@@ -86,13 +86,13 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
       {active === 'telegram' && (
         <div className="grid items-start gap-5 xl:grid-cols-2">
           <Part title="Cerebro bilan Telegram'da" hint="Eslatmalar, ertalabki reja va mijozlarga javob takliflari shu yerga keladi."><OwnerBot status={status} /></Part>
-          <Part title="Shaxsiy Telegram" hint="Mijozlaringiz yozadigan akkaunt — ularga Cerebro javob beradi (siz tanlagan rejimda)."><TelegramLogin status={status} onStatus={onStatus} notify={notify} /></Part>
+          {status.telegramUser.enabled && <Part title="Shaxsiy Telegram" hint="Mijozlaringiz yozadigan akkaunt — ularga Cerebro javob beradi (siz tanlagan rejimda)."><TelegramLogin status={status} onStatus={onStatus} notify={notify} /></Part>}
         </div>
       )}
       {active === 'instagram' && (
         <Part title="Instagram Direct" hint="Mijozlar Instagram'da yozsa — Qabulxona javob beradi.">
           <InstagramOfficial status={status} onStatus={onStatus} notify={notify} />
-          {!status.instagramApi.account && (
+          {status.instagram.enabled && !status.instagramApi.account && (
             <details className="mt-4 border-t border-glass/[0.06] pt-3">
               <summary className="cursor-pointer text-[13px] font-semibold text-[#a3a9b5]">Meta ilovasisiz — shu kompyuterdagi brauzer orqali (zaxira yo'l)</summary>
               <div className="mt-3"><Instagram status={status} onStatus={onStatus} notify={notify} /></div>

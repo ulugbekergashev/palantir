@@ -48,7 +48,7 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700',
     GEMINI_API_KEY: 'g-test', GROQ_API_KEY: 'q-test', VOICELAB_API_KEY: '', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, GROQ_STT_URL: `http://127.0.0.1:${sttPort}/groq`,
     MORNING_HOUR: String(new Date().getHours()), WEB_SEARCH: '1', SESSION_SECRET: 'e2e-secret',
-    INBOX_DEBOUNCE_MS: '300', MINUTE_MS: '1500', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
+    INBOX_DEBOUNCE_MS: '300', MINUTE_MS: '1500', TG_PERSONAL: '1', IG_VIA_BROWSER: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
     IG_FAKE_URL: `http://127.0.0.1:${igPort}`, IG_POLL_MS: '700', IG_DAILY_LIMIT: '3', CRM_DAILY_BOOKINGS: '3',
     CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '1', ASTERISK_WSL: '0', DOTENV: '0',
     SPEECHLAB_API_KEY: 'sl_live_test', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', SPEECHLAB_AGENT_ID: '17', SPEECHLAB_URL: `http://127.0.0.1:${speechlabPort}`, CALL_CHECK_MS: '400',

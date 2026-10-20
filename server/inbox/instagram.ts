@@ -269,7 +269,7 @@ function fake(base: string): Driver {
   };
 }
 
-const driver: Driver | null = env.igFakeUrl ? fake(env.igFakeUrl) : (() => { const exe = findBrowser(); return exe ? playwright(exe) : null; })();
+const driver: Driver | null = !env.igViaBrowser ? null : env.igFakeUrl ? fake(env.igFakeUrl) : (() => { const exe = findBrowser(); return exe ? playwright(exe) : null; })();
 export const instagramAvailable = () => !!driver;
 const need = () => {
   if (!driver) throw new Error('Bu kompyuterda Google Chrome yoki Microsoft Edge topilmadi');

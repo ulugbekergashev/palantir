@@ -54,8 +54,8 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
     linkUrl: username ? `https://t.me/${username}?start=o-${biz.linkCode}` : null,
     channel: biz.channelId ? { id: biz.channelId, title: biz.channelTitle } : null,
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
-    telegramUser: { available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
-    instagram: { available: instagramAvailable(), ...instagramStatus(biz.id) },
+    telegramUser: { enabled: env.tgPersonal, available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
+    instagram: { enabled: env.igViaBrowser, available: instagramAvailable(), ...instagramStatus(biz.id) },
     instagramApi: instagramApiStatus(biz.id),
     crm: crmStatus(biz.id),
   };
