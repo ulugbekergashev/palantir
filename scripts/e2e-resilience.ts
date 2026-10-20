@@ -8,12 +8,13 @@
  */
 process.env.TZ = 'Asia/Tashkent';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { diskProblem, freeMb } from '../server/disk';
 import { SCHEMA_VERSION } from '../server/migrate';
 import { iso, stamp } from '../src/lib/week';
 import { OWNER, say, sent, sleep, tgServer, waitFor } from './fakes';
@@ -151,6 +152,31 @@ try {
   ok('baza dasturdan yangiroq — ochilmaydi (kod 78, sababi aytiladi)', tooNew.status === 78 && /yangiroq nashr/.test(tooNew.stderr), `kod ${tooNew.status}`);
   ok("yangiroq bazaga tegilmadi", version(oldDb) === SCHEMA_VERSION + 1);
   rmSync(oldDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+
+  console.log('\n# Disk va qo\'ng\'iroq yozuvlari');
+  const free = freeMb(dataDir);
+  ok("disk: bo'sh joy o'lchanadi; chegaradan ko'p — muammo yo'q, kam — sababi bilan", free != null && free > 0 && diskProblem(dataDir, 1) === null
+    && /bo'sh joy \d+ MB qoldi/.test(diskProblem(dataDir, Number.MAX_SAFE_INTEGER) ?? ''), `${free} MB`);
+  // Yozuvlar: 100 kunlik va yangi fayl, ikkalasiga ham qo'ng'iroq yozuvi; muddat — 90 kun (standart)
+  const recData = mkdtempSync(join(tmpdir(), 'cerebro-yozuv-')), recDir = join(recData, 'recordings');
+  mkdirSync(recDir);
+  writeFileSync(join(recDir, 'eski.wav'), Buffer.alloc(4000));
+  writeFileSync(join(recDir, 'yangi.wav'), Buffer.alloc(4000));
+  const hundredDays = new Date(Date.now() - 100 * 86_400_000);
+  utimesSync(join(recDir, 'eski.wav'), hundredDays, hundredDays);
+  const prune = spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', '-e', `
+    const { sql } = await import('./server/db.ts');
+    const { pruneRecordings } = await import('./server/phone/index.ts');
+    for (const [id, file] of [['c1', 'eski.wav'], ['c2', 'yangi.wav']])
+      sql.run("INSERT INTO calls (id, business_id, phone, started_at, outcome, created_at, source, recording) VALUES (?, 'b', '+998901112233', '2026-01-01', 'x', '2026-01-01', 'microsip', ?)", id, file);
+    const removed = pruneRecordings();
+    const rows = sql.many('SELECT id, recording FROM calls ORDER BY id', r => [r.id, r.recording]);
+    console.log(JSON.stringify({ removed, rows }));
+    process.exit(0);`], { env: { ...ENV, DATA_DIR: recData, BACKUP_DIR: '' }, encoding: 'utf8', timeout: 60_000 });
+  const pruned = JSON.parse(prune.stdout.trim().split('\n').at(-1) || '{}') as { removed?: number; rows?: [string, string | null][] };
+  ok("yozuvlar: 90 kundan eskisi o'chdi (havolasi ham), yangisi qoldi", pruned.removed === 1 && !existsSync(join(recDir, 'eski.wav')) && existsSync(join(recDir, 'yangi.wav'))
+    && JSON.stringify(pruned.rows) === JSON.stringify([['c1', null], ['c2', 'yangi.wav']]), `${prune.status} ${prune.stdout.trim().slice(-200)} ${prune.stderr.trim().slice(0, 200)}`);
+  rmSync(recData, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

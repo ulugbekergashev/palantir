@@ -17,7 +17,7 @@ import { instagramAvailable, startInstagram, stopInstagram } from './inbox/insta
 import { startInstagramApi, stopInstagramApi } from './inbox/instagramApi';
 import { refreshTelegramUser, startTelegramUser, stopTelegramUser, telegramUserAvailable } from './inbox/telegramUser';
 import { startScheduler } from './scheduler';
-import { startPhone, stopPhone } from './phone/index';
+import { startPhone, startRecordingRetention, stopPhone } from './phone/index';
 import { startMonitor } from './monitor';
 import { startOrders } from './orders/run';
 import { startVoiceEnv } from './voice/serviceEnv';
@@ -64,6 +64,7 @@ const stopOrders = startOrders(bot);
 const stopVoiceEnv = startVoiceEnv();
 // MicroSIP shu kompyuterda ulangan bo'lsa — qo'ng'iroq hodisalari va yozuvlar o'qiladi
 startPhone();
+const stopRetention = startRecordingRetention();
 const stopBackups = startBackups();
 // Kanallar nazorati: CRM, rasmiy Instagram va hub, MicroSIP, IP kameralar — uzilsa egasiga aytiladi
 const stopMonitor = startMonitor();
@@ -89,6 +90,7 @@ const shutdown = () => {
   stopVoiceEnv();
   stopBackups();
   stopPhone();
+  stopRetention();
   stopMonitor();
   stopInstagramApi();
   bot.stop();

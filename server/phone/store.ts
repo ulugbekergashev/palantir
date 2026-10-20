@@ -63,6 +63,8 @@ export const phoneCalls = {
     sql.run('UPDATE calls SET lead_id = ?, name = COALESCE(name, ?) WHERE business_id = ? AND id = ?', leadId, name, businessId, id),
   setRequest: (businessId: string, id: string, requestId: string) => sql.run('UPDATE calls SET request_id = ? WHERE business_id = ? AND id = ?', requestId, businessId, id),
   setRecording: (businessId: string, id: string, file: string) => sql.run("UPDATE calls SET recording = ?, review = 'pending' WHERE business_id = ? AND id = ?", file, businessId, id),
+  /** Yozuv fayli o'chirildi (saqlash muddati o'tdi): panel buzuq pleyer ko'rsatmasin */
+  forgetRecording: (file: string) => sql.run('UPDATE calls SET recording = NULL WHERE recording = ?', file),
   setReview: (businessId: string, id: string, review: PhoneCallRow['review'], analysis?: CallAnalysis) =>
     sql.run(`UPDATE calls SET review = ?, analysis = COALESCE(?, analysis), outcome = COALESCE(?, outcome), name = COALESCE(name, ?) WHERE business_id = ? AND id = ?`,
       review, analysis ? JSON.stringify(analysis) : null, analysis?.summary ?? null, analysis?.customerName || null, businessId, id),
