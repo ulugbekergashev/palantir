@@ -12,7 +12,9 @@ import { chromium } from 'playwright-core';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 import { xlsxFile } from './e2e-intake';
 import { CUSTOMER, TG_SESSION, aiServer, igWeb, igWebServer, listen, say, sent, shareContact, sleep, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor } from './fakes';
+import { chromePath } from './chrome';
 
+const CHROME = chromePath();
 const OUT = process.argv[2] || join(tmpdir(), 'cerebro-ui');
 mkdirSync(OUT, { recursive: true });
 
@@ -36,6 +38,8 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
+// Sinov qayerda yiqilmasin (try'dan oldin ham) — server yetim qolmaydi
+process.on('exit', () => server.kill());
 let log = '';
 server.stdout.on('data', d => { log += d; });
 server.stderr.on('data', d => { log += d; });
@@ -43,7 +47,7 @@ const base = `http://127.0.0.1:${PORT}`;
 for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
 
 const browser = await chromium.launch({
-  executablePath: process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  executablePath: CHROME,
   args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
 });
 const errors: string[] = [];

@@ -15,7 +15,9 @@ import { join } from 'node:path';
 import { chromium, type Page } from 'playwright-core';
 import { crmServer, CRM_LOGIN } from './fakeCrm';
 import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, tgUserServer, waitFor, type Sent } from './fakes';
+import { chromePath } from './chrome';
 
+const CHROME = chromePath();
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
 
@@ -56,13 +58,15 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
+// Sinov qayerda yiqilmasin (try'dan oldin ham) — server yetim qolmaydi
+process.on('exit', () => server.kill());
 let log = '';
 server.stdout.on('data', d => { log += d; });
 server.stderr.on('data', d => { log += d; });
 for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
 
 const BOT = '7412589630:AAHk3vQx9LmP2wZr8TnB4yCd6fGh1JsK0eQ', CLAUDE = 'sk-ant-api03-Xr7bN2kQp9LmW4zT8vY1cD6fH3jS0aE5gU';
-const browser = await chromium.launch({ executablePath: process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const browser = await chromium.launch({ executablePath: CHROME });
 const errors: string[] = [];
 const watch = (p: Page) => {
   p.on('pageerror', e => errors.push(`pageerror: ${e.message}`));

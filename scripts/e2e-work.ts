@@ -7,6 +7,8 @@
  * Ishga tushirish: npm run test:work
  */
 process.env.TZ = 'Asia/Tashkent';
+// Bu sinov server modullarini o'zi import qiladi (outcome → db): haqiqiy bazaga tegmasin
+import './isolate';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

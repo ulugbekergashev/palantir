@@ -15,7 +15,9 @@ import type { DashboardView, FunnelView } from '../src/lib/dashboard';
 import { iso } from '../src/lib/week';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 import { OWNER, aiServer, listen, say, sent, sleep, tgServer, waitFor } from './fakes';
+import { chromePath } from './chrome';
 
+const CHROME = chromePath();
 const OUT = process.argv[2] || join(tmpdir(), 'cerebro-dashboard');
 mkdirSync(OUT, { recursive: true });
 const results: boolean[] = [];
@@ -145,7 +147,7 @@ try {
   ok("noto'g'ri oraliq (to < from) — bugun", ((await api('/api/dashboard?period=custom&from=2026-10-10&to=2026-10-01', { token })).json.dashboard as DashboardView).period.key === 'today');
 
   console.log('\n# Ko\'rinish (headless)');
-  const browser = await chromium.launch({ executablePath: process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+  const browser = await chromium.launch({ executablePath: CHROME });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: 'Asia/Tashkent', locale: 'uz-UZ' });
   await ctx.addInitScript(t => { localStorage.setItem('cerebro_token', t); }, token);
   const page = await ctx.newPage();

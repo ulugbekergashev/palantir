@@ -138,6 +138,8 @@ try {
 
   console.log('\n# Telegram: egasi ulanadi, ertalabki xulosa');
   let mark = sent.length;
+  // Ertalabki xulosa (MORNING_HOUR — hozirgi soat) egasi ulangan zahoti, keyingi jadval qadamida keladi — shu belgidan keyin qidiriladi
+  const linkMark = mark;
   const code = String(me.status.linkUrl).split('start=o-')[1];
   say(OWNER, `/start o-${code}`);
   ok('ulandi: salom xabari', await waitFor('ulanish', () => after(mark, OWNER, has('Ulandi'))));
@@ -145,10 +147,10 @@ try {
   // Havola bir martalik; egasi uni qayta bossa (Telegram «Start»ni eski havola bilan yuboradi) — xato emas, salom va yordam
   mark = sent.length;
   say(OWNER, `/start o-${code}`);
-  // Ertalabki xulosa (MORNING_HOUR — hozirgi soat) shu payt kelishi mumkin: aynan qayta start javobi kutiladi
+  // Xulosa shu payt ham kelishi mumkin: aynan qayta start javobi kutiladi
   const relinked = await waitFor('qayta start', () => after(mark, OWNER, s => /ulangansiz|noto'g'ri|eskirgan/.test(textOf(s))));
   ok('egasi eski havolani qayta bosdi — «ulangansiz», xato emas', !!relinked && textOf(relinked).includes('ulangansiz') && !textOf(relinked).includes("noto'g'ri"), relinked && textOf(relinked).slice(0, 80));
-  const brief = await waitFor('xulosa', () => after(mark, OWNER, has('Xayrli tong')));
+  const brief = await waitFor('xulosa', () => after(linkMark, OWNER, has('Xayrli tong')));
   ok('ertalabki xulosa: bugungi vazifa bilan', brief && textOf(brief).includes('Hisobotni topshirish'));
   ok("ertalabki xulosa: DentaCRM'dan bugungi qabullar", brief && textOf(brief).includes('5 ta qabul') && textOf(brief).includes('09:00'), brief ? textOf(brief) : '');
   ok("ertalabki xulosa: klinikadagi g'alati holatlar (kecha tushum kam, ko'p bemor kelmagan)", brief && textOf(brief).includes('⚠️ Kecha tushum odatdagidan') && textOf(brief).includes('450 000') && textOf(brief).includes('4 ta bemor kelmadi'));
