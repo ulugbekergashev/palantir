@@ -43,6 +43,8 @@ jobs:
       - name: Kamera modeli (SHA256 bilan)
         run: npm run camera:model
       - run: npm run typecheck
+      - name: AI baholash holatlari (so'rovsiz, faqat to'plam tekshiruvi)
+        run: npm run eval:ai
       - run: npm run build
       - run: npm test
       - run: npm run test:resilience

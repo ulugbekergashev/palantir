@@ -45,3 +45,4 @@ tgvoice/asterisk/pjsip_admin.conf
 
 # Reliz arxivi (npm run release)
 /reliz/
+/eval-natijalar/

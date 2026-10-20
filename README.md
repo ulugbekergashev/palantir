@@ -97,6 +97,18 @@ npm run test:ipcam                 # IP kamera zanjiri: ffmpeg → dvigatel → 
 npm run test:ui                    # brauzerda panel (Chrome yoki Edge o'zi topiladi, boshqa joyda bo'lsa — CHROME=<yo'l>; avval panelni o'zi yig'adi)
 npm run check                      # HAQIQIY kalitlarni tekshiradi (Telegram, Claude — bir necha sent, ovoz); --no-ai bilan Claude'siz
 npm run scenarios                  # 22 ta chuqur ssenariy: haqiqiy server + haqiqiy Obsidian (D:\Obsidian; yo'q bo'lsa — to'g'ridan-to'g'ri fayl), model — taqlid
+npm run eval:ai                    # AI sifati va narxi: ~60 holat HAQIQIY Claude bilan (avval taxminiy narxni aytadi; --yes — boshlash)
+```
+
+**AI baholash** ([scripts/eval-ai.ts](scripts/eval-ai.ts), holatlar — [scripts/eval/cases.ts](scripts/eval/cases.ts)): egasining gaplari
+(vazifa, mijoz, narx, hujjat, klinika, pul — o'zbekcha lotin va kirill, ruscha, ovozdan) va mijoz yozishmalari (narx, so'rov, qabul,
+inyeksiya, tibbiy maslahat, kafolat, spam). Har holatda chaqirilgan asbob, uning kiritmasi va javob matni tekshiriladi, xarajat dollarda
+sanaladi; natija `eval-natijalar/` ga yoziladi. Model yoki fikrlash darajasini almashtirishdan oldin:
+
+```bash
+npm run eval:ai -- --yes                                     # hozirgi sozlama (.env dagi AI_MODEL, AI_EFFORT_*)
+npm run eval:ai -- --yes --model claude-sonnet-5-5 --compare eval-natijalar/<oldingi>.json
+npm run eval:ai -- --yes --only klinika,m-narx-uz --repeat 3 # bir toifa yoki holat, barqarorlikni ko'rish uchun 3 marta
 ```
 
 Har push va PR'da GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) Windows'da tiplarni va hamma sinov to'plamlarini, Ubuntu'da tiplar va asosiy oqimni ishga tushiradi.
@@ -177,6 +189,7 @@ scripts/
   e2e-resilience.ts e2e-ipcam.ts  chidamlilik va IP kamera sinovlari
   supervise.mjs                nazoratchi: serverni yoqadi, to'xtasa qayta yoqadi (npm run serve / stop / status)
   preflight.ts                 o'rnatishdan keyingi tekshiruv — haqiqiy xizmatlarda (npm run check)
+  eval-ai.ts eval/cases.ts      AI sifati va narxini baholash — haqiqiy Claude bilan (npm run eval:ai)
 install/                       Windows o'rnatgich (Ornatish.cmd), ishga tushirish / to'xtatish / tekshirish yorliqlari
 docs/ORNATISH.md               klinikaga o'rnatish qo'llanmasi
   stend.ts stend.html          stend: haqiqiy server + qo'lda boshqariladigan soxta dunyo (npm run stend)
