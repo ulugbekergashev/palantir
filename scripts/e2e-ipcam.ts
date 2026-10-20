@@ -9,7 +9,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { sleep } from './fakes';
+import { sleep, stopProcess } from './fakes';
 
 if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status !== 0) {
   console.log("ffmpeg yo'q — IP kamera sinovi o'tkazib yuborildi");
@@ -89,8 +89,7 @@ try {
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {
-  server.kill();
-  await sleep(1500);
+  await stopProcess(server);
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
 }
 const left = spawnSync(process.platform === 'win32' ? 'tasklist' : 'ps', process.platform === 'win32' ? [] : ['-A'], { encoding: 'utf8' }).stdout.split('\n').filter(l => /ffmpeg/i.test(l)).length;

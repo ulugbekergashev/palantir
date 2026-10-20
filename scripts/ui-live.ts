@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 import { xlsxFile } from './e2e-intake';
-import { CUSTOMER, TG_SESSION, aiServer, igWeb, igWebServer, listen, say, sent, shareContact, sleep, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor } from './fakes';
+import { CUSTOMER, TG_SESSION, aiServer, igWeb, igWebServer, listen, say, sent, shareContact, sleep, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, stopProcess } from './fakes';
 import { chromePath } from './chrome';
 
 const CHROME = chromePath();
@@ -368,7 +368,7 @@ try {
   await shot('xato').catch(() => {});
 } finally {
   await browser.close();
-  server.kill();
+  await stopProcess(server);
   tgServer.close();
   aiServer.close();
   sttServer.close();

@@ -14,7 +14,7 @@ import { chromium } from 'playwright-core';
 import type { DashboardView, FunnelView } from '../src/lib/dashboard';
 import { iso } from '../src/lib/week';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
-import { OWNER, aiServer, listen, say, sent, sleep, tgServer, waitFor } from './fakes';
+import { OWNER, aiServer, listen, say, sent, sleep, tgServer, waitFor, stopProcess } from './fakes';
 import { chromePath } from './chrome';
 
 const CHROME = chromePath();
@@ -216,8 +216,7 @@ try {
   console.error(e);
   results.push(false);
 } finally {
-  server.kill();
-  await sleep(500);
+  await stopProcess(server);
   try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* band */ }
   const failed = results.filter(r => !r).length;
   if (failed) console.log(`\n--- server jurnali (oxiri) ---\n${log.slice(-3000)}`);

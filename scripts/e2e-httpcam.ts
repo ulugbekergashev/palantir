@@ -13,7 +13,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ffmpegInput, maskUrl, sourceKind } from '../server/camera/wire';
-import { listen, sleep } from './fakes';
+import { listen, sleep, stopProcess } from './fakes';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
@@ -168,7 +168,7 @@ try {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 }
 
-server.kill();
+await stopProcess(server);
 cam.close();
 await sleep(1500);
 const failed = results.filter(r => !r).length;

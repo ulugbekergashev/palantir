@@ -16,7 +16,7 @@ import { iso } from '../src/lib/week';
 import type { BrainView } from '../src/types';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 import { docxFile, xlsxFile } from './e2e-intake';
-import { OWNER, ai, aiServer, igWebServer, listen, press, say, sendDocument, sendPhoto, sent, sleep, sttServer, tgServer, tgUserServer, waitFor, type Sent } from './fakes';
+import { OWNER, ai, aiServer, igWebServer, listen, press, say, sendDocument, sendPhoto, sent, sleep, sttServer, tgServer, tgUserServer, waitFor, type Sent, stopProcess } from './fakes';
 
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const OWNER2 = OWNER + 1;
@@ -569,8 +569,7 @@ try {
   await scenario("Server o'chib-yondi: bilim joyida, hech narsa ikki marta ko'chmadi", async () => {
     const before = await brain();
     const files = vault.files().sort().join('\n');
-    server.kill();
-    await sleep(1500);
+    await stopProcess(server);
     startServer();
     await ready();
     step("Server to'xtatildi va qayta ishga tushirildi");
@@ -601,7 +600,7 @@ try {
   });
 } finally {
   await restoreObsidian().catch(e => console.error(`Obsidian avvalgi holatiga qaytmadi: ${(e as Error).message}`));
-  server?.kill();
+  if (server) await stopProcess(server);
   for (const s of [tgServer, aiServer, sttServer, tgUserServer, igWebServer, crmServer]) s.close();
 }
 

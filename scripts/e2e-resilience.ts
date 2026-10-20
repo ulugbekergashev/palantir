@@ -17,7 +17,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { diskProblem, freeMb } from '../server/disk';
 import { SCHEMA_VERSION } from '../server/migrate';
 import { iso, stamp } from '../src/lib/week';
-import { OWNER, say, sent, sleep, tgServer, waitFor } from './fakes';
+import { OWNER, say, sent, sleep, tgServer, waitFor, stopProcess } from './fakes';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => {
@@ -180,8 +180,7 @@ try {
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {
-  server.kill();
-  await sleep(500);
+  await stopProcess(server);
   tgServer.close();
   tgServer.closeAllConnections();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
