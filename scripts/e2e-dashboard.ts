@@ -4,7 +4,12 @@
  * va panel ko'rinmas brauzerda (headless) ochilib rasmga olinadi: keng ekran va telefon eni.
  * Ishga tushirish: npm run test:dashboard [rasmlar papkasi]
  */
-process.env.TZ = 'Asia/Tashkent';
+// «Bugun»ning hodisalari hozirdan 50…14 daqiqa oldin yoziladi — kun boshidan bir soat o'tmagan bo'lsa ular kechaga tushardi
+// (CI istalgan soatda ishga tushadi). Shuning uchun sinov (server va brauzer ham) hozir taxminan tush payti bo'lgan soat mintaqasida
+// ishlaydi; server mintaqani TZ dan oladi (server/tz.ts), hisob unga bog'liq emas. Etc/GMT da ishora teskari: Etc/GMT-5 = UTC+5
+const NOON_OFFSET = 12 - new Date().getUTCHours();
+const TIMEZONE = NOON_OFFSET === 0 ? 'Etc/GMT' : `Etc/GMT${NOON_OFFSET > 0 ? '-' : '+'}${Math.abs(NOON_OFFSET)}`;
+process.env.TZ = TIMEZONE;
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -151,7 +156,7 @@ try {
 
   console.log('\n# Ko\'rinish (headless)');
   const browser = await chromium.launch({ executablePath: CHROME });
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: 'Asia/Tashkent', locale: 'uz-UZ' });
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: TIMEZONE, locale: 'uz-UZ' });
   await ctx.addInitScript(t => { localStorage.setItem('cerebro_token', t); }, token);
   const page = await ctx.newPage();
   const errors: string[] = [];
