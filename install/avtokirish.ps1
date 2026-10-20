@@ -92,7 +92,7 @@ public static class CerebroLsa {
     }
   }
 
-  // Yo'q bo'lsa - null
+  // Yo'q bo'lsa - null. O'chirilgan maxfiy qiymatni Windows ba'zan bo'sh qilib qaytaradi - bu ham "yo'q"
   public static string Retrieve(string key) {
     IntPtr policy = Open();
     LsaString k = Text(key);
@@ -102,7 +102,7 @@ public static class CerebroLsa {
       if (status == NOT_FOUND) return null;
       if (status != 0) throw new System.ComponentModel.Win32Exception(LsaNtStatusToWinError(status));
       LsaString s = (LsaString)Marshal.PtrToStructure(data, typeof(LsaString));
-      string result = Marshal.PtrToStringUni(s.Buffer, s.Length / 2);
+      string result = s.Length == 0 ? null : Marshal.PtrToStringUni(s.Buffer, s.Length / 2);
       LsaFreeMemory(data);
       return result;
     } finally {
