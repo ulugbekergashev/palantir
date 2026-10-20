@@ -35,6 +35,8 @@ if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status !== 0) {
   console.log("\nffmpeg yo'q — jonli qism o'tkazib yuborildi");
   process.exit(results.every(Boolean) ? 0 : 1);
 }
+// Eski ffmpeg (-max_redirects yo'q) HTTP kamerani umuman ulamaydi — shu tekshiriladi; qolgan jonli qism faqat yangi nashrda
+const blocksRedirects = /max_redirects/.test(spawnSync('ffmpeg', ['-hide_banner', '-h', 'protocol=http'], { encoding: 'utf8' }).stdout ?? '');
 
 // ─── Soxta HTTP kamera ──────────────────────────────────────────────────────
 const LOGIN = 'admin', PASSWORD = 'TELEFON-PAROLI-7';
@@ -107,53 +109,61 @@ try {
   const put = (id: string, url: string) => api(`/api/cameras/${id}/stream`, { token, method: 'PUT', body: { url } });
   const shotOf = async (id: string) => { const r = await fetch(`${base}/api/cameras/${id}/snapshot`, { headers: { authorization: `Bearer ${token}` } }); return { status: r.status, bytes: Buffer.from(await r.arrayBuffer()) }; };
 
-  console.log('\n# Telefon: MJPEG oqim');
-  const p1 = await put(phone.id, `http://127.0.0.1:${camPort}/video`);
-  ok("ulandi (ulashdan oldin kadr olib ko'rildi)", p1.status === 200 && p1.json.camera?.ip === `127.0.0.1:${camPort}` && hits.video > 0, JSON.stringify(p1.json).slice(0, 160));
-  const s1 = await shotOf(phone.id);
-  ok('panel kadri: JPEG', s1.status === 200 && isJpeg(s1.bytes), `${s1.bytes.length} bayt`);
+  if (!blocksRedirects) {
+    console.log("\n# Eski ffmpeg (-max_redirects yo'q): HTTP kamera rad etiladi");
+    const r = await put(phone.id, `http://127.0.0.1:${camPort}/video`);
+    ok("HTTP kamera ulanmaydi, sababi aytiladi, kameraga so'rov ketmaydi", r.status === 400 && String(r.json.error).includes('ffmpeg eski') && hits.video === 0, JSON.stringify(r.json).slice(0, 160));
+    const rt = await put(phone.id, 'rtsp://127.0.0.1:1/x');
+    ok("rtsp:// manzil bu sabab bilan rad etilmaydi", !String(rt.json.error ?? '').includes('ffmpeg eski'), JSON.stringify(rt.json).slice(0, 160));
+  } else {
+    console.log('\n# Telefon: MJPEG oqim');
+    const p1 = await put(phone.id, `http://127.0.0.1:${camPort}/video`);
+    ok("ulandi (ulashdan oldin kadr olib ko'rildi)", p1.status === 200 && p1.json.camera?.ip === `127.0.0.1:${camPort}` && hits.video > 0, JSON.stringify(p1.json).slice(0, 160));
+    const s1 = await shotOf(phone.id);
+    ok('panel kadri: JPEG', s1.status === 200 && isJpeg(s1.bytes), `${s1.bytes.length} bayt`);
 
-  console.log("\n# Faqat surat beradigan kamera (login-parol bilan)");
-  const wrong = await put(snapCam.id, `http://${LOGIN}:xato@127.0.0.1:${camPort}/shot.jpg`);
-  ok("noto'g'ri parol — ulanmaydi, sababi aytiladi", wrong.status >= 400 && hits.unauthorized > 0, JSON.stringify(wrong.json).slice(0, 160));
-  const p2 = await put(snapCam.id, `http://${LOGIN}:${PASSWORD}@127.0.0.1:${camPort}/shot.jpg`);
-  ok("to'g'ri parol — ulandi, manzil parolsiz ko'rsatiladi", p2.status === 200 && !JSON.stringify(p2.json).includes(PASSWORD), JSON.stringify(p2.json).slice(0, 160));
-  const s2 = await shotOf(snapCam.id);
-  ok('surat kamerasi: panel kadri JPEG', s2.status === 200 && isJpeg(s2.bytes));
+    console.log("\n# Faqat surat beradigan kamera (login-parol bilan)");
+    const wrong = await put(snapCam.id, `http://${LOGIN}:xato@127.0.0.1:${camPort}/shot.jpg`);
+    ok("noto'g'ri parol — ulanmaydi, sababi aytiladi", wrong.status >= 400 && hits.unauthorized > 0, JSON.stringify(wrong.json).slice(0, 160));
+    const p2 = await put(snapCam.id, `http://${LOGIN}:${PASSWORD}@127.0.0.1:${camPort}/shot.jpg`);
+    ok("to'g'ri parol — ulandi, manzil parolsiz ko'rsatiladi", p2.status === 200 && !JSON.stringify(p2.json).includes(PASSWORD), JSON.stringify(p2.json).slice(0, 160));
+    const s2 = await shotOf(snapCam.id);
+    ok('surat kamerasi: panel kadri JPEG', s2.status === 200 && isJpeg(s2.bytes));
 
-  console.log('\n# Dvigatel: ikkalasidan ham kadrlar');
-  let feeds: { name: string; feed: { state: string } | null; lastSeenAt: string | null }[] = [];
-  for (let i = 0; i < 120; i++) {
-    feeds = (await api('/api/cameras', { token })).json.cameras;
-    if (['Telefon', 'Arzon kamera'].every(n => { const c = feeds.find(x => x.name === n); return c?.feed?.state === 'ok' && !!c.lastSeenAt; })) break;
-    await sleep(500);
+    console.log('\n# Dvigatel: ikkalasidan ham kadrlar');
+    let feeds: { name: string; feed: { state: string } | null; lastSeenAt: string | null }[] = [];
+    for (let i = 0; i < 120; i++) {
+      feeds = (await api('/api/cameras', { token })).json.cameras;
+      if (['Telefon', 'Arzon kamera'].every(n => { const c = feeds.find(x => x.name === n); return c?.feed?.state === 'ok' && !!c.lastSeenAt; })) break;
+      await sleep(500);
+    }
+    const fOf = (n: string) => feeds.find(x => x.name === n);
+    ok('telefon (MJPEG): dvigatel kadr olyapti', fOf('Telefon')?.feed?.state === 'ok' && !!fOf('Telefon')?.lastSeenAt, JSON.stringify(fOf('Telefon')?.feed));
+    const shotsBefore = hits.shot;
+    await sleep(4500);
+    ok("surat kamerasi: dvigatel suratni qayta-qayta so'rayapti (har ~2 soniyada)", fOf('Arzon kamera')?.feed?.state === 'ok' && hits.shot - shotsBefore >= 2, `${hits.shot - shotsBefore} ta so'rov 4.5 s da`);
+
+    console.log('\n# Xavfsizlik');
+    const evil = await put(evilCam.id, `http://127.0.0.1:${camPort}/evil.jpg`);
+    ok("faylga yo'naltiradigan manzil — ulanmaydi (ffmpeg fayl o'qimaydi)", evil.status >= 400 && !String(JSON.stringify(evil.json)).includes('[fonts]'), JSON.stringify(evil.json).slice(0, 200));
+    ok('file:// — rad etiladi', (await put(evilCam.id, 'file:///C:/Windows/win.ini')).status === 400);
+    const hop = await put(evilCam.id, `http://127.0.0.1:${camPort}/hop.jpg`);
+    ok("boshqa manzilga yo'naltirish ham ishlamaydi (ffmpeg -max_redirects 0)", hop.status >= 400 && hits.open === 0, `${hop.status} ${JSON.stringify(hop.json).slice(0, 120)} · ochiq manzilga so'rov: ${hits.open}`);
+    const meta = await put(evilCam.id, 'http://169.254.169.254/latest/meta-data/iam/x.jpg');
+    ok("bulut «metadata» manzili — rad etiladi", meta.status === 400 && String(meta.json.error).includes('kamera emas') && (await put(evilCam.id, 'http://metadata.google.internal/x.jpg')).status === 400, JSON.stringify(meta.json));
+
+    console.log("\n# Manzil turi noto'g'ri taxmin qilingan (…/capture aslida MJPEG)");
+    const cap = await put(captureCam.id, `http://127.0.0.1:${camPort}/capture`);
+    ok("ulandi (bitta kadr — ikkala turda ham olinadi)", cap.status === 200, JSON.stringify(cap.json).slice(0, 120));
+    let capFeed: { feed: { state: string } | null; lastSeenAt: string | null } | undefined;
+    for (let i = 0; i < 140; i++) {
+      capFeed = ((await api('/api/cameras', { token })).json.cameras as { name: string; feed: { state: string } | null; lastSeenAt: string | null }[]).find(c => c.name === 'Capture');
+      if (capFeed?.feed?.state === 'ok' && capFeed.lastSeenAt) break;
+      await sleep(500);
+    }
+    ok("dvigatel surat deb boshlab, kadr kelmagach MJPEG'ni sinadi — kadrlar kelyapti", capFeed?.feed?.state === 'ok' && !!capFeed.lastSeenAt, JSON.stringify(capFeed?.feed));
+    ok('parol jurnalga tushmagan', !log.includes(PASSWORD));
   }
-  const fOf = (n: string) => feeds.find(x => x.name === n);
-  ok('telefon (MJPEG): dvigatel kadr olyapti', fOf('Telefon')?.feed?.state === 'ok' && !!fOf('Telefon')?.lastSeenAt, JSON.stringify(fOf('Telefon')?.feed));
-  const shotsBefore = hits.shot;
-  await sleep(4500);
-  ok("surat kamerasi: dvigatel suratni qayta-qayta so'rayapti (har ~2 soniyada)", fOf('Arzon kamera')?.feed?.state === 'ok' && hits.shot - shotsBefore >= 2, `${hits.shot - shotsBefore} ta so'rov 4.5 s da`);
-
-  console.log('\n# Xavfsizlik');
-  const evil = await put(evilCam.id, `http://127.0.0.1:${camPort}/evil.jpg`);
-  ok("faylga yo'naltiradigan manzil — ulanmaydi (ffmpeg fayl o'qimaydi)", evil.status >= 400 && !String(JSON.stringify(evil.json)).includes('[fonts]'), JSON.stringify(evil.json).slice(0, 200));
-  ok('file:// — rad etiladi', (await put(evilCam.id, 'file:///C:/Windows/win.ini')).status === 400);
-  const hop = await put(evilCam.id, `http://127.0.0.1:${camPort}/hop.jpg`);
-  ok("boshqa manzilga yo'naltirish ham ishlamaydi (ffmpeg -max_redirects 0)", hop.status >= 400 && hits.open === 0, `${hop.status} ${JSON.stringify(hop.json).slice(0, 120)} · ochiq manzilga so'rov: ${hits.open}`);
-  const meta = await put(evilCam.id, 'http://169.254.169.254/latest/meta-data/iam/x.jpg');
-  ok("bulut «metadata» manzili — rad etiladi", meta.status === 400 && String(meta.json.error).includes('kamera emas') && (await put(evilCam.id, 'http://metadata.google.internal/x.jpg')).status === 400, JSON.stringify(meta.json));
-
-  console.log("\n# Manzil turi noto'g'ri taxmin qilingan (…/capture aslida MJPEG)");
-  const cap = await put(captureCam.id, `http://127.0.0.1:${camPort}/capture`);
-  ok("ulandi (bitta kadr — ikkala turda ham olinadi)", cap.status === 200, JSON.stringify(cap.json).slice(0, 120));
-  let capFeed: { feed: { state: string } | null; lastSeenAt: string | null } | undefined;
-  for (let i = 0; i < 140; i++) {
-    capFeed = ((await api('/api/cameras', { token })).json.cameras as { name: string; feed: { state: string } | null; lastSeenAt: string | null }[]).find(c => c.name === 'Capture');
-    if (capFeed?.feed?.state === 'ok' && capFeed.lastSeenAt) break;
-    await sleep(500);
-  }
-  ok("dvigatel surat deb boshlab, kadr kelmagach MJPEG'ni sinadi — kadrlar kelyapti", capFeed?.feed?.state === 'ok' && !!capFeed.lastSeenAt, JSON.stringify(capFeed?.feed));
-  ok('parol jurnalga tushmagan', !log.includes(PASSWORD));
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 }
