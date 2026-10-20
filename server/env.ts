@@ -54,7 +54,7 @@ export const env = {
    * kameralar va tashqi xizmatlar yoqilmaydi
    */
   dryRun: process.env.CEREBRO_DRY_RUN === '1',
-  /** Cerebro Hub'ga holat yuborish oralig'i (hub kodi bo'lsa) */
+  /** Palantir Hub'ga holat yuborish oralig'i (hub kodi bo'lsa) */
   heartbeatMs: Number(process.env.HEARTBEAT_MS) || 5 * 60_000,
   /** @BotFather tokeni. Bo'lmasa — panel ishlaydi, Telegram o'chiq */
   botToken: process.env.BOT_TOKEN || '',
@@ -93,7 +93,7 @@ export const env = {
   /** So'rov eslatmalari shu soatlarda («8-21»): tungi so'rov ertalab eslatiladi, tunda karta ovozsiz keladi */
   requestHours: dayHours(process.env.REQUEST_HOURS),
 
-  /** Cerebro Hub (rasmiy Instagram uchun): manzili va klinika kaliti — CEREBRO_HUB kodidan (keys.ts o'rnatadi) */
+  /** Palantir Hub (rasmiy Instagram uchun): manzili va klinika kaliti — CEREBRO_HUB kodidan (keys.ts o'rnatadi) */
   hub: null as { url: string; clinicId: string; key: string } | null,
   /** Faqat sinov uchun: soxta Instagram Graph API */
   igGraphUrl: (process.env.IG_GRAPH_URL || 'https://graph.instagram.com').replace(/\/$/, ''),
@@ -114,7 +114,7 @@ export const env = {
    */
   igBrowser: process.env.IG_BROWSER || '',
   igShowBrowser: process.env.IG_SHOW_BROWSER === '1',
-  /** Brauzer orqali Instagram — zaxira yo'l, standart o'chiq (asosiysi rasmiy, Cerebro Hub orqali): IG_VIA_BROWSER=1 bo'lsa yoqiladi */
+  /** Brauzer orqali Instagram — zaxira yo'l, standart o'chiq (asosiysi rasmiy, Palantir Hub orqali): IG_VIA_BROWSER=1 bo'lsa yoqiladi */
   igViaBrowser: process.env.IG_VIA_BROWSER === '1',
   /** Direct'ni tekshirish oralig'i (har safar ±30% tasodifiy) */
   igPollMs: Number(process.env.IG_POLL_MS) || 90_000,
@@ -136,7 +136,7 @@ export const env = {
   /** Yordamchi bir kunda DentaCRM'ga yoza oladigan qabullar soni (adashib yoki aldanib ko'p yozib yubormasin) */
   crmDailyBookings: Number(process.env.CRM_DAILY_BOOKINGS) || 40,
   /** Resepshn bir kunda egasining tasdig'isiz yoza oladigan qabullar (undan keyin — faqat tasdiq bilan) */
-  /** Bir kunda Cerebro orqali (egasi tasdiqlab) CRM'ga kiritiladigan pul yozuvlari soni */
+  /** Bir kunda Palantir orqali (egasi tasdiqlab) CRM'ga kiritiladigan pul yozuvlari soni */
   /**
    * Bir kunda bitta biznes uchun model so'rovlari chegarasi (API hisobi kutilmaganda bo'shab qolmasin: spam, aylanib qolgan suhbat).
    * owner — egasining yordamchisi (bitta gap bir necha so'rov bo'lishi mumkin), customer — mijozlarga javob

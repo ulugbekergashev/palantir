@@ -13,7 +13,7 @@ export function SetupCard({ steps }: { steps: SetupStep[] }) {
     <section aria-labelledby="setup" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sheet">
       <div className="flex flex-wrap items-end gap-x-8 gap-y-4 border-b border-slate-200 bg-slate-50 p-5 sm:p-6">
         <div className="mr-auto min-w-0">
-          <h2 id="setup" className="text-lg font-extrabold tracking-tight">Cerebro'ni ishga tushirish</h2>
+          <h2 id="setup" className="text-lg font-extrabold tracking-tight">Palantir'ni ishga tushirish</h2>
           <p className="mt-0.5 text-sm text-slate-500">Qadamlarni tartib bilan bajaring — har biri bir-ikki daqiqa oladi.</p>
         </div>
         <div className="w-full sm:w-56">

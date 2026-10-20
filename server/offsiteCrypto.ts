@@ -24,7 +24,7 @@ export function seal(publicKeyPem: string, data: Buffer): Buffer {
 }
 
 export function unseal(privateKeyPem: string, blob: Buffer): Buffer {
-  if (blob.length < MAGIC.length + EPH + IV + TAG || !blob.subarray(0, MAGIC.length).equals(MAGIC)) throw new Error('bu Cerebro tashqi zaxirasi emas');
+  if (blob.length < MAGIC.length + EPH + IV + TAG || !blob.subarray(0, MAGIC.length).equals(MAGIC)) throw new Error('bu Palantir tashqi zaxirasi emas');
   let at = MAGIC.length;
   const eph = blob.subarray(at, at += EPH), iv = blob.subarray(at, at += IV), tag = blob.subarray(at, at += TAG);
   const shared = diffieHellman({ privateKey: createPrivateKey(privateKeyPem), publicKey: createPublicKey({ key: eph, format: 'der', type: 'spki' }) });

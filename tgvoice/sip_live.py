@@ -2,7 +2,7 @@
 Har qo'ng'iroq — o'z Gemini Live suhbati: bir vaqtda bir nechta qo'ng'iroq (SIP_MAX_CALLS gacha) ko'tariladi.
 
 Kim qo'ng'iroq qilganini Asterisk aytadi (sozlamasi: asterisk/extensions.conf):
-  egasi  — egasining SIP ilovasi (parol bilan): vazifalar, Cerebro — xuddi Telegram qo'ng'irog'idagidek
+  egasi  — egasining SIP ilovasi (parol bilan): vazifalar, Palantir — xuddi Telegram qo'ng'irog'idagidek
   mijoz  — shahar raqamiga (Uztelecom) kelgan qo'ng'iroq: AI qabulxona (reception.py) — bilim, qabulga yozish, so'rov;
            faqat ovozli agent kaliti bilan, egasining vazifalari, boshqa mijozlar va ichki ma'lumot mijozga berilmaydi.
            Ish vaqtida (Sozlamalar → Telefon liniyasi, «kerak bo'lsa o'tkazadi» rejimi) AI qo'ng'iroqni administratorga o'tkaza oladi:
@@ -22,7 +22,7 @@ from google.genai import types
 from websockets.asyncio.server import serve
 
 # --stend: AI qabulxonani stend bilan sinash (npm run stend — soxta DentaCRM, haqiqiy ma'lumotga tegilmaydi). Import'dan oldin:
-# Cerebro manzili call_live yuklanayotganda o'qiladi
+# Palantir manzili call_live yuklanayotganda o'qiladi
 if '--stend' in sys.argv:
     from pathlib import Path
     os.environ['CEREBRO_URL'] = 'http://127.0.0.1:3220'
@@ -101,7 +101,7 @@ def frame(kind: int, data: bytes = b'') -> bytes:
 
 
 class Token:
-    """Cerebro kaliti — bir marta olinadi va hamma qo'ng'iroqqa ishlatiladi (har qo'ng'iroqda login qilinmaydi)"""
+    """Palantir kaliti — bir marta olinadi va hamma qo'ng'iroqqa ishlatiladi (har qo'ng'iroqda login qilinmaydi)"""
     def __init__(self):
         self.value, self.at = '', 0.0
         self.lock = asyncio.Lock()
@@ -125,14 +125,14 @@ class PhoneBridge(Bridge):
     def __init__(self, writer: asyncio.StreamWriter, mode: str, caller: str, token: str, number: int, uuid: str = ''):
         super().__init__(None, 0)
         self.writer, self.mode, self.caller, self.uuid = writer, mode, caller, uuid
-        # Mijoz qo'ng'irog'i — AI qabulxona (faqat ovozli agent kaliti bilan); egasiniki — Cerebro kaliti bilan.
+        # Mijoz qo'ng'irog'i — AI qabulxona (faqat ovozli agent kaliti bilan); egasiniki — Palantir kaliti bilan.
         # Administrator ko'tarmay AI'ga qaytgan qo'ng'iroqda yana o'tkazilmaydi (aylanib qolmasin)
         self.desk = Desk(caller, missed=mode == MISSED, can_transfer=mode == CUSTOMER) if mode in CUSTOMERS else None
         self.live = None                        # Gemini Live seansi (o'tkazib bo'lmasa AI'ga aytish uchun)
         self.voice_at = 0.0                     # AI ovozi liniyaga oxirgi marta ketgan payt
         self.echo = {'cut': 0, 'cut_max': 0, 'pass': 0, 'pass_max': 0}   # aks-sado filtri hisobi (jurnalga, sozlash uchun)
         self.call_limit_s = CUSTOMER_LIMIT_S if mode in CUSTOMERS else OWNER_LIMIT_S
-        self.cerebro.http.headers['Authorization'] = f'Bearer {token}'
+        self.palantir.http.headers['Authorization'] = f'Bearer {token}'
         self.who = caller or 'raqami yashirin'
         # Jurnalda qaysi qo'ng'iroq: tartib raqami va telefonning oxirgi 4 raqami
         self.tag = f"[#{number} {'egasi' if mode == OWNER else 'mijoz'} {caller[-4:] or 'yashirin'}] "
@@ -241,7 +241,7 @@ class PhoneBridge(Bridge):
         return self.desk.action_text(name, args, result) if self.desk else super().action_text(name, args, result)
 
     async def archive(self):
-        """Mijoz qo'ng'irog'i — Cerebro'ga hisobot (panel va egasining Telegram'i); egasiniki — Obsidian'ga"""
+        """Mijoz qo'ng'irog'i — Palantir'ga hisobot (panel va egasining Telegram'i); egasiniki — Obsidian'ga"""
         if not self.desk:
             return await super().archive()
         if not self.started:
@@ -298,7 +298,7 @@ class Server:
 
     @property
     def reception(self) -> bool:
-        """AI qabulxona ovozli agent kaliti bilan ishlaydi: .env yoki ovoz.env (klinika kompyuterida Cerebro o'zi yaratadi) — har qo'ng'iroqda tekshiriladi"""
+        """AI qabulxona ovozli agent kaliti bilan ishlaydi: .env yoki ovoz.env (klinika kompyuterida Palantir o'zi yaratadi) — har qo'ng'iroqda tekshiriladi"""
         return bool(os.environ.get('VOICE_AGENT_KEY') or _env_has('VOICE_AGENT_KEY'))
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -381,7 +381,7 @@ async def main():
     srv = await asyncio.start_server(server.handle, HOST, PORT)
     log('—', f"telefon liniyasi tayyor: {HOST}:{PORT}, bir vaqtda {MAX_CALLS} tagacha qo'ng'iroq; "
              f"AI qabulxona: {'yoqiq' if server.reception else 'o‘chiq (VOICE_AGENT_KEY yo‘q)'}")
-    # Panel ovozi (AI bosh ekran): egasi brauzerda Cerebro bilan jonli gaplashadi
+    # Panel ovozi (AI bosh ekran): egasi brauzerda Palantir bilan jonli gaplashadi
     web = await serve(WebVoice().handle, HOST, WEB_PORT, max_size=1 << 20)
     log('—', f"panel ovozi tayyor: ws://{HOST}:{WEB_PORT}")
     try:

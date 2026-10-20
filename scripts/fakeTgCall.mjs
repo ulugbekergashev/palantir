@@ -1,6 +1,6 @@
 // Sinov uchun soxta Telegram qo'ng'irog'i (tgvoice/call_live.py o'rnida, telefon jiringlamaydi).
 // Nima bilan chaqirilganini FAKE_TGCALL_DIR/calls.jsonl ga yozadi va FAKE_TGCALL_DIR/exit dagi kod bilan chiqadi
-// (yo'q bo'lsa 0 — gaplashildi; 2 — ko'tarmadi). Cerebro bergan kalit bilan vazifani ko'ra olishini ham tekshiradi.
+// (yo'q bo'lsa 0 — gaplashildi; 2 — ko'tarmadi). Palantir bergan kalit bilan vazifani ko'ra olishini ham tekshiradi.
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

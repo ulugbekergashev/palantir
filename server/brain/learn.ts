@@ -1,6 +1,6 @@
 /**
- * Egasining javobidan o'rganish. Cerebro mijozning umumiy savoliga javob bilmay egasidan so'ragan bo'lsa va egasi mijozga
- * javob yozsa — «Eslab qolaymi?» deb so'raladi. Ha desa, keyingi safar shu savolga Cerebro o'zi javob beradi.
+ * Egasining javobidan o'rganish. Palantir mijozning umumiy savoliga javob bilmay egasidan so'ragan bo'lsa va egasi mijozga
+ * javob yozsa — «Eslab qolaymi?» deb so'raladi. Ha desa, keyingi safar shu savolga Palantir o'zi javob beradi.
  * Egasi ketma-ket bir necha xabar yozishi mumkin («Ha, bor», «3 oygacha») — ular biroz kutib, bitta javob qilib olinadi.
  */
 import { Markup } from 'telegraf';

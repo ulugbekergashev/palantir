@@ -13,7 +13,7 @@ from common import ROOT, env
 
 sys.stdout.reconfigure(encoding='utf-8')
 QUESTION = "Ertaga soat o'nda Akmal akaga qo'ng'iroq qilishim kerak, shuni eslatib qo'ying."
-SYSTEM = ("Sen Cerebro — biznes yordamchisisan. Bu jonli telefon qo'ng'irog'i. Faqat o'zbek tilida, qisqa: bir-ikki gap. "
+SYSTEM = ("Sen Palantir — biznes yordamchisisan. Bu jonli telefon qo'ng'irog'i. Faqat o'zbek tilida, qisqa: bir-ikki gap. "
           "Eslatma so'ralsa «xo'p, eslatib qo'yaman» de.")
 CACHE = str(ROOT / 'tmp' / 'question16k.pcm')
 CHUNK = 640  # 20 ms, 16 kHz, 16-bit

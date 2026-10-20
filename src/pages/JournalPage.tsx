@@ -11,7 +11,7 @@ export function JournalPage({ now, notify, onChanged }: { now: Date; notify: Not
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Jurnal" description="Tepada — sizning qaroringizni kutayotgan ishlar, keyin vazifalar, pastda — Cerebro bugun qilgan va ko'rgan narsalar." />
+      <PageHeader title="Jurnal" description="Tepada — sizning qaroringizni kutayotgan ishlar, keyin vazifalar, pastda — Palantir bugun qilgan va ko'rgan narsalar." />
       {/* Vazifalar o'z manbasidan yuklanadi: kamera yoki qo'ng'iroqlar javob bermay tursa ham ko'rinadi */}
       {!journal ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : (
         <Card title="Sizni kutyapti">

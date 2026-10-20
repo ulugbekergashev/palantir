@@ -28,9 +28,9 @@ function ChannelBadge({ channel }: { channel: LeadChannel }) {
 }
 
 const MODE_LABEL: Record<AutoReply['mode'], string> = {
-  off: "Cerebro mijozlarga javob tayyorlamaydi",
-  draft: "Cerebro javob tayyorlaydi — siz tasdiqlaysiz",
-  auto: "Cerebro o'zi javob beradi (bilmaganini sizdan so'raydi)",
+  off: "Palantir mijozlarga javob tayyorlamaydi",
+  draft: "Palantir javob tayyorlaydi — siz tasdiqlaysiz",
+  auto: "Palantir o'zi javob beradi (bilmaganini sizdan so'raydi)",
 };
 
 const nameOf = (l: Lead) => l.name || (l.username ? `@${l.username}` : null) || l.phone || 'Mijoz';
@@ -103,7 +103,7 @@ function NextStep({ lead, save }: { lead: Lead; save: (patch: Parameters<typeof 
 function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify: Notify; onBack: () => void; onChanged: () => void }) {
   const [data, setData] = useState<{ lead: Lead; messages: InboxMessage[]; replies: ReplyDraft[] } | null>(null);
   const [text, setText] = useState('');
-  /** «Tahrirlab yozish» bosilgan taklif: yuborilganda Cerebro farqidan o'rganadi */
+  /** «Tahrirlab yozish» bosilgan taklif: yuborilganda Palantir farqidan o'rganadi */
   const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [tab, setTab] = useState<'chat' | 'card'>('chat');
@@ -157,14 +157,14 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
             <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${m.direction === 'in' ? 'rounded-bl-md bg-slate-100' : m.by === 'cerebro' ? 'rounded-br-md bg-indigo-600 text-white' : 'rounded-br-md bg-emerald-600 text-white'}`}>
               <p className="whitespace-pre-line break-words">{m.text}</p>
               <div className={`mt-0.5 flex items-center gap-1 text-[10px] ${m.direction === 'in' ? 'text-slate-400' : 'text-white/70'}`}>
-                {m.by === 'cerebro' && <Bot className="h-3 w-3" />}{m.by === 'cerebro' ? 'Cerebro' : m.by === 'owner' ? 'Siz' : ''} {when(m.createdAt)}
+                {m.by === 'cerebro' && <Bot className="h-3 w-3" />}{m.by === 'cerebro' ? 'Palantir' : m.by === 'owner' ? 'Siz' : ''} {when(m.createdAt)}
               </div>
             </div>
           </div>
         ))}
         {scheduled.map(r => (
           <div key={r.id} className="ml-auto max-w-[80%] rounded-2xl border border-dashed border-indigo-300 bg-indigo-50 p-3 text-sm">
-            <div className="mb-1 text-[11px] font-bold text-indigo-700">⏳ Cerebro {r.dueAt ? time(r.dueAt) : ''} da yuboradi (siz yozmasangiz)</div>
+            <div className="mb-1 text-[11px] font-bold text-indigo-700">⏳ Palantir {r.dueAt ? time(r.dueAt) : ''} da yuboradi (siz yozmasangiz)</div>
             <p className="whitespace-pre-line">{r.text}</p>
             <Button size="sm" variant="ghost" className="mt-2" disabled={!!busy} onClick={() => act(r.id, () => api.dismissReply(r.id), 'Bekor qilindi')}><X className="h-3.5 w-3.5" /> Yubormasin</Button>
           </div>
@@ -255,7 +255,7 @@ export function InboxPage({ notify, onChanged }: { notify: Notify; /** Javob tas
                       {t.pending > 0 && <span className="ml-auto shrink-0 rounded-full bg-amber-100 px-2 text-[11px] font-bold text-amber-800" title="Tasdiq kutayotgan javob">✍️ {t.pending}</span>}
                     </div>
                     <p className="mt-0.5 truncate text-xs text-slate-500">
-                      {t.last ? `${t.last.direction === 'out' ? (t.last.by === 'cerebro' ? 'Cerebro: ' : 'Siz: ') : ''}${t.last.text}` : [t.lead.phone, t.lead.note].filter(Boolean).join(' · ') || "Yozishma yo'q"}
+                      {t.last ? `${t.last.direction === 'out' ? (t.last.by === 'cerebro' ? 'Palantir: ' : 'Siz: ') : ''}${t.last.text}` : [t.lead.phone, t.lead.note].filter(Boolean).join(' · ') || "Yozishma yo'q"}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">

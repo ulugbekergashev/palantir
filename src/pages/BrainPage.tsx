@@ -11,7 +11,7 @@ import { DocumentsCard } from './DocumentsCard';
 type Save = <T extends { brain: BrainView }>(work: Promise<T>, saved?: string) => Promise<T | null>;
 const money = (n: number) => (n ? `${n.toLocaleString('ru')} so'm` : 'bepul');
 
-/** Ikkinchi miya: Cerebro biznes haqida bilgan hamma narsa bitta joyda. Mijozlarga javobda faqat shu yerdagi tasdiqlangan ma'lumot ishlatiladi */
+/** Ikkinchi miya: Palantir biznes haqida bilgan hamma narsa bitta joyda. Mijozlarga javobda faqat shu yerdagi tasdiqlangan ma'lumot ishlatiladi */
 export function BrainPage({ notify }: { notify: Notify }) {
   const [brain, setBrain] = useState<BrainView | null>(null);
   const fail = (e: unknown) => notify((e as Error).message, true);
@@ -32,7 +32,7 @@ export function BrainPage({ notify }: { notify: Notify }) {
   return (
     <div className="space-y-5">
       <PageHeader title="Ikkinchi miya" description={<>
-        <p>Cerebro biznesingiz haqida bilgan hamma narsa. Mijozlarga faqat shu yerdagi ma'lumot bilan javob beradi; bilmaganini sizdan so'raydi.</p>
+        <p>Palantir biznesingiz haqida bilgan hamma narsa. Mijozlarga faqat shu yerdagi ma'lumot bilan javob beradi; bilmaganini sizdan so'raydi.</p>
         {brain && <p>Hammasi oddiy fayllarda turadi: <code className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[13px] text-slate-700">{brain.vault}</code>. Shu papkani Obsidian'da ochsangiz («Open folder as vault»), u yerda o'zgartirganingiz bu yerda ham o'zgaradi.</p>}
       </>} />
       {!brain ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : (
@@ -95,7 +95,7 @@ function Suggested({ items, save, notify }: { items: Knowledge[]; save: Save; no
   );
 }
 
-function Pack({ brain, save, onInterview }: { brain: BrainView; save: Save; /** Cerebro javobsiz savollarni suhbatda birma-bir so'raydi */ onInterview: () => void }) {
+function Pack({ brain, save, onInterview }: { brain: BrainView; save: Save; /** Palantir javobsiz savollarni suhbatda birma-bir so'raydi */ onInterview: () => void }) {
   const [open, setOpen] = useState<string | null>(null);
   const [text, setText] = useState('');
   const done = brain.pack.filter(q => q.answer).length;
@@ -104,7 +104,7 @@ function Pack({ brain, save, onInterview }: { brain: BrainView; save: Save; /** 
     if (text.trim() && await save(api.answer({ packId, answer: text.trim() }), 'Saqlandi')) setOpen(null);
   };
   return (
-    <Card title={`Mijozlar eng ko'p so'raydigan savollar · ${done}/${brain.pack.length}`} description="Har biriga bir marta javob yozing — keyin Cerebro o'zi javob beradi. Javob yozilmagan savolni mijoz so'rasa, sizdan so'raydi."
+    <Card title={`Mijozlar eng ko'p so'raydigan savollar · ${done}/${brain.pack.length}`} description="Har biriga bir marta javob yozing — keyin Palantir o'zi javob beradi. Javob yozilmagan savolni mijoz so'rasa, sizdan so'raydi."
       action={done < brain.pack.length ? <Button size="sm" onClick={onInterview}>Suhbatda so'rab chiq</Button> : undefined}>
       <ul className="divide-y divide-slate-100">
         {brain.pack.map(q => (
@@ -152,7 +152,7 @@ function Answers({ items, save }: { items: Knowledge[]; save: Save }) {
 
 function Pages({ items, left }: { items: Knowledge[]; left: number }) {
   return (
-    <Card title="Sizning sahifalaringiz" description="Papkada (Obsidian'da) o'zingiz yozgan sahifalar. Cerebro ularni ham o'qiydi. Tahrirlash va o'chirish — papkaning o'zida.">
+    <Card title="Sizning sahifalaringiz" description="Papkada (Obsidian'da) o'zingiz yozgan sahifalar. Palantir ularni ham o'qiydi. Tahrirlash va o'chirish — papkaning o'zida.">
       <ul className="space-y-1.5">
         {items.map(k => <Row key={k.id}><p className="font-semibold">{k.question}</p><p className="line-clamp-2 text-slate-500">{k.answer}</p>{k.warning && <p className="text-xs text-amber-700">⚠️ {k.warning}</p>}</Row>)}
       </ul>
@@ -195,7 +195,7 @@ function Prices({ brain, save, notify }: { brain: BrainView; save: Save; notify:
     setText('');
   };
   return (
-    <Card title={`Narxlar · ${brain.priced}`} description="Cerebro narxni faqat shu ro'yxatdan aytadi — bo'lmasa sizdan so'raydi. Narxni o'zgartirish uchun shu nom bilan yangi qator tashlang (yoki yordamchiga ayting).">
+    <Card title={`Narxlar · ${brain.priced}`} description="Palantir narxni faqat shu ro'yxatdan aytadi — bo'lmasa sizdan so'raydi. Narxni o'zgartirish uchun shu nom bilan yangi qator tashlang (yoki yordamchiga ayting).">
       {brain.prices.length > 0 && (
         <ul className="mb-3 max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 text-sm">
           {brain.prices.map(o => (
@@ -271,7 +271,7 @@ function Samples({ items, save }: { items: Knowledge[]; save: Save }) {
     if (await save(api.addSample(title.trim(), text.trim()), 'Namuna saqlandi')) { setTitle(''); setText(''); }
   };
   return (
-    <Card title="Hujjat namunalari" description="Shartnoma, tijorat taklifi, kafolat xati — o'zingiznikini tashlang. Hujjat so'rasangiz, Cerebro shu namunaning tuzilishi va so'zlari bilan yozadi.">
+    <Card title="Hujjat namunalari" description="Shartnoma, tijorat taklifi, kafolat xati — o'zingiznikini tashlang. Hujjat so'rasangiz, Palantir shu namunaning tuzilishi va so'zlari bilan yozadi.">
       <ul className="mb-3 space-y-1.5">
         {items.map(k => <Row key={k.id} label={k.question} onRemove={() => { void save(api.removeKnowledge(k.id)); }}><p className="font-semibold">{k.question}</p><p className="truncate text-slate-500">{k.answer.slice(0, 140)}</p></Row>)}
         {!items.length && <li className="text-sm text-slate-400">Hali yo'q.</li>}

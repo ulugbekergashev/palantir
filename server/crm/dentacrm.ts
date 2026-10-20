@@ -331,7 +331,7 @@ export function createDentaCrm(cfg: CrmConfig): DentaCrm {
     },
     // Faqat ikkala nashr ham qabul qiladigan maydonlar: bulut nashri notanish maydonli so'rovni rad etadi
     createTransaction: t => create('/api/transactions', clinicId => ({ ...t, clinicId, status: 'Paid', discountAmount: 0, discountPercent: 0 })),
-    createExpense: e => create('/api/expenses', clinicId => ({ ...e, clinicId, note: 'Cerebro orqali kiritildi' })),
+    createExpense: e => create('/api/expenses', clinicId => ({ ...e, clinicId, note: 'Palantir orqali kiritildi' })),
     removeTransaction: id => remove(cid => `/api/transactions/${encodeURIComponent(id)}?${q(cid)}`),
     removeExpense: id => remove(cid => `/api/expenses/${encodeURIComponent(id)}?${q(cid)}`),
     bookAppointment(b) {
@@ -341,7 +341,7 @@ export function createDentaCrm(cfg: CrmConfig): DentaCrm {
     },
     visitResult(id, r) {
       const next = booking.catch(() => {}).then(async () => {
-        const body = { result: r.result, ...(r.date ? { date: r.date, time: r.time } : {}), note: r.note ?? 'Cerebro' };
+        const body = { result: r.result, ...(r.date ? { date: r.date, time: r.time } : {}), note: r.note ?? 'Palantir' };
         let saved: unknown;
         try {
           saved = await write(cid => `/api/appointments/${encodeURIComponent(id)}/call?${q(cid)}`, () => body);

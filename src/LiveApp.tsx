@@ -14,11 +14,11 @@ import { AnalystArea, AssistantArea, ReceptionArea, SettingsArea, WatchArea } fr
 import { MiyaArea } from './pages/VaultPage';
 
 /**
- * Panel — bitta dastur, AI jamoa atrofida: bosh ekran (Cerebro, ovoz bilan), to'rt xodim (Qabulxona, Yordamchi, Kuzatuvchi,
+ * Panel — bitta dastur, AI jamoa atrofida: bosh ekran (Palantir, ovoz bilan), to'rt xodim (Qabulxona, Yordamchi, Kuzatuvchi,
  * Tahlilchi), Miya (Obsidian kabi) va Sozlamalar. Chapda (telefonda — pastda) bir xil ustun. Ko'rinish qorong'i (index.css: .night).
  */
 const TITLES: Record<Area, string> = {
-  ai: 'Cerebro', qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
+  ai: 'Palantir', qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
   tahlilchi: TEAM.tahlilchi.name, miya: 'Miya', sozlamalar: 'Sozlamalar',
 };
 
@@ -44,7 +44,7 @@ export default function LiveApp() {
 
   // Bo'lim almashganda: sahifa boshidan, diqqat yangi mazmunga (klaviatura va ekran o'quvchi uchun), oyna sarlavhasi
   useEffect(() => {
-    document.title = route.area === 'ai' ? 'Cerebro' : `${TITLES[route.area]} · Cerebro`;
+    document.title = route.area === 'ai' ? 'Palantir' : `${TITLES[route.area]} · Palantir`;
     if (!opened.current) { opened.current = true; return; }
     window.scrollTo(0, 0);
     main.current?.focus({ preventScroll: true });

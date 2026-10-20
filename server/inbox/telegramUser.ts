@@ -1,6 +1,6 @@
 /**
- * Egasining shaxsiy Telegram akkaunti — Cerebro unga kod bilan bir marta kiradi
- * (xuddi Telegram Desktop kabi, "Faol seanslar"da «Cerebro» bo'lib ko'rinadi).
+ * Egasining shaxsiy Telegram akkaunti — Palantir unga kod bilan bir marta kiradi
+ * (xuddi Telegram Desktop kabi, "Faol seanslar"da «Palantir» bo'lib ko'rinadi).
  * Shundan keyin mijozlar egasiga yozgan chatlarni o'qiydi va uning nomidan javob beradi;
  * egasi buyursa, birinchi bo'lib ham yozadi (username yoki telefon orqali).
  *
@@ -88,7 +88,7 @@ function gramjs(): Driver {
   const live = new Map<string, TelegramClient>();
   const make = (session: string) => {
     const c = new TelegramClient(new StringSession(session), env.tgApiId, env.tgApiHash, {
-      connectionRetries: 5, deviceModel: 'Cerebro', systemVersion: 'server', appVersion: '1.0',
+      connectionRetries: 5, deviceModel: 'Palantir', systemVersion: 'server', appVersion: '1.0',
     });
     c.setLogLevel(LogLevel.ERROR);
     return c;
@@ -116,7 +116,7 @@ function gramjs(): Driver {
 
   /**
    * Uzilish paytida kelgan xabarlar: kutubxona ularni o'zi yetkazmaydi. Oxirgi suhbatlardan since dan keyingi xabarlar eskisidan yangisiga
-   * qarab beriladi — egasining o'z javoblari ham (u telefonidan javob bergan bo'lsa, Cerebro ikkinchi marta javob bermasin).
+   * qarab beriladi — egasining o'z javoblari ham (u telefonidan javob bergan bo'lsa, Palantir ikkinchi marta javob bermasin).
    * Bir xabar ikki marta kelsa zarari yo'q: yozishmaga id bo'yicha bir marta tushadi
    */
   const catchUp = async (client: TelegramClient, since: number, onEvent: (e: TgEvent) => void) => {
@@ -410,7 +410,7 @@ export function startTelegramUser(): void {
   }, WATCH_MS);
 }
 
-/** Egasi telefonidan "Cerebro" seansini tugatgan */
+/** Egasi telefonidan "Palantir" seansini tugatgan */
 async function lost(bizId: string): Promise<void> {
   connections.remove(bizId, 'telegram');
   const biz = businesses.byId(bizId);
@@ -438,7 +438,7 @@ async function connected(biz: BusinessRow, r: { session: string; account: TgAcco
   await d.detach(biz.id, false).catch(() => {});
   connections.save(biz.id, 'telegram', seal(r.session), { ...r.account });
   await d.attach(biz.id, r.session, e => onEvent(biz.id, e));
-  // Yangi kirish: shu paytgacha kelgan xabarlar Cerebro'niki emas — keyingi qayta ulanishda faqat bundan keyingilari o'qiladi
+  // Yangi kirish: shu paytgacha kelgan xabarlar Palantir'niki emas — keyingi qayta ulanishda faqat bundan keyingilari o'qiladi
   lastAlive.set(biz.id, Date.now());
   return accountLabel({ ...r.account });
 }

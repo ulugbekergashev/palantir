@@ -1,5 +1,5 @@
 /**
- * Chap ustun (telefonda — pastki panel): Cerebro (ovoz), AI jamoa, Miya, Sozlamalar. Hamma bo'limda bir xil — dastur bitta.
+ * Chap ustun (telefonda — pastki panel): Palantir (ovoz), AI jamoa, Miya, Sozlamalar. Hamma bo'limda bir xil — dastur bitta.
  */
 import { Brain, Ear, EarOff, LogOut, Settings, Sparkles, type LucideIcon } from 'lucide-react';
 import type { Wake } from '../lib/useWake';
@@ -13,9 +13,9 @@ interface Item { area: Area; label: string; icon: LucideIcon; badge?: number }
 const SHORT: Partial<Record<Area, string>> = { qabulxona: 'Qabul', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', sozlamalar: 'Sozlama' };
 
 const EAR: Record<Wake['phase'], { dot: string; hint: string }> = {
-  off: { dot: '', hint: "O'chiq — yoqsangiz, «Cerebro» yoki «Jarvis» deb chaqirasiz" },
+  off: { dot: '', hint: "O'chiq — yoqsangiz, «Palantir» yoki «Jarvis» deb chaqirasiz" },
   starting: { dot: 'bg-glass/40', hint: 'Ulanmoqda…' },
-  listening: { dot: 'bg-emerald-400 animate-pulse', hint: "Tinglayapti — «Cerebro, …» deb ayting (ovoz shu kompyuterdan chiqmaydi)" },
+  listening: { dot: 'bg-emerald-400 animate-pulse', hint: "Tinglayapti — «Palantir, …» deb ayting (ovoz shu kompyuterdan chiqmaydi)" },
   live: { dot: 'bg-[#8b8cff]', hint: 'Suhbat ketyapti' },
   paused: { dot: 'bg-glass/40', hint: 'Boshqa ovozli suhbat yoki boshqa oyna tinglayapti — bo‘shagach shu yerda tinglaydi' },
   error: { dot: 'bg-[#f5b454]', hint: 'Ulanmadi — qayta urinadi' },
@@ -23,7 +23,7 @@ const EAR: Record<Wake['phase'], { dot: string; hint: string }> = {
 
 export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; team: Record<Member, MemberState> | null; ownerName: string; onLogout: () => void; wake: Wake }) {
   const items: Item[] = [
-    { area: 'ai', label: 'Cerebro', icon: Sparkles },
+    { area: 'ai', label: 'Palantir', icon: Sparkles },
     ...MEMBERS.map(m => ({ area: m as Area, label: TEAM[m].name, icon: TEAM[m].icon, badge: team?.[m].badge })),
     { area: 'miya', label: 'Miya', icon: Brain },
   ];
@@ -48,7 +48,7 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
   };
   return (
     <nav aria-label="Bo'limlar" className="fixed inset-x-0 bottom-0 z-40 flex border-t border-glass/[0.06] bg-[#07080b]/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:inset-x-auto lg:inset-y-0 lg:left-0 lg:w-[92px] lg:flex-col lg:border-r lg:border-t-0 lg:px-2 lg:py-4">
-      <a href={hrefOf('ai')} className="mb-4 hidden justify-center lg:flex" aria-label="Cerebro — bosh ekran"><img src="/favicon.svg" alt="" className="h-9 w-9" /></a>
+      <a href={hrefOf('ai')} className="mb-4 hidden justify-center lg:flex" aria-label="Palantir — bosh ekran"><img src="/favicon.svg" alt="" className="h-9 w-9" /></a>
       <div className="flex flex-1 gap-0.5 lg:flex-none lg:flex-col lg:gap-1">{items.map(link)}</div>
       <div className="hidden flex-1 lg:block" />
       <div className="flex w-[calc(100%/7)] gap-0.5 lg:w-auto lg:flex-col lg:gap-1">

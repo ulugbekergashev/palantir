@@ -43,7 +43,7 @@ const readLock = (): Lock | null => {
 };
 
 function taken(lock: Lock): never {
-  console.error(`[server] Cerebro shu papka bilan allaqachon ishlab turibdi (jarayon ${lock.pid ?? '?'}, port ${lock.port ?? '?'}). Ikkinchi nusxa ishga tushmaydi — avvalgisini to'xtating`);
+  console.error(`[server] Palantir shu papka bilan allaqachon ishlab turibdi (jarayon ${lock.pid ?? '?'}, port ${lock.port ?? '?'}). Ikkinchi nusxa ishga tushmaydi — avvalgisini to'xtating`);
   process.exit(EXIT_DO_NOT_RESTART);
 }
 

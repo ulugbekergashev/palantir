@@ -1,7 +1,7 @@
 /**
- * Birinchi kun suhbati: Cerebro tayyor savollarni (brainPack) birma-bir o'zi so'raydi, egasi oddiy gap yoki ovoz bilan javob beradi.
+ * Birinchi kun suhbati: Palantir tayyor savollarni (brainPack) birma-bir o'zi so'raydi, egasi oddiy gap yoki ovoz bilan javob beradi.
  * Suhbatni egasi o'zi boshlaydi («savollar») va istagan payt to'xtatadi — shu oraliqda yozgani javob deb olinadi, model ishtirok etmaydi.
- * Javob egasining Cerebro'ga aytgan o'z so'zi, shuning uchun tasdiq so'ralmaydi: darhol bilimga yoziladi (manba: pack:<id>).
+ * Javob egasining Palantir'ga aytgan o'z so'zi, shuning uchun tasdiq so'ralmaydi: darhol bilimga yoziladi (manba: pack:<id>).
  * Holat bazada turadi (businesses.interview) — server o'chib yonsa ham suhbat joyidan davom etadi.
  */
 import type { PackQuestion } from '../../src/data/brainPack';

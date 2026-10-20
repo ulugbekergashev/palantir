@@ -4,7 +4,7 @@ qolgan ishni (ko'chirish, bekor qilish, shikoyat, shoshilinch holat) egasiga so'
 Ish vaqtida («kerak bo'lsa o'tkazadi» rejimi) javob bera olmasa yoki mijoz odam so'rasa — administratorga o'tkazadi (sip_live.py);
 administrator ko'tarmasa, qo'ng'iroq qaytadi va AI uzr so'rab so'rov qoldiradi.
 
-Cerebro bilan faqat ovozli agent darvozasi orqali gaplashadi (server/voice/routes.ts, kalit — .env dagi VOICE_AGENT_KEY):
+Palantir bilan faqat ovozli agent darvozasi orqali gaplashadi (server/voice/routes.ts, kalit — .env dagi VOICE_AGENT_KEY):
 bilim, jadval, qabulga yozish, so'rov (panel «So'rovlar» — darhol) va qo'ng'iroq hisoboti. Egasining vazifalari, boshqa bemorlar va panel bu kalitga yopiq;
 qabulni server qayta tekshirib yozadi (band vaqt, jadval, bitta raqam haftasiga 2 marta, kuniga chegara)."""
 from datetime import datetime
@@ -247,7 +247,7 @@ class Desk:
         return '; '.join(parts)[:120] or "Ma'lumot oldi"
 
     async def report(self, started: datetime, seconds: int, lines: list[dict]) -> None:
-        """Qo'ng'iroq Cerebro'ga: panelda ko'rinadi, egasiga Telegram'da qisqa xabar (natija, qabul). Sinovda — yuborilmaydi"""
+        """Qo'ng'iroq Palantir'ga: panelda ko'rinadi, egasiga Telegram'da qisqa xabar (natija, qabul). Sinovda — yuborilmaydi"""
         if self.test:
             return
         transcript = [{'who': 'caller' if l['who'] == 'Siz' else 'ai', 'text': l['text'][:600]} for l in lines if l['who'] != 'Amal']

@@ -1,7 +1,7 @@
 /**
  * Voronka pul bilan: davrda murojaat qilganlar → javob olganlar → qabulga yozilganlar → kelganlar → to'laganlar (tushum),
  * qaysi kanaldan kelgani bo'yicha (Instagram, Telegram, qo'ng'iroq). «Yozildi, keldi, to'ladi» — DentaCRM'dan: mijoz kartasi
- * bemorga bog'langan bo'lsa (telefon va ism bo'yicha yoki Cerebro o'zi yozgan). CRM ulanmagan bo'lsa — faqat Cerebro bilgani.
+ * bemorga bog'langan bo'lsa (telefon va ism bo'yicha yoki Palantir o'zi yozgan). CRM ulanmagan bo'lsa — faqat Palantir bilgani.
  *
  * Bir odam — bir marta (davrda bir necha marta yozgan bo'lsa ham); kanali — davrdagi birinchi murojaati.
  */
@@ -41,7 +41,7 @@ function people(bizId: string, from: number, to: number): Map<string, Who> {
       AND EXISTS (SELECT 1 FROM inbox o WHERE o.business_id = i.business_id AND o.lead_id = i.lead_id AND o.direction = 'out' AND o.created_at > i.created_at
         AND o.created_at < strftime('%Y-%m-%dT%H:%M:%fZ', i.created_at, '+1 day'))`, x => String(x.lead_id), bizId, fromIso, toIso));
   for (const w of out.values()) w.answered = answeredMsg.has(w.lead) || calls.some(c => c.lead === w.lead && c.ended);
-  // Cerebro o'zi yozgan qabullar (yozishma, ovozli agent, qo'ng'iroq tahlili)
+  // Palantir o'zi yozgan qabullar (yozishma, ovozli agent, qo'ng'iroq tahlili)
   const bookedReplies = new Set(sql.many('SELECT DISTINCT lead_id FROM replies WHERE business_id = ? AND booked_at >= ?', x => String(x.lead_id), bizId, fromIso));
   for (const w of out.values()) w.booked = bookedReplies.has(w.lead) || calls.some(c => c.lead === w.lead && c.booked);
   for (const w of out.values()) w.patientId = leads.get(bizId, w.lead)?.patientId ?? null;

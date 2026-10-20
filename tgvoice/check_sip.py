@@ -10,7 +10,7 @@ import time
 from google import genai
 from google.genai import types
 
-from call_live import Cerebro
+from call_live import Palantir
 from common import ROOT, env
 
 sys.stdout.reconfigure(encoding='utf-8')
@@ -38,14 +38,14 @@ async def make_question():
                    input=pcm, check=True)
 
 
-async def requests(c: Cerebro) -> set[str]:
+async def requests(c: Palantir) -> set[str]:
     """Mijoz qoldirgan so'rovlar (vazifa «📞 …»)"""
     return {t['id'] for t in (await c.list_tasks())['tasks'] if t['title'].startswith('📞')}
 
 
 async def cleanup(before: set[str]):
     """Sinovda AI qoldirgan so'rov haqiqiy vazifa bo'lib tushadi — bekor qilinadi (egasiga eslatma bormasin)"""
-    c = Cerebro()
+    c = Palantir()
     await c.login()
     for task_id in await requests(c) - before:
         await c.update_task(task_id, 'cancelled', None)
@@ -53,7 +53,7 @@ async def cleanup(before: set[str]):
 
 
 async def snapshot() -> set[str]:
-    c = Cerebro()
+    c = Palantir()
     await c.login()
     return await requests(c)
 

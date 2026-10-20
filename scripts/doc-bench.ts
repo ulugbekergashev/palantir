@@ -30,9 +30,9 @@ const { parseDraft } = await import('../server/docs/checks');
 type Kind = import('../server/docs/playbooks').DocKind;
 
 const biz = businesses.create(`bench${Date.now()}`, 'x', {
-  name: 'Cerebro', ownerName: "Ulug'bek", industry: 'IT: klinikalar uchun AI yordamchi va DentaCRM',
+  name: 'Palantir', ownerName: "Ulug'bek", industry: 'IT: klinikalar uchun AI yordamchi va DentaCRM',
   description: "Klinikalar uchun AI qabulxona: telefon, Telegram va Instagram'dagi murojaatlarga kunu tun javob beradi, DentaCRM'ga qabul yozadi, egasiga kunlik hisobot beradi; kameralar bilan kreslo bandligini CRM bilan solishtiradi. Hamma ma'lumot klinika kompyuterida saqlanadi.",
-  phone: '+998 90 000 00 00', address: "Toshkent sh., Mirzo Ulug'bek tumani", website: 'cerebro.uz', contentLang: 'uz',
+  phone: '+998 90 000 00 00', address: "Toshkent sh., Mirzo Ulug'bek tumani", website: 'palantir.uz', contentLang: 'uz',
   brand: { primary: '#4F46E5', accent: '#F59E0B' },
   offerings: [
     { id: 'o1', name: "O'rnatish va sozlash (bir martalik)", price: 3_000_000 },
@@ -44,16 +44,16 @@ const biz = businesses.create(`bench${Date.now()}`, 'x', {
 // Rekvizitlar — miyada (egasi fayl tashlagan yoki yozgandek), profilda emas
 const { vaultDir } = await import('../server/brain/vault');
 mkdirSync(join(vaultDir(biz.id), 'Bilim'), { recursive: true });
-writeFileSync(join(vaultDir(biz.id), 'Bilim', 'Kompaniya kartasi.md'), "# Kompaniya kartasi\n\n«Cerebro AI» MChJ\nSTIR: 311 222 333 · OKED: 62010\nBank: «Kapitalbank» ATB Toshkent filiali, MFO 01088\nH/r: 20208000400111222001\nDirektor: Ergashev Ulug'bek (Ustav asosida)\nQQS to'lovchisi emas.\n");
+writeFileSync(join(vaultDir(biz.id), 'Bilim', 'Kompaniya kartasi.md'), "# Kompaniya kartasi\n\n«Palantir AI» MChJ\nSTIR: 311 222 333 · OKED: 62010\nBank: «Kapitalbank» ATB Toshkent filiali, MFO 01088\nH/r: 20208000400111222001\nDirektor: Ergashev Ulug'bek (Ustav asosida)\nQQS to'lovchisi emas.\n");
 
 const CASES: { kind: Kind; title: string; brief: string }[] = [
   {
-    kind: 'contract', title: 'Cerebro xizmat ko\'rsatish shartnomasi — Tabassum Dental',
-    brief: "«Tabassum Dental» MChJ stomatologiya klinikasi bilan shartnoma: Cerebro'ni klinika kompyuteriga o'rnatish va sozlash (3 000 000 so'm, bir martalik) va oylik xizmat (1 500 000 so'm/oy). O'rnatishga 50% oldindan to'lov, qolgani dalolatnomadan keyin 5 bank kunida. Oylik to'lov har oyning 10-sanasigacha. O'rnatish muddati — oldindan to'lovdan keyin 7 ish kuni. Qo'llab-quvvatlash: ish kunlari 9:00–18:00, javob 4 soat ichida. Shartnoma 12 oyga, avtomatik uzayadi. Klinika bemorlari ma'lumoti (ism, telefon, qabul) bilan ishlaymiz. Klinika direktori: ________.",
+    kind: 'contract', title: 'Palantir xizmat ko\'rsatish shartnomasi — Tabassum Dental',
+    brief: "«Tabassum Dental» MChJ stomatologiya klinikasi bilan shartnoma: Palantir'ni klinika kompyuteriga o'rnatish va sozlash (3 000 000 so'm, bir martalik) va oylik xizmat (1 500 000 so'm/oy). O'rnatishga 50% oldindan to'lov, qolgani dalolatnomadan keyin 5 bank kunida. Oylik to'lov har oyning 10-sanasigacha. O'rnatish muddati — oldindan to'lovdan keyin 7 ish kuni. Qo'llab-quvvatlash: ish kunlari 9:00–18:00, javob 4 soat ichida. Shartnoma 12 oyga, avtomatik uzayadi. Klinika bemorlari ma'lumoti (ism, telefon, qabul) bilan ishlaymiz. Klinika direktori: ________.",
   },
   {
     kind: 'offer', title: "«Shifo Dent» uchun tijorat taklifi",
-    brief: "«Shifo Dent» klinikasi (Chilonzor, 4 kreslo) egasi Dilshod aka: kechqurun va dam olish kunlari qo'ng'iroqlar javobsiz qoladi, Instagram'ga kech javob berishadi, administrator bitta. Taklif: Cerebro AI qabulxona — o'rnatish 3 000 000 so'm, oylik 1 500 000 so'm; kamera moduli ixtiyoriy, oyiga 500 000 so'm. Birinchi oy 20% chegirma (faqat oylik xizmatga). Ishga tushirish 7 ish kuni. Keyingi qadam — klinikada 30 daqiqalik demo.",
+    brief: "«Shifo Dent» klinikasi (Chilonzor, 4 kreslo) egasi Dilshod aka: kechqurun va dam olish kunlari qo'ng'iroqlar javobsiz qoladi, Instagram'ga kech javob berishadi, administrator bitta. Taklif: Palantir AI qabulxona — o'rnatish 3 000 000 so'm, oylik 1 500 000 so'm; kamera moduli ixtiyoriy, oyiga 500 000 so'm. Birinchi oy 20% chegirma (faqat oylik xizmatga). Ishga tushirish 7 ish kuni. Keyingi qadam — klinikada 30 daqiqalik demo.",
   },
 ];
 
@@ -61,7 +61,7 @@ const CASES: { kind: Kind; title: string; brief: string }[] = [
 async function oldWay(kind: Kind, title: string, brief: string): Promise<string> {
   const res = await think(biz.id, 'owner', {
     model: env.aiModel, max_tokens: 16_000,
-    system: `You are Cerebro, the business owner's assistant. Write a business document and give it to the owner as a Word file. Use Markdown: # headings, - lists, 1. lists, **bold**, tables with | cells |. Fill in everything you know from the business profile; for unknown details leave a visible blank like "________" — never invent them. Reply with the document only.`,
+    system: `You are Palantir, the business owner's assistant. Write a business document and give it to the owner as a Word file. Use Markdown: # headings, - lists, 1. lists, **bold**, tables with | cells |. Fill in everything you know from the business profile; for unknown details leave a visible blank like "________" — never invent them. Reply with the document only.`,
     messages: [{ role: 'user', content: `${factsText(biz, { kind, customerId: null, title, brief })}\n\nOwner: ${title}. ${brief}` }],
     thinking: { type: 'adaptive', display: 'omitted' },
     output_config: { effort: 'medium' },

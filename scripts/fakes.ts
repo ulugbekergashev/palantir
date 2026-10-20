@@ -97,10 +97,10 @@ export const tgServer = patient(createServer(async (req: IncomingMessage, res: S
   if (method !== 'getMe') sent.push(entry);
   if (method !== 'getMe' && method !== 'sendChatAction') wire.log?.('Telegram bot', `${method}${params.chat_id ? ` → ${String(params.chat_id)}` : ''}`, params);
   switch (method) {
-    case 'getMe': return reply({ id: 999, is_bot: true, first_name: 'Cerebro', username: 'cerebro_test_bot' });
+    case 'getMe': return reply({ id: 999, is_bot: true, first_name: 'Palantir', username: 'cerebro_test_bot' });
     case 'getChat':
       return params.chat_id === '@test_channel' ? reply({ id: CHANNEL, type: 'channel', title: 'Test kanal' }) : fail(400, 'Bad Request: chat not found');
-    case 'getChatMember': return reply({ status: 'administrator', can_post_messages: true, user: { id: 999, is_bot: true, first_name: 'Cerebro' } });
+    case 'getChatMember': return reply({ status: 'administrator', can_post_messages: true, user: { id: 999, is_bot: true, first_name: 'Palantir' } });
     case 'getFile': {
       const doc = tgFiles.get(String(params.file_id));
       return reply({ file_id: params.file_id, file_unique_id: 'u1', file_size: doc?.length ?? VOICE_BYTES.length, file_path: doc ? `doc/${String(params.file_id)}` : 'voice/file_1.oga' });
@@ -155,8 +155,8 @@ export const addedToChannel = (by: number) => updates.push({
   update_id: updateId++,
   my_chat_member: {
     chat: { id: CHANNEL - 1, type: 'channel', title: 'Ikkinchi kanal' }, from: user(by), date: 0,
-    old_chat_member: { status: 'left', user: { id: 999, is_bot: true, first_name: 'Cerebro' } },
-    new_chat_member: { status: 'administrator', can_post_messages: true, user: { id: 999, is_bot: true, first_name: 'Cerebro' } },
+    old_chat_member: { status: 'left', user: { id: 999, is_bot: true, first_name: 'Palantir' } },
+    new_chat_member: { status: 'administrator', can_post_messages: true, user: { id: 999, is_bot: true, first_name: 'Palantir' } },
   },
 });
 
@@ -336,7 +336,7 @@ export const ai = {
   calls: 0,
   requests: [] as { system: string; messages: Msg[]; tools: Block[]; beta: string; thinking: unknown; effort?: string }[],
   violations: [] as string[],
-  /** Mijozga javob so'rovlari (Cerebro biznes nomidan yozadi) */
+  /** Mijozga javob so'rovlari (Palantir biznes nomidan yozadi) */
   replier: [] as { user: string; format: unknown }[],
   /** Stend: taqlid miya (scripts/stendBrain.ts). Berilsa — pastdagi kalit so'zli qoidalar o'rniga shu javob beradi */
   owner: null as ((messages: Msg[], tools: Block[], system: string) => { content: Block[]; stop: string }) | null,

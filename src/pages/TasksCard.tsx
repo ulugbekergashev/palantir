@@ -102,7 +102,7 @@ export function TasksCard({ now, notify, onChanged }: { now: Date; notify: Notif
   const rows = (items: Task[]) => <ul className="divide-y divide-slate-100">{items.map(t => <TaskRow key={t.id} task={t} now={now} onChange={replace} notify={notify} />)}</ul>;
 
   return (
-    <Card title={`Vazifalar${open.length ? ` (${open.length})` : ''}`} description="Muddati kelganda Cerebro Telegram'ga eslatadi. Yordamchiga «juma kuni 11 da soliq hisobotini eslat» desangiz ham shu yerga tushadi.">
+    <Card title={`Vazifalar${open.length ? ` (${open.length})` : ''}`} description="Muddati kelganda Palantir Telegram'ga eslatadi. Yordamchiga «juma kuni 11 da soliq hisobotini eslat» desangiz ham shu yerga tushadi.">
       <form onSubmit={add} className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
         <TextInput value={title} onChange={e => setTitle(e.target.value)} placeholder="Yangi vazifa…" aria-label="Vazifa" maxLength={200} />
         <input type="datetime-local" aria-label="Muddat" className={controlClass} value={due} onChange={e => setDue(e.target.value)} />

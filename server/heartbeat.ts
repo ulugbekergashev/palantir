@@ -1,5 +1,5 @@
 /**
- * Cerebro Hub'ga holat: ishga tushganda va keyin HEARTBEAT_MS (5 daqiqa) da — versiya, baza nashri, qachondan beri ishlayapti,
+ * Palantir Hub'ga holat: ishga tushganda va keyin HEARTBEAT_MS (5 daqiqa) da — versiya, baza nashri, qachondan beri ishlayapti,
  * diskdagi joy va kanallardagi ochiq muammolar. Hub kompyuter o'chib qolganini shu va /api/pull dan biladi va sotuvchiga aytadi
  * (o'chgan kompyuter o'zi ayta olmaydi). Mijozlar, xabarlar va ismlar yuborilmaydi. Hub kodi kiritilmagan bo'lsa — hech narsa.
  */

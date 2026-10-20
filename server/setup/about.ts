@@ -1,5 +1,5 @@
 /**
- * «Biznes haqida» sahifasi (ikkinchi miya): manzil, ish vaqti, telefon. Cerebro mijozlarga shu sahifadan javob beradi.
+ * «Biznes haqida» sahifasi (ikkinchi miya): manzil, ish vaqti, telefon. Palantir mijozlarga shu sahifadan javob beradi.
  * Anketa va egasining javoblari shu yerga qator-qator yoziladi; egasining o'zi yozgan matniga tegilmaydi.
  */
 import { ABOUT_TITLE, sameQuestion } from '../brain/logic';

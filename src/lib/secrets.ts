@@ -20,7 +20,7 @@ export const KEYS: KeyInfo[] = [
   { name: 'SPEECHLAB_API_KEY', label: 'SpeechLab kaliti', where: "speechlab.uz → Integratsiyalar → API (qo'ng'iroq qilib eslatish)" },
   { name: 'TG_API_ID', label: 'Telegram API ID', where: 'my.telegram.org → API development tools (shaxsiy Telegram)' },
   { name: 'TG_API_HASH', label: 'Telegram API hash', where: 'my.telegram.org → API development tools (shaxsiy Telegram)' },
-  { name: 'CEREBRO_HUB', label: 'Cerebro Hub kodi', where: "Cerebro Hub admini beradi (rasmiy Instagram: Meta xabarlarini klinikaga yetkazadi) — «chub.» bilan boshlanadi" },
+  { name: 'CEREBRO_HUB', label: 'Palantir Hub kodi', where: "Palantir Hub admini beradi (rasmiy Instagram: Meta xabarlarini klinikaga yetkazadi) — «chub.» bilan boshlanadi" },
 ];
 export const keyInfo = (name: KeyName): KeyInfo => KEYS.find(k => k.name === name)!;
 export const isKeyName = (v: unknown): v is KeyName => KEYS.some(k => k.name === v);

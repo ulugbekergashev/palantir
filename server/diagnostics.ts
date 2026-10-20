@@ -29,7 +29,7 @@ export function diagnostics(now = new Date()): { name: string; text: string } {
   };
   const mb = (n: number) => `${Math.round(n / 1_048_576)} MB`;
   const text = [
-    `Cerebro diagnostika — ${now.toISOString()}`,
+    `Palantir diagnostika — ${now.toISOString()}`,
     '',
     '## Holat',
     JSON.stringify(status, null, 2),

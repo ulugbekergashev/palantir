@@ -1,6 +1,6 @@
 /**
  * Haqiqiy DentaCRM bilan jonli sinov (har bir klinikaga o'rnatishda ishlatiladi):
- *   Cerebro serveri vaqtinchalik bazada ko'tariladi, Claude — soxta (pul ketmaydi), DentaCRM — haqiqiy.
+ *   Palantir serveri vaqtinchalik bazada ko'tariladi, Claude — soxta (pul ketmaydi), DentaCRM — haqiqiy.
  *   Ulash → kun hisoboti → bemor qidirish → bo'sh vaqtlar → (CRM_WRITE=1 bo'lsa) qabulga yozish va rad etilishi kerak holatlar.
  *
  * Ishga tushirish:
@@ -129,7 +129,7 @@ try {
     const doctor = free.result.doctors.find((d: Json) => d.slots.length >= 4) ?? free.result.doctors[0];
     const [s1, s2, s3] = [doctor.slots[1], doctor.slots[2], doctor.slots[3]];
     const patient = byName.result.patients[0];
-    const first = await book({ patient_id: patient.patient_id, doctor_id: doctor.doctor_id, date: tomorrow, time: s1, type: 'Cerebro sinov' });
+    const first = await book({ patient_id: patient.patient_id, doctor_id: doctor.doctor_id, date: tomorrow, time: s1, type: 'Palantir sinov' });
     ok(`mavjud bemor yozildi: ${patient.name} → ${doctor.doctor}, ${tomorrow} ${s1}`, !first.isError && first.result.booked?.time === s1, first.isError ? String(first.result) : `qabul ${String(first.result.booked.appointment_id).slice(0, 8)}`);
     const after = await tool(`klinika kuni {"date":"${tomorrow}"}`);
     const seen = after.result?.doctors?.flatMap((d: Json) => d.appointments).find((a: Json) => a.time === s1 && a.patient === first.result?.booked?.patient);
@@ -139,13 +139,13 @@ try {
     const again = await book({ patient_id: patient.patient_id, doctor_id: doctor.doctor_id, date: tomorrow, time: s3 });
     ok('shu bemor shu kunga ikkinchi marta yozilmaydi', again.isError && String(again.result).includes('allaqachon'), String(again.result));
     const phone = `+99899${String(Date.now()).slice(-7)}`;
-    const clash = await book({ new_patient: { first_name: 'Cerebro', last_name: 'Band', phone: `+99898${String(Date.now()).slice(-7)}` }, doctor_id: doctor.doctor_id, date: tomorrow, time: s1 });
+    const clash = await book({ new_patient: { first_name: 'Palantir', last_name: 'Band', phone: `+99898${String(Date.now()).slice(-7)}` }, doctor_id: doctor.doctor_id, date: tomorrow, time: s1 });
     ok('band vaqtga boshqa bemor yozilmaydi (yangi bemor ham yaratilmaydi)', clash.isError && String(clash.result).includes('band'), String(clash.result));
-    const fresh = await book({ new_patient: { first_name: 'Cerebro', last_name: 'Sinov', phone }, doctor_id: doctor.doctor_id, date: tomorrow, time: s2, type: 'Cerebro sinov' });
+    const fresh = await book({ new_patient: { first_name: 'Palantir', last_name: 'Sinov', phone }, doctor_id: doctor.doctor_id, date: tomorrow, time: s2, type: 'Palantir sinov' });
     ok(`yangi bemor yaratildi va yozildi: ${tomorrow} ${s2}`, !fresh.isError && fresh.result.booked?.time === s2, fresh.isError ? String(fresh.result) : fresh.result.new_patient_created?.name);
     const found = await tool(`bemor top ${JSON.stringify({ query: phone })}`);
     ok('yangi bemor telefon bo\'yicha topiladi', !found.isError && found.result.total === 1, `${found.result?.total} ta`);
-    const dup = await book({ new_patient: { first_name: 'Cerebro', last_name: 'Takror', phone }, doctor_id: doctor.doctor_id, date: tomorrow, time: s3 });
+    const dup = await book({ new_patient: { first_name: 'Palantir', last_name: 'Takror', phone }, doctor_id: doctor.doctor_id, date: tomorrow, time: s3 });
     ok('shu telefon bilan ikkinchi bemor yaratilmaydi', dup.isError && String(dup.result).includes('bazada bor'), String(dup.result));
     const past = await book({ patient_id: patient.patient_id, doctor_id: doctor.doctor_id, date: iso(new Date(Date.now() - 86_400_000)), time: '10:00' });
     ok("o'tgan kunga yozilmaydi", past.isError, String(past.result));
@@ -156,21 +156,21 @@ try {
     const money = (id: string, verb: string) => api(`/api/crm/money/${id}/${verb}`, { token, body: {} });
     const revenue = async () => (await tool(`klinika kuni {"date":"${today}"}`)).result.revenue.total as number;
     const before = await revenue();
-    const pay = await tool(`to'lov yoz ${JSON.stringify({ patient_id: patient.patient_id, amount: 123000, method: 'Card', service: 'Cerebro sinov', doctor_id: doctor.doctor_id })}`);
+    const pay = await tool(`to'lov yoz ${JSON.stringify({ patient_id: patient.patient_id, amount: 123000, method: 'Card', service: 'Palantir sinov', doctor_id: doctor.doctor_id })}`);
     ok("record_payment: taklif tayyorlandi, tushum o'zgarmadi", !pay.isError && pay.result.status === 'waiting_for_owner' && await revenue() === before, pay.isError ? String(pay.result) : pay.result.summary.join('; '));
     const paid = await money(pay.result.draft_id, 'confirm');
     ok("tasdiqlangach: bugungi tushum 123 000 so'mga oshdi", paid.status === 200 && paid.json.entry?.status === 'done' && await revenue() === before + 123000, paid.status === 200 ? '' : String(paid.json.error));
     ok('ikkinchi marta tasdiqlab bo\'lmaydi', (await money(pay.result.draft_id, 'confirm')).status === 409 && await revenue() === before + 123000);
     const back = await money(pay.result.draft_id, 'undo');
     ok("ortga qaytarildi: tushum avvalgi holiga keldi", back.status === 200 && back.json.entry?.status === 'undone' && await revenue() === before, back.status === 200 ? '' : String(back.json.error));
-    const spend = await tool('xarajat yoz {"amount":45000,"category":"Other","title":"Cerebro sinov xarajati"}');
+    const spend = await tool('xarajat yoz {"amount":45000,"category":"Other","title":"Palantir sinov xarajati"}');
     const spent = await money(spend.result?.draft_id, 'confirm');
     ok("record_expense: xarajat yozildi", !spend.isError && spent.status === 200 && spent.json.entry?.status === 'done', spent.status === 200 ? spent.json.entry.details.join('; ') : String(spent.json.error));
-    const twin = await tool('xarajat yoz {"amount":45000,"category":"Other","title":"Cerebro sinov xarajati"}');
+    const twin = await tool('xarajat yoz {"amount":45000,"category":"Other","title":"Palantir sinov xarajati"}');
     const twinRefused = await money(twin.result?.draft_id, 'confirm');
     ok("aynan shunday xarajat ikkinchi marta yozilmaydi (CRM'dagi ro'yxatdan tekshiriladi)", twinRefused.status === 409 && String(twinRefused.json.error).includes('allaqachon bor'), String(twinRefused.json.error));
     ok("xarajat ortga qaytarildi", (await money(spend.result?.draft_id, 'undo')).json.entry?.status === 'undone');
-    const rewritten = await money((await tool('xarajat yoz {"amount":45000,"category":"Other","title":"Cerebro sinov xarajati"}')).result?.draft_id, 'confirm');
+    const rewritten = await money((await tool('xarajat yoz {"amount":45000,"category":"Other","title":"Palantir sinov xarajati"}')).result?.draft_id, 'confirm');
     ok("o'chirilgach xuddi shu xarajatni yana yozsa bo'ladi (o'chirish haqiqatan ishlagan)", rewritten.status === 200, String(rewritten.json.error ?? ''));
     await money(rewritten.json.entry?.id, 'undo');
     const share = await tool(`maosh ber ${JSON.stringify({ doctor_id: doctor.doctor_id, amount: 67000 })}`);
@@ -178,7 +178,7 @@ try {
     ok("pay_doctor: shifokorga to'lov yozildi", !share.isError && shared.status === 200, share.isError ? String(share.result) : shared.status === 200 ? shared.json.entry.details.join('; ') : String(shared.json.error));
     ok("shifokorga to'lov ortga qaytarildi", (await money(share.result?.draft_id, 'undo')).json.entry?.status === 'undone');
 
-    console.log('\n# Resepshn: bemor botga yozadi, Cerebro CRM\'ga yozadi');
+    console.log('\n# Resepshn: bemor botga yozadi, Palantir CRM\'ga yozadi');
     const textOf = (s: Sent) => String(s.params.text ?? s.params.caption ?? '');
     const got = (mark: number, chat: number, pred: (s: Sent) => boolean) => sent.slice(mark).find(s => Number(s.params.chat_id) === chat && pred(s));
     const me = (await api('/api/me', { token })).json.status;
