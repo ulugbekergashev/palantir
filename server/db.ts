@@ -12,6 +12,7 @@ import type {
 } from '../src/types';
 import type { Call, CallLine, Camera, CameraSession, CameraZone, Knowledge, KnowledgeKind, ZoneKind } from '../src/types';
 import { phoneKey } from '../src/lib/phone';
+import { iso } from '../src/lib/week';
 import { env } from './env';
 import { EXIT_DO_NOT_RESTART } from './guard';
 import { SchemaTooNew, migrate } from './migrate';
@@ -725,6 +726,7 @@ CREATE TABLE IF NOT EXISTS voice_bookings (id TEXT PRIMARY KEY, business_id TEXT
 CREATE INDEX IF NOT EXISTS calls_day ON calls (business_id, started_at);
 `);
 ensureColumns('cameras', { seen_from: 'TEXT', stream: 'TEXT', stream_host: 'TEXT', profile: 'TEXT' });
+db.exec('CREATE TABLE IF NOT EXISTS camera_days (business_id TEXT NOT NULL, camera_id TEXT NOT NULL, date TEXT NOT NULL, from_at TEXT NOT NULL, to_at TEXT NOT NULL, PRIMARY KEY (camera_id, date))');
 
 /** Buzilgan JSON butun sahifani yiqitmasin: o'qilmasa — bo'sh ro'yxat */
 const list = <T,>(v: unknown): T[] => { try { const p = JSON.parse(String(v ?? '[]')); return Array.isArray(p) ? p : []; } catch { return []; } };
@@ -748,8 +750,19 @@ export const cameras = {
   stream: (businessId: string, id: string) => one('SELECT stream FROM cameras WHERE business_id = ? AND id = ?', r => str(r.stream), businessId, id) ?? null,
   /** Hamma bizneslarning IP kameralari (kamera dvigateli uchun) */
   streams: () => many('SELECT id, business_id, stream FROM cameras WHERE stream IS NOT NULL', r => ({ id: String(r.id), businessId: String(r.business_id), stream: String(r.stream) })),
-  /** Kadr keldi. seenFrom — uzluksiz kadr oqimi boshlangan payt (uzilishdan keyin yangilanadi) */
-  seen: (businessId: string, id: string, at: string, seenFrom: string) => run('UPDATE cameras SET last_seen_at = ?, seen_from = ? WHERE business_id = ? AND id = ?', at, seenFrom, businessId, id),
+  /**
+   * Kadr keldi. seenFrom — uzluksiz kadr oqimi boshlangan payt (uzilishdan keyin yangilanadi). Kunlik qamrov (camera_days) ham yoziladi:
+   * kamera shu kuni oxirgi marta qachondan qachongacha uzluksiz ko'rgan — o'tgan kunlar aniqligini o'lchash uchun (camera/accuracy.ts)
+   */
+  seen(businessId: string, id: string, at: string, seenFrom: string): void {
+    run('UPDATE cameras SET last_seen_at = ?, seen_from = ? WHERE business_id = ? AND id = ?', at, seenFrom, businessId, id);
+    const day = iso(new Date(at)), from = iso(new Date(seenFrom)) === day ? seenFrom : new Date(`${day}T00:00:00`).toISOString();
+    run(`INSERT INTO camera_days (business_id, camera_id, date, from_at, to_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT (camera_id, date) DO UPDATE SET from_at = excluded.from_at, to_at = excluded.to_at`, businessId, id, day, from, at);
+  },
+  /** Kamera shu kuni uzluksiz ko'rgan oxirgi oraliq (yo'q — null) */
+  coverage: (businessId: string, id: string, day: string) =>
+    one('SELECT from_at, to_at FROM camera_days WHERE business_id = ? AND camera_id = ? AND date = ?', r => ({ from: String(r.from_at), to: String(r.to_at) }), businessId, id, day) ?? null,
   remove(businessId: string, id: string): void {
     run('DELETE FROM camera_sessions WHERE business_id = ? AND camera_id = ?', businessId, id);
     run('DELETE FROM cameras WHERE business_id = ? AND id = ?', businessId, id);

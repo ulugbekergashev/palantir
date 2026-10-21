@@ -8,7 +8,9 @@ export type ToEngine = { type: 'cameras'; list: EngineCamera[]; ffmpeg: string; 
 export type FromEngine =
   | { type: 'seen'; id: string; people: Box[]; look?: Look }
   | { type: 'state'; id: string; state: 'connecting' | 'ok' | 'error'; message: string | null }
-  | { type: 'fatal'; message: string };
+  | { type: 'fatal'; message: string }
+  /** Yuklama (har statsSec da): ffmpeg bergan kadrlar, model ishlagan kadrlar va aniqlashga ketgan jami vaqt (ms) */
+  | { type: 'stats'; windowSec: number; cameras: { id: string; received: number; done: number; detectMs: number }[] };
 
 /** Dvigatel jarayoni shu o'zgaruvchi bilan ishga tushiriladi (fayl shunchaki import qilinganda ishlab ketmasin) */
 export const ENGINE_FLAG = 'PALANTIR_CAMERA_ENGINE';

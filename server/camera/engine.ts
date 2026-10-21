@@ -24,7 +24,11 @@ const IDLE_MS = 200;
 const send = (m: FromEngine) => { try { process.send?.(m); } catch { /* server yopilgan */ } };
 
 /** flip — HTTP manzil turi taxmini (surat yoki MJPEG) ishlamadi, boshqasi sinalmoqda; framed — shu ffmpeg jarayonidan kadr keldi */
-interface Feed { cam: EngineCamera; proc: ChildProcess | null; pending: Buffer; latest: Buffer | null; lastFrameAt: number; wait: number; timer: NodeJS.Timeout | null; state: string; flip: boolean; framed: boolean }
+interface Feed {
+  cam: EngineCamera; proc: ChildProcess | null; pending: Buffer; latest: Buffer | null; lastFrameAt: number; wait: number; timer: NodeJS.Timeout | null; state: string; flip: boolean; framed: boolean;
+  /** Yuklama hisobi (stats): ffmpeg bergan va model ishlagan kadrlar, aniqlashga ketgan vaqt */
+  received: number; done: number; detectMs: number;
+}
 const feeds = new Map<string, Feed>();
 let ffmpeg = 'ffmpeg';
 let testInput: string[] | null = null;
@@ -57,6 +61,7 @@ function start(f: Feed): void {
     // Faqat eng yangi to'liq kadr qoladi: model ulgurmasa eski kadrlar tashlab ketiladi
     const whole = Math.floor(f.pending.length / FRAME_BYTES);
     f.latest = Buffer.from(f.pending.subarray((whole - 1) * FRAME_BYTES, whole * FRAME_BYTES));
+    f.received += whole;
     f.pending = Buffer.from(f.pending.subarray(whole * FRAME_BYTES));
     f.lastFrameAt = Date.now();
     f.wait = RESTART_MIN_MS;
@@ -95,7 +100,7 @@ function sync(list: EngineCamera[]): void {
   }
   for (const cam of list) {
     if (feeds.has(cam.id)) continue;
-    const f: Feed = { cam, proc: null, pending: Buffer.alloc(0), latest: null, lastFrameAt: Date.now(), wait: RESTART_MIN_MS, timer: null, state: '', flip: false, framed: false };
+    const f: Feed = { cam, proc: null, pending: Buffer.alloc(0), latest: null, lastFrameAt: Date.now(), wait: RESTART_MIN_MS, timer: null, state: '', flip: false, framed: false, received: 0, done: 0, detectMs: 0 };
     feeds.set(cam.id, f);
     start(f);
   }
@@ -164,6 +169,13 @@ async function main(): Promise<void> {
     sync(m.list);
   });
   const detect = await loadDetector();
+  // Yuklama: model ulgurmasa kadrlar tashlab ketiladi — buni ko'rsatish uchun (panel → Kuzatuvchi → Kompyuter yuklamasi)
+  const statsSec = Number(process.env.CAMERA_STATS_SEC) || 60;
+  setInterval(() => {
+    const cameras = [...feeds.values()].map(f => ({ id: f.cam.id, received: f.received, done: f.done, detectMs: Math.round(f.detectMs) }));
+    for (const f of feeds.values()) { f.received = 0; f.done = 0; f.detectMs = 0; }
+    if (cameras.length) send({ type: 'stats', windowSec: statsSec, cameras });
+  }, statsSec * 1000).unref();
   setInterval(() => {
     for (const f of feeds.values()) if (f.proc && Date.now() - f.lastFrameAt > SILENCE_MS) { setState(f, 'error', 'kadr kelmayapti'); f.proc.kill(); }
   }, 5_000);
@@ -174,7 +186,11 @@ async function main(): Promise<void> {
       if (!frame) continue;
       f.latest = null;
       worked = true;
-      send({ type: 'seen', id: f.cam.id, look: lookOf(frame), people: await detect(frame) });
+      const t0 = performance.now();
+      const people = await detect(frame);
+      f.done++;
+      f.detectMs += performance.now() - t0;
+      send({ type: 'seen', id: f.cam.id, look: lookOf(frame), people });
     }
     if (!worked) await new Promise(r => setTimeout(r, IDLE_MS));
   }

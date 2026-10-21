@@ -12,10 +12,12 @@ import { crmConnected, withCrm } from '../crm/index';
 import { businesses, cameraSessions, cameras, newId, type BusinessRow } from '../db';
 import { env } from '../env';
 import { open, seal } from '../secret';
-import { checkStreamHost, feedOf, ffmpegAvailable, parseStream, snapshot, startCameraEngine, syncEngine } from './stream';
+import { TARGET_FRAMES_PER_MIN, cameraLoad, checkStreamHost, feedOf, ffmpegAvailable, parseStream, snapshot, startCameraEngine, syncEngine } from './stream';
 import { candidatePaths, discoverCameras, onvifStreamUri, withCredentials } from './discover';
 import { loginBlocked, loginFailed, loginOk } from '../auth';
 import { findings, reconcile, unbilled, type Sitting } from './reconcile';
+import { cameraAccuracy } from './accuracy';
+import { systemLoad } from '../load';
 import { flush, step, type States, type ZoneEvent } from './sessions';
 import { orders } from '../orders/store';
 import { forgetWatchCache } from '../orders/watch';
@@ -385,5 +387,19 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
     const p = DaySchema.safeParse(req.query.date ?? iso(new Date()));
     if (!p.success) return bad(res, p.error);
     res.json({ summary: await daySummary(biz, p.data) });
+  }));
+
+  // Kompyuter yuklamasi va har IP kamerada kadrlar ulgurilyaptimi (daqiqasiga 30 kutiladi)
+  app.get('/api/cameras/load', asBiz((_req, res, biz) => {
+    res.json({
+      system: systemLoad(), target: TARGET_FRAMES_PER_MIN,
+      cameras: cameras.list(biz.id).filter(c => !!c.ip).map(c => ({ id: c.id, name: c.name, ...(cameraLoad(c.id) ?? { framesPerMin: null, receivedPerMin: null, detectMs: null }) })),
+    });
+  }));
+
+  // Pilotda o'lchash: oxirgi kunlarda kamera DentaCRM qabullarini qanchalik topdi (camera/accuracy.ts)
+  app.get('/api/cameras/accuracy', asBiz(async (req, res, biz) => {
+    const days = Math.min(30, Math.max(1, Number(req.query.days) || 7));
+    res.json({ accuracy: await cameraAccuracy(biz, days) });
   }));
 }

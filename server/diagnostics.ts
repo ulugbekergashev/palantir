@@ -11,6 +11,7 @@ import { iso } from '../src/lib/week';
 import { env, voiceEnabled } from './env';
 import { heartbeatStatus } from './heartbeat';
 import { logDir, scrub } from './log';
+import { systemLoad } from './load';
 
 const tail = (file: string, lines: number): string => {
   if (!existsSync(file)) return '(yo\'q)';
@@ -35,6 +36,7 @@ export function diagnostics(now = new Date()): { name: string; text: string } {
     JSON.stringify(status, null, 2),
     '',
     '## Kompyuter',
+    `Yuklama: ${JSON.stringify(systemLoad())}`,
     `Node ${process.version} · ${platform()} ${release()} ${arch()} · xotira ${mb(freemem())} bo'sh / ${mb(totalmem())} · yoniq ${Math.round(uptime() / 3600)} soat · server ${Math.round(process.uptime() / 60)} daqiqa`,
     '',
     '## Sozlamalar (kalitlarsiz)',

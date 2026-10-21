@@ -581,3 +581,16 @@ export interface SetupView {
   prices: number;
   status: LiveStatus;
 }
+
+/** Kamera aniqligi (server/camera/accuracy.ts): oxirgi kunlarda DentaCRM qabullarini qanchalik topdi */
+export interface AccuracyDay { date: string; found: number; missed: number; extra: number; unbilled: number }
+export interface CameraAccuracy {
+  days: AccuracyDay[];
+  /** Topildi / (topildi + topilmadi); o'lchab bo'lmasa — null */
+  recall: number | null;
+  extraPerDay: number;
+  unbilledPerDay: number;
+  targets: { recall: number; unbilledPerDay: number };
+  /** Kamera ko'rgan, lekin DentaCRM javob bermagan kunlar */
+  skipped: string[];
+}

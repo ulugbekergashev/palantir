@@ -7,8 +7,8 @@
  */
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowUp, CircleAlert, CircleCheck, Loader2, ScanEye, Users, Video } from 'lucide-react';
-import type { Attendance, Camera, CameraSummary } from '../../types';
-import { api } from '../../data/api';
+import type { Attendance, Camera, CameraAccuracy, CameraSummary } from '../../types';
+import { api, type CameraLoadView } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { AgentOrb, HUE, Panel, Quiet, clock } from '../../components/agent';
 import { AgentJournal } from '../../components/Journal';
@@ -131,6 +131,62 @@ function Findings({ s }: { s: CameraSummary | null | undefined }) {
   ) : <Quiet>{s?.crm ? "Bugun kamera va DentaCRM o'rtasida farq yo'q." : "DentaCRM ulansa, kamera ko'rganini qabul va to'lovlar bilan solishtiradi."}</Quiet>;
 }
 
+/** Kompyuter yuklamasi: protsessor, xotira va har IP kamerada kadrlar ulgurilyaptimi (model ulgurmasa kadr tashlab ketiladi) */
+function Load() {
+  const [l, setL] = useState<CameraLoadView | null>(null);
+  useEffect(() => {
+    const read = () => { api.cameraLoad().then(setL).catch(() => {}); };
+    read();
+    const t = setInterval(read, 30_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!l) return <Loader2 className="h-5 w-5 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" />;
+  const slow = l.cameras.filter(c => c.framesPerMin !== null && c.framesPerMin < l.target * 0.8);
+  return (
+    <div className="flex flex-col gap-3">
+      <dl className="grid grid-cols-2 gap-3">
+        <Stat label={`protsessor (${l.system.cores} yadro)`} value={l.system.cpuPct === null ? '—' : `${l.system.cpuPct}%`} warn={(l.system.cpuPct ?? 0) > 85} />
+        <Stat label="xotira band" value={`${(l.system.memUsedMb / 1024).toFixed(1)} / ${(l.system.memTotalMb / 1024).toFixed(1)} GB`} warn={l.system.memUsedMb > l.system.memTotalMb * 0.9} />
+      </dl>
+      {l.cameras.length > 0 && (
+        <ul className="flex flex-col gap-1 text-[13px] text-[#a3a9b5]">
+          {l.cameras.map(c => (
+            <li key={c.id} className="flex justify-between gap-2"><span className="truncate">{c.name}</span>
+              <span className={`tabular-nums ${c.framesPerMin !== null && c.framesPerMin < l.target * 0.8 ? 'text-[#fbd38d]' : ''}`}>
+                {c.framesPerMin === null ? 'hisob hali yo\'q' : `${c.framesPerMin}/${l.target} kadr/daq${c.detectMs ? ` · ${c.detectMs} ms` : ''}`}
+              </span></li>
+          ))}
+        </ul>
+      )}
+      {slow.length > 0 && <p className="text-[12px] text-[#fbd38d]">Kompyuter ulgurmayapti: kadrlar tashlab ketilmoqda — kameralar sonini kamaytiring yoki kuchliroq kompyuter qo'ying.</p>}
+    </div>
+  );
+}
+
+/** Pilotda o'lchash: oxirgi 7 kunda kamera DentaCRM qabullarini qanchalik topdi (maqsad — reja, 6-bosqich) */
+function Accuracy() {
+  const [a, setA] = useState<CameraAccuracy | null | undefined>(undefined);
+  useEffect(() => { api.cameraAccuracy().then(r => setA(r.accuracy)).catch(() => setA(null)); }, []);
+  if (a === undefined) return <Loader2 className="h-5 w-5 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" />;
+  if (a === null) return <Quiet>DentaCRM ulansa, kamera topgan o'tirishlar qabullar bilan solishtirib o'lchanadi.</Quiet>;
+  if (!a.days.length) return <Quiet>Hali o'lchanmagan — kamera kamida bir to'liq kun ishlasin (bugungi kun hisobga kirmaydi).</Quiet>;
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  return (
+    <div className="flex flex-col gap-3">
+      <dl className="grid grid-cols-3 gap-3">
+        <Stat label="qabullar topildi" hint={`maqsad ≥ ${pct(a.targets.recall)}`} value={a.recall === null ? '—' : pct(a.recall)} warn={a.recall !== null && a.recall < a.targets.recall} />
+        <Stat label="«to'lovsiz» kuniga" hint={`maqsad ≤ ${a.targets.unbilledPerDay}`} value={a.unbilledPerDay.toFixed(1)} warn={a.unbilledPerDay > a.targets.unbilledPerDay} />
+        <Stat label="CRM'da yo'q o'tirish kuniga" value={a.extraPerDay.toFixed(1)} />
+      </dl>
+      <table className="w-full text-left text-[12px] tabular-nums text-[#a3a9b5]">
+        <thead><tr className="text-[#7d838f]"><th className="font-normal">Kun</th><th className="font-normal">topildi</th><th className="font-normal">topilmadi</th><th className="font-normal">ortiqcha</th><th className="font-normal">to'lovsiz</th></tr></thead>
+        <tbody>{a.days.map(d => <tr key={d.date}><td>{d.date.slice(5)}</td><td>{d.found}</td><td className={d.missed ? 'text-[#fbd38d]' : ''}>{d.missed}</td><td>{d.extra}</td><td className={d.unbilled > a.targets.unbilledPerDay ? 'text-[#fbd38d]' : ''}>{d.unbilled}</td></tr>)}</tbody>
+      </table>
+      {a.skipped.length > 0 && <p className="text-[12px] text-[#7d838f]">DentaCRM javob bermagan kunlar o'lchanmadi: {a.skipped.join(', ')}</p>}
+    </div>
+  );
+}
+
 function Stat({ label, value, hint, warn = false }: { label: string; value: string; hint?: string; warn?: boolean }) {
   return (
     <div className="flex flex-col gap-1">
@@ -231,6 +287,8 @@ export function WatchNow({ data, notify, tick }: { data: WatchData | null; notif
             <div className="max-h-[420px] overflow-y-auto pr-1"><AgentJournal member="kuzatuvchi" notify={notify} tick={tick} empty="Hali hodisa yo'q. «Topshiriqlar»da yozing — masalan, kechasi odam ko'rinsa xabar bersin." /></div>
           </Panel>
           <Panel title="DentaCRM bilan solishtirish"><Findings s={s} /></Panel>
+          <Panel title="Kamera aniqligi — 7 kun"><Accuracy /></Panel>
+          {data?.cameras.some(c => c.ip) && <Panel title="Kompyuter yuklamasi"><Load /></Panel>}
           <Panel title="Kreslo va kutish"><Occupancy s={s} /></Panel>
           {s?.attendance?.length ? <Panel title="Xodimlar"><Staff list={s.attendance} /></Panel> : null}
         </div>

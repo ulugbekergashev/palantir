@@ -15,7 +15,7 @@ import { iso, stamp } from '../src/lib/week';
 import { CUSTOMER, OWNER, TG_SESSION, VOICE_BYTES, addedToChannel, ai, aiServer, igWeb, igWebServer, listen, press, say, sendAudio, sendDocument, sendPhoto, sendVoice, sent, shareContact, sleep, speechlab, speechlabServer, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, type Sent, stopProcess } from './fakes';
 import { crm, crmServer } from './fakeCrm';
 import { crmConnectTests, crmLogicTests, crmReceptionTests, crmToolTests, type Harness } from './e2e-crm';
-import { cameraApiTests, cameraLogicTests, cameraToolTests, commandTests, journalTests } from './e2e-camera';
+import { cameraAccuracyTests, cameraApiTests, cameraLogicTests, cameraToolTests, commandTests, journalTests } from './e2e-camera';
 import { brainApiTests, brainFlowTests, brainLogicTests, brainVaultTests } from './e2e-brain';
 import { mirrorTests } from './e2e-mirror';
 import { orderApiTests, orderLogicTests } from './e2e-orders';
@@ -134,6 +134,7 @@ try {
   await brainApiTests(crmHarness);
   await brainVaultTests(crmHarness);
   crm.seedHistory(n => iso(new Date(Date.now() - n * 86_400_000)));
+  await cameraAccuracyTests(crmHarness);
 
   console.log('\n# Telegram: egasi ulanadi, ertalabki xulosa');
   let mark = sent.length;
