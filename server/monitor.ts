@@ -1,11 +1,13 @@
 /**
- * Kanallar nazorati: har daqiqada har bir biznesning ulanishlari tekshiriladi — DentaCRM (bitta yengil so'rov bilan), rasmiy Instagram
+ * Kanallar nazorati: har daqiqada har bir biznesning ulanishlari tekshiriladi — kompyuter diski, DentaCRM (bitta yengil so'rov bilan), rasmiy Instagram
  * va Palantir Hub, MicroSIP, IP kameralar. Muammo GRACE dan uzoq davom etsa — egasiga bir marta xabar; tiklansa — «yana ishlayapti».
  * Bir lahzalik uzilish bezovta qilmaydi. Brauzerdagi Instagram va shaxsiy Telegram o'zlari xabar beradi — bu yerda takrorlanmaydi.
  */
 import { iso } from '../src/lib/week';
 import { businesses, cameras, connections, sql, type BusinessRow } from './db';
 import { crmConnected, crmStatus, withCrm } from './crm/index';
+import { diskProblem } from './disk';
+import { env } from './env';
 import { notifyOwner } from './inbox/core';
 import { hubProblem } from './inbox/instagramApi';
 import { phoneProblem } from './phone/index';
@@ -27,8 +29,8 @@ interface Check { key: string; label: string; problem: string | null }
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /** Biznesning hozirgi holati (har kanal: muammo yoki null) */
-async function checks(biz: BusinessRow, now: number): Promise<Check[]> {
-  const out: Check[] = [];
+async function checks(biz: BusinessRow, now: number, disk: string | null): Promise<Check[]> {
+  const out: Check[] = [{ key: 'disk', label: 'Kompyuter diski', problem: disk }];
   if (crmConnected(biz.id)) {
     // Yengil so'rov: bugungi qabullar (kesh yo'q) — CRM javob bermasa yoki kirishni rad etsa, withCrm muammoni belgilaydi
     await Promise.race([withCrm(biz.id, crm => crm.appointments(iso(new Date(now)))).catch(() => null), new Promise(r => setTimeout(r, CRM_PROBE_MS).unref())]);
@@ -50,10 +52,12 @@ const stateOf = (bizId: string) => sql.many('SELECT * FROM channel_health WHERE 
   (r): State => ({ key: String(r.key), label: String(r.label), problem: String(r.problem), since: String(r.since), notifiedAt: sql.str(r.notified_at) }), bizId);
 
 export async function monitorOnce(now = Date.now()): Promise<void> {
+  // Bitta kompyuter — bitta disk: har tekshiruvda bir marta o'lchanadi, har biznes egasiga o'z kanallari qatorida aytiladi
+  const disk = diskProblem(env.dataDir, env.diskMinFreeMb);
   for (const biz of businesses.all()) {
     if (!biz.active || !biz.ownerChatId) continue;
     const prev = new Map(stateOf(biz.id).map(s => [s.key, s]));
-    for (const c of await checks(biz, now)) {
+    for (const c of await checks(biz, now, disk)) {
       const was = prev.get(c.key);
       prev.delete(c.key);
       if (!c.problem) {

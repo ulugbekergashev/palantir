@@ -27,7 +27,7 @@ import { judgeLook, type TamperState } from '../server/camera/tamper';
 import { cameraPresets } from '../src/lib/presets';
 import { reportHtml } from '../server/camera/reportText';
 import { cleanSuggestions } from '../server/camera/zoneSuggest';
-import { OWNER, ai, aiServer, listen, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
+import { OWNER, ai, aiServer, listen, say, sent, sleep, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 
 const results: boolean[] = [];
@@ -461,8 +461,7 @@ try {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 }
 
-server.kill();
-await sleep(1500);
+await stopProcess(server);
 const failed = results.filter(r => !r).length;
 console.log(`\n${results.length - failed}/${results.length} o'tdi`);
 if (failed) console.log(log.split('\n').slice(-40).join('\n'));

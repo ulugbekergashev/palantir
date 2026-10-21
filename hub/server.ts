@@ -12,13 +12,26 @@
  *
  * Javobni klinika o'zi yuboradi: graph.instagram.com'ga o'z tokeni bilan (hub orqali emas).
  *
- * Sozlama (muhit o'zgaruvchilari): IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL, HUB_VERIFY_TOKEN, HUB_ADMIN_KEY, PORT, HUB_DB.
+ *   4. Nazorat: klinika har so'rovda «ko'rinadi» (/api/pull ~25 soniyada) va 5 daqiqada /api/heartbeat bilan holatini yuboradi
+ *      (versiya, baza nashri, diskdagi joy, kanallardagi ochiq muammolar — mijoz ma'lumoti emas). HUB_OFFLINE_MS dan beri
+ *      ko'rinmasa — sotuvchiga Telegram'da bir marta (kompyuter o'chgan bo'lsa o'zi ayta olmaydi), qaytsa — «yana aloqada».
+ *      Ro'yxat: GET /admin/clinics (admin kaliti bilan).
+ *   5. Tashqi zaxira: klinika kunlik zaxirasini sotuvchining ochiq kaliti bilan shifrlab /api/backup ga yuboradi — hub uni o'qiy olmaydi,
+ *      faqat saqlaydi (har klinikaga oxirgi HUB_BACKUP_KEEP ta). GET /admin/backups — ro'yxat, /admin/backups/<klinika>/<fayl> — yuklab olish;
+ *      ochish: scripts/restore-backup.ts (sotuvchining maxfiy kaliti bilan).
+ *   6. Diagnostika: egasi botga /diagnostika yozsa (yoki admin panelidan) — klinika holati va jurnallar oxiri /api/diag ga keladi
+ *      (kalitlarsiz); GET /admin/diag — ro'yxat, /admin/diag/<klinika>/<fayl> — o'qish. Har klinikaga oxirgi 10 tasi.
+ *
+ * Sozlama (muhit o'zgaruvchilari): IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL, HUB_VERIFY_TOKEN, HUB_ADMIN_KEY, PORT, HUB_DB;
+ * nazorat uchun HUB_BOT_TOKEN (sotuvchining boti) va HUB_ALERT_CHAT (xabar boradigan chat), HUB_OFFLINE_MS (standart 15 daqiqa).
  * Ishga tushirish: npm run hub
  */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, openSync, closeSync, readFileSync, readSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 const cfg = {
@@ -34,7 +47,20 @@ const cfg = {
   tokenUrl: process.env.IG_TOKEN_URL || 'https://api.instagram.com/oauth/access_token',
   graphUrl: (process.env.IG_GRAPH_URL || 'https://graph.instagram.com').replace(/\/+$/, ''),
   graphVersion: process.env.IG_GRAPH_VERSION || 'v25.0',
+  botToken: process.env.HUB_BOT_TOKEN || '',
+  alertChat: process.env.HUB_ALERT_CHAT || '',
+  // Faqat sinov uchun: soxta Telegram
+  telegramApi: (process.env.HUB_TELEGRAM_API_ROOT || 'https://api.telegram.org').replace(/\/+$/, ''),
+  offlineMs: Number(process.env.HUB_OFFLINE_MS) || 15 * 60_000,
+  watchMs: Number(process.env.HUB_WATCH_MS) || 60_000,
+  backupDir: resolve(process.env.HUB_BACKUP_DIR || join(dirname(resolve(process.env.HUB_DB || 'hub-data/hub.db')), 'zaxira')),
+  backupKeep: Number(process.env.HUB_BACKUP_KEEP) || 7,
+  backupMaxBytes: (Number(process.env.HUB_BACKUP_MAX_MB) || 512) * 1_048_576,
+  diagDir: resolve(process.env.HUB_DIAG_DIR || join(dirname(resolve(process.env.HUB_DB || 'hub-data/hub.db')), 'diagnostika')),
 };
+const DIAG_KEEP = 10;
+/** Tashqi zaxira fayli shu belgi bilan boshlanadi (server/offsiteCrypto.ts) — boshqa narsa saqlanmaydi */
+const BACKUP_MAGIC = Buffer.from('CEREBRO-ZAXIRA-1\n');
 const SCOPES = 'instagram_business_basic,instagram_business_manage_messages';
 const STATE_TTL_MS = 3_600_000;
 const PULL_WAIT_MS = 25_000;
@@ -50,6 +76,11 @@ CREATE TABLE IF NOT EXISTS accounts (ig_user_id TEXT PRIMARY KEY, clinic_id TEXT
 CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, clinic_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS events_clinic ON events (clinic_id, seq);
 CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+// Eski hub bazasiga nazorat ustunlari: status — oxirgi holat (JSON), alerted_at — «aloqa yo'q» aytilgan payt
+{
+  const have = new Set((db.prepare('PRAGMA table_info(clinics)').all() as { name: string }[]).map(c => c.name));
+  for (const [name, type] of [['status', 'TEXT'], ['alerted_at', 'TEXT']]) if (!have.has(name)) db.exec(`ALTER TABLE clinics ADD COLUMN ${name} ${type}`);
+}
 
 /** OAuth holatini imzolash kaliti: birinchi ishga tushishda yaratiladi va bazada qoladi */
 const stateSecret = ((): string => {
@@ -109,6 +140,23 @@ const page = (title: string, text: string) => `<!doctype html><meta charset="utf
 <body style="font:16px system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 16px;color:#13161d"><h1 style="font-size:1.4rem">${title}</h1><p>${text}</p></body>`;
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
+/** Klinika yuborgan holat: faqat ma'lum maydonlar, qisqartirilgan (begona narsa bazaga tushmasin) */
+const text = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : null);
+const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const record = (v: unknown) => (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+function cleanStatus(v: unknown) {
+  const o = record(v);
+  const problems = (Array.isArray(o.problems) ? o.problems : []).slice(0, 20).map(x => {
+    const q = record(x);
+    return { business: text(q.business, 80), label: text(q.label, 80), problem: text(q.problem, 300), since: text(q.since, 40) };
+  });
+  const u = o.lastUpdate ? record(o.lastUpdate) : null;
+  const lastUpdate = u ? { from: text(u.from, 40), to: text(u.to, 40), result: text(u.result, 20), reason: text(u.reason, 500), at: text(u.at, 40) } : null;
+  const b = o.lastOffsite ? record(o.lastOffsite) : null;
+  const lastOffsite = b ? { day: text(b.day, 10), ok: b.ok === true, size: num(b.size), error: text(b.error, 300), at: text(b.at, 40) } : null;
+  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), problems, lastUpdate, lastOffsite, at: now() };
+}
+
 /** OAuth holati: klinika, biznes, muddat — imzolangan (begona odam boshqa klinika nomidan ulay olmasin) */
 const signState = (clinicId: string, businessId: string) => {
   const body = Buffer.from(JSON.stringify({ c: clinicId, b: businessId, e: Date.now() + STATE_TTL_MS, n: randomBytes(6).toString('hex') })).toString('base64url');
@@ -143,6 +191,101 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const id = newId(), secret = randomBytes(24).toString('base64url');
     db.prepare('INSERT INTO clinics (id, name, key_hash, created_at) VALUES (?, ?, ?, ?)').run(id, String(body.name ?? 'Klinika').slice(0, 80), sha(secret), now());
     return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl || `http://127.0.0.1:${cfg.port}`, id, secret) });
+  }
+
+  // Admin: klinikalar — oxirgi ko'ringan payti va holati
+  if (p === '/admin/clinics' && req.method === 'GET') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const rows = db.prepare('SELECT id, name, created_at, seen_at, status FROM clinics ORDER BY name').all() as { id: string; name: string; created_at: string; seen_at: string | null; status: string | null }[];
+    return send(res, 200, {
+      clinics: rows.map(r => ({
+        id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at,
+        online: !!r.seen_at && Date.now() - Date.parse(r.seen_at) < cfg.offlineMs, status: r.status ? JSON.parse(r.status) as unknown : null,
+      })),
+    });
+  }
+
+  // Klinika: shifrlangan kunlik zaxira (hub ocha olmaydi) — oqim bilan faylga, hajmi cheklangan; oxirgi backupKeep tasi qoladi
+  if (p === '/api/backup' && req.method === 'POST') {
+    const clinic = clinicOf(req);
+    if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    const day = url.searchParams.get('day') ?? '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return send(res, 400, { error: 'day: YYYY-MM-DD' });
+    const dir = join(cfg.backupDir, clinic), tmp = join(dir, `.${day}-${randomBytes(4).toString('hex')}`), file = join(dir, `${day}.czb`);
+    mkdirSync(dir, { recursive: true });
+    let size = 0;
+    const limit = new Transform({ transform(chunk: Buffer, _e, done) { size += chunk.length; done(size > cfg.backupMaxBytes ? new Error('juda katta') : null, chunk); } });
+    try {
+      await pipeline(req, limit, createWriteStream(tmp));
+      const head = Buffer.alloc(BACKUP_MAGIC.length), fd = openSync(tmp, 'r');
+      try { readSync(fd, head, 0, head.length, 0); } finally { closeSync(fd); }
+      if (!head.equals(BACKUP_MAGIC)) throw new Error('zaxira fayli emas');
+      renameSync(tmp, file);
+    } catch (e) {
+      rmSync(tmp, { force: true });
+      return send(res, (e as Error).message === 'juda katta' ? 413 : 400, { error: (e as Error).message });
+    }
+    const all = readdirSync(dir).filter(n => /^\d{4}-\d{2}-\d{2}\.czb$/.test(n)).sort();
+    for (const old of all.slice(0, Math.max(0, all.length - cfg.backupKeep))) rmSync(join(dir, old), { force: true });
+    return send(res, 200, { ok: true, size });
+  }
+
+  // Admin: tashqi zaxiralar ro'yxati va yuklab olish (shifrlangan holida)
+  if (p === '/admin/backups' && req.method === 'GET') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const list = existsSync(cfg.backupDir) ? readdirSync(cfg.backupDir).filter(c => /^[0-9a-f]{10}$/.test(c)).flatMap(clinic =>
+      readdirSync(join(cfg.backupDir, clinic)).filter(n => /^\d{4}-\d{2}-\d{2}\.czb$/.test(n)).map(name => {
+        const st = statSync(join(cfg.backupDir, clinic, name));
+        return { clinicId: clinic, file: name, size: st.size, at: st.mtime.toISOString() };
+      })) : [];
+    return send(res, 200, { backups: list });
+  }
+  const download = /^\/admin\/backups\/([0-9a-f]{10})\/(\d{4}-\d{2}-\d{2}\.czb)$/.exec(p);
+  if (download && req.method === 'GET') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const file = join(cfg.backupDir, download[1], download[2]);
+    if (!existsSync(file)) return send(res, 404, { error: 'topilmadi' });
+    res.setHeader('content-type', 'application/octet-stream');
+    res.setHeader('content-disposition', `attachment; filename="${download[1]}-${download[2]}"`);
+    await pipeline(createReadStream(file), res);
+    return;
+  }
+
+  // Klinika: diagnostika (egasi yoki admin so'raganda) — sotuvchi yordam berishi uchun
+  if (p === '/api/diag' && req.method === 'POST') {
+    const clinic = clinicOf(req);
+    if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    const raw = await readRaw(req);
+    if (!raw || !raw.length) return send(res, 413, { error: 'bo\'sh yoki juda katta' });
+    const dir = join(cfg.diagDir, clinic), file = `${now().replace(/[:.]/g, '-')}.txt`;
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, file), raw);
+    const all = readdirSync(dir).filter(n => n.endsWith('.txt')).sort();
+    for (const old of all.slice(0, Math.max(0, all.length - DIAG_KEEP))) rmSync(join(dir, old), { force: true });
+    return send(res, 200, { ok: true, file });
+  }
+  if (p === '/admin/diag' && req.method === 'GET') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const list = existsSync(cfg.diagDir) ? readdirSync(cfg.diagDir).filter(c => /^[0-9a-f]{10}$/.test(c)).flatMap(clinic =>
+      readdirSync(join(cfg.diagDir, clinic)).filter(n => n.endsWith('.txt')).map(file => ({ clinicId: clinic, file, size: statSync(join(cfg.diagDir, clinic, file)).size }))) : [];
+    return send(res, 200, { diagnostics: list });
+  }
+  const diag = /^\/admin\/diag\/([0-9a-f]{10})\/([\w-]+\.txt)$/.exec(p);
+  if (diag && req.method === 'GET') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const file = join(cfg.diagDir, diag[1], diag[2]);
+    if (!existsSync(file)) return send(res, 404, { error: 'topilmadi' });
+    return send(res, 200, readFileSync(file, 'utf8'), 'text/plain');
+  }
+
+  // Klinika: holat (5 daqiqada) — nazorat ro'yxati uchun; mijoz ma'lumoti kelmaydi
+  if (p === '/api/heartbeat' && req.method === 'POST') {
+    const clinic = clinicOf(req);
+    if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    let body: unknown;
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    db.prepare('UPDATE clinics SET status = ? WHERE id = ?').run(JSON.stringify(cleanStatus(body)), clinic);
+    return send(res, 200, { ok: true });
   }
 
   // Klinika: kalit ishlaydimi (ulash ustasidagi tekshiruv)
@@ -240,11 +383,50 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   send(res, 404, { error: 'topilmadi' });
 }
 
+// ─── Nazorat: klinika ko'rinmay qoldi ──────────────────────────────────────
+
+const tashkent = (iso: string) => new Date(iso).toLocaleString('ru-RU', { timeZone: 'Asia/Tashkent', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+/** Sotuvchiga Telegram'da (HUB_BOT_TOKEN, HUB_ALERT_CHAT). Sozlanmagan yoki yetmagan bo'lsa — false: keyingi tekshiruvda qayta urinadi */
+async function alert(message: string): Promise<boolean> {
+  if (!cfg.botToken || !cfg.alertChat) return false;
+  try {
+    const r = await fetch(`${cfg.telegramApi}/bot${cfg.botToken}/sendMessage`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: cfg.alertChat, text: message }), signal: AbortSignal.timeout(15_000),
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+let watching = false;
+async function watch(): Promise<void> {
+  if (watching) return;
+  watching = true;
+  try {
+    const cutoff = new Date(Date.now() - cfg.offlineMs).toISOString();
+    const lost = db.prepare('SELECT id, name, seen_at FROM clinics WHERE seen_at IS NOT NULL AND seen_at < ? AND alerted_at IS NULL').all(cutoff) as { id: string; name: string; seen_at: string }[];
+    for (const c of lost) {
+      const minutes = Math.round((Date.now() - Date.parse(c.seen_at)) / 60_000);
+      const said = await alert(`⚠️ «${c.name}» bilan aloqa yo'q — oxirgi marta ${tashkent(c.seen_at)} da (${minutes} daqiqa oldin). Kompyuter o'chgan, uxlab qolgan yoki internet uzilgan bo'lishi mumkin.`);
+      if (said) db.prepare('UPDATE clinics SET alerted_at = ? WHERE id = ?').run(now(), c.id);
+    }
+    const back = db.prepare('SELECT id, name FROM clinics WHERE alerted_at IS NOT NULL AND seen_at > alerted_at').all() as { id: string; name: string }[];
+    for (const c of back) if (await alert(`✅ «${c.name}» yana aloqada.`)) db.prepare('UPDATE clinics SET alerted_at = NULL WHERE id = ?').run(c.id);
+  } finally {
+    watching = false;
+  }
+}
+setInterval(() => { void watch(); }, cfg.watchMs).unref();
+
 const server = createServer((req, res) => { route(req, res).catch(e => { console.error('[hub]', e); if (!res.headersSent) send(res, 500, { error: 'ichki xato' }); }); });
+// Bo'sh ulanish klientdan (fetch — ~4 s) uzoqroq ushlanadi: aks holda klinika qayta foydalanayotgan ulanishni hub yopib qo'yishi mumkin (ECONNRESET)
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
 server.listen(cfg.port, () => {
   console.log(`Palantir Hub: http://localhost:${cfg.port}`);
   console.log(`  Instagram: ${cfg.appId && cfg.appSecret && cfg.publicUrl ? `ilova ${cfg.appId}, ${cfg.publicUrl}` : "sozlanmagan (IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL)"}`);
   console.log(`  webhook: ${cfg.publicUrl || '<HUB_PUBLIC_URL>'}/ig/webhook · OAuth: ${cfg.publicUrl || '<HUB_PUBLIC_URL>'}/ig/callback`);
+  console.log(`  nazorat: ${cfg.botToken && cfg.alertChat ? `klinika ${Math.round(cfg.offlineMs / 60_000)} daqiqa ko'rinmasa — Telegram ${cfg.alertChat}` : "Telegram'ga aytilmaydi (HUB_BOT_TOKEN, HUB_ALERT_CHAT)"}`);
 });
 const stop = () => { server.close(); db.close(); process.exit(0); };
 process.on('SIGINT', stop);

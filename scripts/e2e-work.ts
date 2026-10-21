@@ -19,7 +19,7 @@ import type { Lead, Task } from '../src/types';
 import { stamp } from '../src/lib/week';
 import { forgottenLeads, planText, type PlanInput } from '../server/plan';
 import { wantsOutcome } from '../server/outcome';
-import { CUSTOMER, OWNER, ai, aiServer, listen, press, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
+import { CUSTOMER, OWNER, ai, aiServer, listen, press, say, sent, sleep, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
@@ -226,8 +226,7 @@ try {
 
   ok("serverda kutilmagan xato yo'q", !/\[http\]|TypeError|ReferenceError/.test(log), log.split('\n').filter(l => /\[http\]|Error/.test(l)).slice(0, 3).join(' | '));
 } finally {
-  server.kill();
-  await sleep(500);
+  await stopProcess(server);
   tgServer.close();
   aiServer.close();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 5 });

@@ -13,7 +13,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { stamp } from '../src/lib/week';
-import { OWNER, say, sent, sleep, tgServer, waitFor } from './fakes';
+import { OWNER, say, sent, sleep, tgServer, waitFor, stopProcess } from './fakes';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => {
@@ -117,7 +117,7 @@ try {
   ok("ikkala qo'ng'iroq bo'ldi, ikkinchisi birinchisi tugagach boshlandi (akkaunt bitta)", !!x && !!y && y.start >= x.end, JSON.stringify({ x: x && [x.start, x.end], y: y && [y.start, y.end] }));
   ok("boshqa biznesning vazifasiga qo'ng'iroq qilinmadi", !calls().some(c => c.taskId === foreign?.id));
 } finally {
-  server.kill();
+  await stopProcess(server);
   tgServer.close();
   await sleep(300);
   try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* Windows fayl band */ }

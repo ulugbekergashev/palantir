@@ -45,6 +45,17 @@ export const env = {
   /** Kunlik zaxira nusxalar papkasi (boshqa diskka qo'ygan ma'qul) va nechta kun saqlanishi. BACKUP_KEEP=0 — zaxira olinmaydi */
   backupDir: resolve(process.env.BACKUP_DIR || join(dataDir, 'backups')),
   backupKeep: process.env.BACKUP_KEEP && Number.isFinite(Number(process.env.BACKUP_KEEP)) ? Number(process.env.BACKUP_KEEP) : 14,
+  /** Qo'ng'iroq yozuvlari (audio) necha kun saqlanadi — matni va tahlili qoladi. 0 — o'chirilmaydi */
+  recordingsKeepDays: process.env.RECORDINGS_KEEP_DAYS && Number.isFinite(Number(process.env.RECORDINGS_KEEP_DAYS)) ? Number(process.env.RECORDINGS_KEEP_DAYS) : 90,
+  /** Ma'lumotlar diskida shundan kam bo'sh joy qolsa (MB) — egasiga aytiladi */
+  diskMinFreeMb: Number(process.env.DISK_MIN_FREE_MB) || 2048,
+  /**
+   * Yangilashdan oldingi sinov (scripts/update.mjs): baza nusxasida faqat panel va baza ko'tariladi — bot, kanallar, jadval,
+   * kameralar va tashqi xizmatlar yoqilmaydi
+   */
+  dryRun: process.env.CEREBRO_DRY_RUN === '1',
+  /** Palantir Hub'ga holat yuborish oralig'i (hub kodi bo'lsa) */
+  heartbeatMs: Number(process.env.HEARTBEAT_MS) || 5 * 60_000,
   /** @BotFather tokeni. Bo'lmasa — panel ishlaydi, Telegram o'chiq */
   botToken: process.env.BOT_TOKEN || '',
   /** Faqat sinov uchun: soxta Telegram API manzili */

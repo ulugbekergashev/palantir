@@ -18,7 +18,7 @@ import { phoneKey, prettyPhone } from '../src/lib/phone';
 import { iso, stamp } from '../src/lib/week';
 import { namesFit, patientFor, samePerson } from '../server/personRules';
 import { cleanDue, daytime, firstRemind } from '../server/requests/timing';
-import { CUSTOMER, OWNER, ai, aiServer, igWeb, igWebServer, listen, press, say, sent, shareContact, sleep, tgNames, tgServer, waitFor, type Sent } from './fakes';
+import { CUSTOMER, OWNER, ai, aiServer, igWeb, igWebServer, listen, press, say, sent, shareContact, sleep, tgNames, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 
 const results: boolean[] = [];
@@ -274,8 +274,7 @@ try {
   console.error(e);
   results.push(false);
 } finally {
-  server.kill();
-  await sleep(500);
+  await stopProcess(server);
   try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* Windows: fayl hali band */ }
   const failed = results.filter(r => !r).length;
   if (failed) console.log(`\n--- server jurnali (oxiri) ---\n${log.slice(-4000)}`);

@@ -17,8 +17,9 @@ import { instagramAvailable, startInstagram, stopInstagram } from './inbox/insta
 import { startInstagramApi, stopInstagramApi } from './inbox/instagramApi';
 import { refreshTelegramUser, startTelegramUser, stopTelegramUser, telegramUserAvailable } from './inbox/telegramUser';
 import { startScheduler } from './scheduler';
-import { startPhone, stopPhone } from './phone/index';
+import { startPhone, startRecordingRetention, stopPhone } from './phone/index';
 import { startMonitor } from './monitor';
+import { startHeartbeat } from './heartbeat';
 import { startOrders } from './orders/run';
 import { startVoiceEnv } from './voice/serviceEnv';
 
@@ -52,6 +53,11 @@ for (const r of recoverMoney()) notices.add(r.businessId, `⚠️ <b>${r.title}<
 recoverBookings();
 // Port — tarmoqqa bog'liq ishlardan oldin: internet bo'lmasa ham panel ochiladi, port band bo'lsa bot navbatiga tegilmaydi
 const server = await listen(createApp(bot));
+if (env.dryRun) {
+  // Yangilovchining sinovi: tashqi dunyoga hech narsa ulanmaydi, yangilovchi tekshirib bo'lgach jarayonni to'xtatadi
+  console.log(`Palantir sinov rejimida: http://localhost:${env.port}`);
+  await new Promise<never>(() => {});
+}
 await Promise.race([bot.start(), new Promise(r => setTimeout(r, BOT_WAIT_MS))]);
 // Rasmiy Instagram (hub orqali) birinchi: ikkalasi ulangan biznesda javob rasmiy yo'l bilan ketadi
 startInstagramApi();
@@ -64,9 +70,12 @@ const stopOrders = startOrders(bot);
 const stopVoiceEnv = startVoiceEnv();
 // MicroSIP shu kompyuterda ulangan bo'lsa — qo'ng'iroq hodisalari va yozuvlar o'qiladi
 startPhone();
+const stopRetention = startRecordingRetention();
 const stopBackups = startBackups();
 // Kanallar nazorati: CRM, rasmiy Instagram va hub, MicroSIP, IP kameralar — uzilsa egasiga aytiladi
 const stopMonitor = startMonitor();
+// Hub kodi bo'lsa: holat 5 daqiqada (kompyuter o'chsa hub sotuvchiga aytadi)
+const stopHeartbeat = startHeartbeat();
 
 const open = !env.listenHost || env.listenHost === '0.0.0.0' || env.listenHost === '::';
 console.log(`Palantir server: http://localhost:${env.port}${open ? ' (hamma tarmoq interfeyslari)' : ` (${env.listenHost})`}`);
@@ -89,7 +98,9 @@ const shutdown = () => {
   stopVoiceEnv();
   stopBackups();
   stopPhone();
+  stopRetention();
   stopMonitor();
+  stopHeartbeat();
   stopInstagramApi();
   bot.stop();
   flushAllWaits();

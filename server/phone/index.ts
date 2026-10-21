@@ -28,7 +28,7 @@ import {
   activeDirs, connectMicrosip, defaultEnv, dialNumber, disconnectMicrosip, getStatus, markAccountWorking, readSpool, readState, refreshHookFiles,
   windowsSystem, writeState, type MicrosipEnv, type MicrosipEvent, type MicrosipStatus, type MicrosipSystem, type SpoolReader,
 } from './microsip';
-import { MIME, findRecording, moveRecording } from './recordings';
+import { AUDIO_EXT, MIME, findRecording, moveRecording } from './recordings';
 import { phoneCalls, type PhoneCallRow } from './store';
 
 const STATE_DIR = path.join(env.dataDir, 'microsip');
@@ -83,6 +83,40 @@ export function startPhone(): void {
   sweeper.unref();
   // Server to'xtab qolgan paytda tahlil navbatida qolganlari
   for (const c of phoneCalls.pending()) void review(c.businessId, c.id);
+}
+
+const DAY_MS = 86_400_000, RETENTION_CHECK_MS = 6 * 3_600_000;
+
+/** Muddati o'tgan yozuvlar (RECORDINGS_KEEP_DAYS) o'chiriladi, qo'ng'iroqning matni va tahlili qoladi. Qaytaradi — nechta o'chdi */
+export function pruneRecordings(now = Date.now()): number {
+  if (!(env.recordingsKeepDays > 0)) return 0;
+  const cutoff = now - env.recordingsKeepDays * DAY_MS;
+  let names: string[];
+  try { names = fs.readdirSync(RECORDINGS_DIR); } catch { return 0; }
+  let removed = 0;
+  for (const name of names) {
+    if (!AUDIO_EXT.test(name)) continue;
+    const file = path.join(RECORDINGS_DIR, name);
+    try {
+      if (fs.statSync(file).mtimeMs >= cutoff) continue;
+      fs.unlinkSync(file);
+    } catch { continue; }
+    phoneCalls.forgetRecording(name);
+    removed++;
+  }
+  return removed;
+}
+
+/** MicroSIP ulanmagan bo'lsa ham ishlaydi: yozuvlar papkasida eski fayllar qolgan bo'lishi mumkin */
+export function startRecordingRetention(): () => void {
+  const run = () => {
+    const removed = pruneRecordings();
+    if (removed) console.log(`[telefon] muddati o'tgan ${removed} ta yozuv o'chirildi (${env.recordingsKeepDays} kun)`);
+  };
+  run();
+  const timer = setInterval(run, RETENTION_CHECK_MS);
+  timer.unref();
+  return () => clearInterval(timer);
 }
 
 export function stopPhone(): void {

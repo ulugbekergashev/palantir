@@ -1,0 +1,42 @@
+# Reliz: «v<nashr>» tegi qo'yilganda (package.json dagi nashr bilan bir xil) — Windows'da sinov, yig'ish, imzo va GitHub Release.
+# Klinikalardagi yangilovchi (scripts/update.mjs) releases/latest/download/manifest.json dan oladi va imzoni tekshiradi.
+# Imzo kaliti: repo sozlamalari → Secrets → RELEASE_SIGNING_KEY (Ed25519, PEM). Ochiq qismi scripts/update.mjs ichida.
+name: Reliz
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Teg package.json dagi nashrga mos
+        shell: bash
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - name: Kamera modeli (SHA256 bilan)
+        run: npm run camera:model
+      - run: npm run build
+      # Klinikaga faqat ishlash uchun kerakli kutubxonalar (Windows'da yig'ilgani — esbuild kabi qismlar platformaga bog'liq)
+      - run: npm prune --omit=dev
+      - name: Arxiv va imzo
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: node --no-warnings --import tsx scripts/release.ts --out reliz --with-node-modules
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: gh release create "$GITHUB_REF_NAME" reliz/* --title "Palantir $GITHUB_REF_NAME" --notes "Klinikalar shu kechasi o'zi yangilanadi (scripts/update.mjs)."

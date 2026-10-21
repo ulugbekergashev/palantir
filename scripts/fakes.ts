@@ -5,9 +5,22 @@
  *     Har so'rovda suhbat tarixi tekshiriladi: faqat oxiriga qo'shilganmi, asbob natijalari joyidami;
  *   ovoz xizmati (Gemini va Groq) — oldindan berilgan matnni qaytaradi.
  */
+import type { ChildProcess } from 'node:child_process';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
 export const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+/**
+ * Sinov serverini to'xtatib, TUGASHINI kutadi (ohista to'xtash bir necha soniya olishi mumkin; ms dan keyin — majburan).
+ * Kutmasdan chiqilsa, hali to'xtayotgan server keyingi sinovning portini va hubini band qilib turardi — sinovlar tasodifan yiqilardi
+ */
+export function stopProcess(p: ChildProcess, ms = 10_000): Promise<void> {
+  return new Promise(done => {
+    if (p.exitCode !== null || p.signalCode !== null) return done();
+    const timer = setTimeout(() => p.kill('SIGKILL'), ms);
+    p.once('exit', () => { clearTimeout(timer); done(); });
+    p.kill();
+  });
+}
 export const readBody = (req: IncomingMessage) => new Promise<Buffer>(res => {
   const chunks: Buffer[] = [];
   req.on('data', c => chunks.push(c));

@@ -16,7 +16,7 @@ import path from 'node:path';
 import { decodeIni, encodeIni, iniHasAccount, patchIniSettings, readIniSettings } from '../server/phone/microsip';
 import { decideCall, type OpenCall } from '../server/phone/journal';
 import { findRecording } from '../server/phone/recordings';
-import { OWNER, ai, aiServer, listen, press, say, sent, sleep, stt, sttServer, tgServer, waitFor, type Sent } from './fakes';
+import { OWNER, ai, aiServer, listen, press, say, sent, sleep, stt, sttServer, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
@@ -184,8 +184,7 @@ try {
   console.error(e);
   results.push(false);
 } finally {
-  server.kill();
-  await sleep(600);
+  await stopProcess(server);
   try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* Windows: fayl band */ }
   if (results.some(r => !r)) console.log(`\n--- server jurnali (oxiri) ---\n${log.slice(-3000)}`);
   finish();

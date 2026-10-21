@@ -209,8 +209,8 @@ const sameBox = (a: CameraZone, b: { kind: string; x: number; y: number; w: numb
 
 export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
   cameraSessions.closeDangling();
-  // IP kameralar: dvigatel topgan odamlar brauzerdan kelgan kuzatuv bilan bir xil yo'ldan o'tadi
-  startCameraEngine((businessId, cameraId, people, look) => {
+  // IP kameralar: dvigatel topgan odamlar brauzerdan kelgan kuzatuv bilan bir xil yo'ldan o'tadi. Yangilovchining sinovida — yoqilmaydi
+  if (!env.dryRun) startCameraEngine((businessId, cameraId, people, look) => {
     const biz = businesses.byId(businessId), cam = cameras.get(businessId, cameraId);
     if (!biz?.active || !cam) return;
     observe(biz, cam, people);

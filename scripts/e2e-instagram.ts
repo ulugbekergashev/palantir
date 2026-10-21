@@ -17,7 +17,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { makeHubCode, parseHubCode } from '../src/lib/hubCode';
 import { splitForInstagram, windowRule } from '../server/inbox/igRules';
-import { OWNER, ai, aiServer, json, listen, press, readBody, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
+import { OWNER, ai, aiServer, json, listen, press, readBody, say, sent, sleep, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
@@ -200,8 +200,7 @@ try {
   console.error(e);
   results.push(false);
 } finally {
-  for (const p of procs) p.kill();
-  await sleep(700);
+  await Promise.all(procs.map(p => stopProcess(p)));
   try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* Windows: fayl band */ }
   const failed = results.filter(r => !r).length;
   if (failed) console.log(`\n--- jurnal (oxiri) ---\n${log.slice(-3000)}`);

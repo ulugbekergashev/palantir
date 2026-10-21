@@ -21,7 +21,7 @@ function prune(today: string): void {
 
 /** Kalitga o'xshagan narsa jurnalga yozilmaydi (xato matni ichida manzil yoki sarlavha bilan kelib qolishi mumkin) */
 const SECRETS = /bot\d{5,}:[\w-]{20,}|sk-ant-[\w-]{10,}|AIza[\w-]{30,}|AQ\.[\w-]{30,}|vlk_[\w-]{16,}|gsk_\w{20,}|Bearer\s+[\w.~+/-]{16,}|([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+:[^/@\s]*@/gi;
-const scrub = (line: string): string => line.replace(SECRETS, (_m, scheme?: string) => (scheme ? `${scheme}***@` : '***'));
+export const scrub = (line: string): string => line.replace(SECRETS, (_m, scheme?: string) => (scheme ? `${scheme}***@` : '***'));
 
 function write(level: string, args: unknown[]): void {
   try {

@@ -43,6 +43,8 @@ Instagram → Настройки → «Тип аккаунта» → **Проф�
    - `HUB_PUBLIC_URL` — публичный адрес (`https://…up.railway.app`), без `/` в конце;
    - `HUB_VERIFY_TOKEN` — любая длинная случайная строка (та же — в Meta, шаг 2.4);
    - `HUB_ADMIN_KEY` — длинная случайная строка, только для вас.
+   - Внешние резервные копии клиник (зашифрованы вашим открытым ключом — хаб их прочитать не может): хранятся в `HUB_BACKUP_DIR` (по умолчанию `zaxira` рядом с `HUB_DB` — то есть на томе), по `HUB_BACKUP_KEEP` (7) последних на клинику, до `HUB_BACKUP_MAX_MB` (512) каждая. Список: `GET /admin/backups`, скачать: `GET /admin/backups/<клиника>/<день>.czb`, открыть: `npm run restore-backup -- <файл>` (закрытый ключ `~/.cerebro/zaxira-kaliti.pem`).
+   - `HUB_BOT_TOKEN` и `HUB_ALERT_CHAT` (необязательно, но нужно для контроля): ваш отдельный бот (@BotFather) и ваш chat id — хаб напишет туда, если ПК клиники 15 минут не на связи (`HUB_OFFLINE_MS`), и когда связь вернётся. Список клиник с версией, свободным местом на диске и открытыми проблемами: `curl https://<адрес-хаба>/admin/clinics -H "Authorization: Bearer <HUB_ADMIN_KEY>"`.
 4. Проверка: `https://<адрес-хаба>/health` → `{"ok":true,"instagram":true}`.
 
 ## Шаг 4. Код клиники

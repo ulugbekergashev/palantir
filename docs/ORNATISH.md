@@ -24,11 +24,13 @@ Anketa serveri tunnel yoki proksi ortida tursa (cloudflared, nginx), uning `.env
 Klinikadagi kompyuter: Windows 10 yoki 11 (64-bit), 8 GB xotira, doim yoniq va internetga ulangan, Google Chrome yoki Edge o'rnatilgan.
 Telefon liniyasi uchun yana: BIOS'da virtualizatsiya (VT-x / AMD-V) yoqilgan va o'rnatuvchida administrator huquqi bo'lsin.
 **Kompyuter o'chiq yoki uyquda bo'lsa — Palantir ishlamaydi** (kechasi AI qabulxona ham javob bermaydi): BIOS'da «svet kelganda yoqilsin»
-(Restore on AC power loss → Power On) sozlamasini qo'ying, iloji bo'lsa kichik UPS qo'ying.
+(Restore on AC power loss → Power On) sozlamasini qo'ying, iloji bo'lsa kichik UPS qo'ying. Kompyuter yongach hech kim kirmasa ham Palantir ishlashi uchun
+o'rnatgich **avtomatik kirishni** taklif qiladi (pastda).
 
 ## 2. O'rnatish
 
-1. `cerebro` papkasini kompyuterga ko'chiring, masalan `C:\Palantir` (ichida `install`, `server`, `src` papkalari bo'ladi).
+1. GitHub'dagi oxirgi relizdan `cerebro-<nashr>.zip` ni yuklab oling (Releases), masalan `C:\Palantir` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
+   Reliz arxivida kutubxonalar, panel va kamera modeli tayyor — o'rnatish internetsiz ham o'tadi. Keyingi nashrlar har kecha o'zi o'rnatiladi.
 2. `install\Ornatish.cmd` ni ikki marta bosing. U o'zi:
    - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'rnatishni taklif qiladi. Node.js o'rnatilgach oynani yopib, `Ornatish.cmd` ni **qayta** bosing;
    - kutubxonalarni yuklaydi va panelni yig'adi;
@@ -39,7 +41,11 @@ Telefon liniyasi uchun yana: BIOS'da virtualizatsiya (VT-x / AMD-V) yoqilgan va 
      Asterisk, `.wslconfig` da mirrored tarmoq va brandmauer qoidalari (5060, 10000–10100 — faqat ichki tarmoq).
      WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqib, `Telefon.cmd` ni yana bosing. Har qadam qayta bosilganda bor narsani o'tkazib yuboradi.
      Ovozli agent kalitini Palantir o'zi yaratadi (`DATA_DIR\ovoz.env`), Gemini kaliti — ulash ustasida;
-   - Palantir'ni avtoyuklashga qo'shadi, ish stoliga «Palantir» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi.
+   - Palantir'ni avtoyuklashga qo'shadi, ish stoliga «Palantir» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi;
+   - **avtomatik kirishni** taklif qiladi: svet o'chib-yonganda Windows shu foydalanuvchi bilan o'zi kiradi, Palantir ishga tushadi va ekran darhol
+     qulflanadi (kompyuter yonidagi odam parolsiz kira olmaydi; odam o'zi kirganda qulflanmaydi). Windows paroli bir marta so'raladi, haqiqiy kirish
+     bilan tekshiriladi va registrda ochiq emas, Windows'ning LSA maxfiy omborida saqlanadi. Keyinroq yoqish yoki o'chirish: `install\Avtokirish.cmd` (`-Off`).
+     Microsoft hisobi emas, **mahalliy** parolli foydalanuvchi bo'lgani ma'qul.
 3. Oxirida ekranda **admin paroli** chiqadi — yozib oling. U sizniki, klinikaga berilmaydi.
 
 **Qaysi Windows foydalanuvchisi ostida o'rnatish kerak.** Palantir shu foydalanuvchi kirganda ishlaydi va kalitlar, baza, bemorlar yozishmasi faqat unga ochiq bo'ladi.
@@ -99,7 +105,7 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 - [ ] Maxfiy joy belgilangan bo'lsa: `/kamera` rasmida o'sha joy qora.
 - [ ] Kreslo zonalarida DentaCRM shifokor id'si yozilgan; «Tayyor qoidalar»dan kamida «Kechasi odam ko'rinsa» yoqilgan.
 - [ ] Kamerani qo'l bilan 2–3 daqiqa yopib ko'ring — egasiga «kamera ko'rmay qoldi» keldi, ochgach «yana ko'ryapti» (birinchi 10 daqiqada kamera odatiy ko'rinishini o'rganadi — undan keyin sinang).
-- [ ] Kompyuterni **o'chirib-yoqing**: 1–2 daqiqadan keyin bot o'zi javob beryaptimi?
+- [ ] Kompyuterni **o'chirib-yoqing** va hech narsaga tegmang: 1–2 daqiqadan keyin bot o'zi javob beryaptimi, ekran qulflanganmi?
 - [ ] Kompyuter uxlamaydigan qilingan (Sozlamalar → Quvvat → «Hech qachon»).
 - [ ] Egasiga aytildi: kompyuter o'chirilmaydi; shu Windows foydalanuvchisi bilan kirilgan bo'lishi kerak.
 
@@ -108,10 +114,11 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 | Ish | Qanday |
 |---|---|
 | To'xtatish / ishga tushirish | `install\Toxtatish.cmd` / `install\Ishga-tushirish.cmd` |
-| Nima bo'lganini ko'rish | `C:\PalantirData\logs\` — har kunga bitta fayl (`2026-10-14.log`), 14 kun saqlanadi. `supervisor.log` — qachon to'xtab, qachon qayta yongani |
-| Zaxira nusxa | Har kuni o'zi olinadi: `C:\PalantirData\backups\KUN\` (baza, «ikkinchi miya», maxfiy kalit), 14 kun. Boshqa diskka olish: `.env` da `BACKUP_DIR=D:\PalantirZaxira` |
-| Tiklash | Palantir'ni to'xtating → `C:\PalantirData` dagi `cerebro.db-wal` va `cerebro.db-shm` fayllarini o'chiring → zaxira papkasidagi `cerebro.db`, `miya`, `session.secret` ni `C:\PalantirData` ga ko'chiring → ishga tushiring |
-| Dasturni yangilash | Yangi `cerebro` papkasini eskisining ustiga ko'chiring (`.env` qoladi) → `install\Ornatish.cmd`. Ma'lumotlar `C:\PalantirData` da — tegilmaydi |
+| Nima bo'lganini ko'rish | `C:\CerebroData\logs\` — har kunga bitta fayl (`2026-10-14.log`), 14 kun saqlanadi. `supervisor.log` — qachon to'xtab, qachon qayta yongani |
+| Zaxira nusxa | Har kuni o'zi olinadi: `C:\CerebroData\backups\KUN\` (baza, «ikkinchi miya», maxfiy kalit), 14 kun. Boshqa diskka olish: `.env` da `BACKUP_DIR=D:\CerebroZaxira`. Hub kodi bo'lsa — shu nusxa **shifrlanib hubga ham** yuboriladi (sotuvchining ochiq kaliti bilan: hub ham, klinika ham ocha olmaydi), oxirgi 7 kuni turadi — kompyuter yoki disk buzilsa ham ma'lumot qoladi |
+| Tashqi zaxiradan tiklash | Sotuvchi: faylni hubdan oladi (`/admin/backups`), `npm run restore-backup -- <fayl.czb>` bilan ochadi (maxfiy kalit `~/.cerebro/zaxira-kaliti.pem`) — chiqqan uchta narsa bilan pastdagidek tiklanadi |
+| Tiklash | Palantir'ni to'xtating → `C:\CerebroData` dagi `cerebro.db-wal` va `cerebro.db-shm` fayllarini o'chiring → zaxira papkasidagi `cerebro.db`, `miya`, `session.secret` ni `C:\CerebroData` ga ko'chiring → ishga tushiring |
+| Dasturni yangilash | **O'zi**: har kecha 3:00 da yangi reliz bo'lsa — imzosi tekshiriladi, bazaning nusxasida sinab ko'riladi, keyin o'rnatiladi; yangi nashr ishga tushmasa eskisi va baza o'zi qaytariladi (`logs\yangilash.log`, natijasi hub holatida). Qo'lda: `npm run update`. O'chirish: `.env` da `UPDATE_AUTO=0` |
 | AI xarajati | Admin sahifasida oxirgi 7 kun: so'rovlar soni va taxminiy dollar. Aniq hisob — platform.claude.com |
 | Kalitni almashtirish | `/#/ulash` → «Kalitlar»: yangisini qo'ying — tekshiriladi va server to'xtamasdan kuchga kiradi. Kalitlar bazada shifrlangan (`session.secret` bilan); `.env` dagisi faqat panelda berilmagan bo'lsa ishlaydi |
 | Olib tashlash | `install\Ornatish.cmd -Uninstall` (ma'lumotlar o'chmaydi) |
@@ -133,6 +140,7 @@ Kamera sozlamalari (`.env`): kechki kamera hisoboti soati — `CAMERA_REPORT_HOU
 | Har kech «kamera ko'rmay qoldi» | Ish vaqti noto'g'ri yozilgan: ish vaqtidan tashqarida chiroq o'chishi xabar bermaydi. «Biznes haqida»da ish vaqtini tuzating |
 | Telefon kamera uziladi | Telefon zaryadda, Wi-Fi'da, «IP Webcam» ochiq va ekran o'chib qolmasin (ilova sozlamasi) |
 | Panel ochilmayapti | `Ishga-tushirish.cmd`. Bo'lmasa `logs\supervisor.log` ning oxirini o'qing |
+| Masofadan yordam kerak | Egasi botga **/diagnostika** yozadi (yoki admin paneli → «Diagnostika»): holat, kanallardagi muammolar va jurnallar oxiri (kalitlarsiz) hubga boradi — sotuvchi `GET /admin/diag` dan o'qiydi. Hub kodi bo'lmasa — fayl keladi, egasi uni sotuvchiga uzatadi |
 | Instagram javob bermay qoldi | Panel → Sozlamalar → Instagram: muammo matnini o'qing (token, Hub aloqasi). Kerak bo'lsa rasmiy ulanishni qayta ulang. Mijozning oxirgi xabaridan 24 soat o'tgan bo'lsa — Instagram javobga ruxsat bermaydi |
 | Kamera: «ffmpeg eski» | HTTP kamera faqat yangi ffmpeg bilan ulanadi: `winget upgrade Gyan.FFmpeg`, keyin Palantir'ni qayta ishga tushiring (yoki kameraning `rtsp://` manzilini bering) |
 

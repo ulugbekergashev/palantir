@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, type Page } from 'playwright-core';
 import { crmServer, CRM_LOGIN } from './fakeCrm';
-import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, tgUserServer, waitFor, type Sent } from './fakes';
+import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, tgUserServer, waitFor, type Sent, stopProcess } from './fakes';
 import { chromePath } from './chrome';
 
 const CHROME = chromePath();
@@ -200,10 +200,15 @@ try {
 
   ok('brauzerda xato yo\'q', errors.length === 0, errors.slice(0, 5).join(' | '));
   ok("serverda kutilmagan xato yo'q", !/\[http\]|TypeError|ReferenceError/.test(log), log.split('\n').filter(l => /\[http\]|Error/.test(l)).slice(0, 3).join(' | '));
+} catch (e) {
+  // Qayerda to'xtaganini keyin ko'rish uchun: ochiq sahifalar rasmi, brauzer xatolari, server jurnali oxiri
+  ok(`sinov to'xtab qoldi: ${(e as Error).message.split('\n')[0]}`, false);
+  for (const [i, p] of browser.contexts().flatMap(c => c.pages()).entries()) await shot(p, `xato-${i}`).catch(() => {});
+  if (errors.length) console.log(`brauzer xatolari:\n${errors.slice(0, 10).join('\n')}`);
+  console.log(`server jurnali (oxiri):\n${log.split('\n').slice(-30).join('\n')}`);
 } finally {
   await browser.close();
-  server.kill();
-  await sleep(500);
+  await stopProcess(server);
   for (const s of [tgServer, keysServer, crmServer, tgUserServer, onvifHttp]) s.close();
   onvifUdp.close();
   rtsp.close();

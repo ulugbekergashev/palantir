@@ -26,6 +26,21 @@ jobs:
         run: choco install ffmpeg -y --no-progress
       # GitHub runner'larida npm tarmog'i ba'zan uziladi (ECONNRESET): qayta urinishlar bilan
       - run: npm ci --no-audit --no-fund --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
+      # O'rnatgich Windows PowerShell 5.1 da ishlaydi: sintaksis, faqat ASCII (5.1 boshqa belgilarni buzib o'qiydi),
+      # avtomatik kirishning LSA ombori va parol tekshiruvi (runner administrator — haqiqiy kirishga tegilmaydi)
+      - name: PowerShell skriptlari
+        shell: powershell
+        run: |
+          $bad = 0
+          foreach ($f in Get-ChildItem install -Filter *.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            foreach ($e in $errors) { $bad++; Write-Host "$($f.Name):$($e.Extent.StartLineNumber): $($e.Message)" }
+            if (Select-String -Path $f.FullName -Pattern '[^\x00-\x7F]') { $bad++; Write-Host "$($f.Name): ASCII bo'lmagan belgi bor" }
+          }
+          if ($bad) { exit 1 }
+          powershell -NoProfile -ExecutionPolicy Bypass -File install/avtokirish.ps1 -SelfTest
+          exit $LASTEXITCODE
       - name: Kamera modeli (SHA256 bilan)
         run: npm run camera:model
       - run: npm run typecheck
@@ -37,6 +52,8 @@ jobs:
       - run: npm run test:requests
       - run: npm run test:phone
       - run: npm run test:instagram
+      - run: npm run test:hub
+      - run: npm run test:update
       - run: npm run test:tgcall
       - run: npm run test:ipcam
       - run: npm run test:camwork
