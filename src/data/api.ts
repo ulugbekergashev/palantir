@@ -207,6 +207,9 @@ export const api = {
 
   inbox: () => call<{ threads: InboxThread[]; settings: AutoReply }>('/inbox'),
   clientCard: (leadId: string) => call<{ card: ClientCardView }>(`/leads/${leadId}/card`),
+  /** Parolni almashtirish: boshqa qurilmalardagi kirish bekor, shu qurilma uchun yangi kalit qaytadi */
+  changePassword: (current: string, next: string) => call<{ token: string }>('/account/password', { body: { current, next } }),
+  signOutOthers: () => call<{ token: string }>('/account/sign-out-others', { body: {} }),
   /** Mijoz so'rasa: karta, yozishmalar, so'rovlar, qo'ng'iroqlar va yozuvlari — butunlay */
   forgetLead: (leadId: string) => call<{ ok: true }>(`/leads/${leadId}`, { method: 'DELETE' }),
   thread: (leadId: string) => call<{ lead: Lead; messages: InboxMessage[]; replies: ReplyDraft[] }>(`/inbox/${leadId}`),

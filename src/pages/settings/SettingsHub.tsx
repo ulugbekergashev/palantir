@@ -11,6 +11,7 @@ import type { Notify } from '../../components/Artifacts';
 import { isMedical } from '../../lib/compliance';
 import { hrefOf } from '../../lib/nav';
 import { DentaCrm } from '../DentaCrmSection';
+import { AccountCard } from './AccountCard';
 import { ClientLink, Instagram, InstagramOfficial, OwnerBot, ReplyModeCard, SettingsCard, TelegramBusiness, TelegramLogin } from '../TelegramPage';
 import { PhoneLineSettings } from './PhoneLine';
 
@@ -80,6 +81,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
           <div className="flex flex-col gap-5">
             <ReplyModeCard biz={biz} onBiz={onBiz} notify={notify} />
             <ClientLink status={status} notify={notify} />
+            <AccountCard notify={notify} />
           </div>
         </div>
       )}

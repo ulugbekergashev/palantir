@@ -148,7 +148,8 @@ export function createApp(bot: BotService) {
   const asBiz = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => (req, res) => {
     const s = readToken(token(req));
     const biz = s?.role === 'business' ? businesses.byId(s.sub) : undefined;
-    if (!biz || !biz.active) return res.status(401).json({ error: 'Qayta kiring' });
+    // Parol almashgan yoki «boshqa qurilmalardan chiqish» bosilgan — eski kirish ishlamaydi
+    if (!biz || !biz.active || (s!.v ?? 0) !== biz.tokenVer) return res.status(401).json({ error: 'Qayta kiring' });
     return fn(req, res, biz);
   };
   const asAdmin = (fn: Handler): Handler => (req, res) => {
@@ -172,8 +173,30 @@ export function createApp(bot: BotService) {
       return res.status(401).json({ error: "Login yoki parol noto'g'ri" });
     }
     loginOk(key);
-    res.json({ token: issueToken(biz.id, 'business') });
+    res.json({ token: issueToken(biz.id, 'business', 30, biz.tokenVer) });
   });
+
+  // Egasi o'z parolini almashtiradi: hamma qurilmalardagi kirish bekor, shu qurilmaga yangisi beriladi.
+  // Joriy parol noto'g'ri — 403 (401 panelni «sessiya tugadi» deb chiqarib yuborardi)
+  app.post('/api/account/password', asBiz((req, res, biz) => {
+    const key = `p:${biz.id}`;
+    if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
+    const { current, next } = req.body ?? {};
+    if (typeof current !== 'string' || !checkPassword(current, biz.passwordHash)) {
+      loginFailed(key);
+      return res.status(403).json({ error: "Joriy parol noto'g'ri" });
+    }
+    loginOk(key);
+    if (typeof next !== 'string' || next.length < MIN_PASSWORD) return res.status(400).json({ error: `Yangi parol kamida ${MIN_PASSWORD} belgi` });
+    if (next.length > 200) return res.status(400).json({ error: 'Parol juda uzun' });
+    businesses.update(biz.id, { passwordHash: hashPassword(next) });
+    res.json({ token: issueToken(biz.id, 'business', 30, businesses.revokeSessions(biz.id)) });
+  }));
+
+  // Telefon yo'qoldi yoki begona kompyuterda kirib qolgan: shu qurilmadan boshqa hamma joyda chiqiladi
+  app.post('/api/account/sign-out-others', asBiz((_req, res, biz) => {
+    res.json({ token: issueToken(biz.id, 'business', 30, businesses.revokeSessions(biz.id)) });
+  }));
 
   /** Xizmatlar ro'yxatining «nusxa raqami»: panel qaysi nusxani tahrirlayotganini bildiradi */
   const offeringsRev = (list: BusinessRow['profile']['offerings']) => createHash('sha256').update(JSON.stringify(list)).digest('hex').slice(0, 16);
@@ -567,6 +590,8 @@ export function createApp(bot: BotService) {
     if (typeof password === 'string') {
       if (password.length < MIN_PASSWORD) return res.status(400).json({ error: `Parol kamida ${MIN_PASSWORD} belgi` });
       businesses.update(biz.id, { passwordHash: hashPassword(password) });
+      // Yangi parol — eski kirishlar (yo'qolgan telefon, begona kompyuter) bekor
+      businesses.revokeSessions(biz.id);
     }
     if (typeof active === 'boolean') businesses.update(biz.id, { active });
     res.json({ ok: true });

@@ -606,6 +606,24 @@ try {
   ok("/diagnostika: hub yo'q — fayl egasiga keldi, begonaga hech narsa", !!diagDoc && String(diagDoc.params.caption ?? '').includes('Diagnostika')
     && !after(mark, 8008, s => s.method === 'sendDocument'), String(diagDoc?.params.caption ?? ''));
 
+  console.log('\n# Kirish: parol almashishi va boshqa qurilmalardan chiqish');
+  const loginOther = async (password: string) => (await api('/api/login', { body: { login: 'boshqa', password } })).json.token as string | undefined;
+  const alive = async (t?: string) => !!t && (await api('/api/me', { token: t })).status === 200;
+  const mobile = await loginOther('secret34'), laptop = await loginOther('secret34');
+  ok('ikki qurilmada kirilgan (eski avlodsiz kalit ham ishlaydi)', await alive(mobile) && await alive(laptop) && await alive(otherToken));
+  ok("joriy parol noto'g'ri — 403 (panel «sessiya tugadi» deb chiqarib yubormaydi), parol o'zgarmaydi",
+    (await api('/api/account/password', { token: laptop, body: { current: 'xato', next: 'yangi-parol-1' } })).status === 403 && !!(await loginOther('secret34')));
+  ok('yangi parol qisqa — 400', (await api('/api/account/password', { token: laptop, body: { current: 'secret34', next: '123' } })).status === 400);
+  const changed = await api('/api/account/password', { token: laptop, body: { current: 'secret34', next: 'yangi-parol-1' } });
+  ok("parol almashdi: shu qurilmaga yangi kalit; telefondagi, eski kalitlar va eski parol bekor", changed.status === 200 && await alive(changed.json.token)
+    && !(await alive(mobile)) && !(await alive(laptop)) && !(await alive(otherToken)) && !(await loginOther('secret34')) && !!(await loginOther('yangi-parol-1')));
+  const tablet = await loginOther('yangi-parol-1');
+  const others = await api('/api/account/sign-out-others', { token: changed.json.token, body: {} });
+  ok('«boshqa qurilmalardan chiqish»: shu qurilma qoldi, qolganlari chiqdi', others.status === 200 && await alive(others.json.token) && !(await alive(tablet)) && !(await alive(changed.json.token)));
+  const otherId = ((await api('/api/admin/businesses', { token: admin })).json.businesses as { id: string; login: string }[]).find(b => b.login === 'boshqa')!.id;
+  await api(`/api/admin/businesses/${otherId}`, { method: 'PATCH', token: admin, body: { password: 'admin-qoydi-1' } });
+  ok('admin parolni almashtirsa — egasining hamma qurilmasi chiqadi', !(await alive(others.json.token)) && !!(await loginOther('admin-qoydi-1')));
+
   console.log('\n# Suhbat tarixi butunligi');
   ok("Claude'ga har doim to'g'ri tarix ketdi (faqat oxiriga qo'shildi, asbob natijalari joyida)", ai.violations.length === 0, ai.violations.join('; '));
   ok('serverda kutilmagan xato yo\'q', !/\[(http|bot|ai|asbob|crm)\]/.test(serverLog.replace(/\[ai\] (BadRequestError|Error): 400[^\n]*/g, '')), serverLog.split('\n').filter(l => /\[(http|bot|ai|asbob|crm)\]/.test(l)).slice(0, 3).join(' | '));

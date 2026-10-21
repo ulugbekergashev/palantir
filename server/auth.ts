@@ -28,12 +28,14 @@ export interface Session {
   role: 'business' | 'admin';
   /** Tugash vaqti (ms) */
   exp: number;
+  /** Biznes kirishlari avlodi (businesses.token_ver): mos kelmasa — kirish bekor qilingan. Eski kalitlarda yo'q — 0 */
+  v?: number;
 }
 
 const sign = (body: string) => createHmac('sha256', env.sessionSecret).update(body).digest('base64url');
 
-export function issueToken(sub: string, role: Session['role'], days = 30): string {
-  const body = Buffer.from(JSON.stringify({ sub, role, exp: Date.now() + days * 86_400_000 } satisfies Session)).toString('base64url');
+export function issueToken(sub: string, role: Session['role'], days = 30, v = 0): string {
+  const body = Buffer.from(JSON.stringify({ sub, role, exp: Date.now() + days * 86_400_000, v } satisfies Session)).toString('base64url');
   return `${body}.${sign(body)}`;
 }
 
