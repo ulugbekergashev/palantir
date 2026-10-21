@@ -12,7 +12,9 @@ import { chromium } from 'playwright-core';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 import { xlsxFile } from './e2e-intake';
 import { CUSTOMER, TG_SESSION, aiServer, igWeb, igWebServer, listen, say, sent, shareContact, sleep, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor } from './fakes';
+import { chromePath } from './chrome';
 
+const CHROME = chromePath();
 const OUT = process.argv[2] || join(tmpdir(), 'cerebro-ui');
 mkdirSync(OUT, { recursive: true });
 
@@ -32,10 +34,12 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700',
     VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', GEMINI_API_KEY: 'g-test', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, SESSION_SECRET: 'ui-secret', MORNING_HOUR: '0',
-    ASTERISK_WSL: '0', DOTENV: '0', INBOX_DEBOUNCE_MS: '300', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_POLL_MS: '700', IG_FAKE_URL: `http://127.0.0.1:${igPort}`,
+    ASTERISK_WSL: '0', DOTENV: '0', INBOX_DEBOUNCE_MS: '300', TG_PERSONAL: '1', IG_VIA_BROWSER: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_POLL_MS: '700', IG_FAKE_URL: `http://127.0.0.1:${igPort}`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
+// Sinov qayerda yiqilmasin (try'dan oldin ham) — server yetim qolmaydi
+process.on('exit', () => server.kill());
 let log = '';
 server.stdout.on('data', d => { log += d; });
 server.stderr.on('data', d => { log += d; });
@@ -43,7 +47,7 @@ const base = `http://127.0.0.1:${PORT}`;
 for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
 
 const browser = await chromium.launch({
-  executablePath: process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  executablePath: CHROME,
   args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
 });
 const errors: string[] = [];

@@ -1,4 +1,4 @@
-import type { Page } from '../components/Sidebar';
+import type { Page } from './nav';
 
 /**
  * Suhbatda aytilgan qisqa "falon bo'limni och" buyrug'i → bo'lim. Bunday gap yordamchiga yuborilmaydi: bo'lim darhol ochiladi.

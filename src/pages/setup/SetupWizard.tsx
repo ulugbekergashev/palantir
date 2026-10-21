@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, Check, Loader2, LogOut } from 'lucide-react';
 import { adminApi, api, session, type AdminBusiness } from '../../data/api';
-import { Logo } from '../../components/Sidebar';
+import { Logo } from '../../components/Logo';
 import { Button, Field, TextInput } from '../../components/ui';
 import { useFontsReady, useToast } from '../../lib/hooks';
 import type { KeyView, LiveStatus, SetupView } from '../../types';
@@ -10,7 +10,7 @@ import { StepClinic } from './StepClinic';
 import { StepCrm, StepInstagram, StepOwner, StepTelegram } from './StepConnections';
 import { StepDone, StepGaps } from './StepFinish';
 import { StepKeys, emptyRouted, type Routed } from './StepKeys';
-import { STEPS, clock, stepState, type StepState, type WizardFacts } from './wizard';
+import { clock, stepState, visibleSteps, type StepKey, type StepState, type WizardFacts } from './wizard';
 
 const BIZ_KEY = 'cerebro_setup_biz', T0_KEY = 'cerebro_setup_t0';
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -46,7 +46,8 @@ export function SetupWizard() {
   const [authed, setAuthed] = useState(!!session.adminToken());
   const [toast, setToast] = useToast();
   const notify = useCallback((text: string, error = false) => setToast({ text, error }), [setToast]);
-  const [step, setStep] = useState(0);
+  // Qadam kaliti bilan: serverda o'chiq qadam ro'yxatdan chiqsa ham joriy qadam siljimaydi
+  const [stepKey, setStepKey] = useState<StepKey>('clinic');
   const [list, setList] = useState<AdminBusiness[] | null>(null);
   const [bizId, setBizId] = useState<string | null>(() => read(BIZ_KEY));
   const [entered, setEntered] = useState(false);
@@ -99,8 +100,10 @@ export function SetupWizard() {
   if (!authed) return <AdminGate onIn={() => setAuthed(true)} />;
 
   const facts: WizardFacts = { hasBiz: !!bizId && entered, status, setup, keys, cameras };
-  const current = STEPS[step];
-  const go = (i: number) => { setStep(Math.max(0, Math.min(STEPS.length - 1, i))); window.scrollTo(0, 0); };
+  const steps = visibleSteps(status);
+  const step = Math.max(0, steps.findIndex(s => s.key === stepKey));
+  const current = steps[step];
+  const go = (i: number) => { setStepKey(steps[Math.max(0, Math.min(steps.length - 1, i))].key); window.scrollTo(0, 0); };
   const needsBiz = current.key !== 'clinic' && current.key !== 'keys' && current.key !== 'done';
   const ready = entered && status && setup;
   const st = stepState(current.key, facts);
@@ -111,7 +114,7 @@ export function SetupWizard() {
         <div className="flex items-center justify-between gap-3 px-4 pt-4 lg:p-0"><Logo subtitle="Ulash ustasi" tone="ink" /></div>
         {list && bizId && <p className="mx-4 mt-3 rounded-xl bg-ink-800 px-3 py-2 text-sm lg:mx-0 lg:mt-0"><span className="block text-[11px] font-semibold uppercase tracking-wider text-ink-400">Klinika</span>{list.find(b => b.id === bizId)?.name ?? '…'}</p>}
         <ol className="flex gap-1 overflow-x-auto px-3 py-3 lg:flex-col lg:p-0">
-          {STEPS.map((s, i) => {
+          {steps.map((s, i) => {
             const state = stepState(s.key, facts), cur = i === step;
             return (
               <li key={s.key} className="shrink-0">
@@ -136,7 +139,7 @@ export function SetupWizard() {
 
       <div className="flex min-w-0 flex-col">
         <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{step + 1}-qadam / {STEPS.length}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{step + 1}-qadam / {steps.length}</p>
           <h1 className="mt-1 text-[1.75rem] font-extrabold leading-tight tracking-tight">{current.title}</h1>
           <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-slate-500">{current.lead}</p>
           <div key={current.key} className="animate-rise mt-6">
@@ -157,7 +160,7 @@ export function SetupWizard() {
           <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
             <Button onClick={() => go(step - 1)} disabled={step === 0}><ArrowLeft className="h-4 w-4" /> Orqaga</Button>
             <span className="hidden text-sm text-slate-500 sm:inline">{st === 'ok' ? 'Bu qadam tayyor' : st === 'warn' ? "Chala — keyin qaytsa ham bo'ladi" : st === 'skip' ? 'Bu klinikaga kerak emas' : ''}</span>
-            {step < STEPS.length - 1 && <Button variant="primary" onClick={() => go(step + 1)}>{step === STEPS.length - 2 ? 'Yakunlash' : 'Davom etish'} <ArrowRight className="h-4 w-4" /></Button>}
+            {step < steps.length - 1 && <Button variant="primary" onClick={() => go(step + 1)}>{step === steps.length - 2 ? 'Yakunlash' : 'Davom etish'} <ArrowRight className="h-4 w-4" /></Button>}
           </div>
         </footer>
       </div>

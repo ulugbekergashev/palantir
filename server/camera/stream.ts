@@ -10,7 +10,7 @@ import type { CameraFeed } from '../../src/types';
 import { cameras } from '../db';
 import { env } from '../env';
 import { open } from '../secret';
-import { ENGINE_FLAG, ffmpegInput, maskUrl, type Box, type FromEngine, type Look, type ToEngine } from './wire';
+import { ENGINE_FLAG, ffmpegInput, maskUrl, sourceKind, type Box, type FromEngine, type Look, type ToEngine } from './wire';
 
 const MAX_URL = 300;
 const SNAPSHOT_TIMEOUT_MS = 20_000, SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024, SNAPSHOT_WIDTH = 960;
@@ -29,6 +29,13 @@ function canBlockRedirects(): boolean {
   redirectsOpt ??= /max_redirects/.test(spawnSync(env.ffmpeg, ['-hide_banner', '-h', 'protocol=http'], { encoding: 'utf8', windowsHide: true, timeout: 10_000 }).stdout ?? '');
   return redirectsOpt;
 }
+
+const OLD_FFMPEG = "Bu kompyuterdagi ffmpeg eski: HTTP kamerani xavfsiz ulab bo'lmaydi (yo'naltirishni o'chira olmaydi). ffmpeg'ni yangilang (winget upgrade Gyan.FFmpeg) yoki kameraning rtsp:// manzilini bering";
+/**
+ * HTTP kamera (MJPEG, surat) faqat ffmpeg yo'naltirishni o'chira olsa ishlaydi: aks holda kamera «manzili» kompyuterni ichki tarmoqdagi
+ * boshqa manzilga yuborishi mumkin. Sinov kirishi (CAMERA_TEST_INPUT) bo'lsa manzil ffmpeg'ga umuman bormaydi
+ */
+const httpUnsafe = (url: string): boolean => !testInput() && sourceKind(url) !== 'rtsp' && !canBlockRedirects();
 
 /** Bulut serverlarining ichki «metadata» manzili — kamera bo'lishi mumkin emas (u yerdan server kalitlari o'g'irlanadi) */
 const METADATA = new Set(['169.254.169.254', 'fd00:ec2::254', '100.100.100.200', 'metadata', 'metadata.google.internal']);
@@ -60,10 +67,14 @@ export function parseStream(input: string): { url: string; host: string } {
   if (!['rtsp:', 'rtsps:', 'http:', 'https:'].includes(u.protocol)) throw new Error('Manzil rtsp:// (IP kamera) yoki http:// (telefon, MJPEG) bilan boshlanishi kerak');
   if (!u.hostname) throw new Error("Manzilda kamera IP'si yo'q");
   if (METADATA.has(bareHost(u.hostname))) throw new Error('Bu manzil kamera emas');
+  if (httpUnsafe(u.href)) throw new Error(OLD_FFMPEG);
   return { url: u.href, host: u.port ? `${u.hostname}:${u.port}` : u.hostname };
 }
 
-const inputArgs = (url: string): string[] => testInput() ?? ffmpegInput(url, undefined, { noRedirects: canBlockRedirects() });
+const inputArgs = (url: string): string[] => {
+  if (httpUnsafe(url)) throw new Error(OLD_FFMPEG);
+  return testInput() ?? ffmpegInput(url, undefined, { noRedirects: canBlockRedirects() });
+};
 
 /** Maxfiy joylar ffmpeg'ning o'zida qora bilan to'ldiriladi — yopilmagan kadr serverdan tashqariga chiqmaydi. Qiymatlar — kadr ulushi (0..1) */
 const maskFilter = (masks: readonly Box[]): string => masks.map(m => {
@@ -134,8 +145,14 @@ function list(): ToEngine {
   owners.clear();
   const cams = cameras.streams().flatMap(c => {
     try {
+      const url = open(c.stream);
+      // ffmpeg keyin eski nashrga almashgan bo'lsa ham saqlangan HTTP kamera ochilmaydi
+      if (httpUnsafe(url)) {
+        feeds.set(c.id, { state: 'error', message: OLD_FFMPEG });
+        return [];
+      }
       owners.set(c.id, c.businessId);
-      return [{ id: c.id, url: open(c.stream) }];
+      return [{ id: c.id, url }];
     } catch {
       // Maxfiy kalit almashgan: manzilni ochib bo'lmaydi — egasi qayta kiritadi
       feeds.set(c.id, { state: 'error', message: 'Kamera manzilini qayta kiriting' });

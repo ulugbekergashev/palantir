@@ -15,9 +15,8 @@ Anketa serveri tunnel yoki proksi ortida tursa (cloudflared, nginx), uning `.env
 | **Telegram bot tokeni** | @BotFather → `/newbot` (har klinikaga alohida bot) | Egasi yordamchi bilan shu botda gaplashadi; bemorlar ham shu botga yozadi |
 | **Claude API kaliti** | platform.claude.com → API keys. Hisobda mablag' bo'lsin | Yordamchining «miyasi». Kalitda oylik chegara (spend limit) qo'ying |
 | Gemini kaliti (ixtiyoriy, bepul) | aistudio.google.com | Ovozli xabarlarni matnga aylantiradi. Bo'lmasa ovoz o'chiq |
-| TG_API_ID va TG_API_HASH (ixtiyoriy) | my.telegram.org → API development tools (bir marta, hamma klinikalarga bitta) | Egasining **shaxsiy** Telegramiga yozgan mijozlarga javob. Bo'lmasa bu imkoniyat o'chiq |
 | DentaCRM manzili, login, parol | Klinikadan | Qabullar, bemorlar, tushum |
-| Instagram login-paroli | Klinikadan (egasi o'zi kiritadi) | Direct'ga javob |
+| Palantir Hub kodi (`chub.…`) va klinikaning **professional** Instagram akkaunti | Hub kodi — sizdan ([INSTAGRAM.md](INSTAGRAM.md), 4-qadam); akkaunt Meta ilovasida tester bo'lishi kerak | Direct'ga rasmiy yo'l bilan javob. Login-parol Palantir'ga berilmaydi |
 | Kameralarning RTSP manzili (yoki HTTP/MJPEG manzili) | Kamerani o'rnatgan usta yoki videoregistrator sozlamalari. Kamera yo'q kabinetga — eski Android telefon («IP Webcam» ilovasi) | Kamera nazorati |
 
 | Uztelecom SIP: server manzili, login, parol, raqam (ixtiyoriy) | Klinika Uztelecom'dan oladi (yuridik shaxs) | Shahar raqamiga AI qabulxona javob beradi |
@@ -72,10 +71,11 @@ Panel: ish stolidagi «Palantir» yorlig'i. Usta: `http://localhost:3200/#/ulash
 
    Keyin Kuzatuvchi → «Topshiriqlar» → **«Tayyor qoidalar»**dan kerakligini bir bosishda yoqing: kechasi odam ko'rinsa, kassa bo'sh qolsa, ko'p odam yig'ilsa, ertalab tartib, yopilgandan keyin.
    Kreslo bandligi va «kechasi chiroq o'chdi» qaysi soatlar ish vaqti ekaniga qarab hisoblanadi: anketadagi (yoki «Biznes haqida»dagi) **ish vaqti** to'g'ri yozilganini tekshiring («Du–Sh 9:00–20:00»). Yozilmagan bo'lsa — 08:00–21:00.
-6. **Shaxsiy Telegram** (Telegram API ID va hash kiritilgan bo'lsa): raqam anketadan yoki kalitlar maydonidan → kod → (bo'lsa) ikki bosqichli parol.
-7. **Instagram**: «Instagram oynasini ochish» — egasi login-parolini ochilgan oynada o'zi kiritadi. Pastdagi «Chegaralar»ni o'qing.
-8. **Bo'shliqlar**: usta hamma ma'lumotni tekshirib, yetishmagan va zid joylarni ko'rsatadi — bitta xizmatga ikki xil narx, yozilmagan kunlar, manzil, telefon. «Egasidan Telegram'da so'rash» — bot egasiga bittalab so'raydi (narx savolida tugmalar bilan), javob o'z joyiga yoziladi: narx — jadvalga, manzil va ish vaqti — «Biznes haqida» sahifasiga. Keyin ko'p so'raladigan savollar keladi. Ro'yxat egasi javob bergan sari ekranda qisqaradi.
-9. **Tayyor**: hamma qadam holati va o'tgan vaqt. «Kabinetga o'tish» — klinika kabineti qayta kirishsiz ochiladi.
+6. **Instagram** (rasmiy): «Kalitlar»da Hub kodi bo'lsa — «Instagram'ni rasmiy ulash» → egasi ochilgan Instagram oynasida kiradi va ruxsat beradi. Hub kodi hali yo'q bo'lsa — bu qadamni keyin qiling. Pastdagi «Chegaralar»ni o'qing.
+7. **Bo'shliqlar**: usta hamma ma'lumotni tekshirib, yetishmagan va zid joylarni ko'rsatadi — bitta xizmatga ikki xil narx, yozilmagan kunlar, manzil, telefon. «Egasidan Telegram'da so'rash» — bot egasiga bittalab so'raydi (narx savolida tugmalar bilan), javob o'z joyiga yoziladi: narx — jadvalga, manzil va ish vaqti — «Biznes haqida» sahifasiga. Keyin ko'p so'raladigan savollar keladi. Ro'yxat egasi javob bergan sari ekranda qisqaradi.
+8. **Tayyor**: hamma qadam holati va o'tgan vaqt. «Kabinetga o'tish» — klinika kabineti qayta kirishsiz ochiladi.
+
+Egasining shaxsiy Telegrami, Instagram'ni brauzer orqali ulash va Telegram orqali AI qo'ng'iroq keyinga qoldirilgan: standart o'chiq va ustada ko'rinmaydi (`.env`: `TG_PERSONAL`, `IG_VIA_BROWSER`, `TG_CALL`).
 
 **Mijozlarga javob** rejimi: birinchi hafta **«Tasdiq bilan»** qoldiring — Palantir javobni tayyorlaydi, egasi Telegramda «Yuborish» bosadi. Javoblar yoqsa, keyin «O'zi javob bersin»ga o'tkazing.
 
@@ -128,20 +128,19 @@ Kamera sozlamalari (`.env`): kechki kamera hisoboti soati — `CAMERA_REPORT_HOU
 | «AI hisobida mablag' tugagan» | platform.claude.com da hisobni to'ldiring |
 | «AI kaliti ishlamayapti» | Kalit o'chirilgan yoki noto'g'ri: yangisini `/#/ulash` → «Kalitlar»ga qo'ying |
 | «Bugungi AI chegarasi tugadi» | Kunlik chegara: ertaga o'zi ochiladi yoki `.env` da oshiring |
-| «Shaxsiy Telegram uzildi» | Egasi telefonida «Faol seanslar»dan Palantir'ni tugatgan: panelda qayta ulang |
 | Kamera: «kadr kelmayapti» | Kamera yoki registrator o'chgan, IP o'zgargan, parol almashgan. Manzilni qayta kiriting |
 | «Kamera burilgan yoki joyi o'zgargan» | Kamerani joyiga qaytaring. Ataylab burilgan bo'lsa — zonalarni qayta chizing (kamera yangi ko'rinishni qaytadan o'rganadi) |
 | Har kech «kamera ko'rmay qoldi» | Ish vaqti noto'g'ri yozilgan: ish vaqtidan tashqarida chiroq o'chishi xabar bermaydi. «Biznes haqida»da ish vaqtini tuzating |
 | Telefon kamera uziladi | Telefon zaryadda, Wi-Fi'da, «IP Webcam» ochiq va ekran o'chib qolmasin (ilova sozlamasi) |
 | Panel ochilmayapti | `Ishga-tushirish.cmd`. Bo'lmasa `logs\supervisor.log` ning oxirini o'qing |
-| Instagram javob bermay qoldi | Instagram qayta kirishni so'ragan: panelda Instagram'ni qayta ulang |
+| Instagram javob bermay qoldi | Panel → Sozlamalar → Instagram: muammo matnini o'qing (token, Hub aloqasi). Kerak bo'lsa rasmiy ulanishni qayta ulang. Mijozning oxirgi xabaridan 24 soat o'tgan bo'lsa — Instagram javobga ruxsat bermaydi |
+| Kamera: «ffmpeg eski» | HTTP kamera faqat yangi ffmpeg bilan ulanadi: `winget upgrade Gyan.FFmpeg`, keyin Palantir'ni qayta ishga tushiring (yoki kameraning `rtsp://` manzilini bering) |
 
 ## 7. Chegaralar — klinikaga oldindan ayting
 
-- **Instagram** rasmiy yo'l bilan emas, egasining akkaunti orqali brauzerda ishlaydi. Instagram buni avtomatlashtirish deb topib, akkauntni vaqtincha cheklashi mumkin. Shuning uchun: kuniga 120 tadan ko'p xabar yuborilmaydi, birinchi hafta faqat «Tasdiq bilan» rejimi. Haqiqiy Instagram'da hali sinalmagan — birinchi klinikada o'zingiz kuzating.
+- **Instagram** rasmiy yo'l bilan (Meta ilovasi, Palantir Hub) ishlaydi: mijozning oxirgi xabaridan keyin 24 soat ichida javob berish mumkin (Meta «Human Agent» ruxsatini bersa — 7 kun). Meta ilovasi App Review'dan o'tmaguncha faqat ilovada tester qilib qo'shilgan akkauntlar ulanadi. Haqiqiy Meta bilan hali sinalmagan — birinchi klinikada o'zingiz kuzating; birinchi hafta faqat «Tasdiq bilan» rejimi.
 - **Kameralar** odamni tanimaydi va pulni ko'rmaydi: faqat «kresloda shuncha vaqt odam o'tirdi», «kassa oldida odam turdi», «kutish joyida shuncha kutdi» deb sanaydi va CRM bilan solishtiradi. Farqlar — tekshirish uchun sabab, ayb emas.
   Odamlarni sanash shu kompyuterning o'zida bo'ladi, oqim hech qayerga yuborilmaydi. **Kadr kompyuterdan faqat shunda chiqadi**: egasi so'raganda (`/kamera`, «kameraga qara», «AI belgilasin») yoki uning topshirig'i bo'yicha — AI'ga (Claude) va egasining Telegram'iga; ogohlantirish kadrlari Kuzatuvchi jurnalida 14 kun saqlanadi. Maxfiy joylar har rasmda qora. Buni klinikaga ayting va kamerani bemorlar yechinadigan joyga qaratmang.
-- **Shaxsiy Telegram** uzilgan paytda (internet yo'q) kelgan xabarlarni Palantir ko'rmay qolishi mumkin — egasi telefonida o'zi ko'radi.
-- **Qo'ng'iroqlarga javob beradigan ovozli agent** bu dasturda yo'q (faqat ulash joyi bor).
+- **AI qabulxona (telefon liniyasi)** o'rnatiladi, lekin haqiqiy shahar raqamida hali sinalmagan: birinchi klinikada «ish vaqtida — administrator, qolgan paytda — AI» rejimidan boshlang va qo'ng'iroqlarni Qo'ng'iroqlar sahifasida kuzating.
 - Panel faqat shu kompyuterda ochiladi. Egasi hamma narsani telefonidagi Telegram botdan boshqaradi.
 - Yordamchi tibbiy maslahat bermaydi va tashxis qo'ymaydi: og'riq, shish, shikoyat bo'lsa — javobni egasiga oshiradi.

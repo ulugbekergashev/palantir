@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api, session } from '../data/api';
-import { Logo } from '../components/Sidebar';
+import { Logo } from '../components/Logo';
 import { Button, Field, TextInput } from '../components/ui';
 
 export function LoginPage({ onLogin }: { onLogin: () => void }) {

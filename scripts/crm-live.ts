@@ -40,7 +40,7 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, ADMIN_PASSWORD: 'live-admin-1', SESSION_SECRET: 'live-secret', WEB_SEARCH: '0',
     // Haqiqiy bot ham, haqiqiy Claude ham ishlatilmaydi
     BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`,
-    TG_API_ID: '', TG_API_HASH: '', IG_FAKE_URL: 'http://127.0.0.1:1', INBOX_DEBOUNCE_MS: '300', MORNING_HOUR: '25',
+    TG_API_ID: '', TG_API_HASH: '', IG_VIA_BROWSER: '1', IG_FAKE_URL: 'http://127.0.0.1:1', INBOX_DEBOUNCE_MS: '300', MORNING_HOUR: '25',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

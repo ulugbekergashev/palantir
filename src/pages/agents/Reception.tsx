@@ -80,8 +80,8 @@ export function ReceptionToday({ data, reload, notify, status, onChanged, tick }
   };
   const channels = [
     { name: 'Telegram bot', on: !!status.bot },
-    { name: 'Instagram', on: !!status.instagram?.account },
-    { name: 'Shaxsiy Telegram', on: !!status.telegramUser?.account },
+    { name: 'Instagram', on: !!(status.instagramApi?.account || status.instagram?.account) },
+    ...(status.telegramUser?.enabled ? [{ name: 'Shaxsiy Telegram', on: !!status.telegramUser.account }] : []),
   ];
   const changed = () => { reload(); onChanged(); };
 

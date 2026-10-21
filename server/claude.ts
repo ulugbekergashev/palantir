@@ -70,7 +70,7 @@ export function profileText(b: BusinessRow): string {
     `Name: ${p.name}`,
     p.ownerName && `Owner: ${p.ownerName}`,
     `Industry: ${p.industry || 'not set'}`,
-    `Post language: ${p.contentLang === 'ru' ? 'Russian' : 'Uzbek'}`,
+    `Content language (documents, texts for customers): ${p.contentLang === 'ru' ? 'Russian' : 'Uzbek'}`,
     p.offerings.length ? `Products and services (price in so'm, 0 = not given):\n${p.offerings.map(o => `- ${o.name}${o.nameRu ? ` / ${o.nameRu}` : ''}: ${o.price || 0}`).join('\n')}` : 'Products and services: not listed yet',
     p.team.length ? `Team:\n${p.team.map(m => `- ${m.name} — ${m.role}${m.years ? `, ${m.years} years` : ''} (member_id: ${m.id})`).join('\n')}` : '',
   ];

@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { issueToken } from './auth';
 import { env } from './env';
 
-export const tgCallEnabled = (): boolean => !!env.tgCallPython && !!env.tgCallScript;
+export const tgCallEnabled = (): boolean => env.tgCall && !!env.tgCallPython && !!env.tgCallScript;
 
 export type TgCallResult = 'answered' | 'missed' | 'failed';
 

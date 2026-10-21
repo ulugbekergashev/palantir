@@ -48,7 +48,7 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700',
     GEMINI_API_KEY: 'g-test', GROQ_API_KEY: 'q-test', VOICELAB_API_KEY: '', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, GROQ_STT_URL: `http://127.0.0.1:${sttPort}/groq`,
     MORNING_HOUR: String(new Date().getHours()), WEB_SEARCH: '1', SESSION_SECRET: 'e2e-secret',
-    INBOX_DEBOUNCE_MS: '300', MINUTE_MS: '1500', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
+    INBOX_DEBOUNCE_MS: '300', MINUTE_MS: '1500', TG_PERSONAL: '1', IG_VIA_BROWSER: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
     IG_FAKE_URL: `http://127.0.0.1:${igPort}`, IG_POLL_MS: '700', IG_DAILY_LIMIT: '3', CRM_DAILY_BOOKINGS: '3',
     CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '1', ASTERISK_WSL: '0', DOTENV: '0',
     SPEECHLAB_API_KEY: 'sl_live_test', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', SPEECHLAB_AGENT_ID: '17', SPEECHLAB_URL: `http://127.0.0.1:${speechlabPort}`, CALL_CHECK_MS: '400',
@@ -138,6 +138,8 @@ try {
 
   console.log('\n# Telegram: egasi ulanadi, ertalabki xulosa');
   let mark = sent.length;
+  // Ertalabki xulosa (MORNING_HOUR — hozirgi soat) egasi ulangan zahoti, keyingi jadval qadamida keladi — shu belgidan keyin qidiriladi
+  const linkMark = mark;
   const code = String(me.status.linkUrl).split('start=o-')[1];
   say(OWNER, `/start o-${code}`);
   ok('ulandi: salom xabari', await waitFor('ulanish', () => after(mark, OWNER, has('Ulandi'))));
@@ -145,10 +147,10 @@ try {
   // Havola bir martalik; egasi uni qayta bossa (Telegram «Start»ni eski havola bilan yuboradi) — xato emas, salom va yordam
   mark = sent.length;
   say(OWNER, `/start o-${code}`);
-  // Ertalabki xulosa (MORNING_HOUR — hozirgi soat) shu payt kelishi mumkin: aynan qayta start javobi kutiladi
+  // Xulosa shu payt ham kelishi mumkin: aynan qayta start javobi kutiladi
   const relinked = await waitFor('qayta start', () => after(mark, OWNER, s => /ulangansiz|noto'g'ri|eskirgan/.test(textOf(s))));
   ok('egasi eski havolani qayta bosdi — «ulangansiz», xato emas', !!relinked && textOf(relinked).includes('ulangansiz') && !textOf(relinked).includes("noto'g'ri"), relinked && textOf(relinked).slice(0, 80));
-  const brief = await waitFor('xulosa', () => after(mark, OWNER, has('Xayrli tong')));
+  const brief = await waitFor('xulosa', () => after(linkMark, OWNER, has('Xayrli tong')));
   ok('ertalabki xulosa: bugungi vazifa bilan', brief && textOf(brief).includes('Hisobotni topshirish'));
   ok("ertalabki xulosa: DentaCRM'dan bugungi qabullar", brief && textOf(brief).includes('5 ta qabul') && textOf(brief).includes('09:00'), brief ? textOf(brief) : '');
   ok("ertalabki xulosa: klinikadagi g'alati holatlar (kecha tushum kam, ko'p bemor kelmagan)", brief && textOf(brief).includes('⚠️ Kecha tushum odatdagidan') && textOf(brief).includes('450 000') && textOf(brief).includes('4 ta bemor kelmadi'));
@@ -286,15 +288,15 @@ try {
   say(OWNER, 'Dam olish kunlari aksiyasi haqida post qil');
   const noPost = await waitFor('post javobi', () => after(mark, OWNER, has("Noma'lum asbob")));
   ok("post asbobi modelga berilmaydi; chaqirilsa ham ishlamaydi — rasm ham, qoralama ham yo'q", !!noPost && !ai.requests.at(-1)!.tools.some(t => (t as { name?: string }).name === 'make_post') && !ai.requests.at(-1)!.system.includes('branded posts')
-    && !after(mark, OWNER, s => s.method === 'sendPhoto') && ((await api('/api/posts', { token })).json.posts as unknown[]).length === 0, textOf(noPost ?? ({ params: {} } as Sent)));
+    && !after(mark, OWNER, s => s.method === 'sendPhoto') && (await api('/api/posts', { token })).status === 404, textOf(noPost ?? ({ params: {} } as Sent)));
 
-  console.log('\n# Kanal va post joylash yopilgan');
+  console.log('\n# Kanal va post joylash olib tashlangan');
   const ch = await api('/api/channel', { token, body: { channel: '@test_channel' } });
   mark = sent.length;
   addedToChannel(OWNER);
   await sleep(700);
-  ok("kanal ulash yopilgan: so'rov — 410, bot kanalga admin qilinsa ham ulanmaydi; post joylash — 410", ch.status === 410 && !after(mark, OWNER, has('Kanal ulandi')) && (await api('/api/me', { token })).json.status.channel === null
-    && (await api('/api/posts/any/publish', { token, body: {} })).status === 410, JSON.stringify(ch.json));
+  ok("kanal va post yo'llari yo'q (404); bot kanalga admin qilinsa ham hech narsa bo'lmaydi", ch.status === 404 && !after(mark, OWNER, has('Kanal')) && !('channel' in (await api('/api/me', { token })).json.status)
+    && (await api('/api/posts/any/publish', { token, body: {} })).status === 404, JSON.stringify(ch.json));
 
   console.log('\n# Ovozli xabar');
   mark = sent.length;

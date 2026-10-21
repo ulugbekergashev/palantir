@@ -5,6 +5,8 @@
  */
 
 export type Area = 'ai' | 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'miya' | 'sozlamalar';
+/** Eski bo'lim nomlari: jurnal yozuvlari va ovozli buyruqlar hali shular bilan ishlaydi, OLD ularni xodim varag'iga o'giradi */
+export type Page = 'home' | 'chat' | 'journal' | 'inbox' | 'requests' | 'calls' | 'cameras' | 'brain' | 'telegram';
 export interface Route { area: Area; tab: string | null }
 
 export const AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'miya', 'sozlamalar'];

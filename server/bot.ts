@@ -12,7 +12,7 @@
 import { Markup, Telegraf, type Context } from 'telegraf';
 import { message } from 'telegraf/filters';
 import type { InlineKeyboardMarkup } from 'telegraf/types';
-import type { Artifact, Lang, MoneyEntry, MoneyStatus, Outbound, Post, Task } from '../src/types';
+import type { Artifact, Lang, MoneyEntry, MoneyStatus, Outbound, Task } from '../src/types';
 import { isMedical } from '../src/lib/compliance';
 import { addDays, dueLabel, iso, stamp } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
@@ -24,11 +24,10 @@ import { DAY_OUTCOME, askOutcome, dropOutcome, takeOutcome, wantsOutcome } from 
 import { recallPatients } from './crm/index';
 import { patientName } from './crm/logic';
 import { fileKeyboard, settleFile, settleSuggestion } from './brain/learn';
-import { businesses, cameras, chatLog, inbox, leads, moneyEntries, outbound, posts, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
+import { businesses, cameras, chatLog, inbox, leads, moneyEntries, outbound, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
 import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
-import { renderPng } from './render';
 import { SilenceError, transcribe } from './stt';
 import { MAX_PHOTO_BYTES, describePhoto, photoMessage } from './vision';
 import { reviewCall } from './callreview';
@@ -46,8 +45,6 @@ export interface BotService {
   username: () => string | null;
   start(): Promise<void>;
   stop(): void;
-  /** Postni kanalga joylaydi (egasi tasdiqlagach). Xato bo'lsa — tushunarli matn bilan Error */
-  publishPost(biz: BusinessRow, postId: string): Promise<void>;
   /** Mijozlarga xabarni yuboradi (egasi tasdiqlagach) */
   sendFollowup(biz: BusinessRow, outboundId: string): Promise<{ sent: number; failed: number }>;
   cancelFollowup(biz: BusinessRow, outboundId: string): Promise<void>;
@@ -56,7 +53,6 @@ export interface BotService {
   sendText(chatId: string, html: string, buttons?: { text: string; data: string }[][]): Promise<void>;
   /** Ovozli xabar (OGG/Opus) yoki — ffmpeg bo'lmasa — audio fayl (WAV) */
   sendVoice(chatId: string, audio: { ogg: Buffer } | { wav: Buffer }, caption: string): Promise<void>;
-  verifyChannel(ref: string): Promise<{ id: string; title: string }>;
   /** Pul yozuvi kartasini hozirgi holatga keltiradi (panelda tasdiqlangan bo'lsa ham Telegramdagi tugma yo'qoladi) */
   refreshMoney(bizId: string, id: string): Promise<void>;
   /** Yordamchi javobi (matn va hujjat, rasm kabi narsalari) egasining Telegram'iga — telefon qo'ng'irog'ida so'ralgan ish natijasi */
@@ -101,22 +97,6 @@ function chunks(text: string, max = 3900): string[] {
 const b = Markup.button.callback;
 type Btn = ReturnType<typeof b>;
 const kb = (rows: Btn[][]): InlineKeyboardMarkup => Markup.inlineKeyboard(rows).reply_markup;
-
-function postCaption(p: Post, biz: BusinessRow): string {
-  const lang = langOf(biz);
-  const status = p.status === 'published'
-    ? (p.inChannel ? '✅ Kanalga joylandi' : '✅ Joylandi')
-    : p.status === 'deleted' ? "🗑 O'chirildi"
-      : p.item.kind === 'story' ? "Storis: rasmni saqlab, Instagram storisga qo'ying."
-        : biz.channelId ? `Tasdiqlasangiz, «${esc(biz.channelTitle ?? 'kanal')}»ga joylanadi.` : "Kanal ulanmagan — rasmni o'zingiz joylang yoki panelda kanalni ulang.";
-  const head = `${p.item.kind === 'story' ? '📲 Storis' : '🖼 Post'} — ${esc(p.item.design[lang].title)}`;
-  const room = 1024 - head.length - status.length - 8;
-  return `<b>${head}</b>\n\n${esc(cut(p.item.caption[lang], room))}\n\n${status}`;
-}
-const postKeyboard = (p: Post, biz: BusinessRow) => (p.status !== 'draft' ? undefined : kb([[
-  ...(biz.channelId && p.item.kind === 'post' ? [b('📢 Kanalga joylash', `pp|${p.id}`)] : []),
-  b("🗑 O'chirish", `pd|${p.id}`),
-]]));
 
 function followupText(o: Outbound, biz: BusinessRow): string {
   const all = o.leadIds.map(id => leads.get(biz.id, id)).filter((l): l is LeadRow => !!l);
@@ -214,7 +194,7 @@ export function createBot(): BotService {
     const off = () => Promise.reject(new Error("Telegram bot ulanmagan (BOT_TOKEN yo'q)"));
     return {
       enabled: false, username: () => null, start: async () => {}, stop: () => {},
-      publishPost: off, sendFollowup: off, cancelFollowup: off, remindTask: async () => {}, sendText: async () => {}, sendVoice: async () => {}, verifyChannel: off, refreshMoney: async () => {},
+      sendFollowup: off, cancelFollowup: off, remindTask: async () => {}, sendText: async () => {}, sendVoice: async () => {}, refreshMoney: async () => {},
       deliverReply: off,
       startInterview: off, prepareDay: async () => {},
     };
@@ -228,18 +208,11 @@ export function createBot(): BotService {
   let username: string | null = null;
   let stopped = false;
 
-  const leadLink = (bizId: string, postId?: string) => (username ? `https://t.me/${username}?start=l-${bizId}${postId ? `-${postId}` : ''}` : null);
-
   // ─── Yetkazish: yordamchi javobi va narsalari ─────────────────────────────
   async function sendArtifact(biz: BusinessRow, chat: string, a: Artifact): Promise<void> {
     if (a.type === 'document') {
       const buf = await markdownToDocx(a.doc.title, a.doc.markdown, biz.profile, a.doc.kind);
       await tg.sendDocument(chat, { source: buf, filename: docFileName(a.doc.title) }, { caption: `📄 ${cut(a.doc.title, 200)}` });
-    } else if (a.type === 'post') {
-      const p = posts.get(biz.id, a.post.id) ?? a.post;
-      const msg = await tg.sendPhoto(chat, { source: renderPng(p.item, langOf(biz), biz.profile), filename: `${p.id}.png` },
-        { caption: postCaption(p, biz), parse_mode: 'HTML', reply_markup: postKeyboard(p, biz) });
-      posts.setOwnerMessage(biz.id, p.id, msg.message_id);
     } else if (a.type === 'outbound') {
       const o = outbound.get(biz.id, a.outbound.id) ?? a.outbound;
       const msg = await tg.sendMessage(chat, followupText(o, biz), { parse_mode: 'HTML', reply_markup: followupKeyboard(o) });
@@ -312,7 +285,7 @@ export function createBot(): BotService {
     for (const a of reply.artifacts) {
       await sendArtifact(fresh, chat, a).catch(e => {
         console.error('[bot] yetkazilmadi:', a.type, (e as Error).message);
-        return tg.sendMessage(chat, `⚠️ ${a.type === 'document' ? 'Hujjat' : a.type === 'post' ? 'Rasm' : a.type === 'camera' ? 'Kamera kadri' : 'Xabar'} yuborilmadi — panelda ko'ring.`).catch(() => {});
+        return tg.sendMessage(chat, `⚠️ ${a.type === 'document' ? 'Hujjat' : a.type === 'camera' ? 'Kamera kadri' : 'Xabar'} yuborilmadi — panelda ko'ring.`).catch(() => {});
       });
     }
   }
@@ -343,16 +316,14 @@ export function createBot(): BotService {
   /** Mijozga "yetkazildi" javobi soatiga bir marta (har xabarga emas) */
   const acked = new Map<string, number>();
 
-  async function leadStart(ctx: Context, bizId: string, postId?: string) {
+  async function leadStart(ctx: Context, bizId: string) {
     const biz = businesses.byId(bizId);
     if (!biz || !biz.active) {
       await ctx.reply('Havola eskirgan. / Ссылка устарела.');
       return;
     }
-    const post = postId ? posts.get(biz.id, postId) : undefined;
     const from = ctx.from!;
-    leads.fromTelegram(biz.id, String(from.id), [from.first_name, from.last_name].filter(Boolean).join(' ') || null, from.username ?? null,
-      post ? `Post: ${cut(post.item.design[langOf(biz)].title, 60)}` : 'Telegram havola', post?.id ?? null);
+    leads.fromTelegram(biz.id, String(from.id), [from.first_name, from.last_name].filter(Boolean).join(' ') || null, from.username ?? null, 'Telegram havola', null);
     await ctx.reply([
       `Assalomu alaykum! 👋 «${biz.profile.name}» bilan bog'lanish uchun telefon raqamingizni yuboring yoki savolingizni shu yerga yozing.`,
       '',
@@ -405,8 +376,9 @@ export function createBot(): BotService {
     if (payload.startsWith('o-')) return linkOwner(ctx, payload.slice(2));
     if (payload.startsWith('s-')) return linkStaff(ctx, payload.slice(2));
     if (payload.startsWith('l-')) {
-      const [, bizId, postId] = payload.split('-');
-      return leadStart(ctx, bizId, postId);
+      // Eski post havolalari (l-<biznes>-<post>) ham ishlaydi: post qismi e'tiborga olinmaydi
+      const [, bizId] = payload.split('-');
+      return leadStart(ctx, bizId);
     }
     const biz = ownerOf(ctx);
     await ctx.reply(biz
@@ -485,19 +457,8 @@ export function createBot(): BotService {
     if (!biz || !id) return toast(ctx, 'Bu tugma eskirgan');
     const msg = ctx.callbackQuery.message;
 
-    if (code === 'pp' || code === 'pd') {
-      const p = posts.get(biz.id, id);
-      if (!p) return toast(ctx, 'Post topilmadi');
-      if (code === 'pd') {
-        if (p.status === 'published') return toast(ctx, 'Post allaqachon joylangan');
-        posts.setStatus(biz.id, id, 'deleted');
-        await toast(ctx, "O'chirildi");
-      } else {
-        // Post joylash olib tashlangan: eski xabardagi tugma hech narsani joylamaydi
-        return toast(ctx, 'Post joylash olib tashlangan', { show_alert: true });
-      }
-      return refreshPost(biz.id, id);
-    }
+    // Postlar olib tashlangan: eski xabarlardagi «Kanalga joylash» va «O'chirish» tugmalari
+    if (code === 'pp' || code === 'pd') return toast(ctx, 'Postlar olib tashlangan', { show_alert: true });
 
     if (code === 'fs' || code === 'fc') {
       const o = outbound.get(biz.id, id);
@@ -865,31 +826,9 @@ export function createBot(): BotService {
     });
   });
 
-  // Post joylash olib tashlangan — kanal endi ulanmaydi. Avval ulangan kanaldan bot chiqarilsa, belgisi tozalanadi
-  bot.on('my_chat_member', async ctx => {
-    const upd = ctx.myChatMember;
-    if (upd.chat.type !== 'channel') return;
-    const biz = businesses.byOwnerChat(String(upd.from.id));
-    if (!biz) return;
-    const m = upd.new_chat_member;
-    const title = 'title' in upd.chat ? upd.chat.title : 'kanal';
-    if (biz.channelId === String(upd.chat.id) && m.status !== 'administrator') {
-      businesses.update(biz.id, { channelId: null, channelTitle: null });
-      await tg.sendMessage(biz.ownerChatId!, `⚠️ «${title}» kanali uzildi (bot endi admin emas).`).catch(() => {});
-    }
-  });
-
   bot.catch((err, ctx) => console.error(`[bot] ${ctx.updateType} xatosi:`, (err as Error)?.message ?? err));
 
   // ─── Tashqi amallar (panel ham chaqiradi) ──────────────────────────────────
-  async function refreshPost(bizId: string, postId: string) {
-    const biz = businesses.byId(bizId);
-    const p = posts.get(bizId, postId);
-    if (!biz?.ownerChatId || !p?.ownerMessageId) return;
-    await tg.editMessageCaption(biz.ownerChatId, p.ownerMessageId, undefined, postCaption(p, biz), { parse_mode: 'HTML', reply_markup: postKeyboard(p, biz) })
-      .catch(ignoreUnchanged).catch(e => console.error('[bot] post xabari:', (e as Error).message));
-  }
-
   async function refreshMoney(bizId: string, id: string) {
     const biz = businesses.byId(bizId);
     const row = moneyEntries.get(bizId, id);
@@ -905,23 +844,6 @@ export function createBot(): BotService {
     if (!biz?.ownerChatId || !o?.ownerMessageId) return;
     await tg.editMessageText(biz.ownerChatId, o.ownerMessageId, undefined, followupText(o, biz), { parse_mode: 'HTML', reply_markup: followupKeyboard(o) })
       .catch(ignoreUnchanged).catch(e => console.error('[bot] xabar:', (e as Error).message));
-  }
-
-  async function publishPost(bizRow: BusinessRow, postId: string): Promise<void> {
-    const biz = businesses.byId(bizRow.id) ?? bizRow;
-    const p = posts.get(biz.id, postId);
-    if (!p || p.status === 'deleted') throw new Error('Post topilmadi');
-    if (p.status === 'published') throw new Error('Post allaqachon joylangan');
-    if (p.item.kind === 'story') throw new Error("Storisni kanalga joylab bo'lmaydi — rasmni yuklab olib, Instagram storisga qo'ying");
-    if (!biz.channelId) throw new Error('Kanal ulanmagan: panel → Telegram → kanal');
-    const lang = langOf(biz);
-    const link = leadLink(biz.id, p.id);
-    const tail = link ? `\n\n👉 ${lang === 'ru' ? 'Связаться' : "Bog'lanish"}: ${link}` : '';
-    const msg = await tg.sendPhoto(biz.channelId, { source: renderPng(p.item, lang, biz.profile), filename: `${p.id}.png` },
-      { caption: cut(p.item.caption[lang], 1024 - tail.length) + tail })
-      .catch(e => { throw new Error(`Kanalga joylanmadi: bot kanalda admin ekanini tekshiring (${(e as Error).message})`); });
-    posts.setPublished(biz.id, p.id, msg.message_id);
-    await refreshPost(biz.id, p.id);
   }
 
   async function sendFollowup(biz: BusinessRow, id: string): Promise<{ sent: number; failed: number }> {
@@ -1018,7 +940,6 @@ export function createBot(): BotService {
       stopped = true;
       try { bot.stop(); } catch { /* ishlamayotgan bo'lsa */ }
     },
-    publishPost,
     sendFollowup,
     cancelFollowup,
     async remindTask(biz, t) {
@@ -1044,17 +965,6 @@ export function createBot(): BotService {
     async sendVoice(chatId, audio, caption) {
       if ('ogg' in audio) await tg.sendVoice(chatId, { source: audio.ogg, filename: 'eslatma.ogg' }, { caption, parse_mode: 'HTML' });
       else await tg.sendAudio(chatId, { source: audio.wav, filename: 'eslatma.wav' }, { caption, parse_mode: 'HTML' });
-    },
-    async verifyChannel(ref: string) {
-      const clean = ref.trim().replace(/^https?:\/\/t\.me\//, '').replace(/^@?/, '@');
-      const chatRef = /^@-?\d+$/.test(clean) ? clean.slice(1) : clean;
-      const chat = await tg.getChat(chatRef).catch(() => { throw new Error('Kanal topilmadi — manzilni tekshiring (masalan, @mening_kanalim)'); });
-      if (chat.type !== 'channel') throw new Error('Bu kanal emas');
-      const me = await tg.getMe();
-      const member = await tg.getChatMember(chat.id, me.id).catch(() => null);
-      if (!member || member.status !== 'administrator') throw new Error(`@${me.username} kanalda admin emas — uni admin qiling`);
-      if ('can_post_messages' in member && member.can_post_messages === false) throw new Error('Botga «xabar joylash» ruxsatini bering');
-      return { id: String(chat.id), title: 'title' in chat ? chat.title : chatRef };
     },
   };
 }

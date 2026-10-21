@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AudioLines, ChevronDown, Loader2, Mic, Paperclip, Phone, RotateCcw, Send, Square } from 'lucide-react';
-import type { Artifact, Business, ChatEntry, LiveStatus } from '../types';
+import type { Artifact, ChatEntry, LiveStatus } from '../types';
 import { api } from '../data/api';
 import { ArtifactView, type Notify } from '../components/Artifacts';
 import { Markdown } from '../components/Markdown';
@@ -92,7 +92,7 @@ function OwnerBubble({ e }: { e: ChatEntry }) {
   );
 }
 
-export function ChatPage({ biz, status, notify, now }: { biz: Business; status: LiveStatus; notify: Notify; now: Date }) {
+export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: Notify; now: Date }) {
   const [entries, setEntries] = useState<ChatEntry[] | null>(null);
   const [text, setText] = useState('');
   const [pending, setPending] = useState<string | null>(null);
@@ -247,7 +247,7 @@ export function ChatPage({ biz, status, notify, now }: { biz: Business; status: 
                       <div className={`flex max-w-[86%] flex-col gap-2 ${e.role === 'owner' ? 'items-end' : 'min-w-0 flex-1'}`}>
                         {e.role === 'owner' ? <OwnerBubble e={e} />
                           : <div data-msg="assistant" className="text-[15.5px] leading-[1.7] text-[#e4e3de]"><Markdown text={e.text} /></div>}
-                        {e.artifacts.map((a, i) => <ArtifactView key={i} a={a} biz={biz} notify={notify} now={now} onChange={x => replaceArtifact(e.id, i, x)} />)}
+                        {e.artifacts.map((a, i) => <ArtifactView key={i} a={a} notify={notify} now={now} onChange={x => replaceArtifact(e.id, i, x)} />)}
                         <span className="text-[11px] text-[#6b717c]">{time(e.createdAt)}{e.channel === 'telegram' ? ' · Telegram' : ''}</span>
                       </div>
                     </div>

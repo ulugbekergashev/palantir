@@ -13,6 +13,8 @@ import { request } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { SCHEMA_VERSION } from '../server/migrate';
 import { iso, stamp } from '../src/lib/week';
 import { OWNER, say, sent, sleep, tgServer, waitFor } from './fakes';
 
@@ -110,6 +112,45 @@ try {
   const day = join(dataDir, 'backups', iso(new Date()));
   ok('zaxira nusxa olindi (baza)', existsSync(join(day, 'cerebro.db')), (backup.stderr || backup.stdout).trim().slice(0, 200));
   ok('yarim yozilgan nusxa qolmadi', !readdirSync(join(dataDir, 'backups')).some(n => n.startsWith('.yozilmoqda')));
+
+  console.log('\n# Baza nashri');
+  const version = (file: string) => { const d = new DatabaseSync(file); const v = Number((d.prepare('PRAGMA user_version').get() as { user_version: number }).user_version); d.close(); return v; };
+  const setVersion = (file: string, v: number) => { const d = new DatabaseSync(file); d.exec(`PRAGMA user_version = ${v}`); d.close(); };
+  ok("yangi baza darhol oxirgi nashrda", version(join(dataDir, 'cerebro.db')) === SCHEMA_VERSION, `v${version(join(dataDir, 'cerebro.db'))}`);
+  // Alohida papka: bazani faqat db moduli ochadi (server emas) — tuzilmani joriy kod yaratadi, keyin «nashrsiz eski baza» qilinadi
+  const oldDir = mkdtempSync(join(tmpdir(), 'cerebro-nashr-')), oldDb = join(oldDir, 'cerebro.db');
+  const openDb = () => spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', '-e', "import('./server/db.ts').then(() => process.exit(0))"], { env: { ...ENV, DATA_DIR: oldDir, BACKUP_DIR: '' }, encoding: 'utf8', timeout: 60_000 });
+  openDb();
+  // Nashrsiz eski baza — postlar olib tashlanishidan oldingi tuzilma bilan (v2 ularni o'chiradi), bitta biznes yozuvi bilan
+  {
+    const d = new DatabaseSync(oldDb);
+    d.exec(`CREATE TABLE posts (id TEXT PRIMARY KEY, business_id TEXT NOT NULL, item TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', created_at TEXT NOT NULL);
+      ALTER TABLE businesses ADD COLUMN channel_id TEXT; ALTER TABLE businesses ADD COLUMN channel_title TEXT;
+      INSERT INTO businesses (id, login, password_hash, profile, link_code, channel_id, created_at) VALUES ('eski1', 'eski', 'x', '{"name":"Eski"}', 'k1', '-100', '2026-01-01');
+      PRAGMA user_version = 0;`);
+    d.close();
+  }
+  const migrated = openDb();
+  const before = readdirSync(join(oldDir, 'backups')).filter(n => /^oldin-v\d+-.+\.db$/.test(n));
+  ok('eski baza: avval nusxa olindi, keyin oxirgi nashrga o\'tdi', migrated.status === 0 && before.length === 1 && version(oldDb) === SCHEMA_VERSION, `${migrated.status} ${before.join(',')} ${(migrated.stderr || '').trim().slice(0, 200)}`);
+  {
+    const d = new DatabaseSync(oldDb);
+    const tables = (d.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map(t => t.name);
+    const cols = (d.prepare('PRAGMA table_info(businesses)').all() as { name: string }[]).map(c => c.name);
+    const kept = d.prepare("SELECT login FROM businesses WHERE id = 'eski1'").get() as { login: string } | undefined;
+    d.close();
+    ok("v2: posts jadvali va kanal ustunlari o'chdi, biznes yozuvi joyida", !tables.includes('posts') && !cols.includes('channel_id') && !cols.includes('channel_title') && kept?.login === 'eski', JSON.stringify({ posts: tables.includes('posts'), cols: cols.filter(c => c.startsWith('channel')) }));
+    // Nusxada eski tuzilma butun qolgan (qaytarish mumkin)
+    const copy = new DatabaseSync(join(oldDir, 'backups', before[0] ?? 'yoq'));
+    const copyHasPosts = !!copy.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'posts'").get();
+    copy.close();
+    ok("migratsiyadan oldingi nusxada eski tuzilma butun", copyHasPosts);
+  }
+  setVersion(oldDb, SCHEMA_VERSION + 1);
+  const tooNew = openDb();
+  ok('baza dasturdan yangiroq — ochilmaydi (kod 78, sababi aytiladi)', tooNew.status === 78 && /yangiroq nashr/.test(tooNew.stderr), `kod ${tooNew.status}`);
+  ok("yangiroq bazaga tegilmadi", version(oldDb) === SCHEMA_VERSION + 1);
+  rmSync(oldDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

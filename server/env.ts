@@ -92,6 +92,8 @@ export const env = {
   /** Egasining shaxsiy Telegramiga kirish (my.telegram.org → API development tools). Bo'lmasa — o'chiq */
   tgApiId: Number(process.env.TG_API_ID) || 0,
   tgApiHash: process.env.TG_API_HASH || '',
+  /** Shaxsiy Telegram keyinga qoldirilgan (docs/PLAN.md): TG_PERSONAL=1 bo'lmasa kalitlar bo'lsa ham o'chiq va panelda ko'rinmaydi */
+  tgPersonal: process.env.TG_PERSONAL === '1',
   /** Faqat sinov uchun: shaxsiy Telegram o'rniga soxta xizmat */
   tgUserFakeUrl: process.env.TG_USER_FAKE_URL || '',
 
@@ -101,6 +103,8 @@ export const env = {
    */
   igBrowser: process.env.IG_BROWSER || '',
   igShowBrowser: process.env.IG_SHOW_BROWSER === '1',
+  /** Brauzer orqali Instagram — zaxira yo'l, standart o'chiq (asosiysi rasmiy, Palantir Hub orqali): IG_VIA_BROWSER=1 bo'lsa yoqiladi */
+  igViaBrowser: process.env.IG_VIA_BROWSER === '1',
   /** Direct'ni tekshirish oralig'i (har safar ±30% tasodifiy) */
   igPollMs: Number(process.env.IG_POLL_MS) || 90_000,
   /** Akkaunt xavfsizligi: bir kunda Instagram'da yuboriladigan xabarlar chegarasi */
@@ -173,6 +177,8 @@ export const env = {
    */
   tgCallPython: process.env.TG_CALL_PYTHON || '',
   tgCallScript: process.env.TG_CALL_SCRIPT || '',
+  /** Keyinga qoldirilgan (alohida Telegram akkauntga kod bilan kiradi): TG_CALL=1 bo'lmasa Python yo'llari bo'lsa ham o'chiq */
+  tgCall: process.env.TG_CALL === '1',
   /** Bitta Telegram qo'ng'irog'iga eng ko'p vaqt (osilib qolsa — to'xtatiladi) */
   tgCallLimitMs: Number(process.env.TG_CALL_LIMIT_MS) || 8 * 60_000,
   /** Ovozli agent bir kunda yoza oladigan qabullar */

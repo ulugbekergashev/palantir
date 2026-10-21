@@ -7,6 +7,8 @@
  * Ishga tushirish: npm run test:setup
  */
 process.env.TZ = 'Asia/Tashkent';
+// Bu sinov server modullarini o'zi import qiladi (about → vault → db): haqiqiy bazaga tegmasin
+import './isolate';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createSocket } from 'node:dgram';

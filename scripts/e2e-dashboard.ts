@@ -4,7 +4,12 @@
  * va panel ko'rinmas brauzerda (headless) ochilib rasmga olinadi: keng ekran va telefon eni.
  * Ishga tushirish: npm run test:dashboard [rasmlar papkasi]
  */
-process.env.TZ = 'Asia/Tashkent';
+// «Bugun»ning hodisalari hozirdan 50…14 daqiqa oldin yoziladi — kun boshidan bir soat o'tmagan bo'lsa ular kechaga tushardi
+// (CI istalgan soatda ishga tushadi). Shuning uchun sinov (server va brauzer ham) hozir taxminan tush payti bo'lgan soat mintaqasida
+// ishlaydi; server mintaqani TZ dan oladi (server/tz.ts), hisob unga bog'liq emas. Etc/GMT da ishora teskari: Etc/GMT-5 = UTC+5
+const NOON_OFFSET = 12 - new Date().getUTCHours();
+const TIMEZONE = NOON_OFFSET === 0 ? 'Etc/GMT' : `Etc/GMT${NOON_OFFSET > 0 ? '-' : '+'}${Math.abs(NOON_OFFSET)}`;
+process.env.TZ = TIMEZONE;
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -15,7 +20,9 @@ import type { DashboardView, FunnelView } from '../src/lib/dashboard';
 import { iso } from '../src/lib/week';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 import { OWNER, aiServer, listen, say, sent, sleep, tgServer, waitFor } from './fakes';
+import { chromePath } from './chrome';
 
+const CHROME = chromePath();
 const OUT = process.argv[2] || join(tmpdir(), 'cerebro-dashboard');
 mkdirSync(OUT, { recursive: true });
 const results: boolean[] = [];
@@ -55,6 +62,9 @@ try {
   await api('/api/admin/businesses', { token: admin, body: { name: 'Shifo Dent', industry: 'stomatologiya', login: 'shifo', password: 'secret12' } });
   const token = (await api('/api/login', { body: { login: 'shifo', password: 'secret12' } })).json.token;
   const me = (await api('/api/me', { token })).json;
+  // Bu server TG_PERSONAL / IG_VIA_BROWSER'siz: keyinga qoldirilgan kanallar standart holatda o'chiq va panel ularni ko'rsatmaydi
+  ok("keyinga qoldirilgan: shaxsiy Telegram va brauzer orqali Instagram o'chiq", me.status.telegramUser.enabled === false && me.status.telegramUser.available === false
+    && me.status.instagram.enabled === false && me.status.instagram.available === false, JSON.stringify({ tg: me.status.telegramUser, ig: me.status.instagram }));
   const mark = sent.length;
   say(OWNER, `/start ${String(me.status.linkUrl).split('start=')[1]}`);
   await waitFor('egasi', () => sent.slice(mark).some(s => String(s.params.text ?? '').includes('Shifo Dent')));
@@ -145,8 +155,8 @@ try {
   ok("noto'g'ri oraliq (to < from) — bugun", ((await api('/api/dashboard?period=custom&from=2026-10-10&to=2026-10-01', { token })).json.dashboard as DashboardView).period.key === 'today');
 
   console.log('\n# Ko\'rinish (headless)');
-  const browser = await chromium.launch({ executablePath: process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: 'Asia/Tashkent', locale: 'uz-UZ' });
+  const browser = await chromium.launch({ executablePath: CHROME });
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: TIMEZONE, locale: 'uz-UZ' });
   await ctx.addInitScript(t => { localStorage.setItem('cerebro_token', t); }, token);
   const page = await ctx.newPage();
   const errors: string[] = [];

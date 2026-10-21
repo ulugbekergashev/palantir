@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Download, Loader2, ShieldAlert } from 'lucide-react';
 import { anketaApi } from '../data/api';
 import { packFor } from '../data/industries';
-import { Logo } from '../components/Sidebar';
+import { Logo } from '../components/Logo';
 import { Button, Card, Field, TextInput, inputClass } from '../components/ui';
 import { useFontsReady } from '../lib/hooks';
 import { CLOSED, DAYS, cleanCode, hoursText, type AnketaData, type AnketaStatus } from '../lib/anketa';

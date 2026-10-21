@@ -4,7 +4,7 @@
  *   qabul yaratishda vaqt tekshirilmaydi; bemor shu kuni yozilgan bo'lsa — eski yozuv jimgina qaytadi (haqiqiy CRM kabi).
  */
 import { createServer } from 'node:http';
-import { json, readBody, sleep, wire } from './fakes';
+import { json, patient, readBody, sleep, wire } from './fakes';
 
 export const CRM_LOGIN = { username: 'tabassum', password: 'crm-parol-777' };
 export const CRM_HASH = '$2b$10$FAKEHASHfakehashFAKEHASHfakehashFAKEHASHfakehash';
@@ -126,7 +126,7 @@ export const crm = {
   },
 };
 
-export const crmServer = createServer(async (req, res) => {
+export const crmServer = patient(createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://x');
   const path = url.pathname;
   const body = JSON.parse((await readBody(req)).toString() || '{}') as Row;
@@ -246,4 +246,4 @@ export const crmServer = createServer(async (req, res) => {
     return json(res, a);
   }
   json(res, { error: 'Not found' }, 404);
-});
+}));

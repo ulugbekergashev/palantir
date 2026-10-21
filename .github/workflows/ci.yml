@@ -1,0 +1,65 @@
+# Har push va PR'da: tiplar va hamma sinov to'plamlari (soxta Telegram, Claude, CRM — haqiqiy kalitsiz va pulsiz).
+# Asosiy ish Windows'da — klinika kompyuteri Windows. Ubuntu'da tez tekshiruv: tiplar va asosiy oqim.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      # IP kamera sinovlari uchun: yangi ffmpeg (-max_redirects bor — HTTP kameralarning to'liq sinovi ishlaydi)
+      - name: ffmpeg
+        run: choco install ffmpeg -y --no-progress
+      # GitHub runner'larida npm tarmog'i ba'zan uziladi (ECONNRESET): qayta urinishlar bilan
+      - run: npm ci --no-audit --no-fund --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
+      - name: Kamera modeli (SHA256 bilan)
+        run: npm run camera:model
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:resilience
+      - run: npm run test:setup
+      - run: npm run test:work
+      - run: npm run test:requests
+      - run: npm run test:phone
+      - run: npm run test:instagram
+      - run: npm run test:tgcall
+      - run: npm run test:ipcam
+      - run: npm run test:camwork
+      - run: npm run test:httpcam
+      - run: npm run test:stend
+      - run: npm run test:dashboard
+      - run: npm run test:ui
+      - run: npm run test:ui-setup
+      - run: npm run scenarios
+
+  ubuntu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # GitHub runner'larida npm tarmog'i ba'zan uziladi (ECONNRESET): qayta urinishlar bilan
+      - run: npm ci --no-audit --no-fund --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:resilience

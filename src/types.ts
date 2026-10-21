@@ -45,7 +45,7 @@ export interface Business {
   hours?: string;
   instagram?: string;
   website?: string;
-  /** Postlar va hujjatlar qaysi tilda (bo'lmasa — o'zbekcha) */
+  /** Hujjatlar, mijozlarga matnlar va ovoz qaysi tilda (bo'lmasa — o'zbekcha) */
   contentLang?: Lang;
   /** Ertalabki qisqa xulosa (bugungi vazifalar, yangi mijozlar) */
   morningBrief?: boolean;
@@ -71,40 +71,6 @@ export interface AutoReply {
   /** Shaxsiy Telegram: kontaktlardagi odamlarga ham javob bersinmi (odatda — yo'q, ular tanishlar) */
   contacts: boolean;
   delayMin: number;
-}
-
-// ─── Post rasmi (shablon) ────────────────────────────────────────────────────
-
-export type TemplateId = 'promo' | 'tip' | 'team' | 'holiday' | 'list' | 'poll';
-export type ItemKind = 'post' | 'story';
-
-/** Rasmga tushadigan matnlar */
-export interface Design {
-  /** Yuqoridagi kichik yorliq: "Aksiya", "Foydali maslahat" */
-  kicker: string;
-  title: string;
-  /** Katta belgi: "-20%", "Bepul" */
-  badge?: string;
-  /** list shablonida har qator "chap|o'ng" */
-  lines: string[];
-  /** Pastdagi chaqiruv: "Buyurtma: @bot" */
-  cta?: string;
-  footnote?: string;
-}
-
-/** Shablon chizadigan narsa (post, storis) */
-export interface ContentItem {
-  id: string;
-  kind: ItemKind;
-  template: TemplateId;
-  /** Dizayn uslubi: 0 — rangli fon, 1 — oq fon, 2 — gradient */
-  style: number;
-  seed: number;
-  memberId?: string;
-  /** Xotira kuni kabi — bezaksiz, sokin uslub */
-  solemn?: boolean;
-  design: Record<Lang, Design>;
-  caption: Record<Lang, string>;
 }
 
 // ─── Yordamchi ishlari ───────────────────────────────────────────────────────
@@ -224,17 +190,6 @@ export interface Doc {
   createdAt: string;
 }
 
-export type PostStatus = 'draft' | 'published' | 'deleted';
-
-export interface Post {
-  id: string;
-  item: ContentItem;
-  status: PostStatus;
-  inChannel: boolean;
-  publishedAt: string | null;
-  createdAt: string;
-}
-
 export type OutboundStatus = 'draft' | 'sent' | 'cancelled';
 
 /** Mijozlarga xabar (follow-up): egasi tasdiqlagach yuboriladi */
@@ -337,7 +292,6 @@ export interface CameraShot { eventId: string | null; cameraId: string; cameraNa
 /** Yordamchi javobi bilan birga yaratilgan narsa (panel va Telegramda ko'rsatiladi) */
 export type Artifact =
   | { type: 'document'; doc: Doc }
-  | { type: 'post'; post: Post }
   | { type: 'outbound'; outbound: Outbound }
   | { type: 'money'; entry: MoneyEntry }
   | { type: 'task'; task: Task }
@@ -360,16 +314,18 @@ export interface LiveStatus {
   voice: boolean;
   ownerLinked: boolean;
   linkUrl: string | null;
-  channel: { id: string; title: string | null } | null;
   /** Instagram bio va reklama uchun: bosgan odam botga tushadi, raqamini qoldiradi */
   generalLink: string | null;
-  /** Egasining shaxsiy Telegrami: available — serverda TG_API_ID bor; account — ulangan akkaunt */
-  telegramUser: { available: boolean; account: string | null };
   /**
-   * Egasining Instagrami (shu kompyuterdagi brauzer orqali): available — Chrome/Edge topildi;
+   * Egasining shaxsiy Telegrami: enabled — serverda yoqilgan (TG_PERSONAL=1; o'chiq bo'lsa panelda ko'rinmaydi);
+   * available — TG_API_ID ham bor; account — ulangan akkaunt
+   */
+  telegramUser: { enabled: boolean; available: boolean; account: string | null };
+  /**
+   * Egasining Instagrami (shu kompyuterdagi brauzer orqali, zaxira yo'l): enabled — serverda yoqilgan (IG_VIA_BROWSER=1); available — Chrome/Edge topildi;
    * waiting — ochilgan oynada egasi kirishini kutyapti; problem — nega ishlamayapti; relogin — qayta kirish yordam beradi
    */
-  instagram: { available: boolean; account: string | null; waiting: boolean; problem: string | null; relogin: boolean };
+  instagram: { enabled: boolean; available: boolean; account: string | null; waiting: boolean; problem: string | null; relogin: boolean };
   /** Rasmiy Instagram (Meta ilovasi, Palantir Hub orqali): hub — hub kodi kiritilgan; account — «@username»; humanAgent — 7 kungacha javob ruxsati */
   instagramApi: { hub: boolean; account: string | null; problem: string | null; expiresAt: string | null; humanAgent: boolean };
   /** Klinikaning DentaCRM'i: account — "Klinika nomi · manzil"; problem — nega ishlamayapti */

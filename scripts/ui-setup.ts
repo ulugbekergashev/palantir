@@ -15,7 +15,9 @@ import { join } from 'node:path';
 import { chromium, type Page } from 'playwright-core';
 import { crmServer, CRM_LOGIN } from './fakeCrm';
 import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, tgUserServer, waitFor, type Sent } from './fakes';
+import { chromePath } from './chrome';
 
+const CHROME = chromePath();
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
 
@@ -49,20 +51,22 @@ const PORT = 3292, base = `http://127.0.0.1:${PORT}`;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
     ...process.env, DOTENV: '0', ASTERISK_WSL: '0', PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '', ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '',
-    TG_API_ID: '', TG_API_HASH: '', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
+    TG_API_ID: '', TG_API_HASH: '', TG_PERSONAL: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
     TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, ANTHROPIC_BASE_URL: `http://127.0.0.1:${keysPort}`, GEMINI_API_ROOT: `http://127.0.0.1:${keysPort}`,
     ADMIN_PASSWORD: 'admin-pass-1', SESSION_SECRET: 'ui-setup-secret', TICK_MS: '700', BACKUP_KEEP: '0',
     CAMERA_TEST_INPUT: JSON.stringify(['-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=5']), CAMERA_PROBE_TARGETS: `127.0.0.1:${udpPort}`, CAMERA_SCAN_HOSTS: `127.0.0.1:${scanPort}`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
+// Sinov qayerda yiqilmasin (try'dan oldin ham) — server yetim qolmaydi
+process.on('exit', () => server.kill());
 let log = '';
 server.stdout.on('data', d => { log += d; });
 server.stderr.on('data', d => { log += d; });
 for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
 
 const BOT = '7412589630:AAHk3vQx9LmP2wZr8TnB4yCd6fGh1JsK0eQ', CLAUDE = 'sk-ant-api03-Xr7bN2kQp9LmW4zT8vY1cD6fH3jS0aE5gU';
-const browser = await chromium.launch({ executablePath: process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const browser = await chromium.launch({ executablePath: CHROME });
 const errors: string[] = [];
 const watch = (p: Page) => {
   p.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
