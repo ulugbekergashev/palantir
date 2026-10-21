@@ -53,6 +53,7 @@ jobs:
       - run: npm run test:work
       - run: npm run test:requests
       - run: npm run test:phone
+      - run: npm run test:stations
       - run: npm run test:instagram
       - run: npm run test:hub
       - run: npm run test:update

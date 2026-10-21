@@ -26,6 +26,7 @@
     "test:work": "tsx scripts/e2e-work.ts",
     "test:requests": "tsx scripts/e2e-requests.ts",
     "test:phone": "tsx scripts/e2e-phone.ts",
+    "test:stations": "tsx scripts/e2e-stations.ts",
     "test:instagram": "tsx scripts/e2e-instagram.ts",
     "test:dashboard": "vite build && tsx scripts/e2e-dashboard.ts",
     "hub": "tsx hub/server.ts",

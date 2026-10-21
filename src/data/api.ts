@@ -47,6 +47,10 @@ export interface PhoneStatus {
   available: boolean; exePath: string | null; connected: boolean; mine: boolean; otherBusiness: boolean; noAccount: boolean; recording: boolean; recordFormat: 'mp3' | 'wav' | null;
 }
 /** Qabulxona: xodimlar (ulanmaganida — Telegram havolasi), so'rovlar nusxasi egasiga keladimi, bot ulanganmi */
+/** Qabulxonadagi boshqa kompyuter (server/phone/stations.ts) */
+export interface PhoneStation { id: string; name: string; staffId: string | null; createdAt: string; seenAt: string | null; paired: boolean; online: boolean }
+/** Kompyuter ulanishi mumkin bo'lgan manzillar: klinika tarmog'i va Palantir Hub */
+export interface StationServers { lan: string[]; hub: string | null }
 export interface TeamView { staff: (StaffMember & { link: string | null })[]; copyToOwner: boolean; bot: boolean }
 
 /** Hub orqali masofadan ochilganda panel /c/<klinika>/ ostida turadi — API ham shu yo'l bilan (oddiy holatda — bo'sh) */
@@ -174,7 +178,11 @@ export const api = {
   phone: () => call<{ phone: PhoneStatus }>('/phone'),
   connectPhone: (overwrite = false) => call<{ phone: PhoneStatus }>('/phone/connect', { body: { overwrite } }),
   disconnectPhone: () => call<{ phone: PhoneStatus }>('/phone/disconnect', { body: {} }),
-  dial: (phone: string, requestId?: string) => call<{ noAccount: boolean }>('/phone/dial', { body: { phone, requestId } }),
+  dial: (phone: string, requestId?: string, stationId?: string) => call<{ noAccount: boolean; station: string | null }>('/phone/dial', { body: { phone, requestId, stationId } }),
+  stations: () => call<{ stations: PhoneStation[]; servers: StationServers }>('/phone/stations'),
+  addStation: (name: string, staffId: string | null) => call<{ station: PhoneStation; code: string; until: string; servers: StationServers }>('/phone/stations', { body: { name, staffId } }),
+  setStationStaff: (id: string, staffId: string | null) => call<{ station: PhoneStation }>(`/phone/stations/${id}`, { method: 'PATCH', body: { staffId } }),
+  removeStation: (id: string) => call<{ ok: true }>(`/phone/stations/${id}`, { method: 'DELETE' }),
   /** Qo'ng'iroq yozuvi (tinglash uchun) */
   callAudio: async (id: string) => (await send(`/calls/${id}/audio`, { method: 'GET' })).blob(),
   calls: () => call<{ calls: Call[] }>('/calls'),
