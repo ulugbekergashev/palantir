@@ -526,7 +526,7 @@ export function createApp(bot: BotService) {
   mountCamera(app, { asBiz, bad });
   mountVoice(app, { asBiz, bad });
   mountRequests(app, { asBiz, bad, bot });
-  mountPhone(app, { asBiz, bad, fail });
+  mountPhone(app, { asBiz, bad, fail, clientKey });
   mountBrain(app, { asBiz, bad, fail });
   mountOrders(app, { asBiz, bad, fail, bot });
   mountAttention(app, { asBiz });

@@ -36,6 +36,9 @@ Instagram → Настройки → «Тип аккаунта» → **Проф�
 Пока у приложения нет Advanced Access, работают только аккаунты с ролью в приложении (тестировщики) — для первых клиник этого достаточно. Для массового подключения: App Review на `instagram_business_basic` и `instagram_business_manage_messages` + Business Verification (документы компании, политика конфиденциальности, видео работы). Срок — от нескольких дней до недель, поэтому подавать стоит сразу. Функция **Human Agent** (ответ до 7 дней) — отдельная заявка; после одобрения на ПК клиники `IG_HUMAN_AGENT=1`.
 
 ## Шаг 3. Развернуть Palantir Hub (Railway или любой хостинг с HTTPS)
+**Быстро (Railway, одна команда):** `railway login`, затем `npm run hub:deploy` (необязательно: `HUB_CONTACT_EMAIL=… HUB_OPERATOR=… IG_APP_ID=… IG_APP_SECRET=…` перед командой). Скрипт создаёт проект `palantir-hub`, сервис `hub` из папки `hub/` (`hub/railway.json`: запуск, проверка `/health`), том `/data`, домен, все переменные (секреты — один раз, хранятся в `~/.palantir/hub.env`), разворачивает и ждёт `/health`; в конце печатает адреса для Meta. Повторный запуск — обновление (переменные из окружения добавляются/меняются).
+
+Вручную:
 Папка `hub/` самостоятельная: Node 24, без зависимостей (`node server.ts`).
 
 1. Railway → New project → из репозитория, **Root directory: `hub`**, Start command: `node server.ts`.

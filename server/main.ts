@@ -17,7 +17,7 @@ import { instagramAvailable, startInstagram, stopInstagram } from './inbox/insta
 import { startInstagramApi, stopInstagramApi } from './inbox/instagramApi';
 import { refreshTelegramUser, startTelegramUser, stopTelegramUser, telegramUserAvailable } from './inbox/telegramUser';
 import { startScheduler } from './scheduler';
-import { startPhone, startRecordingRetention, stopPhone } from './phone/index';
+import { startCallSweeper, startPhone, startRecordingRetention, stopPhone } from './phone/index';
 import { startMonitor } from './monitor';
 import { startHeartbeat } from './heartbeat';
 import { startOrders } from './orders/run';
@@ -70,6 +70,8 @@ const stopOrders = startOrders(bot);
 const stopVoiceEnv = startVoiceEnv();
 // MicroSIP shu kompyuterda ulangan bo'lsa — qo'ng'iroq hodisalari va yozuvlar o'qiladi
 startPhone();
+// Qo'ng'iroq «tugadi»si kelmay qolsa yopiladi — shu kompyuter va qabulxonadagi boshqa kompyuterlar (phone/stations.ts) uchun
+const stopCallSweeper = startCallSweeper();
 const stopRetention = startRecordingRetention();
 const stopBackups = startBackups();
 // Kanallar nazorati: CRM, rasmiy Instagram va hub, MicroSIP, IP kameralar — uzilsa egasiga aytiladi
@@ -98,6 +100,7 @@ const shutdown = () => {
   stopVoiceEnv();
   stopBackups();
   stopPhone();
+  stopCallSweeper();
   stopRetention();
   stopMonitor();
   stopHeartbeat();

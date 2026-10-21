@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, PhoneCall, PhoneIncoming, PhoneMissed, PhoneOutgoing } from 'lucide-react';
 import type { Call } from '../types';
-import { api, type PhoneStatus } from '../data/api';
+import { api, type PhoneStation, type PhoneStatus, type StationServers } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { Button, Card, EmptyState, PageHeader } from '../components/ui';
 import { prettyPhone } from '../lib/phone';
@@ -32,6 +32,7 @@ export function CallsPage({ notify }: { notify: Notify }) {
       <PageHeader title="Qo'ng'iroqlar" description="Klinika telefoni (MicroSIP) orqali bo'lgan har bir qo'ng'iroq: kim, qachon, ko'tarildimi; suhbat yozib olinadi, matnga aylanadi va tahlil qilinadi. O'tkazib yuborilgan qo'ng'iroq — qabulxonaga «qayta qo'ng'iroq qiling» so'rovi." />
 
       <PhoneCard notify={notify} />
+      <StationsCard notify={notify} />
 
       {list === null ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : !list.length ? (
         <Card><EmptyState icon={PhoneCall} title="Hali qo'ng'iroq yo'q">MicroSIP ulangach, har bir kiruvchi va chiquvchi qo'ng'iroq shu yerda paydo bo'ladi.</EmptyState></Card>
@@ -129,6 +130,83 @@ function PhoneCard({ notify }: { notify: Notify }) {
             <p className="text-xs text-slate-500">Ulash va uzishda MicroSIP bir necha soniyaga yopilib, qayta ochiladi (sozlamasini o'zgartirish uchun). Qo'ng'iroq paytida bosmang.</p>
           </div>
         )}
+    </Card>
+  );
+}
+
+/**
+ * Qabulxonadagi boshqa kompyuterlar: har birida MicroSIP. Kompyuter qo'shiladi → bir martalik kod → o'sha kompyuterda Stansiya.cmd.
+ * Xodim biriktirilsa — u Telegram'da «📞 Kompyuterdan» bosganda raqam aynan o'zining kompyuterida teriladi
+ */
+function StationsCard({ notify }: { notify: Notify }) {
+  const [data, setData] = useState<{ stations: PhoneStation[]; servers: StationServers } | null>(null);
+  const [staff, setStaff] = useState<{ id: string; name: string }[]>([]);
+  const [name, setName] = useState('');
+  const [who, setWho] = useState('');
+  const [made, setMade] = useState<{ name: string; code: string; until: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fail = (e: unknown) => notify((e as Error).message, true);
+  const load = () => api.stations().then(setData).catch(() => {});
+  useEffect(() => {
+    void load();
+    api.staff().then(r => setStaff(r.staff)).catch(() => {});
+    const t = setInterval(() => { void load(); }, 10_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!data) return null;
+  const server = data.servers.lan[0] ?? data.servers.hub;
+  const add = () => {
+    if (!name.trim()) return notify('Kompyuter nomini yozing (masalan, «Qabulxona 2»)', true);
+    setBusy(true);
+    api.addStation(name.trim(), who || null).then(r => { setMade({ name: r.station.name, code: r.code, until: r.until }); setName(''); setWho(''); void load(); })
+      .catch(fail).finally(() => setBusy(false));
+  };
+  const remove = (st: PhoneStation) => {
+    if (!window.confirm(`«${st.name}» olib tashlansinmi? Uning qo'ng'iroqlari endi kelmaydi.`)) return;
+    api.removeStation(st.id).then(() => { notify('Olib tashlandi'); void load(); }).catch(fail);
+  };
+  return (
+    <Card title="Qabulxonadagi boshqa kompyuterlar" description="Har bir administrator kompyuteridagi MicroSIP: qo'ng'iroqlar, yozuvlar va «📞 Kompyuterdan» shu yerga ulanadi. Bitta qo'ng'iroq bir nechta kompyuterda jiringlasa — kim ko'targani yoziladi, hech kim ko'tarmasagina «o'tkazib yuborildi».">
+      <div className="space-y-3">
+        {data.stations.length > 0 && (
+          <ul className="divide-y divide-slate-100">
+            {data.stations.map(st => (
+              <li key={st.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+                <span className="font-semibold">{st.name}</span>
+                <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${st.online ? 'bg-emerald-50 text-emerald-700' : st.paired ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
+                  {st.online ? 'aloqada' : st.paired ? 'aloqada emas' : 'hali ulanmagan'}
+                </span>
+                <select aria-label={`${st.name} — xodim`} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs" value={st.staffId ?? ''}
+                  onChange={e => { api.setStationStaff(st.id, e.target.value || null).then(() => load()).catch(fail); }}>
+                  <option value="">xodim biriktirilmagan</option>
+                  {staff.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select>
+                <Button size="sm" variant="ghost" className="ml-auto" onClick={() => remove(st)}>Olib tashlash</Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {made && (
+          <div role="status" className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">
+            <p className="font-semibold">«{made.name}» kompyuterida (MicroSIP ishlatadigan foydalanuvchi nomidan) Palantir papkasida ishga tushiring:</p>
+            <code className="mt-2 block break-all rounded-lg bg-white px-2 py-1.5 text-xs">install\Stansiya.cmd -Server {server ?? '<server manzili>'} -Code {made.code}</code>
+            <p className="mt-1 text-xs">Kod bir marta ishlaydi, {new Date(made.until).toLocaleTimeString('uz', { hour: '2-digit', minute: '2-digit' })} gacha.
+              {data.servers.lan.length > 0 && data.servers.hub ? ` Klinika tarmog'idan tashqarida — ${data.servers.hub}` : ''}
+              {!server ? " Server manzili: server klinika tarmog'ida ko'rinishi kerak (.env: LISTEN_HOST=0.0.0.0) yoki Palantir Hub kodi kiritilsin." : ''}</p>
+          </div>
+        )}
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="min-w-0 flex-1"><span className="mb-1 block text-xs font-semibold text-slate-600">Kompyuter nomi</span>
+            <input className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" value={name} onChange={e => setName(e.target.value)} placeholder="Qabulxona 2" maxLength={60} /></label>
+          <label><span className="mb-1 block text-xs font-semibold text-slate-600">Xodim (ixtiyoriy)</span>
+            <select className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" value={who} onChange={e => setWho(e.target.value)}>
+              <option value="">—</option>
+              {staff.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select></label>
+          <Button variant="primary" disabled={busy} onClick={add}>Kompyuter qo'shish</Button>
+        </div>
+        {data.stations.length > 0 && <p className="text-xs text-slate-500">«📞 Kompyuterdan» — bosgan xodimga biriktirilgan kompyuterda; biriktirilmagan bo'lsa — shu kompyuterdagi MicroSIP yoki aloqadagi yagona kompyuterda.</p>}
+      </div>
     </Card>
   );
 }

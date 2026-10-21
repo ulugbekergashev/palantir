@@ -94,6 +94,16 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 - Administrator telefoni: qabulxona telefoniga Zoiper (yoki stol IP telefoni) → «Akkaunt yaratish» → server, login `admin`, parol.
   Shu telefondan «2» ni tering — qabulxona mijozdek javob beradi (sinov: jadvalga yozilmaydi).
 
+**Qabulxonadagi boshqa kompyuterlar (MicroSIP)** — har bir administrator kompyuterida o'z MicroSIP'i bo'lsa:
+1. Panel → Qabulxona → Qo'ng'iroqlar → «Qabulxonadagi boshqa kompyuterlar» → nomi (masalan «Qabulxona 2») va xodim → «Kompyuter qo'shish». Kod chiqadi (30 daqiqa, bir marta).
+2. O'sha kompyuterga Palantir papkasini (reliz zip) ko'chiring va **MicroSIP ishlatadigan foydalanuvchi nomidan** (administrator emas): `install\Stansiya.cmd -Server <manzil> -Code <kod>` — panel buyruqni tayyor ko'rsatadi. Palantir server u yerga o'rnatilmaydi: faqat kichik yordamchi (`%ProgramData%\Palantir-stansiya`), u MicroSIP'ni sozlaydi (bir necha soniyaga yopib-ochadi) va Windows yoqilganda o'zi ishga tushadi.
+3. Manzil: klinika tarmog'ida — server kompyuterining manzili (`.env`: `LISTEN_HOST=0.0.0.0`, brandmauerda port ochiq bo'lsin); tarmoq yopiq bo'lsa yoki kompyuter boshqa joyda — Palantir Hub manzili (internet orqali, yozuv 15 MB gacha).
+4. Tekshiruv: panelda kompyuter «aloqada»; shu kompyuterga qo'ng'iroq qilib ko'ring — Qo'ng'iroqlar ro'yxatida chiqadi, suhbat yozuvi bir necha soniyadan keyin keladi.
+- Bitta qo'ng'iroq bir nechta kompyuterda birdan jiringlasa (provayder hammaga beradi): kim ko'targan bo'lsa — o'sha kompyuterniki; boshqasida jiringlash to'xtagani «o'tkazib yuborildi» emas. Hech kim ko'tarmasagina — qabulxonaga «qayta qo'ng'iroq qiling» so'rovi.
+- Xodim biriktirilsa, u Telegram'da «📞 Kompyuterdan» bossa — raqam aynan o'zining kompyuterida teriladi.
+- Olib tashlash: panelda «Olib tashlash» (kaliti darhol ishlamaydi) va o'sha kompyuterda `install\Stansiya.cmd -Uninstall` (MicroSIP avvalgi holiga).
+- Haqiqiy SIP liniya va MicroSIP bilan hali sinalmagan: birinchi klinikada bir necha qo'ng'iroq bilan tekshiring — ayniqsa «ikki kompyuterda jiringladi, biri ko'tardi».
+
 ## 4. Ketishdan oldin tekshiring
 
 - [ ] `install\Tekshirish.cmd` — `[XATO]` yo'q.

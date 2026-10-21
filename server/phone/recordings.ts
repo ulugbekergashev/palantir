@@ -14,26 +14,41 @@ const MIN_BYTES = 2_000;
 
 export interface FoundRecording { file: string; ext: string; size: number }
 
-/** answeredAt..endedAt suhbatiga mos fayl (topilmasa — null). digits — raqamning oxirgi 9 xonasi (nomda bo'lsa afzal) */
+/** Yozuv fayli haqida: nomi, yaratilgan va oxirgi yozilgan payti (ms), hajmi */
+export interface RecordingFile { name: string; born: number; mtime: number; size: number }
+
+/**
+ * Sof tanlov: answeredAt..endedAt suhbatiga mos fayl. Yaratilgan payt suhbat ichida, oxirgi yozilgani — tugash atrofida;
+ * nomida raqam bo'lsa — shu raqamlisi afzal. Fayllar shu kompyuterdan ham, boshqa kompyuterdan (stansiya yuborgan, vaqtlari bilan) ham
+ */
+export function pickRecording(files: RecordingFile[], call: { answeredAt: number; endedAt: number }, digits: string | null, taken: Set<string> = new Set()): RecordingFile | null {
+  const hits: { f: RecordingFile; score: number }[] = [];
+  for (const f of files) {
+    if (!AUDIO_EXT.test(f.name) || taken.has(f.name) || f.size < MIN_BYTES) continue;
+    if (f.born < call.answeredAt - SLACK_MS || f.born > call.endedAt + SLACK_MS) continue;
+    if (f.mtime < call.answeredAt || f.mtime > call.endedAt + SLACK_MS * 2) continue;
+    const byName = digits && f.name.replace(/\D/g, '').includes(digits) ? 0 : 1;
+    hits.push({ f, score: byName * 1e9 + Math.abs(f.mtime - call.endedAt) });
+  }
+  hits.sort((a, b) => a.score - b.score);
+  return hits[0]?.f ?? null;
+}
+
+/** answeredAt..endedAt suhbatiga mos fayl shu papkadan (topilmasa — null). digits — raqamning oxirgi 9 xonasi (nomda bo'lsa afzal) */
 export function findRecording(dir: string, call: { answeredAt: number; endedAt: number }, digits: string | null, taken: Set<string> = new Set()): FoundRecording | null {
   let names: string[];
   try { names = fs.readdirSync(dir); } catch { return null; }
-  const hits: { file: string; ext: string; size: number; score: number }[] = [];
+  const files: RecordingFile[] = [];
   for (const name of names) {
-    if (!AUDIO_EXT.test(name) || taken.has(name)) continue;
-    const file = path.join(dir, name);
-    let st: fs.Stats;
-    try { st = fs.statSync(file); } catch { continue; }
-    if (!st.isFile() || st.size < MIN_BYTES) continue;
-    // Yaratilgan payt (Windows'da birthtime ishonchli) suhbat ichida, oxirgi yozilgani — tugash atrofida
-    const born = st.birthtimeMs || st.ctimeMs;
-    if (born < call.answeredAt - SLACK_MS || born > call.endedAt + SLACK_MS) continue;
-    if (st.mtimeMs < call.answeredAt || st.mtimeMs > call.endedAt + SLACK_MS * 2) continue;
-    const byName = digits && name.replace(/\D/g, '').includes(digits) ? 0 : 1;
-    hits.push({ file, ext: path.extname(name).slice(1).toLowerCase(), size: st.size, score: byName * 1e9 + Math.abs(st.mtimeMs - call.endedAt) });
+    if (!AUDIO_EXT.test(name)) continue;
+    try {
+      const st = fs.statSync(path.join(dir, name));
+      // Yaratilgan payt (Windows'da birthtime ishonchli)
+      if (st.isFile()) files.push({ name, born: st.birthtimeMs || st.ctimeMs, mtime: st.mtimeMs, size: st.size });
+    } catch { /* o'chib ulgurgan */ }
   }
-  hits.sort((a, b) => a.score - b.score);
-  return hits[0] ? { file: hits[0].file, ext: hits[0].ext, size: hits[0].size } : null;
+  const hit = pickRecording(files, call, digits, taken);
+  return hit ? { file: path.join(dir, hit.name), ext: path.extname(hit.name).slice(1).toLowerCase(), size: hit.size } : null;
 }
 
 /** Faylni Palantir'ning yozuvlar papkasiga ko'chiradi (MicroSIP papkasi bo'shab turadi). Qaytadi — yangi nom */
