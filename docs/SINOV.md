@@ -2,15 +2,13 @@
 
 Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **haqiqiy hisoblar va uskunalar bilan** qo'lda tekshiriladiganlar. Har bandda: nima qilasiz → nima bo'lishi kerak. Bo'lmasa — `/diagnostika` (botda) va qaysi band ekanini yozing.
 
-## 0. Bir martalik tayyorgarlik (sizning hisoblaringiz)
+1–7-bo'limlar uchun **server (Palantir Hub) kerak emas**: hammasi klinika kompyuterining o'zida ishlaydi. Hub faqat Instagram, telefondan panel va tashqi zaxira uchun — ular oxirgi bo'limda («Keyin»).
+
+## 0. Bir martalik tayyorgarlik
 
 | # | Qilish | Natija |
 |---|---|---|
 | 0.1 | Ikkita kalitni (`reliz-imzo-kaliti.pem`, `zaxira-kaliti.pem` — `~/.palantir/` da; shu kompyuterda hozircha `~/.cerebro/` da, eski nom) internetsiz joyga nusxalang (fleshka) | Ularsiz yangilanish chiqarib bo'lmaydi va tashqi zaxirani ochib bo'lmaydi |
-| 0.2 | Terminalda: `railway login` (brauzerda tasdiqlang), keyin `HUB_CONTACT_EMAIL=siz@domen.uz HUB_OPERATOR="Kompaniya MChJ" npm run hub:deploy` | Oxirida `Tayyor: https://….up.railway.app` va Meta uchun manzillar. Sirlar — `~/.palantir/hub.env` |
-| 0.3 | `https://<hub>/privacy` ni oching | Uch tilda siyosat, kompaniya nomi va e-mail bilan |
-| 0.4 | Meta ilovasi: [docs/INSTAGRAM.md](INSTAGRAM.md) 2-qadam — 0.2 chiqargan manzillarni qo'ying; `IG_APP_ID`, `IG_APP_SECRET` bilan `npm run hub:deploy` ni qayta ishga tushiring | `https://<hub>/health` → `"instagram":true,"legal":true` |
-| 0.5 | Klinika kodi: 0.2 oxirida chiqqan `curl …/admin/clinics` buyrug'i | `phub.…` kod — klinika kompyuterida ulash ustasiga kiritiladi |
 
 ## 1. Klinika kompyuteri
 
@@ -18,29 +16,24 @@ Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **h
 |---|---|---|
 | 1.1 | `install\Ornatish.cmd` ([ORNATISH.md](ORNATISH.md)) — avtokirishga «ha» | Kompyuter qayta yonganda ekran qulflangan, Palantir esa ishlayapti |
 | 1.2 | `install\Tekshirish.cmd` | `[XATO]` yo'q |
-| 1.3 | Ulash ustasi → kalitlar: Hub kodi (0.5) | Panel → Sozlamalar → Telegram → «Masofadan kirish»da havola |
-| 1.4 | Kompyuterni o'chirib-yoqing | 15 daqiqada sizga (`HUB_ALERT_CHAT`) «aloqa yo'q», yongach «yana aloqada» |
 
 ## 2. Egasi (Telegram bot)
 
 | # | Qilish | Natija |
 |---|---|---|
 | 2.1 | Botga: «Ertaga 10 da bankka borishni eslat» (yozib ham, ovoz bilan ham) | Ertaga 10:00 da eslatma tugmalar bilan |
-| 2.2 | Botda pastdagi **«Panel»** tugmasi (yoki `/panel`) | Panel Telegram ichida ochiladi, parol so'ralmaydi |
-| 2.3 | Panel → Sozlamalar → «Kirish va xavfsizlik» → parolni almashtiring | Boshqa brauzerdagi kirish chiqib ketadi; shu yerda ishlayveradi |
-| 2.4 | `/diagnostika` | Hub bo'lsa — «hubga yuborildi»; sotuvchi `/admin/diag` dan o'qiydi |
+| 2.2 | Panel → Sozlamalar → «Kirish va xavfsizlik» → parolni almashtiring | Boshqa brauzerdagi kirish chiqib ketadi; shu yerda ishlayveradi |
+| 2.3 | `/diagnostika` | Bot diagnostika faylini shu chatga yuboradi — muammo bo'lsa, shu faylni sotuvchiga yuborasiz |
 
-## 3. Mijozlar (bot, Instagram, Telegram Business)
+## 3. Mijozlar (bot, Telegram Business)
 
 | # | Qilish | Natija |
 |---|---|---|
 | 3.1 | Boshqa telefondan mijoz havolasini oching, «Raqamni yuborish» | Egasiga «Yangi mijoz», raqam bilan |
 | 3.2 | O'sha mijoz: «Ertangi qabulim qachon?» (DentaCRM'da bu raqamli bemorning qabuli bo'lsin) | Javobda qabul vaqti; «ko'chiring» desa — kartada «Ko'chirish va yuborish» |
 | 3.3 | Raqamini **yozib** yuborgan boshqa akkaunt xuddi shuni so'rasin | Qabulni ko'rsatmaydi, `/raqam` ni bosishni so'raydi |
-| 3.4 | Instagram'dan klinikaga DM: «Implant qancha?» | Egasiga javob taklifi; «Yuborish» → mijozga Instagram'da javob |
-| 3.5 | Instagram'dan: «Qabulimni ko'chiring» | Javob xodimga o'tadi (Instagram'da raqam tasdiqlanmaydi) |
-| 3.6 | Telegram Premium akkauntingizda: Sozlamalar → Telegram Business → Chat-botlar → botni qo'shing, «javob berish» ruxsati bilan | Botdan «Telegram Business ulandi»; boshqa odam shaxsiy chatingizga yozsa — javob taklifi keladi |
-| 3.7 | Panel → mijoz kartasi → «Mijozni o'chirish» | Karta, yozishmalar va qo'ng'iroqlar yo'qoladi |
+| 3.4 | Telegram Premium akkauntingizda: Sozlamalar → Telegram Business → Chat-botlar → botni qo'shing, «javob berish» ruxsati bilan | Botdan «Telegram Business ulandi»; boshqa odam shaxsiy chatingizga yozsa — javob taklifi keladi |
+| 3.5 | Panel → mijoz kartasi → «Mijozni o'chirish» | Karta, yozishmalar va qo'ng'iroqlar yo'qoladi |
 
 ## 4. Telefon
 
@@ -73,4 +66,20 @@ Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **h
 | # | Qilish | Natija |
 |---|---|---|
 | 7.1 | `package.json` dagi versiyani oshiring, `git tag v<versiya> && git push --tags` | GitHub'da imzolangan reliz; klinika kompyuteri kechasi 3:00 da o'zi yangilanadi (`logs\yangilash.log`) |
-| 7.2 | Ertasi kuni: `GET /admin/backups` (admin kaliti bilan) | Klinikaning shifrlangan zaxirasi; `npm run restore-backup -- <fayl>` ochadi |
+| 7.2 | Ertasi kuni klinika kompyuterida `C:\PalantirData\backups\` ni oching | Bugungi sana nomli papka: `palantir.db`, `miya`, `session.secret`. Hub'siz zaxira faqat shu kompyuterda — disk buzilsa yo'qoladi, vaqti-vaqti bilan fleshkaga oling ([ORNATISH.md](ORNATISH.md), «Zaxira nusxa») |
+
+## Keyin: Instagram, telefondan panel, tashqi zaxira (Palantir Hub kerak)
+
+Instagram xabarlarni o'zi internetdagi doimiy HTTPS manzilga yuboradi (webhook), klinika kompyuteri esa router ortida — tashqaridan unga kirib bo'lmaydi. Shu manzil — Hub: Meta xabarni hubga beradi, klinika kompyuteri o'zi borib oladi. Hub qayerda turishi (bepul Oracle serveri, ~$5/oy server yoki Railway) — Instagram kerak bo'lganda hal qilinadi; `npm run hub:deploy` hozir Railway uchun yozilgan.
+
+| # | Qilish | Natija |
+|---|---|---|
+| H.1 | Hub'ni joylang (Railway: `railway login`, keyin `HUB_CONTACT_EMAIL=siz@domen.uz HUB_OPERATOR="Kompaniya MChJ" npm run hub:deploy`) | Oxirida `Tayyor: https://…` va Meta uchun manzillar. Sirlar — `~/.palantir/hub.env` |
+| H.2 | `https://<hub>/privacy` ni oching | Uch tilda siyosat, kompaniya nomi va e-mail bilan |
+| H.3 | Meta ilovasi: [docs/INSTAGRAM.md](INSTAGRAM.md) 2-qadam — H.1 chiqargan manzillarni qo'ying; `IG_APP_ID`, `IG_APP_SECRET` bilan `npm run hub:deploy` ni qayta ishga tushiring | `https://<hub>/health` → `"instagram":true,"legal":true` |
+| H.4 | Klinika kodi: H.1 oxirida chiqqan `curl …/admin/clinics` buyrug'i → klinika kompyuterida ulash ustasi → kalitlar: Hub kodi | Panel → Sozlamalar → Telegram → «Masofadan kirish»da havola |
+| H.5 | Botda pastdagi **«Panel»** tugmasi (yoki `/panel`) | Panel Telegram ichida ochiladi, parol so'ralmaydi |
+| H.6 | Instagram'dan klinikaga DM: «Implant qancha?» | Egasiga javob taklifi; «Yuborish» → mijozga Instagram'da javob |
+| H.7 | Instagram'dan: «Qabulimni ko'chiring» | Javob xodimga o'tadi (Instagram'da raqam tasdiqlanmaydi) |
+| H.8 | Ertasi kuni: `GET /admin/backups` (admin kaliti bilan) | Klinikaning shifrlangan zaxirasi; `npm run restore-backup -- <fayl>` ochadi |
+| H.9 | Kompyuterni o'chirib-yoqing | 15 daqiqada sizga (`HUB_ALERT_CHAT`) «aloqa yo'q», yongach «yana aloqada» |

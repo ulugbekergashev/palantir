@@ -98,7 +98,7 @@ async function api(path: string, opts: { token?: string; body?: unknown; method?
 const isJpeg = (b: Buffer) => b.length > 100 && b[0] === 0xff && b[1] === 0xd8;
 
 try {
-  for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
+  for (let i = 0; i < 240; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
   const admin = (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token;
   await api('/api/admin/businesses', { token: admin, body: { name: 'Telefon kamera', login: 'telefon', password: 'secret-12', industry: 'stomatologiya' } });
   const token = (await api('/api/login', { body: { login: 'telefon', password: 'secret-12' } })).json.token;
