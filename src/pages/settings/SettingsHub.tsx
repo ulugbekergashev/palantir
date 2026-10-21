@@ -76,7 +76,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
       </nav>
 
       {active === 'asosiy' && (
-        <div className="agent-body grid items-start gap-5 xl:grid-cols-2">
+        <div className="agent-body grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
           <SettingsCard key={`${biz.name}|${biz.ownerName}|${biz.industry}|${biz.contentLang}|${biz.morningBrief}`} biz={biz} offeringsRev={offeringsRev} onSaved={onSaved} notify={notify} />
           <div className="flex flex-col gap-5">
             <ReplyModeCard biz={biz} onBiz={onBiz} notify={notify} />
@@ -86,7 +86,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
         </div>
       )}
       {active === 'telegram' && (
-        <div className="grid items-start gap-5 xl:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
           <Part title="Palantir bilan Telegram'da" hint="Eslatmalar, ertalabki reja va mijozlarga javob takliflari shu yerga keladi."><OwnerBot status={status} /></Part>
           <Part title="Masofadan kirish" hint="Panelni telefondan yoki uydan — klinika kompyuteri port ochmaydi, ulanish Palantir Hub orqali."><RemoteAccess status={status} notify={notify} /></Part>
           {status.bot && <Part title="Telegram Business" hint="Shaxsiy chatlaringizga yozgan mijozlar — rasmiy yo'l, parol va seanssiz."><TelegramBusiness status={status} /></Part>}

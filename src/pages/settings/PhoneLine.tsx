@@ -187,7 +187,7 @@ export function PhoneLineSettings({ notify }: { notify: Notify }) {
   return (
     <div className="flex flex-col gap-5">
       <Status line={line} />
-      <div className="grid items-start gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
         <Trunk line={line} onLine={setLine} notify={notify} />
         <div className="flex flex-col gap-5">
           <Routing key={JSON.stringify(line.routing)} line={line} onLine={setLine} notify={notify} />
