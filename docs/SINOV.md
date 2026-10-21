@@ -6,7 +6,7 @@ Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **h
 
 | # | Qilish | Natija |
 |---|---|---|
-| 0.1 | Ikkita kalitni (`~/.cerebro/reliz-imzo-kaliti.pem`, `~/.cerebro/zaxira-kaliti.pem`) internetsiz joyga nusxalang (fleshka) | Ularsiz yangilanish chiqarib bo'lmaydi va tashqi zaxirani ochib bo'lmaydi |
+| 0.1 | Ikkita kalitni (`reliz-imzo-kaliti.pem`, `zaxira-kaliti.pem` — `~/.palantir/` da; shu kompyuterda hozircha `~/.cerebro/` da, eski nom) internetsiz joyga nusxalang (fleshka) | Ularsiz yangilanish chiqarib bo'lmaydi va tashqi zaxirani ochib bo'lmaydi |
 | 0.2 | Terminalda: `railway login` (brauzerda tasdiqlang), keyin `HUB_CONTACT_EMAIL=siz@domen.uz HUB_OPERATOR="Kompaniya MChJ" npm run hub:deploy` | Oxirida `Tayyor: https://….up.railway.app` va Meta uchun manzillar. Sirlar — `~/.palantir/hub.env` |
 | 0.3 | `https://<hub>/privacy` ni oching | Uch tilda siyosat, kompaniya nomi va e-mail bilan |
 | 0.4 | Meta ilovasi: [docs/INSTAGRAM.md](INSTAGRAM.md) 2-qadam — 0.2 chiqargan manzillarni qo'ying; `IG_APP_ID`, `IG_APP_SECRET` bilan `npm run hub:deploy` ni qayta ishga tushiring | `https://<hub>/health` → `"instagram":true,"legal":true` |
