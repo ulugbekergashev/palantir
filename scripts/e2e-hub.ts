@@ -16,6 +16,7 @@ import { unzipSync } from 'fflate';
 import { SCHEMA_VERSION } from '../server/migrate';
 import { unseal } from '../server/offsiteCrypto';
 import { parseHubCode } from '../src/lib/hubCode';
+import { licenseStateOf } from '../server/licenseRules';
 import { listen, sent, sleep, tgServer, waitFor, stopProcess } from './fakes';
 
 const results: boolean[] = [];
@@ -40,7 +41,7 @@ const start = (script: string, env: Record<string, string>) => {
   return p;
 };
 const up = async (url: string) => { for (let i = 0; i < 80; i++) { try { if ((await fetch(url)).ok) return true; } catch { /* hali */ } await sleep(250); } return false; };
-const adminList = async () => (await (await fetch(`${HUB}/admin/clinics`, { headers: { authorization: 'Bearer hub-admin-1' } })).json() as { clinics: { id: string; name: string; online: boolean; seenAt: string | null; status: { version: string; schema: number; diskFreeMb: number; businesses: number; problems: unknown[] } | null }[] }).clinics;
+const adminList = async () => (await (await fetch(`${HUB}/admin/clinics`, { headers: { authorization: 'Bearer hub-admin-1' } })).json() as { clinics: { id: string; name: string; online: boolean; seenAt: string | null; suspended: boolean; licenseUntil: string | null; status: { version: string; schema: number; diskFreeMb: number; businesses: number; problems: unknown[] } | null }[] }).clinics;
 /** waitFor'ning so'rov yuboradigan (async) ko'rinishi */
 async function until<T>(what: string, fn: () => Promise<T | undefined>, ms: number): Promise<T | undefined> {
   for (const end = Date.now() + ms; Date.now() < end; await sleep(200)) { const v = await fn().catch(() => undefined); if (v) return v; }
@@ -134,6 +135,27 @@ try {
   const localOk = (await fetch(`${base}/api/login`, json({ login: 'shifo', password: 'secret12' }))).status;
   ok("masofadan parol taxmin qilish — 8 tadan keyin 429, soxta X-Forwarded-For yordam bermaydi (klinikadagi kirishga tegmaydi)", tries.slice(0, 8).every(c => c === 401) && tries[8] === 429 && localOk === 200, tries.join(','));
   ok("noma'lum klinika — 404", (await fetch(`${HUB}/c/0000000000/api/health`)).status === 404);
+
+  console.log('\n# Litsenziya (hub → klinika, holat xabariga javobda)');
+  const D = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  const meStatus = async () => (await (await viaHub('/api/me', { headers: { authorization: `Bearer ${remoteLogin.token}` } })).json() as { status: { license: { state: string; until: string | null; message: string | null } } }).status.license;
+  const setLicense = (body: unknown) => fetch(`${HUB}/admin/clinics/${clinic.clinicId}`, { method: 'PATCH', headers: admin, body: JSON.stringify(body) });
+  const licenseIs = (state: string) => until(`litsenziya: ${state}`, async () => { const l = await meStatus(); return l.state === state ? l : undefined; }, 10_000);
+  ok("boshida: muddat berilmagan — joyida, panelda ogohlantirish yo'q", (await licenseIs('ok'))?.message === null);
+  ok("noto'g'ri sana — 400; admin kalitisiz — 401", (await setLicense({ licenseUntil: '20-10-2026' })).status === 400 && (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}`, { method: 'PATCH', body: '{}' })).status === 401);
+  await setLicense({ licenseUntil: D(3) });
+  ok('3 kundan keyin tugaydi — panelda ogohlantirish (sana bilan)', !!(await licenseIs('expiring'))?.message?.includes(D(3)));
+  await setLicense({ licenseUntil: D(-1) });
+  ok('muddat o\'tdi — «tugagan»', !!(await licenseIs('expired'))?.message?.includes('tugagan'));
+  await setLicense({ licenseUntil: null, suspended: true });
+  ok("sotuvchi to'xtatdi — «to'xtatilgan»; admin ro'yxatida ko'rinadi", !!(await licenseIs('suspended')) && (await adminList()).find(c => c.id === clinic.clinicId)?.suspended === true);
+  await setLicense({ suspended: false });
+  ok('qayta yoqildi — joyida', !!(await licenseIs('ok')));
+  const day = 86_400_000, saved = { until: D(30), suspended: false, firstSeenAt: new Date(Date.now() - 30 * day).toISOString() };
+  ok("internetsiz: 6 kun — hali joyida (imtiyoz), 8 kun — «tekshirilmadi»; hub kodi yo'q — tekshirilmaydi",
+    licenseStateOf({ ...saved, checkedAt: new Date(Date.now() - 6 * day).toISOString() }, new Date(), true).state === 'ok'
+    && licenseStateOf({ ...saved, checkedAt: new Date(Date.now() - 8 * day).toISOString() }, new Date(), true).state === 'unverified'
+    && licenseStateOf({ ...saved, checkedAt: null, suspended: true }, new Date(), false).state === 'none');
 
   console.log("\n# Kompyuter o'chdi");
   let mark = sent.length;

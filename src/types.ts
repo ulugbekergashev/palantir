@@ -323,6 +323,8 @@ export interface LiveStatus {
   telegramUser: { enabled: boolean; available: boolean; account: string | null };
   /** Telegram Business: egasi botni o'z akkauntiga chat-bot qilib qo'shgan (account), «javob berish» ruxsati bor-yo'qligi */
   telegramBusiness: { account: string | null; canReply: boolean };
+  /** Litsenziya (server/license.ts): message — panelda ko'rsatiladigan ogohlantirish (hammasi joyida bo'lsa — null) */
+  license: { state: 'none' | 'ok' | 'expiring' | 'expired' | 'suspended' | 'unverified'; until: string | null; message: string | null };
   /** Masofadan kirish (Palantir Hub orqali): url — panelning hub manzili; miniApp — botdagi «Panel» tugmasi ishlaydi (HTTPS hub va bot bor) */
   remote: { url: string | null; miniApp: boolean };
   /**

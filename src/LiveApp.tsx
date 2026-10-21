@@ -88,6 +88,11 @@ export default function LiveApp() {
     <div className="night min-h-dvh pb-20 lg:pb-0 lg:pl-[92px]">
       <Rail area={area} team={team} ownerName={biz.ownerName} onLogout={logout} wake={wake} />
       <WakeOverlay wake={wake} />
+      {status.license.message && (
+        <div role="alert" className="border-b border-amber-300/30 bg-amber-500/10 px-4 py-2.5 text-center text-sm font-semibold text-amber-200">
+          {status.license.message}
+        </div>
+      )}
       {area === 'ai' ? (
         <main key="ai" ref={main} tabIndex={-1} className="outline-none">
           <AiPage biz={biz} status={status} now={now} team={team} notify={notify} tick={tick} onChanged={changed} />

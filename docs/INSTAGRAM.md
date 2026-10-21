@@ -51,6 +51,14 @@ Instagram → Настройки → «Тип аккаунта» → **Проф�
    - `HUB_BOT_TOKEN` и `HUB_ALERT_CHAT` (необязательно, но нужно для контроля): ваш отдельный бот (@BotFather) и ваш chat id — хаб напишет туда, если ПК клиники 15 минут не на связи (`HUB_OFFLINE_MS`), и когда связь вернётся. Список клиник с версией, свободным местом на диске и открытыми проблемами: `curl https://<адрес-хаба>/admin/clinics -H "Authorization: Bearer <HUB_ADMIN_KEY>"`.
 4. Проверка: `https://<адрес-хаба>/health` → `{"ok":true,"instagram":true,"legal":true}`; открыть `/privacy` и проверить название и e-mail.
 
+### Лицензия клиники
+Срок и приостановка задаются в хабе, клиника узнаёт в ближайшем сообщении о состоянии (раз в 5 минут):
+```
+curl -X PATCH https://<адрес-хаба>/admin/clinics/<клиника> -H "Authorization: Bearer <HUB_ADMIN_KEY>" -d "{\"licenseUntil\":\"2026-12-31\"}"
+curl -X PATCH https://<адрес-хаба>/admin/clinics/<клиника> -H "Authorization: Bearer <HUB_ADMIN_KEY>" -d "{\"suspended\":true}"
+```
+`licenseUntil: null` — бессрочно. За 7 дней до конца, после окончания, при приостановке и если ПК клиники 7 дней не связывался с хабом — предупреждение в панели и владельцу в Telegram (раз в день). **Работа Palantir пока не ограничивается** — только предупреждения. Список с лицензиями: `GET /admin/clinics`.
+
 ## Шаг 4. Код клиники
 ```
 curl -X POST https://<адрес-хаба>/admin/clinics -H "Authorization: Bearer <HUB_ADMIN_KEY>" -d "{\"name\":\"Shifo Dent\"}"

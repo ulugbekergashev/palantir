@@ -26,6 +26,7 @@
  *      klinikaning uzun so'roviga (/api/pull → relays) qo'shiladi, klinika uni o'zidagi panel serveriga beradi va javobni
  *      /api/relay/<id> ga qaytaradi. So'rovlar faqat xotirada (bazaga yozilmaydi): hub qayta ishga tushsa, eski so'rov qayta
  *      bajarilmaydi. Kirish — klinika panelining o'z paroli yoki Telegram Mini App imzosi; hub tanani saqlamaydi va yozmaydi.
+ *   9. Litsenziya: PATCH /admin/clinics/<klinika> {licenseUntil, suspended} — holat xabariga javobda klinikaga qaytadi.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -96,7 +97,10 @@ CREATE TABLE IF NOT EXISTS deletions (code TEXT PRIMARY KEY, ig_user_id TEXT NOT
 // Eski hub bazasiga nazorat ustunlari: status — oxirgi holat (JSON), alerted_at — «aloqa yo'q» aytilgan payt
 {
   const have = new Set((db.prepare('PRAGMA table_info(clinics)').all() as { name: string }[]).map(c => c.name));
-  for (const [name, type] of [['status', 'TEXT'], ['alerted_at', 'TEXT']]) if (!have.has(name)) db.exec(`ALTER TABLE clinics ADD COLUMN ${name} ${type}`);
+  // license_until — litsenziya muddati (YYYY-MM-DD, bo'sh — muddatsiz), suspended — sotuvchi to'xtatgan
+  for (const [name, type] of [['status', 'TEXT'], ['alerted_at', 'TEXT'], ['license_until', 'TEXT'], ['suspended', 'INTEGER NOT NULL DEFAULT 0']]) {
+    if (!have.has(name)) db.exec(`ALTER TABLE clinics ADD COLUMN ${name} ${type}`);
+  }
 }
 // Ilova doirasidagi foydalanuvchi id'si (/me → id): Meta signed_request'da qaysi id kelishi aniq emas — ikkalasi bo'yicha topiladi
 {
@@ -235,6 +239,10 @@ function clinicOf(req: IncomingMessage): string | null {
   db.prepare('UPDATE clinics SET seen_at = ? WHERE id = ?').run(now(), id);
   return id;
 }
+const licenseOf = (clinicId: string) => {
+  const r = db.prepare('SELECT license_until, suspended FROM clinics WHERE id = ?').get(clinicId) as { license_until: string | null; suspended: number } | undefined;
+  return { until: r?.license_until ?? null, suspended: r?.suspended === 1 };
+};
 const legal = (): LegalInfo => ({ operator: cfg.operator, email: cfg.contactEmail, publicUrl: cfg.publicUrl || `http://127.0.0.1:${cfg.port}` });
 /** Meta signed_request: «imzo.ma'lumot» (base64url); imzo — ma'lumot qismining ilova siri bilan HMAC-SHA256'i */
 function signedRequest(v: string): { user_id?: string | number } | null {
@@ -370,13 +378,28 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   // Admin: klinikalar — oxirgi ko'ringan payti va holati
   if (p === '/admin/clinics' && req.method === 'GET') {
     if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
-    const rows = db.prepare('SELECT id, name, created_at, seen_at, status FROM clinics ORDER BY name').all() as { id: string; name: string; created_at: string; seen_at: string | null; status: string | null }[];
+    const rows = db.prepare('SELECT id, name, created_at, seen_at, status, license_until, suspended FROM clinics ORDER BY name').all() as
+      { id: string; name: string; created_at: string; seen_at: string | null; status: string | null; license_until: string | null; suspended: number }[];
     return send(res, 200, {
       clinics: rows.map(r => ({
         id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at,
         online: !!r.seen_at && Date.now() - Date.parse(r.seen_at) < cfg.offlineMs, status: r.status ? JSON.parse(r.status) as unknown : null,
+        licenseUntil: r.license_until, suspended: r.suspended === 1,
       })),
     });
+  }
+
+  // Admin: litsenziya — muddat (YYYY-MM-DD yoki null — muddatsiz) va to'xtatish; klinika keyingi holat xabarida (5 daqiqa) biladi
+  const licensed = /^\/admin\/clinics\/([0-9a-f]{10})$/.exec(p);
+  if (licensed && req.method === 'PATCH') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    let body: { licenseUntil?: string | null; suspended?: boolean };
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    if (body.licenseUntil !== undefined && body.licenseUntil !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(body.licenseUntil))) return send(res, 400, { error: 'licenseUntil: YYYY-MM-DD yoki null' });
+    if (!db.prepare('SELECT 1 FROM clinics WHERE id = ?').get(licensed[1])) return send(res, 404, { error: 'topilmadi' });
+    if (body.licenseUntil !== undefined) db.prepare('UPDATE clinics SET license_until = ? WHERE id = ?').run(body.licenseUntil, licensed[1]);
+    if (typeof body.suspended === 'boolean') db.prepare('UPDATE clinics SET suspended = ? WHERE id = ?').run(body.suspended ? 1 : 0, licensed[1]);
+    return send(res, 200, { ok: true, license: licenseOf(licensed[1]) });
   }
 
   // Klinika: shifrlangan kunlik zaxira (hub ocha olmaydi) — oqim bilan faylga, hajmi cheklangan; oxirgi backupKeep tasi qoladi
@@ -459,7 +482,8 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     let body: unknown;
     try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
     db.prepare('UPDATE clinics SET status = ? WHERE id = ?').run(JSON.stringify(cleanStatus(body)), clinic);
-    return send(res, 200, { ok: true });
+    // Javobda litsenziya: klinika oxirgi tasdiqni saqlaydi (internet bo'lmasa — 7 kun imtiyoz, server/license.ts)
+    return send(res, 200, { ok: true, license: licenseOf(clinic) });
   }
 
   // Klinika: kalit ishlaydimi (ulash ustasidagi tekshiruv)

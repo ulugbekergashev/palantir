@@ -8,6 +8,7 @@ import { iso } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
 import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword, verifyInitData } from './auth';
 import { CLIENT_HEADER, RELAY_HEADER, RELAY_SECRET, remoteUrl } from './remote';
+import { licenseView } from './license';
 import type { BotService } from './bot';
 import { costUsd } from './claude';
 import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
@@ -60,6 +61,7 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
     telegramUser: { enabled: env.tgPersonal, available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
     telegramBusiness: telegramBusinessStatus(biz.id),
+    license: licenseView(),
     remote: { url: remoteUrl(), miniApp: !!remoteUrl() && remoteUrl()!.startsWith('https://') && !!username },
     instagram: { enabled: env.igViaBrowser, available: instagramAvailable(), ...instagramStatus(biz.id) },
     instagramApi: instagramApiStatus(biz.id),

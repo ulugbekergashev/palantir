@@ -13,6 +13,7 @@ import { onKeyChange } from './keys';
 import { SCHEMA_VERSION } from './migrate';
 import { openProblems } from './monitor';
 import { APP_VERSION } from './version';
+import { remindLicense, saveLicense } from './license';
 
 const startedAt = new Date().toISOString();
 
@@ -44,7 +45,13 @@ async function beat(): Promise<void> {
       method: 'POST', headers: { authorization: `Bearer ${hub.key}`, 'content-type': 'application/json' },
       body: JSON.stringify(heartbeatStatus()), signal: AbortSignal.timeout(15_000),
     });
-    if (!r.ok) console.error(`[hub] holat qabul qilinmadi: ${r.status}`);
+    if (!r.ok) return console.error(`[hub] holat qabul qilinmadi: ${r.status}`);
+    // Javobda litsenziya (license.ts): oxirgi tasdiq saqlanadi, muammo bo'lsa egasiga aytiladi
+    const j = await r.json().catch(() => ({})) as { license?: { until?: unknown; suspended?: unknown } };
+    if (j.license) {
+      saveLicense(j.license);
+      await remindLicense();
+    }
   } catch {
     // Internet yo'q — /api/pull ham ko'rinmaydi, hub buni o'zi sezadi; keyingi safar yana
   }
