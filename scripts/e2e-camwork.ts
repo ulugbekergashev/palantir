@@ -193,7 +193,7 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_API_ID: '', TG_API_HASH: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '',
     // Sinov tasviri: 22–38 s aks (kamera burildi), 54–70 s qora (yopildi), qolgan paytda odatiy
     CAMERA_TEST_INPUT: JSON.stringify(['-re', '-f', 'lavfi', '-i', "testsrc=size=640x360:rate=5,split[a][b];[b]hflip[f];color=c=black:size=640x360:rate=5[k];[a][f]overlay=enable='between(t,22,38)'[m];[m][k]overlay=enable='between(t,54,70)'"]),
-    CAMERA_TAMPER_WARMUP_SEC: '8', CAMERA_TAMPER_HOLD_SEC: '4',
+    CAMERA_TAMPER_WARMUP_SEC: '8', CAMERA_TAMPER_HOLD_SEC: '4', CAMERA_STATS_SEC: '3',
     // Sinovda chegaralar soniyalarda: 1 s tursa — o'tirish, 2 s ko'rinmasa — turdi; to'lov kutilmaydi
     CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '2', CAMERA_PAY_GRACE_MIN: '0', CAMERA_WAIT_ALERT_MIN: '0.1',
     // Kechki hisobot — hozirgi soatdan (to'rt soat ichida); topshiriqlar tekshiruvi tez-tez
@@ -310,6 +310,17 @@ try {
   say(OWNER, '/kamera qabulxona');
   const counted = await waitFor('sanoqli rasm', () => photos(mark)[0], 30_000);
   ok("/kamera: rasm ostida sanoq — «hech kim ko'rinmayapti»", caption(counted!).includes("hech kim ko'rinmayapti"), caption(counted!));
+
+  console.log('\n# Kompyuter yuklamasi');
+  let loadView: { system: { cpuPct: number | null; cores: number; memTotalMb: number }; target: number; cameras: { name: string; framesPerMin: number | null; detectMs: number | null }[] } | null = null;
+  for (let i = 0; i < 40; i++) {
+    loadView = (await api('/api/cameras/load', { token })).json;
+    if (loadView?.cameras?.[0]?.framesPerMin) break;
+    await sleep(500);
+  }
+  const ipCam = loadView?.cameras.find(c => c.name === 'Qabulxona');
+  ok("IP kamerada daqiqasiga ishlangan kadrlar va aniqlash vaqti (maqsad — 30 kadr/daq); brauzer kamerasi ro'yxatda yo'q", !!ipCam && (ipCam.framesPerMin ?? 0) > 0 && (ipCam.detectMs ?? 0) > 0
+    && loadView!.target === 30 && loadView!.cameras.length === 1 && loadView!.system.cores > 0 && loadView!.system.memTotalMb > 0, JSON.stringify(loadView));
 
   console.log("\n# To'lovsiz qabul: kamera hisobi va DentaCRM");
   ok('DentaCRM ulandi', (await api('/api/crm', { token, body: { url: `http://127.0.0.1:${crmPort}`, ...CRM_LOGIN } })).status === 200);

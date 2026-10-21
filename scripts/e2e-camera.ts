@@ -1,4 +1,6 @@
 /** Kamera mantig'i sinovlari: zonadagi seanslar va CRM bilan solishtirish (tarmoqsiz, sof funksiyalar) */
+import { DatabaseSync } from 'node:sqlite';
+import { join } from 'node:path';
 import { findings, reconcile, type Sitting } from '../server/camera/reconcile';
 import { flush, inZone, step, type Box, type States, type Zone } from '../server/camera/sessions';
 import type { Appointment } from '../server/crm/logic';
@@ -7,6 +9,7 @@ import type { Harness } from './e2e-crm';
 import { ai, sleep } from './fakes';
 import { sectionFor } from '../src/lib/commands';
 import { buildJournal } from '../src/lib/journal';
+import { iso } from '../src/lib/week';
 
 type Ok = (name: string, cond: unknown, info?: string) => void;
 
@@ -198,6 +201,33 @@ export async function cameraToolTests(h: Harness): Promise<void> {
   try { result = JSON.parse(String(block?.content)); } catch { /* xato matni */ }
   ok('clinic_cameras: yordamchi kamera hisobini oladi', r.status === 200 && !block?.is_error && typeof result.seated_in_chair === 'number' && Array.isArray(result.findings), JSON.stringify(block ?? r.json).slice(0, 220));
   ok("clinic_cameras: kamera yo'qligi ochiq aytiladi (cameras: 0)", result.cameras === 0, JSON.stringify(result));
+}
+
+/**
+ * Kamera aniqligi (pilotda o'lchash): kecha DentaCRM'da 2 ta kelgan qabul (d1, 10:00), kamera kreslo d1 ni 08:00–20:00 uzluksiz
+ * ko'rgan va bitta o'tirish topgan → topildi 1, topilmadi 1 (50% — maqsad 90%). Kamera yozuvlari bazaga to'g'ridan-to'g'ri qo'yiladi
+ */
+export async function cameraAccuracyTests(h: Harness): Promise<void> {
+  const { ok, api, token, dataDir } = h;
+  console.log('\n# Kamera aniqligi — oxirgi kunlar (DentaCRM bilan)');
+  const made = await api('/api/cameras', { token, body: { name: 'Kabinet A' } });
+  const id = made.json.camera.id as string;
+  const zoned = await api(`/api/cameras/${id}/zones`, { method: 'PUT', token, body: { zones: [{ kind: 'chair', name: 'Kreslo A', x: 0.4, y: 0.4, w: 0.2, h: 0.2, doctorId: 'd1' }] } });
+  const zoneId = zoned.json.camera.zones[0].id as string;
+  const y = new Date(Date.now() - 86_400_000);
+  const at = (hh: number, mm: number) => new Date(y.getFullYear(), y.getMonth(), y.getDate(), hh, mm).toISOString();
+  const day = iso(y);
+  const db = new DatabaseSync(join(dataDir, 'palantir.db'));
+  db.exec('PRAGMA busy_timeout = 5000');
+  const owner = String((db.prepare('SELECT business_id FROM cameras WHERE id = ?').get(id) as { business_id: string }).business_id);
+  db.prepare('INSERT INTO camera_days (business_id, camera_id, date, from_at, to_at) VALUES (?, ?, ?, ?, ?)').run(owner, id, day, at(8, 0), at(20, 0));
+  db.prepare('INSERT INTO camera_sessions (id, business_id, camera_id, zone_id, kind, zone_name, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('acc-s1', owner, id, zoneId, 'chair', 'Kreslo A', at(10, 5), at(10, 40));
+  db.close();
+  const r = (await api('/api/cameras/accuracy?days=3', { token })).json.accuracy as { days: { date: string; found: number; missed: number }[]; recall: number | null; targets: { recall: number } } | null;
+  const yesterday = r?.days.find(d => d.date === day);
+  ok("kecha: 2 kelgan qabuldan 1 tasi kamerada topildi (50%), maqsad 90% — panelda ogohlantiriladi", !!yesterday && yesterday.found === 1 && yesterday.missed === 1 && r!.recall === 0.5 && r!.targets.recall === 0.9, JSON.stringify(r).slice(0, 220));
+  ok("kamera ko'rmagan kunlar o'lchanmaydi (qamrovsiz kun — ro'yxatda yo'q)", !!r && r.days.every(d => d.date === day), JSON.stringify(r?.days));
+  await api(`/api/cameras/${id}`, { method: 'DELETE', token });
 }
 
 /** Jurnal: qo'ng'iroq, kamera va yozishmalardan bitta ro'yxat */

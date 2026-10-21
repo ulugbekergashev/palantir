@@ -1,4 +1,4 @@
-import type { BrainView, Call, Camera, CameraSummary, CameraTiming, CameraZone, ClinicDay, ZoneNow } from '../types';
+import type { BrainView, Call, Camera, CameraAccuracy, CameraSummary, CameraTiming, CameraZone, ClinicDay, ZoneNow } from '../types';
 import type { PriceLine } from '../lib/prices';
 import type { AnketaData } from '../lib/anketa';
 import type { KeyName } from '../lib/secrets';
@@ -47,6 +47,12 @@ export interface PhoneStatus {
   available: boolean; exePath: string | null; connected: boolean; mine: boolean; otherBusiness: boolean; noAccount: boolean; recording: boolean; recordFormat: 'mp3' | 'wav' | null;
 }
 /** Qabulxona: xodimlar (ulanmaganida — Telegram havolasi), so'rovlar nusxasi egasiga keladimi, bot ulanganmi */
+/** Kompyuter yuklamasi (server/load.ts) va IP kameralarda kadrlar ulgurilyaptimi (daqiqasiga target) */
+export interface CameraLoadView {
+  system: { cpuPct: number | null; cores: number; memUsedMb: number; memTotalMb: number };
+  target: number;
+  cameras: { id: string; name: string; framesPerMin: number | null; receivedPerMin: number | null; detectMs: number | null }[];
+}
 export interface TeamView { staff: (StaffMember & { link: string | null })[]; copyToOwner: boolean; bot: boolean }
 
 /** Hub orqali masofadan ochilganda panel /c/<klinika>/ ostida turadi — API ham shu yo'l bilan (oddiy holatda — bo'sh) */
@@ -130,6 +136,8 @@ export const api = {
   saveZones: (id: string, zones: (Omit<CameraZone, 'id'> & { id?: string })[]) => call<{ camera: Camera }>(`/cameras/${id}/zones`, { method: 'PUT', body: { zones } }),
   removeCamera: (id: string) => call<{ ok: true }>(`/cameras/${id}`, { method: 'DELETE' }),
   cameraSummary: () => call<{ summary: CameraSummary }>('/cameras/summary'),
+  cameraLoad: () => call<CameraLoadView>('/cameras/load'),
+  cameraAccuracy: (days = 7) => call<{ accuracy: CameraAccuracy | null }>(`/cameras/accuracy?days=${days}`),
   /** IP kamerani ulash (rtsp://…) yoki uzish (bo'sh satr). Server avval kadr olib ko'radi — manzil xato bo'lsa shu yerda aytadi */
   setCameraStream: (id: string, url: string) => call<{ camera: Camera }>(`/cameras/${id}/stream`, { method: 'PUT', body: { url } }),
   /** IP kameraning hozirgi kadri (zonalarni uning ustida chizish uchun) */

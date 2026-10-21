@@ -134,6 +134,24 @@ let restart: NodeJS.Timeout | null = null;
 const owners = new Map<string, string>();
 const feeds = new Map<string, CameraFeed>();
 
+/** Dvigatelning oxirgi yuklama hisoboti (wire.ts: stats) */
+let load: { at: number; windowSec: number; cameras: Map<string, { received: number; done: number; detectMs: number }> } | null = null;
+
+/** Kadr har FRAME_EVERY_SEC (2) soniyada — daqiqasiga 30 ta kutiladi */
+export const TARGET_FRAMES_PER_MIN = 30;
+
+/**
+ * Kamera bo'yicha yuklama: daqiqasiga ishlangan va kelgan kadrlar, bitta kadrni aniqlash vaqti. Hisobot hali kelmagan yoki eskirgan
+ * (dvigatel to'xtagan) bo'lsa — null
+ */
+export function cameraLoad(cameraId: string): { framesPerMin: number; receivedPerMin: number; detectMs: number | null } | null {
+  if (!load || Date.now() - load.at > load.windowSec * 3000) return null;
+  const c = load.cameras.get(cameraId);
+  if (!c) return null;
+  const perMin = (n: number) => Math.round((n * 60) / load!.windowSec);
+  return { framesPerMin: perMin(c.done), receivedPerMin: perMin(c.received), detectMs: c.done ? Math.round(c.detectMs / c.done) : null };
+}
+
 /** Kameraning hozirgi holati (panel uchun). IP kamera bo'lmasa — null */
 export function feedOf(cameraId: string, isIp: boolean): CameraFeed | null {
   if (!isIp) return null;
@@ -172,6 +190,8 @@ function launch(): void {
       const businessId = owners.get(m.id);
       if (businessId) onSeen?.(businessId, m.id, m.people, m.look ?? null);
       wait = RESTART_MIN_MS;
+    } else if (m.type === 'stats') {
+      load = { at: Date.now(), windowSec: m.windowSec, cameras: new Map(m.cameras.map(c => [c.id, c])) };
     } else if (m.type === 'state') {
       feeds.set(m.id, { state: m.state, message: m.message });
       if (m.state === 'error') console.error(`[kamera] ${m.id}: ${m.message ?? 'xato'}`);
