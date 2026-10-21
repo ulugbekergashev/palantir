@@ -49,6 +49,9 @@ export interface PhoneStatus {
 /** Qabulxona: xodimlar (ulanmaganida — Telegram havolasi), so'rovlar nusxasi egasiga keladimi, bot ulanganmi */
 export interface TeamView { staff: (StaffMember & { link: string | null })[]; copyToOwner: boolean; bot: boolean }
 
+/** Hub orqali masofadan ochilganda panel /c/<klinika>/ ostida turadi — API ham shu yo'l bilan (oddiy holatda — bo'sh) */
+export const apiBase = location.pathname.match(/^\/c\/[0-9a-f]{10}(?=\/)/)?.[0] ?? '';
+
 /** Server bilan ishlash. Token — shu brauzerda */
 const TOKEN_KEY = 'cerebro_token';
 const ADMIN_KEY = 'cerebro_admin_token';
@@ -71,7 +74,7 @@ export class ApiError extends Error {
 
 async function send(path: string, init: RequestInit, admin = false): Promise<Response> {
   const token = admin ? session.adminToken() : session.token();
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${apiBase}/api${path}`, {
     ...init,
     headers: { ...(init.headers ?? {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
   }).catch(() => { throw new ApiError("Server bilan aloqa yo'q", 0); });
@@ -207,6 +210,8 @@ export const api = {
 
   inbox: () => call<{ threads: InboxThread[]; settings: AutoReply }>('/inbox'),
   clientCard: (leadId: string) => call<{ card: ClientCardView }>(`/leads/${leadId}/card`),
+  /** Telegram Mini App: Telegram imzolagan ishga tushirish ma'lumoti bilan parolsiz kirish */
+  telegramLogin: (initData: string) => call<{ token: string }>('/login/telegram', { body: { initData } }),
   /** Parolni almashtirish: boshqa qurilmalardagi kirish bekor, shu qurilma uchun yangi kalit qaytadi */
   changePassword: (current: string, next: string) => call<{ token: string }>('/account/password', { body: { current, next } }),
   signOutOthers: () => call<{ token: string }>('/account/sign-out-others', { body: {} }),

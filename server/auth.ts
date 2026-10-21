@@ -74,3 +74,27 @@ export const loginFailed = (key: string): void => {
   failures.set(key, { count: fresh ? 1 : f.count + 1, until: now + WINDOW_MS });
 };
 export const loginOk = (key: string): void => { failures.delete(key); };
+
+/**
+ * Telegram Mini App kirishi (bot ichidagi «Panel»): Telegram ishga tushirish ma'lumotini (initData) bot tokeni bilan imzolaydi.
+ * Tekshiruv — Telegram hujjatidagidek: hash'dan boshqa maydonlar alifbo tartibida «kalit=qiymat» qatorlari, kalit —
+ * HMAC-SHA256("WebAppData", bot tokeni). Eskirgan (maxAgeSec) yoki o'zgartirilgan ma'lumot — null
+ */
+export function verifyInitData(initData: string, botToken: string, maxAgeSec = 86_400, now = Date.now()): { userId: string } | null {
+  const params = new URLSearchParams(initData);
+  const hash = params.get('hash');
+  if (!hash || !/^[0-9a-f]{64}$/.test(hash)) return null;
+  params.delete('hash');
+  const check = [...params.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, v]) => `${k}=${v}`).join('\n');
+  const key = createHmac('sha256', 'WebAppData').update(botToken).digest();
+  const expected = createHmac('sha256', key).update(check).digest();
+  if (!timingSafeEqual(expected, Buffer.from(hash, 'hex'))) return null;
+  const authDate = Number(params.get('auth_date'));
+  if (!Number.isFinite(authDate) || now / 1000 - authDate > maxAgeSec || authDate - now / 1000 > 300) return null;
+  try {
+    const user = JSON.parse(params.get('user') ?? 'null') as { id?: number } | null;
+    return user?.id ? { userId: String(user.id) } : null;
+  } catch {
+    return null;
+  }
+}

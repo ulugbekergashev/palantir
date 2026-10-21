@@ -12,7 +12,7 @@ import { isMedical } from '../../lib/compliance';
 import { hrefOf } from '../../lib/nav';
 import { DentaCrm } from '../DentaCrmSection';
 import { AccountCard } from './AccountCard';
-import { ClientLink, Instagram, InstagramOfficial, OwnerBot, ReplyModeCard, SettingsCard, TelegramBusiness, TelegramLogin } from '../TelegramPage';
+import { ClientLink, Instagram, InstagramOfficial, OwnerBot, RemoteAccess, ReplyModeCard, SettingsCard, TelegramBusiness, TelegramLogin } from '../TelegramPage';
 import { PhoneLineSettings } from './PhoneLine';
 
 type Tone = 'on' | 'off' | 'warn';
@@ -88,6 +88,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
       {active === 'telegram' && (
         <div className="grid items-start gap-5 xl:grid-cols-2">
           <Part title="Palantir bilan Telegram'da" hint="Eslatmalar, ertalabki reja va mijozlarga javob takliflari shu yerga keladi."><OwnerBot status={status} /></Part>
+          <Part title="Masofadan kirish" hint="Panelni telefondan yoki uydan — klinika kompyuteri port ochmaydi, ulanish Palantir Hub orqali."><RemoteAccess status={status} notify={notify} /></Part>
           {status.bot && <Part title="Telegram Business" hint="Shaxsiy chatlaringizga yozgan mijozlar — rasmiy yo'l, parol va seanssiz."><TelegramBusiness status={status} /></Part>}
           {status.telegramUser.enabled && <Part title="Shaxsiy Telegram" hint="Mijozlaringiz yozadigan akkaunt — ularga Palantir javob beradi (siz tanlagan rejimda)."><TelegramLogin status={status} onStatus={onStatus} notify={notify} /></Part>}
         </div>

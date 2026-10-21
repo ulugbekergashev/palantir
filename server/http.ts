@@ -6,7 +6,8 @@ import { z } from 'zod';
 import type { Artifact, InboxThread, LiveStatus } from '../src/types';
 import { iso } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
-import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword } from './auth';
+import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword, verifyInitData } from './auth';
+import { CLIENT_HEADER, RELAY_HEADER, RELAY_SECRET, remoteUrl } from './remote';
 import type { BotService } from './bot';
 import { costUsd } from './claude';
 import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
@@ -59,6 +60,7 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
     telegramUser: { enabled: env.tgPersonal, available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
     telegramBusiness: telegramBusinessStatus(biz.id),
+    remote: { url: remoteUrl(), miniApp: !!remoteUrl() && remoteUrl()!.startsWith('https://') && !!username },
     instagram: { enabled: env.igViaBrowser, available: instagramAvailable(), ...instagramStatus(biz.id) },
     instagramApi: instagramApiStatus(biz.id),
     crm: crmStatus(biz.id),
@@ -144,6 +146,17 @@ export function createApp(bot: BotService) {
     next();
   });
 
+  // Masofadan (hub orqali) kelgan so'rov: shu jarayonning siri bilan belgilanadi (remote.ts) — tarmoqdagi begona kalla bilan soxtalashtirib bo'lmaydi
+  const isRemote = (req: Request) => req.get(RELAY_HEADER) === RELAY_SECRET;
+  /** Kirish urinishlarini sanash kaliti: masofadan — telefonning haqiqiy manzili (hub aytadi), «hub/» bilan: shu kompyuterga berilgan yengillik tegmasin */
+  const clientKey = (req: Request) => (isRemote(req) ? `hub/${req.get(CLIENT_HEADER) ?? '?'}` : String(req.ip));
+  // Admin, ulash ustasi, anketa va ovozli agent (ichki xizmat) — faqat shu kompyuterda
+  const REMOTE_CLOSED = /^\/api\/(admin|setup|anketa)(\/|$)|^\/api\/voice\/(?!key$)/;
+  app.use((req, res, next) => {
+    if (isRemote(req) && REMOTE_CLOSED.test(req.path)) return res.status(403).json({ error: "Bu bo'lim faqat klinika kompyuterida ochiladi" });
+    next();
+  });
+
   const token = (req: Request) => req.get('authorization')?.replace(/^Bearer\s+/i, '');
   const asBiz = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => (req, res) => {
     const s = readToken(token(req));
@@ -164,14 +177,34 @@ export function createApp(bot: BotService) {
 
   // ─── Kirish ────────────────────────────────────────────────────────────────
   app.post('/api/login', (req, res) => {
-    const key = `b:${req.ip}`;
-    if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
+    const key = `b:${clientKey(req)}`;
     const { login, password } = req.body ?? {};
+    // Masofadan: manzil almashtirib urinishga qarshi — bitta login bo'yicha ham (klinikadagi kirishga tegmaydi)
+    const perLogin = isRemote(req) && typeof login === 'string' ? `rl:${login.trim().toLowerCase().slice(0, 64)}` : null;
+    if (loginBlocked(key) || (perLogin && loginBlocked(perLogin))) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
     const biz = typeof login === 'string' ? businesses.byLogin(login.trim().toLowerCase()) : undefined;
     if (!biz || typeof password !== 'string' || !checkPassword(password, biz.passwordHash) || !biz.active) {
       loginFailed(key);
+      if (perLogin) loginFailed(perLogin);
       return res.status(401).json({ error: "Login yoki parol noto'g'ri" });
     }
+    loginOk(key);
+    if (perLogin) loginOk(perLogin);
+    res.json({ token: issueToken(biz.id, 'business', 30, biz.tokenVer) });
+  });
+
+  // Telegram Mini App (bot → «Panel»): Telegram imzolagan ma'lumot bilan, parolsiz — faqat botga ulangan egasi
+  app.post('/api/login/telegram', (req, res) => {
+    const key = `t:${clientKey(req)}`;
+    if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
+    const initData = typeof req.body?.initData === 'string' ? req.body.initData.slice(0, 4096) : '';
+    const who = env.botToken && initData ? verifyInitData(initData, env.botToken) : null;
+    if (!who) {
+      loginFailed(key);
+      return res.status(401).json({ error: "Telegram tasdig'i noto'g'ri yoki eskirgan — botda «Panel»ni qayta bosing" });
+    }
+    const biz = businesses.byOwnerChat(who.userId);
+    if (!biz?.active) return res.status(403).json({ error: "Bu Telegram akkaunt biznesga ulanmagan — login va parol bilan kiring" });
     loginOk(key);
     res.json({ token: issueToken(biz.id, 'business', 30, biz.tokenVer) });
   });

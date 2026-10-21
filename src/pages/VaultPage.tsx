@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Brain, ChevronDown, ChevronRight, ExternalLink, FilePlus2, FileText, Folder, Link2, Loader2, Pencil, Search } from 'lucide-react';
-import { session } from '../data/api';
+import { apiBase, session } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { NoteView } from '../components/NoteView';
 import { hrefOf } from '../lib/nav';
@@ -16,7 +16,7 @@ interface TreeNode { name: string; path: string; kind: 'dir' | 'file'; children?
 interface Note { path: string; content: string; modified: string; backlinks: { path: string; line: string }[] }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const r = await fetch(`/api/brain/${path}`, { ...init, headers: { authorization: `Bearer ${session.token()}`, ...(init.body ? { 'content-type': 'application/json' } : {}) } });
+  const r = await fetch(`${apiBase}/api/brain/${path}`, { ...init, headers: { authorization: `Bearer ${session.token()}`, ...(init.body ? { 'content-type': 'application/json' } : {}) } });
   const body = await r.json().catch(() => ({})) as T & { error?: string };
   if (!r.ok) throw new Error(body.error ?? 'Xato');
   return body;

@@ -40,6 +40,7 @@ import { replyCards } from './requests/store';
 import { linkStaff, listOpen, requestButton, requestReply, staffText, teamOutlet } from './requests/telegram';
 import { MAX_LOOK_CAMERAS, lookAt, lookRequest, shotCaption } from './camera/ask';
 import { events } from './orders/store';
+import { remoteUrl } from './remote';
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
 import { approveReply, clearBotOutlets, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
@@ -294,6 +295,13 @@ export function createBot(): BotService {
   }
 
   // ─── Egasi: ulanish ────────────────────────────────────────────────────────
+  /** Egasining chatidagi «Panel» tugmasi — Telegram Mini App (panel hub orqali, remote.ts). Masofadan kirish yo'q bo'lsa — oddiy menyu */
+  const panelButton = (chat: string) => {
+    const url = remoteUrl();
+    const menuButton = url?.startsWith('https://') ? { type: 'web_app' as const, text: 'Panel', web_app: { url } } : { type: 'default' as const };
+    return tg.setChatMenuButton({ chatId: Number(chat), menuButton }).catch(e => console.error('[bot] «Panel» tugmasi:', (e as Error).message));
+  };
+
   async function linkOwner(ctx: Context, code: string) {
     const biz = businesses.byLinkCode(code);
     if (!biz || !biz.active) {
@@ -307,7 +315,9 @@ export function createBot(): BotService {
     // Egasining chati — tugmalar (pul yozuvi, javob yuborish) uchun ishonch manbai. Havola bir martalik: ulangach kod almashadi,
     // eski havolani ko'rgan odam keyin ulana olmaydi; yangi havola faqat panelda (parol bilan) ko'rinadi
     businesses.update(biz.id, { ownerChatId: chat, linkCode: businesses.newLinkCode() });
+    void panelButton(chat);
     if (previous && previous !== chat) {
+      void tg.setChatMenuButton({ chatId: Number(previous), menuButton: { type: 'default' } }).catch(() => {});
       await tg.sendMessage(previous, "⚠️ Palantir boshqa Telegram akkauntiga ulandi va endi shu yerda ishlamaydi. Buni siz qilmagan bo'lsangiz — panel → «Telegram» bo'limidagi yangi havola orqali qayta ulaning (o'sha zahoti begona akkaunt uziladi) va havolani hech kimga bermang.").catch(() => {});
     }
     const name = biz.profile.ownerName ? `, ${biz.profile.ownerName}` : '';
@@ -406,6 +416,14 @@ export function createBot(): BotService {
   bot.command(['raqam', 'nomer'], async ctx => {
     if (ctx.chat.type !== 'private' || ownerOf(ctx)) return;
     await ctx.reply("Raqamingizni pastdagi tugma bilan yuboring.\nОтправьте номер кнопкой ниже.", contactKeyboard);
+  });
+
+  // Panelni telefondan ochish (Telegram Mini App, hub orqali)
+  bot.command('panel', async ctx => {
+    if (!ownerOf(ctx)) return;
+    const url = remoteUrl();
+    if (!url?.startsWith('https://')) return ctx.reply("Masofadan kirish sozlanmagan: klinika kompyuterida Palantir Hub kodi kerak. Hozircha panel faqat klinika kompyuterida ochiladi.");
+    return ctx.reply("Panel — shu yerda, telefoningizda:", Markup.inlineKeyboard([Markup.button.webApp('📊 Panelni ochish', url)]));
   });
 
   bot.command('yangi', async ctx => {
@@ -952,9 +970,12 @@ export function createBot(): BotService {
               await tg.setMyCommands([
                 { command: 'vazifalar', description: 'Ochiq vazifalar' },
                 { command: 'kamera', description: 'Kameralardan hozirgi rasm' },
+                { command: 'panel', description: 'Panelni ochish' },
                 { command: 'yangi', description: 'Yangi suhbat' },
                 { command: 'help', description: 'Nima qila olaman' },
               ]).catch(() => {});
+              // Ulangan egalarga «Panel» tugmasi (hub manzili o'zgargan yoki masofadan kirish endi yoqilgan bo'lishi mumkin)
+              if (remoteUrl()?.startsWith('https://')) for (const b of businesses.all()) if (b.active && b.ownerChatId) await panelButton(b.ownerChatId);
               // Xabar olish to'xtamaguncha shu yerda turadi; uzilsa — pastda sababi yoziladi va qayta boshlanadi
               await bot.launch({ dropPendingUpdates: false, allowedUpdates: ['message', 'callback_query', 'my_chat_member', ...BUSINESS_UPDATES] });
               if (stopped) return;

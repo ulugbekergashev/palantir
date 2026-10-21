@@ -6,6 +6,7 @@
  */
 process.env.TZ = 'Asia/Tashkent';
 import { spawn } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -605,6 +606,22 @@ try {
   await sleep(700);
   ok("/diagnostika: hub yo'q — fayl egasiga keldi, begonaga hech narsa", !!diagDoc && String(diagDoc.params.caption ?? '').includes('Diagnostika')
     && !after(mark, 8008, s => s.method === 'sendDocument'), String(diagDoc?.params.caption ?? ''));
+
+  console.log('\n# Telegram Mini App: botdagi «Panel»dan parolsiz kirish');
+  // Telegram imzosi: hash'dan boshqa maydonlar alifbo tartibida, kalit — HMAC("WebAppData", bot tokeni)
+  const initData = (user: number, o: { token?: string; age?: number } = {}) => {
+    const q = new URLSearchParams({ auth_date: String(Math.floor(Date.now() / 1000) - (o.age ?? 0)), query_id: 'AAEtest', user: JSON.stringify({ id: user, first_name: 'Aziz' }) });
+    const check = [...q.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join('\n');
+    q.set('hash', createHmac('sha256', createHmac('sha256', 'WebAppData').update(o.token ?? '123:TEST').digest()).update(check).digest('hex'));
+    return q.toString();
+  };
+  const tgLogin = (data: string) => api('/api/login/telegram', { body: { initData: data } });
+  const viaTg = await tgLogin(initData(OWNER));
+  ok("egasi: Telegram imzosi bilan kirdi — o'z biznesi", viaTg.status === 200 && (await api('/api/me', { token: viaTg.json.token })).json.business?.name === (await api('/api/me', { token })).json.business?.name);
+  const forged = initData(OWNER).replace(encodeURIComponent(`"id":${OWNER}`), encodeURIComponent('"id":8008'));
+  ok("o'zgartirilgan ma'lumot, eskirgan (2 kun), boshqa bot tokeni — 401", (await tgLogin(forged)).status === 401 && (await tgLogin(initData(OWNER, { age: 2 * 86_400 }))).status === 401
+    && (await tgLogin(initData(OWNER, { token: '999:BOSHQA' }))).status === 401);
+  ok("imzo to'g'ri, lekin egasi emas (begona Telegram akkaunt) — 403", (await tgLogin(initData(8008))).status === 403);
 
   console.log('\n# Kirish: parol almashishi va boshqa qurilmalardan chiqish');
   const loginOther = async (password: string) => (await api('/api/login', { body: { login: 'boshqa', password } })).json.token as string | undefined;

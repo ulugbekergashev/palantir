@@ -308,6 +308,25 @@ export function TelegramBusiness({ status }: { status: LiveStatus }) {
   );
 }
 
+/** Masofadan kirish (Palantir Hub orqali): havola va telefondan ochish yo'li */
+export function RemoteAccess({ status, notify }: { status: LiveStatus; notify: Notify }) {
+  const r = status.remote;
+  if (!r.url) return <p className="text-sm text-slate-500">Palantir Hub kodi kiritilmagan — panel faqat shu kompyuterda (va klinika tarmog'ida) ochiladi. Hub kodi: ulash ustasi → kalitlar.</p>;
+  const copy = async () => { await navigator.clipboard.writeText(r.url!).catch(() => {}); notify('Nusxalandi'); };
+  return (
+    <div className="space-y-3 text-sm text-slate-600">
+      <p>{r.miniApp
+        ? "Telefoningizda: botda pastdagi «Panel» tugmasi (yoki /panel) — parolsiz, Telegram akkauntingiz bilan kirasiz."
+        : "Botdagi «Panel» tugmasi uchun hub HTTPS manzilda bo'lishi va bot ulangan bo'lishi kerak. Hozircha — havola orqali, login va parol bilan."}</p>
+      <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-2 pl-3">
+        <code className="min-w-0 flex-1 truncate text-sm">{r.url}</code>
+        <Button size="sm" onClick={() => { void copy(); }}><Copy className="h-3.5 w-3.5" /> Nusxalash</Button>
+      </div>
+      <p className="text-slate-500">Havola bilan istalgan brauzerda login va parol bilan kiriladi. Ulash ustasi va admin bo'limi masofadan ochilmaydi; telefon yo'qolsa — «Kirish va xavfsizlik» → «Boshqa qurilmalardan chiqish».</p>
+    </div>
+  );
+}
+
 /** Mijozlar uchun havola: bosgan odam botga tushadi */
 export function ClientLink({ status, notify }: { status: LiveStatus; notify: Notify }) {
   if (!status.generalLink) return null;

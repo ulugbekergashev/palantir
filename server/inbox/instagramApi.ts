@@ -13,6 +13,7 @@
 import { businesses, connections, inbox, type BusinessRow, type LeadRow } from '../db';
 import { env } from '../env';
 import { forgetInstagram } from '../forget';
+import { handleRelay, type RelayRequest } from '../remote';
 import { open, seal } from '../secret';
 import { isOurEcho, notifyOwner, onIncoming, onOwnerOutgoing, registerSender } from './core';
 import { splitForInstagram, windowRule } from './igRules';
@@ -181,7 +182,9 @@ async function pullLoop(): Promise<void> {
     try {
       const r = await fetch(`${hub.url}/api/pull?after=${cursor}`, { headers: { authorization: `Bearer ${hub.key}` }, signal: AbortSignal.timeout(PULL_TIMEOUT_MS) });
       if (!r.ok) throw new Error(`hub ${r.status}`);
-      const { events } = await r.json() as { events: HubEvent[] };
+      const { events, relays } = await r.json() as { events: HubEvent[]; relays?: RelayRequest[] };
+      // Masofadan kirish (remote.ts): har so'rov alohida — uzun AI javobi boshqa so'rovlarni ham, Instagram xabarlarini ham ushlab turmasin
+      for (const q of relays ?? []) void handleRelay(q, hub).catch(err => console.error('[masofadan] javob hubga yetmadi:', (err as Error).message));
       for (const e of events) {
         try {
           if (e.kind === 'ig_token') await onToken(e.payload);
