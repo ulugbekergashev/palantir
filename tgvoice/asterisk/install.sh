@@ -1,6 +1,6 @@
 #!/bin/bash
 # Asterisk sozlamalarini WSL ichiga o'rnatadi (har o'zgartirishdan keyin qayta ishga tushiring):
-#   wsl -d Cerebro -u root -- bash /mnt/d/Projects/cerebro/tgvoice/asterisk/install.sh
+#   wsl -d Palantir -u root -- bash /mnt/d/Projects/palantir/tgvoice/asterisk/install.sh
 # Egasining SIP paroli Palantir'ning .env faylidan (SIP_OWNER_PASSWORD) olinadi — bu faylda saqlanmaydi.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -32,8 +32,9 @@ fi
 # Kim javob beradi — Asterisk Palantir'dan so'raydi (extensions.conf, [kiruvchi]): manzil va ovozli agent kaliti
 key="$(grep -E '^VOICE_AGENT_KEY=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r"'"'" || true)"
 port="$(grep -E '^PORT=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r"'"'" || true)"
-printf '[globals]\nCEREBRO_URL=http://127.0.0.1:%s\nCEREBRO_KEY=%s\n' "${port:-3200}" "$key" > "$DEST/extensions_cerebro.conf"
-chown asterisk:asterisk "$DEST"/pjsip_*.conf "$DEST/extensions_cerebro.conf"
+printf '[globals]\nPALANTIR_URL=http://127.0.0.1:%s\nPALANTIR_KEY=%s\n' "${port:-3200}" "$key" > "$DEST/extensions_palantir.conf"
+chown asterisk:asterisk "$DEST"/pjsip_*.conf "$DEST/extensions_palantir.conf"
+rm -f "$DEST/extensions_cerebro.conf" # eski nom: endi o'qilmaydi
 
 # «reload» — qo'ng'iroqlarni uzmasdan qayta yuklash (panel shunday chaqiradi); argumentsiz — to'liq qayta ishga tushirish
 if [ "${1:-}" = "reload" ] && systemctl is-active --quiet asterisk; then

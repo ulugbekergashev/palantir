@@ -23,7 +23,7 @@ import { OWNER, aiServer, listen, say, sent, sleep, tgServer, waitFor, stopProce
 import { chromePath } from './chrome';
 
 const CHROME = chromePath();
-const OUT = process.argv[2] || join(tmpdir(), 'cerebro-dashboard');
+const OUT = process.argv[2] || join(tmpdir(), 'palantir-dashboard');
 mkdirSync(OUT, { recursive: true });
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
@@ -31,7 +31,7 @@ const STAFF = 6004;
 
 const tgPort = await listen(tgServer), aiPort = await listen(aiServer), crmPort = await listen(crmServer);
 crm.seed(iso(new Date()), iso(new Date(Date.now() + 86_400_000)));
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-dash-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-dash-'));
 const PORT = 3297, base = `http://127.0.0.1:${PORT}`;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
@@ -76,7 +76,7 @@ try {
   // ─── «Hayot»: bugun va kecha ───────────────────────────────────────────────
   const biz = (await api('/api/me', { token })).json;
   void biz;
-  const db = new DatabaseSync(join(dataDir, 'cerebro.db'));
+  const db = new DatabaseSync(join(dataDir, 'palantir.db'));
   db.exec('PRAGMA busy_timeout = 5000');
   const bizId = String((db.prepare('SELECT id FROM businesses LIMIT 1').get() as { id: string }).id);
   const lead = (name: string, channel: string, phone: string | null, created: string) => {
@@ -86,7 +86,7 @@ try {
     return lid;
   };
   const msg = (lid: string, channel: string, dir: 'in' | 'out', text: string, when: string) =>
-    db.prepare('INSERT INTO inbox (id, business_id, lead_id, channel, direction, author, text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id(), bizId, lid, channel, dir, dir === 'in' ? 'customer' : 'cerebro', text, when);
+    db.prepare('INSERT INTO inbox (id, business_id, lead_id, channel, direction, author, text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id(), bizId, lid, channel, dir, dir === 'in' ? 'customer' : 'palantir', text, when);
   const call = (phone: string, direction: 'in' | 'out', status: string, start: string, sec: number, extra: { outcome?: string; analysis?: string; leadId?: string } = {}) =>
     db.prepare(`INSERT INTO calls (id, business_id, phone, name, started_at, duration_sec, outcome, transcript, booked, created_at, source, direction, status, phone_key, answered_at, ended_at, analysis, lead_id)
       VALUES (?, ?, ?, NULL, ?, ?, ?, '[]', NULL, ?, 'microsip', ?, ?, ?, ?, ?, ?, ?)`)
@@ -157,7 +157,7 @@ try {
   console.log('\n# Ko\'rinish (headless)');
   const browser = await chromium.launch({ executablePath: CHROME });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: TIMEZONE, locale: 'uz-UZ' });
-  await ctx.addInitScript(t => { localStorage.setItem('cerebro_token', t); }, token);
+  await ctx.addInitScript(t => { localStorage.setItem('palantir_token', t); }, token);
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -209,7 +209,7 @@ try {
   crm.rejectAll = false;
   m0 = sent.length;
   ok('tiklandi — «✅ DentaCRM yana ishlayapti»', await waitFor('CRM tiklandi', () => toOwnerAfter(m0, '✅ <b>DentaCRM</b> yana ishlayapti'), 15_000));
-  const db2 = new DatabaseSync(join(dataDir, 'cerebro.db'));
+  const db2 = new DatabaseSync(join(dataDir, 'palantir.db'));
   db2.exec('PRAGMA busy_timeout = 5000');
   db2.prepare("INSERT INTO cameras (id, business_id, name, zones, created_at, last_seen_at, stream_host) VALUES ('cam1', ?, 'Kassa', '[]', ?, ?, '192.168.1.64')")
     .run(bizId, new Date(Date.now() - 3_600_000).toISOString(), new Date(Date.now() - 600_000).toISOString());

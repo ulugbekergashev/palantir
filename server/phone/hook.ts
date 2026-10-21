@@ -1,5 +1,5 @@
 /**
- * MicroSIP yordamchisini (hook/CerebroCall.cs) yig'adi — Windows'ning o'zidagi .NET Framework kompilyatori (csc.exe) bilan.
+ * MicroSIP yordamchisini (hook/PalantirCall.cs) yig'adi — Windows'ning o'zidagi .NET Framework kompilyatori (csc.exe) bilan.
  * Repozitoriyda tayyor .exe saqlanmaydi: kerak bo'lganda (MicroSIP ulanayotganda) data papkasiga yig'iladi; manba o'zgarsa — qayta.
  */
 import { execFile } from 'node:child_process';
@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const SOURCE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'hook', 'CerebroCall.cs');
+const SOURCE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'hook', 'PalantirCall.cs');
 const COMPILE_TIMEOUT_MS = 60_000;
 
 const compilers = (): string[] => {
@@ -20,8 +20,8 @@ const compilers = (): string[] => {
 export async function ensureHookExe(dir: string): Promise<string> {
   const source = fs.readFileSync(SOURCE);
   const tag = createHash('sha256').update(source).digest('hex').slice(0, 12);
-  const exe = path.join(dir, 'cerebro-call.exe');
-  const stamp = path.join(dir, 'cerebro-call.version');
+  const exe = path.join(dir, 'palantir-call.exe');
+  const stamp = path.join(dir, 'palantir-call.version');
   if (fs.existsSync(exe) && fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8').trim() === tag) return exe;
   const csc = compilers().find(p => fs.existsSync(p));
   if (!csc) throw new Error(".NET Framework 4 kompilyatori (csc.exe) topilmadi — MicroSIP yordamchisini yig'ib bo'lmadi");

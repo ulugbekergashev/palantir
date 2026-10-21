@@ -4,7 +4,7 @@
  *
  *   1. Palantir'dan qo'ng'iroq:  microsip.exe <raqam>  (ishlab turgan MicroSIP raqamni teradi).
  *   2. MicroSIP → Palantir:      microsip.ini [Settings] cmdIncomingCall / cmdCallAnswer / cmdCallStart / cmdCallEnd / cmdOutgoingCall —
- *      MicroSIP shu FAYLNI ishga tushiradi, raqam parametr bo'lib keladi. U yerda kichik yordamchi (cerebro-call.exe nusxalari)
+ *      MicroSIP shu FAYLNI ishga tushiradi, raqam parametr bo'lib keladi. U yerda kichik yordamchi (palantir-call.exe nusxalari)
  *      turadi: hodisani «spool» papkasiga fayl qilib yozadi, Palantir o'qib oladi.
  *   3. Yozuv: autoRecording=1, recordingPath — yordamchi papkasidagi «rec», recordingFormat — mp3 (lame_enc.dll bo'lsa) yoki wav.
  *
@@ -52,8 +52,10 @@ const SPOOL_STALE_TMP_MS = 60_000;
 const EXIT_WAIT_MS = 10_000;
 const EXIT_POLL_MS = 250;
 const STATE_FILE = 'microsip.json';
-const INI_BACKUP_SUFFIX = '.cerebro-backup';
-const HOOK_DIR_PREFIX = 'Cerebro-ms-';
+const INI_BACKUP_SUFFIX = '.palantir-backup';
+const HOOK_DIR_PREFIX = 'Palantir-ms-';
+/** Dastur Cerebro deb atalgan paytda ulangan MicroSIP (eski nom): o'sha yordamchi papkasi ham bizniki, asl ini nusxasi yangi nomga o'tadi */
+const LEGACY = { iniBackup: '.cerebro-backup', hookDir: 'Cerebro-ms-' }; // eski nom
 const HOOK_DIR_ATTEMPTS = 5;
 /** Bo'sh joysiz, faqat lotin harflari va belgilar — MicroSIP yordamchini shunday yo'ldangina ishga tushiradi */
 const SAFE_PATH = /^[\x21-\x7E]+$/;
@@ -201,7 +203,7 @@ export function parseSpoolEvent(content: string, fallbackTime: Date): MicrosipEv
 export interface MicrosipEnv {
   /** Holat fayli (microsip.json) turadigan papka — Palantir'ning data papkasi */
   stateDir: string;
-  /** Yig'ilgan yordamchi (cerebro-call.exe) */
+  /** Yig'ilgan yordamchi (palantir-call.exe) */
   hookSourceExe: string;
   /** Yordamchi papkasi yaratiladigan joy (%ProgramData%) — yo'lida bo'sh joy bo'lmasligi shart */
   hookRoot: string;
@@ -227,7 +229,7 @@ export function hookValuesFor(hookDir: string): HookValues {
 const samePath = (a: string, b: string): boolean => path.normalize(a).toLowerCase() === path.normalize(b).toLowerCase();
 /** Bizning yordamchi papkamizmi: aynan hookRoot ichida va o'z nomimiz bilan */
 const isOurHookDir = (dir: string | undefined | null, env: MicrosipEnv): dir is string =>
-  !!dir && samePath(path.dirname(dir), env.hookRoot) && path.basename(dir).startsWith(HOOK_DIR_PREFIX);
+  !!dir && samePath(path.dirname(dir), env.hookRoot) && [HOOK_DIR_PREFIX, LEGACY.hookDir].some(p => path.basename(dir).startsWith(p));
 const isOurPath = (value: string, env: MicrosipEnv): boolean => isOurHookDir(path.dirname(value), env);
 
 /** ini MicroSIP bilan bir papkada bo'lsa — ko'chma nusxa; aks holda %APPDATA%\MicroSIP\MicroSIP.ini */
@@ -453,6 +455,7 @@ function installHookFiles(env: MicrosipEnv, hookDir: string): void {
 function writeIni(iniPath: string, values: Partial<Record<string, string>>): void {
   const ini = decodeIni(fs.readFileSync(iniPath));
   const backup = iniPath + INI_BACKUP_SUFFIX;
+  if (!fs.existsSync(backup) && fs.existsSync(iniPath + LEGACY.iniBackup)) fs.renameSync(iniPath + LEGACY.iniBackup, backup);
   if (!fs.existsSync(backup)) fs.copyFileSync(iniPath, backup);
   // Fayl O'Z JOYIDA yoziladi: «yoniga yozib almashtirish»da antivirus yangi faylni ushlab turadi va MicroSIP qotib qoladi (sinalgan)
   fs.writeFileSync(iniPath, encodeIni({ ...ini, text: patchIniSettings(ini.text, values) }));

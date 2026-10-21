@@ -21,7 +21,7 @@ const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
 
 const REPO = resolve('.');
-const work = mkdtempSync(join(tmpdir(), 'cerebro-yangilash-'));
+const work = mkdtempSync(join(tmpdir(), 'palantir-yangilash-'));
 const SRC = join(work, 'manba'), APP = join(work, 'klinika'), DATA = join(APP, 'data'), RELEASES = join(work, 'relizlar');
 const PORT = 3314;
 const pem = (k: { export: (o: { type: 'spki' | 'pkcs8'; format: 'pem' }) => string | Buffer }, type: 'spki' | 'pkcs8') => String(k.export({ type, format: 'pem' }));
@@ -40,7 +40,7 @@ function edit(text: string, find: string | RegExp, put: string): string {
   if (out === text) throw new Error(`sinov manbasida topilmadi: ${String(find)}`);
   return out;
 }
-const schema = () => { const d = new DatabaseSync(join(DATA, 'cerebro.db'), { readOnly: true }); try { return Number((d.prepare('PRAGMA user_version').get() as { user_version: number }).user_version); } finally { d.close(); } };
+const schema = () => { const d = new DatabaseSync(join(DATA, 'palantir.db'), { readOnly: true }); try { return Number((d.prepare('PRAGMA user_version').get() as { user_version: number }).user_version); } finally { d.close(); } };
 const holat = () => JSON.parse(readFileSync(join(DATA, 'yangilash', 'holat.json'), 'utf8')) as { result: string; to: string; reason?: string };
 
 /** Manba papkasida nashrni o'zgartirib, reliz yig'adi (kanal — manifest va arxiv turadigan papka) */
@@ -85,7 +85,7 @@ try {
   git('init', '-q');
   release('v0', '9.0.0');
   mkdirSync(APP, { recursive: true });
-  const zip = unzipSync(readFileSync(join(RELEASES, 'v0', 'cerebro-9.0.0.zip')));
+  const zip = unzipSync(readFileSync(join(RELEASES, 'v0', 'palantir-9.0.0.zip')));
   for (const [name, data] of Object.entries(zip)) {
     if (name.endsWith('/')) continue;
     mkdirSync(dirname(join(APP, name)), { recursive: true });
@@ -116,7 +116,7 @@ try {
   ok('ish fayllari saqlandi: tgvoice/.venv, shahar raqami sozlamasi', readFileSync(join(APP, 'tgvoice', '.venv', 'belgi.txt'), 'utf8') === 'venv'
     && existsSync(join(APP, 'tgvoice', 'asterisk', 'pjsip_shahar.conf')));
   ok('.env va baza joyida (biznes saqlangan)', readFileSync(join(APP, '.env'), 'utf8') === envText
-    && (() => { const d = new DatabaseSync(join(DATA, 'cerebro.db'), { readOnly: true }); try { return !!d.prepare("SELECT 1 FROM businesses WHERE login = 'yangilash'").get(); } finally { d.close(); } })());
+    && (() => { const d = new DatabaseSync(join(DATA, 'palantir.db'), { readOnly: true }); try { return !!d.prepare("SELECT 1 FROM businesses WHERE login = 'yangilash'").get(); } finally { d.close(); } })());
 
   console.log('\n# 2. Begona kalit bilan imzolangan reliz');
   release('v2', '9.0.2', () => {}, STRANGER);
@@ -141,7 +141,7 @@ try {
     // Avvalgi 9.0.3 dagi buzuqlik olib tashlanadi; migratsiya v3 qo'shiladi; sinov rejimida ishlaydi, haqiqiysida — baza ochilgach yiqiladi
     const index = join(SRC, 'server', 'index.ts');
     writeFileSync(index, edit(edit(readFileSync(index, 'utf8'), "throw new Error('buzuq nashr');\n", ''),
-      "await import('./main');", "if (process.env.CEREBRO_DRY_RUN !== '1') { await import('./db'); process.exit(1); }\nawait import('./main');"));
+      "await import('./main');", "if (process.env.PALANTIR_DRY_RUN !== '1') { await import('./db'); process.exit(1); }\nawait import('./main');"));
     const migrate = join(SRC, 'server', 'migrate.ts');
     writeFileSync(migrate, edit(readFileSync(migrate, 'utf8'), /\];\r?\nexport const SCHEMA_VERSION/, "  { version: 3, about: 'sinov', up: db => db.exec('ALTER TABLE businesses ADD COLUMN sinov TEXT') },\n];\nexport const SCHEMA_VERSION"));
   });

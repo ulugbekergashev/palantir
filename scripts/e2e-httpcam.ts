@@ -79,7 +79,7 @@ const cam = createServer((req, res) => {
 const camPort = await listen(cam);
 camPortOf = () => camPort;
 
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-httpcam-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-httpcam-'));
 const PORT = 3299, base = `http://127.0.0.1:${PORT}`;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {

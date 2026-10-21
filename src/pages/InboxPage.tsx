@@ -154,10 +154,10 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
         {!messages.length && <p className="py-6 text-center text-sm text-slate-400">Bu mijoz bilan hali yozishma yo'q.</p>}
         {messages.map(m => (
           <div key={m.id} className={`flex ${m.direction === 'in' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${m.direction === 'in' ? 'rounded-bl-md bg-slate-100' : m.by === 'cerebro' ? 'rounded-br-md bg-indigo-600 text-white' : 'rounded-br-md bg-emerald-600 text-white'}`}>
+            <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${m.direction === 'in' ? 'rounded-bl-md bg-slate-100' : m.by === 'palantir' ? 'rounded-br-md bg-indigo-600 text-white' : 'rounded-br-md bg-emerald-600 text-white'}`}>
               <p className="whitespace-pre-line break-words">{m.text}</p>
               <div className={`mt-0.5 flex items-center gap-1 text-[10px] ${m.direction === 'in' ? 'text-slate-400' : 'text-white/70'}`}>
-                {m.by === 'cerebro' && <Bot className="h-3 w-3" />}{m.by === 'cerebro' ? 'Palantir' : m.by === 'owner' ? 'Siz' : ''} {when(m.createdAt)}
+                {m.by === 'palantir' && <Bot className="h-3 w-3" />}{m.by === 'palantir' ? 'Palantir' : m.by === 'owner' ? 'Siz' : ''} {when(m.createdAt)}
               </div>
             </div>
           </div>
@@ -255,7 +255,7 @@ export function InboxPage({ notify, onChanged }: { notify: Notify; /** Javob tas
                       {t.pending > 0 && <span className="ml-auto shrink-0 rounded-full bg-amber-100 px-2 text-[11px] font-bold text-amber-800" title="Tasdiq kutayotgan javob">✍️ {t.pending}</span>}
                     </div>
                     <p className="mt-0.5 truncate text-xs text-slate-500">
-                      {t.last ? `${t.last.direction === 'out' ? (t.last.by === 'cerebro' ? 'Palantir: ' : 'Siz: ') : ''}${t.last.text}` : [t.lead.phone, t.lead.note].filter(Boolean).join(' · ') || "Yozishma yo'q"}
+                      {t.last ? `${t.last.direction === 'out' ? (t.last.by === 'palantir' ? 'Palantir: ' : 'Siz: ') : ''}${t.last.text}` : [t.lead.phone, t.lead.note].filter(Boolean).join(' · ') || "Yozishma yo'q"}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">

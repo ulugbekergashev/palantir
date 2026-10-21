@@ -3,11 +3,13 @@
  *   1) Telegram javob bermaydigan paytda (internetsiz) server baribir ko'tariladi, bot keyin o'zi ulanadi;
  *   2) Telegram uzilgan paytda vaqti kelgan eslatma yo'qolmaydi — aloqa tiklangach yetib boradi;
  *   3) shu papka bilan ikkinchi nusxa ishga tushmaydi (78 kodi bilan chiqadi);
- *   4) jurnal fayli va zaxira nusxa yoziladi.
+ *   4) jurnal fayli va zaxira nusxa yoziladi;
+ *   5) dastur Cerebro deb atalgan paytdagi ma'lumot (eski nom): baza fayli, shifr kaliti, zaxira, qulf — o'qiladi va hurmat qilinadi.
  * Hammasi soxta Telegram bilan, vaqtinchalik papkada.
  */
 process.env.TZ = 'Asia/Tashkent';
 import { spawn, spawnSync } from 'node:child_process';
+import { createCipheriv, createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { createServer } from 'node:net';
@@ -34,7 +36,7 @@ const tgPort = await freePort();
 const telegramUp = () => new Promise<void>(done => { tgServer.listen(tgPort, '127.0.0.1', () => done()); });
 const telegramDown = () => new Promise<void>(done => { tgServer.close(() => done()); tgServer.closeAllConnections(); });
 
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-chidam-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-chidam-'));
 const PORT = 3295;
 const base = `http://127.0.0.1:${PORT}`;
 const ENV = {
@@ -83,7 +85,7 @@ try {
 
   console.log('\n# Telegram paydo bo\'ldi');
   await telegramUp();
-  const linked = await until('bot nomi', async () => (await api('/api/me', { token })).json.status.bot === 'cerebro_test_bot', 30_000);
+  const linked = await until('bot nomi', async () => (await api('/api/me', { token })).json.status.bot === 'palantir_test_bot', 30_000);
   ok('bot o\'zi ulandi (qayta ishga tushirmasdan)', linked);
   const code = String((await api('/api/me', { token })).json.status.linkUrl).split('start=o-')[1];
   let mark = sent.length;
@@ -111,15 +113,15 @@ try {
   // Zaxira: serverning o'z moduli orqali, shu papkada (server ishlab turganda)
   const backup = spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', '-e', "import('./server/backup.ts').then(m => { console.log(m.backupNow() ?? 'bor'); process.exit(0); })"], { env: ENV, encoding: 'utf8', timeout: 60_000 });
   const day = join(dataDir, 'backups', iso(new Date()));
-  ok('zaxira nusxa olindi (baza)', existsSync(join(day, 'cerebro.db')), (backup.stderr || backup.stdout).trim().slice(0, 200));
+  ok('zaxira nusxa olindi (baza)', existsSync(join(day, 'palantir.db')), (backup.stderr || backup.stdout).trim().slice(0, 200));
   ok('yarim yozilgan nusxa qolmadi', !readdirSync(join(dataDir, 'backups')).some(n => n.startsWith('.yozilmoqda')));
 
   console.log('\n# Baza nashri');
   const version = (file: string) => { const d = new DatabaseSync(file); const v = Number((d.prepare('PRAGMA user_version').get() as { user_version: number }).user_version); d.close(); return v; };
   const setVersion = (file: string, v: number) => { const d = new DatabaseSync(file); d.exec(`PRAGMA user_version = ${v}`); d.close(); };
-  ok("yangi baza darhol oxirgi nashrda", version(join(dataDir, 'cerebro.db')) === SCHEMA_VERSION, `v${version(join(dataDir, 'cerebro.db'))}`);
+  ok("yangi baza darhol oxirgi nashrda", version(join(dataDir, 'palantir.db')) === SCHEMA_VERSION, `v${version(join(dataDir, 'palantir.db'))}`);
   // Alohida papka: bazani faqat db moduli ochadi (server emas) — tuzilmani joriy kod yaratadi, keyin «nashrsiz eski baza» qilinadi
-  const oldDir = mkdtempSync(join(tmpdir(), 'cerebro-nashr-')), oldDb = join(oldDir, 'cerebro.db');
+  const oldDir = mkdtempSync(join(tmpdir(), 'palantir-nashr-')), oldDb = join(oldDir, 'palantir.db');
   const openDb = () => spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', '-e', "import('./server/db.ts').then(() => process.exit(0))"], { env: { ...ENV, DATA_DIR: oldDir, BACKUP_DIR: '' }, encoding: 'utf8', timeout: 60_000 });
   openDb();
   // Nashrsiz eski baza — postlar olib tashlanishidan oldingi tuzilma bilan (v2 ularni o'chiradi), bitta biznes yozuvi bilan
@@ -158,7 +160,7 @@ try {
   ok("disk: bo'sh joy o'lchanadi; chegaradan ko'p — muammo yo'q, kam — sababi bilan", free != null && free > 0 && diskProblem(dataDir, 1) === null
     && /bo'sh joy \d+ MB qoldi/.test(diskProblem(dataDir, Number.MAX_SAFE_INTEGER) ?? ''), `${free} MB`);
   // Yozuvlar: 100 kunlik va yangi fayl, ikkalasiga ham qo'ng'iroq yozuvi; muddat — 90 kun (standart)
-  const recData = mkdtempSync(join(tmpdir(), 'cerebro-yozuv-')), recDir = join(recData, 'recordings');
+  const recData = mkdtempSync(join(tmpdir(), 'palantir-yozuv-')), recDir = join(recData, 'recordings');
   mkdirSync(recDir);
   writeFileSync(join(recDir, 'eski.wav'), Buffer.alloc(4000));
   writeFileSync(join(recDir, 'yangi.wav'), Buffer.alloc(4000));
@@ -177,6 +179,42 @@ try {
   ok("yozuvlar: 90 kundan eskisi o'chdi (havolasi ham), yangisi qoldi", pruned.removed === 1 && !existsSync(join(recDir, 'eski.wav')) && existsSync(join(recDir, 'yangi.wav'))
     && JSON.stringify(pruned.rows) === JSON.stringify([['c1', null], ['c2', 'yangi.wav']]), `${prune.status} ${prune.stdout.trim().slice(-200)} ${prune.stderr.trim().slice(0, 200)}`);
   rmSync(recData, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+  // Dastur avval Cerebro deb atalgan (eski nom): o'sha paytdagi ma'lumot yangi nom bilan ham ishlashi kerak
+  console.log("\n# Avvalgi nom bilan yaratilgan ma'lumot");
+  const oldName = mkdtempSync(join(tmpdir(), 'palantir-eski-')), oldBackups = join(oldName, 'backups');
+  const legacyDb = join(oldName, 'cerebro.db'); // eski nom
+  { const d = new DatabaseSync(legacyDb); d.exec(`CREATE TABLE belgi (x); PRAGMA user_version = ${SCHEMA_VERSION}`); d.close(); }
+  for (const day of ['2026-01-01', '2026-01-02', '2026-01-03']) {
+    mkdirSync(join(oldBackups, day), { recursive: true });
+    writeFileSync(join(oldBackups, day, 'cerebro.db'), ''); // eski nom
+  }
+  const SECRET = 'avvalgi-nom-sinov-kaliti';
+  const legacyKey = createHash('sha256').update(`cerebro:vault:${SECRET}`).digest(); // eski nom
+  const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', legacyKey, iv);
+  const body = Buffer.concat([cipher.update('avvalgi qiymat', 'utf8'), cipher.final()]);
+  const sealedV1 = `v1.${Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64url')}`;
+  const legacy = spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', '-e', `
+    const { env } = await import('./server/env.ts');
+    const { open, seal } = await import('./server/secret.ts');
+    const { authorOf } = await import('./server/db.ts');
+    const { backupNow } = await import('./server/backup.ts');
+    const { readdirSync } = await import('node:fs');
+    backupNow();
+    const author = [authorOf('cerebro'), authorOf('owner')]; // eski nom
+    console.log(JSON.stringify({ db: env.dbFile, opened: open(process.env.SEALED_V1), sealed: seal('x').slice(0, 3), author, days: readdirSync(env.backupDir).sort() }));
+    process.exit(0);`], { env: { ...ENV, DATA_DIR: oldName, BACKUP_DIR: oldBackups, BACKUP_KEEP: '2', SESSION_SECRET: SECRET, SEALED_V1: sealedV1 }, encoding: 'utf8', timeout: 60_000 });
+  const got = JSON.parse(legacy.stdout.trim().split('\n').at(-1) || '{}') as { db?: string; opened?: string; sealed?: string; author?: string[]; days?: string[] };
+  const tables = (() => { const d = new DatabaseSync(legacyDb); try { return (d.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map(t => t.name); } finally { d.close(); } })();
+  ok("avvalgi nomli baza fayli ishlatiladi, yangisi yaratilmaydi", got.db === legacyDb && tables.includes('belgi') && tables.includes('businesses') && !existsSync(join(oldName, 'palantir.db')),
+    `${legacy.status} ${got.db ?? ''} ${legacy.stderr.trim().slice(0, 200)}`);
+  ok("avvalgi kalit bilan shifrlangan qiymat ochiladi, yangisi «v2.» bilan yoziladi", got.opened === 'avvalgi qiymat' && got.sealed === 'v2.', `${got.opened} ${got.sealed}`);
+  ok("yozishmadagi avvalgi muallif nomi — Palantir", JSON.stringify(got.author) === JSON.stringify(['palantir', 'owner']), JSON.stringify(got.author));
+  ok("zaxira: avvalgi nomli nusxalar ham sanaladi, eng eskilari o'chadi", JSON.stringify(got.days?.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))) === JSON.stringify(['2026-01-03', iso(new Date())]), JSON.stringify(got.days));
+  const lockDir = mkdtempSync(join(tmpdir(), 'palantir-eski-qulf-'));
+  writeFileSync(join(lockDir, 'cerebro.lock'), JSON.stringify({ pid: process.pid, port: 1, host: '127.0.0.1', at: new Date().toISOString() })); // eski nom
+  const legacyLock = spawnSync(process.execPath, ARGS, { env: { ...ENV, DATA_DIR: lockDir, PORT: String(await freePort()) }, encoding: 'utf8', timeout: 30_000 });
+  ok("avvalgi nomli nashr shu papka bilan ishlab tursa — ishga tushmaydi (kod 78)", legacyLock.status === 78, `kod ${legacyLock.status}`);
+  for (const dir of [oldName, lockDir]) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

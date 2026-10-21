@@ -18,7 +18,7 @@
     "restore-backup": "tsx scripts/restore-backup.ts",
     "check": "node --no-warnings --import tsx scripts/preflight.ts",
     "preview": "vite preview --port 3101 --host localhost",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsx scripts/check-name.ts",
     "test": "tsx scripts/e2e.ts",
     "test:resilience": "tsx scripts/e2e-resilience.ts",
     "test:setup": "tsx scripts/e2e-setup.ts",

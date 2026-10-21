@@ -9,7 +9,7 @@ const start = Date.now();
 const [to, flag, taskId] = process.argv.slice(2);
 let sawTask = false;
 try {
-  const r = await fetch(`${process.env.CEREBRO_URL}/api/tasks?status=open`, { headers: { authorization: `Bearer ${process.env.CEREBRO_TOKEN}` } });
+  const r = await fetch(`${process.env.PALANTIR_URL}/api/tasks?status=open`, { headers: { authorization: `Bearer ${process.env.PALANTIR_TOKEN}` } });
   sawTask = ((await r.json()).tasks ?? []).some(t => t.id === taskId);
 } catch { /* sawTask false qoladi */ }
 // Qo'ng'iroq bir oz davom etadi — navbat (bir vaqtda bitta qo'ng'iroq) tekshirilishi uchun

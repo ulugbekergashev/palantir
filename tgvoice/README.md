@@ -53,7 +53,7 @@ VoiceLab v2 modeli (`VOICELAB_MODEL=lison-v2`) jonliroq, lekin gapga ~5 s — te
 
 ## Telefon liniyasi (SIP) — `sip_live.py`
 
-Oddiy telefon raqami (Uztelecom va boshqalar) uchun. Asterisk WSL'da (Ubuntu, `D:\WSL\cerebro`) qo'ng'iroqni ko'taradi va
+Oddiy telefon raqami (Uztelecom va boshqalar) uchun. Asterisk WSL'da (Ubuntu, `D:\WSL\palantir`) qo'ng'iroqni ko'taradi va
 AudioSocket orqali `sip_live.py` ga uzatadi. Har qo'ng'iroq o'z Gemini Live suhbatini oladi, shuning uchun bir vaqtda bir nechta
 qo'ng'iroq ko'tariladi (`SIP_MAX_CALLS`, standart 4). Cheklov faqat liniyada: Uztelecom'da nechta kanal bo'lsa, shuncha.
 
@@ -71,7 +71,7 @@ O'rnatish (bir marta): WSL va Ubuntu → `apt install asterisk` → `%USERPROFIL
 brandmauerda UDP 5060 va 10000–10100 (faqat ichki tarmoq). Sozlamalarni o'zgartirgandan keyin:
 
 ```
-wsl -d Cerebro -u root -- bash /mnt/d/Projects/cerebro/tgvoice/asterisk/install.sh
+wsl -d Palantir -u root -- bash /mnt/d/Projects/palantir/tgvoice/asterisk/install.sh
 tgvoice\.venv\Scripts\python.exe tgvoice\sip_live.py
 ```
 

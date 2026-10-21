@@ -9,6 +9,12 @@ if (process.env.DOTENV !== '0' && existsSync('.env')) process.loadEnvFile('.env'
 
 const dataDir = resolve(process.env.DATA_DIR || 'data');
 mkdirSync(dataDir, { recursive: true });
+/**
+ * Baza fayli. Dastur avval Cerebro deb atalgan (eski nom): o'sha nom bilan yaratilgan baza bo'lsa — o'sha ishlatiladi. Fayl qayta
+ * nomlanmaydi: eski nashr (shu baza bilan ishlagan branch yoki qaytarilgan nashr) uni topa olmay, bo'sh baza yaratib qo'ymasin
+ */
+const LEGACY_DB = join(dataDir, 'cerebro.db'); // eski nom
+const dbFile = existsSync(join(dataDir, 'palantir.db')) || !existsSync(LEGACY_DB) ? join(dataDir, 'palantir.db') : LEGACY_DB;
 
 const SECRET_HEX = 64;
 /** Sessiya imzosi kaliti: berilmagan bo'lsa bir marta yaratiladi va data papkasida saqlanadi */
@@ -46,7 +52,7 @@ export const env = {
   /** Server oldida proksi (nginx, hosting) turibdimi. Faqat shunda X-Forwarded-For'ga ishoniladi; to'g'ridan-to'g'ri ochiq serverda 1 qilinsa, kirish urinishlari chegarasini aylanib o'tish mumkin bo'ladi */
   trustProxy: process.env.TRUST_PROXY === '1',
   dataDir,
-  dbFile: process.env.DB_FILE || join(dataDir, 'cerebro.db'),
+  dbFile: process.env.DB_FILE || dbFile,
   /** Kunlik zaxira nusxalar papkasi (boshqa diskka qo'ygan ma'qul) va nechta kun saqlanishi. BACKUP_KEEP=0 — zaxira olinmaydi */
   backupDir: resolve(process.env.BACKUP_DIR || join(dataDir, 'backups')),
   backupKeep: process.env.BACKUP_KEEP && Number.isFinite(Number(process.env.BACKUP_KEEP)) ? Number(process.env.BACKUP_KEEP) : 14,
@@ -58,7 +64,7 @@ export const env = {
    * Yangilashdan oldingi sinov (scripts/update.mjs): baza nusxasida faqat panel va baza ko'tariladi — bot, kanallar, jadval,
    * kameralar va tashqi xizmatlar yoqilmaydi
    */
-  dryRun: process.env.CEREBRO_DRY_RUN === '1',
+  dryRun: process.env.PALANTIR_DRY_RUN === '1',
   /** Palantir Hub'ga holat yuborish oralig'i (hub kodi bo'lsa) */
   heartbeatMs: Number(process.env.HEARTBEAT_MS) || 5 * 60_000,
   /** @BotFather tokeni. Bo'lmasa — panel ishlaydi, Telegram o'chiq */
@@ -101,7 +107,7 @@ export const env = {
   /** So'rov eslatmalari shu soatlarda («8-21»): tungi so'rov ertalab eslatiladi, tunda karta ovozsiz keladi */
   requestHours: dayHours(process.env.REQUEST_HOURS),
 
-  /** Palantir Hub (rasmiy Instagram uchun): manzili va klinika kaliti — CEREBRO_HUB kodidan (keys.ts o'rnatadi) */
+  /** Palantir Hub (rasmiy Instagram uchun): manzili va klinika kaliti — PALANTIR_HUB kodidan (keys.ts o'rnatadi) */
   hub: null as { url: string; clinicId: string; key: string } | null,
   /** Faqat sinov uchun: soxta Instagram Graph API */
   igGraphUrl: (process.env.IG_GRAPH_URL || 'https://graph.instagram.com').replace(/\/$/, ''),

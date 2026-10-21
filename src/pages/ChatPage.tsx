@@ -25,6 +25,8 @@ const SUGGESTIONS = [
   'Kechagi natijalar qanday?',
 ];
 const VOICE_MARK = '🎙 Ovozli suhbat';
+/** Reja qatoridagi gapiruvchi: «Siz:» yoki «Palantir:» (eski yozuvlarda «Cerebro:» — eski nom) */
+const SPEAKER = /^(Siz|Palantir|Cerebro):\s*/;
 const MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
 /** Suhbatga tashlanadigan fayl chegarasi (server: intake/extract.ts MAX_FILE_BYTES) */
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -58,7 +60,7 @@ function VoiceSession({ e }: { e: ChatEntry }) {
           const done = l.startsWith('✓'), me = l.startsWith('Siz:');
           return (
             <li key={i} className={done ? 'text-emerald-300' : me ? 'text-[#a3a9b5]' : 'text-[#e4e3de]'}>
-              {done ? l : <><span className="mr-1.5 text-[12px] font-semibold text-[#7d838f]">{me ? 'Siz' : 'Palantir'}</span>{l.replace(/^(Siz|Palantir|Cerebro):\s*/, '')}</>}
+              {done ? l : <><span className="mr-1.5 text-[12px] font-semibold text-[#7d838f]">{me ? 'Siz' : 'Palantir'}</span>{l.replace(SPEAKER, '')}</>}
             </li>
           );
         })}

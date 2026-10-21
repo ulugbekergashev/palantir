@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-os.environ['CEREBRO_URL'] = 'http://127.0.0.1:3220'
+os.environ['PALANTIR_URL'] = 'http://127.0.0.1:3220'
 os.environ['VOICE_AGENT_KEY'] = (ROOT.parent / '.stend-data' / 'ovozli-agent-kaliti.txt').read_text().strip()
 sys.stdout.reconfigure(encoding='utf-8')
 

@@ -100,7 +100,7 @@ export async function insightsApiTests(h: Harness): Promise<void> {
   ok("yuklangan fayllar oxirida o'chirildi (Anthropic'da qolmaydi)", filesLog.uploaded.every(f => filesLog.deleted.includes(f.name)));
   const chart = await fetch(`${h.base}/api/insights/deep/chart/${r?.id}/qaytish.png`, { headers: { authorization: `Bearer ${token}` } });
   ok('grafik panelga beriladi; boshqa biznesga — 404', chart.status === 200 && (await fetch(`${h.base}/api/insights/deep/chart/${r?.id}/qaytish.png`, { headers: { authorization: `Bearer ${otherToken}` } })).status === 404);
-  ok("grafik yo'lida ../ — 404", (await fetch(`${h.base}/api/insights/deep/chart/${r?.id}/..%2F..%2Fcerebro.db`, { headers: { authorization: `Bearer ${token}` } })).status === 404);
+  ok("grafik yo'lida ../ — 404", (await fetch(`${h.base}/api/insights/deep/chart/${r?.id}/..%2F..%2Fpalantir.db`, { headers: { authorization: `Bearer ${token}` } })).status === 404);
 
   console.log('\n# Chuqur tahlil narxi: kesh, narx hisobi, keraksiz qayta tahlil yo\'q');
   ok('har so\'rovda kesh yoqilgan (Python qadamlari oldingi suhbatni keshdan o\'qiydi)', ai.deep.length === 2 && ai.deep.every(d => JSON.stringify(d.cache) === '{"type":"ephemeral"}'), JSON.stringify(ai.deep.map(d => d.cache)));

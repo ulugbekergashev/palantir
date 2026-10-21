@@ -1,14 +1,14 @@
 /**
  * Tashqi zaxira shifri: sotuvchining OCHIQ kaliti bilan (X25519 + HKDF-SHA256 + AES-256-GCM). Klinika ham, hub ham ochib bo'lmaydi —
  * faqat sotuvchidagi maxfiy kalit bilan (scripts/restore-backup.ts). Har faylga yangi vaqtinchalik kalit.
- * Fayl: «CEREBRO-ZAXIRA-1\n» | vaqtinchalik ochiq kalit (SPKI DER, 44 bayt) | IV (12) | GCM teg (16) | shifrlangan matn.
+ * Fayl: «PALANTIR-ZAXIRA-1\n» | vaqtinchalik ochiq kalit (SPKI DER, 44 bayt) | IV (12) | GCM teg (16) | shifrlangan matn.
  * Belgi va vaqtinchalik kalit AAD sifatida shifrga bog'langan — ularni almashtirib bo'lmaydi. Modul env'ga bog'liq emas.
  */
 import { createCipheriv, createDecipheriv, createPrivateKey, createPublicKey, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes } from 'node:crypto';
 
-export const MAGIC = Buffer.from('CEREBRO-ZAXIRA-1\n');
+export const MAGIC = Buffer.from('PALANTIR-ZAXIRA-1\n');
 const EPH = 44, IV = 12, TAG = 16;
-const INFO = Buffer.from('cerebro-tashqi-zaxira-v1');
+const INFO = Buffer.from('palantir-tashqi-zaxira-v1');
 
 const keyOf = (shared: Buffer, eph: Buffer) => Buffer.from(hkdfSync('sha256', shared, eph, INFO, 32));
 

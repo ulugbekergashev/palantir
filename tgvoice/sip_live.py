@@ -25,10 +25,10 @@ from websockets.asyncio.server import serve
 # Palantir manzili call_live yuklanayotganda o'qiladi
 if '--stend' in sys.argv:
     from pathlib import Path
-    os.environ['CEREBRO_URL'] = 'http://127.0.0.1:3220'
+    os.environ['PALANTIR_URL'] = 'http://127.0.0.1:3220'
     os.environ['VOICE_AGENT_KEY'] = (Path(__file__).resolve().parent.parent / '.stend-data' / 'ovozli-agent-kaliti.txt').read_text().strip()
 
-from call_live import CEREBRO, LIVE_VOICE, UZ_TZ, Bridge, down_48_to_16, log, up_24_to_48
+from call_live import PALANTIR, LIVE_VOICE, UZ_TZ, Bridge, down_48_to_16, log, up_24_to_48
 from common import env
 from reception import Desk
 from web_live import WEB_PORT, WebVoice
@@ -48,7 +48,7 @@ OWNER_LIMIT_S = 900                                # egasining qo'ng'irog'i (Tel
 # karnayidan qaytgan AI ovozi «gap» bo'lib (turkcha, hindcha bo'laklar) suhbatni buzmasin. Baland gap (odam AI'ni bo'lsa) o'tadi
 ECHO_GATE = int(env('SIP_ECHO_GATE', '1500'))      # 16-bit namuna RMS (0..32767)
 ECHO_TAIL_S = 0.4
-DISTRO = env('SIP_WSL_DISTRO', 'Cerebro')
+DISTRO = env('SIP_WSL_DISTRO', 'Palantir')
 TOKEN_TTL_S = 6 * 3600
 
 # AudioSocket xabarlari: 1 bayt tur, 2 bayt uzunlik (big-endian), keyin ma'lumot
@@ -109,8 +109,8 @@ class Token:
     async def get(self) -> str:
         async with self.lock:
             if not self.value or time.monotonic() - self.at > TOKEN_TTL_S:
-                async with httpx.AsyncClient(base_url=CEREBRO, timeout=10) as http:
-                    r = await http.post('/api/login', json={'login': env('CEREBRO_LOGIN'), 'password': env('CEREBRO_PASSWORD')})
+                async with httpx.AsyncClient(base_url=PALANTIR, timeout=10) as http:
+                    r = await http.post('/api/login', json={'login': env('PALANTIR_LOGIN'), 'password': env('PALANTIR_PASSWORD')})
                     r.raise_for_status()
                     self.value, self.at = r.json()['token'], time.monotonic()
             return self.value

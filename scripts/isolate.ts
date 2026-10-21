@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const dir = mkdtempSync(join(tmpdir(), 'cerebro-sinov-'));
+const dir = mkdtempSync(join(tmpdir(), 'palantir-sinov-'));
 process.env.DOTENV = '0';
 process.env.DATA_DIR = dir;
 process.env.SESSION_SECRET ||= 'sinov-secret';

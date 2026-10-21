@@ -43,8 +43,8 @@ onvifHttpPort = await listen(onvifHttp);
 const udpPort = await new Promise<number>(d => onvifUdp.bind(0, '127.0.0.1', () => d(onvifUdp.address().port)));
 const scanPort = await new Promise<number>(d => rtsp.listen(0, '127.0.0.1', () => d((rtsp.address() as { port: number }).port)));
 
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-ui-setup-'));
-const shots = join(tmpdir(), 'cerebro-ui-setup-shots');
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-ui-setup-'));
+const shots = join(tmpdir(), 'palantir-ui-setup-shots');
 rmSync(shots, { recursive: true, force: true });
 mkdirSync(shots, { recursive: true });
 const PORT = 3292, base = `http://127.0.0.1:${PORT}`;
@@ -128,7 +128,7 @@ try {
   await page.evaluate(t => navigator.clipboard?.writeText(t).catch(() => {}), '');
   await box.fill(`${BOT}\n${CLAUDE}\nrtsp://admin:kamera123@127.0.0.1:${scanPort}/Streaming/Channels/102\nhttp://127.0.0.1:${crmPort}\n+998 90 123 45 67\n${CRM_LOGIN.password}`);
   await page.getByRole('button', { name: 'Tekshirish' }).click();
-  ok('kalitlar: bot tokeni tekshirildi', await page.getByText('@cerebro_test_bot ulandi').waitFor({ timeout: 10000 }).then(() => true, () => false));
+  ok('kalitlar: bot tokeni tekshirildi', await page.getByText('@palantir_test_bot ulandi').waitFor({ timeout: 10000 }).then(() => true, () => false));
   ok('kalitlar: Claude kaliti ishlayapti', await page.getByText(/Kalit ishlayapti/).waitFor({ timeout: 10000 }).then(() => true, () => false));
   ok("kalitlar: tanilmagan qator so'raladi", await page.getByText('Bu nima?').isVisible());
   await page.getByRole('button', { name: 'DentaCRM paroli' }).click();
@@ -137,12 +137,12 @@ try {
 
   await page.getByRole('button', { name: 'Davom etish' }).click();
   const link = await page.locator('code').first().innerText();
-  ok("egasi uchun ulash havolasi chiqdi", link.includes('t.me/cerebro_test_bot?start=o-'), link);
+  ok("egasi uchun ulash havolasi chiqdi", link.includes('t.me/palantir_test_bot?start=o-'), link);
   await shot(page, 'usta-egasi-kutilmoqda');
   let mark = sent.length;
   say(OWNER, `/start ${link.split('start=')[1]}`);
   await waitFor('ulandi', () => toOwner(mark, 'Ulandi'));
-  ok("egasi ulandi — sahifa o'zi yangilandi", await page.getByText(/Egasi @cerebro_test_bot bilan ulangan/).waitFor({ timeout: 10000 }).then(() => true, () => false));
+  ok("egasi ulandi — sahifa o'zi yangilandi", await page.getByText(/Egasi @palantir_test_bot bilan ulangan/).waitFor({ timeout: 10000 }).then(() => true, () => false));
 
   await page.getByRole('button', { name: 'Davom etish' }).click();
   ok("DentaCRM: manzil va parol kalitlar maydonidan o'tdi", (await page.getByLabel('DentaCRM manzili').inputValue()).includes(String(crmPort)) && (await page.getByLabel('Parol').inputValue()) === CRM_LOGIN.password);

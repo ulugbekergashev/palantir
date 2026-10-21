@@ -21,7 +21,7 @@ import httpx
 from google.genai import types
 from websockets.asyncio.server import ServerConnection
 
-from call_live import CEREBRO, LIVE_VOICE, Bridge, log
+from call_live import PALANTIR, LIVE_VOICE, Bridge, log
 from common import env
 from reception import Desk
 from wake import WakeSpotter, available as wake_available
@@ -144,7 +144,7 @@ async def owner_of(token: str) -> str | None:
     if not token or len(token) > 4096:
         return None
     try:
-        async with httpx.AsyncClient(base_url=CEREBRO, timeout=10) as http:
+        async with httpx.AsyncClient(base_url=PALANTIR, timeout=10) as http:
             r = await http.get('/api/me', headers={'Authorization': f'Bearer {token}'})
     except httpx.HTTPError:
         return None

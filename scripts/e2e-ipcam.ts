@@ -22,7 +22,7 @@ const ok = (name: string, cond: unknown, info = '') => {
   console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`);
 };
 
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-ipcam-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-ipcam-'));
 const PORT = 3297, base = `http://127.0.0.1:${PORT}`;
 const SECRET = 'JUDA-MAXFIY-PAROL';
 /** Shu ishga tushirishning ffmpeg'larini ajratish uchun: testsrc davomiyligi (soniya) — jarayon raqami bilan */

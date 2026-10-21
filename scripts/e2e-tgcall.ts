@@ -27,7 +27,7 @@ const freePort = () => new Promise<number>(done => {
 
 const tgPort = await freePort();
 await new Promise<void>(done => { tgServer.listen(tgPort, '127.0.0.1', () => done()); });
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-tgcall-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-tgcall-'));
 const PORT = await freePort();
 const base = `http://127.0.0.1:${PORT}`;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
@@ -72,7 +72,7 @@ try {
   await api('/api/admin/businesses', { token: admin, body: { name: 'Boshqa', industry: 'xizmat', login: 'boshqa', password: 'secret-12' } });
   const token = (await api('/api/login', { body: { login: 'sinov', password: 'secret-12' } })).json.token;
   const otherToken = (await api('/api/login', { body: { login: 'boshqa', password: 'secret-12' } })).json.token;
-  await until('bot', async () => (await api('/api/me', { token })).json.status.bot === 'cerebro_test_bot', 20_000);
+  await until('bot', async () => (await api('/api/me', { token })).json.status.bot === 'palantir_test_bot', 20_000);
   const code = String((await api('/api/me', { token })).json.status.linkUrl).split('start=o-')[1];
   let mark = sent.length;
   say(OWNER, `/start o-${code}`);

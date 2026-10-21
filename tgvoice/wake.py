@@ -4,7 +4,7 @@ Vosk'ning kichik rus modeli faqat cheklangan lug'at bilan ishlaydi: uyg'otuvchi 
 To'ldiruvchilar oddiy gapni o'ziga «tortadi» — shunda o'zbekcha va ruscha gap uyg'otuvchi so'zga yopishib qolmaydi. «Palantir» bu
 modelning lug'atida o'zi bor («палантир»; ingliz va o'zbek kichik modellarida yo'q). Uyg'otuvchiga o'xshash so'zlar (палатин, паланкин,
 пала, тир…) to'ldiruvchiga qo'shilmaydi — ular haqiqiy chaqiriqni ham «o'g'irlaydi». Topish oraliq natijada — gap tugashini kutmaydi.
-Dastur avval Cerebro deb atalgan («серебро» bilan topilardi). Palantir sinovi (Windows inglizcha TTS, 2 ovoz): 10 chaqiriqdan 10 tasi
+Dastur avval Cerebro deb atalgan (eski nom; «серебро» bilan topilardi). Palantir sinovi (Windows inglizcha TTS, 2 ovoz): 10 chaqiriqdan 10 tasi
 topildi, 14 oddiy gapdan 1 tasida yolg'on («plant a tree»). O'zbekcha va ruscha jonli ovoz bilan hali sinalmagan.
 
 Model: tgvoice/models/vosk-model-small-ru-0.22 (https://alphacephei.com/vosk/models, Apache-2.0) — WAKE_MODEL bilan boshqasi."""

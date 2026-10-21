@@ -26,7 +26,7 @@ if (!existsSync(join('dist', 'index.html'))) fail('panel yig\'ilmagan — avval 
 
 /** Imzolanadigan qator — scripts/update.mjs bilan bir xil */
 const signedText = (m: { version: string; schema: number; file: string; size: number; sha256: string }) =>
-  `cerebro-reliz\n${m.version}\n${m.schema}\n${m.file}\n${m.size}\n${m.sha256}`;
+  `palantir-reliz\n${m.version}\n${m.schema}\n${m.file}\n${m.size}\n${m.sha256}`;
 
 /** Papkadagi fayllar (havolalarsiz), arxiv uchun «/» bilan */
 function walk(dir: string): string[] {
@@ -44,7 +44,7 @@ const all = [...new Set([...tracked, ...extra])].filter(f => f !== 'files.json' 
 const roots = [...new Set(all.map(f => f.split('/')[0]))].sort();
 const files = { version, schema: SCHEMA_VERSION, roots, files: tracked };
 
-const file = `cerebro-${version}.zip`;
+const file = `palantir-${version}.zip`;
 mkdirSync(OUT, { recursive: true });
 const out = createWriteStream(join(OUT, file));
 const hash = createHash('sha256');

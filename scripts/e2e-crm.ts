@@ -205,7 +205,7 @@ export async function crmConnectTests(h: Harness): Promise<void> {
   const me = await api('/api/me', { token });
   const leaked = (s: string) => s.includes(CRM_LOGIN.password) || s.includes('jwt-fake-') || s.includes('$2b$');
   ok('javoblarda parol ham, token ham yo\'q', !leaked(JSON.stringify(good.json)) && !leaked(JSON.stringify(me.json)));
-  const dbBytes = ['cerebro.db', 'cerebro.db-wal'].map(f => { try { return readFileSync(join(h.dataDir, f)).toString('latin1'); } catch { return ''; } }).join('');
+  const dbBytes = ['palantir.db', 'palantir.db-wal'].map(f => { try { return readFileSync(join(h.dataDir, f)).toString('latin1'); } catch { return ''; } }).join('');
   ok('bazada parol shifrlangan (ochiq matnda yo\'q)', dbBytes.includes('dentacrm') && !dbBytes.includes(CRM_LOGIN.password));
   ok('boshqa biznes: DentaCRM ulanmagan', (await api('/api/me', { token: h.otherToken })).json.status.crm.account === null);
 }

@@ -108,7 +108,7 @@ for (const p of patients) {
   const became = firstVisit.has(p.id) && (!weekend || chance(0.45));
   if (channel === 'instagram' || channel === 'telegram') {
     const a = local(contactIso)!;
-    convs.push([lead, channel, a.date, a.weekday, a.time, a.hour, 1 + Math.floor(rnd() * 4), 1 + Math.floor(rnd() * 3), replyMin, weekend ? 'owner' : 'cerebro']);
+    convs.push([lead, channel, a.date, a.weekday, a.time, a.hour, 1 + Math.floor(rnd() * 4), 1 + Math.floor(rnd() * 3), replyMin, weekend ? 'owner' : 'palantir']);
   }
   if (channel !== 'referral') leads.push([lead, channel, became ? 'won' : 'lost', channel, local(contactIso)!.date, local(contactIso)!.weekday, local(contactIso)!.hour, became ? `P${p.id}` : null]);
 }

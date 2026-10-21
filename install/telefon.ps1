@@ -5,7 +5,7 @@
 #   (administrator huquqi bilan) WSL -> Ubuntu 24.04 -> Asterisk -> mirrored tarmoq -> brandmauer -> Asterisk sozlamalari.
 # Har qadam qayta ishga tushirilganda tekshiradi: bor narsa qayta o'rnatilmaydi.
 # Bu faylda faqat ASCII belgilar: PowerShell 5.1 boshqa belgilarni buzib o'qiydi.
-param([switch]$OnlyVoice, [switch]$AsteriskPart, [string]$Distro = 'Cerebro', [string]$WslDir = '')
+param([switch]$OnlyVoice, [switch]$AsteriskPart, [string]$Distro = '', [string]$WslDir = '')
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -19,7 +19,7 @@ $RootfsUrl = 'https://cloud-images.ubuntu.com/wsl/releases/24.04/current/ubuntu-
 $RootfsSums = 'https://cloud-images.ubuntu.com/wsl/releases/24.04/current/SHA256SUMS'
 # WSL (Hyper-V) virtual mashinalarining brandmauer identifikatori
 $WslVm = '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
-if (-not $WslDir) { $WslDir = Join-Path (Split-Path -Parent $Root) 'cerebro-wsl' }
+if (-not $WslDir) { $WslDir = Join-Path (Split-Path -Parent $Root) 'palantir-wsl' }
 
 function Step([string]$text) { Write-Host ''; Write-Host "== $text" -ForegroundColor Cyan }
 function Note([string]$text) { Write-Host "   $text" }
@@ -51,8 +51,15 @@ function New-Password([int]$length) {
 function Wsl([string[]]$arguments) { (& wsl.exe @arguments 2>&1 | Out-String) -replace "`0", '' }
 function WslRoot([string]$command) { & wsl.exe -d $Distro -u root -- bash -lc $command; return $LASTEXITCODE }
 function Is-Admin { ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) }
-# D:\Projects\cerebro -> /mnt/d/Projects/cerebro
+# D:\Projects\palantir -> /mnt/d/Projects/palantir
 function To-WslPath([string]$path) { '/mnt/' + $path.Substring(0, 1).ToLower() + ($path.Substring(2) -replace '\\', '/') }
+# Distributiv nomi. Dastur avval Cerebro deb atalgan (eski nom): o'sha nomli Ubuntu bor bo'lsa - o'sha ishlatiladi
+# (ikkinchisi o'rnatilsa, ikki Asterisk bitta 5060 portni talashadi). server/voice/line.ts ham shunday tanlaydi
+if (-not $Distro -and -not $OnlyVoice) {
+  $have = @()
+  try { $have = (Wsl @('-l', '-q')) -split "`r?`n" | ForEach-Object { $_.Trim() } } catch { }
+  if (($have -notcontains 'Palantir') -and ($have -contains 'Cerebro')) { $Distro = 'Cerebro' } else { $Distro = 'Palantir' } # eski nom
+}
 
 # --- Telefon liniyasi: administrator huquqi bilan ishlaydigan qism ----------
 if ($AsteriskPart) {
@@ -73,7 +80,7 @@ if ($AsteriskPart) {
   if (($distros -split "`r?`n" | ForEach-Object { $_.Trim() }) -contains $Distro) {
     Note "$Distro bor"
   } else {
-    $tar = Join-Path $env:TEMP 'cerebro-ubuntu-24.04.rootfs.tar.gz'
+    $tar = Join-Path $env:TEMP 'palantir-ubuntu-24.04.rootfs.tar.gz'
     if (-not (Test-Path $tar)) {
       Note 'Ubuntu yuklanmoqda (~340 MB)...'
       $ProgressPreference = 'SilentlyContinue'
@@ -116,14 +123,19 @@ if ($AsteriskPart) {
     & wsl.exe --shutdown | Out-Null
   } else { Note 'mirrored tarmoq bor' }
   # Faqat ichki tarmoqdan: SIP (5060 UDP/TCP) va ovoz (10000-10100 UDP)
-  $rules = @(@('Cerebro-SIP', 'UDP', '5060'), @('Cerebro-SIP-TCP', 'TCP', '5060'), @('Cerebro-RTP', 'UDP', '10000-10100'))
+  $rules = @(@('Palantir-SIP', 'UDP', '5060'), @('Palantir-SIP-TCP', 'TCP', '5060'), @('Palantir-RTP', 'UDP', '10000-10100'))
+  # Eski nomdagi (Cerebro - eski nom) qoidalar olib tashlanadi: o'rniga shu qoidalar qo'yiladi
+  foreach ($old in @('Cerebro-SIP', 'Cerebro-SIP-TCP', 'Cerebro-RTP')) { # eski nom
+    Remove-NetFirewallRule -Name $old -ErrorAction SilentlyContinue
+    if (Get-Command Remove-NetFirewallHyperVRule -ErrorAction SilentlyContinue) { Remove-NetFirewallHyperVRule -Name $old -ErrorAction SilentlyContinue }
+  }
   foreach ($r in $rules) {
     if (-not (Get-NetFirewallRule -Name $r[0] -ErrorAction SilentlyContinue)) {
-      New-NetFirewallRule -Name $r[0] -DisplayName "Cerebro $($r[0])" -Direction Inbound -Protocol $r[1] -LocalPort ($r[2] -split ',') -RemoteAddress LocalSubnet -Action Allow | Out-Null
+      New-NetFirewallRule -Name $r[0] -DisplayName "Palantir $($r[0])" -Direction Inbound -Protocol $r[1] -LocalPort ($r[2] -split ',') -RemoteAddress LocalSubnet -Action Allow | Out-Null
     }
     if (Get-Command New-NetFirewallHyperVRule -ErrorAction SilentlyContinue) {
       if (-not (Get-NetFirewallHyperVRule -Name $r[0] -ErrorAction SilentlyContinue)) {
-        try { New-NetFirewallHyperVRule -Name $r[0] -DisplayName "Cerebro $($r[0]) (WSL)" -Direction Inbound -VMCreatorId $WslVm -Protocol $r[1] -LocalPorts $r[2] -Action Allow | Out-Null }
+        try { New-NetFirewallHyperVRule -Name $r[0] -DisplayName "Palantir $($r[0]) (WSL)" -Direction Inbound -VMCreatorId $WslVm -Protocol $r[1] -LocalPorts $r[2] -Action Allow | Out-Null }
         catch { Warn "Hyper-V brandmauer qoidasi qo'shilmadi: $($_.Exception.Message)" }
       }
     }
