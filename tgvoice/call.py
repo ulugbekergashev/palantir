@@ -34,7 +34,7 @@ SILENCE_END_MS = 1100             # gapdan keyin shuncha jimlik — gap tugadi (
 MAX_UTTERANCE_S = 25
 CALL_LIMIT_S = 300
 VOICELAB = 'https://api.voicelab.uz'
-CEREBRO = env('CEREBRO_URL', 'http://127.0.0.1:3200')
+PALANTIR = env('PALANTIR_URL', 'http://127.0.0.1:3200')
 GREETING = "Assalomu alaykum, Ulug'bek aka! Palantir eshitadi. Nima qilay?"
 VOICE_NAME = env('VOICE_NAME', 'Madina')   # VoiceLab ovozi (ro'yxat: /v1/voices?language=uz)
 VOICE_MODEL = env('VOICE_MODEL', 'lison-v2')  # v2 — jonliroq (belgisi 1,5 kredit), lison — oddiy (1 kredit)
@@ -109,10 +109,10 @@ class Voice:
 class Brain:
     """Palantir yordamchisi: panel chati orqali — gap jurnalga «📞» bilan tushadi, asboblar (vazifa, eslatma…) ishlaydi"""
     def __init__(self):
-        self.http = httpx.AsyncClient(base_url=CEREBRO, timeout=120)
+        self.http = httpx.AsyncClient(base_url=PALANTIR, timeout=120)
 
     async def login(self):
-        r = await self.http.post('/api/login', json={'login': env('CEREBRO_LOGIN'), 'password': env('CEREBRO_PASSWORD')})
+        r = await self.http.post('/api/login', json={'login': env('PALANTIR_LOGIN'), 'password': env('PALANTIR_PASSWORD')})
         r.raise_for_status()
         self.http.headers['Authorization'] = f"Bearer {r.json()['token']}"
 

@@ -15,10 +15,10 @@ $DefaultPort = 3200
 $Startup = [Environment]::GetFolderPath('Startup')
 $Desktop = [Environment]::GetFolderPath('Desktop')
 $StartupLink = Join-Path $Startup 'Palantir.lnk'
-# Dastur avval Cerebro deb atalgan: o'sha nomdagi yorliqlar qolsa, ikkita yorliq turadi
-$OldStartupLink = Join-Path $Startup 'Cerebro.lnk'
-$OldPanelLinks = @('Cerebro AI.lnk', 'Cerebro.url')
-$Launcher = Join-Path $PSScriptRoot 'cerebro-fon.vbs'
+# Dastur avval Cerebro deb atalgan (eski nom): o'sha nomdagi yorliqlar qolsa, ikkita yorliq turadi
+$OldStartupLink = Join-Path $Startup 'Cerebro.lnk' # eski nom
+$OldPanelLinks = @('Cerebro AI.lnk', 'Cerebro.url') # eski nom
+$Launcher = Join-Path $PSScriptRoot 'palantir-fon.vbs'
 $AutoLogon = Join-Path $PSScriptRoot 'avtokirish.ps1'
 $Winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
 $Me = "$($env:USERDOMAIN)\$($env:USERNAME)"
@@ -215,7 +215,7 @@ $link.WorkingDirectory = $Root
 $link.Description = 'Palantir (fonda)'
 $link.Save()
 Note "Kompyuter yonib, foydalanuvchi kirganda Palantir o'zi ishga tushadi"
-# Svet o'chib-yonganda hech kim kirmasa ham ishga tushsin: Windows o'zi kiradi, Palantir ekranni darhol qulflaydi (cerebro-fon.vbs)
+# Svet o'chib-yonganda hech kim kirmasa ham ishga tushsin: Windows o'zi kiradi, Palantir ekranni darhol qulflaydi (palantir-fon.vbs)
 if (AutoLogon-Mine) {
   Note "Avtomatik kirish yoqilgan ($Me): svet o'chib-yonganda Palantir o'zi ishga tushadi"
 } else {
@@ -228,14 +228,14 @@ if (AutoLogon-Mine) {
 }
 $port = Read-EnvValue 'PORT'
 if (-not $port) { $port = $DefaultPort }
-# Yorliq Palantir'ni (o'chiq bo'lsa) yoqadi va panelni ochadi; eski nomdagi yorliqlar (Cerebro AI, Cerebro.url) olib tashlanadi
+# Yorliq Palantir'ni (o'chiq bo'lsa) yoqadi va panelni ochadi; eski nomdagi yorliqlar ($OldPanelLinks) olib tashlanadi
 foreach ($name in $OldPanelLinks) {
   $oldPanelLink = Join-Path $Desktop $name
   if (Test-Path $oldPanelLink) { Remove-Item $oldPanelLink -Force -Confirm:$false }
 }
 $panel = $shell.CreateShortcut((Join-Path $Desktop 'Palantir AI.lnk'))
 $panel.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
-$panel.Arguments = "`"$(Join-Path $PSScriptRoot 'cerebro-ochish.vbs')`""
+$panel.Arguments = "`"$(Join-Path $PSScriptRoot 'palantir-ochish.vbs')`""
 $panel.WorkingDirectory = $Root
 $panel.IconLocation = Join-Path $Root 'Palantir-logo\favicon\favicon.ico'
 $panel.Description = 'Palantir: yoqish va panelni ochish'

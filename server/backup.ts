@@ -1,6 +1,6 @@
 /**
  * Zaxira nusxa: kuniga bir marta baza (izchil nusxa), «ikkinchi miya» papkasi va maxfiy kalit BACKUP_DIR/YYYY-MM-DD ga ko'chiriladi.
- * Oxirgi BACKUP_KEEP kun saqlanadi. Tiklash: server to'xtatiladi, DATA_DIR dagi cerebro.db-wal va cerebro.db-shm o'chiriladi
+ * Oxirgi BACKUP_KEEP kun saqlanadi. Tiklash: server to'xtatiladi, DATA_DIR dagi palantir.db-wal va palantir.db-shm o'chiriladi
  * (eski jurnal yangi baza ustiga «qayta ijro» qilinmasin), keyin shu papkadagi uchta narsa DATA_DIR ga qaytariladi.
  * Kalit (session.secret) ham kerak: usiz bazadagi ulanish parollari (DentaCRM, Telegram seansi) ochilmaydi.
  * Hub kodi bo'lsa — shu nusxa shifrlanib hubga ham yuboriladi (offsite.ts); yuborilmasa — har soatlik tekshiruvda qayta uriniladi.
@@ -14,6 +14,8 @@ import { sendOffsite } from './offsite';
 
 const FIRST_MS = Number(process.env.BACKUP_FIRST_MS) || 2 * 60_000, CHECK_MS = 60 * 60_000;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** O'zimiz yozgan nusxa: ichida baza bor (avvalgi nusxalarda — cerebro.db, eski nom) */
+const isBackup = (day: string) => DAY.test(day) && ['palantir.db', 'cerebro.db'].some(f => existsSync(join(env.backupDir, day, f))); // eski nom
 
 /** Bugungi nusxa hali bo'lmasa — oladi. Qaytaradi: yangi nusxa papkasi yoki null (bor edi) */
 export function backupNow(now = new Date()): string | null {
@@ -23,7 +25,7 @@ export function backupNow(now = new Date()): string | null {
   const tmp = join(env.backupDir, `.yozilmoqda-${today}`);
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
-  copyDb(join(tmp, 'cerebro.db'));
+  copyDb(join(tmp, 'palantir.db'));
   const vault = join(env.dataDir, 'miya'), secret = join(env.dataDir, 'session.secret');
   // Havolalar ko'chirilmaydi: papkaga tashlangan yorliq boshqa diskdagi narsani nusxaga tortib kelmasin
   if (existsSync(vault)) cpSync(vault, join(tmp, 'miya'), { recursive: true, filter: src => !lstatSync(src).isSymbolicLink() });
@@ -35,7 +37,7 @@ export function backupNow(now = new Date()): string | null {
 
 function prune(): void {
   // Faqat o'zimiz yozgan nusxalar: BACKUP_DIR da sana nomli begona papkalar (rasmlar, hujjatlar) bo'lishi mumkin
-  const days = readdirSync(env.backupDir).filter(n => DAY.test(n) && existsSync(join(env.backupDir, n, 'cerebro.db'))).sort();
+  const days = readdirSync(env.backupDir).filter(isBackup).sort();
   for (const old of days.slice(0, Math.max(0, days.length - env.backupKeep))) rmSync(join(env.backupDir, old), { recursive: true, force: true });
 }
 

@@ -182,7 +182,7 @@ function instagramView(): { id: string; username: string; name: string; pending:
 }
 
 /** CRM'ga kim yozgani id boshidan bilinadi: an/m/pn — tarmoq orqali (ya'ni Palantir), st — stenddagi «administrator» */
-const origin = (id: unknown): string => (/^(an|m|pn)\d/.test(String(id)) ? 'cerebro' : /^st/.test(String(id)) ? 'stend' : '');
+const origin = (id: unknown): string => (/^(an|m|pn)\d/.test(String(id)) ? 'palantir' : /^st/.test(String(id)) ? 'stend' : '');
 function crmView(): Json {
   const today = iso(new Date());
   const row = (r: Json) => ({ ...r, origin: origin(r.id) });
@@ -519,7 +519,7 @@ async function seedDay(dataDir: string): Promise<void> {
     const list = (await panel<{ leads: { id: string; name: string | null }[] }>('/api/leads')).leads;
     return list.length >= who.length ? list : null;
   });
-  const db = new DatabaseSync(join(dataDir, 'cerebro.db'));
+  const db = new DatabaseSync(join(dataDir, 'palantir.db'));
   db.exec('PRAGMA busy_timeout = 5000');
   for (const w of who) {
     const l = leadsNow.find(x => x.name === w.name);
@@ -588,7 +588,7 @@ async function main(): Promise<void> {
 
   const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
     env: {
-      ...process.env, ...TIMING, PORT: String(PANEL_PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, DB_FILE: join(dataDir, 'cerebro.db'), ADMIN_PASSWORD, SESSION_SECRET: randomBytes(32).toString('hex'),
+      ...process.env, ...TIMING, PORT: String(PANEL_PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, DB_FILE: join(dataDir, 'palantir.db'), ADMIN_PASSWORD, SESSION_SECRET: randomBytes(32).toString('hex'),
       BOT_TOKEN: '123:STEND', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, TG_PERSONAL: '1', IG_VIA_BROWSER: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_FAKE_URL: `http://127.0.0.1:${igPort}`,
       // Ovoz xizmatining ikkala manzili ham soxtaga qaraydi: haqiqiy kalit .env'da bo'lsa ham tashqariga chiqmaydi
       VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', GEMINI_API_KEY: 'stend', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, GROQ_API_KEY: '', GROQ_STT_URL: `http://127.0.0.1:${sttPort}/groq`, CRM_ALLOW_PRIVATE: '1',

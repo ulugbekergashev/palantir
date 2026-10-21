@@ -8,7 +8,9 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { env } from './env';
 
-const lockFile = join(env.dataDir, 'cerebro.lock');
+const lockFile = join(env.dataDir, 'palantir.lock');
+/** Dastur avval Cerebro deb atalgan (eski nom): shu papka bilan eski nomli nashr ishlab tursa ham — papka band */
+const legacyLockFile = join(env.dataDir, 'cerebro.lock'); // eski nom
 const PROBE_MS = 1500;
 /** Yangi yozilgan qulf: egasi hali ko'tarilyapti (port ochilmagan) — javob bermasa ham tirik sanaladi */
 const BOOTING_MS = 60_000;
@@ -38,8 +40,8 @@ async function running(lock: Lock): Promise<boolean> {
 }
 
 /** Qulf fayli: yo'q bo'lsa null; o'qib bo'lmasa (buzuq) — bo'sh, ya'ni eskirgan */
-const readLock = (): Lock | null => {
-  try { return JSON.parse(readFileSync(lockFile, 'utf8')) as Lock; } catch (e) { return (e as NodeJS.ErrnoException).code === 'ENOENT' ? null : {}; }
+const readLock = (file = lockFile): Lock | null => {
+  try { return JSON.parse(readFileSync(file, 'utf8')) as Lock; } catch (e) { return (e as NodeJS.ErrnoException).code === 'ENOENT' ? null : {}; }
 };
 
 function taken(lock: Lock): never {
@@ -49,6 +51,8 @@ function taken(lock: Lock): never {
 
 /** Ishga tushishda bir marta. Boshqa nusxa ishlab turgan bo'lsa — tushuntirib, chiqadi */
 export async function singleInstance(): Promise<void> {
+  const legacy = readLock(legacyLockFile);
+  if (legacy && await running(legacy)) taken(legacy);
   const old = readLock();
   if (old) {
     if (await running(old)) taken(old);

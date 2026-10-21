@@ -79,7 +79,7 @@ export function canReach(biz: BusinessRow, lead: LeadRow): boolean {
 }
 
 /** Mijozga yozadi (u yozishgan kanal orqali) va yozishmaga qo'shadi */
-export async function sendToLead(biz: BusinessRow, lead: LeadRow, text: string, by: 'owner' | 'cerebro'): Promise<LeadChannel> {
+export async function sendToLead(biz: BusinessRow, lead: LeadRow, text: string, by: 'owner' | 'palantir'): Promise<LeadChannel> {
   let last: Error | null = null;
   for (const ch of ROUTES[lead.channel]) {
     const s = sendersOf(ch).find(x => x.can(biz, lead));
@@ -344,7 +344,7 @@ async function receive(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], d
   replies.setBooked(biz.id, r.id);
   const line = `📅 Qabulga yozdim: ${esc(bookingLine(booking))}`;
   try {
-    const ch = await sendToLead(biz, lead, text, 'cerebro');
+    const ch = await sendToLead(biz, lead, text, 'palantir');
     await owner?.notify(biz, `🤖 <b>${who(lead)}</b> · ${CHANNEL_LABEL[ch]}\n${line}\n<i>${esc(cut(text, 1500))}</i>`).catch(() => {});
   } catch (e) {
     // Qabul CRM'da bor, lekin bemor bilmaydi — egasi o'zi aytishi kerak
@@ -395,7 +395,7 @@ async function changeFlow(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[]
   replies.setChanged(biz.id, r.id);
   const line = `🔁 ${change.kind === 'move' ? "Qabulni ko'chirdim" : 'Qabulni bekor qildim'}: ${esc(changeLine(change))}`;
   try {
-    const ch = await sendToLead(biz, lead, text, 'cerebro');
+    const ch = await sendToLead(biz, lead, text, 'palantir');
     await owner?.notify(biz, `🤖 <b>${who(lead)}</b> · ${CHANNEL_LABEL[ch]}\n${line}\n<i>${esc(cut(text, 1500))}</i>`).catch(() => {});
   } catch (e) {
     await owner?.notify(biz, `⚠️ <b>${who(lead)}</b>\n${line}\nLekin bemorga xabar yetmadi (${esc((e as Error).message)}) — o'zingiz ayting.`).catch(() => {});
@@ -505,7 +505,7 @@ async function flush(r: ReplyRow): Promise<void> {
   if (!biz || !lead) return;
   if (!replies.move(biz.id, r.id, ['scheduled'], 'sent')) return;
   try {
-    const ch = await sendToLead(biz, lead, r.text, 'cerebro');
+    const ch = await sendToLead(biz, lead, r.text, 'palantir');
     // Egasiga xabar yetmasa ham javob yuborilgan hisoblanadi (aks holda qayta yuborilardi)
     await owner?.notify(biz, `🤖 <b>${who(lead)}</b> · ${CHANNEL_LABEL[ch]} — javob berdim:\n<i>${esc(cut(r.text, 1500))}</i>`).catch(() => {});
   } catch (e) {
@@ -554,7 +554,7 @@ export async function approveReply(biz: BusinessRow, id: string): Promise<void> 
     replies.setChanged(biz.id, id);
   }
   try {
-    await sendToLead(biz, lead, r.text, 'cerebro');
+    await sendToLead(biz, lead, r.text, 'palantir');
   } catch (e) {
     if (!r.booking && !r.change) {
       replies.move(biz.id, id, ['sent'], 'pending');

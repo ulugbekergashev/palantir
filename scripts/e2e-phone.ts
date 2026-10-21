@@ -54,7 +54,7 @@ ok("chiquvchi: terildi → tugadi = ko'tarmadi; terildi → boshlandi → tugadi
 ok("ikki marta terildi (20 soniya ichida) — bitta yozuv", decideCall('outgoing', 5000, { id: 'o', direction: 'out', state: 'dialing', startedAt: 0, answeredAt: null, endedAt: null }, null).kind === 'ignore');
 
 console.log('\n# Yozuv faylini topish (sof)');
-const recDir = fs.mkdtempSync(path.join(tmpdir(), 'cerebro-rec-'));
+const recDir = fs.mkdtempSync(path.join(tmpdir(), 'palantir-rec-'));
 fs.writeFileSync(path.join(recDir, 'boshqa.wav'), Buffer.alloc(5000));
 const t0 = Date.now();
 fs.writeFileSync(path.join(recDir, '20261018-120000_998944445566.mp3'), Buffer.alloc(5000));
@@ -70,7 +70,7 @@ if (process.platform !== 'win32' || !fs.existsSync(REAL_INI)) {
   finish();
 }
 const tgPort = await listen(tgServer), aiPort = await listen(aiServer), sttPort = await listen(sttServer);
-const work = fs.mkdtempSync(path.join(tmpdir(), 'cerebro-phone-'));
+const work = fs.mkdtempSync(path.join(tmpdir(), 'palantir-phone-'));
 const msDir = path.join(work, 'ms'), programData = path.join(work, 'pd'), dataDir = path.join(work, 'data'), dialLog = path.join(work, 'dial.log');
 fs.mkdirSync(msDir); fs.mkdirSync(programData);
 fs.writeFileSync(path.join(msDir, 'microsip.exe'), 'MZ');
@@ -121,11 +121,11 @@ try {
   const t = Date.now();
   const con = await api('/api/phone/connect', { token, body: {} });
   ok('ulandi: yordamchi yig\'ildi (csc.exe), yozib olish yoqildi (mp3)', con.json.phone?.connected && con.json.phone.mine && con.json.phone.recordFormat === 'mp3', `${Date.now() - t} ms ${JSON.stringify(con.json).slice(0, 200)}`);
-  hookDir = fs.readdirSync(programData).filter(n => n.startsWith('Cerebro-ms-')).map(n => path.join(programData, n))[0] ?? '';
+  hookDir = fs.readdirSync(programData).filter(n => n.startsWith('Palantir-ms-')).map(n => path.join(programData, n))[0] ?? '';
   const ini = readIniSettings(decodeIni(fs.readFileSync(path.join(msDir, 'microsip.ini'))).text, ['cmdIncomingCall', 'cmdCallEnd', 'cmdOutgoingCall', 'autoRecording', 'recordingPath', 'recordingFormat', 'cmdCallRing'] as const);
   ok("ini: buyruqlar yordamchiga, autoRecording=1, yozuv papkasi — yordamchi yonida; begona cmdCallRing joyida", ini.cmdIncomingCall === path.join(hookDir, 'ms-incoming.exe') && ini.cmdCallEnd === path.join(hookDir, 'ms-end.exe')
     && ini.autoRecording === '1' && ini.recordingPath === path.join(hookDir, 'rec') && ini.recordingFormat === 'mp3' && ini.cmdCallRing === iniBefore.cmdCallRing, JSON.stringify(ini));
-  ok('ini UTF-16 bo\'lib qoldi, zaxira nusxasi bor', fs.readFileSync(path.join(msDir, 'microsip.ini'))[0] === 0xff && fs.existsSync(path.join(msDir, 'microsip.ini.cerebro-backup')));
+  ok('ini UTF-16 bo\'lib qoldi, zaxira nusxasi bor', fs.readFileSync(path.join(msDir, 'microsip.ini'))[0] === 0xff && fs.existsSync(path.join(msDir, 'microsip.ini.palantir-backup')));
   const acl = execFileSync(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'icacls.exe'), [hookDir], { encoding: 'utf8' });
   ok("yordamchi papkasi yopiq (meros ruxsat «(I)» yo'q, «Users» yozolmaydi)", !/\(I\)/.test(acl) && !/BUILTIN\\Users/i.test(acl), acl.split('\n').slice(0, 3).join(' | '));
 

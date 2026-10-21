@@ -183,7 +183,7 @@ function phoneReminder(bot: BotService, biz: BusinessRow, t: Task): void {
       id = (await placeCall({
         to: t.callTo!, name: biz.profile.ownerName || biz.profile.name,
         vars: { eslatma: t.title, vaqt: (t.dueAt ?? '').slice(11, 16) },
-        externalId: `cerebro-${t.id}-${(t.dueAt ?? '').replace(/\D/g, '')}`,
+        externalId: `palantir-${t.id}-${(t.dueAt ?? '').replace(/\D/g, '')}`,
       })).id;
     } catch (e) {
       console.error('[qo\'ng\'iroq]', (e as Error).message);

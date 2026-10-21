@@ -69,7 +69,7 @@ const cfg = {
 };
 const DIAG_KEEP = 10;
 /** Tashqi zaxira fayli shu belgi bilan boshlanadi (server/offsiteCrypto.ts) — boshqa narsa saqlanmaydi */
-const BACKUP_MAGIC = Buffer.from('CEREBRO-ZAXIRA-1\n');
+const BACKUP_MAGIC = Buffer.from('PALANTIR-ZAXIRA-1\n');
 const SCOPES = 'instagram_business_basic,instagram_business_manage_messages';
 const STATE_TTL_MS = 3_600_000;
 const PULL_WAIT_MS = 25_000;
@@ -108,7 +108,7 @@ const stateSecret = ((): string => {
 
 const now = () => new Date().toISOString();
 /** Klinika ulanish kodi — ko'rinishi src/lib/hubCode.ts dagi bilan bir xil (hub alohida joylanadi, shuning uchun nusxa) */
-const makeHubCode = (url: string, clinicId: string, secret: string) => `chub.${Buffer.from(url.replace(/\/+$/, '')).toString('base64url')}.${clinicId}.${secret}`;
+const makeHubCode = (url: string, clinicId: string, secret: string) => `phub.${Buffer.from(url.replace(/\/+$/, '')).toString('base64url')}.${clinicId}.${secret}`;
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const sameText = (a: string, b: string) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 const newId = () => randomBytes(5).toString('hex');
@@ -278,7 +278,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
     const day = url.searchParams.get('day') ?? '';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return send(res, 400, { error: 'day: YYYY-MM-DD' });
-    const dir = join(cfg.backupDir, clinic), tmp = join(dir, `.${day}-${randomBytes(4).toString('hex')}`), file = join(dir, `${day}.czb`);
+    const dir = join(cfg.backupDir, clinic), tmp = join(dir, `.${day}-${randomBytes(4).toString('hex')}`), file = join(dir, `${day}.pzb`);
     mkdirSync(dir, { recursive: true });
     let size = 0;
     const limit = new Transform({ transform(chunk: Buffer, _e, done) { size += chunk.length; done(size > cfg.backupMaxBytes ? new Error('juda katta') : null, chunk); } });
@@ -292,7 +292,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       rmSync(tmp, { force: true });
       return send(res, (e as Error).message === 'juda katta' ? 413 : 400, { error: (e as Error).message });
     }
-    const all = readdirSync(dir).filter(n => /^\d{4}-\d{2}-\d{2}\.czb$/.test(n)).sort();
+    const all = readdirSync(dir).filter(n => /^\d{4}-\d{2}-\d{2}\.pzb$/.test(n)).sort();
     for (const old of all.slice(0, Math.max(0, all.length - cfg.backupKeep))) rmSync(join(dir, old), { force: true });
     return send(res, 200, { ok: true, size });
   }
@@ -301,13 +301,13 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (p === '/admin/backups' && req.method === 'GET') {
     if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
     const list = existsSync(cfg.backupDir) ? readdirSync(cfg.backupDir).filter(c => /^[0-9a-f]{10}$/.test(c)).flatMap(clinic =>
-      readdirSync(join(cfg.backupDir, clinic)).filter(n => /^\d{4}-\d{2}-\d{2}\.czb$/.test(n)).map(name => {
+      readdirSync(join(cfg.backupDir, clinic)).filter(n => /^\d{4}-\d{2}-\d{2}\.pzb$/.test(n)).map(name => {
         const st = statSync(join(cfg.backupDir, clinic, name));
         return { clinicId: clinic, file: name, size: st.size, at: st.mtime.toISOString() };
       })) : [];
     return send(res, 200, { backups: list });
   }
-  const download = /^\/admin\/backups\/([0-9a-f]{10})\/(\d{4}-\d{2}-\d{2}\.czb)$/.exec(p);
+  const download = /^\/admin\/backups\/([0-9a-f]{10})\/(\d{4}-\d{2}-\d{2}\.pzb)$/.exec(p);
   if (download && req.method === 'GET') {
     if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
     const file = join(cfg.backupDir, download[1], download[2]);

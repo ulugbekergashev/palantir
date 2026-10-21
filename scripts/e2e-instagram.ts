@@ -35,7 +35,7 @@ const parts = splitForInstagram(long);
 ok("1000 baytdan uzun javob — bo'laklarga, har biri ≤ 1000 bayt, matn yo'qolmaydi", parts.length >= 3 && parts.every(p => Buffer.byteLength(p) <= 1000) && parts.join('').replace(/\s/g, '').length === long.replace(/\s/g, '').length);
 ok("o'zbekcha harflar va emoji bo'linmaydi", splitForInstagram("O'zbekiston 😀 ".repeat(120)).every(p => !p.includes('�') && Buffer.byteLength(p) <= 1000));
 const code = makeHubCode('https://hub.example.uz/', 'a1b2c3d4e5', 'S'.repeat(32));
-ok('hub kodi: manzil va kalit bitta qatorda; buzuq kod — rad', parseHubCode(code)?.url === 'https://hub.example.uz' && parseHubCode(code)?.key === `a1b2c3d4e5.${'S'.repeat(32)}` && parseHubCode('chub.xx.yy') === null && parseHubCode(`${code}x.y`) === null);
+ok('hub kodi: manzil va kalit bitta qatorda; buzuq kod — rad', parseHubCode(code)?.url === 'https://hub.example.uz' && parseHubCode(code)?.key === `a1b2c3d4e5.${'S'.repeat(32)}` && parseHubCode('phub.xx.yy') === null && parseHubCode(`${code}x.y`) === null);
 
 // ─── Soxta Meta ───────────────────────────────────────────────────────────────
 const meta = { authorize: [] as URLSearchParams[], tokenForms: [] as URLSearchParams[], subscribed: [] as string[], sentMsgs: [] as { auth: string; body: Record<string, any> }[], refreshed: 0 };
@@ -71,7 +71,7 @@ const metaServer = createServer(async (req, res) => {
 
 const tgPort = await listen(tgServer), aiPort = await listen(aiServer), metaPort = await listen(metaServer);
 const META = `http://127.0.0.1:${metaPort}`;
-const work = fs.mkdtempSync(path.join(tmpdir(), 'cerebro-ig-'));
+const work = fs.mkdtempSync(path.join(tmpdir(), 'palantir-ig-'));
 const HUB_PORT = 3410, HUB = `http://127.0.0.1:${HUB_PORT}`;
 const PORT = 3296, base = `http://127.0.0.1:${PORT}`;
 const procs: ChildProcess[] = [];
@@ -109,7 +109,7 @@ try {
   console.log('\n# Hub: klinika kodi va webhook tasdig\'i');
   ok("admin kalitsiz klinika ochilmaydi", (await fetch(`${HUB}/admin/clinics`, { method: 'POST', body: '{}' })).status === 401);
   const clinic = await (await fetch(`${HUB}/admin/clinics`, { method: 'POST', headers: { authorization: 'Bearer hub-admin-1' }, body: JSON.stringify({ name: 'Shifo Dent' }) })).json() as { code: string };
-  ok('klinika kodi: «chub.» va hub manzili ichida', clinic.code.startsWith('chub.') && parseHubCode(clinic.code)?.url === HUB);
+  ok('klinika kodi: «phub.» va hub manzili ichida', clinic.code.startsWith('phub.') && parseHubCode(clinic.code)?.url === HUB);
   const verify = await fetch(`${HUB}/ig/webhook?hub.mode=subscribe&hub.verify_token=verify-me&hub.challenge=4242`);
   ok("Meta webhook tasdig'i: challenge qaytdi; noto'g'ri token — 403", (await verify.text()) === '4242' && (await fetch(`${HUB}/ig/webhook?hub.mode=subscribe&hub.verify_token=xato&hub.challenge=1`)).status === 403);
 
@@ -118,7 +118,7 @@ try {
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', SESSION_SECRET: 'ig-secret', TICK_MS: '500',
     MORNING_HOUR: '99', EVENING_HOUR: '99', REQUEST_HOURS: '0-24', WEB_SEARCH: '0', BACKUP_KEEP: '0', INBOX_DEBOUNCE_MS: '300',
     GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_API_ID: '', TG_API_HASH: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '',
-    CEREBRO_HUB: clinic.code, IG_GRAPH_URL: META,
+    PALANTIR_HUB: clinic.code, IG_GRAPH_URL: META,
   });
   ok('Palantir ishga tushdi', await up(`${base}/api/health`));
   const admin = (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token;
@@ -182,7 +182,7 @@ try {
   ok("o'zimiz yuborgan javob ikki marta yozilmadi; egasining telefondan yozgani — «egasi» bo'lib yozishmada", msgs.filter(m => m.text.includes('administratorimiz')).length === 1 && msgs.some(m => m.by === 'owner' && m.text.includes('soat 11')));
 
   console.log('\n# 24 soatdan keyin');
-  const db = new DatabaseSync(path.join(work, 'data', 'cerebro.db'));
+  const db = new DatabaseSync(path.join(work, 'data', 'palantir.db'));
   db.exec('PRAGMA busy_timeout = 5000');
   db.prepare('UPDATE leads SET last_inbound_at = ? WHERE id = ?').run(new Date(Date.now() - 30 * 3_600_000).toISOString(), lead.id);
   db.close();
@@ -198,9 +198,10 @@ try {
   ok("uzilgach: panelda ulanmagan, hub bu akkauntning xabarini endi yubormaydi", !(await api('/api/me', { token })).json.status.instagramApi.account && !to(OWNER, mark, 'Yana savol'));
 
   console.log('\n# Meta talablari: ochiq sahifalar');
+  const OLD_NAME = /cerebro/i; // eski nom
   const pages = await Promise.all(['/privacy', '/terms', '/data-deletion'].map(async u => { const r = await fetch(`${HUB}${u}`); return { u, status: r.status, html: await r.text() }; }));
   ok("maxfiylik siyosati, shartlar, o'chirish yo'riqnomasi: uch tilda, operator va aloqa manzili bilan, eski nom yo'q", pages.every(x => x.status === 200 && x.html.includes('Palantir Test MChJ')
-    && x.html.includes('privacy@palantir.test') && ['id="en"', 'id="uz"', 'id="ru"'].every(l => x.html.includes(l)) && !x.html.includes('Cerebro')), pages.map(x => `${x.u} ${x.status}`).join(', '));
+    && x.html.includes('privacy@palantir.test') && ['id="en"', 'id="uz"', 'id="ru"'].every(l => x.html.includes(l)) && !OLD_NAME.test(x.html)), pages.map(x => `${x.u} ${x.status}`).join(', '));
   ok("/health: sahifalar tayyor (aloqa manzili bor)", (await (await fetch(`${HUB}/health`)).json()).legal === true);
 
   // Meta signed_request: «imzo.ma'lumot», imzo — ma'lumot qismining HMAC-SHA256'i (ilova siri bilan)

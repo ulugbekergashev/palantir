@@ -182,7 +182,7 @@ if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status !== 0) {
 const tgPort = await listen(tgServer), aiPort = await listen(aiServer), crmPort = await listen(crmServer);
 const today = iso(new Date());
 crm.seed(today, iso(new Date(Date.now() + 86_400_000)));
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-camwork-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-camwork-'));
 const PORT = 3298, base = `http://127.0.0.1:${PORT}`;
 const SECRET = 'KAMERA-PAROLI-9';
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {

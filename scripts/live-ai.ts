@@ -11,7 +11,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-live-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-live-'));
 process.env.DATA_DIR = dataDir;
 process.env.BOT_TOKEN = '';
 const { businesses, inbox, leads } = await import('../server/db');
@@ -34,7 +34,7 @@ const biz = businesses.create('live', 'x', profile);
 async function chat(name: string, lines: [('in' | 'out'), string][]) {
   const lead = leads.add(biz.id, { name: null, phone: null, note: null, source: 'Instagram' });
   const t0 = Date.now() - lines.length * 60_000;
-  lines.forEach(([dir, text], i) => inbox.add(biz.id, { leadId: lead.id, channel: 'instagram', direction: dir, by: dir === 'in' ? 'customer' : 'cerebro', text, at: new Date(t0 + i * 60_000).toISOString() }));
+  lines.forEach(([dir, text], i) => inbox.add(biz.id, { leadId: lead.id, channel: 'instagram', direction: dir, by: dir === 'in' ? 'customer' : 'palantir', text, at: new Date(t0 + i * 60_000).toISOString() }));
   const d = await decide(biz, leads.get(biz.id, lead.id)!, inbox.thread(biz.id, lead.id, 30));
   const req = d.request ? `${d.request.kind} | tel «${d.request.phone}» | vaqt «${d.request.whenText}» ${d.request.dueAt} | ${d.request.summary}` : 'so\'rov yo\'q';
   return { d, info: `${name}: ${d.action} — «${d.reply.slice(0, 140)}»\n      so'rov: ${req}` };

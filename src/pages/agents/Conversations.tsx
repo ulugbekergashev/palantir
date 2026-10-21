@@ -55,8 +55,8 @@ function ChatThread({ thread, notify, onChanged }: { thread: InboxThread; notify
           <ol className="flex flex-col gap-2.5">
             {data.messages.map(m => (
               <li key={m.id} className={`flex flex-col ${m.direction === 'in' ? 'items-start' : 'items-end'}`}>
-                {m.direction === 'out' && <span className="mb-0.5 text-[11px] font-medium text-[#7d838f]">{m.by === 'cerebro' ? 'AI qabulxona' : 'Siz'}</span>}
-                <p className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2 text-[14px] leading-relaxed ${m.direction === 'in' ? 'rounded-bl-md bg-glass/[0.06] text-[#e4e3de]' : m.by === 'cerebro' ? 'rounded-br-md bg-[#3fd6c3]/15 text-[#dffaf5]' : 'rounded-br-md bg-[#8b8cff]/20 text-[#e9e9ff]'}`}>{m.text}</p>
+                {m.direction === 'out' && <span className="mb-0.5 text-[11px] font-medium text-[#7d838f]">{m.by === 'palantir' ? 'AI qabulxona' : 'Siz'}</span>}
+                <p className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2 text-[14px] leading-relaxed ${m.direction === 'in' ? 'rounded-bl-md bg-glass/[0.06] text-[#e4e3de]' : m.by === 'palantir' ? 'rounded-br-md bg-[#3fd6c3]/15 text-[#dffaf5]' : 'rounded-br-md bg-[#8b8cff]/20 text-[#e9e9ff]'}`}>{m.text}</p>
                 <span className="mt-0.5 text-[11px] text-[#6e7582]">{day(m.createdAt)}</span>
               </li>
             ))}

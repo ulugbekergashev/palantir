@@ -53,7 +53,7 @@ const fakeSystem = (log: string): MicrosipSystem => ({
   secureDir: dir => windowsSystem.secureDir(dir),
 });
 const sys: MicrosipSystem = process.env.MICROSIP_FAKE_LOG ? fakeSystem(process.env.MICROSIP_FAKE_LOG) : windowsSystem;
-let menv: MicrosipEnv = defaultEnv(STATE_DIR, path.join(STATE_DIR, 'cerebro-call.exe'));
+let menv: MicrosipEnv = defaultEnv(STATE_DIR, path.join(STATE_DIR, 'palantir-call.exe'));
 
 /** MicroSIP qaysi biznesniki (bitta kompyuter — bitta klinika) */
 const ownerBiz = (): BusinessRow | undefined => {

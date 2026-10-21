@@ -5,7 +5,7 @@
  */
 
 /** Server bo'yicha kalitlar: bitta kompyuterdagi hamma bizneslarga umumiy (avval faqat .env da turardi) */
-export type KeyName = 'BOT_TOKEN' | 'ANTHROPIC_API_KEY' | 'GEMINI_API_KEY' | 'GROQ_API_KEY' | 'VOICELAB_API_KEY' | 'SPEECHLAB_API_KEY' | 'TG_API_ID' | 'TG_API_HASH' | 'CEREBRO_HUB';
+export type KeyName = 'BOT_TOKEN' | 'ANTHROPIC_API_KEY' | 'GEMINI_API_KEY' | 'GROQ_API_KEY' | 'VOICELAB_API_KEY' | 'SPEECHLAB_API_KEY' | 'TG_API_ID' | 'TG_API_HASH' | 'PALANTIR_HUB';
 import { parseHubCode } from './hubCode';
 
 export type LineKind = 'key' | 'rtsp' | 'crm' | 'instagram' | 'phone' | 'unknown';
@@ -20,7 +20,7 @@ export const KEYS: KeyInfo[] = [
   { name: 'SPEECHLAB_API_KEY', label: 'SpeechLab kaliti', where: "speechlab.uz → Integratsiyalar → API (qo'ng'iroq qilib eslatish)" },
   { name: 'TG_API_ID', label: 'Telegram API ID', where: 'my.telegram.org → API development tools (shaxsiy Telegram)' },
   { name: 'TG_API_HASH', label: 'Telegram API hash', where: 'my.telegram.org → API development tools (shaxsiy Telegram)' },
-  { name: 'CEREBRO_HUB', label: 'Palantir Hub kodi', where: "Palantir Hub admini beradi (rasmiy Instagram: Meta xabarlarini klinikaga yetkazadi) — «chub.» bilan boshlanadi" },
+  { name: 'PALANTIR_HUB', label: 'Palantir Hub kodi', where: "Palantir Hub admini beradi (rasmiy Instagram: Meta xabarlarini klinikaga yetkazadi) — «phub.» bilan boshlanadi" },
 ];
 export const keyInfo = (name: KeyName): KeyInfo => KEYS.find(k => k.name === name)!;
 export const isKeyName = (v: unknown): v is KeyName => KEYS.some(k => k.name === v);
@@ -57,7 +57,7 @@ export function classifyLine(raw: string): Classified | null {
   if (/^AIza[0-9A-Za-z_-]+$/.test(line)) return key(line, 'GEMINI_API_KEY', line.length === GEMINI_LEN ? undefined : `Gemini kaliti ${GEMINI_LEN} belgi bo'ladi, bunda ${line.length} ta.`);
   if (/^gsk_[A-Za-z0-9]+$/.test(line)) return key(line, 'GROQ_API_KEY', line.length >= MIN_LONG_KEY ? undefined : 'Groq kaliti chala: oxiri kesilib qolgan.');
   if (/^sl_(live|test)_\S+$/.test(line)) return key(line, 'SPEECHLAB_API_KEY');
-  if (line.startsWith('chub.')) return key(line, 'CEREBRO_HUB', parseHubCode(line) ? undefined : 'Hub kodi chala yoki buzuq — hub adminidan butunlay nusxalab oling.');
+  if (line.startsWith('phub.')) return key(line, 'PALANTIR_HUB', parseHubCode(line) ? undefined : 'Hub kodi chala yoki buzuq — hub adminidan butunlay nusxalab oling.');
   if (TG_HASH.test(line)) return key(line, 'TG_API_HASH');
   if (/^rtsps?:\/\//i.test(line)) {
     try {

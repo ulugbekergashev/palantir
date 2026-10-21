@@ -97,7 +97,7 @@ export const tgServer = patient(createServer(async (req: IncomingMessage, res: S
   if (method !== 'getMe') sent.push(entry);
   if (method !== 'getMe' && method !== 'sendChatAction') wire.log?.('Telegram bot', `${method}${params.chat_id ? ` → ${String(params.chat_id)}` : ''}`, params);
   switch (method) {
-    case 'getMe': return reply({ id: 999, is_bot: true, first_name: 'Palantir', username: 'cerebro_test_bot' });
+    case 'getMe': return reply({ id: 999, is_bot: true, first_name: 'Palantir', username: 'palantir_test_bot' });
     case 'getChat':
       return params.chat_id === '@test_channel' ? reply({ id: CHANNEL, type: 'channel', title: 'Test kanal' }) : fail(400, 'Bad Request: chat not found');
     case 'getChatMember': return reply({ status: 'administrator', can_post_messages: true, user: { id: 999, is_bot: true, first_name: 'Palantir' } });

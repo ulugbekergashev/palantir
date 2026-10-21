@@ -12,7 +12,7 @@ from common import env
 from sip_live import AUDIO, CUSTOMER, HANGUP, MISSED, asterisk, call_uuid, parse_call_id, redirect_to_operator
 
 sys.stdout.reconfigure(encoding='utf-8')
-DISTRO = env('SIP_WSL_DISTRO', 'Cerebro')
+DISTRO = env('SIP_WSL_DISTRO', 'Palantir')
 PORT = 9096          # extensions.conf, [sinov_otkazish] — AI_SOCKET
 CALLER = '998901112233'
 RING = 5             # administrator shuncha soniya jiringlaydi
@@ -68,8 +68,8 @@ async def main() -> int:
     except asyncio.TimeoutError:
         pass
     srv.close()
-    # Eski o'rnatilgan extensions.conf jurnalga «Cerebro:» deb yozadi (install.sh qayta yurgunicha)
-    log = wsl(f"grep -hE '(Palantir|Cerebro): ({CALLER}|administrator)' /var/log/asterisk/messages* 2>/dev/null | tail -4")
+    # install.sh qayta yurgunicha eski o'rnatilgan extensions.conf jurnalga «Cerebro:» deb yozadi (eski nom)
+    log = wsl(f"grep -hE '(Palantir|Cerebro): ({CALLER}|administrator)' /var/log/asterisk/messages* 2>/dev/null | tail -4")  # eski nom
     status = next((line.rsplit('— ', 1)[-1].strip() for line in reversed(log.splitlines()) if 'administrator —' in line), '?')
 
     checks = [

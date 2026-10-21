@@ -61,7 +61,7 @@ const today = iso(new Date()), tomorrow = iso(new Date(Date.now() + 86_400_000))
 crm.seed(today, tomorrow);
 // Dilnoza Karimova (p4) ertaga qabulga yozilgan — yozishmada ko'chiradi va bekor qiladi
 crm.appointments.push({ id: 'up1', patientId: 'p4', patientName: 'Dilnoza Karimova', doctorId: 'd1', doctorName: 'Rustam Rustamov', type: "Ko'rik", date: tomorrow, time: '11:00', duration: 30, status: 'Pending', notes: null, clinicId: 'c1', reminderSent: false });
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-req-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-req-'));
 const PORT = 3294, base = `http://127.0.0.1:${PORT}`;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
@@ -294,7 +294,7 @@ try {
   console.log('\n# Eslatma va panel');
   const manual = (await api('/api/requests', { token, body: { kind: 'callback', phone: '+998 97 555 66 77', name: 'Sardor Aliyev', summary: 'Natijani aytish' } })).json.request;
   ok("paneldan so'rov: telefon bo'yicha mijoz kartasi yo'q — karta ochilmaydi, so'rov ochiladi", !!manual?.id && manual.phone === '+998975556677');
-  const db = new DatabaseSync(join(dataDir, 'cerebro.db'));
+  const db = new DatabaseSync(join(dataDir, 'palantir.db'));
   db.exec('PRAGMA busy_timeout = 5000');
   db.prepare('UPDATE requests SET remind_at = ? WHERE id = ?').run(stamp(new Date(Date.now() - 60_000)), manual.id);
   db.close();

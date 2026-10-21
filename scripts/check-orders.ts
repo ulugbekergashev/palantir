@@ -9,9 +9,9 @@ import { join } from 'node:path';
 import type { Camera, OrderMember } from '../src/types';
 
 process.loadEnvFile('.env');
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-orders-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-orders-'));
 process.env.DATA_DIR = dataDir;
-process.env.DB_FILE = join(dataDir, 'cerebro.db');
+process.env.DB_FILE = join(dataDir, 'palantir.db');
 const { parseOrder } = await import('../server/orders/parse');
 const { specDetails } = await import('../src/components/Orders');
 

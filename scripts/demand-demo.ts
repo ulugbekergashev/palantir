@@ -71,7 +71,7 @@ let i = 0;
 for (const [channel, said, reply, n, h] of CHATS) {
   const lead = `L${++i}`;
   inbox.add(biz.id, { leadId: lead, channel: channel as 'telegram', direction: 'in', by: 'customer', text: said, at: at(n, h, 5) });
-  if (reply) inbox.add(biz.id, { leadId: lead, channel: channel as 'telegram', direction: 'out', by: 'cerebro', text: reply, at: at(n, h, 7) });
+  if (reply) inbox.add(biz.id, { leadId: lead, channel: channel as 'telegram', direction: 'out', by: 'palantir', text: reply, at: at(n, h, 7) });
 }
 for (const [phone, said, outcome, n, h] of CALLS) {
   const c = calls.create(biz.id, { phone, name: null, startedAt: at(n, h, 15), durationSec: said ? 90 : 0, outcome, booked: null, transcript: said ? [{ who: 'ai', text: 'Assalomu alaykum, Tabassum Dental' }, { who: 'caller', text: said }] : [] });

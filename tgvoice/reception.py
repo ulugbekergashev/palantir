@@ -12,7 +12,7 @@ from datetime import datetime
 import httpx
 from google.genai import types
 
-from call_live import CEREBRO, NOISE, S, SPEECH, UZ_TZ, WEEKDAYS
+from call_live import PALANTIR, NOISE, S, SPEECH, UZ_TZ, WEEKDAYS
 from common import env
 
 MAX_REQUESTS = 3        # bitta qo'ng'iroqda shuncha so'rov
@@ -93,7 +93,7 @@ def tools(booking: bool, transfer: bool = False) -> list:
 class Gateway:
     """Ovozli agent darvozasi: shu kalit faqat bilim, jadval, qabul va qo'ng'iroq hisobotini ochadi"""
     def __init__(self):
-        self.http = httpx.AsyncClient(base_url=CEREBRO, timeout=20, headers={'Authorization': f"Bearer {env('VOICE_AGENT_KEY')}"})
+        self.http = httpx.AsyncClient(base_url=PALANTIR, timeout=20, headers={'Authorization': f"Bearer {env('VOICE_AGENT_KEY')}"})
 
     async def knowledge(self) -> str:
         r = await self.http.get('/api/voice/knowledge')
