@@ -112,7 +112,7 @@ const LOOPBACK = /^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|::1|localhost)$/;
 const MIN_PASSWORD = 8;
 /** Admin panelida AI xarajati necha kun uchun ko'rsatiladi */
 const USAGE_DAYS = 7;
-/** Telefondagi AI yordamchi javobini shuncha kutadi (tgvoice/call_live.py CEREBRO_WAIT_S); undan kech javob Telegram'ga yuboriladi */
+/** Telefondagi AI yordamchi javobini shuncha kutadi (tgvoice/call_live.py PALANTIR_WAIT_S); undan kech javob Telegram'ga yuboriladi */
 const PHONE_WAIT_MS = 9_000;
 
 /** So'rov tanasining qolgani o'qib tashlanguncha kutadi (xotiraga olinmaydi). Juda uzoq davom etsa — kutilmaydi */

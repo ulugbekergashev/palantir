@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto';
 import { iso } from '../../src/lib/week';
 import { crmConnected, withCrm } from '../crm/index';
-import { sql, type BusinessRow } from '../db';
+import { authorOf, sql, type BusinessRow } from '../db';
 import '../phone/store';
 import { crmTables, local, minutes, toCsv, type DataFile, type Dataset } from './tables';
 
@@ -48,7 +48,7 @@ export async function buildDataset(biz: BusinessRow, days = 365, now = new Date(
 
   // Yozishma: mijoz bo'yicha har kun — nechta xabar, birinchi javobgacha necha daqiqa, kim javob berdi
   const msgs = sql.many('SELECT lead_id, channel, direction, author, created_at FROM inbox WHERE business_id = ? AND created_at >= ? AND created_at < ? ORDER BY created_at, rowid',
-    r => ({ lead: String(r.lead_id), channel: String(r.channel), dir: String(r.direction), by: String(r.author), at: String(r.created_at) }), biz.id, fromIso, toIso);
+    r => ({ lead: String(r.lead_id), channel: String(r.channel), dir: String(r.direction), by: authorOf(r.author), at: String(r.created_at) }), biz.id, fromIso, toIso);
   const convs = new Map<string, { lead: string; channel: string; first: string; inn: number; out: number; reply: string | null; by: string | null }>();
   for (const m of msgs) {
     const key = `${m.lead}|${local(m.at)?.date}`;
@@ -57,7 +57,7 @@ export async function buildDataset(biz: BusinessRow, days = 365, now = new Date(
     else if (c) { c.out++; if (!c.reply) { c.reply = m.at; c.by = m.by; } }
   }
   if (convs.size) {
-    files.push({ name: 'conversations.csv', rows: convs.size, about: 'Customer messages (Telegram, Instagram…) grouped per customer per day: first message time, messages in/out, minutes to the first reply, who replied (cerebro = AI, owner, staff) — no message text.',
+    files.push({ name: 'conversations.csv', rows: convs.size, about: 'Customer messages (Telegram, Instagram…) grouped per customer per day: first message time, messages in/out, minutes to the first reply, who replied (palantir = AI, owner, staff) — no message text.',
       csv: toCsv(['lead', 'channel', 'date', 'weekday', 'time', 'hour', 'messages_in', 'messages_out', 'first_reply_min', 'replied_by'], [...convs.values()].map(c => { const a = local(c.first); return [code('L', c.lead), c.channel, a?.date, a?.weekday, a?.time, a?.hour, c.inn, c.out, minutes(c.first, c.reply), c.by]; })) });
   }
 

@@ -1,5 +1,5 @@
 ; Uztelecom shahar raqami — namuna. Ma'lumotlar kelganda nusxa oling: pjsip_shahar.conf, <...> larni to'ldiring,
-; keyin: wsl -d Cerebro -u root -- bash /mnt/d/Projects/cerebro/tgvoice/asterisk/install.sh
+; keyin: wsl -d Palantir -u root -- bash /mnt/d/Projects/palantir/tgvoice/asterisk/install.sh
 ; Uztelecom beradi: raqam, server (softswitch) manzili, login va parol (ko'pincha raqamning o'zi), ba'zan VLAN.
 ; Qo'ng'iroq qilganda raqam ko'rinishi (AON) — alohida xizmat, ulashda so'rang.
 

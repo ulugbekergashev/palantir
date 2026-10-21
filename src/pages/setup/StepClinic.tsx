@@ -6,7 +6,7 @@ import { cleanCode } from '../../lib/anketa';
 import type { AnketaImport, SetupView } from '../../types';
 import { loginFrom, newPassword } from './wizard';
 
-const SOURCE_KEY = 'cerebro_anketa_source';
+const SOURCE_KEY = 'palantir_anketa_source';
 const readSource = () => { try { return localStorage.getItem(SOURCE_KEY) ?? ''; } catch { return ''; } };
 const writeSource = (v: string) => { try { localStorage.setItem(SOURCE_KEY, v); } catch { /* yopiq xotira */ } };
 

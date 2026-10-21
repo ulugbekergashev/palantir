@@ -34,7 +34,7 @@ const SEND_SAMPLES = IN_RATE / 25;
 const WORKLET = `class PalantirMic extends AudioWorkletProcessor {
   process(inputs) { const ch = inputs[0] && inputs[0][0]; if (ch) this.port.postMessage(ch.slice(0)); return true; }
 }
-registerProcessor('cerebro-mic', PalantirMic);`;
+registerProcessor('palantir-mic', PalantirMic);`;
 
 /** kind: owner — egasining yordamchisi; customer — qabulxonani mijoz bo'lib sinash; wake — «quloq»: chaqiriqni kutadi (tgvoice/web_live.py) */
 export async function startVoice(token: string, on: (e: VoiceEvent) => void, kind: 'owner' | 'customer' | 'wake' = 'owner'): Promise<VoiceSession> {
@@ -61,7 +61,7 @@ export async function startVoice(token: string, on: (e: VoiceEvent) => void, kin
     release();
     throw e;
   }
-  const mic = new AudioWorkletNode(micCtx, 'cerebro-mic');
+  const mic = new AudioWorkletNode(micCtx, 'palantir-mic');
   // Ishlov beruvchi grafga ulangan bo'lishi kerak, lekin o'z ovozingiz karnayga chiqmasin — jim tugun orqali
   const mute = micCtx.createGain();
   mute.gain.value = 0;

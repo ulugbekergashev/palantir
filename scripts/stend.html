@@ -114,7 +114,7 @@
 
   .tag { display: inline-block; padding: 1px 8px; border-radius: 5px; font: 700 11px var(--mono); letter-spacing: .03em; border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; vertical-align: middle; }
   .tag.by { border-color: var(--channel); color: var(--channel); }
-  .tag.cerebro { background: var(--ink); border-color: var(--ink); color: var(--lamp); }
+  .tag.palantir { background: var(--ink); border-color: var(--ink); color: var(--lamp); }
   .tag.ok { border-color: var(--go); color: var(--go); }
   .tag.warn { border-color: var(--cam); color: var(--cam); }
   .tag.crit { border-color: var(--stop); color: var(--stop); }
@@ -129,8 +129,8 @@
   th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   th { font: 700 11px var(--mono); letter-spacing: .05em; color: var(--muted); text-transform: uppercase; }
   td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  tr.cerebro td { background: color-mix(in srgb, var(--lamp) 16%, transparent); }
-  tr.cerebro td:first-child { box-shadow: inset 3px 0 var(--lamp); }
+  tr.palantir td { background: color-mix(in srgb, var(--lamp) 16%, transparent); }
+  tr.palantir td:first-child { box-shadow: inset 3px 0 var(--lamp); }
   td select { padding: 4px 8px; }
   .monitors { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
   .monitor { background: var(--ink); color: #f3efe6; border-radius: 10px; padding: 14px; display: grid; gap: 10px; justify-items: center; position: relative; overflow: hidden; box-shadow: var(--shadow); }
@@ -265,7 +265,7 @@
   </section>
 
   <section id="tab-crm" style="--channel: var(--crm)">
-    <div class="hint">Soxta <b>DentaCRM</b>ning ichi. Palantir unga haqiqiy mijoz kodi bilan ulanadi: jadvalni o'qiydi, qabul va to'lov yozadi. <span class="tag cerebro">PALANTIR</span> belgili qatorlarni Palantir yozgan. Formalar — klinika administratorining CRM'dagi o'z ishi (Palantir'siz).</div>
+    <div class="hint">Soxta <b>DentaCRM</b>ning ichi. Palantir unga haqiqiy mijoz kodi bilan ulanadi: jadvalni o'qiydi, qabul va to'lov yozadi. <span class="tag palantir">PALANTIR</span> belgili qatorlarni Palantir yozgan. Formalar — klinika administratorining CRM'dagi o'z ishi (Palantir'siz).</div>
     <div class="scroll">
       <div class="card"><h2>Qabullar · bugundan boshlab</h2><div id="crm-appts" class="table"></div>
         <form id="crm-appt"><input name="patientName" placeholder="Bemor ism-familiyasi" required aria-label="Bemor"><select name="doctorId" id="crm-doctors" aria-label="Shifokor"></select><input name="date" type="date" required aria-label="Sana"><input name="time" type="time" required step="1800" aria-label="Vaqt"><button>Qabul qo'shish</button></form></div>
@@ -402,8 +402,8 @@ function renderThreads(kind, items, key, title) {
 // ─── DentaCRM ────────────────────────────────────────────────────────────────
 const STATUSES = { Pending: 'kutilmoqda', Confirmed: 'tasdiqlangan', 'Checked-In': 'keldi', Completed: 'tugadi', 'No-Show': 'kelmadi', Cancelled: 'bekor' };
 const PAID = { Cash: 'naqd', Card: 'karta', Click: 'Click', Transfer: "o'tkazma", Balance: 'balansdan' };
-const who = o => (o === 'cerebro' ? '<span class="tag cerebro">PALANTIR</span>' : o === 'stend' ? '<span class="tag">administrator</span>' : '');
-const rowClass = r => (r.origin === 'cerebro' ? 'cerebro' : '');
+const who = o => (o === 'palantir' ? '<span class="tag palantir">PALANTIR</span>' : o === 'stend' ? '<span class="tag">administrator</span>' : '');
+const rowClass = r => (r.origin === 'palantir' ? 'palantir' : '');
 function renderCrm() {
   const c = S.crm;
   const options = c.doctors.map(d => `<option value="${esc(d.id)}">${esc(d.name)} (${esc(d.specialty)})</option>`).join('');

@@ -143,7 +143,7 @@ async function main(): Promise<void> {
   // Tez sinov: seans 3 soniyada boshlanadi, 4 soniya ko'rinmasa tugaydi. Bot o'chiq; AI kaliti .env'da bo'lsa — yordamchi ham javob beradi.
   // Demo paroli hammaga ma'lum — shuning uchun server faqat shu kompyuterdan ochiladi
   const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, DB_FILE: join(dataDir, 'cerebro.db'), LISTEN_HOST: '127.0.0.1', CRM_ALLOW_PRIVATE: '1', BOT_TOKEN: '', ADMIN_PASSWORD, SESSION_SECRET: randomBytes(32).toString('hex'), CAMERA_ENTER_SEC: '3', CAMERA_LEAVE_SEC: '4', CAMERA_MIN_SESSION_SEC: '3' },
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, DB_FILE: join(dataDir, 'palantir.db'), LISTEN_HOST: '127.0.0.1', CRM_ALLOW_PRIVATE: '1', BOT_TOKEN: '', ADMIN_PASSWORD, SESSION_SECRET: randomBytes(32).toString('hex'), CAMERA_ENTER_SEC: '3', CAMERA_LEAVE_SEC: '4', CAMERA_MIN_SESSION_SEC: '3' },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   // Skript qanday tugasa ham (xato bilan ham) server fonda qolib ketmasin

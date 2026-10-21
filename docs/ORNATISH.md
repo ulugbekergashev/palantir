@@ -16,7 +16,7 @@ Anketa serveri tunnel yoki proksi ortida tursa (cloudflared, nginx), uning `.env
 | **Claude API kaliti** | platform.claude.com → API keys. Hisobda mablag' bo'lsin | Yordamchining «miyasi». Kalitda oylik chegara (spend limit) qo'ying |
 | Gemini kaliti (ixtiyoriy, bepul) | aistudio.google.com | Ovozli xabarlarni matnga aylantiradi. Bo'lmasa ovoz o'chiq |
 | DentaCRM manzili, login, parol | Klinikadan | Qabullar, bemorlar, tushum |
-| Palantir Hub kodi (`chub.…`) va klinikaning **professional** Instagram akkaunti | Hub kodi — sizdan ([INSTAGRAM.md](INSTAGRAM.md), 4-qadam); akkaunt Meta ilovasida tester bo'lishi kerak | Direct'ga rasmiy yo'l bilan javob. Login-parol Palantir'ga berilmaydi |
+| Palantir Hub kodi (`phub.…`) va klinikaning **professional** Instagram akkaunti | Hub kodi — sizdan ([INSTAGRAM.md](INSTAGRAM.md), 4-qadam); akkaunt Meta ilovasida tester bo'lishi kerak | Direct'ga rasmiy yo'l bilan javob. Login-parol Palantir'ga berilmaydi |
 | Kameralarning RTSP manzili (yoki HTTP/MJPEG manzili) | Kamerani o'rnatgan usta yoki videoregistrator sozlamalari. Kamera yo'q kabinetga — eski Android telefon («IP Webcam» ilovasi) | Kamera nazorati |
 
 | Uztelecom SIP: server manzili, login, parol, raqam (ixtiyoriy) | Klinika Uztelecom'dan oladi (yuridik shaxs) | Shahar raqamiga AI qabulxona javob beradi |
@@ -29,7 +29,7 @@ o'rnatgich **avtomatik kirishni** taklif qiladi (pastda).
 
 ## 2. O'rnatish
 
-1. GitHub'dagi oxirgi relizdan `cerebro-<nashr>.zip` ni yuklab oling (Releases), masalan `C:\Palantir` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
+1. GitHub'dagi oxirgi relizdan `palantir-<nashr>.zip` ni yuklab oling (Releases), masalan `C:\Palantir` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
    Reliz arxivida kutubxonalar, panel va kamera modeli tayyor — o'rnatish internetsiz ham o'tadi. Keyingi nashrlar har kecha o'zi o'rnatiladi.
 2. `install\Ornatish.cmd` ni ikki marta bosing. U o'zi:
    - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'rnatishni taklif qiladi. Node.js o'rnatilgach oynani yopib, `Ornatish.cmd` ni **qayta** bosing;
@@ -114,10 +114,10 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 | Ish | Qanday |
 |---|---|
 | To'xtatish / ishga tushirish | `install\Toxtatish.cmd` / `install\Ishga-tushirish.cmd` |
-| Nima bo'lganini ko'rish | `C:\CerebroData\logs\` — har kunga bitta fayl (`2026-10-14.log`), 14 kun saqlanadi. `supervisor.log` — qachon to'xtab, qachon qayta yongani |
-| Zaxira nusxa | Har kuni o'zi olinadi: `C:\CerebroData\backups\KUN\` (baza, «ikkinchi miya», maxfiy kalit), 14 kun. Boshqa diskka olish: `.env` da `BACKUP_DIR=D:\CerebroZaxira`. Hub kodi bo'lsa — shu nusxa **shifrlanib hubga ham** yuboriladi (sotuvchining ochiq kaliti bilan: hub ham, klinika ham ocha olmaydi), oxirgi 7 kuni turadi — kompyuter yoki disk buzilsa ham ma'lumot qoladi |
-| Tashqi zaxiradan tiklash | Sotuvchi: faylni hubdan oladi (`/admin/backups`), `npm run restore-backup -- <fayl.czb>` bilan ochadi (maxfiy kalit `~/.cerebro/zaxira-kaliti.pem`) — chiqqan uchta narsa bilan pastdagidek tiklanadi |
-| Tiklash | Palantir'ni to'xtating → `C:\CerebroData` dagi `cerebro.db-wal` va `cerebro.db-shm` fayllarini o'chiring → zaxira papkasidagi `cerebro.db`, `miya`, `session.secret` ni `C:\CerebroData` ga ko'chiring → ishga tushiring |
+| Nima bo'lganini ko'rish | `C:\PalantirData\logs\` — har kunga bitta fayl (`2026-10-14.log`), 14 kun saqlanadi. `supervisor.log` — qachon to'xtab, qachon qayta yongani |
+| Zaxira nusxa | Har kuni o'zi olinadi: `C:\PalantirData\backups\KUN\` (baza, «ikkinchi miya», maxfiy kalit), 14 kun. Boshqa diskka olish: `.env` da `BACKUP_DIR=D:\PalantirZaxira`. Hub kodi bo'lsa — shu nusxa **shifrlanib hubga ham** yuboriladi (sotuvchining ochiq kaliti bilan: hub ham, klinika ham ocha olmaydi), oxirgi 7 kuni turadi — kompyuter yoki disk buzilsa ham ma'lumot qoladi |
+| Tashqi zaxiradan tiklash | Sotuvchi: faylni hubdan oladi (`/admin/backups`), `npm run restore-backup -- <fayl.pzb>` bilan ochadi (maxfiy kalit `~/.palantir/zaxira-kaliti.pem`) — chiqqan uchta narsa bilan pastdagidek tiklanadi |
+| Tiklash | Palantir'ni to'xtating → `C:\PalantirData` dagi `palantir.db-wal` va `palantir.db-shm` fayllarini o'chiring → zaxira papkasidagi `palantir.db`, `miya`, `session.secret` ni `C:\PalantirData` ga ko'chiring → ishga tushiring |
 | Dasturni yangilash | **O'zi**: har kecha 3:00 da yangi reliz bo'lsa — imzosi tekshiriladi, bazaning nusxasida sinab ko'riladi, keyin o'rnatiladi; yangi nashr ishga tushmasa eskisi va baza o'zi qaytariladi (`logs\yangilash.log`, natijasi hub holatida). Qo'lda: `npm run update`. O'chirish: `.env` da `UPDATE_AUTO=0` |
 | Telefondan kirish | Hub kodi bo'lsa — egasi panelni uydan yoki telefondan ochadi, klinika kompyuteri port ochmaydi: botdagi **«Panel»** tugmasi (Telegram Mini App, parolsiz — Telegram akkaunti bilan) yoki `https://<hub>/c/<klinika>/` havolasi login va parol bilan (Sozlamalar → Telegram → «Masofadan kirish»). Ulash ustasi, admin va ovozli agent yo'llari masofadan yopiq. O'chirish: `.env` da `REMOTE_PANEL=0`. Telefon yo'qolsa — Sozlamalar → «Kirish va xavfsizlik» → «Boshqa qurilmalardan chiqish» |
 | AI xarajati | Admin sahifasida oxirgi 7 kun: so'rovlar soni va taxminiy dollar. Aniq hisob — platform.claude.com |

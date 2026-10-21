@@ -217,7 +217,7 @@ export interface InboxMessage {
   channel: LeadChannel;
   direction: 'in' | 'out';
   /** Kim yozgan: mijoz, egasining o'zi yoki Palantir */
-  by: 'customer' | 'owner' | 'cerebro';
+  by: 'customer' | 'owner' | 'palantir';
   text: string;
   createdAt: string;
 }

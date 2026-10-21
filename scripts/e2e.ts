@@ -39,7 +39,7 @@ const tgUserPort = await listen(tgUserServer);
 const igPort = await listen(igWebServer);
 const crmPort = await listen(crmServer);
 const speechlabPort = await listen(speechlabServer);
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-e2e-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-e2e-'));
 const PORT = 3290;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
@@ -106,9 +106,9 @@ try {
   ok("profil: noto'g'ri rang — 400", badProfile.status === 400, badProfile.json.details?.[0]);
   ok('profil: saqlandi', (await api('/api/business', { method: 'PUT', token, body: profile })).status === 200);
   const me = (await api('/api/me', { token })).json;
-  ok('holat: bot, AI, ovoz yoqilgan; egasi hali ulanmagan', me.status.bot === 'cerebro_test_bot' && me.status.ai && me.status.voice && !me.status.ownerLinked);
+  ok('holat: bot, AI, ovoz yoqilgan; egasi hali ulanmagan', me.status.bot === 'palantir_test_bot' && me.status.ai && me.status.voice && !me.status.ownerLinked);
   const bizId = created.json.id as string;
-  ok('holat: mijozlar havolasi', me.status.generalLink === `https://t.me/cerebro_test_bot?start=l-${bizId}`);
+  ok('holat: mijozlar havolasi', me.status.generalLink === `https://t.me/palantir_test_bot?start=l-${bizId}`);
 
   console.log('\n# Vazifalar (panel)');
   const today = iso(new Date());
@@ -391,7 +391,7 @@ try {
   await sleep(600);
   let thread = (await api(`/api/inbox/${bobur.id}`, { token })).json.messages as { direction: string; by: string; text: string }[];
   ok("yozishmada: mijoz gapi va Palantir javobi (qaytib kelgan nusxa egasiniki deb yozilmadi)",
-    thread.length === 2 && thread[1].by === 'cerebro' && !thread.some(m => m.by === 'owner'));
+    thread.length === 2 && thread[1].by === 'palantir' && !thread.some(m => m.by === 'owner'));
 
   mark = sent.length;
   tgUser.incoming(TG_SESSION, '6001', 'Chegirma bormi?');
@@ -487,7 +487,7 @@ try {
   await sleep(2500);
   thread = (await api(`/api/inbox/${dilnoza!.id}`, { token })).json.messages;
   ok("Palantir javobi Direct'da qaytib ko'rinsa — egasiniki deb yozilmadi; egasining telefondan yozgani yozildi",
-    thread.filter(m => m.direction === 'in').length === 1 && thread.filter(m => m.by === 'cerebro').length === 1
+    thread.filter(m => m.direction === 'in').length === 1 && thread.filter(m => m.by === 'palantir').length === 1
     && thread.filter(m => m.by === 'owner').length === 1 && thread.some(m => m.by === 'owner' && m.text.startsWith("Qo'shimcha")),
     thread.map(m => `${m.by}:${m.text.slice(0, 12)}`).join(' | '));
 

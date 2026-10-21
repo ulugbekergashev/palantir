@@ -10,8 +10,8 @@ import { startVoice, type VoiceEvent, type VoiceSession } from './liveVoice';
 import { cardOf, liveVoices, type VoiceCard } from './useVoice';
 
 export type WakePhase = 'off' | 'starting' | 'listening' | 'live' | 'paused' | 'error';
-const KEY = 'cerebro_quloq';
-const LOCK = 'cerebro-quloq';
+const KEY = 'palantir_quloq';
+const LOCK = 'palantir-quloq';
 /** Suhbat tugagach oyna shuncha turadi (oxirgi javobni o'qib olish uchun) */
 const LINGER_MS = 5_000;
 const RESTART_MS = 1_200, RETRY_MS = 10_000;
@@ -120,8 +120,8 @@ export function useWake() {
       if (!want.current || live.current) return;
       if (n > 0) { stop(); setPhase('paused'); } else later(start, RESTART_MS);
     };
-    window.addEventListener('cerebro:voice', onVoice);
-    return () => { window.removeEventListener('cerebro:voice', onVoice); stop(); };
+    window.addEventListener('palantir:voice', onVoice);
+    return () => { window.removeEventListener('palantir:voice', onVoice); stop(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sfera ovozga qarab «nafas oladi»

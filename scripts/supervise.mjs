@@ -21,7 +21,7 @@ if (existsSync('.env')) process.loadEnvFile('.env');
 const DATA = resolve(process.env.DATA_DIR || 'data');
 const LOGS = join(DATA, 'logs');
 const PID_FILE = join(DATA, 'supervisor.pid');
-const STOP_FILE = join(DATA, 'cerebro.stop');
+const STOP_FILE = join(DATA, 'palantir.stop');
 /** Server shu kod bilan chiqsa — shu papka bilan boshqa nusxa ishlayapti (server/guard.ts): tez-tez qayta yoqishning foydasi yo'q */
 const EXIT_DO_NOT_RESTART = 78;
 const RESTART_MIN_MS = 2_000, RESTART_MAX_MS = 60_000;

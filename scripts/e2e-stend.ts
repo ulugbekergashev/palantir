@@ -293,13 +293,13 @@ async function liveTests(): Promise<void> {
     ok("bo'sh vaqtlar CRM jadvalidan taklif qilindi", !!(await seen("bo'sh vaqtlar", s => botSaid(s, dilnoza, mark, 'Rustam Rustamov'))));
     mark = newest(await snapshot());
     await world('/api/tg/send', { chat: dilnoza, text: 'Ertaga soat 11 da' });
-    ok("vaqt tanlandi — ism va telefon so'raldi (hali yozilmadi)", !!(await seen('ism va telefon', s => botSaid(s, dilnoza, mark, 'telefon'))) && !(await snapshot()).crm.appointments.some((a: Json) => a.origin === 'cerebro'));
+    ok("vaqt tanlandi — ism va telefon so'raldi (hali yozilmadi)", !!(await seen('ism va telefon', s => botSaid(s, dilnoza, mark, 'telefon'))) && !(await snapshot()).crm.appointments.some((a: Json) => a.origin === 'palantir'));
     mark = newest(await snapshot());
     await world('/api/tg/send', { chat: dilnoza, text: 'Dilnoza Yusupova, +998 90 765 43 21' });
-    const visit = await seen("CRM'da qabul", s => s.crm.appointments.find((a: Json) => a.origin === 'cerebro' && a.patientName === 'Dilnoza Yusupova'));
+    const visit = await seen("CRM'da qabul", s => s.crm.appointments.find((a: Json) => a.origin === 'palantir' && a.patientName === 'Dilnoza Yusupova'));
     ok("qabul CRM'ga yozildi: ertaga 11:00, Rustamov", !!visit && visit.time === '11:00' && visit.doctorId === 'd1' && visit.date > (await snapshot()).crm.today, JSON.stringify(visit));
     ok("bemorga tasdiq ketdi, egasi xabardor", !!(await seen('tasdiq', s => botSaid(s, dilnoza, mark, '11:00'))) && !!(await seen('egasiga', s => botSaid(s, OWNER, mark, 'Qabulga yozdim'))));
-    ok("yangi bemor CRM bazasida ochildi", (await snapshot()).crm.patients.some((p: Json) => p.origin === 'cerebro' && p.lastName === 'Yusupova'));
+    ok("yangi bemor CRM bazasida ochildi", (await snapshot()).crm.patients.some((p: Json) => p.origin === 'palantir' && p.lastName === 'Yusupova'));
 
     console.log('\n# Stend: yordamchi — vazifa, eslatma, pul yozuvi');
     mark = newest(await snapshot());
@@ -318,18 +318,18 @@ async function liveTests(): Promise<void> {
     // Yordamchining matnli javobi emas, alohida keladigan karta: «Tasdiqlash» tugmasi shunda
     const moneyCard = (s: Json, title: string): Json => chatIn(s, OWNER).messages.find((m: Json) => m.id > mark && !m.mine && plain(m).includes(title) && button(m, 'ma'));
     const pay = await seen("to'lov kartasi", s => moneyCard(s, "To'lov qabul qilish: 350 000 so'm"));
-    ok("to'lov: tekshirish kartasi keldi, CRM'ga hali yozilmadi", !!pay && !!button(pay, 'ma') && !(await snapshot()).crm.transactions.some((t: Json) => t.origin === 'cerebro'), pay ? plain(pay) : '');
+    ok("to'lov: tekshirish kartasi keldi, CRM'ga hali yozilmadi", !!pay && !!button(pay, 'ma') && !(await snapshot()).crm.transactions.some((t: Json) => t.origin === 'palantir'), pay ? plain(pay) : '');
     await world('/api/tg/press', { chat: OWNER, id: pay.id, data: button(pay, 'ma') });
-    const written = await seen("CRM'da to'lov", s => s.crm.transactions.find((t: Json) => t.origin === 'cerebro'));
+    const written = await seen("CRM'da to'lov", s => s.crm.transactions.find((t: Json) => t.origin === 'palantir'));
     ok("«Tasdiqlash»dan keyin CRM'ga yozildi: summa, usul, shifokor", written?.amount === 350_000 && written.type === 'Card' && written.doctorId === 'd1' && written.patientName === 'Ali Valiyev', JSON.stringify(written));
     const undo = await seen('ortga qaytarish tugmasi', s => { const m = chatIn(s, OWNER).messages.find((x: Json) => x.id === pay.id); return button(m, 'mu') ? m : undefined; });
     await world('/api/tg/press', { chat: OWNER, id: pay.id, data: button(undo, 'mu') });
-    ok("«Ortga qaytarish» — CRM'dan o'chdi", !!(await seen("o'chdi", s => !s.crm.transactions.some((t: Json) => t.origin === 'cerebro'))));
+    ok("«Ortga qaytarish» — CRM'dan o'chdi", !!(await seen("o'chdi", s => !s.crm.transactions.some((t: Json) => t.origin === 'palantir'))));
     mark = newest(await snapshot());
     await world('/api/tg/send', { chat: OWNER, text: 'Ijaraga 2 million ketdi' });
     const rent = await seen('xarajat kartasi', s => moneyCard(s, "Xarajat: 2 000 000 so'm"));
     await world('/api/tg/press', { chat: OWNER, id: rent?.id, data: button(rent, 'ma') });
-    ok("xarajat CRM'ga yozildi", !!(await seen("CRM'da xarajat", s => s.crm.expenses.find((x: Json) => x.origin === 'cerebro' && x.amount === 2_000_000 && x.category === 'Rent'))));
+    ok("xarajat CRM'ga yozildi", !!(await seen("CRM'da xarajat", s => s.crm.expenses.find((x: Json) => x.origin === 'palantir' && x.amount === 2_000_000 && x.category === 'Rent'))));
     mark = newest(await snapshot());
     await world('/api/tg/voice', { chat: OWNER, text: 'Bugungi qabullar va tushum' });
     ok("ovozli xabar: matnga aylandi va CRM'dan hisobot keldi", !!(await seen('ovoz', s => botSaid(s, OWNER, mark, '🎙') && botSaid(s, OWNER, mark, 'Tushum'))));

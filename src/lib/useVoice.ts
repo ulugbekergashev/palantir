@@ -31,11 +31,11 @@ export function cardOf(e: Extract<VoiceEvent, { type: 'tool' }>, id: number): Vo
 
 /**
  * Panelda ochiq jonli suhbatlar soni: «quloq» (useWake) shu paytda to'xtab turadi — ikki suhbat bir mikrofonda to'qnashmasin.
- * Hodisa: window «cerebro:voice» (detail — yangi son)
+ * Hodisa: window «palantir:voice» (detail — yangi son)
  */
 let liveCount = 0;
 export const liveVoices = () => liveCount;
-const bump = (d: number) => { liveCount = Math.max(0, liveCount + d); window.dispatchEvent(new CustomEvent('cerebro:voice', { detail: liveCount })); };
+const bump = (d: number) => { liveCount = Math.max(0, liveCount + d); window.dispatchEvent(new CustomEvent('palantir:voice', { detail: liveCount })); };
 
 export function useVoice(kind: 'owner' | 'customer' = 'owner') {
   const [mode, setMode] = useState<VoiceMode>('idle');

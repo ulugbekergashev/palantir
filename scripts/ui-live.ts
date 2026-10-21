@@ -15,7 +15,7 @@ import { CUSTOMER, TG_SESSION, aiServer, igWeb, igWebServer, listen, say, sent, 
 import { chromePath } from './chrome';
 
 const CHROME = chromePath();
-const OUT = process.argv[2] || join(tmpdir(), 'cerebro-ui');
+const OUT = process.argv[2] || join(tmpdir(), 'palantir-ui');
 mkdirSync(OUT, { recursive: true });
 
 const results: boolean[] = [];
@@ -27,7 +27,7 @@ const sttPort = await listen(sttServer);
 const tgUserPort = await listen(tgUserServer);
 const igPort = await listen(igWebServer);
 const crmPort = await listen(crmServer);
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-ui-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-ui-'));
 const PORT = 3291;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
@@ -160,7 +160,7 @@ try {
   console.log('\n# Topshiriqlar');
   await go('yordamchi/topshiriqlar');
   ok('topshiriqlar: misollar va bo\'sh holat', await visible(page.getByText('Hali topshiriq yo\'q.', { exact: false })) && await page.getByRole('button', { name: /kun rejamni yubor/ }).isVisible());
-  const auth = { authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('cerebro_token'))}`, 'content-type': 'application/json' };
+  const auth = { authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('palantir_token'))}`, 'content-type': 'application/json' };
   await fetch(`${base}/api/orders`, { method: 'POST', headers: auth, body: JSON.stringify({ member: 'yordamchi', text: 'Har kuni 8:30 da kun rejamni yubor', spec: { kind: 'schedule', at: '08:30', days: [] }, summary: 'Har kuni 08:30 da kun rejangizni yuboraman.' }) });
   await page.reload({ waitUntil: 'networkidle' });
   ok("topshiriq: ro'yxatda — tushunchasi, vaqti va yoqish tugmasi", await visible(page.getByText('Har kuni 08:30 da kun rejangizni yuboraman.')) && await page.getByText(/Jadval · 08:30 · har kuni/).isVisible());
@@ -254,7 +254,7 @@ try {
   // DentaCRM: plitka klinikada yoki ulangan bo'lsa ko'rinadi — API orqali ulab, holatini tekshiramiz
   crm.seed(new Date().toISOString().slice(0, 10), new Date(Date.now() + 86_400_000).toISOString().slice(0, 10));
   const crmJoined = await page.evaluate(async (body: unknown) => (await fetch('/api/crm', {
-    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${localStorage.getItem('cerebro_token')}` }, body: JSON.stringify(body),
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${localStorage.getItem('palantir_token')}` }, body: JSON.stringify(body),
   })).status, { url: `http://127.0.0.1:${crmPort}`, ...CRM_LOGIN });
   await go('sozlamalar/dentacrm');
   await page.reload({ waitUntil: 'networkidle' });

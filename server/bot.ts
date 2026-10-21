@@ -910,7 +910,7 @@ export function createBot(): BotService {
       const l = leads.get(biz.id, lid);
       if (!l?.reachable) continue;
       try {
-        await sendToLead(biz, l, o.text, 'cerebro');
+        await sendToLead(biz, l, o.text, 'palantir');
         sent++;
       } catch (e) {
         failed++;

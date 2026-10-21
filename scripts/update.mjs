@@ -6,7 +6,7 @@
  *
  *   1. UPDATE_URL/manifest.json — nashr, baza nashri, fayl, hajm, sha256 va Ed25519 imzo; imzo shu fayldagi ochiq kalit bilan tekshiriladi.
  *   2. Arxiv yuklanadi, hajmi va sha256 tekshiriladi, DATA_DIR/yangilash/<nashr>/ ga ochiladi (arxivdan tashqariga yozib bo'lmaydi).
- *   3. Sinov: yangi nashr bazaning NUSXASI bilan, kalitlarsiz va tashqi xizmatlarsiz (CEREBRO_DRY_RUN) ko'tariladi —
+ *   3. Sinov: yangi nashr bazaning NUSXASI bilan, kalitlarsiz va tashqi xizmatlarsiz (PALANTIR_DRY_RUN) ko'tariladi —
  *      /api/health shu nashrni aytmasa yangilash bekor, ishlab turgan nashrga tegilmaydi.
  *   4. Nazoratchi to'xtatiladi; relizdagi ildizlar (server, src, node_modules…) almashtiriladi — eskisi DATA_DIR/yangilash/oldingi/ ga.
  *      Ish paytida paydo bo'lgan fayllar (tgvoice/.venv, sessiyalar, konfiglar) yangi papkaga ko'chadi; .env va ma'lumotlarga tegilmaydi.
@@ -30,6 +30,8 @@ if (existsSync('.env')) process.loadEnvFile('.env');
 
 const DATA = resolve(process.env.DATA_DIR || 'data');
 const BACKUPS = resolve(process.env.BACKUP_DIR || join(DATA, 'backups'));
+/** Baza fayli — server/env.ts bilan bir xil: avvalgi nom (Cerebro — eski nom) bilan yaratilgan baza bo'lsa, o'sha */
+const DB_FILE = existsSync(join(DATA, 'palantir.db')) || !existsSync(join(DATA, 'cerebro.db')) ? join(DATA, 'palantir.db') : join(DATA, 'cerebro.db'); // eski nom
 const WORK = join(DATA, 'yangilash');
 const STATE = join(WORK, 'holat.json');
 const LOCK = join(WORK, 'yangilash.lock');
@@ -63,7 +65,7 @@ const currentVersion = () => readJson(join(ROOT, 'package.json'))?.version ?? '0
 const saveState = state => { mkdirSync(WORK, { recursive: true }); writeFileSync(STATE, JSON.stringify({ ...state, at: new Date().toISOString() }, null, 2)); };
 
 /** Imzolanadigan qator — scripts/release.ts bilan bir xil */
-const signedText = m => `cerebro-reliz\n${m.version}\n${m.schema}\n${m.file}\n${m.size}\n${m.sha256}`;
+const signedText = m => `palantir-reliz\n${m.version}\n${m.schema}\n${m.file}\n${m.size}\n${m.sha256}`;
 
 function checkManifest(m) {
   if (!m || typeof m !== 'object') throw new Error("manifest o'qilmadi");
@@ -139,15 +141,14 @@ async function preflight(staging, version) {
   const sandbox = join(WORK, `sinov-${version}`);
   rmSync(sandbox, { recursive: true, force: true });
   mkdirSync(sandbox, { recursive: true });
-  const dbFile = join(DATA, 'cerebro.db');
-  if (existsSync(dbFile)) {
-    const db = new DatabaseSync(dbFile, { readOnly: true });
-    try { db.exec(`VACUUM INTO '${join(sandbox, 'cerebro.db').replace(/'/g, "''")}'`); } finally { db.close(); }
+  if (existsSync(DB_FILE)) {
+    const db = new DatabaseSync(DB_FILE, { readOnly: true });
+    try { db.exec(`VACUUM INTO '${join(sandbox, 'palantir.db').replace(/'/g, "''")}'`); } finally { db.close(); }
   }
   const port = await freePort();
   const child = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
     cwd: staging, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
-    env: bareEnv({ DOTENV: '0', CEREBRO_DRY_RUN: '1', DATA_DIR: sandbox, BACKUP_DIR: join(sandbox, 'backups'), BACKUP_KEEP: '0', PORT: String(port), LISTEN_HOST: '127.0.0.1', SESSION_SECRET: randomBytes(32).toString('hex') }),
+    env: bareEnv({ DOTENV: '0', PALANTIR_DRY_RUN: '1', DATA_DIR: sandbox, BACKUP_DIR: join(sandbox, 'backups'), BACKUP_KEEP: '0', PORT: String(port), LISTEN_HOST: '127.0.0.1', SESSION_SECRET: randomBytes(32).toString('hex') }),
   });
   let out = '';
   child.stdout.on('data', d => { out = (out + d).slice(-4000); });
@@ -226,15 +227,14 @@ function unswap(roots, backup, moved) {
 
 /** Yangi nashr bazani migratsiya qilgan bo'lsa — o'sha migratsiyadan oldingi nusxa qaytariladi */
 function restoreDb(schemaBefore, since) {
-  const dbFile = join(DATA, 'cerebro.db');
-  const now = userVersion(dbFile);
+  const now = userVersion(DB_FILE);
   if (now === null || now === schemaBefore) return 'baza o\'zgarmagan';
   const copies = existsSync(BACKUPS) ? readdirSync(BACKUPS).filter(n => /^oldin-v\d+-.+\.db$/.test(n)).map(n => join(BACKUPS, n)).filter(f => statSync(f).mtimeMs >= since) : [];
   const copy = copies.sort((a, b) => statSync(a).mtimeMs - statSync(b).mtimeMs)[0];
   if (!copy) return `DIQQAT: baza v${now}, nusxasi topilmadi — qo'lda tiklang (BACKUP_DIR)`;
-  for (const ext of ['-wal', '-shm']) rmSync(`${dbFile}${ext}`, { force: true });
-  cpSync(copy, dbFile);
-  return `baza v${now} → v${userVersion(dbFile)} (${copy})`;
+  for (const ext of ['-wal', '-shm']) rmSync(`${DB_FILE}${ext}`, { force: true });
+  cpSync(copy, DB_FILE);
+  return `baza v${now} → v${userVersion(DB_FILE)} (${copy})`;
 }
 
 async function main() {
@@ -276,7 +276,7 @@ async function main() {
     // Eski ro'yxat bo'lmasa (qo'lda ko'chirilgan nusxa) — yangi relizdagi fayllar «ma'lum» sanaladi
     const tracked = Array.isArray(old?.files) ? old.files : files.files ?? [];
     const roots = [...new Set([...files.roots, 'files.json'])].filter(r => r !== 'node_modules' || !lstatSync(join(staging, 'node_modules')).isSymbolicLink());
-    const schemaBefore = userVersion(join(DATA, 'cerebro.db'));
+    const schemaBefore = userVersion(DB_FILE);
     const since = Date.now();
     log('nazoratchi to\'xtatilmoqda');
     supervisor(['stop']);

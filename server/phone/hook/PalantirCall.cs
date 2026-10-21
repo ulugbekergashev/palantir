@@ -19,7 +19,7 @@ using System.Text;
 //
 // Hodisa shu papkadagi «spool» ichiga kichik fayl bo'lib yoziladi; uni Palantir (server/phone/microsip.ts) o'qib oladi.
 // Tarmoq, port yoki kalit yo'q. Yig'ish: server/phone/hook.ts (Windows'ning o'zidagi csc.exe bilan)
-internal static class CerebroCall
+internal static class PalantirCall
 {
     private const int MaxNumberLength = 64;
 

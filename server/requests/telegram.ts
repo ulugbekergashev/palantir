@@ -57,7 +57,7 @@ export async function requestButton(ctx: Context, code: string, id: string): Pro
       const r = requests.get(biz.id, id);
       const lead = r?.leadId ? leads.get(biz.id, r.leadId) : undefined;
       if (!r || !lead) throw new RequestError('Mijoz topilmadi');
-      await sendToLead(biz, lead, MISSED_TEXT, 'cerebro');
+      await sendToLead(biz, lead, MISSED_TEXT, 'palantir');
       await addResult(biz, id, "Mijozga yozildi: qachon qo'ng'iroq qilsak qulay?", name);
       await toast(ctx, '💬 Yozildi');
     }

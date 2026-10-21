@@ -12,7 +12,7 @@ import { StepDone, StepGaps } from './StepFinish';
 import { StepKeys, emptyRouted, type Routed } from './StepKeys';
 import { clock, stepState, visibleSteps, type StepKey, type StepState, type WizardFacts } from './wizard';
 
-const BIZ_KEY = 'cerebro_setup_biz', T0_KEY = 'cerebro_setup_t0';
+const BIZ_KEY = 'palantir_setup_biz', T0_KEY = 'palantir_setup_t0';
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k: string, v: string | null) => { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch { /* yopiq xotira */ } };
 

@@ -79,7 +79,7 @@ ok("oddiy ish — so'ralmaydi; mijozga bog'langan har qanday ish — so'raladi",
 
 // ─── Server ───────────────────────────────────────────────────────────────────
 const tgPort = await listen(tgServer), aiPort = await listen(aiServer);
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-work-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-work-'));
 const PORT = 3293, base_ = `http://127.0.0.1:${PORT}`;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
@@ -118,7 +118,7 @@ try {
   ok('keyingi qadam va vaqti saqlandi', set.json.lead?.nextStep === 'taklif yuborish' && set.json.lead?.nextAt === stamp(new Date()), JSON.stringify(set.json));
   ok("noto'g'ri vaqt — rad", (await api(`/api/leads/${a.id}`, { method: 'PATCH', token, body: { nextAt: 'ertaga' } })).status === 400);
   // «Eski mijoz» 5 kundan beri jim (xizmat sohasida 3 kundan keyin unutilgan hisoblanadi)
-  const db = new DatabaseSync(join(dataDir, 'cerebro.db'));
+  const db = new DatabaseSync(join(dataDir, 'palantir.db'));
   db.exec('PRAGMA busy_timeout = 5000');
   db.prepare('UPDATE leads SET updated_at = ? WHERE id = ?').run(new Date(Date.now() - 5 * 86_400_000).toISOString(), b.id);
   db.close();

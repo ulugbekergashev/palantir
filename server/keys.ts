@@ -41,7 +41,7 @@ function apply(name: KeyName): void {
     case 'SPEECHLAB_API_KEY': env.speechlabKey = v; break;
     case 'TG_API_ID': env.tgApiId = Number(v) || 0; break;
     case 'TG_API_HASH': env.tgApiHash = v; break;
-    case 'CEREBRO_HUB': env.hub = v ? parseHubCode(v) : null; break;
+    case 'PALANTIR_HUB': env.hub = v ? parseHubCode(v) : null; break;
   }
 }
 for (const k of KEYS) apply(k.name);
@@ -137,7 +137,7 @@ export async function checkKey(name: KeyName, value: string): Promise<KeyCheck> 
       case 'SPEECHLAB_API_KEY': return await checkGet(`${env.speechlabUrl}/agents`, { authorization: `Bearer ${value}` }, "Ishlayapti: qo'ng'iroq qilib eslatadi");
       case 'TG_API_ID':
       case 'TG_API_HASH': return { ok: true, info: 'Saqlandi: egasining raqami bilan ulanganda tekshiriladi' };
-      case 'CEREBRO_HUB': {
+      case 'PALANTIR_HUB': {
         const hub = parseHubCode(value)!;
         return await checkGet(`${hub.url}/api/ping`, { authorization: `Bearer ${hub.key}` }, "Ishlayapti: Hub klinikani tanidi — rasmiy Instagram'ni ulash mumkin");
       }

@@ -41,8 +41,8 @@ ok('chala bot tokeni — sababi bilan', /35 belgi/.test(classifyLine('7412589630
 ok('Claude, Gemini, Groq kalitlari', classifyLine(CLAUDE)?.key === 'ANTHROPIC_API_KEY' && classifyLine(GEMINI)?.key === 'GEMINI_API_KEY' && classifyLine(`gsk_${'a'.repeat(52)}`)?.key === 'GROQ_API_KEY');
 ok('chala Gemini kaliti — xato', !!classifyLine('AIzaSyB7xK2')?.error);
 ok('Telegram API hash (32 hex)', classifyLine('0123456789abcdef0123456789abcdef')?.key === 'TG_API_HASH');
-ok("Palantir Hub kodi: «chub.» — tanildi; chala kod — sababi bilan", classifyLine(`chub.aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`)?.key === 'CEREBRO_HUB' && !classifyLine(`chub.aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`)?.error
-  && !!classifyLine('chub.abc')?.error);
+ok("Palantir Hub kodi: «phub.» — tanildi; chala kod — sababi bilan", classifyLine(`phub.aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`)?.key === 'PALANTIR_HUB' && !classifyLine(`phub.aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`)?.error
+  && !!classifyLine('phub.abc')?.error);
 ok('kamera, DentaCRM, Instagram, telefon', classifyLine('rtsp://admin:p@192.168.1.64:554/x')?.kind === 'rtsp' && classifyLine('https://shifo.dentacrm.uz')?.kind === 'crm'
   && classifyLine('instagram.com/shifodent')?.kind === 'instagram' && classifyLine('+998 90 123 45 67')?.kind === 'phone');
 ok('tanilmagan qator — unknown', classifyLine('Klinika2026!')?.kind === 'unknown');
@@ -124,7 +124,7 @@ onvifHttpPort = await listen(onvifHttp);
 const onvifUdpPort = await new Promise<number>(done => onvifUdp.bind(0, '127.0.0.1', () => done(onvifUdp.address().port)));
 const scanPort = await new Promise<number>(done => rtspPort.listen(0, '127.0.0.1', () => done((rtspPort.address() as { port: number }).port)));
 
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-setup-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-setup-'));
 const PORT = 3291;
 const base = `http://127.0.0.1:${PORT}`;
 let server: ChildProcess | null = null;
@@ -181,7 +181,7 @@ try {
   const revoked = await put('BOT_TOKEN', `1111111111:${'A'.repeat(35)}`);
   ok("bekor qilingan token — rad (baribir saqlab bo'lmaydi)", revoked.status === 400 && revoked.json.canForce === false, revoked.json.error);
   const bot = await put('BOT_TOKEN', BOT);
-  ok('bot tokeni tekshirildi va saqlandi', bot.status === 200 && bot.json.check?.info === '@cerebro_test_bot ulandi' && bot.json.key?.source === 'panel', JSON.stringify(bot.json.check));
+  ok('bot tokeni tekshirildi va saqlandi', bot.status === 200 && bot.json.check?.info === '@palantir_test_bot ulandi' && bot.json.key?.source === 'panel', JSON.stringify(bot.json.check));
   const botOn = await (async () => { for (let i = 0; i < 40; i++) { if ((await health()).bot) return true; await sleep(150); } return false; })();
   ok("server to'xtamasdan bot yondi (/api/health)", botOn);
   ok('javobda kalitning o\'zi yo\'q', !JSON.stringify(bot.json).includes('LmP2wZr8'));
@@ -199,7 +199,7 @@ try {
   ok("noma'lum kalit nomi — 404", (await put('PATH', 'x')).status === 404);
 
   await stop();
-  const dbBytes = Buffer.concat([join(dataDir, 'cerebro.db'), join(dataDir, 'cerebro.db-wal')].filter(f => existsSync(f)).map(f => readFileSync(f)));
+  const dbBytes = Buffer.concat([join(dataDir, 'palantir.db'), join(dataDir, 'palantir.db-wal')].filter(f => existsSync(f)).map(f => readFileSync(f)));
   ok('bazada kalit ochiq holda yo\'q (shifrlangan)', dbBytes.length > 0 && !dbBytes.includes(Buffer.from('LmP2wZr8')) && !dbBytes.includes(Buffer.from('Xr7bN2kQ')));
   await start();
   const after = (await api('/api/admin/keys', { token: (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token })).json.keys as { name: string; source: string | null }[];

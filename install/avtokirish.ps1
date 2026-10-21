@@ -1,5 +1,5 @@
 # Svet o'chib-yonganda Palantir o'zi ishga tushsin: Windows shu foydalanuvchi bilan o'zi kiradi (avtomatik kirish), keyin
-# cerebro-fon.vbs ekranni darhol qulflaydi - Palantir ishlayveradi, kompyuter yonidagi odam esa parolsiz kira olmaydi.
+# palantir-fon.vbs ekranni darhol qulflaydi - Palantir ishlayveradi, kompyuter yonidagi odam esa parolsiz kira olmaydi.
 # Hamma narsa (bot, MicroSIP, telefon liniyasi WSL'da) odatdagi foydalanuvchi sessiyasida ishlaydi.
 # Parol registrda ochiq yozilmaydi: LSA maxfiy omborida (Sysinternals Autologon kabi). Administrator huquqi kerak.
 #   avtokirish.ps1 [-User DOMEN\nom] - yoqish (parol so'raladi va haqiqiy kirish bilan tekshiriladi); standart - joriy foydalanuvchi
@@ -34,7 +34,7 @@ Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 
-public static class CerebroLsa {
+public static class PalantirLsa {
   [StructLayout(LayoutKind.Sequential)]
   private struct LsaString { public ushort Length; public ushort MaximumLength; public IntPtr Buffer; }
   [StructLayout(LayoutKind.Sequential)]
@@ -125,12 +125,12 @@ if (-not (Is-Admin)) { Fail 'Administrator huquqi kerak' }
 
 # --- Sinov (CI): ombor yozadi, o'qiydi, o'chiradi; noto'g'ri parol rad etiladi ---------------
 if ($SelfTest) {
-  $key = 'CerebroSelfTest'
-  [CerebroLsa]::Store($key, 'sinov-123')
-  $back = [CerebroLsa]::Retrieve($key)
-  [CerebroLsa]::Store($key, $null)
-  $gone = [CerebroLsa]::Retrieve($key)
-  $wrong = [CerebroLsa]::CheckPassword($env:USERNAME, $env:USERDOMAIN, "notogri-$([guid]::NewGuid())")
+  $key = 'PalantirSelfTest'
+  [PalantirLsa]::Store($key, 'sinov-123')
+  $back = [PalantirLsa]::Retrieve($key)
+  [PalantirLsa]::Store($key, $null)
+  $gone = [PalantirLsa]::Retrieve($key)
+  $wrong = [PalantirLsa]::CheckPassword($env:USERNAME, $env:USERDOMAIN, "notogri-$([guid]::NewGuid())")
   if ($back -eq 'sinov-123' -and $null -eq $gone -and -not $wrong) { Note 'LSA ombori va parol tekshiruvi ishlaydi'; Done 0 }
   Fail "Sinov o'tmadi: o'qildi=[$back] o'chgandan keyin=[$gone] notogri parol qabul qilindi=$wrong"
 }
@@ -139,7 +139,7 @@ if ($SelfTest) {
 if ($Off) {
   Set-ItemProperty -Path $Winlogon -Name AutoAdminLogon -Value '0'
   Remove-ItemProperty -Path $Winlogon -Name DefaultPassword -ErrorAction SilentlyContinue
-  [CerebroLsa]::Store('DefaultPassword', $null)
+  [PalantirLsa]::Store('DefaultPassword', $null)
   Note "Avtomatik kirish o'chirildi, parol ombordan o'chirildi"
   Done 0
 }
@@ -153,9 +153,9 @@ $secure = Read-Host "   '$User' ning Windows paroli" -AsSecureString
 $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
 try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
 if (-not $plain) { Fail "Parolsiz foydalanuvchi: avval Windows'da parol qo'ying (Sozlamalar > Hisoblar > Kirish parametrlari), keyin qayta urining" }
-if (-not [CerebroLsa]::CheckPassword($name, $domain, $plain)) { Fail "Parol noto'g'ri - avtomatik kirish yoqilmadi" }
+if (-not [PalantirLsa]::CheckPassword($name, $domain, $plain)) { Fail "Parol noto'g'ri - avtomatik kirish yoqilmadi" }
 
-[CerebroLsa]::Store('DefaultPassword', $plain)
+[PalantirLsa]::Store('DefaultPassword', $plain)
 $plain = $null
 Set-ItemProperty -Path $Winlogon -Name AutoAdminLogon -Value '1'
 Set-ItemProperty -Path $Winlogon -Name DefaultUserName -Value $name

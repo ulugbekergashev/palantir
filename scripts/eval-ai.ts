@@ -38,7 +38,7 @@ if (existsSync('.env')) {
     if (/^(ANTHROPIC_|AI_MODEL$|AI_EFFORT_)/.test(k) && process.env[k] === undefined) process.env[k] = v;
   }
 }
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-eval-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-eval-'));
 process.on('exit', () => {
   try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* Windows: baza hali band */ }
 });
@@ -185,7 +185,7 @@ async function runCase(c: Case): Promise<Run> {
     } else {
       const { lead, channel } = customer(biz, c.patient);
       const lines = c.thread!, t = Date.now() - lines.length * 60_000;
-      lines.forEach(([dir, text], i) => inbox.add(biz.id, { leadId: lead.id, channel, direction: dir, by: dir === 'in' ? 'customer' : 'cerebro', text, at: new Date(t + i * 60_000).toISOString() }));
+      lines.forEach(([dir, text], i) => inbox.add(biz.id, { leadId: lead.id, channel, direction: dir, by: dir === 'in' ? 'customer' : 'palantir', text, at: new Date(t + i * 60_000).toISOString() }));
       const d = await decide(biz, leads.get(biz.id, lead.id)!, inbox.thread(biz.id, lead.id, 30));
       const { request: q, booking: b, change: ch } = d;
       result = {

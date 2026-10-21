@@ -14,7 +14,7 @@ from call_live import Palantir
 from common import ROOT, env
 
 sys.stdout.reconfigure(encoding='utf-8')
-DISTRO = env('SIP_WSL_DISTRO', 'Cerebro')
+DISTRO = env('SIP_WSL_DISTRO', 'Palantir')
 CALLER = '0712345678'   # boshidagi nol ham AI'ga yetib borishi tekshiriladi
 QUESTION = "Assalomu alaykum. Tish tozalash qancha turadi? Ertaga soat uchga yozilsam bo'ladimi? Ismim Akmal."
 WAV = ROOT / 'tmp' / 'savol8k.wav'

@@ -53,8 +53,8 @@ export interface TeamView { staff: (StaffMember & { link: string | null })[]; co
 export const apiBase = location.pathname.match(/^\/c\/[0-9a-f]{10}(?=\/)/)?.[0] ?? '';
 
 /** Server bilan ishlash. Token — shu brauzerda */
-const TOKEN_KEY = 'cerebro_token';
-const ADMIN_KEY = 'cerebro_admin_token';
+const TOKEN_KEY = 'palantir_token';
+const ADMIN_KEY = 'palantir_admin_token';
 
 const read = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
 const write = (key: string, v: string | null) => {

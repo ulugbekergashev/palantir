@@ -458,9 +458,11 @@ export const connections = {
 
 // ─── Mijozlar bilan yozishma va javoblar ──────────────────────────────────────
 
+/** Kim yozgan: dastur Cerebro deb atalgan paytdagi yozuvlarda AI «cerebro» (eski nom) */
+export const authorOf = (v: unknown): InboxMessage['by'] => (v === 'cerebro' ? 'palantir' : String(v) as InboxMessage['by']); // eski nom
 const toInbox = (r: Raw): InboxMessage => ({
   id: String(r.id), leadId: String(r.lead_id), channel: String(r.channel) as LeadChannel, direction: String(r.direction) as InboxMessage['direction'],
-  by: String(r.author) as InboxMessage['by'], text: String(r.text), createdAt: String(r.created_at),
+  by: authorOf(r.author), text: String(r.text), createdAt: String(r.created_at),
 });
 
 export const inbox = {

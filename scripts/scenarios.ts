@@ -41,13 +41,13 @@ async function scenario(name: string, run: () => Promise<void>): Promise<void> {
 
 // ─── Server va soxta xizmatlar ───────────────────────────────────────────────
 const [tgPort, aiPort, sttPort, tgUserPort, igPort, crmPort] = await Promise.all([tgServer, aiServer, sttServer, tgUserServer, igWebServer, crmServer].map(listen));
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-ssenariy-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-ssenariy-'));
 let server!: ChildProcess;
 let serverLog = '';
 function startServer(): void {
   server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
     env: {
-      ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', DB_FILE: join(dataDir, 'cerebro.db'), BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
+      ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', DB_FILE: join(dataDir, 'palantir.db'), BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
       ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700', SESSION_SECRET: 'ssenariy-secret',
       VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', GEMINI_API_KEY: 'g-test', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, MORNING_HOUR: String((new Date().getHours() + 12) % 24), WEB_SEARCH: '0',
       INBOX_DEBOUNCE_MS: '300', MINUTE_MS: '1500', TG_PERSONAL: '1', IG_VIA_BROWSER: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_FAKE_URL: `http://127.0.0.1:${igPort}`, IG_POLL_MS: '700',

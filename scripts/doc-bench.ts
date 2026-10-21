@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { iso } from '../src/lib/week';
 
-process.env.DATA_DIR = mkdtempSync(join(tmpdir(), 'cerebro-docbench-'));
+process.env.DATA_DIR = mkdtempSync(join(tmpdir(), 'palantir-docbench-'));
 process.env.ASTERISK_WSL = '0';
 
 const OUT = resolve('tmp/hujjat-sinov');

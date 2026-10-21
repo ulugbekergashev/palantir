@@ -47,7 +47,7 @@ Instagram → Настройки → «Тип аккаунта» → **Проф�
    - `HUB_ADMIN_KEY` — длинная случайная строка, только для вас.
    - `HUB_TRUST_PROXY=1` — на Railway и любом хостинге за прокси: для удалённого доступа к панели адрес телефона берётся из `X-Forwarded-For` (иначе все клиенты выглядят одним адресом и ограничение попыток пароля общее на всех).
    - `HUB_OPERATOR` — юридическое название компании (как в Business Verification), `HUB_CONTACT_EMAIL` — e-mail для вопросов о данных. Без e-mail Meta политику не примет; `/health` показывает `"legal":true`, когда он задан.
-   - Внешние резервные копии клиник (зашифрованы вашим открытым ключом — хаб их прочитать не может): хранятся в `HUB_BACKUP_DIR` (по умолчанию `zaxira` рядом с `HUB_DB` — то есть на томе), по `HUB_BACKUP_KEEP` (7) последних на клинику, до `HUB_BACKUP_MAX_MB` (512) каждая. Список: `GET /admin/backups`, скачать: `GET /admin/backups/<клиника>/<день>.czb`, открыть: `npm run restore-backup -- <файл>` (закрытый ключ `~/.cerebro/zaxira-kaliti.pem`).
+   - Внешние резервные копии клиник (зашифрованы вашим открытым ключом — хаб их прочитать не может): хранятся в `HUB_BACKUP_DIR` (по умолчанию `zaxira` рядом с `HUB_DB` — то есть на томе), по `HUB_BACKUP_KEEP` (7) последних на клинику, до `HUB_BACKUP_MAX_MB` (512) каждая. Список: `GET /admin/backups`, скачать: `GET /admin/backups/<клиника>/<день>.pzb`, открыть: `npm run restore-backup -- <файл>` (закрытый ключ `~/.palantir/zaxira-kaliti.pem`).
    - `HUB_BOT_TOKEN` и `HUB_ALERT_CHAT` (необязательно, но нужно для контроля): ваш отдельный бот (@BotFather) и ваш chat id — хаб напишет туда, если ПК клиники 15 минут не на связи (`HUB_OFFLINE_MS`), и когда связь вернётся. Список клиник с версией, свободным местом на диске и открытыми проблемами: `curl https://<адрес-хаба>/admin/clinics -H "Authorization: Bearer <HUB_ADMIN_KEY>"`.
 4. Проверка: `https://<адрес-хаба>/health` → `{"ok":true,"instagram":true,"legal":true}`; открыть `/privacy` и проверить название и e-mail.
 
@@ -55,7 +55,7 @@ Instagram → Настройки → «Тип аккаунта» → **Проф�
 ```
 curl -X POST https://<адрес-хаба>/admin/clinics -H "Authorization: Bearer <HUB_ADMIN_KEY>" -d "{\"name\":\"Shifo Dent\"}"
 ```
-Ответ содержит `code` вида `chub.…` — показывается один раз. На ПК клиники: панель → «Ulash» → ключи → **Palantir Hub kodi** (проверяется сразу на хабе).
+Ответ содержит `code` вида `phub.…` — показывается один раз. На ПК клиники: панель → «Ulash» → ключи → **Palantir Hub kodi** (проверяется сразу на хабе).
 
 ## Шаг 5. Подключить Instagram клиники
 Панель → «Ulanishlar» → Instagram → **«Instagram'ni rasmiy ulash»** → откроется Instagram → войти в аккаунт клиники → «Разрешить». Через несколько секунд в панели: «✓ @аккаунт», владельцу в Telegram: «📸 Instagram rasmiy ulandi».

@@ -29,7 +29,6 @@ export interface LineView {
 
 const KIND = 'sip_line';
 const DIR = resolve('tgvoice', 'asterisk');
-const DISTRO = process.env.WSL_DISTRO || 'Cerebro';
 /** Asterisk shu kompyuterdagi WSL'da (klinika kompyuteri). ASTERISK_WSL=0 — o'chiq (sinov serverlari haqiqiy Asterisk'ka tegmasin) */
 const ENABLED = process.platform === 'win32' && process.env.ASTERISK_WSL !== '0';
 const WSL_TIMEOUT_MS = 60_000;
@@ -61,17 +60,30 @@ function lanIp(): string {
   return '127.0.0.1';
 }
 
+/**
+ * Asterisk turgan WSL distributivi (WSL_DISTRO yoki «Palantir»). Dastur avval Cerebro deb atalgan (eski nom): o'sha nomli
+ * distributiv bo'lsa — o'sha (install/telefon.ps1 ham ikkinchisini o'rnatmaydi)
+ */
+let distro: Promise<string> | null = null;
+const wslDistro = (): Promise<string> => distro ??= process.env.WSL_DISTRO ? Promise.resolve(process.env.WSL_DISTRO) : new Promise(ok => {
+  execFile('wsl', ['-l', '-q'], { timeout: WSL_TIMEOUT_MS, windowsHide: true, encoding: 'utf8' }, (_e, out) => {
+    const have = String(out ?? '').replace(/\0/g, '').split(/\r?\n/).map(s => s.trim());
+    ok(!have.includes('Palantir') && have.includes('Cerebro') ? 'Cerebro' : 'Palantir'); // eski nom
+  });
+});
+
 /** WSL ichida buyruq (Asterisk). WSL yoki distributiv yo'q bo'lsa — xato */
-function wsl(args: string[]): Promise<string> {
+async function wsl(args: string[]): Promise<string> {
+  const name = await wslDistro();
   return new Promise((ok, fail) => {
-    execFile('wsl', ['-d', DISTRO, '-u', 'root', '--', ...args], { timeout: WSL_TIMEOUT_MS, windowsHide: true, encoding: 'utf8' }, (e, out, err) => {
+    execFile('wsl', ['-d', name, '-u', 'root', '--', ...args], { timeout: WSL_TIMEOUT_MS, windowsHide: true, encoding: 'utf8' }, (e, out, err) => {
       if (e) fail(new Error((String(err || '').trim().split(/\r?\n/).at(-1) || e.message).slice(0, 200)));
       else ok(String(out).replace(/\0/g, ''));
     });
   });
 }
 const asterisk = (cmd: string) => wsl(['asterisk', '-rx', cmd]);
-/** D:\Projects\cerebro → /mnt/d/Projects/cerebro */
+/** D:\Projects\palantir → /mnt/d/Projects/palantir */
 const wslPath = (p: string) => p.replace(/^([A-Za-z]):/, (_, d: string) => `/mnt/${d.toLowerCase()}`).replace(/\\/g, '/');
 
 export async function lineStatus(): Promise<LineView['status']> {

@@ -53,7 +53,7 @@ async function beat(): Promise<void> {
 export function startHeartbeat(): () => void {
   void beat();
   // Hub kodi ulash ustasida endi kiritildi — hub klinikani darhol ko'rsin
-  onKeyChange(name => { if (name === 'CEREBRO_HUB') void beat(); });
+  onKeyChange(name => { if (name === 'PALANTIR_HUB') void beat(); });
   const timer = setInterval(() => { void beat(); }, env.heartbeatMs);
   timer.unref();
   return () => clearInterval(timer);

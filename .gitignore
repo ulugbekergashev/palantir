@@ -22,8 +22,8 @@ public/models/
 *.db-shm
 *.log
 session.secret
-cerebro.lock
-cerebro.stop
+palantir.lock
+palantir.stop
 supervisor.pid
 
 # Telegram qo'ng'iroq dasturi: muhit, Telegram sessiyasi (akkauntga kirish kaliti!) va ish fayllari

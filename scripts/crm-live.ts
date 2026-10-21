@@ -32,7 +32,7 @@ const som = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} so'm`;
 
 const aiPort = await listen(aiServer);
 const tgPort = await listen(tgServer);
-const dataDir = mkdtempSync(join(tmpdir(), 'cerebro-crm-live-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'palantir-crm-live-'));
 const PORT = 3293;
 const NAME = 'Sinov klinika';
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {

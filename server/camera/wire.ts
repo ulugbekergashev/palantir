@@ -11,7 +11,7 @@ export type FromEngine =
   | { type: 'fatal'; message: string };
 
 /** Dvigatel jarayoni shu o'zgaruvchi bilan ishga tushiriladi (fayl shunchaki import qilinganda ishlab ketmasin) */
-export const ENGINE_FLAG = 'CEREBRO_CAMERA_ENGINE';
+export const ENGINE_FLAG = 'PALANTIR_CAMERA_ENGINE';
 
 /**
  * Kamera manzilining turi: rtsp — oqim (IP kamera, videoregistrator); mjpeg — HTTP oqim (telefon «IP Webcam», arzon kameralar);

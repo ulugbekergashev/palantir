@@ -22,7 +22,7 @@ let line: Promise<unknown> = Promise.resolve();
 export function tgCall(bizId: string, to: string, taskId: string): Promise<TgCallResult> {
   const run = () => new Promise<TgCallResult>(done => {
     const proc = spawn(env.tgCallPython, [env.tgCallScript, to, '--remind', taskId], {
-      env: { ...process.env, CEREBRO_URL: `http://127.0.0.1:${env.port}`, CEREBRO_TOKEN: issueToken(bizId, 'business', TOKEN_DAYS, businesses.byId(bizId)?.tokenVer ?? 0) },
+      env: { ...process.env, PALANTIR_URL: `http://127.0.0.1:${env.port}`, PALANTIR_TOKEN: issueToken(bizId, 'business', TOKEN_DAYS, businesses.byId(bizId)?.tokenVer ?? 0) },
       stdio: ['ignore', 'ignore', 'pipe'],
       windowsHide: true,
     });

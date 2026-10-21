@@ -36,11 +36,11 @@ LIVE_LANG = env('LIVE_LANG', 'uz-UZ')
 LIVE_SILENCE_MS = int(env('LIVE_SILENCE_MS', '500'))   # shuncha jimlik — gap tugadi (300 — tezroq, lekin o'ylab to'xtaganda kesadi)
 LIVE_THINKING = int(env('LIVE_THINKING', '0'))          # o'ylash byudjeti: 0 — o'ylamasdan darhol javob
 UPLINK_FRAMES = 4                                       # Live'ga 40 ms bo'laklarda
-CEREBRO = env('CEREBRO_URL', 'http://127.0.0.1:3200')
+PALANTIR = env('PALANTIR_URL', 'http://127.0.0.1:3200')
 CALL_LIMIT_S = 300
 # Palantir yordamchisining javobi shuncha kutiladi (server/http.ts PHONE_WAIT_MS bilan bir xil): undan uzoq ish (hujjat, hisobot)
 # tugashi bilan Palantir o'zi egasining Telegram'iga yuboradi — telefonda jim kutib o'tirilmaydi
-CEREBRO_WAIT_S = 9
+PALANTIR_WAIT_S = 9
 UZ_TZ = timezone(timedelta(hours=5))   # O'zbekistonda yozgi vaqt yo'q
 WEEKDAYS = ['dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba', 'yakshanba']
 # Ohang va talaffuz — egasi bilan ham, mijoz bilan ham (sip_live.py) bir xil
@@ -181,21 +181,21 @@ def up_24_to_48(pcm: bytes) -> bytes:
 
 class Palantir:
     def __init__(self):
-        self.http = httpx.AsyncClient(base_url=CEREBRO, timeout=120)
+        self.http = httpx.AsyncClient(base_url=PALANTIR, timeout=120)
 
     async def login(self):
         # Palantir eslatma qo'ng'irog'ini o'zi boshlasa — biznesning qisqa muddatli kalitini beradi (boshqa biznesga tegolmaydi)
-        if token := os.environ.get('CEREBRO_TOKEN'):
+        if token := os.environ.get('PALANTIR_TOKEN'):
             self.http.headers['Authorization'] = f'Bearer {token}'
             return
-        r = await self.http.post('/api/login', json={'login': env('CEREBRO_LOGIN'), 'password': env('CEREBRO_PASSWORD')})
+        r = await self.http.post('/api/login', json={'login': env('PALANTIR_LOGIN'), 'password': env('PALANTIR_PASSWORD')})
         r.raise_for_status()
         self.http.headers['Authorization'] = f"Bearer {r.json()['token']}"
 
     async def ask(self, request: str) -> str:
         """Palantir yordamchisiga so'rov. Hujjat yoki kech qolgan javob — Palantir o'zi egasining Telegram'iga yuboradi (deliver)"""
         try:
-            r = await asyncio.wait_for(self.http.post('/api/chat', json={'text': request, 'phone': True, 'deliver': 'telegram'}), CEREBRO_WAIT_S)
+            r = await asyncio.wait_for(self.http.post('/api/chat', json={'text': request, 'phone': True, 'deliver': 'telegram'}), PALANTIR_WAIT_S)
         except asyncio.TimeoutError:
             return "Bu ish biroz vaqt oladi: Palantir davom ettiryapti, tayyor bo'lgach natija egasining Telegram'iga keladi."
         if r.status_code != 200:
