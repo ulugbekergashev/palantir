@@ -95,7 +95,7 @@ function ensureColumns(table: string, columns: Record<string, string>): void {
 ensureColumns('replies', { booking: 'TEXT', booked_at: 'TEXT', question: 'TEXT', visit_change: 'TEXT', changed_at: 'TEXT' });
 ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT' });
 ensureColumns('tasks', { call_to: 'TEXT', spoken: 'INTEGER NOT NULL DEFAULT 0', lead_id: 'TEXT' });
-ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT', next_step: 'TEXT', next_at: 'TEXT', phone_key: 'TEXT', patient_id: 'TEXT' });
+ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT', next_step: 'TEXT', next_at: 'TEXT', phone_key: 'TEXT', patient_id: 'TEXT', phone_proof: 'TEXT' });
 db.exec(`UPDATE leads SET channel = 'bot', bot_started = 1 WHERE tg_user_id IS NOT NULL AND channel = 'manual' AND ig_user_id IS NULL AND tg_access_hash IS NULL`);
 db.exec('CREATE INDEX IF NOT EXISTS leads_ig ON leads (business_id, ig_user_id)');
 db.exec('CREATE INDEX IF NOT EXISTS leads_phone ON leads (business_id, phone_key)');
@@ -268,6 +268,8 @@ export interface LeadRow extends Lead {
   /** Palantir botida /start bosgan — bot unga yoza oladi */
   botStarted: boolean;
   postId: string | null;
+  /** Telegram tasdiqlagan raqam (personRules.ts: proofFor): mijoz botda tugma bilan o'z raqamini yuborgan */
+  phoneProof: string | null;
 }
 
 const connected = (businessId: string, kind: string) => !!db.prepare('SELECT 1 FROM connections WHERE business_id = ? AND kind = ?').get(businessId, kind);
@@ -281,6 +283,8 @@ const toLead = (r: Raw): LeadRow => {
   const viaTelegram = (channel === 'telegram' || channel === 'manual') && !!((r.tg_user_id && r.tg_access_hash) || r.username || (r.phone && channel === 'manual'))
     && connected(businessId, 'telegram');
   const viaInstagram = channel === 'instagram' && !!r.ig_thread && (connected(businessId, 'instagram') || connected(businessId, 'instagram_api'));
+  // Telegram Business: egasining shaxsiy chatiga yozgan mijozga bot egasi nomidan yoza oladi (24 soat ichida — telegramBusiness.ts)
+  const viaBusiness = channel === 'telegram' && !!r.tg_user_id && connected(businessId, 'tg_business');
   return {
     id: String(r.id),
     businessId,
@@ -292,7 +296,7 @@ const toLead = (r: Raw): LeadRow => {
     igUserId: str(r.ig_user_id),
     igThread: str(r.ig_thread),
     botStarted,
-    reachable: botStarted || viaTelegram || viaInstagram,
+    reachable: botStarted || viaTelegram || viaInstagram || viaBusiness,
     channel,
     lastInboundAt,
     stage: String(r.stage) as LeadStage,
@@ -302,6 +306,7 @@ const toLead = (r: Raw): LeadRow => {
     nextAt: str(r.next_at),
     patientId: str(r.patient_id),
     postId: str(r.post_id),
+    phoneProof: str(r.phone_proof),
     createdAt: String(r.created_at),
     updatedAt: String(r.updated_at),
   };
@@ -374,15 +379,18 @@ export const leads = {
   list: (businessId: string, stage: LeadStage | 'all' = 'all', sinceIso?: string, limit = 300) =>
     many(`SELECT * FROM leads WHERE business_id = ? AND (? = 'all' OR stage = ?) AND created_at >= ? ORDER BY created_at DESC LIMIT ?`,
       toLead, businessId, stage, stage, sinceIso ?? '0000', limit),
-  update(businessId: string, id: string, patch: { stage?: LeadStage; note?: string | null; phone?: string | null; name?: string | null; nextStep?: string | null; nextAt?: string | null }): LeadRow | undefined {
+  update(businessId: string, id: string, patch: { stage?: LeadStage; note?: string | null; phone?: string | null; name?: string | null; nextStep?: string | null; nextAt?: string | null; phoneProof?: string | null }): LeadRow | undefined {
     const cur = leads.get(businessId, id);
     if (!cur) return undefined;
     const pick = <K extends keyof typeof patch>(k: K, old: LeadRow[K & keyof LeadRow]) => (patch[k] !== undefined ? patch[k] : old);
     // Yutildi yoki yo'qotildi — keyingi qadam qolmaydi (rejada «bugun qilish kerak» bo'lib chiqmasin), yangisi to'liq berilmasa
     const closed = (patch.stage === 'won' || patch.stage === 'lost') && !(patch.nextStep && patch.nextAt);
     const phone = pick('phone', cur.phone);
-    run('UPDATE leads SET stage = ?, note = ?, phone = ?, phone_key = ?, name = ?, next_step = ?, next_at = ?, updated_at = ? WHERE business_id = ? AND id = ?',
-      patch.stage ?? cur.stage, pick('note', cur.note), phone, phoneKey(phone), pick('name', cur.name),
+    // Boshqa raqam yozilsa — eski tasdiq unga tegishli emas, bemor ham (u raqam orqali topilgan) yangi raqam bilan qayta qidiriladi
+    const sameNumber = phoneKey(phone) === phoneKey(cur.phone);
+    const proof = patch.phoneProof !== undefined ? patch.phoneProof : sameNumber ? cur.phoneProof : null;
+    run('UPDATE leads SET stage = ?, note = ?, phone = ?, phone_key = ?, phone_proof = ?, patient_id = ?, name = ?, next_step = ?, next_at = ?, updated_at = ? WHERE business_id = ? AND id = ?',
+      patch.stage ?? cur.stage, pick('note', cur.note), phone, phoneKey(phone), proof, sameNumber ? cur.patientId ?? null : null, pick('name', cur.name),
       closed ? null : pick('nextStep', cur.nextStep), closed ? null : pick('nextAt', cur.nextAt),
       nowIso(), businessId, id);
     return leads.get(businessId, id);
@@ -406,7 +414,8 @@ export const leads = {
 // ─── Ulanishlar: shaxsiy Telegram, Instagram (maxfiy qismi shifrlangan) ──────
 
 /** instagram — brauzer orqali (egasining akkaunti); instagram_api — rasmiy Instagram API (Meta ilovasi, Palantir Hub orqali) */
-export type ConnectionKind = 'telegram' | 'instagram' | 'instagram_api' | 'dentacrm' | 'sip_line';
+/** tg_business — egasining Telegram Business akkaunti, bot chat-bot sifatida (inbox/telegramBusiness.ts) */
+export type ConnectionKind = 'telegram' | 'tg_business' | 'instagram' | 'instagram_api' | 'dentacrm' | 'sip_line';
 export interface ConnectionRow { businessId: string; kind: ConnectionKind; secret: string; account: Record<string, string>; meta: Record<string, string>; updatedAt: string }
 
 const toConnection = (r: Raw): ConnectionRow => ({

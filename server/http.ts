@@ -37,6 +37,8 @@ import { funnel } from './funnel';
 import { clientCard } from './clientCard';
 import { MAX_PERIOD_DAYS, daysIn, periodDays, type PeriodKey } from '../src/lib/dashboard';
 import { phoneChanged } from './people';
+import { forgetLead } from './forget';
+import { telegramBusinessStatus } from './inbox/telegramBusiness';
 import { mountOrders } from './orders/routes';
 import { mountAttention } from './attention';
 import { mountTeamDay } from './teamDay';
@@ -56,6 +58,7 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
     linkUrl: username ? `https://t.me/${username}?start=o-${biz.linkCode}` : null,
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
     telegramUser: { enabled: env.tgPersonal, available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
+    telegramBusiness: telegramBusinessStatus(biz.id),
     instagram: { enabled: env.igViaBrowser, available: instagramAvailable(), ...instagramStatus(biz.id) },
     instagramApi: instagramApiStatus(biz.id),
     crm: crmStatus(biz.id),
@@ -351,6 +354,14 @@ export function createApp(bot: BotService) {
     });
     if (!l) return res.status(404).json({ error: 'Topilmadi' });
     res.json({ lead: publicLead((p.data.phone ? phoneChanged(biz, l.id) : undefined) ?? l) });
+  }));
+
+  // Mijoz so'rasa — karta va unga bog'liq hamma narsa (forget.ts). Yordamchi suhbati ham yangidan: unda mijozning ma'lumoti qolgan bo'lishi mumkin
+  app.delete('/api/leads/:id', asBiz((req, res, biz) => {
+    if (!forgetLead(biz.id, String(req.params.id))) return res.status(404).json({ error: 'Topilmadi' });
+    resetConversation(biz.id);
+    console.log(`[mijoz] ${biz.id}: karta egasining buyrug'i bilan o'chirildi`);
+    res.json({ ok: true });
   }));
 
   // Pul yozuvi (DentaCRM): tasdiqlash, bekor qilish, shu kuni ortga qaytarish

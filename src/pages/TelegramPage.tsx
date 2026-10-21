@@ -277,6 +277,37 @@ export function OwnerBot({ status }: { status: LiveStatus }) {
   );
 }
 
+/**
+ * Telegram Business: egasi botni o'z akkauntiga chat-bot qilib qo'shadi (Telegram Premium) — shaxsiy chatlariga yozgan mijozlarga
+ * Palantir rasmiy yo'l bilan javob beradi; qaysi chatlarga kirishini egasi Telegram'ning o'zida tanlaydi
+ */
+export function TelegramBusiness({ status }: { status: LiveStatus }) {
+  if (!status.bot) return null;
+  const b = status.telegramBusiness;
+  if (b.account) {
+    return (
+      <p className="text-sm text-slate-600">
+        Ulangan: <b>{b.account}</b>. {b.canReply
+          ? 'Shaxsiy chatlaringizga yozgan mijozlarga Palantir javob beradi (siz tanlagan rejimda). Telegram bot nomidan yozishga mijozning oxirgi xabaridan 24 soatgacha ruxsat beradi.'
+          : "«Xabarlarga javob berish» ruxsati berilmagan — Palantir mijoz yozganini ko'radi va sizga javob taklif qiladi, o'zi yubormaydi."}
+        {' '}O'zgartirish yoki uzish: Telegram → Sozlamalar → Telegram Business → Chat-botlar.
+      </p>
+    );
+  }
+  if (!status.ownerLinked) return <p className="text-sm text-slate-500">Avval yuqoridagi tugma bilan botga ulaning.</p>;
+  return (
+    <div className="space-y-2 text-sm text-slate-600">
+      <p>Mijozlar shaxsiy Telegram'ingizga yozsa, Palantir ularga ham javob bersin. Kerak: Telegram Premium.</p>
+      <ol className="list-decimal space-y-1 pl-5">
+        <li>Telegram → Sozlamalar → <b>Telegram Business</b> → <b>Chat-botlar</b>.</li>
+        <li>Bot nomini yozing: <b>@{status.bot}</b> → qo'shing.</li>
+        <li>«Xabarlarga javob berish» ruxsatini yoqing; qaysi chatlar — «Kontaktlardan tashqari hammasi» (tanishlaringizga tegmaydi).</li>
+      </ol>
+      <p className="text-slate-500">Ulanganda Telegram'ga xabar keladi va shu yerda «Ulangan» ko'rinadi.</p>
+    </div>
+  );
+}
+
 /** Mijozlar uchun havola: bosgan odam botga tushadi */
 export function ClientLink({ status, notify }: { status: LiveStatus; notify: Notify }) {
   if (!status.generalLink) return null;

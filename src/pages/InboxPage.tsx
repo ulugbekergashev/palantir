@@ -149,7 +149,7 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
           ))}
         </div>
       </header>
-      {tab === 'card' ? <div className="flex-1 overflow-y-auto"><ClientCard leadId={leadId} notify={notify} /></div> : (<>
+      {tab === 'card' ? <div className="flex-1 overflow-y-auto"><ClientCard leadId={leadId} notify={notify} onForgotten={() => { onChanged(); onBack(); }} /></div> : (<>
       <div className="flex-1 space-y-2 overflow-y-auto py-4">
         {!messages.length && <p className="py-6 text-center text-sm text-slate-400">Bu mijoz bilan hali yozishma yo'q.</p>}
         {messages.map(m => (

@@ -102,6 +102,7 @@ try {
   start('hub/server.ts', {
     PORT: String(HUB_PORT), HUB_DB: path.join(work, 'hub.db'), IG_APP_ID: '9990001', IG_APP_SECRET: APP_SECRET, HUB_PUBLIC_URL: HUB, HUB_VERIFY_TOKEN: 'verify-me', HUB_ADMIN_KEY: 'hub-admin-1',
     IG_AUTH_URL: `${META}/oauth/authorize`, IG_TOKEN_URL: `${META}/oauth/access_token`, IG_GRAPH_URL: META,
+    HUB_OPERATOR: 'Palantir Test MChJ', HUB_CONTACT_EMAIL: 'privacy@palantir.test',
   });
   ok('hub ishga tushdi, Meta ilovasi sozlangan', await up(`${HUB}/health`) && (await (await fetch(`${HUB}/health`)).json()).instagram === true);
 
@@ -195,6 +196,66 @@ try {
   await webhook(dm('m9', 'Yana savol bor'));
   await sleep(2000);
   ok("uzilgach: panelda ulanmagan, hub bu akkauntning xabarini endi yubormaydi", !(await api('/api/me', { token })).json.status.instagramApi.account && !to(OWNER, mark, 'Yana savol'));
+
+  console.log('\n# Meta talablari: ochiq sahifalar');
+  const pages = await Promise.all(['/privacy', '/terms', '/data-deletion'].map(async u => { const r = await fetch(`${HUB}${u}`); return { u, status: r.status, html: await r.text() }; }));
+  ok("maxfiylik siyosati, shartlar, o'chirish yo'riqnomasi: uch tilda, operator va aloqa manzili bilan, eski nom yo'q", pages.every(x => x.status === 200 && x.html.includes('Palantir Test MChJ')
+    && x.html.includes('privacy@palantir.test') && ['id="en"', 'id="uz"', 'id="ru"'].every(l => x.html.includes(l)) && !x.html.includes('Cerebro')), pages.map(x => `${x.u} ${x.status}`).join(', '));
+  ok("/health: sahifalar tayyor (aloqa manzili bor)", (await (await fetch(`${HUB}/health`)).json()).legal === true);
+
+  // Meta signed_request: «imzo.ma'lumot», imzo — ma'lumot qismining HMAC-SHA256'i (ilova siri bilan)
+  const signed = (o: object, secret = APP_SECRET) => { const body = Buffer.from(JSON.stringify(o)).toString('base64url'); return `${createHmac('sha256', secret).update(body).digest('base64url')}.${body}`; };
+  const fromMeta = (p: string, sr: string) => fetch(`${HUB}${p}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ signed_request: sr }) });
+  const connectIg = async () => {
+    const link = (await api('/api/instagram/official', { token, body: {} })).json.url as string;
+    const back = await fetch(link, { redirect: 'manual' });
+    await fetch(String(back.headers.get('location')).replace(/#_$/, ''));
+    for (let i = 0; i < 40; i++) { if ((await api('/api/me', { token })).json.status.instagramApi?.account) return true; await sleep(250); }
+    return false;
+  };
+  const igMessages = async () => {
+    let n = 0;
+    for (const l of (await api('/api/leads', { token })).json.leads as { id: string }[]) n += ((await api(`/api/inbox/${l.id}`, { token })).json.messages as { channel: string }[]).filter(m => m.channel === 'instagram').length;
+    return n;
+  };
+
+  console.log("\n# Meta: ma'lumotni o'chirish so'rovi");
+  ok('qayta ulandi', await connectIg());
+  ai.customer = () => ({ action: 'reply', reply: 'Ha, ertaga 9:00 dan ochiqmiz.', question: '', note_for_owner: '', lead_note: '', customer_name: '', customer_phone: '', follow_up: '', follow_up_days: 0, request_kind: 'none', request_phone: '', request_when: '', request_due: '', request_summary: '' });
+  await webhook(dm('m20', 'Ertaga ochiqmisizlar?', {}, 'IGSID-2'));
+  const twoLeads = await (async () => { for (let i = 0; i < 40; i++) { const l = (await api('/api/leads', { token })).json.leads as unknown[]; if (l.length === 2) return true; await sleep(250); } return false; })();
+  ok("yangi mijoz Instagram'dan yozdi (faqat Instagram'dan tanilgan karta)", twoLeads && (await igMessages()) > 0);
+  ok("soxta imzoli so'rov — rad", (await fromMeta('/ig/data-deletion', signed({ algorithm: 'HMAC-SHA256', user_id: IG_ACCOUNT }, 'boshqa-sir'))).status === 400);
+  // Egasi birinchi mijozni o'zi ham saqlagan (qo'lda, o'sha raqam bilan) — bitta karta; u Instagram'dan tashqari ham ma'lum
+  await api('/api/leads', { token, body: { name: 'Malika Yusupova', phone: '+998 90 777 88 99' } });
+  mark = sent.length;
+  // Meta ilova doirasidagi id'ni yuborishi mumkin (/me → id) — hub uni ham taniydi
+  const del = await (await fromMeta('/ig/data-deletion', signed({ algorithm: 'HMAC-SHA256', issued_at: Math.floor(Date.now() / 1000), user_id: '111' }))).json() as { url: string; confirmation_code: string };
+  ok("javob Meta kutgan shaklda: holat havolasi va tasdiq kodi", del.url === `${HUB}/data-deletion/status?id=${del.confirmation_code}` && /^[0-9a-f]{16}$/.test(del.confirmation_code), JSON.stringify(del));
+  const completed = await (async () => { for (let i = 0; i < 60; i++) { if ((await (await fetch(del.url)).text()).includes('Completed')) return true; await sleep(250); } return false; })();
+  ok("klinika bajarib hubga aytdi — holat sahifasi «Completed»", completed);
+  const leftLeads = (await api('/api/leads', { token })).json.leads as { phone: string | null; reachable: boolean; channel: string; username: string | null }[];
+  ok("klinikada: ulanish uzildi, Instagram xabarlari o'chdi, faqat Instagram'dan tanilgan karta o'chdi, egasi saqlagan karta qoldi (Instagram'siz, Instagram nomisiz)",
+    !(await api('/api/me', { token })).json.status.instagramApi.account && (await igMessages()) === 0 && leftLeads.length === 1 && String(leftLeads[0].phone).replace(/\D/g, '').endsWith('907778899')
+    && leftLeads[0].channel !== 'instagram' && !leftLeads[0].reachable && !leftLeads[0].username,
+    JSON.stringify(leftLeads));
+  ok("qabulxona so'rovida Instagram'dagi gap iqtibosi qolmadi", ((await api('/api/requests?which=all', { token })).json.requests as { quote: string | null }[] ?? []).every(r => !r.quote));
+  ok("egasiga: nima o'chirilgani", !!(await waitFor('egasiga', () => to(OWNER, mark, "o'chirishni so'radi"))));
+  const unknown = await (await fromMeta('/ig/data-deletion', signed({ algorithm: 'HMAC-SHA256', user_id: '999' }))).json() as { url: string };
+  ok("bog'lanmagan akkaunt — hubda hech narsa yo'q, darhol «Completed»", (await (await fetch(unknown.url)).text()).includes('Completed'));
+  ok("noma'lum kod — 404", (await fetch(`${HUB}/data-deletion/status?id=yoq`)).status === 404);
+
+  console.log("\n# Meta: ilova Instagram'dan olib tashlandi");
+  ok('qayta ulandi', await connectIg());
+  await webhook(dm('m30', 'Narxlar qancha?', {}, 'IGSID-3'));
+  const kept = await (async () => { for (let i = 0; i < 40; i++) { const n = await igMessages(); if (n > 0) return n; await sleep(250); } return 0; })();
+  mark = sent.length;
+  ok('deauthorize qabul qilindi', (await fromMeta('/ig/deauthorize', signed({ algorithm: 'HMAC-SHA256', user_id: IG_ACCOUNT }))).status === 200);
+  ok("klinikada ulanish uzildi, egasiga aytildi, yozishmalar joyida", !!(await waitFor('egasiga', () => to(OWNER, mark, 'olib tashlandi'))) && !(await api('/api/me', { token })).json.status.instagramApi.account && (await igMessages()) === kept);
+  const leadsBefore = ((await api('/api/leads', { token })).json.leads as unknown[]).length;
+  await webhook(dm('m31', 'Yana savol', {}, 'IGSID-4'));
+  await sleep(1500);
+  ok('hub bu akkauntning xabarini endi yubormaydi', ((await api('/api/leads', { token })).json.leads as unknown[]).length === leadsBefore);
   ok('serverda kutilmagan xato yo\'q', !/TypeError|ReferenceError|SyntaxError/.test(log), log.match(/.*(TypeError|ReferenceError).*/)?.[0]);
 } catch (e) {
   console.error(e);

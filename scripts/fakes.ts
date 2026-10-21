@@ -151,6 +151,19 @@ export const press = (from: number, data: string, onMessage: number, text = ''):
   return id;
 };
 export const shareContact = (from: number, phone: string) => push({ from: user(from), chat: chat(from), contact: { phone_number: phone, first_name: 'Mijoz', user_id: from } });
+/** Telegram Business: egasi (yoki begona) botni o'z akkauntiga chat-bot qilib qo'shdi, ruxsatni o'zgartirdi yoki olib tashladi */
+export const businessConnection = (o: { id: string; userId: number; canReply: boolean; enabled?: boolean }) => updates.push({
+  update_id: updateId++,
+  business_connection: { id: o.id, user: user(o.userId), user_chat_id: o.userId, date: Math.floor(Date.now() / 1000), rights: { can_reply: o.canReply }, is_enabled: o.enabled ?? true },
+});
+/** Egasining shaxsiy chatidagi xabar: mijozdan, egasining o'zidan yoki (viaBot) botning o'zi egasi nomidan yozgani */
+export const businessMessage = (o: { connectionId: string; chatId: number; fromId: number; text: string; name?: string; viaBot?: boolean }) => updates.push({
+  update_id: updateId++,
+  business_message: {
+    message_id: ++messageId, date: Math.floor(Date.now() / 1000), business_connection_id: o.connectionId, chat: chat(o.chatId), text: o.text,
+    from: { ...user(o.fromId), ...(o.name ? { first_name: o.name } : {}) }, ...(o.viaBot ? { sender_business_bot: { id: 999, is_bot: true, first_name: 'Palantir' } } : {}),
+  },
+});
 export const addedToChannel = (by: number) => updates.push({
   update_id: updateId++,
   my_chat_member: {

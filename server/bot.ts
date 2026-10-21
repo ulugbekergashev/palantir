@@ -34,11 +34,13 @@ import { reviewCall } from './callreview';
 import { diagnostics, sendDiagnostics } from './diagnostics';
 import { toOgg } from './tts';
 import { phoneChanged } from './people';
+import { proofFor } from './personRules';
 import { actorOf, setTeamOutlet } from './requests/index';
 import { replyCards } from './requests/store';
 import { linkStaff, listOpen, requestButton, requestReply, staffText, teamOutlet } from './requests/telegram';
 import { MAX_LOOK_CAMERAS, lookAt, lookRequest, shotCaption } from './camera/ask';
 import { events } from './orders/store';
+import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
 import { approveReply, clearBotOutlets, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
 export interface BotService {
@@ -371,6 +373,14 @@ export function createBot(): BotService {
   // ─── Buyruqlar ─────────────────────────────────────────────────────────────
   const ownerOf = (ctx: Context) => (ctx.chat?.type === 'private' ? businesses.byOwnerChat(String(ctx.chat.id)) : undefined);
 
+  // Telegram Business (Bot API 7.2): Telegraf 4.16 bu yangilanishlarni tanimaydi — xom holda, boshqa ishlovchilardan oldin
+  bot.use(async (ctx, next) => {
+    const u = ctx.update as { business_connection?: BusinessConnection; business_message?: BusinessMessage };
+    if (u.business_connection) return onBusinessConnection(u.business_connection, tg);
+    if (u.business_message) return onBusinessMessage(u.business_message);
+    return next();
+  });
+
   bot.start(async ctx => {
     if (ctx.chat.type !== 'private') return;
     const payload = ctx.payload?.trim() ?? '';
@@ -390,6 +400,12 @@ export function createBot(): BotService {
   bot.help(async ctx => {
     const biz = ownerOf(ctx);
     await ctx.reply(biz ? helpFor(biz) : 'Bu Palantir — biznes uchun AI yordamchi. Ulanish: panel → «Telegram».');
+  });
+
+  // Mijoz: raqam tugmasi qayta (tugma bir martalik). Klinikada o'z qabulini yozishmada ko'rish uchun raqam shu tugma bilan tasdiqlanadi
+  bot.command(['raqam', 'nomer'], async ctx => {
+    if (ctx.chat.type !== 'private' || ownerOf(ctx)) return;
+    await ctx.reply("Raqamingizni pastdagi tugma bilan yuboring.\nОтправьте номер кнопкой ниже.", contactKeyboard);
   });
 
   bot.command('yangi', async ctx => {
@@ -649,10 +665,14 @@ export function createBot(): BotService {
     if (!lead || !biz) return ctx.reply("Qaysi biznes bilan bog'lanmoqchisiz? Havolani qayta bosing.", Markup.removeKeyboard());
     const phone = contact.phone_number.startsWith('+') ? contact.phone_number : `+${contact.phone_number}`;
     const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || lead.name;
-    leads.update(biz.id, lead.id, { phone, name });
+    // Tugma bilan yuborilgan o'z raqami (user_id — yuboruvchining o'zi) Telegram tasdiqlagan; kontaktlardan ulashilgan karta — tasdiq emas
+    const own = contact.user_id === ctx.from.id;
+    leads.update(biz.id, lead.id, { phone, name, phoneProof: own ? proofFor(String(ctx.from.id), phone) : null });
     // Shu raqam bilan Instagram'da yoki qo'ng'iroqda kelgan karta bo'lsa — bitta odam, bitta karta
     const updated = phoneChanged(biz, lead.id)!;
-    await ctx.reply("Rahmat! ✅ Tez orada bog'lanamiz.\nСпасибо! Скоро свяжемся.", Markup.removeKeyboard());
+    await ctx.reply(own && crmConnected(biz.id)
+      ? "Rahmat! ✅ Raqamingiz tasdiqlandi — savolingizni yozing, qabulingiz haqida ham.\nСпасибо! Номер подтверждён — напишите вопрос, в том числе о вашей записи."
+      : "Rahmat! ✅ Tez orada bog'lanamiz.\nСпасибо! Скоро свяжемся.", Markup.removeKeyboard());
     await toOwner(biz, updated, [
       '🆕 <b>Yangi mijoz</b>',
       `👤 ${esc(personName(updated))}${updated.username ? ` (@${esc(updated.username)})` : ''}`,
@@ -892,6 +912,7 @@ export function createBot(): BotService {
     await refreshFollowup(biz.id, id);
   }
 
+  startTelegramBusiness(tg);
   registerSender('bot', {
     can: (_biz, lead) => lead.botStarted && !!lead.tgUserId,
     async send(_biz, lead, text) {
@@ -935,7 +956,7 @@ export function createBot(): BotService {
                 { command: 'help', description: 'Nima qila olaman' },
               ]).catch(() => {});
               // Xabar olish to'xtamaguncha shu yerda turadi; uzilsa — pastda sababi yoziladi va qayta boshlanadi
-              await bot.launch({ dropPendingUpdates: false, allowedUpdates: ['message', 'callback_query', 'my_chat_member'] });
+              await bot.launch({ dropPendingUpdates: false, allowedUpdates: ['message', 'callback_query', 'my_chat_member', ...BUSINESS_UPDATES] });
               if (stopped) return;
               wait = RETRY_MIN_MS;
             } catch (e) {

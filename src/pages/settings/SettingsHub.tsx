@@ -11,7 +11,7 @@ import type { Notify } from '../../components/Artifacts';
 import { isMedical } from '../../lib/compliance';
 import { hrefOf } from '../../lib/nav';
 import { DentaCrm } from '../DentaCrmSection';
-import { ClientLink, Instagram, InstagramOfficial, OwnerBot, ReplyModeCard, SettingsCard, TelegramLogin } from '../TelegramPage';
+import { ClientLink, Instagram, InstagramOfficial, OwnerBot, ReplyModeCard, SettingsCard, TelegramBusiness, TelegramLogin } from '../TelegramPage';
 import { PhoneLineSettings } from './PhoneLine';
 
 type Tone = 'on' | 'off' | 'warn';
@@ -47,7 +47,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
   const igProblem = status.instagramApi.problem ?? status.instagram.problem;
   const tiles: Tile[] = [
     { id: 'asosiy', name: 'Asosiy', icon: Settings, tone: 'on', state: `${biz.name}${biz.ownerName ? ` · ${biz.ownerName}` : ''}` },
-    { id: 'telegram', name: 'Telegram', icon: Send, tone: status.ownerLinked ? 'on' : 'off', state: status.ownerLinked ? (status.telegramUser.account ? 'bot va shaxsiy akkaunt' : 'bot ulangan') : 'ulanmagan' },
+    { id: 'telegram', name: 'Telegram', icon: Send, tone: status.ownerLinked ? 'on' : 'off', state: status.ownerLinked ? (status.telegramUser.account || status.telegramBusiness.account ? 'bot va shaxsiy chatlar' : 'bot ulangan') : 'ulanmagan' },
     { id: 'instagram', name: 'Instagram', icon: MessageCircleHeart, tone: ig ? (igProblem ? 'warn' : 'on') : 'off', state: ig ? (igProblem ? 'muammo bor' : 'ulangan') : 'ulanmagan' },
     ...(clinic ? [{ id: 'dentacrm', name: 'DentaCRM', icon: Stethoscope, tone: (status.crm.account ? (status.crm.problem ? 'warn' : 'on') : 'off') as Tone, state: status.crm.account ? (status.crm.problem ? 'muammo bor' : 'ulangan') : 'ulanmagan' }] : []),
     { id: 'telefon', name: 'Telefon liniyasi', icon: Phone, tone: line?.status.trunk === 'registered' ? 'on' : line?.status.trunk === 'failed' ? 'warn' : 'off', state: line ? (line.status.trunk === 'registered' ? 'shahar raqami ulangan' : line.status.trunk === 'failed' ? 'raqam ulanmadi' : line.status.asterisk ? 'raqam kiritilmagan' : 'Asterisk ishlamayapti') : '…' },
@@ -86,6 +86,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
       {active === 'telegram' && (
         <div className="grid items-start gap-5 xl:grid-cols-2">
           <Part title="Palantir bilan Telegram'da" hint="Eslatmalar, ertalabki reja va mijozlarga javob takliflari shu yerga keladi."><OwnerBot status={status} /></Part>
+          {status.bot && <Part title="Telegram Business" hint="Shaxsiy chatlaringizga yozgan mijozlar — rasmiy yo'l, parol va seanssiz."><TelegramBusiness status={status} /></Part>}
           {status.telegramUser.enabled && <Part title="Shaxsiy Telegram" hint="Mijozlaringiz yozadigan akkaunt — ularga Palantir javob beradi (siz tanlagan rejimda)."><TelegramLogin status={status} onStatus={onStatus} notify={notify} /></Part>}
         </div>
       )}

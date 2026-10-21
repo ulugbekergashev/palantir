@@ -2,10 +2,15 @@
  * Qo'ng'iroqlar jadvali (calls) — MicroSIP qismi: yo'nalish, holat, telefon kaliti, ko'tarilgan va tugagan payti, yozuv fayli,
  * tahlil, so'rov. Ovozli agent qo'ng'iroqlari ham shu jadvalda (source = 'voice').
  */
+import path from 'node:path';
 import type { CallAnalysis } from '../../src/types';
 import { phoneKey } from '../../src/lib/phone';
 import { newId, sql, type Row } from '../db';
+import { env } from '../env';
 import type { CallDirection, CallState, OpenCall } from './journal';
+
+/** Qo'ng'iroq yozuvlari (calls.recording — shu papkadagi fayl nomi) */
+export const RECORDINGS_DIR = path.join(env.dataDir, 'recordings');
 
 sql.ensureColumns('calls', {
   lead_id: 'TEXT', source: "TEXT NOT NULL DEFAULT 'voice'", direction: 'TEXT', status: 'TEXT', phone_key: 'TEXT',

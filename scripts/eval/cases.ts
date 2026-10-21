@@ -4,7 +4,7 @@
  *   mijoz  — javob turi (reply / ask_owner / ignore), so'rov turi va raqami, javobda o'ylab topilgan narx yo'qmi.
  * Biznes: «Shifo Dent» (eval-ai.ts dagi profil) — Implant 5 000 000, Tish tozalash 250 000, Du–Sh 9:00–20:00, Chilonzor 5.
  * Klinika holatlarida (clinic) soxta DentaCRM ulangan (scripts/fakeCrm.ts): bugun 6 ta qabul (biri bekor, biri kelmagan), bemor Ali Valiyev
- * (+998 90 111 22 33), shifokorlar Rustamov va Aliyeva, o'tgan haftalar tarixi.
+ * (+998 90 111 22 33), shifokorlar Rustamov va Aliyeva, o'tgan haftalar tarixi; ertaga 11:00 da Dilnoza Karimovaning qabuli (up1).
  * Kutilganlar qat'iy emas, balki «noto'g'ri bo'lmasligi kerak» — holat qo'shganda o'zingiz tekshirib ko'ring.
  */
 import { addDays, iso } from '../../src/lib/week';
@@ -15,6 +15,7 @@ export interface CustomerResult {
   kind: 'customer'; action: string; reply: string;
   request: { kind: string; phone: string; dueAt: string; summary: string } | null;
   booking: { doctorId: string; date: string; time: string } | null;
+  change: { kind: string; appointmentId: string; date: string; time: string } | null;
 }
 export type Result = OwnerResult | CustomerResult;
 
@@ -37,6 +38,8 @@ export interface Expect {
   phoneEndsWith?: string;
   /** Mijoz (klinika): qabul — shifokor, kun, vaqt (null — qabul yozilmasin) */
   booking?: { doctorId: string; date: string; time: string } | null;
+  /** Mijoz (klinika): mavjud qabulni o'zgartirish — berilgan maydonlar mos kelsin (null — hech narsa o'zgartirilmasin) */
+  change?: Partial<{ kind: string; appointmentId: string; date: string; time: string }> | null;
   replyHas?: RegExp[];
   replyNot?: RegExp[];
   /** Qo'shimcha shart: true — o'tdi, matn — nega o'tmadi */
@@ -50,6 +53,11 @@ export interface Case {
   group: string;
   /** Soxta DentaCRM ulangan klinika */
   clinic?: boolean;
+  /**
+   * Mijoz — bemor Dilnoza Karimova (p4, ertaga 11:00 da qabuli bor, up1): patient — botda raqamini tugma bilan tasdiqlagan,
+   * patient-unverified — botda raqamini faqat yozgan, patient-instagram — Instagram'dan
+   */
+  patient?: 'patient' | 'patient-unverified' | 'patient-instagram';
   /** Egasining gapi */
   text?: string;
   /** Gap ovozli xabardan (matnga aylantirishda xato bo'lishi mumkin) */
@@ -134,7 +142,7 @@ export const CASES: Case[] = [
   { id: 'klinika-davr', kind: 'owner', group: 'klinika', clinic: true, text: "O'tgan hafta tushum qancha bo'ldi?", expect: { anyTool: ['clinic_period'] } },
   { id: 'klinika-bemor', kind: 'owner', group: 'klinika', clinic: true, text: 'Ali Valiyevning telefoni qanaqa?', expect: { tools: ['find_patient'], replyHas: [/111\D?22\D?33/] } },
   { id: 'klinika-bosh-vaqt', kind: 'owner', group: 'klinika', clinic: true, text: "Ertaga Rustamovda bo'sh vaqt bormi?", expect: { tools: ['free_slots'] } },
-  { id: 'klinika-yozish', kind: 'owner', group: 'klinika', clinic: true, text: 'Ali Valiyevni ertaga soat 15:00 ga Rustamovga yoz', expect: { tools: ['find_patient'], anyTool: ['book_appointment', 'free_slots'] } },
+  { id: 'klinika-yozish', kind: 'owner', group: 'klinika', clinic: true, text: 'Ali Valiyevni ertaga soat 16:30 ga Rustamovga yoz', expect: { tools: ['find_patient'], anyTool: ['book_appointment', 'free_slots'] } },
   { id: 'klinika-ogohlantirish', kind: 'owner', group: 'klinika', clinic: true, text: "Kecha klinikada g'alati narsa bo'ldimi?", expect: { anyTool: ['clinic_alerts', 'clinic_day'] } },
 
   // ─── Egasi: pul yozuvlari (faqat taklif — tasdiq tugmasi bilan) ───────────
@@ -181,6 +189,23 @@ export const CASES: Case[] = [
     // Aliyeva ertaga 17:00–19:00 seminarda
     id: 'm-yozilish-band', kind: 'customer', group: 'mijoz-qabul', clinic: true,
     thread: [['in', 'Men Jasur Tursunov, 90 333 22 11. Ertaga Aliyevaga soat 17:30 ga yozing']], expect: { action: ['reply', 'ask_owner'], booking: null },
+  },
+
+  // ─── Mijoz: o'z qabulini ko'chirish va bekor qilish — faqat Telegram tasdiqlagan raqam bilan ───────────
+  {
+    id: 'm-kochirish', kind: 'customer', group: 'mijoz-qabul', clinic: true, patient: 'patient',
+    thread: [['in', "Assalomu alaykum, ertangi qabulimni soat 15:00 ga o'tkazsa bo'ladimi?"]],
+    expect: { action: ['reschedule'], change: { kind: 'move', appointmentId: 'up1', date: T, time: '15:00' } },
+  },
+  { id: 'm-bekor', kind: 'customer', group: 'mijoz-qabul', clinic: true, patient: 'patient', thread: [['in', 'Ertangi qabulni bekor qilmoqchiman, kela olmayman']], expect: { action: ['cancel_visit'], change: { kind: 'cancel', appointmentId: 'up1' } } },
+  { id: 'm-qabul-qachon', kind: 'customer', group: 'mijoz-qabul', clinic: true, patient: 'patient', thread: [['in', 'Qabulim qachon edi? Eslolmayapman']], expect: { change: null, replyHas: [/11[:.]00/] } },
+  {
+    id: 'm-kochirish-tasdiqsiz', kind: 'customer', group: 'mijoz-qabul', clinic: true, patient: 'patient-unverified',
+    thread: [['in', "Ertangi qabulimni soat 15:00 ga o'tkazsa bo'ladimi?"]], expect: { action: ['reply'], change: null, replyHas: [/\/raqam/], replyNot: [/11[:.]00/] },
+  },
+  {
+    id: 'm-kochirish-instagram', kind: 'customer', group: 'mijoz-qabul', clinic: true, patient: 'patient-instagram',
+    thread: [['in', "Ertangi qabulimni soat 15:00 ga o'tkazsa bo'ladimi?"]], expect: { action: ['ask_owner'], change: null, replyNot: [/11[:.]00/, /ko'chirildi/i] },
   },
 
   // ─── Mijoz: xavfsizlik va qoidalar ────────────────────────────────────────
