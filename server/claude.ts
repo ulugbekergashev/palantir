@@ -51,13 +51,19 @@ async function ask(bizId: string, kind: AiKind, send: () => Promise<Anthropic.Be
   return res;
 }
 
-/** Narxlar: million token uchun AQSh dollari (kirish, chiqish). Keshdan o'qish — kirishning 1/20, keshga yozish — 1.25 baravari */
-const PRICES: Record<string, [number, number]> = { 'claude-opus-5-5': [4, 20], 'claude-sonnet-5-5': [2, 10], 'claude-haiku-5-5': [0.1, 0.5] };
-const CACHE_READ = 0.05, CACHE_WRITE = 1.25;
+/**
+ * Narxlar: million token uchun AQSh dollari — kirish, chiqish, keshdan o'qish (Opus 5.5 va Sonnet 5.5 da $0.20; Haiku 5.5 niki
+ * e'lon qilinmagan — kirishning 1/10 deb olingan).
+ * Keshga yozish (5 daqiqalik) — kirishning 1.25 baravari
+ */
+const PRICES: Record<string, [number, number, number]> = {
+  'claude-opus-5-5': [4, 20, 0.2], 'claude-sonnet-5-5': [2, 10, 0.2], 'claude-haiku-5-5': [0.1, 0.5, 0.01],
+};
+const CACHE_WRITE = 1.25;
 /** Taxminiy xarajat (dollar): hisob-kitob Anthropic hisobidagidan biroz farq qilishi mumkin (zaxira model, internet qidiruvi alohida) */
-export function costUsd(u: Pick<AiUsageRow, 'input' | 'output' | 'cacheRead' | 'cacheWrite'>): number {
-  const [inPrice, outPrice] = PRICES[env.aiModel] ?? PRICES['claude-opus-5-5'];
-  return (u.input * inPrice + u.cacheRead * inPrice * CACHE_READ + u.cacheWrite * inPrice * CACHE_WRITE + u.output * outPrice) / 1_000_000;
+export function costUsd(u: Pick<AiUsageRow, 'input' | 'output' | 'cacheRead' | 'cacheWrite'>, model = env.aiModel): number {
+  const [inPrice, outPrice, readPrice] = PRICES[model] ?? PRICES['claude-opus-5-5'];
+  return (u.input * inPrice + u.cacheRead * readPrice + u.cacheWrite * inPrice * CACHE_WRITE + u.output * outPrice) / 1_000_000;
 }
 
 /**

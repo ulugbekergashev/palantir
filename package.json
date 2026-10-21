@@ -31,6 +31,7 @@
     "hub": "tsx hub/server.ts",
     "test:hub": "tsx scripts/e2e-hub.ts",
     "test:update": "tsx scripts/e2e-update.ts",
+    "eval:ai": "tsx scripts/eval-ai.ts",
     "test:tgcall": "tsx scripts/e2e-tgcall.ts",
     "test:ipcam": "tsx scripts/e2e-ipcam.ts",
     "test:camwork": "tsx scripts/e2e-camwork.ts",

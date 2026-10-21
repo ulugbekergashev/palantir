@@ -24,6 +24,11 @@ function sessionSecret(): string {
   return fresh;
 }
 
+type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+const EFFORTS: Effort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
+/** Noto'g'ri yoki bo'sh qiymat — odatdagisi */
+const effort = (v: string | undefined, fallback: Effort): Effort => EFFORTS.find(e => e === v?.trim()) ?? fallback;
+
 /** «8-21» → { from: 8, to: 21 }; noto'g'ri yoki bo'sh — 8–21 */
 function dayHours(v: string | undefined): { from: number; to: number } {
   const m = /^(\d{1,2})-(\d{1,2})$/.exec(v?.trim() ?? '');
@@ -63,6 +68,9 @@ export const env = {
   /** Claude kaliti — yordamchining "miyasi" */
   aiEnabled: !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) && process.env.AI_DISABLED !== '1',
   aiModel: process.env.AI_MODEL || 'claude-opus-5-5',
+  /** Qanchalik chuqur o'ylaydi: egasining yordamchisi va mijozga javob. O'zgartirishdan oldin baholang: npm run eval:ai */
+  aiEffortOwner: effort(process.env.AI_EFFORT_OWNER, 'medium'),
+  aiEffortCustomer: effort(process.env.AI_EFFORT_CUSTOMER, 'low'),
   /** Internetdan qidirish (Claude web search). 0 — o'chiq */
   webSearch: process.env.WEB_SEARCH !== '0',
   /** Ovozli xabar → matn: Gemini (o'zbekchani yaxshi taniydi), zaxira — Groq Whisper */

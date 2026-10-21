@@ -257,7 +257,7 @@ async function run(biz: BusinessRow, session: { system: string; startedAt: strin
         messages,
         thinking: { type: 'adaptive', display: 'omitted' },
         // Telefonda suhbatdosh jim kutib turadi: chuqur o'ylashdan tez javob muhimroq
-        output_config: { effort: phone ? 'low' : 'medium' },
+        output_config: { effort: phone ? 'low' : env.aiEffortOwner },
         // Asboblar, ko'rsatma va suhbatning oldingi qismi keshdan o'qiladi: suhbat davomida kirish narxi bir necha baravar arzon
         cache_control: { type: 'ephemeral' },
       });
