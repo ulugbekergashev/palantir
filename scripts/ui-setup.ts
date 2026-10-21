@@ -63,7 +63,7 @@ process.on('exit', () => server.kill());
 let log = '';
 server.stdout.on('data', d => { log += d; });
 server.stderr.on('data', d => { log += d; });
-for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
+for (let i = 0; i < 240; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
 
 const BOT = '7412589630:AAHk3vQx9LmP2wZr8TnB4yCd6fGh1JsK0eQ', CLAUDE = 'sk-ant-api03-Xr7bN2kQp9LmW4zT8vY1cD6fH3jS0aE5gU';
 const browser = await chromium.launch({ executablePath: CHROME });

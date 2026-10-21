@@ -59,7 +59,7 @@ async function api(path: string, opts: { method?: string; token?: string; body?:
 }
 
 try {
-  for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
+  for (let i = 0; i < 240; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
   const admin = (await api('/api/admin/login', { body: { password: 'live-admin-1' } })).json.token;
   await api('/api/admin/businesses', { token: admin, body: { name: NAME, industry: 'stomatologiya klinikasi', login: 'sinov', password: 'sinov-parol-1' } });
   const token = (await api('/api/login', { body: { login: 'sinov', password: 'sinov-parol-1' } })).json.token as string;

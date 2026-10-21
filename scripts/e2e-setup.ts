@@ -145,7 +145,7 @@ async function start(): Promise<void> {
   });
   server.stdout!.on('data', d => { serverLog += d; });
   server.stderr!.on('data', d => { serverLog += d; });
-  for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) return; } catch { /* hali yo'q */ } await sleep(250); }
+  for (let i = 0; i < 240; i++) { try { if ((await fetch(`${base}/api/health`)).ok) return; } catch { /* hali yo'q */ } await sleep(250); }
 }
 async function stop(): Promise<void> {
   if (!server) return;

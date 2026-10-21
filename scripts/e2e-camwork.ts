@@ -240,7 +240,7 @@ const brightness = (jpeg: Buffer, box: { x: number; y: number; w: number; h: num
 };
 
 try {
-  for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
+  for (let i = 0; i < 240; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch { /* hali */ } await sleep(250); }
   const admin = (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token;
   await api('/api/admin/businesses', { token: admin, body: { name: 'Shifo Dent', industry: 'stomatologiya', login: 'shifo', password: 'secret12' } });
   await api('/api/admin/businesses', { token: admin, body: { name: 'Begona', industry: 'mebel', login: 'begona', password: 'secret12' } });
