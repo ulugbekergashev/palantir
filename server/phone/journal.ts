@@ -73,3 +73,29 @@ export function staleState(c: OpenCall, now: number): CallState | null {
   if (now - c.startedAt <= STALE_RINGING_MS) return null;
   return c.state === 'ringing' ? 'missed' : c.state === 'dialing' ? 'no_answer' : null;
 }
+
+// ─── Bir nechta kompyuter (stansiya) ────────────────────────────────────────────
+
+/** Server kompyuteridagi MicroSIP */
+export const LOCAL_STATION = 'local';
+
+export type StationRoute = { kind: 'pass' } | { kind: 'ignore' } | { kind: 'ringing'; ringing: string[] };
+
+/**
+ * Qabulxonada bir nechta kompyuter (har birida MicroSIP): provayder kiruvchi qo'ng'iroqni hammasida birdan jiringlatishi mumkin.
+ *   - jiringlayotgan qo'ng'iroqda «tugadi» — faqat shu kompyuterda jiringlash to'xtadi; hammasida to'xtagandagina «ko'tarilmadi»;
+ *   - ko'tarilgan yoki terilgan qo'ng'iroqni faqat o'sha kompyuter tugatadi: boshqasining «tugadi»si (jiringlash to'xtadi) — e'tiborsiz;
+ *   - qolgani — decideCall (bitta kompyuterdagidek). Bitta kompyuterda natija avvalgidek.
+ * open.ringing — hozir jiringlayotgan kompyuterlar; open.station — ko'targan yoki tergan kompyuter (null — hali hech kim)
+ */
+export function routeStation(event: CallEvent, station: string, open: (OpenCall & { station: string | null; ringing: string[] }) | null): StationRoute {
+  if (!open) return { kind: 'pass' };
+  if (open.station && open.station !== station) return event === 'outgoing' ? { kind: 'pass' } : { kind: 'ignore' };
+  if (open.state !== 'ringing') return { kind: 'pass' };
+  if (event === 'incoming') return open.ringing.includes(station) ? { kind: 'ignore' } : { kind: 'ringing', ringing: [...open.ringing, station] };
+  if (event === 'end') {
+    const rest = open.ringing.filter(s => s !== station);
+    return rest.length ? { kind: 'ringing', ringing: rest } : { kind: 'pass' };
+  }
+  return { kind: 'pass' };
+}

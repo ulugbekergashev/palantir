@@ -48,8 +48,10 @@ export async function requestButton(ctx: Context, code: string, id: string): Pro
       const r = requests.get(biz.id, id);
       const phone = r?.phone ?? (r?.leadId ? leads.get(biz.id, r.leadId)?.phone : null);
       if (!r || r.status !== 'open' || !phone) throw new RequestError(r?.status === 'open' ? "Raqam yo'q" : "Bu so'rov yopilgan");
-      const { noAccount } = await dialFor(biz, phone, r.id);
-      await toast(ctx, noAccount ? "📞 MicroSIP'ga yuborildi, lekin unda operator hisobi sozlanmagan ko'rinadi" : "📞 MicroSIP terayapti — kompyuterda gaplashing", noAccount);
+      // Bosgan xodimga biriktirilgan kompyuter bo'lsa — o'sha kompyuterdagi MicroSIP (phone/stations.ts)
+      const { noAccount, station } = await dialFor(biz, phone, r.id, { staffId: staff.byChat(String(ctx.chat!.id))?.id });
+      await toast(ctx, noAccount ? "📞 MicroSIP'ga yuborildi, lekin unda operator hisobi sozlanmagan ko'rinadi"
+        : station ? `📞 «${station}» kompyuterida MicroSIP terayapti` : "📞 MicroSIP terayapti — kompyuterda gaplashing", noAccount);
     } else if (code === 'qn') {
       const r = await noAnswer(biz, id, name);
       await toast(ctx, r.status === 'open' && r.attempts < 3 ? "📵 Yozib qo'ydim — yarim soatdan keyin yana eslataman" : "📵 Uch marta ko'tarmadi — boshqa eslatmayman. Mijozga yozib qo'yish mumkin");

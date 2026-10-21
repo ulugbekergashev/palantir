@@ -15,6 +15,8 @@ export const RECORDINGS_DIR = path.join(env.dataDir, 'recordings');
 sql.ensureColumns('calls', {
   lead_id: 'TEXT', source: "TEXT NOT NULL DEFAULT 'voice'", direction: 'TEXT', status: 'TEXT', phone_key: 'TEXT',
   answered_at: 'TEXT', ended_at: 'TEXT', recording: 'TEXT', analysis: 'TEXT', review: 'TEXT', request_id: 'TEXT',
+  // Bir nechta kompyuter (stations.ts): station — ko'targan yoki tergan kompyuter, ringing — hozir jiringlayotganlari (JSON)
+  station: 'TEXT', ringing: 'TEXT',
 });
 sql.exec('CREATE INDEX IF NOT EXISTS calls_open ON calls (business_id, phone_key, ended_at)');
 
@@ -27,6 +29,10 @@ export interface PhoneCallRow extends OpenCall {
   review: 'none' | 'pending' | 'done' | 'failed';
   analysis: CallAnalysis | null;
   requestId: string | null;
+  /** Ko'targan yoki tergan kompyuter (journal.ts: LOCAL_STATION — server kompyuteri); null — hali hech kim */
+  station: string | null;
+  /** Hozir jiringlayotgan kompyuterlar */
+  ringing: string[];
 }
 
 const ms = (v: unknown) => (v == null ? null : Date.parse(String(v)));
@@ -35,18 +41,38 @@ const toPhoneCall = (r: Row): PhoneCallRow => ({
   state: String(r.status ?? 'ended') as CallState, startedAt: Date.parse(String(r.started_at)), answeredAt: ms(r.answered_at), endedAt: ms(r.ended_at),
   recording: sql.str(r.recording), review: (sql.str(r.review) ?? 'none') as PhoneCallRow['review'], requestId: sql.str(r.request_id),
   analysis: r.analysis ? safeJson<CallAnalysis>(String(r.analysis)) : null,
+  station: sql.str(r.station), ringing: r.ringing ? safeJson<string[]>(String(r.ringing)) ?? [] : [],
 });
 const safeJson = <T,>(s: string): T | null => { try { return JSON.parse(s) as T; } catch { return null; } };
 const iso = (t: number | null) => (t == null ? null : new Date(t).toISOString());
 
 export const phoneCalls = {
-  create(businessId: string, v: { phone: string; direction: CallDirection; state: CallState; at: number; answered: boolean }): PhoneCallRow {
+  create(businessId: string, v: { phone: string; direction: CallDirection; state: CallState; at: number; answered: boolean; station: string | null; ringing: string[] }): PhoneCallRow {
     const id = newId(12);
-    sql.run(`INSERT INTO calls (id, business_id, phone, name, started_at, duration_sec, outcome, transcript, booked, created_at, source, direction, status, phone_key, answered_at)
-      VALUES (?, ?, ?, NULL, ?, 0, '', '[]', NULL, ?, 'microsip', ?, ?, ?, ?)`,
-      id, businessId, v.phone, iso(v.at), sql.nowIso(), v.direction, v.state, phoneKey(v.phone) ?? v.phone.toLowerCase(), v.answered ? iso(v.at) : null);
+    sql.run(`INSERT INTO calls (id, business_id, phone, name, started_at, duration_sec, outcome, transcript, booked, created_at, source, direction, status, phone_key, answered_at, station, ringing)
+      VALUES (?, ?, ?, NULL, ?, 0, '', '[]', NULL, ?, 'microsip', ?, ?, ?, ?, ?, ?)`,
+      id, businessId, v.phone, iso(v.at), sql.nowIso(), v.direction, v.state, phoneKey(v.phone) ?? v.phone.toLowerCase(), v.answered ? iso(v.at) : null,
+      v.station, JSON.stringify(v.ringing));
     return phoneCalls.get(businessId, id)!;
   },
+  /**
+   * Shu raqamdagi, shu kompyuterga tegishli yopilmagan yozuv: o'zi ko'targan/tergani, bo'lmasa hali hech kim ko'tarmagani (jiringlayapti),
+   * bo'lmasa shu raqamdagi oxirgisi (routeStation qaror qiladi)
+   */
+  openFor(businessId: string, key: string, station: string): PhoneCallRow | undefined {
+    const base = "SELECT * FROM calls WHERE business_id = ? AND source = 'microsip' AND phone_key = ? AND ended_at IS NULL";
+    return sql.one(`${base} AND station = ? ORDER BY started_at DESC LIMIT 1`, toPhoneCall, businessId, key, station)
+      ?? sql.one(`${base} AND station IS NULL ORDER BY started_at DESC LIMIT 1`, toPhoneCall, businessId, key)
+      ?? phoneCalls.open(businessId, key);
+  },
+  setStation: (businessId: string, id: string, station: string, ringing: string[]) =>
+    sql.run('UPDATE calls SET station = ?, ringing = ? WHERE business_id = ? AND id = ?', station, JSON.stringify(ringing), businessId, id),
+  setRinging: (businessId: string, id: string, ringing: string[]) =>
+    sql.run('UPDATE calls SET ringing = ? WHERE business_id = ? AND id = ?', JSON.stringify(ringing), businessId, id),
+  /** Kompyuter yuborgan yozuv kech kelganda: shu kompyuterda gaplashilgan, yozuvi yo'q, yaqinda tugagan qo'ng'iroqlar */
+  awaitingRecording: (businessId: string, station: string, since: number) =>
+    sql.many("SELECT * FROM calls WHERE business_id = ? AND source = 'microsip' AND station = ? AND status = 'ended' AND recording IS NULL AND ended_at >= ? ORDER BY ended_at DESC",
+      toPhoneCall, businessId, station, iso(since)),
   get: (businessId: string, id: string) => sql.one('SELECT * FROM calls WHERE business_id = ? AND id = ?', toPhoneCall, businessId, id),
   /** Shu raqamdagi yopilmagan oxirgi yozuv */
   open: (businessId: string, key: string) =>
