@@ -93,7 +93,7 @@ function ensureColumns(table: string, columns: Record<string, string>): void {
   for (const [name, type] of Object.entries(columns)) if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
 }
 ensureColumns('replies', { booking: 'TEXT', booked_at: 'TEXT', question: 'TEXT', visit_change: 'TEXT', changed_at: 'TEXT' });
-ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT' });
+ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT', token_ver: 'INTEGER NOT NULL DEFAULT 0' });
 ensureColumns('tasks', { call_to: 'TEXT', spoken: 'INTEGER NOT NULL DEFAULT 0', lead_id: 'TEXT' });
 ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT', next_step: 'TEXT', next_at: 'TEXT', phone_key: 'TEXT', patient_id: 'TEXT', phone_proof: 'TEXT' });
 db.exec(`UPDATE leads SET channel = 'bot', bot_started = 1 WHERE tg_user_id IS NOT NULL AND channel = 'manual' AND ig_user_id IS NULL AND tg_access_hash IS NULL`);
@@ -154,6 +154,8 @@ export interface BusinessRow {
   eveningDate: string | null;
   /** Ertalabki reja haqiqatan yuborilgan kun (briefDate — ko'rib chiqilgan kun, aytadigan narsa bo'lmasa ham) */
   briefSentDate: string | null;
+  /** Kirish kalitlari avlodi (auth.ts): oshirilsa — avval berilgan hamma kirishlar bekor (parol almashdi, «boshqa qurilmalardan chiqish») */
+  tokenVer: number;
   createdAt: string;
 }
 
@@ -172,6 +174,7 @@ const toBusiness = (r: Raw): BusinessRow => ({
   outcome: str(r.outcome),
   eveningDate: str(r.evening_date),
   briefSentDate: str(r.brief_sent_date),
+  tokenVer: Number(r.token_ver ?? 0),
   createdAt: String(r.created_at),
 });
 
@@ -203,6 +206,11 @@ export const businesses = {
     const sets = entries.map(([k]) => `${BIZ_COLUMNS[k]} = ?`).join(', ');
     const values = entries.map(([k, v]) => (k === 'profile' ? JSON.stringify(v) : k === 'active' ? (v ? 1 : 0) : (v as string | null)));
     run(`UPDATE businesses SET ${sets} WHERE id = ?`, ...values, id);
+  },
+  /** Avval berilgan hamma kirishlarni bekor qiladi. Qaytadi — yangi avlod (shu bilan berilgan kalit ishlaydi) */
+  revokeSessions(id: string): number {
+    run('UPDATE businesses SET token_ver = token_ver + 1 WHERE id = ?', id);
+    return businesses.byId(id)?.tokenVer ?? 0;
   },
 };
 

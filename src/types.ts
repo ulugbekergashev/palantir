@@ -323,6 +323,8 @@ export interface LiveStatus {
   telegramUser: { enabled: boolean; available: boolean; account: string | null };
   /** Telegram Business: egasi botni o'z akkauntiga chat-bot qilib qo'shgan (account), «javob berish» ruxsati bor-yo'qligi */
   telegramBusiness: { account: string | null; canReply: boolean };
+  /** Masofadan kirish (Palantir Hub orqali): url — panelning hub manzili; miniApp — botdagi «Panel» tugmasi ishlaydi (HTTPS hub va bot bor) */
+  remote: { url: string | null; miniApp: boolean };
   /**
    * Egasining Instagrami (shu kompyuterdagi brauzer orqali, zaxira yo'l): enabled — serverda yoqilgan (IG_VIA_BROWSER=1); available — Chrome/Edge topildi;
    * waiting — ochilgan oynada egasi kirishini kutyapti; problem — nega ishlamayapti; relogin — qayta kirish yordam beradi

@@ -48,7 +48,7 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
   };
   return (
     <nav aria-label="Bo'limlar" className="fixed inset-x-0 bottom-0 z-40 flex border-t border-glass/[0.06] bg-[#07080b]/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:inset-x-auto lg:inset-y-0 lg:left-0 lg:w-[92px] lg:flex-col lg:border-r lg:border-t-0 lg:px-2 lg:py-4">
-      <a href={hrefOf('ai')} className="mb-4 hidden justify-center lg:flex" aria-label="Palantir — bosh ekran"><img src="/favicon.svg" alt="" className="h-9 w-9" /></a>
+      <a href={hrefOf('ai')} className="mb-4 hidden justify-center lg:flex" aria-label="Palantir — bosh ekran"><img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-9 w-9" /></a>
       <div className="flex flex-1 gap-0.5 lg:flex-none lg:flex-col lg:gap-1">{items.map(link)}</div>
       <div className="hidden flex-1 lg:block" />
       <div className="flex w-[calc(100%/7)] gap-0.5 lg:w-auto lg:flex-col lg:gap-1">

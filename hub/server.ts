@@ -22,6 +22,10 @@
  *   6. Diagnostika: egasi botga /diagnostika yozsa (yoki admin panelidan) — klinika holati va jurnallar oxiri /api/diag ga keladi
  *      (kalitlarsiz); GET /admin/diag — ro'yxat, /admin/diag/<klinika>/<fayl> — o'qish. Har klinikaga oxirgi 10 tasi.
  *
+ *   8. Masofadan kirish: /c/<klinika>/… — egasining telefoni (Telegram Mini App yoki brauzer) panelni hub orqali ochadi. So'rov
+ *      klinikaning uzun so'roviga (/api/pull → relays) qo'shiladi, klinika uni o'zidagi panel serveriga beradi va javobni
+ *      /api/relay/<id> ga qaytaradi. So'rovlar faqat xotirada (bazaga yozilmaydi): hub qayta ishga tushsa, eski so'rov qayta
+ *      bajarilmaydi. Kirish — klinika panelining o'z paroli yoki Telegram Mini App imzosi; hub tanani saqlamaydi va yozmaydi.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -29,6 +33,7 @@
  *
  * Sozlama (muhit o'zgaruvchilari): IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL, HUB_VERIFY_TOKEN, HUB_ADMIN_KEY, PORT, HUB_DB;
  * ochiq sahifalar uchun HUB_OPERATOR (xizmatni taqdim etuvchi, yuridik nomi) va HUB_CONTACT_EMAIL;
+ * proksi ortida (Railway) — HUB_TRUST_PROXY=1 (masofadan kirishda mijoz manzili X-Forwarded-For'dan);
  * nazorat uchun HUB_BOT_TOKEN (sotuvchining boti) va HUB_ALERT_CHAT (xabar boradigan chat), HUB_OFFLINE_MS (standart 15 daqiqa).
  * Ishga tushirish: npm run hub
  */
@@ -64,6 +69,8 @@ const cfg = {
   backupKeep: Number(process.env.HUB_BACKUP_KEEP) || 7,
   backupMaxBytes: (Number(process.env.HUB_BACKUP_MAX_MB) || 512) * 1_048_576,
   diagDir: resolve(process.env.HUB_DIAG_DIR || join(dirname(resolve(process.env.HUB_DB || 'hub-data/hub.db')), 'diagnostika')),
+  // Hub xosting proksisi ortida (Railway va h.k.): mijoz manzili — X-Forwarded-For'ning oxirgisi (proksi qo'shgani)
+  trustProxy: process.env.HUB_TRUST_PROXY === '1',
   operator: process.env.HUB_OPERATOR || 'Palantir',
   contactEmail: process.env.HUB_CONTACT_EMAIL || '',
 };
@@ -125,6 +132,83 @@ const pending = (clinicId: string, after: number) =>
     .map(e => ({ seq: e.seq, kind: e.kind, payload: JSON.parse(e.payload) as unknown }));
 setInterval(() => { db.prepare('DELETE FROM events WHERE created_at < ?').run(new Date(Date.now() - KEEP_EVENTS_MS).toISOString()); }, 3_600_000).unref();
 
+// ─── Masofadan kirish (relay) ────────────────────────────────────────────────
+
+interface Relay { id: string; method: string; path: string; headers: Record<string, string>; body: string; ip: string }
+interface RelayAnswer { status: number; headers: Record<string, string>; body: string }
+/** Klinika olishi kerak bo'lgan so'rovlar va javobini kutayotganlar — faqat xotirada */
+const relayQueue = new Map<string, Relay[]>();
+const relayWaiting = new Map<string, { clinic: string; done: (a: RelayAnswer | null) => void }>();
+const RELAY_TIMEOUT_MS = 120_000;
+/** Telefondan keladigan so'rov (fayl yuklash ham) va klinikadan keladigan javob (panel fayllari, kamera modeli) */
+const RELAY_MAX_REQUEST = 15 * 1_048_576, RELAY_MAX_ANSWER = 40 * 1_048_576;
+/** Klinika aloqada: uzun so'rovi hozir kutib turibdi yoki shuncha vaqt ichida ko'ringan (javob bilan keyingi so'rov orasida — millisoniyalar) */
+const RELAY_GAP_MS = 3_000;
+/** Klinika so'rovni shuncha vaqtda olmasa — u aslida aloqada emas (o'chgan, internet uzilgan): telefon kutib qolmasin */
+const RELAY_PICKUP_MS = 15_000;
+const RELAY_REQUEST_HEADERS = ['content-type', 'authorization', 'accept', 'accept-language', 'if-none-match'];
+const RELAY_ANSWER_HEADERS = ['content-type', 'cache-control', 'etag', 'content-disposition', 'last-modified'];
+/** Bir manzildan daqiqasiga (panel ochilganda o'nlab fayl va so'rov) */
+const RELAY_PER_MINUTE = 600;
+const relayHits = new Map<string, { n: number; until: number }>();
+function relayAllowed(ip: string): boolean {
+  const now = Date.now();
+  if (relayHits.size > 5000) for (const [k, v] of relayHits) if (v.until < now) relayHits.delete(k);
+  const h = relayHits.get(ip);
+  if (!h || h.until < now) { relayHits.set(ip, { n: 1, until: now + 60_000 }); return true; }
+  return ++h.n <= RELAY_PER_MINUTE;
+}
+/**
+ * Telefonning manzili (so'rovlar soni va parol urinishlari shu bo'yicha sanaladi). Proksi ortida hamma bitta manzildan kelgandek
+ * ko'rinadi — HUB_TRUST_PROXY=1 bo'lsa X-Forwarded-For'ning oxirgisi (uni proksining o'zi qo'shadi, mijoz soxtalashtira olmaydi)
+ */
+function clientIp(req: IncomingMessage): string {
+  const forwarded = cfg.trustProxy ? String(req.headers['x-forwarded-for'] ?? '').split(',').map(x => x.trim()).filter(Boolean).at(-1) : undefined;
+  return forwarded || req.socket.remoteAddress || '';
+}
+const pick = (from: Record<string, unknown>, names: string[]) =>
+  Object.fromEntries(names.flatMap(n => (typeof from[n] === 'string' ? [[n, from[n] as string]] : [])));
+const offlinePage = (name: string) => page('Klinika kompyuteri aloqada emas', `«${esc(name)}» kompyuteri hozir internetga ulanmagan yoki o'chiq. U yoqilgach panel shu havoladan ochiladi.`);
+
+async function relay(req: IncomingMessage, res: ServerResponse, clinicId: string, path: string): Promise<void> {
+  const clinic = db.prepare('SELECT name, seen_at FROM clinics WHERE id = ?').get(clinicId) as { name: string; seen_at: string | null } | undefined;
+  if (!clinic) return send(res, 404, page('Topilmadi', "Bunday klinika yo'q."), 'text/html');
+  const ip = clientIp(req);
+  if (!relayAllowed(ip)) return send(res, 429, { error: "Ko'p so'rov — bir daqiqadan keyin" });
+  const html = String(req.headers.accept ?? '').includes('text/html');
+  const online = !!waiters.get(clinicId)?.size || (!!clinic.seen_at && Date.now() - Date.parse(clinic.seen_at) < RELAY_GAP_MS);
+  if (!online) {
+    return html ? send(res, 503, offlinePage(clinic.name), 'text/html') : send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
+  }
+  const raw = req.method === 'GET' || req.method === 'HEAD' ? Buffer.alloc(0) : await readRaw(req, RELAY_MAX_REQUEST);
+  if (!raw) return send(res, 413, { error: 'Juda katta' });
+  const id = randomBytes(9).toString('hex');
+  const r: Relay = { id, method: String(req.method), path, headers: pick(req.headers, RELAY_REQUEST_HEADERS), body: raw.toString('base64'), ip };
+  const answer = await new Promise<RelayAnswer | null>(done => {
+    const timer = setTimeout(() => { relayWaiting.delete(id); done(null); }, RELAY_TIMEOUT_MS);
+    const pickup = setTimeout(() => {
+      if (!(relayQueue.get(clinicId) ?? []).some(x => x.id === id)) return;
+      clearTimeout(timer);
+      relayWaiting.delete(id);
+      done(null);
+    }, RELAY_PICKUP_MS);
+    relayWaiting.set(id, { clinic: clinicId, done: a => { clearTimeout(timer); clearTimeout(pickup); relayWaiting.delete(id); done(a); } });
+    relayQueue.set(clinicId, [...(relayQueue.get(clinicId) ?? []), r]);
+    for (const wake of waiters.get(clinicId) ?? []) wake();
+  });
+  if (!answer) {
+    relayQueue.set(clinicId, (relayQueue.get(clinicId) ?? []).filter(x => x.id !== id));
+    return html ? send(res, 504, offlinePage(clinic.name), 'text/html') : send(res, 504, { error: 'Klinika kompyuteri javob bermadi' });
+  }
+  res.statusCode = answer.status;
+  for (const [k, v] of Object.entries(pick(answer.headers, RELAY_ANSWER_HEADERS))) res.setHeader(k, v);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  // Telegram Mini App veb-versiyada iframe ichida ochiladi; boshqa saytlar panelni o'z sahifasiga joylay olmaydi
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https://web.telegram.org");
+  res.end(Buffer.from(answer.body, 'base64'));
+}
+
 // ─── Yordamchilar ────────────────────────────────────────────────────────────
 
 const send = (res: ServerResponse, code: number, body: unknown, type = 'application/json') => {
@@ -132,12 +216,12 @@ const send = (res: ServerResponse, code: number, body: unknown, type = 'applicat
   res.setHeader('content-type', type === 'application/json' ? 'application/json; charset=utf-8' : `${type}; charset=utf-8`);
   res.end(type === 'application/json' ? JSON.stringify(body) : String(body));
 };
-function readRaw(req: IncomingMessage): Promise<Buffer | null> {
+function readRaw(req: IncomingMessage, max = MAX_BODY): Promise<Buffer | null> {
   return new Promise(ok => {
     const chunks: Buffer[] = [];
     let size = 0;
-    req.on('data', (c: Buffer) => { size += c.length; if (size <= MAX_BODY) chunks.push(c); });
-    req.on('end', () => ok(size > MAX_BODY ? null : Buffer.concat(chunks)));
+    req.on('data', (c: Buffer) => { size += c.length; if (size <= max) chunks.push(c); });
+    req.on('end', () => ok(size > max ? null : Buffer.concat(chunks)));
     req.on('error', () => ok(null));
   });
 }
@@ -218,6 +302,29 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const row = db.prepare('SELECT code, status, created_at, done_at FROM deletions WHERE code = ?').get(url.searchParams.get('id') ?? '') as { code: string; status: string; created_at: string; done_at: string | null } | undefined;
     const view: DeletionView | null = row ? { code: row.code, status: row.status === 'done' ? 'done' : 'pending', createdAt: row.created_at, doneAt: row.done_at } : null;
     return send(res, row ? 200 : 404, deletionStatusPage(legal(), view), 'text/html');
+  }
+
+  // Masofadan kirish: panel hub orqali (havola oxirida «/» bo'lsin — panel fayllari nisbiy yo'l bilan)
+  const remote = /^\/c\/([0-9a-f]{10})(\/.*)?$/.exec(p);
+  if (remote) {
+    if (!remote[2]) { res.statusCode = 301; res.setHeader('location', `/c/${remote[1]}/${url.search}`); return void res.end(); }
+    return relay(req, res, remote[1], `${remote[2]}${url.search}`);
+  }
+
+  // Klinika: masofadan kelgan so'rovga javob
+  const answered = /^\/api\/relay\/([0-9a-f]{18})$/.exec(p);
+  if (answered && req.method === 'POST') {
+    const clinic = clinicOf(req);
+    if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    const w = relayWaiting.get(answered[1]);
+    const raw = await readRaw(req, RELAY_MAX_ANSWER);
+    if (!w || w.clinic !== clinic) return send(res, 404, { error: "So'rov topilmadi (vaqti o'tgan)" });
+    if (!raw) { w.done({ status: 502, headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ error: 'Javob juda katta' })).toString('base64') }); return send(res, 413, { error: 'Juda katta' }); }
+    try {
+      const a = JSON.parse(raw.toString()) as RelayAnswer;
+      w.done({ status: Number(a.status) || 502, headers: a.headers && typeof a.headers === 'object' ? a.headers : {}, body: typeof a.body === 'string' ? a.body : '' });
+    } catch { return send(res, 400, { error: 'json' }); }
+    return send(res, 200, { ok: true });
   }
 
   // Meta: egasi ilovani Instagram'dan olib tashladi (deauthorize) yoki ma'lumotni o'chirishni so'radi (data deletion)
@@ -433,7 +540,10 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const after = Math.max(0, Number(url.searchParams.get('after')) || 0);
     db.prepare('DELETE FROM events WHERE clinic_id = ? AND seq <= ?').run(clinic, after);
     let events = pending(clinic, after);
-    if (!events.length) {
+    // Masofadan kelgan so'rovlar navbatdan olinadi (bir marta beriladi: ikki marta bajarilmasin)
+    const take = () => { const list = relayQueue.get(clinic) ?? []; relayQueue.delete(clinic); return list; };
+    let relays = take();
+    if (!events.length && !relays.length) {
       const wait = Math.min(PULL_WAIT_MS, Math.max(0, Number(url.searchParams.get('wait')) || PULL_WAIT_MS));
       await new Promise<void>(done => {
         const set = waiters.get(clinic) ?? new Set();
@@ -444,8 +554,11 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
         req.on('close', wake);
       });
       events = pending(clinic, after);
+      relays = take();
     }
-    return send(res, 200, { events });
+    // Ulanish shu orada uzilgan bo'lsa — so'rovlar navbatga qaytadi (keyingi so'rovda olinadi)
+    if (req.socket.destroyed && relays.length) { relayQueue.set(clinic, [...relays, ...(relayQueue.get(clinic) ?? [])]); return; }
+    return send(res, 200, { events, relays });
   }
 
   send(res, 404, { error: 'topilmadi' });

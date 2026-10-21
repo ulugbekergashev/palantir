@@ -352,13 +352,15 @@ try {
   await nav('Palantir');
   ok('telefon: pastki paneldan bosh ekranga', await visible(page.getByLabel("Palantir'ga yozing")) && page.url().endsWith('#/ai'));
   await shot('09b-mobile-home', true);
-  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'sozlamalar/telefon', 'miya']) {
+  // Panel Telegram ichida (Mini App) ham ochiladi — sozlamalarning asosiy va Telegram bo'limlari ham telefon enida sig'sin
+  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
     await go(p);
     await sleep(300);
     const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     ok(`telefon: ${p} — sig'adi`, o <= 0, `${o}px`);
     if (p === 'yordamchi/jurnal') await shot('10-mobile-ishlar');
     if (p === 'qabulxona') await shot('13-mobile-qabulxona');
+    if (p === 'sozlamalar/asosiy') await shot('14-mobile-sozlamalar');
   }
 
   ok("brauzerda xato yo'q", errors.length === 0, errors.slice(0, 3).join(' | '));

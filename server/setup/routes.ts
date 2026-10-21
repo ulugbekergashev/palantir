@@ -76,7 +76,7 @@ export function mountSetup(app: Express, { asBiz, asAdmin, bad, fail, bot, statu
   app.post('/api/admin/businesses/:id/session', asAdmin((req, res) => {
     const biz = businesses.byId(String(req.params.id));
     if (!biz || !biz.active) return res.status(404).json({ error: 'Topilmadi' });
-    res.json({ token: issueToken(biz.id, 'business', SESSION_DAYS) });
+    res.json({ token: issueToken(biz.id, 'business', SESSION_DAYS, biz.tokenVer) });
   }));
 
   /**

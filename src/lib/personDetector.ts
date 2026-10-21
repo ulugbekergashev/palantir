@@ -10,7 +10,7 @@ export interface PersonDetector { detect(video: HTMLVideoElement): Promise<Perso
 /** Bundan past ishonch bilan topilgan "odam" hisobga olinmaydi */
 const MIN_SCORE = 0.5;
 const MAX_PEOPLE = 20;
-const MODEL_URL = '/models/ssdlite_mobilenet_v2/model.json';
+const MODEL_URL = `${import.meta.env.BASE_URL}models/ssdlite_mobilenet_v2/model.json`;
 const unit = (n: number) => Math.min(1, Math.max(0, n));
 
 let cached: Promise<PersonDetector> | null = null;

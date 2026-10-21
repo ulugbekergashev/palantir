@@ -107,6 +107,8 @@ export const env = {
   /** So'rov eslatmalari shu soatlarda («8-21»): tungi so'rov ertalab eslatiladi, tunda karta ovozsiz keladi */
   requestHours: dayHours(process.env.REQUEST_HOURS),
 
+  /** Masofadan kirish: panel Palantir Hub orqali (telefondan, Telegram Mini App). Hub kodi bo'lsa yoqiq; 0 — o'chiq (remote.ts) */
+  remotePanel: process.env.REMOTE_PANEL !== '0',
   /** Palantir Hub (rasmiy Instagram uchun): manzili va klinika kaliti — PALANTIR_HUB kodidan (keys.ts o'rnatadi) */
   hub: null as { url: string; clinicId: string; key: string } | null,
   /** Faqat sinov uchun: soxta Instagram Graph API */

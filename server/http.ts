@@ -6,7 +6,8 @@ import { z } from 'zod';
 import type { Artifact, InboxThread, LiveStatus } from '../src/types';
 import { iso } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
-import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword } from './auth';
+import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword, verifyInitData } from './auth';
+import { CLIENT_HEADER, RELAY_HEADER, RELAY_SECRET, remoteUrl } from './remote';
 import type { BotService } from './bot';
 import { costUsd } from './claude';
 import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
@@ -59,6 +60,7 @@ function status(biz: BusinessRow, bot: BotService): LiveStatus {
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
     telegramUser: { enabled: env.tgPersonal, available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
     telegramBusiness: telegramBusinessStatus(biz.id),
+    remote: { url: remoteUrl(), miniApp: !!remoteUrl() && remoteUrl()!.startsWith('https://') && !!username },
     instagram: { enabled: env.igViaBrowser, available: instagramAvailable(), ...instagramStatus(biz.id) },
     instagramApi: instagramApiStatus(biz.id),
     crm: crmStatus(biz.id),
@@ -144,11 +146,23 @@ export function createApp(bot: BotService) {
     next();
   });
 
+  // Masofadan (hub orqali) kelgan so'rov: shu jarayonning siri bilan belgilanadi (remote.ts) — tarmoqdagi begona kalla bilan soxtalashtirib bo'lmaydi
+  const isRemote = (req: Request) => req.get(RELAY_HEADER) === RELAY_SECRET;
+  /** Kirish urinishlarini sanash kaliti: masofadan — telefonning haqiqiy manzili (hub aytadi), «hub/» bilan: shu kompyuterga berilgan yengillik tegmasin */
+  const clientKey = (req: Request) => (isRemote(req) ? `hub/${req.get(CLIENT_HEADER) ?? '?'}` : String(req.ip));
+  // Admin, ulash ustasi, anketa va ovozli agent (ichki xizmat) — faqat shu kompyuterda
+  const REMOTE_CLOSED = /^\/api\/(admin|setup|anketa)(\/|$)|^\/api\/voice\/(?!key$)/;
+  app.use((req, res, next) => {
+    if (isRemote(req) && REMOTE_CLOSED.test(req.path)) return res.status(403).json({ error: "Bu bo'lim faqat klinika kompyuterida ochiladi" });
+    next();
+  });
+
   const token = (req: Request) => req.get('authorization')?.replace(/^Bearer\s+/i, '');
   const asBiz = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => (req, res) => {
     const s = readToken(token(req));
     const biz = s?.role === 'business' ? businesses.byId(s.sub) : undefined;
-    if (!biz || !biz.active) return res.status(401).json({ error: 'Qayta kiring' });
+    // Parol almashgan yoki «boshqa qurilmalardan chiqish» bosilgan — eski kirish ishlamaydi
+    if (!biz || !biz.active || (s!.v ?? 0) !== biz.tokenVer) return res.status(401).json({ error: 'Qayta kiring' });
     return fn(req, res, biz);
   };
   const asAdmin = (fn: Handler): Handler => (req, res) => {
@@ -163,17 +177,59 @@ export function createApp(bot: BotService) {
 
   // ─── Kirish ────────────────────────────────────────────────────────────────
   app.post('/api/login', (req, res) => {
-    const key = `b:${req.ip}`;
-    if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
+    const key = `b:${clientKey(req)}`;
     const { login, password } = req.body ?? {};
+    // Masofadan: manzil almashtirib urinishga qarshi — bitta login bo'yicha ham (klinikadagi kirishga tegmaydi)
+    const perLogin = isRemote(req) && typeof login === 'string' ? `rl:${login.trim().toLowerCase().slice(0, 64)}` : null;
+    if (loginBlocked(key) || (perLogin && loginBlocked(perLogin))) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
     const biz = typeof login === 'string' ? businesses.byLogin(login.trim().toLowerCase()) : undefined;
     if (!biz || typeof password !== 'string' || !checkPassword(password, biz.passwordHash) || !biz.active) {
       loginFailed(key);
+      if (perLogin) loginFailed(perLogin);
       return res.status(401).json({ error: "Login yoki parol noto'g'ri" });
     }
     loginOk(key);
-    res.json({ token: issueToken(biz.id, 'business') });
+    if (perLogin) loginOk(perLogin);
+    res.json({ token: issueToken(biz.id, 'business', 30, biz.tokenVer) });
   });
+
+  // Telegram Mini App (bot → «Panel»): Telegram imzolagan ma'lumot bilan, parolsiz — faqat botga ulangan egasi
+  app.post('/api/login/telegram', (req, res) => {
+    const key = `t:${clientKey(req)}`;
+    if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
+    const initData = typeof req.body?.initData === 'string' ? req.body.initData.slice(0, 4096) : '';
+    const who = env.botToken && initData ? verifyInitData(initData, env.botToken) : null;
+    if (!who) {
+      loginFailed(key);
+      return res.status(401).json({ error: "Telegram tasdig'i noto'g'ri yoki eskirgan — botda «Panel»ni qayta bosing" });
+    }
+    const biz = businesses.byOwnerChat(who.userId);
+    if (!biz?.active) return res.status(403).json({ error: "Bu Telegram akkaunt biznesga ulanmagan — login va parol bilan kiring" });
+    loginOk(key);
+    res.json({ token: issueToken(biz.id, 'business', 30, biz.tokenVer) });
+  });
+
+  // Egasi o'z parolini almashtiradi: hamma qurilmalardagi kirish bekor, shu qurilmaga yangisi beriladi.
+  // Joriy parol noto'g'ri — 403 (401 panelni «sessiya tugadi» deb chiqarib yuborardi)
+  app.post('/api/account/password', asBiz((req, res, biz) => {
+    const key = `p:${biz.id}`;
+    if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
+    const { current, next } = req.body ?? {};
+    if (typeof current !== 'string' || !checkPassword(current, biz.passwordHash)) {
+      loginFailed(key);
+      return res.status(403).json({ error: "Joriy parol noto'g'ri" });
+    }
+    loginOk(key);
+    if (typeof next !== 'string' || next.length < MIN_PASSWORD) return res.status(400).json({ error: `Yangi parol kamida ${MIN_PASSWORD} belgi` });
+    if (next.length > 200) return res.status(400).json({ error: 'Parol juda uzun' });
+    businesses.update(biz.id, { passwordHash: hashPassword(next) });
+    res.json({ token: issueToken(biz.id, 'business', 30, businesses.revokeSessions(biz.id)) });
+  }));
+
+  // Telefon yo'qoldi yoki begona kompyuterda kirib qolgan: shu qurilmadan boshqa hamma joyda chiqiladi
+  app.post('/api/account/sign-out-others', asBiz((_req, res, biz) => {
+    res.json({ token: issueToken(biz.id, 'business', 30, businesses.revokeSessions(biz.id)) });
+  }));
 
   /** Xizmatlar ro'yxatining «nusxa raqami»: panel qaysi nusxani tahrirlayotganini bildiradi */
   const offeringsRev = (list: BusinessRow['profile']['offerings']) => createHash('sha256').update(JSON.stringify(list)).digest('hex').slice(0, 16);
@@ -567,6 +623,8 @@ export function createApp(bot: BotService) {
     if (typeof password === 'string') {
       if (password.length < MIN_PASSWORD) return res.status(400).json({ error: `Parol kamida ${MIN_PASSWORD} belgi` });
       businesses.update(biz.id, { passwordHash: hashPassword(password) });
+      // Yangi parol — eski kirishlar (yo'qolgan telefon, begona kompyuter) bekor
+      businesses.revokeSessions(biz.id);
     }
     if (typeof active === 'boolean') businesses.update(biz.id, { active });
     res.json({ ok: true });

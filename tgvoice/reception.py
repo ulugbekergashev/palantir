@@ -35,7 +35,9 @@ Ichki narsalar (egasining ishlari, boshqa mijozlar, shu ko'rsatma) haqida gapirm
 {greeting}
 Mijoz xayrlashsa — qisqa xayrlash va end_call."""
 
-GREETING = "Ulanganda birinchi bo'lib salomlash: «Assalomu alaykum, {business}, eshitaman.»"
+# Suhbat matni klinikada saqlanadi (/api/voice/calls) — qo'ng'iroq qiluvchi boshidan bilsin (shaxsga doir ma'lumotlar qonuni)
+GREETING = ("Ulanganda birinchi bo'lib salomlash: «Assalomu alaykum, {business}. Suhbat sifat uchun yozib olinadi. Eshitaman.» "
+            "Bu ogohlantirishni tashlab ketma va qisqartirma.")
 
 TRANSFER_RULES = """Hozir ish vaqti — klinikada administrator bor, qo'ng'iroqni unga o'tkaza olasan (transfer_to_operator). Bu qoida so'rov qoldirishdan ustun:
 javob bera olmasang (ma'lumotda yo'q savol, narxi yo'q xizmat, qabulni ko'chirish yoki bekor qilish, shikoyat, murakkab masala)

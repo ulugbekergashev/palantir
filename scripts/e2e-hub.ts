@@ -107,6 +107,34 @@ try {
     && !diagText.includes('admin-pass-1') && !diagText.includes(parseHubCode(clinic.code)!.key.split('.')[1]), diagText.slice(0, 80));
   ok("diagnostikani admin kalitsiz o'qib bo'lmaydi", (await fetch(`${HUB}/admin/diag/${clinic.clinicId}/${diag.file}`)).status === 401);
 
+  console.log('\n# Masofadan kirish: panel hub orqali (port ochilmaydi)');
+  const R = `${HUB}/c/${clinic.clinicId}`;
+  const viaHub = (p: string, init: RequestInit = {}) => fetch(`${R}${p}`, init);
+  const json = (body: unknown) => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const moved = await fetch(R, { redirect: 'manual' });
+  ok("/c/<klinika> → «/» bilan (panel fayllari nisbiy yo'l bilan)", moved.status === 301 && moved.headers.get('location') === `/c/${clinic.clinicId}/`);
+  const health = await viaHub('/api/health');
+  ok("hub orqali panel serveri javob berdi; Telegram ichida ochilishi mumkin, boshqa saytga joylab bo'lmaydi", health.status === 200 && (await health.json() as { ok: boolean }).ok
+    && String(health.headers.get('content-security-policy')).includes('frame-ancestors') && !health.headers.get('x-frame-options'));
+  if (fs.existsSync('dist/index.html')) {
+    const index = await viaHub('/', { headers: { accept: 'text/html' } });
+    ok('panelning o\'zi ham hub orqali ochiladi (nisbiy fayl yo\'llari)', index.status === 200 && (await index.text()).includes('./assets/'));
+  }
+  await fetch(`${base}/api/admin/businesses`, { ...json({ name: 'Shifo Dent', login: 'shifo', password: 'secret12' }), headers: { 'content-type': 'application/json', authorization: `Bearer ${palantirAdmin}` } });
+  const remoteLogin = await (await viaHub('/api/login', json({ login: 'shifo', password: 'secret12' }))).json() as { token?: string };
+  ok('egasi hub orqali login va parol bilan kirdi', !!remoteLogin.token && (await viaHub('/api/me', { headers: { authorization: `Bearer ${remoteLogin.token}` } })).status === 200);
+  const closed = await Promise.all(['/api/admin/login', '/api/setup', '/api/voice/knowledge'].map(async p => (await viaHub(p, p === '/api/admin/login' ? json({ password: 'admin-pass-1' }) : {})).status));
+  ok("masofadan yopiq: admin, ulash ustasi, ovozli agent yo'llari — 403", closed.every(c => c === 403), closed.join(','));
+  const tries: number[] = [];
+  // Har urinishda boshqa soxta X-Forwarded-For: HUB_TRUST_PROXY yoqilmagan — e'tiborga olinmaydi
+  for (let i = 0; i < 9; i++) {
+    const attempt = json({ login: 'shifo', password: `xato-${i}` });
+    tries.push((await viaHub('/api/login', { ...attempt, headers: { ...attempt.headers, 'x-forwarded-for': `10.0.0.${i}` } })).status);
+  }
+  const localOk = (await fetch(`${base}/api/login`, json({ login: 'shifo', password: 'secret12' }))).status;
+  ok("masofadan parol taxmin qilish — 8 tadan keyin 429, soxta X-Forwarded-For yordam bermaydi (klinikadagi kirishga tegmaydi)", tries.slice(0, 8).every(c => c === 401) && tries[8] === 429 && localOk === 200, tries.join(','));
+  ok("noma'lum klinika — 404", (await fetch(`${HUB}/c/0000000000/api/health`)).status === 404);
+
   console.log("\n# Kompyuter o'chdi");
   let mark = sent.length;
   await stopProcess(palantir);
@@ -115,6 +143,11 @@ try {
   ok("admin ro'yxatida — aloqada emas", !(await adminList()).find(c => c.id === clinic.clinicId)!.online);
   await sleep(1500);
   ok('takrorlanmaydi (bir marta)', toVendor(mark, "aloqa yo'q").length === 1);
+  const offline = await until('aloqada emas sahifasi', async () => {
+    const r = await fetch(`${HUB}/c/${clinic.clinicId}/`, { headers: { accept: 'text/html' }, signal: AbortSignal.timeout(20_000) });
+    return r.status === 503 || r.status === 504 ? await r.text() : undefined;
+  }, 30_000);
+  ok("panel havolasi: kompyuter o'chiq — «aloqada emas» sahifasi (ko'pi bilan 15 soniya, 2 daqiqa kutib qolmaydi)", !!offline?.includes('aloqada emas'));
 
   console.log('\n# Kompyuter qayta yondi');
   mark = sent.length;
