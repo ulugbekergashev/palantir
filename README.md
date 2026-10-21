@@ -93,6 +93,9 @@ Qarovsiz ishlash uchun nima bor:
 
 ## Sinovlar
 
+Qo'lda, haqiqiy hisoblar va uskunalar bilan tekshirish tartibi — [docs/SINOV.md](docs/SINOV.md).
+
+
 ```bash
 npm run typecheck
 npm test                           # to'liq oqim: soxta Telegram, Claude va ovoz xizmati bilan
