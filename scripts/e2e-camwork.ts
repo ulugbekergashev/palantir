@@ -24,6 +24,7 @@ import type { Appointment } from '../server/crm/logic';
 import { MAX_JUMP, attendance, chairUse, trackStep, waitStats, workHours, type Track } from '../server/camera/occupancy';
 import type { Camera, CameraSession } from '../src/types';
 import { judgeLook, type TamperState } from '../server/camera/tamper';
+import type { Box } from '../server/camera/sessions';
 import { cameraPresets } from '../src/lib/presets';
 import { reportHtml } from '../server/camera/reportText';
 import { cleanSuggestions } from '../server/camera/zoneSuggest';
@@ -212,6 +213,24 @@ const caption = (s: Sent) => String(s.params.caption ?? s.params.text ?? '');
 const photos = (mark: number) => sent.slice(mark).filter(s => s.method === 'sendPhoto' && Number(s.params.chat_id) === OWNER);
 const texts = (mark: number) => sent.slice(mark).filter(s => s.method === 'sendMessage' && Number(s.params.chat_id) === OWNER).map(caption);
 const isJpeg = (b: Buffer | undefined) => !!b && b.length > 100 && b[0] === 0xff && b[1] === 0xd8;
+/**
+ * Zonada odam turibdi: kamera zonani «band» degunicha va yana holdMs davomida kadr yuboriladi. Band bo'lgunicha kadrlar orasidagi
+ * tanaffus kirish chegarasining yarmidan (sinovda 0,5 s) oshsa sanoq yangidan boshlanadi — sekin mashinada sanoqli kadr yetmay qolardi
+ */
+async function hold(token: string, cameraId: string, zoneId: string, people: Box[], holdMs: number) {
+  let openAt = 0;
+  for (const until = Date.now() + 20_000; Date.now() < until && !(openAt && Date.now() - openAt >= holdMs);) {
+    if ((await api(`/api/cameras/${cameraId}/observe`, { token, body: { people } })).json.zones?.[zoneId] === 'open') openAt ||= Date.now();
+    await sleep(100);
+  }
+}
+/** Zona bo'shadi: kamera seansni yopguncha bo'sh kadrlar */
+async function vacate(token: string, cameraId: string, zoneId: string) {
+  for (const until = Date.now() + 20_000; Date.now() < until;) {
+    if ((await api(`/api/cameras/${cameraId}/observe`, { token, body: { people: [] } })).json.zones?.[zoneId] === 'empty') return;
+    await sleep(100);
+  }
+}
 /** JPEG → 32×18 kulrang; to'rtburchakning o'rtacha yorug'ligi (kadr ulushida) */
 const brightness = (jpeg: Buffer, box: { x: number; y: number; w: number; h: number }) => {
   const g = spawnSync('ffmpeg', ['-loglevel', 'error', '-i', 'pipe:0', '-vf', 'scale=32:18', '-f', 'rawvideo', '-pix_fmt', 'gray', 'pipe:1'], { input: jpeg }).stdout;
@@ -330,8 +349,10 @@ try {
   const zoned = await api(`/api/cameras/${kabinet.id}/zones`, { method: 'PUT', token, body: { zones: [{ kind: 'chair', name: 'Kreslo 1', x: 0.3, y: 0.3, w: 0.4, h: 0.4, doctorId: 'd1' }] } });
   ok("kabinet kreslosi Rustamovga bog'landi", zoned.status === 200 && zoned.json.camera?.zones?.length === 1);
   const seated = { people: [{ x: 0.42, y: 0.4, w: 0.16, h: 0.2 }] };
-  for (let i = 0; i < 12; i++) { await api(`/api/cameras/${kabinet.id}/observe`, { token, body: seated }); await sleep(300); }
-  for (let i = 0; i < 12; i++) { await api(`/api/cameras/${kabinet.id}/observe`, { token, body: { people: [] } }); await sleep(300); }
+  // O'tirish eng qisqa seansdan (2 s) uzun bo'lsin
+  const chairId = zoned.json.camera.zones[0].id as string;
+  await hold(token, kabinet.id, chairId, seated.people, 2_000);
+  await vacate(token, kabinet.id, chairId);
   const sum = (await api(`/api/cameras/summary?date=${today}`, { token })).json.summary as { seated: number; findings: { level: string; text: string }[] };
   const flagged = sum?.findings?.find(f => f.text.includes("to'lov yozilmagan"));
   ok("bemor kresloda o'tirdi, CRM'da to'lov yo'q — kamera hisobida ogohlantirish", sum?.seated === 1 && flagged?.level === 'warn' && flagged.text.startsWith(`${hhmm} · Dilnoza Karimova (Rustam Rustamov)`), JSON.stringify(sum?.findings));
@@ -420,10 +441,11 @@ try {
   const withStaff = await api(`/api/cameras/${kabinet.id}/zones`, { method: 'PUT', token, body: { zones: [...current, { kind: 'staff', name: 'Administrator', x: 0.3, y: 0, w: 0.2, h: 0.3, doctorId: null }] } });
   ok('xodim joyi saqlandi', withStaff.status === 200 && withStaff.json.camera.zones.some((z: { kind: string }) => z.kind === 'staff'));
   const atSeat = { people: [{ x: 0.35, y: 0.05, w: 0.1, h: 0.15 }] };
-  for (let i = 0; i < 10; i++) { await api(`/api/cameras/${kabinet.id}/observe`, { token, body: atSeat }); await sleep(300); }
+  const staffZone = withStaff.json.camera.zones.find((z: { kind: string }) => z.kind === 'staff')?.id as string;
+  await hold(token, kabinet.id, staffZone, atSeat.people, 500);
   const sat = (await api(`/api/cameras/summary?date=${today}`, { token })).json.summary.attendance as { name: string; here: boolean; firstAt: string | null }[];
   ok('administrator keldi — «joyida»', sat?.length === 1 && sat[0].name === 'Administrator' && sat[0].here && !!sat[0].firstAt, JSON.stringify(sat));
-  for (let i = 0; i < 12; i++) { await api(`/api/cameras/${kabinet.id}/observe`, { token, body: { people: [] } }); await sleep(300); }
+  await vacate(token, kabinet.id, staffZone);
   const left = (await api(`/api/cameras/summary?date=${today}`, { token })).json.summary.attendance as { here: boolean; lastAt: string | null }[];
   ok('administrator ketdi — oxirgi ketgan payt bor', left?.[0] && !left[0].here && !!left[0].lastAt, JSON.stringify(left));
   await api('/api/chat', { token, body: { text: 'kamera hisobi {}' } });
