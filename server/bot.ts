@@ -9,6 +9,7 @@
  *          egasiga boradi. Egasi shu xabarga «Reply» qilsa — javob mijozga ketadi.
  * Kanal:   bot kanalga admin qilib qo'shilsa, egasining kanaliga ulanadi.
  */
+import { basename } from 'node:path';
 import { Markup, Telegraf, type Context } from 'telegraf';
 import { message } from 'telegraf/filters';
 import type { InlineKeyboardMarkup } from 'telegraf/types';
@@ -41,6 +42,7 @@ import { linkStaff, listOpen, requestButton, requestReply, staffText, teamOutlet
 import { MAX_LOOK_CAMERAS, lookAt, lookRequest, shotCaption } from './camera/ask';
 import { events } from './orders/store';
 import { remoteUrl } from './remote';
+import { ComputerError, answerApproval, closeLoginWindow, openLoginWindow, runningJob, stopJob } from './computer/jobs';
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
 import { approveReply, clearBotOutlets, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
@@ -426,6 +428,28 @@ export function createBot(): BotService {
     return ctx.reply("Panel — shu yerda, telefoningizda:", Markup.inlineKeyboard([Markup.button.webApp('📊 Panelni ochish', url)]));
   });
 
+  // Kompyuterdagi ishni to'xtatish (yordamchi brauzerda yoki ekranda ishlayotgan bo'lsa)
+  bot.command('toxta', async ctx => {
+    const biz = ownerOf(ctx);
+    if (!biz) return;
+    const job = runningJob(biz.id);
+    if (!job || !stopJob(biz.id)) return ctx.reply("Hozir kompyuterda ish bajarilmayapti.");
+    await ctx.reply("⏹ To'xtatyapman…");
+  });
+
+  // Brauzer oynasi: egasi saytlarga o'zi kirib oladi (parolni AI ko'rmaydi), keyin yordamchi o'sha saytlarda ishlay oladi
+  bot.command('brauzer', async ctx => {
+    const biz = ownerOf(ctx);
+    if (!biz) return;
+    const arg = ctx.message.text.split(/\s+/).slice(1).join(' ').trim();
+    try {
+      const text = await openLoginWindow(biz, arg || null);
+      await ctx.reply(text, Markup.inlineKeyboard([Markup.button.callback('✅ Kirdim, yopish', `cl|${biz.id}`)]));
+    } catch (e) {
+      await ctx.reply(e instanceof ComputerError ? e.message : `⚠️ Brauzer ochilmadi: ${(e as Error).message}`);
+    }
+  });
+
   bot.command('yangi', async ctx => {
     const biz = ownerOf(ctx);
     if (!biz) return;
@@ -505,6 +529,15 @@ export function createBot(): BotService {
     const biz = ownerBiz ?? ((code === 'ra' || code === 'rx') && ctx.chat?.type === 'private' ? actorOf(String(ctx.chat.id))?.biz : undefined);
     if (!biz || !id) return toast(ctx, 'Bu tugma eskirgan');
     const msg = ctx.callbackQuery.message;
+
+    // Kompyuterdagi ish: xavfli amalga ruxsat, to'xtatish, brauzer oynasini yopish
+    if (code === 'ca' || code === 'cx') return toast(ctx, answerApproval(biz.id, id, code === 'ca') ?? 'Bu so\'rov eskirgan');
+    if (code === 'cs') return toast(ctx, stopJob(biz.id, id) ? "To'xtatyapman…" : 'Ish allaqachon tugagan');
+    if (code === 'cl') {
+      const closed = await closeLoginWindow(biz.id);
+      if (msg) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      return toast(ctx, closed ? 'Oyna yopildi — kirishlar saqlandi' : 'Oyna allaqachon yopilgan');
+    }
 
     // Postlar olib tashlangan: eski xabarlardagi «Kanalga joylash» va «O'chirish» tugmalari
     if (code === 'pp' || code === 'pd') return toast(ctx, 'Postlar olib tashlangan', { show_alert: true });
@@ -945,9 +978,13 @@ export function createBot(): BotService {
       const m = await tg.sendMessage(biz.ownerChatId, html, { parse_mode: 'HTML', link_preview_options: { is_disabled: true }, reply_markup: keyboard });
       return m.message_id;
     },
-    async edit(biz, messageId, html) {
+    async edit(biz, messageId, html, keyboard) {
       if (!biz.ownerChatId) return;
-      await tg.editMessageText(biz.ownerChatId, messageId, undefined, html, { parse_mode: 'HTML' }).catch(ignoreUnchanged);
+      await tg.editMessageText(biz.ownerChatId, messageId, undefined, html, { parse_mode: 'HTML', reply_markup: keyboard }).catch(ignoreUnchanged);
+    },
+    async sendFile(biz, path, caption) {
+      if (!biz.ownerChatId) return;
+      await tg.sendDocument(biz.ownerChatId, { source: path, filename: basename(path) }, { caption: cut(caption, 1000) });
     },
   });
 
@@ -972,6 +1009,8 @@ export function createBot(): BotService {
                 { command: 'kamera', description: 'Kameralardan hozirgi rasm' },
                 { command: 'panel', description: 'Panelni ochish' },
                 { command: 'yangi', description: 'Yangi suhbat' },
+                ...(env.computerUse ? [{ command: 'toxta', description: "Kompyuterdagi ishni to'xtatish" }] : []),
+                ...(env.computerUse === 'browser' || env.computerUse === 'all' ? [{ command: 'brauzer', description: 'Saytga o\'zim kiraman (parol bilan)' }] : []),
                 { command: 'help', description: 'Nima qila olaman' },
               ]).catch(() => {});
               // Ulangan egalarga «Panel» tugmasi (hub manzili o'zgargan yoki masofadan kirish endi yoqilgan bo'lishi mumkin)

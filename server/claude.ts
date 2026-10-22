@@ -12,9 +12,9 @@ export const resetClaude = (): void => { client = null; };
 // Model rad etsa yoki band bo'lsa — so'rov server tomonda zaxira modelda bajariladi
 export const FALLBACK: { betas: Anthropic.Beta.AnthropicBeta[]; fallbacks: 'default' } = { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' };
 
-/** Ish turi: owner — egasining yordamchisi, customer — mijozga javob, photo — rasmni ko'rish, camera — AI ko'zi (kamera kadri) */
-export type AiKind = 'owner' | 'customer' | 'photo' | 'camera';
-const DAILY: Record<AiKind, () => number> = { owner: () => env.aiDailyOwner, customer: () => env.aiDailyCustomer, photo: () => env.aiDailyPhotos, camera: () => env.aiDailyCamera };
+/** Ish turi: owner — egasining yordamchisi, customer — mijozga javob, photo — rasmni ko'rish, camera — AI ko'zi (kamera kadri), computer — kompyuterda ish */
+export type AiKind = 'owner' | 'customer' | 'photo' | 'camera' | 'computer';
+const DAILY: Record<AiKind, () => number> = { owner: () => env.aiDailyOwner, customer: () => env.aiDailyCustomer, photo: () => env.aiDailyPhotos, camera: () => env.aiDailyCamera, computer: () => env.aiDailyComputer };
 
 /** Bugungi chegara tugadi: so'rov yuborilmaydi (pul ketmaydi) */
 export class AiLimitError extends Error {
@@ -23,9 +23,9 @@ export class AiLimitError extends Error {
 
 type Params = Omit<Anthropic.Beta.MessageCreateParamsNonStreaming, 'betas' | 'fallbacks'>;
 
-/** Modelga so'rov. Kunlik chegaradan oshsa — AiLimitError; aks holda so'rov va tokenlari biznes hisobiga yoziladi */
-export async function think(bizId: string, kind: AiKind, params: Params): Promise<Anthropic.Beta.BetaMessage> {
-  return ask(bizId, kind, () => claude().beta.messages.create({ ...params, ...FALLBACK }));
+/** Modelga so'rov. Kunlik chegaradan oshsa — AiLimitError; aks holda so'rov va tokenlari biznes hisobiga yoziladi. betas — qo'shimcha beta sarlavhalar */
+export async function think(bizId: string, kind: AiKind, params: Params, betas: Anthropic.Beta.AnthropicBeta[] = []): Promise<Anthropic.Beta.BetaMessage> {
+  return ask(bizId, kind, () => claude().beta.messages.create({ ...params, ...FALLBACK, betas: [...FALLBACK.betas, ...betas] }));
 }
 
 /**

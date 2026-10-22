@@ -37,7 +37,10 @@ export interface Sender {
 /** Egasiga Telegram orqali xabar (bot) */
 export interface OwnerOutlet {
   notify(biz: BusinessRow, html: string, keyboard?: InlineKeyboardMarkup): Promise<number | null>;
-  edit(biz: BusinessRow, messageId: number, html: string): Promise<void>;
+  /** keyboard berilmasa — tugmalar olib tashlanadi */
+  edit(biz: BusinessRow, messageId: number, html: string, keyboard?: InlineKeyboardMarkup): Promise<void>;
+  /** Kompyuterdagi fayl (hujjat sifatida) */
+  sendFile(biz: BusinessRow, path: string, caption: string): Promise<void>;
 }
 
 /** Yuborish yo'llari: nomi bo'yicha (bir kanalda bir nechta bo'lishi mumkin — Instagram'da brauzer va rasmiy API) */
@@ -49,6 +52,8 @@ export const setOwnerOutlet = (o: OwnerOutlet) => { owner = o; };
 /** Bot tokeni olib tashlandi (ulash ustasi): eski bot orqali mijozga ham, egasiga ham yuborilmaydi */
 export const clearBotOutlets = (): void => { senders.delete('bot'); owner = null; };
 export const notifyOwner = (biz: BusinessRow, html: string, keyboard?: InlineKeyboardMarkup) => owner?.notify(biz, html, keyboard) ?? Promise.resolve(null);
+export const editOwner = (biz: BusinessRow, messageId: number, html: string, keyboard?: InlineKeyboardMarkup) => owner?.edit(biz, messageId, html, keyboard) ?? Promise.resolve();
+export const notifyOwnerFile = (biz: BusinessRow, path: string, caption: string) => owner?.sendFile(biz, path, caption) ?? Promise.resolve();
 
 export const DEFAULT_REPLY: AutoReply = { mode: 'draft', contacts: false, delayMin: 2 };
 export const replySettings = (biz: BusinessRow): AutoReply => ({ ...DEFAULT_REPLY, ...biz.profile.autoReply });

@@ -61,6 +61,18 @@ Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **h
 | 6.1 | `npm run eval:ai` (narxni aytadi, ~$3), keyin `npm run eval:ai -- --yes` | `eval-natijalar/` da hisobot; o'tmagan holatlar sababi bilan |
 | 6.2 | Arzonroq model bilan solishtirish: `npm run eval:ai -- --yes --model claude-sonnet-5-5 --compare eval-natijalar/<oldingi>.json` | Qaysi holatlar yomonlashgani va narx farqi — modelni almashtirish qarori sizniki |
 
+## 6a. Kompyuterda ishlash ([KOMPYUTER.md](KOMPYUTER.md))
+
+`.env` ga `COMPUTER_USE=all`, serverni qayta ishga tushiring.
+
+| # | Qilish | Natija |
+|---|---|---|
+| 6a.1 | Botga: «google.com da bugungi dollar kursini top» | «Boshladim», holat xabari ⏹ bilan, 1–2 daqiqada kurs va manba |
+| 6a.2 | `/brauzer` → ochilgan oynada biror kabinetga (masalan, bank) o'zingiz kiring → «✅ Kirdim, yopish». Keyin: «bank kabinetidan oxirgi ko'chirmani yuklab ol» | Fayl Telegram'ga hujjat bo'lib keladi; parol so'ralmaydi |
+| 6a.3 | Biror saytda formani to'ldirishni so'rang (masalan, «… saytida aloqa formasiga ismimni yozib yubor») | Yuborishdan oldin «🖱 Ruxsat kerak» — ✖️ bossangiz yuborilmaydi, ✅ — yuboriladi |
+| 6a.4 | Uzun ish bering, holat xabaridagi ⏹ ni bosing | Bir necha soniyada «Ish to'xtatildi» |
+| 6a.5 | Butun ekran: «Bloknotni ochib "Salom" deb yoz» (macOS'da avval ruxsatlar — KOMPYUTER.md) | Avval «boshlaymi?» so'raladi; keyin sichqoncha va klaviatura o'zi ishlaydi |
+
 ## 7. Yangilanish va zaxira
 
 | # | Qilish | Natija |
