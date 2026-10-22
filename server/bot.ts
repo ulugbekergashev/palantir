@@ -18,7 +18,7 @@ import { addDays, dueLabel, iso, stamp } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
 import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
 import { crmConnected } from './crm/index';
-import { INTERVIEW_START, interviewOption, interviewReply, interviewSkip, interviewStart, interviewStop, type InterviewTurn } from './brain/interview';
+import { INTERVIEW_START, interviewOption, interviewPending, interviewReply, interviewSkip, interviewStart, interviewStop, type InterviewTurn } from './brain/interview';
 import { containsSecret } from '../src/lib/secrets';
 import { DAY_OUTCOME, askOutcome, dropOutcome, takeOutcome, wantsOutcome } from './outcome';
 import { recallPatients } from './crm/index';
@@ -321,7 +321,17 @@ export function createBot(): BotService {
       await tg.sendMessage(previous, "⚠️ Palantir boshqa Telegram akkauntiga ulandi va endi shu yerda ishlamaydi. Buni siz qilmagan bo'lsangiz — panel → «Telegram» bo'limidagi yangi havola orqali qayta ulaning (o'sha zahoti begona akkaunt uziladi) va havolani hech kimga bermang.").catch(() => {});
     }
     const name = biz.profile.ownerName ? `, ${biz.profile.ownerName}` : '';
-    await ctx.reply(`✅ Ulandi: «${biz.profile.name}». Assalomu alaykum${name}!\n\n${helpFor(businesses.byId(biz.id) ?? biz)}`);
+    const fresh = businesses.byId(biz.id) ?? biz;
+    await ctx.reply(`✅ Ulandi: «${biz.profile.name}». Assalomu alaykum${name}!\n\n${helpFor(fresh)}`);
+    // Birinchi ulanishda tanishuv taklif qilinadi (anketa to'ldirilmagan bo'lsa ham ma'lumot shu yerda yig'iladi).
+    // O'zi boshlanmaydi: ochiq suhbat egasining keyingi topshirig'ini javob deb olib qo'yardi — bitta tugma yetadi
+    const pending = previous ? 0 : interviewPending(fresh);
+    if (pending) {
+      await ctx.reply(
+        `Mijozlarga to'g'ri javob berishim uchun biznesingiz bilan tanishib olay: ${pending} ta qisqa savol (manzil, ish vaqti, narxlar va mijozlar ko'p so'raydigan narsalar). Javob oddiy gap yoki ovoz bilan, istalgan payt to'xtatasiz.\n\nNarxlar ro'yxati Excel, PDF yoki Word faylda bo'lsa — shu yerga yuboring: o'qib, saqlashni taklif qilaman.`,
+        { reply_markup: kb([[b('▶️ Tanishishni boshlash', 'iv|go')], [b('Keyinroq («savollar» deb yozasiz)', 'iv|later')]]) },
+      );
+    }
   }
 
   // ─── Mijoz: havola, raqam, savol ───────────────────────────────────────────
@@ -603,11 +613,12 @@ export function createBot(): BotService {
       return sendHtml(biz.ownerChatId!, `🔁 <b>Qaytarish kerak (${list.length})</b>\nQabulxona qo'ng'iroq qilib, ko'rikka taklif qilsin:\n${lines.join('\n')}${more}`);
     }
 
-    // Birinchi kun suhbati: «o'tkazib yuborish» (aynan shu savol hali so'ralayotgan bo'lsa) yoki «to'xtatish»
+    // Birinchi kun suhbati: boshlash (ulanishdagi taklif), «o'tkazib yuborish» (aynan shu savol hali so'ralayotgan bo'lsa) yoki «to'xtatish»
     if (code === 'iv') {
+      if (id === 'later') return toast(ctx, "Kerak bo'lganda «savollar» deb yozing");
       const option = /^o:(\d+):(.+)$/.exec(id);
       const turn = option ? interviewOption(biz, option[2], Number(option[1]))
-        : id.startsWith('s:') ? interviewSkip(biz, id.slice(2)) : id === 'x' ? interviewStop(biz) : null;
+        : id === 'go' ? interviewStart(biz) : id.startsWith('s:') ? interviewSkip(biz, id.slice(2)) : id === 'x' ? interviewStop(biz) : null;
       if (!turn) return toast(ctx, 'Bu tugma eskirgan');
       await toast(ctx);
       return sendInterview(biz, turn);

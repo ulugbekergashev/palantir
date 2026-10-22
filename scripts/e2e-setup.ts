@@ -254,6 +254,14 @@ try {
   let mark = sent.length;
   say(OWNER, `/start ${link.split('start=')[1]}`);
   ok('egasi botni ulab oldi', !!(await waitFor('ulandi', () => toOwner(mark, 'Ulandi'))));
+  // Anketa bo'lmasa ham ma'lumot yig'iladi: birinchi ulanishda tanishuv taklif qilinadi, lekin o'zi boshlanmaydi
+  const offer = await waitFor('tanishuv taklifi', () => toOwner(mark, 'tanishib olay'));
+  const offerData = buttons(offer).map(x => x.callback_data);
+  ok('ulanishda tanishuv taklifi: «Boshlash» va «Keyinroq» tugmalari', !!offer && offerData.includes('iv|go') && offerData.includes('iv|later'), JSON.stringify(offerData));
+  ok("taklifda savollar soni va fayl bilan narx yuborish aytilgan", !!offer && /\d+ ta qisqa savol/.test(textOf(offer)) && textOf(offer).includes('Excel, PDF yoki Word'));
+  mark = sent.length;
+  press(OWNER, 'iv|go', offer!.id!);
+  ok('«Tanishishni boshlash» — birinchi savol keldi', !!(await waitFor('boshlash', () => toOwner(mark, 'narxi ikki xil'))));
   mark = sent.length;
   ok('«Egasidan so\'rash» bosildi', (await api('/api/setup/ask', { token, body: {} })).status === 200);
   const first = await waitFor('narx savoli', () => toOwner(mark, 'narxi ikki xil'));
@@ -278,6 +286,14 @@ try {
   const me2 = (await api('/api/me', { token })).json.business;
   ok('narx jadvalda: tugmada tanlangani (eski tugma ustidan yozmadi)', me2.offerings.find((o: { name: string }) => o.name === 'Tish tozalash')?.price === 250_000);
   ok("bo'shliq qolmadi", (await api('/api/setup', { token })).json.setup.gaps.length === 0);
+
+  // Tayyor savollar hali javobsiz — taklif chiqishi mumkin edi, lekin u faqat birinchi ulanishda (qurilma almashganda emas)
+  const relink = (await api('/api/me', { token })).json.status.linkUrl as string;
+  mark = sent.length;
+  say(OWNER, `/start ${relink.split('start=')[1]}`);
+  ok('egasi yangi havola bilan qayta ulandi', !!(await waitFor('qayta ulandi', () => toOwner(mark, 'Ulandi'))));
+  await new Promise(r => setTimeout(r, 500));
+  ok("qayta ulanishda tanishuv qayta taklif qilinmaydi", !toOwner(mark, 'tanishib olay'));
 
   console.log('\n# Maxfiy kalit suhbatga yozilsa');
   mark = sent.length;

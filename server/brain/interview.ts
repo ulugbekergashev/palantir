@@ -87,6 +87,9 @@ function next(biz: BusinessRow, state: State, lead: string): InterviewTurn {
 }
 
 /** Suhbatni boshlaydi (yoki qaytadan boshlaydi): javobi yo'q birinchi savol so'raladi */
+/** Hali so'ralmagan savollar soni (bo'shliqlar va javobsiz tayyor savollar) — suhbat holatiga tegmaydi */
+export const interviewPending = (biz: BusinessRow): number => questions(biz, []).left.length;
+
 export function interviewStart(biz: BusinessRow): InterviewTurn {
   const { pack, left, gaps } = questions(biz, []);
   if (!left.length) {
