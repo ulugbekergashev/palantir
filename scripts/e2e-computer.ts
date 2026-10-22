@@ -296,7 +296,7 @@ try {
   ai.operator = null;
   await stopProcess(server);
   for (const s of [tgServer, aiServer, site]) s.close();
-  rmSync(dataDir, { recursive: true, force: true });
+  try { rmSync(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* Windows: fayl hali band */ }
 }
 
 const failed = results.filter(r => !r).length;
