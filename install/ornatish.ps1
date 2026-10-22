@@ -1,9 +1,13 @@
 # Palantir'ni klinika kompyuteriga o'rnatadi (Windows 10/11, PowerShell 5.1).
-#   install\Ornatish.cmd               - o'rnatish (yoki yangilangan dasturni qayta yig'ish)
-#   install\Ornatish.cmd -Uninstall    - avtoyuklashdan olib tashlash va to'xtatish (ma'lumotlar o'chmaydi; avtomatik kirish o'chiriladi)
-# Qadamlar: Node.js tekshiruvi -> kutubxonalar -> panelni yig'ish -> .env (kalitlar) -> tekshiruv -> avtoyuklash -> ishga tushirish.
+#   Ornatish.cmd                  - o'rnatish (yoki yangilangan dasturni qayta yig'ish). Bitta savol beradi, qolgani o'zi
+#   Ornatish.cmd -Klinika         - savolsiz: kompyuter klinikada kecha-kunduz yoqiq (avtomatik kirish, uyqusiz)
+#   Ornatish.cmd -Shaxsiy         - savolsiz: oddiy kompyuter (avtomatik kirish va quvvat sozlamalariga tegilmaydi)
+#   Ornatish.cmd -Papka D:\Baza   - ma'lumotlar papkasi (standart C:\PalantirData; faqat birinchi o'rnatishda)
+#   Ornatish.cmd -Uninstall       - avtoyuklashdan olib tashlash va to'xtatish (ma'lumotlar o'chmaydi; avtomatik kirish o'chiriladi)
+# Qadamlar: Node.js va ffmpeg -> kutubxonalar -> panelni yig'ish -> .env -> ovoz xizmati -> tekshiruv -> avtoyuklash -> ishga tushirish.
+# Telefon liniyasi (AI qabulxona shahar raqamida) bu yerda o'rnatilmaydi: Uztelecom SIP ma'lumotlari kelganda - install\Telefon.cmd
 # Bu faylda faqat ASCII belgilar: PowerShell 5.1 boshqa belgilarni buzib o'qiydi.
-param([switch]$Uninstall)
+param([switch]$Uninstall, [switch]$Klinika, [switch]$Shaxsiy, [string]$Papka = '')
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -60,6 +64,11 @@ function Protect-Path([string]$path, [bool]$isFolder) {
   return ($LASTEXITCODE -eq 0)
 }
 
+function Node-Major {
+  if (-not (Get-Command node -ErrorAction SilentlyContinue)) { return 0 }
+  return [int]((node -v) -replace '^v(\d+)\..*$', '$1')
+}
+
 function Read-EnvValue([string]$name) {
   if (-not (Test-Path '.env')) { return '' }
   $line = Get-Content '.env' | Where-Object { $_ -match "^\s*$name\s*=" } | Select-Object -First 1
@@ -87,32 +96,39 @@ if ($Uninstall) {
   exit 0
 }
 
+# --- Yagona savol ------------------------------------------------------------
+# Klinikadagi kompyuter kecha-kunduz yoqiq turadi: svet o'chib-yonganda Windows o'zi kiradi (ekran qulflanadi) va kompyuter uxlamaydi.
+# Oddiy (shaxsiy) kompyuterda bularga tegilmaydi. Qolgan hamma narsa savolsiz: o'rnatuvchi oynani qoldirib keta oladi.
+if ($Klinika -and $Shaxsiy) { Fail '-Klinika va -Shaxsiy dan bittasini bering' }
+$alwaysOn = [bool]$Klinika
+if (-not $Klinika -and -not $Shaxsiy) {
+  Write-Host ''
+  $answer = Read-Host "Bu kompyuter klinikada kecha-kunduz yoqiq turadimi? Unda svet o'chib-yonganda ham Palantir o'zi ishga tushadi va kompyuter uxlamaydi; Windows parolingiz bir marta so'raladi (h/y) [h]"
+  $alwaysOn = $answer -notmatch '^[yY]'
+}
+Note "Qolgani savolsiz o'rnatiladi (internetga qarab 5-15 daqiqa). Oynani yopmang."
+
 # --- 1. Node.js --------------------------------------------------------------
-Step '1/7  Node.js'
-$node = Get-Command node -ErrorAction SilentlyContinue
-$major = 0
-if ($node) { $major = [int]((node -v) -replace '^v(\d+)\..*$', '$1') }
-if ($major -lt $MinNode) {
-  if ($node) { Warn "Node.js $(node -v) o'rnatilgan, $MinNode yoki yangirog'i kerak" } else { Warn "Node.js o'rnatilmagan" }
-  if (Get-Command winget -ErrorAction SilentlyContinue) {
-    $answer = Read-Host "   Node.js'ni hozir o'rnataymi? (h/y) [h]"
-    if ($answer -notmatch '^[yY]') {
-      winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
-      Fail "Node.js o'rnatildi. Bu oynani yoping va Ornatish.cmd ni QAYTA ishga tushiring (yangi oyna Node.js'ni ko'radi)."
-    }
-  }
-  Fail "Node.js $MinNode+ ni o'rnating: https://nodejs.org (LTS), keyin Ornatish.cmd ni qayta ishga tushiring."
+Step '1/7  Node.js va ffmpeg'
+if ((Node-Major) -lt $MinNode) {
+  if (Get-Command node -ErrorAction SilentlyContinue) { Warn "Node.js $(node -v) o'rnatilgan, $MinNode yoki yangirog'i kerak" } else { Warn "Node.js o'rnatilmagan" }
+  if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Fail "Node.js $MinNode+ ni o'rnating: https://nodejs.org (LTS), keyin Ornatish.cmd ni qayta ishga tushiring." }
+  Note "Node.js o'rnatilmoqda (Windows ruxsat so'rashi mumkin)..."
+  winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+  # Yangi o'rnatilgan dastur bu oynaning PATH'ida hali yo'q: tizimdagi PATH qayta o'qiladi
+  $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+  if ((Node-Major) -lt $MinNode) { Fail "Node.js o'rnatildi, lekin bu oyna uni hali ko'rmayapti. Oynani yoping va Ornatish.cmd ni QAYTA ishga tushiring." }
 }
 Note "Node.js $(node -v)"
 
-# ffmpeg - faqat IP kameralar (RTSP) uchun. Yo'q bo'lsa qolgan hamma narsa ishlaydi.
+# ffmpeg - IP kameralar (RTSP) uchun. O'rnatib bo'lmasa ham qolgan hamma narsa ishlaydi.
 # Yangi o'rnatilgan ffmpeg bu oynaning PATH'ida hali ko'rinmaydi, shuning uchun to'liq yo'li .env ga yoziladi.
 $ffmpegPath = ''
 $wingetFfmpeg = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links\ffmpeg.exe'
 if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
   if (-not (Test-Path $wingetFfmpeg) -and (Get-Command winget -ErrorAction SilentlyContinue)) {
-    $answer = Read-Host "   Klinikada IP kameralar (devordagi kameralar) ulanadimi? Unda ffmpeg o'rnataman (h/y) [h]"
-    if ($answer -notmatch '^[yY]') { winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements }
+    Note "ffmpeg o'rnatilmoqda (IP kameralar uchun)..."
+    winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements
   }
   if (Test-Path $wingetFfmpeg) { $ffmpegPath = $wingetFfmpeg; Note "ffmpeg: $ffmpegPath" }
   else { Warn "ffmpeg yo'q - IP kameralar ishlamaydi (kompyuterning o'z kamerasi ishlaydi). Keyinroq: winget install Gyan.FFmpeg" }
@@ -148,8 +164,9 @@ if (-not $fresh) {
     Note 'FFMPEG_PATH .env ga qoshildi'
   }
 } else {
-  $data = Read-Host "   Ma'lumotlar papkasi [$DefaultData]"
-  if (-not $data) { $data = $DefaultData }
+  $data = $DefaultData
+  if ($Papka) { $data = $Papka }
+  Note "Ma'lumotlar papkasi: $data"
   New-Item -ItemType Directory -Force $data | Out-Null
   Note "Bot tokeni va AI kalitlari bu yerda so'ralmaydi: o'rnatish oxirida ulash ustasi ochiladi - kalitlarni o'sha yerga qo'yasiz, u har birini darhol tekshiradi."
   $adminPassword = New-Password 16
@@ -182,16 +199,12 @@ $closed = (Protect-Path $Root $true) -and $closed
 if ($closed) { Note "Ma'lumotlar va dastur papkasi faqat shu foydalanuvchiga ochiq qilindi" }
 else { Warn "Papkalarni yopib bo'lmadi (disk buni qo'llamasligi mumkin). Boshqa Windows foydalanuvchilari kalitlar va bazani o'qiy oladi - papkalarni o'z profilingiz ichiga ko'chiring." }
 
-# --- 4b. Ovoz xizmati va telefon liniyasi ------------------------------------
-# Panel ovozi, "Quloq" va AI qabulxona (shahar raqami) - tgvoice (Python) va Asterisk (WSL). Alohida: install\Telefon.cmd
-Step '4b/7  Ovoz xizmati va telefon liniyasi'
-$phoneReboot = $false
-$answer = Read-Host "   Ovoz xizmati va telefon liniyasi (AI qabulxona shahar raqamida) o'rnatilsinmi? Administrator huquqi so'raladi (h/y) [h]"
-if ($answer -notmatch '^[yY]') {
-  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'telefon.ps1')
-  if ($LASTEXITCODE -eq 3010) { $phoneReboot = $true }
-  elseif ($LASTEXITCODE -ne 0) { Warn "Ovoz xizmati yoki telefon liniyasi to'liq o'rnatilmadi. Qolgani ishlaydi; keyinroq: install\Telefon.cmd" }
-} else { Note "O'tkazib yuborildi. Keyinroq: install\Telefon.cmd" }
+# --- 4b. Ovoz xizmati --------------------------------------------------------
+# Panel ovozi va "Quloq" - tgvoice (Python), administrator huquqisiz. Telefon liniyasi (WSL + Asterisk) bu yerda o'rnatilmaydi:
+# u Uztelecom SIP ma'lumotlari kelganda alohida qo'shiladi (install\Telefon.cmd), oldin o'rnatilgan bo'lsa - tegilmaydi.
+Step '4b/7  Ovoz xizmati (panel ovozi va "Quloq")'
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'telefon.ps1') -OnlyVoice
+if ($LASTEXITCODE -ne 0) { Warn "Ovoz xizmati o'rnatilmadi - panel ovozsiz ishlaydi, qolgani ishlaydi. Keyinroq: install\Telefon.cmd -OnlyVoice" }
 
 # --- 5. Tekshiruv ------------------------------------------------------------
 Step '5/7  Tekshiruv (Telegram, Claude, ovoz, papka, port)'
@@ -218,14 +231,12 @@ Note "Kompyuter yonib, foydalanuvchi kirganda Palantir o'zi ishga tushadi"
 # Svet o'chib-yonganda hech kim kirmasa ham ishga tushsin: Windows o'zi kiradi, Palantir ekranni darhol qulflaydi (palantir-fon.vbs)
 if (AutoLogon-Mine) {
   Note "Avtomatik kirish yoqilgan ($Me): svet o'chib-yonganda Palantir o'zi ishga tushadi"
-} else {
-  $answer = Read-Host "   Svet o'chib-yonganda Palantir o'zi ishga tushsinmi? Windows '$Me' bilan o'zi kiradi va ekranni darhol qulflaydi; Windows parolingiz va administrator huquqi so'raladi (h/y) [h]"
-  if ($answer -notmatch '^[yY]') {
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $AutoLogon -User $Me
-    if ($LASTEXITCODE -eq 0) { Note "Avtomatik kirish yoqildi" }
-    else { Warn "Avtomatik kirish yoqilmadi: svet o'chib-yonganda kimdir Windows'ga kirmaguncha Palantir ishlamaydi. Keyinroq: install\Avtokirish.cmd" }
-  } else { Warn "Svet o'chib-yonganda kimdir Windows'ga kirmaguncha Palantir ishlamaydi. Keyinroq yoqish: install\Avtokirish.cmd" }
-}
+} elseif ($alwaysOn) {
+  Note "Avtomatik kirish yoqilmoqda: Windows '$Me' bilan o'zi kiradi va ekranni darhol qulflaydi. Windows parolingiz va ruxsat so'raladi"
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $AutoLogon -User $Me
+  if ($LASTEXITCODE -eq 0) { Note "Avtomatik kirish yoqildi" }
+  else { Warn "Avtomatik kirish yoqilmadi: svet o'chib-yonganda kimdir Windows'ga kirmaguncha Palantir ishlamaydi. Keyinroq: install\Avtokirish.cmd" }
+} else { Note "Oddiy kompyuter: Palantir Windows'ga kirganingizda ishga tushadi. Klinikada doim yoqiq tursa: install\Avtokirish.cmd" }
 $port = Read-EnvValue 'PORT'
 if (-not $port) { $port = $DefaultPort }
 # Yorliq Palantir'ni (o'chiq bo'lsa) yoqadi va panelni ochadi; eski nomdagi yorliqlar ($OldPanelLinks) olib tashlanadi
@@ -242,8 +253,8 @@ $panel.Description = 'Palantir: yoqish va panelni ochish'
 $panel.Save()
 Note "Ish stolida 'Palantir AI' yorlig'i - Palantir'ni yoqadi va panelni ochadi"
 
-$answer = Read-Host "   Kompyuter o'zi uxlab qolmasin (tarmoqqa ulangan paytda)? Shunda bot tunda ham javob beradi (h/y) [h]"
-if ($answer -notmatch '^[yY]') {
+# Kecha-kunduz ishlaydigan kompyuter tarmoqqa ulangan paytda uxlamaydi: bot tunda ham javob beradi
+if ($alwaysOn) {
   powercfg /change standby-timeout-ac 0
   $sleepOff = $LASTEXITCODE -eq 0
   powercfg /change hibernate-timeout-ac 0
@@ -274,5 +285,5 @@ if ($adminPassword) {
   Note "Uni hozir yozib oling (u .env faylida ham turadi). Bu parol klinikaga berilmaydi - u sizniki."
 }
 if ($checkFailed) { Warn "Eslatma: tekshiruvdagi xatolarni tuzating (install\Tekshirish.cmd)." }
-if ($phoneReboot) { Warn "Telefon liniyasi uchun WSL o'rnatildi: kompyuterni QAYTA YOQING, keyin install\Telefon.cmd ni ishga tushiring." }
+Note "Telefon liniyasi (AI qabulxona shahar raqamida) - Uztelecom SIP ma'lumotlari kelganda: install\Telefon.cmd"
 Start-Process "http://localhost:$port/#/ulash"

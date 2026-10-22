@@ -11,7 +11,7 @@ import '../server/tz';
 import '../server/keys';
 import { existsSync, mkdirSync, rmSync, statfsSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { friendlyError } from '../server/agent';
 import { FALLBACK, claude } from '../server/claude';
@@ -58,7 +58,9 @@ function local(): void {
   } catch (e) {
     say('fail', `Ma'lumotlar papkasi: ${env.dataDir}`, `yozib bo'lmadi: ${(e as Error).message}`);
   }
-  const inRepo = env.dataDir.startsWith(resolve('.'));
+  // Yo'l bilan solishtiriladi, matn boshi bilan emas: C:\PalantirData — C:\Palantir ichida emas
+  const fromRoot = relative(resolve('.'), env.dataDir);
+  const inRepo = !fromRoot || (!fromRoot.startsWith('..') && !isAbsolute(fromRoot));
   say(inRepo ? 'warn' : 'ok', 'Ma\'lumotlar dastur papkasidan tashqarida', inRepo ? 'DATA_DIR dastur papkasi ichida — dasturni yangilaganda o\'chib ketmasin: masalan DATA_DIR=C:\\PalantirData' : '');
   say(env.backupKeep > 0 ? 'ok' : 'warn', 'Zaxira nusxa', env.backupKeep > 0 ? `har kuni, ${env.backupKeep} kun saqlanadi: ${env.backupDir}` : 'o\'chirilgan (BACKUP_KEEP=0)');
 
@@ -160,7 +162,8 @@ async function extras(): Promise<void> {
     say(r.status === 200 && agent ? 'ok' : 'fail', "Qo'ng'iroq bilan eslatish (SpeechLab)", r.status === 200 ? (agent ? `agent «${agent.name}» (balans va telefon liniyasini panelda tekshiring)` : "agent topilmadi — CallAgent'da agentni yoqing") : `kalit ishlamadi (${r.status})`);
   } else say('warn', "Qo'ng'iroq bilan eslatish", "o'chiq — eslatmalar Telegram'da (ovozli xabar bilan) keladi");
   say(ffmpegAvailable() ? 'ok' : 'warn', 'IP kameralar (ffmpeg)', ffmpegAvailable() ? 'ffmpeg topildi' : "ffmpeg yo'q — IP kameralar ishlamaydi (veb-kamera ishlaydi): winget install Gyan.FFmpeg, keyin oynani qayta oching");
-  say(instagramAvailable() ? 'ok' : 'warn', 'Instagram (brauzer)', instagramAvailable() ? 'Chrome yoki Edge topildi (egasi panelda bir marta kiradi)' : 'Chrome yoki Edge topilmadi — o\'rnating yoki IG_BROWSER da yo\'lini bering');
+  // Brauzer usuli zaxira va odatda o'chiq (IG_VIA_BROWSER=1) — o'chiq bo'lsa brauzer qidirilmaydi, «topilmadi» deyish noto'g'ri
+  if (env.igViaBrowser) say(instagramAvailable() ? 'ok' : 'warn', 'Instagram (brauzer)', instagramAvailable() ? 'Chrome yoki Edge topildi (egasi panelda bir marta kiradi)' : 'Chrome yoki Edge topilmadi — o\'rnating yoki IG_BROWSER da yo\'lini bering');
 }
 
 process.stdout.write('Palantir — o\'rnatish tekshiruvi\n\n');

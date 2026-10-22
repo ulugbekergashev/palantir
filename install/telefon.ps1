@@ -70,7 +70,7 @@ if ($AsteriskPart) {
     & wsl.exe --install --no-distribution
     if ($LASTEXITCODE -ne 0) { Fail "WSL o'rnatilmadi. Kompyuter BIOS'ida virtualizatsiya (VT-x / AMD-V, SVM) yoqilganini tekshiring." }
     Write-Host ''
-    Write-Host '   WSL o''rnatildi. KOMPYUTERNI QAYTA YOQING, keyin install\Ornatish.cmd ni yana ishga tushiring.' -ForegroundColor Yellow
+    Write-Host '   WSL o''rnatildi. KOMPYUTERNI QAYTA YOQING, keyin install\Telefon.cmd ni yana ishga tushiring.' -ForegroundColor Yellow
     exit 3010
   }
   Note 'WSL bor'
@@ -200,7 +200,7 @@ if (Test-Path (Join-Path $models $WakeModel)) { Note 'Model bor' } else {
 }
 
 Step 'Ovoz xizmati: sozlamalar (.env)'
-if (-not (Test-Path '.env')) { Fail ".env yo'q - avval install\Ornatish.cmd ni ishga tushiring" }
+if (-not (Test-Path '.env')) { Fail ".env yo'q - avval Ornatish.cmd ni ishga tushiring (dastur papkasida)" }
 Add-EnvValue 'TG_CALL_PYTHON' $VenvPython
 Add-EnvValue 'TG_CALL_SCRIPT' (Join-Path $Voice 'call_live.py')
 # Egasining SIP ilovasi uchun parol (telefon liniyasi); ovozli agent kalitini Palantir o'zi yaratadi (DATA_DIR\ovoz.env)

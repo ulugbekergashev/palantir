@@ -14,7 +14,7 @@ Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **h
 
 | # | Qilish | Natija |
 |---|---|---|
-| 1.1 | `install\Ornatish.cmd` ([ORNATISH.md](ORNATISH.md)) — avtokirishga «ha» | Kompyuter qayta yonganda ekran qulflangan, Palantir esa ishlayapti |
+| 1.1 | `Ornatish.cmd` ([ORNATISH.md](ORNATISH.md)) — «klinikada kecha-kunduz yoqiqmi?» savoliga «ha» | Kompyuter qayta yonganda ekran qulflangan, Palantir esa ishlayapti |
 | 1.2 | `install\Tekshirish.cmd` | `[XATO]` yo'q |
 
 ## 2. Egasi (Telegram bot)

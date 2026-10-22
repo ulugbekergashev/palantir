@@ -71,7 +71,7 @@ npm run dev               # panel: http://localhost:3100, server: 3200
 
 ## Klinika kompyuteriga o'rnatish (Windows)
 
-`install\Ornatish.cmd` ni ikki marta bosing — to'liq qo'llanma: [docs/ORNATISH.md](docs/ORNATISH.md). O'rnatgich Node.js va ffmpeg'ni tekshiradi, panelni yig'adi,
+Dastur papkasidagi `Ornatish.cmd` ni ikki marta bosing — to'liq qo'llanma: [docs/ORNATISH.md](docs/ORNATISH.md). O'rnatgich Node.js va ffmpeg'ni tekshiradi, panelni yig'adi,
 kalitlarni so'rab `.env` ga yozadi, **har bir kalitni haqiqiy xizmatda tekshiradi** (`npm run check`), papkalarni boshqa Windows foydalanuvchilaridan yopadi va Palantir'ni avtoyuklashga qo'shadi.
 
 Qarovsiz ishlash uchun nima bor:
@@ -198,7 +198,7 @@ scripts/
   supervise.mjs                nazoratchi: serverni yoqadi, to'xtasa qayta yoqadi (npm run serve / stop / status)
   preflight.ts                 o'rnatishdan keyingi tekshiruv — haqiqiy xizmatlarda (npm run check)
   eval-ai.ts eval/cases.ts      AI sifati va narxini baholash — haqiqiy Claude bilan (npm run eval:ai)
-install/                       Windows o'rnatgich (Ornatish.cmd), ishga tushirish / to'xtatish / tekshirish yorliqlari
+install/                       Windows o'rnatgich ichi (kirish — ildizdagi Ornatish.cmd), ishga tushirish / to'xtatish / tekshirish yorliqlari
 docs/ORNATISH.md               klinikaga o'rnatish qo'llanmasi
   stend.ts stend.html          stend: haqiqiy server + qo'lda boshqariladigan soxta dunyo (npm run stend)
   stendBrain.ts stendParse.ts  taqlid miya (kalit bo'lmaganda model o'rnida) va uning matn o'qishi

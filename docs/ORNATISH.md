@@ -31,21 +31,26 @@ o'rnatgich **avtomatik kirishni** taklif qiladi (pastda).
 
 1. GitHub'dagi oxirgi relizdan `palantir-<nashr>.zip` ni yuklab oling (Releases), masalan `C:\Palantir` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
    Reliz arxivida kutubxonalar, panel va kamera modeli tayyor — o'rnatish internetsiz ham o'tadi. Keyingi nashrlar har kecha o'zi o'rnatiladi.
-2. `install\Ornatish.cmd` ni ikki marta bosing. U o'zi:
-   - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'rnatishni taklif qiladi. Node.js o'rnatilgach oynani yopib, `Ornatish.cmd` ni **qayta** bosing;
+2. Papkadagi **`Ornatish.cmd`** ni ikki marta bosing (`install` papkasiga kirish shart emas). U **bitta savol** beradi —
+   «Bu kompyuter klinikada kecha-kunduz yoqiq turadimi?» — klinikada «h» (Enter). Qolgani savolsiz, 5–15 daqiqa:
+   - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'zi o'rnatadi (Windows ruxsat so'rashi mumkin);
    - kutubxonalarni yuklaydi va panelni yig'adi;
-   - `.env` faylini yozadi: admin paroli, port, ma'lumotlar papkasi (`C:\PalantirData`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
+   - `.env` faylini yozadi: admin paroli, port, ma'lumotlar papkasi (`C:\PalantirData`, boshqasi: `Ornatish.cmd -Papka D:\Baza`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
    - dastur va ma'lumotlar papkasini kompyuterning boshqa Windows foydalanuvchilaridan yopadi;
-   - **ovoz xizmati va telefon liniyasini** o'rnatishni taklif qiladi (`install\telefon.ps1`, alohida — `install\Telefon.cmd`):
-     Python va ovoz kutubxonalari, «Quloq» modeli (≈45 MB), keyin administrator huquqi bilan WSL, Ubuntu 24.04 (≈340 MB, SHA256 tekshiriladi),
-     Asterisk, `.wslconfig` da mirrored tarmoq va brandmauer qoidalari (5060, 10000–10100 — faqat ichki tarmoq).
-     WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqib, `Telefon.cmd` ni yana bosing. Har qadam qayta bosilganda bor narsani o'tkazib yuboradi.
+   - **ovoz xizmatini** o'rnatadi (panel ovozi va «Quloq»; administrator huquqisiz): Python va ovoz kutubxonalari, «Quloq» modeli (≈45 MB).
      Ovozli agent kalitini Palantir o'zi yaratadi (`DATA_DIR\ovoz.env`), Gemini kaliti — ulash ustasida;
-   - Palantir'ni avtoyuklashga qo'shadi, ish stoliga «Palantir» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi;
-   - **avtomatik kirishni** taklif qiladi: svet o'chib-yonganda Windows shu foydalanuvchi bilan o'zi kiradi, Palantir ishga tushadi va ekran darhol
-     qulflanadi (kompyuter yonidagi odam parolsiz kira olmaydi; odam o'zi kirganda qulflanmaydi). Windows paroli bir marta so'raladi, haqiqiy kirish
-     bilan tekshiriladi va registrda ochiq emas, Windows'ning LSA maxfiy omborida saqlanadi. Keyinroq yoqish yoki o'chirish: `install\Avtokirish.cmd` (`-Off`).
-     Microsoft hisobi emas, **mahalliy** parolli foydalanuvchi bo'lgani ma'qul.
+   - Palantir'ni avtoyuklashga qo'shadi, ish stoliga «Palantir AI» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi;
+   - savolga «ha» deyilgan bo'lsa — kompyuter tarmoqqa ulangan paytda uxlamaydi va **avtomatik kirish** yoqiladi: svet o'chib-yonganda Windows shu
+     foydalanuvchi bilan o'zi kiradi, Palantir ishga tushadi va ekran darhol qulflanadi (kompyuter yonidagi odam parolsiz kira olmaydi; odam o'zi kirganda
+     qulflanmaydi). Windows paroli bir marta so'raladi, haqiqiy kirish bilan tekshiriladi va registrda ochiq emas, Windows'ning LSA maxfiy omborida saqlanadi.
+     Keyinroq yoqish yoki o'chirish: `install\Avtokirish.cmd` (`-Off`). Microsoft hisobi emas, **mahalliy** parolli foydalanuvchi bo'lgani ma'qul.
+
+   Savolsiz o'rnatish: `Ornatish.cmd -Klinika` yoki `Ornatish.cmd -Shaxsiy` (oddiy kompyuter: avtomatik kirish va quvvat sozlamalariga tegilmaydi).
+
+   **Telefon liniyasi** (AI qabulxona shahar raqamida) bu yerda o'rnatilmaydi — Uztelecom SIP ma'lumotlari kelganda alohida: `install\Telefon.cmd`
+   (administrator huquqi bilan WSL, Ubuntu 24.04 ≈340 MB SHA256 bilan, Asterisk, `.wslconfig` da mirrored tarmoq, brandmauer qoidalari 5060 va
+   10000–10100 — faqat ichki tarmoq). WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqib, `Telefon.cmd` ni yana bosing; har qadam qayta bosilganda
+   bor narsani o'tkazib yuboradi.
 3. Oxirida ekranda **admin paroli** chiqadi — yozib oling. U sizniki, klinikaga berilmaydi.
 
 **Qaysi Windows foydalanuvchisi ostida o'rnatish kerak.** Palantir shu foydalanuvchi kirganda ishlaydi va kalitlar, baza, bemorlar yozishmasi faqat unga ochiq bo'ladi.
@@ -133,7 +138,7 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 | Telefondan kirish | Hub kodi bo'lsa — egasi panelni uydan yoki telefondan ochadi, klinika kompyuteri port ochmaydi: botdagi **«Panel»** tugmasi (Telegram Mini App, parolsiz — Telegram akkaunti bilan) yoki `https://<hub>/c/<klinika>/` havolasi login va parol bilan (Sozlamalar → Telegram → «Masofadan kirish»). Ulash ustasi, admin va ovozli agent yo'llari masofadan yopiq. O'chirish: `.env` da `REMOTE_PANEL=0`. Telefon yo'qolsa — Sozlamalar → «Kirish va xavfsizlik» → «Boshqa qurilmalardan chiqish» |
 | AI xarajati | Admin sahifasida oxirgi 7 kun: so'rovlar soni va taxminiy dollar. Aniq hisob — platform.claude.com |
 | Kalitni almashtirish | `/#/ulash` → «Kalitlar»: yangisini qo'ying — tekshiriladi va server to'xtamasdan kuchga kiradi. Kalitlar bazada shifrlangan (`session.secret` bilan); `.env` dagisi faqat panelda berilmagan bo'lsa ishlaydi |
-| Olib tashlash | `install\Ornatish.cmd -Uninstall` (ma'lumotlar o'chmaydi) |
+| Olib tashlash | `Ornatish.cmd -Uninstall` (ma'lumotlar o'chmaydi) |
 
 Kunlik chegaralar (`.env` da o'zgartiriladi): egasining yordamchisi — 600 so'rov (`AI_DAILY_OWNER`), mijozlarga javob — 400 (`AI_DAILY_CUSTOMER`), rasm — 50 (`AI_DAILY_PHOTOS`), kamera AI ko'zi — 150 (`AI_DAILY_CAMERA`). Chegara tugasa Palantir buni egasiga aytadi va pul sarflamaydi.
 
