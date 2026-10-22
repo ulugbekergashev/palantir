@@ -61,6 +61,8 @@ jobs:
       - run: npm run test:ipcam
       - run: npm run test:camwork
       - run: npm run test:httpcam
+      # Kompyuterda ishlash: haqiqiy Chrome (ko'rinmas), soxta ekran; Windows'da — C# yordamchi yig'iladi, sichqoncha va ekran rasmi
+      - run: npm run test:computer
       - run: npm run test:stend
       - run: npm run test:dashboard
       - run: npm run test:ui
@@ -83,3 +85,4 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:resilience
+      - run: npm run test:computer

@@ -38,6 +38,7 @@
     "test:ipcam": "tsx scripts/e2e-ipcam.ts",
     "test:camwork": "tsx scripts/e2e-camwork.ts",
     "test:httpcam": "tsx scripts/e2e-httpcam.ts",
+    "test:computer": "tsx scripts/e2e-computer.ts",
     "test:ui": "vite build && tsx scripts/ui-live.ts",
     "crm:probe": "tsx scripts/crm-probe.ts",
     "crm:live": "tsx scripts/crm-live.ts",

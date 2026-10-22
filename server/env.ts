@@ -42,6 +42,10 @@ function dayHours(v: string | undefined): { from: number; to: number } {
   return from < to && to <= 24 ? { from, to } : { from: 8, to: 21 };
 }
 
+export type ComputerMode = '' | 'browser' | 'desktop' | 'all';
+const computerMode = (v: string | undefined): ComputerMode => (v === 'browser' || v === 'desktop' || v === 'all' ? v : '');
+const list = (v: string | undefined): string[] => (v ?? '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+
 export const env = {
   port: Number(process.env.PORT) || 3200,
   /**
@@ -139,6 +143,26 @@ export const env = {
   /** Faqat sinov uchun: brauzer o'rniga soxta Instagram */
   igFakeUrl: process.env.IG_FAKE_URL || '',
 
+  /**
+   * Yordamchi kompyuterda ishlaydi (server/computer): browser — alohida Chrome profilida saytlar; desktop — butun ekran (sichqoncha,
+   * klaviatura); all — ikkalasi. Standart o'chiq: bu yo'l bilan AI egasining nomidan harakat qiladi. Har xavfli amal Telegram'da tasdiqlanadi
+   */
+  computerUse: computerMode(process.env.COMPUTER_USE),
+  /** Brauzer oynasi ko'rinib ishlasin (aks holda — ko'rinmas); /brauzer (egasi saytlarga kirib olishi uchun) har doim ko'rinadi */
+  computerShowBrowser: process.env.COMPUTER_SHOW_BROWSER === '1',
+  /** Faqat shu saytlarga kirsin (vergul bilan: soliq.uz, my.gov.uz). Bo'sh — hammasi, ichki tarmoq va shu kompyuterdan tashqari */
+  computerAllowedSites: list(process.env.COMPUTER_ALLOWED_SITES),
+  /** Ichki tarmoqdagi shu manzillarga ruxsat (host:port, vergul bilan) — masalan, ofisdagi 1C veb-kirishi. Sinovda — sinov sayti */
+  computerAllowHosts: list(process.env.COMPUTER_ALLOW_HOSTS),
+  /** Bitta ishning chegaralari: model qadamlari, daqiqa, taxminiy dollar — oshsa ish to'xtaydi va egasiga aytiladi */
+  computerMaxSteps: Number(process.env.COMPUTER_MAX_STEPS) || 80,
+  computerMaxMinutes: Number(process.env.COMPUTER_MAX_MINUTES) || 30,
+  computerMaxUsd: Number(process.env.COMPUTER_MAX_USD) || 5,
+  /** Egasi tasdiq tugmasini shuncha daqiqa bosmasa — «ruxsat yo'q» deb olinadi */
+  computerApproveMinutes: Number(process.env.COMPUTER_APPROVE_MINUTES) || 10,
+  /** Faqat sinov uchun: haqiqiy ekran o'rniga soxta (o'lchami «2560x1600»), amallar COMPUTER_FAKE_LOG fayliga yoziladi */
+  computerFakeScreen: process.env.COMPUTER_FAKE_SCREEN || '',
+
   /** Mijoz ketma-ket bir nechta xabar yozishi mumkin — oxirgisidan keyin shuncha kutib javob tayyorlanadi */
   inboxDebounceMs: Number(process.env.INBOX_DEBOUNCE_MS) || 8_000,
   /** "O'zi javob bersin" rejimidagi kutish daqiqasining uzunligi (sinovda qisqartiriladi) */
@@ -163,6 +187,8 @@ export const env = {
   aiDailyPhotos: Number(process.env.AI_DAILY_PHOTOS) || 50,
   /** Bir kunda «AI ko'zi» (kamera kadrini tekshirish va kameraga savol) — egasining rasmlari chegarasiga tegmaydi */
   aiDailyCamera: Number(process.env.AI_DAILY_CAMERA) || 150,
+  /** Bir kunda kompyuterda ishlash (har qadam — bitta so'rov, ekran rasmi bilan) */
+  aiDailyComputer: Number(process.env.AI_DAILY_COMPUTER) || 400,
   crmDailyMoney: Number(process.env.CRM_DAILY_MONEY) || 30,
   /** Bitta pul yozuvining eng katta summasi va bir kunda yoziladigan jami summa (so'm) */
   crmMaxAmount: Number(process.env.CRM_MAX_AMOUNT) || 100_000_000,

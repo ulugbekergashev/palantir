@@ -367,6 +367,9 @@ export const ai = {
   insights: [] as string[],
   /** Chuqur tahlil so'rovlari: yuklangan fayllar, konteyner (davom ettirilganda), asboblar */
   deep: [] as { files: string[]; container: string | null; tools: Block[]; cache: unknown }[],
+  /** Kompyuter operatori (computer/jobs.ts): ssenariy javobi va borgan so'rovlar */
+  operator: null as ((messages: Msg[], tools: Block[], system: string) => { content: Block[]; stop: string }) | null,
+  operatorRequests: [] as { system: string; messages: Msg[]; tools: Block[]; beta: string; thinking: unknown; contextManagement: unknown }[],
 };
 
 /**
@@ -687,6 +690,25 @@ export const aiServer = patient(createServer(async (req, res) => {
     const answer = ai.cameraAnswer ? ai.cameraAnswer(text) : "Qabulxonada bir kishi stol yonida o'tiribdi.";
     const out = text.includes('<check>') ? JSON.stringify({ alert: false, answer }) : answer;
     return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: out }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 10 } });
+  }
+
+  // Kompyuter operatori: toolset asbobiga natija — o'sha toolset_name bilan (API talabi), ssenariy keyingi qadamni beradi
+  if (String(body.system).startsWith("You are Palantir's computer operator")) {
+    ai.operatorRequests.push({ system: body.system, messages: body.messages, tools: body.tools, beta, thinking: body.thinking, contextManagement: (body as { context_management?: unknown }).context_management });
+    for (let i = 0; i < body.messages.length; i++) {
+      const m = body.messages[i];
+      if (m.role !== 'assistant' || !Array.isArray(m.content)) continue;
+      const next = body.messages[i + 1];
+      const results = next && Array.isArray(next.content) ? next.content.filter(b => b.type === 'tool_result') : [];
+      for (const u of m.content.filter(b => b.type === 'tool_use')) {
+        const r = results.find(x => x.tool_use_id === u.id);
+        if (!r) return fail(`tool_use ${String(u.id)} natijasiz qoldi`);
+        if ((r.toolset_name ?? null) !== (u.toolset_name ?? null)) return fail(`tool_result ${String(u.id)}: toolset_name «${String(r.toolset_name)}», kerak «${String(u.toolset_name)}»`);
+      }
+    }
+    if (!ai.operator) return fail('operator ssenariysi berilmagan');
+    const { content, stop } = ai.operator(body.messages, body.tools, body.system);
+    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content, stop_reason: stop, stop_sequence: null, stop_details: null, usage: { input_tokens: 1000, output_tokens: 100 } });
   }
 
   // Qo'ng'iroq yozuvi tahlili (callreview.ts): yozuv matni modelga qanday borganini sinov tekshiradi
