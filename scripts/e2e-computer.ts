@@ -79,7 +79,8 @@ if (process.platform === 'win32') {
   } catch (e) {
     ok('Windows yordamchisi', false, (e as Error).message);
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    // Yordamchi .exe yopilguncha Windows faylni band qilib turadi — bir necha urinish, o'chmasa ham sinov yiqilmaydi
+    try { rmSync(work, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch { /* vaqtinchalik papka */ }
   }
 }
 
