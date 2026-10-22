@@ -78,13 +78,15 @@ export const modeEnabled = (mode: JobMode): boolean => env.computerUse === 'all'
  */
 export function startJob(biz: BusinessRow, goal: string, mode: JobMode, confirmFirst = false): JobRow {
   if (!modeEnabled(mode)) throw new ComputerError(mode === 'desktop' ? "Butun kompyuterda ishlash yoqilmagan (administrator: .env da COMPUTER_USE=desktop yoki all)" : "Brauzerda ishlash yoqilmagan (administrator: .env da COMPUTER_USE=browser yoki all)");
-  if (live.has(biz.id)) throw new ComputerError(`Hozir boshqa ish bajarilyapti: «${cut(live.get(biz.id)!.job.goal, 80)}». Tugashini kuting yoki /toxta bilan to'xtating`);
+  const prev = live.get(biz.id);
+  if (prev && !prev.abort.signal.aborted) throw new ComputerError(`Hozir boshqa ish bajarilyapti: «${cut(prev.job.goal, 80)}». Tugashini kuting yoki /toxta bilan to'xtating`);
   if (loginWindows.has(biz.id)) throw new ComputerError("Brauzer oynasi ochiq (/brauzer — saytga kirish). Avval uni yoping: «✅ Kirdim, yopish» tugmasi");
   const job: JobRow = { id: newId(10), businessId: biz.id, goal: goal.trim(), mode, status: 'waiting', report: null, steps: 0, costUsd: 0, createdAt: new Date().toISOString(), finishedAt: null };
   sql.run('INSERT INTO computer_jobs (id, business_id, goal, mode, status, created_at) VALUES (?, ?, ?, ?, ?, ?)', job.id, biz.id, job.goal, mode, job.status, job.createdAt);
   const l: Live = { job, confirmFirst, abort: new AbortController(), approvals: new Map(), statusMessage: null, lastStatusAt: 0 };
   live.set(biz.id, l);
-  l.done = runJob(biz, l).finally(() => { if (live.get(biz.id) === l) live.delete(biz.id); });
+  // To'xtatilgan ish brauzerini hali yopayotgan bo'lsa (profil bitta) — yangisi uni kutib boshlanadi
+  l.done = (prev?.done ?? Promise.resolve()).then(() => runJob(biz, l)).finally(() => { if (live.get(biz.id) === l) live.delete(biz.id); });
   return job;
 }
 

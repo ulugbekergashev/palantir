@@ -78,8 +78,16 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # apt ba'zan osilib qoladi (butun job 20 daqiqada bekor bo'lardi): har urinishga vaqt chegarasi, 3 marta
       - name: ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+        timeout-minutes: 10
+        run: |
+          for i in 1 2 3; do
+            sudo timeout 150 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 update \
+              && sudo timeout 150 apt-get -o Acquire::http::Timeout=20 install -y --no-install-recommends ffmpeg && exit 0
+            echo "apt: ${i}-urinish bo'lmadi"; sleep 10
+          done
+          exit 1
       # GitHub runner'larida npm tarmog'i ba'zan uziladi (ECONNRESET): qayta urinishlar bilan
       - run: npm ci --no-audit --no-fund --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
       - run: npm run typecheck
