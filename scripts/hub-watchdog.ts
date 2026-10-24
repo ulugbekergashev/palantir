@@ -4,7 +4,8 @@
  *   /health javob bersa — hech narsa qilinmaydi. Javob bermasa — Oracle API: server holati; STOPPED bo'lsa — START va /health kutiladi.
  * Email yuborilmaydi (egasi so'ragan): ish hech qachon «yiqilmaydi», natija — Actions jurnalida (::warning::).
  * Muhit: HUB_URL, OCI_REGION, OCI_TENANCY, OCI_USER, OCI_FINGERPRINT, HUB_INSTANCE_ID — ochiq identifikatorlar; OCI_PRIVATE_KEY — sir.
- * Qo'lda (shu kompyuterdan): node scripts/hub-watchdog.ts --holat  — Hub sog' bo'lsa ham server holatini Oracle'dan so'raydi.
+ * --holat — Hub sog' bo'lsa ham server holatini Oracle'dan so'raydi (Actions shunday ishga tushiradi: kalit har safar tekshiriladi,
+ * buzilgan bo'lsa — Hub haqiqatan to'xtaganda emas, darhol jurnalda ko'rinadi).
  * Tashqi kutubxonasiz: Node 24 to'g'ridan-to'g'ri ishga tushiradi (faqat o'chiriladigan TypeScript sintaksisi).
  */
 import { createHash, createSign } from 'node:crypto';
@@ -76,7 +77,7 @@ async function main(): Promise<void> {
   const forceCheck = process.argv.includes('--holat');
   if (await healthy(hub)) {
     console.log(`Hub javob beryapti: ${hub}`);
-    if (forceCheck) console.log(`Oracle: server holati — ${await stateOf(id)}`);
+    if (forceCheck) console.log(`::notice::Hub sog', Oracle kaliti ishlayapti: server holati — ${await stateOf(id)}`);
     return;
   }
   const state = await stateOf(id);

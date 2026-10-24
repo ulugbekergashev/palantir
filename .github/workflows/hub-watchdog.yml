@@ -27,7 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node scripts/hub-watchdog.ts
+      # --holat: Oracle kaliti har safar tekshiriladi (Hub sog' bo'lsa ham)
+      - run: node scripts/hub-watchdog.ts --holat
         env:
           HUB_URL: https://92-5-56-138.sslip.io
           OCI_REGION: eu-frankfurt-1
