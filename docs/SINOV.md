@@ -84,4 +84,5 @@ Instagram xabarlarni o'zi internetdagi doimiy HTTPS manzilga yuboradi (webhook),
 | H.8 | Ertasi kuni: `GET /admin/backups` (admin kaliti bilan) | Klinikaning shifrlangan zaxirasi; `npm run restore-backup -- <fayl>` ochadi |
 | H.9 | Kompyuterni o'chirib-yoqing | 15 daqiqada sizga (`HUB_ALERT_CHAT`) «aloqa yo'q», yongach «yana aloqada» |
 | H.10 | O'z kompyuteringizda `https://<hub>/admin` → admin kaliti (`~/.palantir/hub.env` dagi `HUB_ADMIN_KEY`) → klinika yonida **«Panelni ochish»** | Yangi oynada klinika paneli, parolsiz: bosh sahifa, kameralar (kadr, hozir nechta odam), «Tarmoqdan qidirish» — klinika tarmog'ini klinikadagi kompyuter qidiradi; ulash ustasi ham ochiq |
+| H.12 | GitHub → Actions → **Hub qorovuli** → «Run workflow» (repo siri `OCI_PRIVATE_KEY` qo'yilgan bo'lsin) | Jurnalda «Hub javob beryapti». Oracle serverni to'xtatsa — 30 daqiqa ichida o'zi qayta yoqiladi (`scripts/hub-watchdog.ts`) |
 | H.11 | Klinikada egasi: Sozlamalar → Telegram → «Masofadan kirish» → «Palantir jamoasi» | H.10 dagi kirish vaqti bilan yozilgan; «O'chirish» → H.10 dagi oyna «qayta kiring», tugma «egasi o'chirgan» deydi |
