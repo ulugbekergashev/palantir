@@ -1,0 +1,2 @@
+# Serverda bajariladigan skriptlar (hub/setup-server.sh) — Windows'da ham LF bilan: CRLF bilan bash ishlamaydi
+*.sh text eol=lf

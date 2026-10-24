@@ -36,7 +36,7 @@
  *
  * Sozlama (muhit o'zgaruvchilari): IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL, HUB_VERIFY_TOKEN, HUB_ADMIN_KEY, PORT, HUB_DB;
  * ochiq sahifalar uchun HUB_OPERATOR (xizmatni taqdim etuvchi, yuridik nomi) va HUB_CONTACT_EMAIL;
- * proksi ortida (Railway) — HUB_TRUST_PROXY=1 (masofadan kirishda mijoz manzili X-Forwarded-For'dan);
+ * proksi ortida (Caddy) — HUB_TRUST_PROXY=1 (masofadan kirishda mijoz manzili X-Forwarded-For'dan);
  * nazorat uchun HUB_BOT_TOKEN (sotuvchining boti) va HUB_ALERT_CHAT (xabar boradigan chat), HUB_OFFLINE_MS (standart 15 daqiqa).
  * Ishga tushirish: npm run hub
  */
@@ -75,7 +75,7 @@ const cfg = {
   backupKeep: Number(process.env.HUB_BACKUP_KEEP) || 7,
   backupMaxBytes: (Number(process.env.HUB_BACKUP_MAX_MB) || 512) * 1_048_576,
   diagDir: resolve(process.env.HUB_DIAG_DIR || join(dirname(resolve(process.env.HUB_DB || 'hub-data/hub.db')), 'diagnostika')),
-  // Hub xosting proksisi ortida (Railway va h.k.): mijoz manzili — X-Forwarded-For'ning oxirgisi (proksi qo'shgani)
+  // Hub proksi ortida (Caddy va h.k.): mijoz manzili — X-Forwarded-For'ning oxirgisi (proksi qo'shgani)
   trustProxy: process.env.HUB_TRUST_PROXY === '1',
   operator: process.env.HUB_OPERATOR || 'Palantir',
   contactEmail: process.env.HUB_CONTACT_EMAIL || '',

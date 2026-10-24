@@ -70,11 +70,11 @@ Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **h
 
 ## Keyin: Instagram, telefondan panel, jamoa kirishi, tashqi zaxira (Palantir Hub kerak)
 
-Instagram xabarlarni o'zi internetdagi doimiy HTTPS manzilga yuboradi (webhook), klinika kompyuteri esa router ortida — tashqaridan unga kirib bo'lmaydi. Shu manzil — Hub: Meta xabarni hubga beradi, klinika kompyuteri o'zi borib oladi. Hub qayerda turishi (bepul Oracle serveri, ~$5/oy server yoki Railway) — Instagram kerak bo'lganda hal qilinadi; `npm run hub:deploy` hozir Railway uchun yozilgan.
+Instagram xabarlarni o'zi internetdagi doimiy HTTPS manzilga yuboradi (webhook), klinika kompyuteri esa router ortida — tashqaridan unga kirib bo'lmaydi. Shu manzil — Hub: Meta xabarni hubga beradi, klinika kompyuteri o'zi borib oladi. Hub o'z serverimizda — Oracle Cloud Always Free (Frankfurt, oylik to'lovsiz): `https://130-61-14-72.sslip.io`. `npm run hub:deploy` uni SSH orqali yangilaydi.
 
 | # | Qilish | Natija |
 |---|---|---|
-| H.1 | Hub'ni joylang (Railway: `railway login`, keyin `HUB_CONTACT_EMAIL=siz@domen.uz HUB_OPERATOR="Kompaniya MChJ" npm run hub:deploy`) | Oxirida `Tayyor: https://…` va Meta uchun manzillar. Sirlar — `~/.palantir/hub.env` |
+| H.1 | Hub'ni joylang yoki yangilang: `HUB_CONTACT_EMAIL=siz@domen.uz HUB_OPERATOR="Kompaniya MChJ" npm run hub:deploy` (server manzili va SSH kaliti — `~/.palantir/`) | Oxirida `Tayyor: https://…` va Meta uchun manzillar. Sirlar — `~/.palantir/hub.env` |
 | H.2 | `https://<hub>/privacy` ni oching | Uch tilda siyosat, kompaniya nomi va e-mail bilan |
 | H.3 | Meta ilovasi: [docs/INSTAGRAM.md](INSTAGRAM.md) 2-qadam — H.1 chiqargan manzillarni qo'ying; `IG_APP_ID`, `IG_APP_SECRET` bilan `npm run hub:deploy` ni qayta ishga tushiring | `https://<hub>/health` → `"instagram":true,"legal":true` |
 | H.4 | Klinika kodi: H.1 oxirida chiqqan `curl …/admin/clinics` buyrug'i → klinika kompyuterida ulash ustasi → kalitlar: Hub kodi | Panel → Sozlamalar → Telegram → «Masofadan kirish»da havola |
