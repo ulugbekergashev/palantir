@@ -69,6 +69,7 @@ ok('ONVIF javobi: IP, marka, model, boshqaruv manzili', cam?.ip === '192.168.1.6
 const spoof = parseProbeMatch(MATCH.replace('http://192.168.1.64/', 'http://127.0.0.1/'), '192.168.1.77');
 ok("ONVIF javobidagi begona IP'ga ishonilmaydi: IP — javob kelgan manzil", spoof?.ip === '192.168.1.77' && spoof.onvif === null, JSON.stringify(spoof));
 ok('marka modeldan ham taniladi', brandOf('IPC-HFW1230S') === 'Dahua' && brandOf('noma\'lum') === '');
+ok('HiWatch — Hikvision yo\'llari bilan', brandOf('HiWatch DS-I253') === 'Hikvision' && brandOf('DS-I203(D)') === 'Hikvision' && brandOf('DS-T203') === 'Hikvision');
 ok('markaning yo\'llari birinchi, umumiylari keyin', candidatePaths('Dahua')[0].startsWith('/cam/realmonitor') && candidatePaths('').length >= 4);
 ok('eng yengil profil tanlanadi', pickProfile('<trt:Profiles token="main"><tt:Width>1920</tt:Width><tt:Height>1080</tt:Height></trt:Profiles><trt:Profiles token="sub"><tt:Width>640</tt:Width><tt:Height>360</tt:Height></trt:Profiles>') === 'sub');
 ok("parolda @ va : bo'lsa ham manzil buzilmaydi", new URL(withCredentials('rtsp://1.2.3.4:554/x', 'admin', 'a@b:c')).password === 'a%40b%3Ac');

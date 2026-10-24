@@ -31,7 +31,8 @@ const scope = (scopes: string, key: string): string => {
 /** Markani nom va modeldan taniydi */
 export function brandOf(text: string): string {
   const t = text.toLowerCase();
-  if (/hikvision|\bhik\b|^ds-\d|\sds-\d/.test(t)) return 'Hikvision';
+  // HiWatch — Hikvision'ning arzon brendi: o'sha dasturiy ta'minot, modellari DS-I…/DS-T…
+  if (/hikvision|hiwatch|\bhik\b|^ds-[\dit]|\sds-[\dit]/.test(t)) return 'Hikvision';
   if (/dahua|ipc-h[fd]w|\bdh-/.test(t)) return 'Dahua';
   if (/uniview|uniarch|\bipc\d{4}/.test(t)) return 'Uniview';
   if (/ezviz/.test(t)) return 'EZVIZ';
