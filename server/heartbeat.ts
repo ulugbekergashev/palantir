@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { businesses } from './db';
 import { freeMb } from './disk';
 import { lastOffsite } from './offsite';
+import { licenseStatus } from './license';
 import { env } from './env';
 import { onKeyChange } from './keys';
 import { SCHEMA_VERSION } from './migrate';
@@ -33,6 +34,8 @@ export function heartbeatStatus() {
     lastUpdate: lastUpdate(),
     // Shifrlangan tashqi nusxa (offsite.ts): oxirgisi qachon va yetdimi
     lastOffsite: lastOffsite(),
+    // Litsenziya (license.ts): sotuvchi Hub ro'yxatida ko'radi va bir bosishda beradi
+    license: (({ activated, daysLeft }) => ({ activated, daysLeft }))(licenseStatus()),
   };
 }
 

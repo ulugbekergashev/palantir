@@ -80,7 +80,7 @@ EOF
 step 'Hub'
 id palantir-hub >/dev/null 2>&1 || useradd --system --home-dir "$DATA" --shell /sbin/nologin palantir-hub
 mkdir -p "$APP" "$DATA"
-install -m 644 "$SRC"/server.ts "$SRC"/admin.ts "$SRC"/legal.ts "$SRC"/package.json "$APP"/
+install -m 644 "$SRC"/server.ts "$SRC"/admin.ts "$SRC"/legal.ts "$SRC"/licenseKey.ts "$SRC"/package.json "$APP"/
 chown -R palantir-hub:palantir-hub "$DATA" && chmod 750 "$DATA"
 test -f /etc/palantir-hub.env || { echo '/etc/palantir-hub.env yo'"'"'q' >&2; exit 1; }
 chmod 600 /etc/palantir-hub.env

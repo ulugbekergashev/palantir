@@ -26,6 +26,8 @@ const VERSION = (JSON.parse(fs.readFileSync('package.json', 'utf8')) as { versio
 const ALERT_CHAT = 5005;
 const keyPem = () => { const k = generateKeyPairSync('x25519'); return { public: String(k.publicKey.export({ type: 'spki', format: 'pem' })), private: String(k.privateKey.export({ type: 'pkcs8', format: 'pem' })) }; };
 const VENDOR = keyPem(), STRANGER = keyPem();
+/** Litsenziya: sinov uchun sotuvchi kaliti (haqiqiysi ~/.palantir/litsenziya.pem) va kompyuter kodi */
+const LICENSE = generateKeyPairSync('ed25519'), MACHINE = 'ABCD-1234-EF56-7890';
 const tgPort = await listen(tgServer);
 const work = fs.mkdtempSync(path.join(tmpdir(), 'palantir-hub-'));
 const HUB_PORT = 3411, HUB = `http://127.0.0.1:${HUB_PORT}`;
@@ -55,6 +57,7 @@ try {
     PORT: String(HUB_PORT), HUB_DB: path.join(work, 'hub.db'), HUB_PUBLIC_URL: HUB, HUB_ADMIN_KEY: 'hub-admin-sinov-kaliti-0123456789',
     HUB_BOT_TOKEN: '777:HUB', HUB_ALERT_CHAT: String(ALERT_CHAT), HUB_TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, HUB_OFFLINE_MS: '2500', HUB_WATCH_MS: '300',
     HUB_BACKUP_DIR: path.join(work, 'hub-zaxira'),
+    LICENSE_SIGNING_KEY: LICENSE.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64'),
   });
   ok('hub ishga tushdi', await up(`${HUB}/health`));
 
@@ -72,6 +75,7 @@ try {
     PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: path.join(work, 'data'), BOT_TOKEN: '123:CLINIC', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, ANTHROPIC_API_KEY: '', ADMIN_PASSWORD: 'admin-pass-1',
     MORNING_HOUR: '99', EVENING_HOUR: '99', BACKUP_KEEP: '3', BACKUP_FIRST_MS: '800', BACKUP_PUBLIC_KEY: VENDOR.public, GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '',
     PALANTIR_HUB: clinic.code, HEARTBEAT_MS: '400',
+    LICENSE_MACHINE_ID: MACHINE, LICENSE_PUBLIC_KEY: LICENSE.publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
   };
   let palantir = start('server/index.ts', palantirEnv);
   ok('Palantir ishga tushdi', await up(`${base}/api/health`));
@@ -179,6 +183,18 @@ try {
   ok("bir nechta biznes — qaysi biri so'raladi, tanlangani ochiladi", which.status === 409 && choice.businesses?.length === 2 && !!second
     && !!(await (await panel({ business: second.id })).json() as { token?: string }).token, JSON.stringify(choice));
 
+  console.log('\n# Litsenziya: kalitsiz muddat');
+  type LicenseView = { activated: boolean; machineId: string; daysLeft: number; blocked: boolean };
+  const lic = async () => ((await (await fetch(`${base}/api/license`)).json()) as { license: LicenseView }).license;
+  const before = await lic();
+  ok('yangi o\'rnatish: aktivlashtirilmagan, 14 kun qoldi, panel ochiq', !before.activated && before.daysLeft === 14 && !before.blocked && before.machineId === MACHINE
+    && (await viaHub('/api/me', { headers: owner })).status === 200, JSON.stringify(before));
+  const wrong = await fetch(`${base}/api/license`, json({ key: 'PAL1-soxta-kalit' }));
+  ok("noto'g'ri kalit — 400, aktivlashmaydi", wrong.status === 400 && !(await lic()).activated);
+  const licShown = await until('litsenziya holati', async () => (await adminList()).find(c => c.id === clinic.clinicId && (c.status as { license?: { activated: boolean; daysLeft: number } } | null)?.license?.daysLeft === 14), 10_000);
+  ok("hub ro'yxatida: litsenziyasiz, 14 kun", !!licShown);
+  ok("hub admin kalitisiz litsenziya bermaydi", (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/license`, { method: 'POST' })).status === 401);
+
   console.log("\n# Kompyuter o'chdi");
   let mark = sent.length;
   await stopProcess(palantir);
@@ -192,6 +208,10 @@ try {
     return r.status === 503 || r.status === 504 ? await r.text() : undefined;
   }, 30_000);
   ok("panel havolasi: kompyuter o'chiq — «aloqada emas» sahifasi (ko'pi bilan 15 soniya, 2 daqiqa kutib qolmaydi)", !!offline?.includes('aloqada emas'));
+  // O'chiq turganda 30 kun o'tdi (litsenziya fayli: shu kompyuterning birinchi ishga tushgan payti)
+  const licFile = path.join(work, 'data', 'litsenziya.json');
+  const licData = JSON.parse(fs.readFileSync(licFile, 'utf8')) as { key: string | null; firstRun: Record<string, string> };
+  fs.writeFileSync(licFile, JSON.stringify({ ...licData, firstRun: { ...licData.firstRun, [MACHINE]: new Date(Date.now() - 30 * 86_400_000).toISOString() } }));
 
   console.log('\n# Kompyuter qayta yondi');
   mark = sent.length;
@@ -199,6 +219,18 @@ try {
   ok('Palantir qayta ishga tushdi', await up(`${base}/api/health`));
   ok('sotuvchiga: «Shifo Dent» yana aloqada', !!(await waitFor('yana aloqada', () => toVendor(mark, '«Shifo Dent» yana aloqada')[0], 15_000)));
   ok("admin ro'yxatida — yana aloqada", (await adminList()).find(c => c.id === clinic.clinicId)!.online);
+
+  console.log('\n# Litsenziya: muddat tugadi → Hub\'dan bir bosishda');
+  const expired = await lic();
+  const blockedMe = await viaHub('/api/me', { headers: owner });
+  ok('30 kundan keyin: panel yopiq (LITSENZIYA), litsenziya holati va kirish ochiq', expired.blocked && expired.daysLeft === 0 && blockedMe.status === 403
+    && (await blockedMe.json() as { code?: string }).code === 'LITSENZIYA' && (await fetch(`${base}/api/health`)).ok);
+  const given = await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/license`, { method: 'POST', headers: admin });
+  const givenJson = await given.json() as { license?: LicenseView; error?: string };
+  ok("hub «Aktivlashtirish»: kod so'raldi, imzolandi, klinikaga yuborildi", given.status === 200 && givenJson.license?.activated === true, JSON.stringify(givenJson));
+  ok('panel yana ochiq, holat — aktivlashtirilgan', (await lic()).activated && (await viaHub('/api/me', { headers: owner })).status === 200);
+  const afterList = (await adminList()).find(c => c.id === clinic.clinicId);
+  ok("hub ro'yxatida darhol: litsenziya bor", (afterList?.status as { license?: { activated: boolean } } | null)?.license?.activated === true);
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

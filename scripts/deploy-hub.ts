@@ -9,13 +9,15 @@
  * Kerak: ssh va scp (Git Bash'dagisi). Ixtiyoriy qiymatlar — muhitdan: HUB_SSH=opc@1.2.3.4 HUB_CONTACT_EMAIL=… npm run hub:deploy
  */
 import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createPrivateKey, randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const HUB_DIR = resolve('hub');
-const FILES = ['server.ts', 'admin.ts', 'legal.ts', 'package.json', 'setup-server.sh'];
+const FILES = ['server.ts', 'admin.ts', 'legal.ts', 'licenseKey.ts', 'package.json', 'setup-server.sh'];
+/** Litsenziya imzolovchi kalit (npm run kalit ham shuni ishlatadi): bo'lsa — Hub'ga ham beriladi (bir bosishda aktivlashtirish) */
+const LICENSE_KEY_FILE = join(homedir(), '.palantir', 'litsenziya.pem');
 const SECRETS = join(homedir(), '.palantir', 'hub.env');
 const UPLOAD = '/tmp/palantir-hub-upload';
 const step = (s: string) => console.log(`\n== ${s}`);
@@ -53,6 +55,8 @@ const vars: Record<string, string> = {
   HUB_VERIFY_TOKEN: s.HUB_VERIFY_TOKEN, HUB_ADMIN_KEY: s.HUB_ADMIN_KEY, HUB_OPERATOR: process.env.HUB_OPERATOR || s.HUB_OPERATOR || 'Palantir',
 };
 for (const k of ['HUB_CONTACT_EMAIL', 'IG_APP_ID', 'IG_APP_SECRET', 'HUB_BOT_TOKEN', 'HUB_ALERT_CHAT']) { const v = process.env[k] || s[k]; if (v) vars[k] = v; }
+// Muhit faylida qiymat bitta qatorda bo'lishi kerak — PEM emas, PKCS8 DER base64
+if (existsSync(LICENSE_KEY_FILE)) vars.LICENSE_SIGNING_KEY = createPrivateKey(readFileSync(LICENSE_KEY_FILE, 'utf8')).export({ type: 'pkcs8', format: 'der' }).toString('base64');
 // Sirlar buyruq qatoriga emas, stdin orqali (serverdagi jarayonlar ro'yxatida ko'rinmasin)
 ssh("sudo sh -c 'umask 077; cat > /etc/palantir-hub.env'",Object.entries(vars).map(([k, v]) => `${k}=${v}`).join('\n') + '\n');
 console.log(Object.keys(vars).join(', '));

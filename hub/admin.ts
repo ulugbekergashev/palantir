@@ -31,7 +31,7 @@ li{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 14p
 .who{flex:1;min-width:11rem}.who b{display:block}.who small{color:var(--muted)}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--off);flex:none}.dot.on{background:var(--ok)}
 .pick{display:flex;flex-wrap:wrap;gap:6px;width:100%}
-.pick button{background:transparent;color:var(--accent);border:1px solid var(--line)}
+.pick button,button.second{background:transparent;color:var(--accent);border:1px solid var(--line)}
 #msg{min-height:1.4em;margin:12px 0;color:var(--muted)}
 </style>
 <main>
@@ -79,12 +79,37 @@ function row(c) {
   const dot = el('span', 'dot' + (c.online ? ' on' : ''));
   dot.title = c.online ? 'aloqada' : 'aloqada emas';
   const who = el('div', 'who');
-  who.append(el('b', '', c.name), el('small', '', (c.online ? 'aloqada' : 'aloqada emas · ' + ago(c.seenAt)) + (c.status && c.status.version ? ' · v' + c.status.version : '')));
+  const lic = c.status && c.status.license;
+  const licText = !lic ? '' : lic.activated ? ' · litsenziya bor' : ' · litsenziyasiz (' + lic.daysLeft + ' kun qoldi)';
+  who.append(el('b', '', c.name), el('small', '', (c.online ? 'aloqada' : 'aloqada emas · ' + ago(c.seenAt)) + (c.status && c.status.version ? ' · v' + c.status.version : '') + licText));
   const btn = el('button', '', 'Panelni ochish');
   btn.disabled = !c.online;
   btn.onclick = () => enter(c, li, btn);
-  li.append(dot, who, btn);
+  li.append(dot, who);
+  if (lic && !lic.activated) {
+    const act = el('button', 'second', 'Aktivlashtirish');
+    act.disabled = !c.online;
+    act.onclick = () => license(c, act);
+    li.append(act);
+  }
+  li.append(btn);
   return li;
+}
+
+async function license(c, btn) {
+  btn.disabled = true;
+  say('«' + c.name + "» uchun litsenziya berilmoqda…");
+  try {
+    const r = await api('/admin/clinics/' + c.id + '/license', {});
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) return load();
+    say(r.ok ? '«' + c.name + '» aktivlashtirildi' : (j.error || 'Xato: ' + r.status));
+    if (r.ok) load();
+  } catch {
+    say("Hub bilan aloqa yo'q");
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function enter(c, li, btn, business) {

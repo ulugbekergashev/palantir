@@ -45,7 +45,8 @@
     "demo": "tsx scripts/demo.ts",
     "stend": "tsx scripts/stend.ts",
     "test:stend": "tsx scripts/e2e-stend.ts",
-    "scenarios": "tsx scripts/scenarios.ts"
+    "scenarios": "tsx scripts/scenarios.ts",
+    "kalit": "tsx scripts/kalit.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",

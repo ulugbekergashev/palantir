@@ -9,20 +9,22 @@
 process.env.TZ = 'Asia/Tashkent';
 // Bu sinov server modullarini o'zi import qiladi (about → vault → db): haqiqiy bazaga tegmasin
 import './isolate';
-import { spawn, type ChildProcess } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import { createSocket } from 'node:dgram';
 import { createServer as createTcp } from 'node:net';
 import { createServer, type IncomingMessage } from 'node:http';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { classifyLine, classifyText, containsSecret, maskSecret } from '../src/lib/secrets';
 import { emptyAnketa, hoursText, missingDays, cleanCode } from '../src/lib/anketa';
 import { parsePrices, splitConflicts } from '../src/lib/prices';
 import { setAboutLine } from '../server/setup/about';
 import { brandOf, candidatePaths, channelOf, channelUrl, parseProbeMatch, pickProfile, withCredentials, wsSecurity } from '../server/camera/discover';
 import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
+import { checkLicense, issueLicense, normalizeMachineId, signingKey } from '../hub/licenseKey';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => {
@@ -61,6 +63,37 @@ ok('yozilmagan kunlar', missingDays(h).join() === 'sat');
 ok('anketa kodi: harf-raqam aralash yozilsa ham tozalanadi', cleanCode('k7qm 2xpa') === 'K7QM-2XPA');
 ok('«Biznes haqida»: qator almashadi, yangi qator aloqa qatorlari yoniga', setAboutLine('Matn\n\n- Telefon: 1\n\n## Jamoa\n- A', 'Manzil', 'X') === 'Matn\n\n- Telefon: 1\n- Manzil: X\n\n## Jamoa\n- A'
   && setAboutLine('- Manzil: eski', 'Manzil', 'yangi') === '- Manzil: yangi' && setAboutLine('', 'Manzil', 'X') === '- Manzil: X');
+
+console.log('\n# Litsenziya kaliti (sof)');
+{
+  const pair = generateKeyPairSync('ed25519'), other = generateKeyPairSync('ed25519');
+  const pub = pair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+  const otherPub = other.publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+  const id = 'ABCD-1234-EF56-7890', day = Date.UTC(2026, 9, 25);
+  const key = issueLicense(id, pair.privateKey, day);
+  ok('kompyuter kodi: bo\'shliq, kichik harf va chiziqsiz yozilsa ham taniladi; noto\'g\'risi — null',
+    normalizeMachineId(' abcd1234 ef56-7890 ') === id && normalizeMachineId('ABCD-1234') === null && normalizeMachineId('XYZW-1234-EF56-7890') === null);
+  ok('kalit: PAL1-, 107 belgi, shu kompyuterda — berilgan kun bilan', key.startsWith('PAL1-') && key.length === 107 && checkLicense(key, id, pub)?.issuedAt === '2026-10-25', key.slice(0, 12));
+  ok("boshqa kompyuterda ishlamaydi", checkLicense(key, 'ABCD-1234-EF56-7891', pub) === null);
+  const flipped = key.slice(0, 60) + (key[60] === 'A' ? 'B' : 'A') + key.slice(61);
+  ok("bitta belgi o'zgarsa — ishlamaydi (imzo)", checkLicense(flipped, id, pub) === null);
+  ok("boshqa (begona) maxfiy kalit bilan yasalgani ishlamaydi", checkLicense(issueLicense(id, other.privateKey), id, pub) === null && checkLicense(key, id, otherPub) === null);
+  ok('kalit Telegram\'dan qatorlarga bo\'linib kelsa ham o\'qiladi', checkLicense(`${key.slice(0, 50)}\n ${key.slice(50)}`, id, pub) !== null);
+  const der = pair.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64');
+  ok("Hub'dagi bir qatorli maxfiy kalit (base64) ham PEM kabi ishlaydi", checkLicense(issueLicense(id, signingKey(der), day), id, pub) !== null
+    && checkLicense(issueLicense(id, signingKey(String(pair.privateKey.export({ type: 'pkcs8', format: 'pem' }))), day), id, pub) !== null);
+  // Kod ochiq: .env ga bir qator yozib (o'z ochiq kaliti, boshqa kompyuter kodi, uzun muddat) litsenziyani chetlab bo'lmasin
+  const envDir = mkdtempSync(join(tmpdir(), 'palantir-env-'));
+  writeFileSync(join(envDir, '.env'), `LICENSE_PUBLIC_KEY=${otherPub}\nLICENSE_MACHINE_ID=${id}\nLICENSE_GRACE_DAYS=9999\nDOTENV=0\n`);
+  const envOf = (vars: Record<string, string>) => JSON.parse(execFileSync(process.execPath, ['--no-warnings', '--import', pathToFileURL(resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e',
+    `const { env } = await import(${JSON.stringify(pathToFileURL(resolve('server/env.ts')).href)}); console.log(JSON.stringify([env.licenseGraceDays, env.licenseMachineId, env.licensePublicKey]))`],
+  { cwd: envDir, env: { ...process.env, ...vars }, encoding: 'utf8' })) as [number, string, string];
+  const fromDotenv = envOf({ DOTENV: '' });
+  ok(".env dagi ochiq kalit, kompyuter kodi va uzun muddat hisobga olinmaydi (DOTENV=0 ham)", JSON.stringify(fromDotenv) === JSON.stringify([14, '', '']), JSON.stringify(fromDotenv));
+  const testServer = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: '3', LICENSE_MACHINE_ID: id }), bad = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: 'abc' });
+  ok("sinov serverida olinadi; muddat faqat qisqaradi, noto'g'risi — 14", testServer[0] === 3 && testServer[1] === id && bad[0] === 14, JSON.stringify([testServer, bad]));
+  rmSync(envDir, { recursive: true, force: true });
+}
 
 console.log('\n# Kamera qidiruvi (sof)');
 const MATCH = `<?xml version="1.0"?><s:Envelope><s:Body><d:ProbeMatches><d:ProbeMatch><d:Scopes>onvif://www.onvif.org/name/HIKVISION%20DS-2CD1043G0-I onvif://www.onvif.org/hardware/DS-2CD1043G0-I</d:Scopes><d:XAddrs>http://192.168.1.64/onvif/device_service http://[fe80::1]/onvif/device_service</d:XAddrs></d:ProbeMatch></d:ProbeMatches></s:Body></s:Envelope>`;

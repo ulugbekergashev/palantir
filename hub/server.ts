@@ -29,6 +29,8 @@
  *   9. Palantir jamoasi: GET /admin — klinikalar va «Panelni ochish». Admin kaliti bilan POST /admin/clinics/<klinika>/panel →
  *      klinikaga belgilangan so'rov (support) → klinika parolsiz 12 soatlik kirish beradi, agar egasi ruxsatni o'chirmagan bo'lsa;
  *      har kirish egasining Sozlamalarida ko'rinadi. Oddiy /c/ so'rovi bu belgini ololmaydi.
+ *  10. Litsenziya: holat xabarida (heartbeat) aktivlashtirilganmi va necha kun qolgani; POST /admin/clinics/<klinika>/license
+ *      (admin kaliti) — klinikadan kompyuter kodi olinadi, LICENSE_SIGNING_KEY bilan imzolanadi va kalit klinikaga yuboriladi.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -48,6 +50,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { adminPage } from './admin.ts';
+import { issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
 import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
 
 /** Admin kaliti hamma klinikaning paneli, zaxirasi va diagnostikasini ochadi: qisqasi qabul qilinmaydi (hub:deploy 32 belgili yaratadi) */
@@ -60,6 +63,8 @@ const cfg = {
   publicUrl: (process.env.HUB_PUBLIC_URL || '').replace(/\/+$/, ''),
   verifyToken: process.env.HUB_VERIFY_TOKEN || '',
   adminKey: (process.env.HUB_ADMIN_KEY ?? '').length >= MIN_ADMIN_KEY ? process.env.HUB_ADMIN_KEY! : '',
+  /** Litsenziya imzolovchi maxfiy kalit (licenseKey.ts; bir qatordagi base64 PKCS8) — bo'lmasa bir bosishda aktivlashtirish yopiq */
+  licenseKey: process.env.LICENSE_SIGNING_KEY || '',
   // Faqat sinov uchun: soxta Instagram
   authUrl: process.env.IG_AUTH_URL || 'https://www.instagram.com/oauth/authorize',
   tokenUrl: process.env.IG_TOKEN_URL || 'https://api.instagram.com/oauth/access_token',
@@ -278,7 +283,9 @@ function cleanStatus(v: unknown) {
   const lastUpdate = u ? { from: text(u.from, 40), to: text(u.to, 40), result: text(u.result, 20), reason: text(u.reason, 500), at: text(u.at, 40) } : null;
   const b = o.lastOffsite ? record(o.lastOffsite) : null;
   const lastOffsite = b ? { day: text(b.day, 10), ok: b.ok === true, size: num(b.size), error: text(b.error, 300), at: text(b.at, 40) } : null;
-  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), problems, lastUpdate, lastOffsite, at: now() };
+  const l = o.license ? record(o.license) : null;
+  const license = l ? { activated: l.activated === true, daysLeft: num(l.daysLeft) } : null;
+  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), problems, lastUpdate, lastOffsite, license, at: now() };
 }
 
 /** OAuth holati: klinika, biznes, muddat — imzolangan (begona odam boshqa klinika nomidan ulay olmasin) */
@@ -407,6 +414,30 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     res.statusCode = answer.status;
     res.setHeader('content-type', 'application/json; charset=utf-8');
     return void res.end(Buffer.from(answer.body, 'base64'));
+  }
+
+  // Admin: litsenziyani bir bosishda berish — klinikadan kompyuter kodi so'raladi, hub imzolaydi va kalitni klinikaga yuboradi
+  const licensing = /^\/admin\/clinics\/([0-9a-f]{10})\/license$/.exec(p);
+  if (licensing && req.method === 'POST') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    if (!cfg.licenseKey) return send(res, 409, { error: "Hub'da litsenziya kaliti yo'q — npm run hub:deploy (~/.palantir/litsenziya.pem)" });
+    const id = licensing[1];
+    const clinic = db.prepare('SELECT seen_at, status FROM clinics WHERE id = ?').get(id) as { seen_at: string | null; status: string | null } | undefined;
+    if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
+    if (!clinicOnline(id, clinic.seen_at)) return send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
+    const ask = (method: string, path: string, body: string) =>
+      dispatch(id, { method, path, headers: { 'content-type': 'application/json' }, body: Buffer.from(body).toString('base64'), ip: clientIp(req) });
+    const parsed = (a: RelayAnswer | null) => { try { return a ? JSON.parse(Buffer.from(a.body, 'base64').toString()) as { license?: { machineId?: string }; error?: string } : null; } catch { return null; } };
+    const state = parsed(await ask('GET', '/api/license', ''));
+    const machine = normalizeMachineId(String(state?.license?.machineId ?? ''));
+    if (!machine) return send(res, 502, { error: "Klinika kompyuter kodini bermadi (eski nashr bo'lishi mumkin)" });
+    const answer = await ask('POST', '/api/license', JSON.stringify({ key: issueLicense(machine, signingKey(cfg.licenseKey)) }));
+    const done = parsed(answer);
+    if (!answer || answer.status !== 200) return send(res, answer?.status ?? 504, { error: done?.error ?? 'Klinika kompyuteri javob bermadi' });
+    // Ro'yxat keyingi holat xabarini (5 daqiqa) kutmasin
+    const status = clinic.status ? JSON.parse(clinic.status) as Record<string, unknown> : {};
+    db.prepare('UPDATE clinics SET status = ? WHERE id = ?').run(JSON.stringify({ ...status, license: { activated: true, daysLeft: 0 } }), id);
+    return send(res, 200, { license: done?.license ?? null });
   }
 
   // Admin: klinikalar — oxirgi ko'ringan payti va holati

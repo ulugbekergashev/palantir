@@ -8,6 +8,7 @@ import { iso } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
 import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword, verifyInitData } from './auth';
 import { CLIENT_HEADER, RELAY_HEADER, RELAY_SECRET, SUPPORT_HEADER, remoteUrl } from './remote';
+import { activate, licenseStatus } from './license';
 import type { BotService } from './bot';
 import { costUsd } from './claude';
 import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
@@ -184,6 +185,8 @@ export function createApp(bot: BotService) {
   const asBiz = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => (req, res) => {
     const s = sessionOf(req);
     if (!s) return res.status(401).json({ error: 'Qayta kiring' });
+    // Kalitsiz ishlash muddati tugagan: panel yopiq (bot, kamera va boshqa xizmatlar ishlayveradi — license.ts)
+    if (licenseStatus().blocked) return res.status(403).json({ error: 'Palantir aktivlashtirilmagan — kalitni kiriting', code: 'LITSENZIYA' });
     return fn(req, res, s.biz);
   };
   /** Faqat egasining o'zi (jamoa kirishi bilan emas): kirish va ruxsat sozlamalari */
@@ -215,6 +218,22 @@ export function createApp(bot: BotService) {
     loginOk(key);
     if (perLogin) loginOk(perLogin);
     res.json({ token: issueToken(biz.id, 'business', 30, biz.tokenVer) });
+  });
+
+  // ─── Litsenziya ────────────────────────────────────────────────────────────
+  // Kirishsiz: aktivlashtirish oynasi kirish sahifasidan oldin ham ko'rinadi (kompyuter kodi maxfiy emas). Kalitni soxtalashtirib
+  // bo'lmaydi (sotuvchining imzosi) — urinishlar baribir sanaladi. Hub ham shu yo'llar orqali bir bosishda aktivlashtiradi
+  app.get('/api/license', (_req, res) => { res.json({ license: licenseStatus() }); });
+  app.post('/api/license', (req, res) => {
+    const key = `lic:${clientKey(req)}`;
+    if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
+    const done = activate(typeof req.body?.key === 'string' ? req.body.key.slice(0, 400) : '');
+    if (!done) {
+      loginFailed(key);
+      return res.status(400).json({ error: "Kalit noto'g'ri yoki boshqa kompyuterniki — kompyuter kodini tekshirib, kalitni qayta so'rang" });
+    }
+    loginOk(key);
+    res.json({ license: done });
   });
 
   // Telegram Mini App (bot → «Panel»): Telegram imzolagan ma'lumot bilan, parolsiz — faqat botga ulangan egasi

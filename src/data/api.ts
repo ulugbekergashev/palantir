@@ -62,6 +62,9 @@ export interface TeamView { staff: (StaffMember & { link: string | null })[]; co
 /** Hub orqali masofadan ochilganda panel /c/<klinika>/ ostida turadi — API ham shu yo'l bilan (oddiy holatda — bo'sh) */
 export const apiBase = location.pathname.match(/^\/c\/[0-9a-f]{10}(?=\/)/)?.[0] ?? '';
 
+/** Litsenziya (server/license.ts): blocked — kalitsiz muddat tugadi, panel yopiq */
+export interface LicenseView { activated: boolean; machineId: string; issuedAt: string | null; daysLeft: number; blocked: boolean }
+
 /** Palantir jamoasi kirishi: egasi ruxsat berganmi, hozirgi kirish jamoanikimi (mine), oxirgi kirishlar */
 export interface SupportAccessView { allowed: boolean; hub: boolean; mine: boolean; visits: { at: string; ip: string | null }[] }
 
@@ -240,6 +243,9 @@ export const api = {
   /** Parolni almashtirish: boshqa qurilmalardagi kirish bekor, shu qurilma uchun yangi kalit qaytadi */
   changePassword: (current: string, next: string) => call<{ token: string }>('/account/password', { body: { current, next } }),
   signOutOthers: () => call<{ token: string }>('/account/sign-out-others', { body: {} }),
+  /** Litsenziya: holat (kirishsiz) va kalitni kiritish */
+  license: () => call<{ license: LicenseView }>('/license'),
+  activateLicense: (key: string) => call<{ license: LicenseView }>('/license', { body: { key } }),
   supportAccess: () => call<SupportAccessView>('/account/support'),
   setSupportAccess: (allowed: boolean) => call<{ allowed: boolean }>('/account/support', { method: 'PUT', body: { allowed } }),
   /** Mijoz so'rasa: karta, yozishmalar, so'rovlar, qo'ng'iroqlar va yozuvlari — butunlay */
