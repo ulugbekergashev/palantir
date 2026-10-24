@@ -70,7 +70,7 @@ Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **h
 
 ## Keyin: Instagram, telefondan panel, jamoa kirishi, tashqi zaxira (Palantir Hub kerak)
 
-Instagram xabarlarni o'zi internetdagi doimiy HTTPS manzilga yuboradi (webhook), klinika kompyuteri esa router ortida — tashqaridan unga kirib bo'lmaydi. Shu manzil — Hub: Meta xabarni hubga beradi, klinika kompyuteri o'zi borib oladi. Hub o'z serverimizda — Oracle Cloud Always Free (Frankfurt, oylik to'lovsiz): `https://130-61-14-72.sslip.io`. `npm run hub:deploy` uni SSH orqali yangilaydi.
+Instagram xabarlarni o'zi internetdagi doimiy HTTPS manzilga yuboradi (webhook), klinika kompyuteri esa router ortida — tashqaridan unga kirib bo'lmaydi. Shu manzil — Hub: Meta xabarni hubga beradi, klinika kompyuteri o'zi borib oladi. Hub o'z serverimizda — Oracle Cloud Always Free (Frankfurt, oylik to'lovsiz): `https://92-5-56-138.sslip.io`. `npm run hub:deploy` uni SSH orqali yangilaydi.
 
 | # | Qilish | Natija |
 |---|---|---|
