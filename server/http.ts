@@ -7,13 +7,13 @@ import type { Artifact, InboxThread, LiveStatus } from '../src/types';
 import { iso } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
 import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword, verifyInitData } from './auth';
-import { CLIENT_HEADER, RELAY_HEADER, RELAY_SECRET, remoteUrl } from './remote';
+import { CLIENT_HEADER, RELAY_HEADER, RELAY_SECRET, SUPPORT_HEADER, remoteUrl } from './remote';
 import type { BotService } from './bot';
 import { costUsd } from './claude';
 import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
 import { facts as notes, refresh as refreshVault } from './brain/vault';
 import { syncTasks } from './brain/mirror';
-import { aiUsage, businesses, chatLog, documents, inbox, leads, moneyEntries, outbound, publicLead, replies, tasks, type BusinessRow } from './db';
+import { aiUsage, businesses, chatLog, documents, inbox, leads, moneyEntries, outbound, publicLead, replies, supportVisits, tasks, type BusinessRow } from './db';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
 import { SilenceError, transcribe } from './stt';
@@ -49,14 +49,15 @@ import { diagnostics, sendDiagnostics } from './diagnostics';
 
 type Handler = (req: Request, res: Response) => unknown;
 
-function status(biz: BusinessRow, bot: BotService): LiveStatus {
+/** support — Palantir jamoasi kirishi: egasini Telegram'ga ulash havolasi berilmaydi (u bilan jamoa o'zini egasi qilib, ruxsat o'chirilganda ham kira olardi) */
+function status(biz: BusinessRow, bot: BotService, support = false): LiveStatus {
   const username = bot.username();
   return {
     bot: bot.enabled ? username : null,
     ai: env.aiEnabled,
     voice: voiceEnabled(),
     ownerLinked: !!biz.ownerChatId,
-    linkUrl: username ? `https://t.me/${username}?start=o-${biz.linkCode}` : null,
+    linkUrl: username && !support ? `https://t.me/${username}?start=o-${biz.linkCode}` : null,
     generalLink: username ? `https://t.me/${username}?start=l-${biz.id}` : null,
     telegramUser: { enabled: env.tgPersonal, available: telegramUserAvailable(), account: telegramUserAccount(biz.id) },
     telegramBusiness: telegramBusinessStatus(biz.id),
@@ -110,6 +111,10 @@ function readBody(req: Request, max: number): Promise<Buffer | null> {
 const LOOPBACK = /^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|::1|localhost)$/;
 /** Kabinet parolining eng qisqa uzunligi (kabinetda mijozlar, pul va CRM bor) */
 const MIN_PASSWORD = 8;
+/** Palantir jamoasi kirishi 12 soat: hub sahifasidan istalgan payt qayta ochiladi */
+const SUPPORT_SESSION_DAYS = 0.5;
+/** Sozlamalarda egasiga ko'rsatiladigan oxirgi jamoa kirishlari */
+const SUPPORT_VISITS_SHOWN = 20;
 /** Admin panelida AI xarajati necha kun uchun ko'rsatiladi */
 const USAGE_DAYS = 7;
 /** Telefondagi AI yordamchi javobini shuncha kutadi (tgvoice/call_live.py PALANTIR_WAIT_S); undan kech javob Telegram'ga yuboriladi */
@@ -150,21 +155,40 @@ export function createApp(bot: BotService) {
   const isRemote = (req: Request) => req.get(RELAY_HEADER) === RELAY_SECRET;
   /** Kirish urinishlarini sanash kaliti: masofadan — telefonning haqiqiy manzili (hub aytadi), «hub/» bilan: shu kompyuterga berilgan yengillik tegmasin */
   const clientKey = (req: Request) => (isRemote(req) ? `hub/${req.get(CLIENT_HEADER) ?? '?'}` : String(req.ip));
-  // Admin, ulash ustasi, anketa va ovozli agent (ichki xizmat) — faqat shu kompyuterda
+  /** Hub admin kaliti bilan ochilgan so'rov (remote.ts): faqat jamoa kirishini olish uchun */
+  const isSupportRelay = (req: Request) => isRemote(req) && req.get(SUPPORT_HEADER) === RELAY_SECRET;
+
+  const token = (req: Request) => req.get('authorization')?.replace(/^Bearer\s+/i, '');
+  /** Amaldagi biznes kirishi: parol almashgan, «boshqa qurilmalardan chiqish» bosilgan yoki egasi jamoa kirishini o'chirgan bo'lsa — yo'q */
+  const sessionOf = (req: Request) => {
+    const s = readToken(token(req));
+    const biz = s?.role === 'business' ? businesses.byId(s.sub) : undefined;
+    if (!s || !biz || !biz.active || (s.v ?? 0) !== biz.tokenVer || (s.sup && (!biz.supportAccess || (s.sv ?? 0) !== biz.supportVer))) return null;
+    return { biz, support: s.sup === true };
+  };
+  const statusFor = (req: Request, biz: BusinessRow) => status(biz, bot, !!sessionOf(req)?.support);
+
+  // Admin, ulash ustasi, anketa va ovozli agent (ichki xizmat) — faqat shu kompyuterda.
+  // Palantir jamoasi (o'rnatuvchi) ulash ustasi va anketani masofadan ham ochadi; admin va ovozli agent — baribir yopiq.
+  // Yo'l kichik harf bilan tekshiriladi: Express yo'llarni harf kattaligiga qaramay moslaydi (/API/admin ham admin yo'li)
   const REMOTE_CLOSED = /^\/api\/(admin|setup|anketa)(\/|$)|^\/api\/voice\/(?!key$)/;
+  const SUPPORT_OPEN = /^\/api\/(setup|anketa)(\/|$)/;
   app.use((req, res, next) => {
-    if (isRemote(req) && REMOTE_CLOSED.test(req.path)) return res.status(403).json({ error: "Bu bo'lim faqat klinika kompyuterida ochiladi" });
+    const path = req.path.toLowerCase();
+    if (isRemote(req) && REMOTE_CLOSED.test(path) && !(SUPPORT_OPEN.test(path) && sessionOf(req)?.support)) {
+      return res.status(403).json({ error: "Bu bo'lim faqat klinika kompyuterida ochiladi" });
+    }
     next();
   });
 
-  const token = (req: Request) => req.get('authorization')?.replace(/^Bearer\s+/i, '');
   const asBiz = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => (req, res) => {
-    const s = readToken(token(req));
-    const biz = s?.role === 'business' ? businesses.byId(s.sub) : undefined;
-    // Parol almashgan yoki «boshqa qurilmalardan chiqish» bosilgan — eski kirish ishlamaydi
-    if (!biz || !biz.active || (s!.v ?? 0) !== biz.tokenVer) return res.status(401).json({ error: 'Qayta kiring' });
-    return fn(req, res, biz);
+    const s = sessionOf(req);
+    if (!s) return res.status(401).json({ error: 'Qayta kiring' });
+    return fn(req, res, s.biz);
   };
+  /** Faqat egasining o'zi (jamoa kirishi bilan emas): kirish va ruxsat sozlamalari */
+  const asOwner = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => asBiz((req, res, biz) =>
+    (sessionOf(req)?.support ? res.status(403).json({ error: 'Buni faqat klinika egasi o\'zgartiradi' }) : fn(req, res, biz)));
   const asAdmin = (fn: Handler): Handler => (req, res) => {
     if (readToken(token(req))?.role !== 'admin' || !env.adminPassword) return res.status(401).json({ error: 'Admin sifatida kiring' });
     return fn(req, res);
@@ -211,7 +235,7 @@ export function createApp(bot: BotService) {
 
   // Egasi o'z parolini almashtiradi: hamma qurilmalardagi kirish bekor, shu qurilmaga yangisi beriladi.
   // Joriy parol noto'g'ri — 403 (401 panelni «sessiya tugadi» deb chiqarib yuborardi)
-  app.post('/api/account/password', asBiz((req, res, biz) => {
+  app.post('/api/account/password', asOwner((req, res, biz) => {
     const key = `p:${biz.id}`;
     if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
     const { current, next } = req.body ?? {};
@@ -227,8 +251,38 @@ export function createApp(bot: BotService) {
   }));
 
   // Telefon yo'qoldi yoki begona kompyuterda kirib qolgan: shu qurilmadan boshqa hamma joyda chiqiladi
-  app.post('/api/account/sign-out-others', asBiz((_req, res, biz) => {
+  app.post('/api/account/sign-out-others', asOwner((_req, res, biz) => {
     res.json({ token: issueToken(biz.id, 'business', 30, businesses.revokeSessions(biz.id)) });
+  }));
+
+  // Palantir jamoasi: hubdagi «Panelni ochish» (admin kaliti bilan) — parolsiz, egasi ruxsatni o'chirmagan bo'lsa; har kirish egasiga ko'rinadi.
+  // Bu kompyuterda bir nechta biznes bo'lsa — qaysi biri so'raladi (ro'yxat hubga qaytadi)
+  app.post('/api/login/support', (req, res) => {
+    if (!isSupportRelay(req)) return res.status(403).json({ error: 'Faqat Palantir Hub orqali' });
+    const active = businesses.all().filter(b => b.active);
+    const wanted = typeof req.body?.business === 'string' ? req.body.business : null;
+    const biz = wanted ? active.find(b => b.id === wanted) : active.length === 1 ? active[0] : undefined;
+    if (!biz) {
+      return res.status(active.length ? 409 : 404).json({
+        error: active.length ? 'Qaysi biznes?' : "Bu kompyuterda biznes yo'q",
+        businesses: active.map(b => ({ id: b.id, name: b.profile.name })),
+      });
+    }
+    if (!biz.supportAccess) return res.status(403).json({ error: "Klinika egasi Palantir jamoasi kirishini o'chirgan" });
+    supportVisits.add(biz.id, req.get(CLIENT_HEADER) ?? null);
+    res.json({ token: issueToken(biz.id, 'business', SUPPORT_SESSION_DAYS, biz.tokenVer, biz.supportVer) });
+  });
+
+  // Egasi: jamoa kira oladimi va qachon kirgan. mine — hozirgi kirish jamoaniki (u ruxsatni o'zgartira olmaydi)
+  app.get('/api/account/support', asBiz((req, res, biz) => {
+    res.json({ allowed: biz.supportAccess, hub: !!remoteUrl(), mine: !!sessionOf(req)?.support, visits: supportVisits.recent(biz.id, SUPPORT_VISITS_SHOWN) });
+  }));
+  app.put('/api/account/support', asOwner((req, res, biz) => {
+    const p = z.object({ allowed: z.boolean() }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    if (p.data.allowed) businesses.update(biz.id, { supportAccess: true });
+    else businesses.closeSupport(biz.id);
+    res.json({ allowed: p.data.allowed });
   }));
 
   /** Xizmatlar ro'yxatining «nusxa raqami»: panel qaysi nusxani tahrirlayotganini bildiradi */
@@ -251,7 +305,7 @@ export function createApp(bot: BotService) {
     res.json({ funnel: await funnel(biz, p) });
   }));
 
-  app.get('/api/me', asBiz((_req, res, biz) => res.json({ business: biz.profile, status: status(biz, bot), offeringsRev: offeringsRev(biz.profile.offerings) })));
+  app.get('/api/me', asBiz((req, res, biz) => res.json({ business: biz.profile, status: statusFor(req, biz), offeringsRev: offeringsRev(biz.profile.offerings) })));
 
   app.put('/api/business', asBiz((req, res, biz) => {
     const parsed = BusinessSchema.safeParse(req.body);
@@ -495,9 +549,9 @@ export function createApp(bot: BotService) {
   app.post('/api/telegram-user/password', asBiz(async (req, res, biz) => {
     try { res.json(await loginPassword(biz, typeof req.body?.password === 'string' ? req.body.password.slice(0, 200) : '')); } catch (e) { fail(res, e, 400); }
   }));
-  app.delete('/api/telegram-user', asBiz(async (_req, res, biz) => {
+  app.delete('/api/telegram-user', asBiz(async (req, res, biz) => {
     await disconnectTelegramUser(biz);
-    res.json({ status: status(businesses.byId(biz.id)!, bot) });
+    res.json({ status: statusFor(req, businesses.byId(biz.id)!) });
   }));
 
   // ─── Instagram: shu kompyuterda oyna ochiladi, egasi o'zi kiradi ───────────
@@ -505,24 +559,24 @@ export function createApp(bot: BotService) {
   app.post('/api/instagram/official', asBiz(async (_req, res, biz) => {
     try { res.json({ url: await instagramApiConnectUrl(biz) }); } catch (e) { fail(res, e); }
   }));
-  app.delete('/api/instagram/official', asBiz(async (_req, res, biz) => {
+  app.delete('/api/instagram/official', asBiz(async (req, res, biz) => {
     await disconnectInstagramApi(biz);
-    res.json({ status: status(businesses.byId(biz.id)!, bot) });
+    res.json({ status: statusFor(req, businesses.byId(biz.id)!) });
   }));
 
-  app.post('/api/instagram/login', asBiz((_req, res, biz) => {
-    try { startInstagramLogin(biz); res.json({ status: status(biz, bot) }); } catch (e) { fail(res, e, 400); }
+  app.post('/api/instagram/login', asBiz((req, res, biz) => {
+    try { startInstagramLogin(biz); res.json({ status: statusFor(req, biz) }); } catch (e) { fail(res, e, 400); }
   }));
   app.post('/api/instagram/cancel', asBiz((_req, res, biz) => {
     cancelInstagramLogin(biz);
     res.json({ ok: true });
   }));
-  app.delete('/api/instagram', asBiz(async (_req, res, biz) => {
+  app.delete('/api/instagram', asBiz(async (req, res, biz) => {
     await disconnectInstagram(biz);
-    res.json({ status: status(businesses.byId(biz.id)!, bot) });
+    res.json({ status: statusFor(req, businesses.byId(biz.id)!) });
   }));
 
-  mountCrm(app, { asBiz, bad, fail, statusOf: bizId => status(businesses.byId(bizId)!, bot) });
+  mountCrm(app, { asBiz, bad, fail, statusOf: (bizId, req) => statusFor(req, businesses.byId(bizId)!) });
   mountCamera(app, { asBiz, bad });
   mountVoice(app, { asBiz, bad });
   mountRequests(app, { asBiz, bad, bot });
@@ -532,7 +586,7 @@ export function createApp(bot: BotService) {
   mountAttention(app, { asBiz });
   mountTeamDay(app, { asBiz });
   mountInsights(app, { asBiz });
-  mountSetup(app, { asBiz, asAdmin, bad, fail, bot, statusOf: bizId => status(businesses.byId(bizId)!, bot) });
+  mountSetup(app, { asBiz, asAdmin, bad, fail, bot, statusOf: (bizId, req) => statusFor(req, businesses.byId(bizId)!) });
 
   // ─── Mijozlarga javob: rejim va yozishmalar ────────────────────────────────
   app.put('/api/business/auto-reply', asBiz((req, res, biz) => {

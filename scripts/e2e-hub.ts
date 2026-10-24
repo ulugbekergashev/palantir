@@ -4,6 +4,7 @@
  *   HUB_OFFLINE_MS dan keyin sotuvchiga Telegram'da bir marta «aloqa yo'q» → Palantir qayta yondi → «yana aloqada».
  *   Tashqi zaxira: kunlik zaxira shifrlanib hubga keladi, hub uni o'qiy olmaydi, sotuvchining maxfiy kaliti (va restore-backup) ochadi.
  *   Diagnostika: admin panelidan hubga — holat va jurnallar, kalitlarsiz.
+ *   Palantir jamoasi: hubdagi «Panelni ochish» — parolsiz kirish, egasi ko'radi va o'chiradi, soxtalashtirib bo'lmaydi.
  * Haqiqiy hub va Palantir jarayonlari, soxta Telegram (sotuvchining boti ham, klinika boti ham — bitta soxta server).
  */
 process.env.TZ = 'Asia/Tashkent';
@@ -40,7 +41,7 @@ const start = (script: string, env: Record<string, string>) => {
   return p;
 };
 const up = async (url: string) => { for (let i = 0; i < 80; i++) { try { if ((await fetch(url)).ok) return true; } catch { /* hali */ } await sleep(250); } return false; };
-const adminList = async () => (await (await fetch(`${HUB}/admin/clinics`, { headers: { authorization: 'Bearer hub-admin-1' } })).json() as { clinics: { id: string; name: string; online: boolean; seenAt: string | null; status: { version: string; schema: number; diskFreeMb: number; businesses: number; problems: unknown[] } | null }[] }).clinics;
+const adminList = async () => (await (await fetch(`${HUB}/admin/clinics`, { headers: { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' } })).json() as { clinics: { id: string; name: string; online: boolean; seenAt: string | null; status: { version: string; schema: number; diskFreeMb: number; businesses: number; problems: unknown[] } | null }[] }).clinics;
 /** waitFor'ning so'rov yuboradigan (async) ko'rinishi */
 async function until<T>(what: string, fn: () => Promise<T | undefined>, ms: number): Promise<T | undefined> {
   for (const end = Date.now() + ms; Date.now() < end; await sleep(200)) { const v = await fn().catch(() => undefined); if (v) return v; }
@@ -51,7 +52,7 @@ const toVendor = (mark: number, needle: string) => sent.slice(mark).filter(s => 
 
 try {
   start('hub/server.ts', {
-    PORT: String(HUB_PORT), HUB_DB: path.join(work, 'hub.db'), HUB_PUBLIC_URL: HUB, HUB_ADMIN_KEY: 'hub-admin-1',
+    PORT: String(HUB_PORT), HUB_DB: path.join(work, 'hub.db'), HUB_PUBLIC_URL: HUB, HUB_ADMIN_KEY: 'hub-admin-sinov-kaliti-0123456789',
     HUB_BOT_TOKEN: '777:HUB', HUB_ALERT_CHAT: String(ALERT_CHAT), HUB_TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, HUB_OFFLINE_MS: '2500', HUB_WATCH_MS: '300',
     HUB_BACKUP_DIR: path.join(work, 'hub-zaxira'),
   });
@@ -59,7 +60,7 @@ try {
 
   console.log('\n# Admin va kalitlar');
   ok("admin ro'yxati kalitsiz — 401", (await fetch(`${HUB}/admin/clinics`)).status === 401);
-  const clinic = await (await fetch(`${HUB}/admin/clinics`, { method: 'POST', headers: { authorization: 'Bearer hub-admin-1' }, body: JSON.stringify({ name: 'Shifo Dent' }) })).json() as { clinicId: string; code: string };
+  const clinic = await (await fetch(`${HUB}/admin/clinics`, { method: 'POST', headers: { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' }, body: JSON.stringify({ name: 'Shifo Dent' }) })).json() as { clinicId: string; code: string };
   const listed = (await adminList()).find(c => c.id === clinic.clinicId);
   ok("yangi klinika ro'yxatda: hali ko'rinmagan, holati yo'q", !!listed && listed.seenAt === null && !listed.online && listed.status === null, JSON.stringify(listed));
   const fake = await fetch(`${HUB}/api/heartbeat`, { method: 'POST', headers: { authorization: `Bearer ${clinic.clinicId}.xato` }, body: '{}' });
@@ -67,7 +68,8 @@ try {
 
   console.log('\n# Klinika holati');
   const palantirEnv = {
-    PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: path.join(work, 'data'), BOT_TOKEN: '', ANTHROPIC_API_KEY: '', ADMIN_PASSWORD: 'admin-pass-1',
+    // Klinika boti (soxta Telegram): egasini ulash havolasi jamoa kirishiga berilmasligini tekshirish uchun
+    PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: path.join(work, 'data'), BOT_TOKEN: '123:CLINIC', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, ANTHROPIC_API_KEY: '', ADMIN_PASSWORD: 'admin-pass-1',
     MORNING_HOUR: '99', EVENING_HOUR: '99', BACKUP_KEEP: '3', BACKUP_FIRST_MS: '800', BACKUP_PUBLIC_KEY: VENDOR.public, GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '',
     PALANTIR_HUB: clinic.code, HEARTBEAT_MS: '400',
   };
@@ -78,7 +80,7 @@ try {
     && seen.status!.diskFreeMb > 0 && Array.isArray(seen.status!.problems), JSON.stringify(seen?.status));
 
   console.log('\n# Tashqi zaxira');
-  const admin = { authorization: 'Bearer hub-admin-1' };
+  const admin = { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' };
   const listBackups = async () => (await (await fetch(`${HUB}/admin/backups`, { headers: admin })).json() as { backups: { clinicId: string; file: string; size: number }[] }).backups;
   const backup = await until('zaxira', async () => (await listBackups()).find(b => b.clinicId === clinic.clinicId), 20_000);
   ok('hubga kunlik zaxira keldi', !!backup && backup.size > 1000, JSON.stringify(backup));
@@ -134,6 +136,48 @@ try {
   const localOk = (await fetch(`${base}/api/login`, json({ login: 'shifo', password: 'secret12' }))).status;
   ok("masofadan parol taxmin qilish — 8 tadan keyin 429, soxta X-Forwarded-For yordam bermaydi (klinikadagi kirishga tegmaydi)", tries.slice(0, 8).every(c => c === 401) && tries[8] === 429 && localOk === 200, tries.join(','));
   ok("noma'lum klinika — 404", (await fetch(`${HUB}/c/0000000000/api/health`)).status === 404);
+
+  console.log("\n# Palantir jamoasi: hubdagi «Panelni ochish» — parolsiz, egasi ruxsati bilan");
+  const panel = (body: unknown = {}, key = 'hub-admin-sinov-kaliti-0123456789') =>
+    fetch(`${HUB}/admin/clinics/${clinic.clinicId}/panel`, { method: 'POST', headers: { authorization: `Bearer ${key}` }, body: JSON.stringify(body) });
+  ok('admin kalitisiz — 401', (await panel({}, 'xato')).status === 401);
+  const adminPage = await fetch(`${HUB}/admin`);
+  ok("admin sahifasi: «Panelni ochish», boshqa saytga joylab bo'lmaydi", adminPage.status === 200 && adminPage.headers.get('x-frame-options') === 'DENY' && (await adminPage.text()).includes('Panelni ochish'));
+  const team = await (await panel()).json() as { token?: string };
+  const asTeam = (p: string, init: RequestInit = {}) => viaHub(p, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), authorization: `Bearer ${team.token}` } });
+  ok("jamoa kirdi: panel ochiladi (bitta biznes — so'ralmaydi)", !!team.token && (await asTeam('/api/me')).status === 200, JSON.stringify(team).slice(0, 120));
+  const wizard = await Promise.all(['/api/setup', '/api/admin/login', '/api/voice/knowledge'].map(async p => (await asTeam(p, p === '/api/admin/login' ? json({ password: 'admin-pass-1' }) : {})).status));
+  ok('jamoaga ulash ustasi masofadan ochiq; admin va ovozli agent — baribir yopiq', wizard[0] === 200 && wizard[1] === 403 && wizard[2] === 403, wizard.join(','));
+  ok("klinikaning o'zida jamoa kirishini olib bo'lmaydi (faqat hub orqali)", (await fetch(`${base}/api/login/support`, json({}))).status === 403);
+  const forged = await viaHub('/api/login/support', { ...json({}), headers: { 'content-type': 'application/json', 'x-palantir-support': 'x', 'x-palantir-relay': 'x' } });
+  ok("oddiy /c/ so'rovi jamoa belgisini soxtalashtira olmaydi", forged.status === 403);
+  const owner = { authorization: `Bearer ${remoteLogin.token}` };
+  const upper = [(await viaHub('/API/admin/login', json({ password: 'admin-pass-1' }))).status, (await viaHub('/Api/Setup', { headers: owner })).status];
+  ok("yo'l katta harf bilan ham yopiq (/API/admin, egasiga /Api/Setup)", upper.every(c => c === 403), upper.join(','));
+  type MeView = { status: { linkUrl: string | null } };
+  const ownerMe = await (await viaHub('/api/me', { headers: owner })).json() as MeView;
+  const teamMe = await (await asTeam('/api/me')).json() as MeView;
+  const teamSetup = await (await asTeam('/api/setup')).json() as { setup: MeView };
+  ok("egasini Telegram'ga ulash havolasi jamoaga berilmaydi (o'zini egasi qilib ola olmasin)", !!ownerMe.status.linkUrl?.includes('?start=o-') && teamMe.status.linkUrl === null && teamSetup.setup.status.linkUrl === null,
+    `${ownerMe.status.linkUrl} / ${teamMe.status.linkUrl}`);
+  ok('admin sahifasi panel oynasidan ajratilgan (COOP)', adminPage.headers.get('cross-origin-opener-policy') === 'same-origin');
+  const access = await (await viaHub('/api/account/support', { headers: owner })).json() as { allowed: boolean; mine: boolean; visits: { at: string }[] };
+  ok("egasi Sozlamalarda ko'radi: ruxsat yoqiq, jamoa kirgani yozilgan", access.allowed && !access.mine && access.visits.length === 1, JSON.stringify(access));
+  const teamPut = await asTeam('/api/account/support', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ allowed: false }) });
+  ok("jamoa ruxsatni o'zgartira olmaydi va egasini chiqarib yubora olmaydi", teamPut.status === 403 && (await asTeam('/api/account/sign-out-others', json({}))).status === 403);
+  const off = await viaHub('/api/account/support', { method: 'PUT', headers: { ...owner, 'content-type': 'application/json' }, body: JSON.stringify({ allowed: false }) });
+  ok("egasi o'chirdi: jamoaning ochiq kirishi darhol bekor, yangisi berilmaydi", off.status === 200 && (await asTeam('/api/me')).status === 401 && (await panel()).status === 403);
+  ok("egasining o'z kirishi ishlayveradi", (await viaHub('/api/me', { headers: owner })).status === 200);
+  await viaHub('/api/account/support', { method: 'PUT', headers: { ...owner, 'content-type': 'application/json' }, body: JSON.stringify({ allowed: true }) });
+  const fresh = await (await panel()).json() as { token?: string };
+  ok("egasi qayta yoqdi: eski jamoa kirishi qaytmaydi, yangisi ishlaydi", (await asTeam('/api/me')).status === 401
+    && (await viaHub('/api/me', { headers: { authorization: `Bearer ${fresh.token}` } })).status === 200);
+  await fetch(`${base}/api/admin/businesses`, { ...json({ name: 'Ikkinchi', login: 'ikkinchi', password: 'secret12' }), headers: { 'content-type': 'application/json', authorization: `Bearer ${palantirAdmin}` } });
+  const which = await panel();
+  const choice = await which.json() as { businesses?: { id: string; name: string }[] };
+  const second = choice.businesses?.find(b => b.name === 'Ikkinchi');
+  ok("bir nechta biznes — qaysi biri so'raladi, tanlangani ochiladi", which.status === 409 && choice.businesses?.length === 2 && !!second
+    && !!(await (await panel({ business: second.id })).json() as { token?: string }).token, JSON.stringify(choice));
 
   console.log("\n# Kompyuter o'chdi");
   let mark = sent.length;

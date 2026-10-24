@@ -100,7 +100,7 @@ const dm = (mid: string, text: string, extra: Record<string, unknown> = {}, from
 
 try {
   start('hub/server.ts', {
-    PORT: String(HUB_PORT), HUB_DB: path.join(work, 'hub.db'), IG_APP_ID: '9990001', IG_APP_SECRET: APP_SECRET, HUB_PUBLIC_URL: HUB, HUB_VERIFY_TOKEN: 'verify-me', HUB_ADMIN_KEY: 'hub-admin-1',
+    PORT: String(HUB_PORT), HUB_DB: path.join(work, 'hub.db'), IG_APP_ID: '9990001', IG_APP_SECRET: APP_SECRET, HUB_PUBLIC_URL: HUB, HUB_VERIFY_TOKEN: 'verify-me', HUB_ADMIN_KEY: 'hub-admin-sinov-kaliti-0123456789',
     IG_AUTH_URL: `${META}/oauth/authorize`, IG_TOKEN_URL: `${META}/oauth/access_token`, IG_GRAPH_URL: META,
     HUB_OPERATOR: 'Palantir Test MChJ', HUB_CONTACT_EMAIL: 'privacy@palantir.test',
   });
@@ -108,7 +108,7 @@ try {
 
   console.log('\n# Hub: klinika kodi va webhook tasdig\'i');
   ok("admin kalitsiz klinika ochilmaydi", (await fetch(`${HUB}/admin/clinics`, { method: 'POST', body: '{}' })).status === 401);
-  const clinic = await (await fetch(`${HUB}/admin/clinics`, { method: 'POST', headers: { authorization: 'Bearer hub-admin-1' }, body: JSON.stringify({ name: 'Shifo Dent' }) })).json() as { code: string };
+  const clinic = await (await fetch(`${HUB}/admin/clinics`, { method: 'POST', headers: { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' }, body: JSON.stringify({ name: 'Shifo Dent' }) })).json() as { code: string };
   ok('klinika kodi: «phub.» va hub manzili ichida', clinic.code.startsWith('phub.') && parseHubCode(clinic.code)?.url === HUB);
   const verify = await fetch(`${HUB}/ig/webhook?hub.mode=subscribe&hub.verify_token=verify-me&hub.challenge=4242`);
   ok("Meta webhook tasdig'i: challenge qaytdi; noto'g'ri token — 403", (await verify.text()) === '4242' && (await fetch(`${HUB}/ig/webhook?hub.mode=subscribe&hub.verify_token=xato&hub.challenge=1`)).status === 403);

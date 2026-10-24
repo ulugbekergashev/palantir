@@ -2,7 +2,7 @@
 
 Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **haqiqiy hisoblar va uskunalar bilan** qo'lda tekshiriladiganlar. Har bandda: nima qilasiz → nima bo'lishi kerak. Bo'lmasa — `/diagnostika` (botda) va qaysi band ekanini yozing.
 
-1–7-bo'limlar uchun **server (Palantir Hub) kerak emas**: hammasi klinika kompyuterining o'zida ishlaydi. Hub faqat Instagram, telefondan panel va tashqi zaxira uchun — ular oxirgi bo'limda («Keyin»).
+1–7-bo'limlar uchun **server (Palantir Hub) kerak emas**: hammasi klinika kompyuterining o'zida ishlaydi. Hub faqat Instagram, telefondan panel, jamoa kirishi va tashqi zaxira uchun — ular oxirgi bo'limda («Keyin»).
 
 ## 0. Bir martalik tayyorgarlik
 
@@ -68,7 +68,7 @@ Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **h
 | 7.1 | `package.json` dagi versiyani oshiring, `git tag v<versiya> && git push --tags` | GitHub'da imzolangan reliz; klinika kompyuteri kechasi 3:00 da o'zi yangilanadi (`logs\yangilash.log`) |
 | 7.2 | Ertasi kuni klinika kompyuterida `C:\PalantirData\backups\` ni oching | Bugungi sana nomli papka: `palantir.db`, `miya`, `session.secret`. Hub'siz zaxira faqat shu kompyuterda — disk buzilsa yo'qoladi, vaqti-vaqti bilan fleshkaga oling ([ORNATISH.md](ORNATISH.md), «Zaxira nusxa») |
 
-## Keyin: Instagram, telefondan panel, tashqi zaxira (Palantir Hub kerak)
+## Keyin: Instagram, telefondan panel, jamoa kirishi, tashqi zaxira (Palantir Hub kerak)
 
 Instagram xabarlarni o'zi internetdagi doimiy HTTPS manzilga yuboradi (webhook), klinika kompyuteri esa router ortida — tashqaridan unga kirib bo'lmaydi. Shu manzil — Hub: Meta xabarni hubga beradi, klinika kompyuteri o'zi borib oladi. Hub qayerda turishi (bepul Oracle serveri, ~$5/oy server yoki Railway) — Instagram kerak bo'lganda hal qilinadi; `npm run hub:deploy` hozir Railway uchun yozilgan.
 
@@ -83,3 +83,5 @@ Instagram xabarlarni o'zi internetdagi doimiy HTTPS manzilga yuboradi (webhook),
 | H.7 | Instagram'dan: «Qabulimni ko'chiring» | Javob xodimga o'tadi (Instagram'da raqam tasdiqlanmaydi) |
 | H.8 | Ertasi kuni: `GET /admin/backups` (admin kaliti bilan) | Klinikaning shifrlangan zaxirasi; `npm run restore-backup -- <fayl>` ochadi |
 | H.9 | Kompyuterni o'chirib-yoqing | 15 daqiqada sizga (`HUB_ALERT_CHAT`) «aloqa yo'q», yongach «yana aloqada» |
+| H.10 | O'z kompyuteringizda `https://<hub>/admin` → admin kaliti (`~/.palantir/hub.env` dagi `HUB_ADMIN_KEY`) → klinika yonida **«Panelni ochish»** | Yangi oynada klinika paneli, parolsiz: bosh sahifa, kameralar (kadr, hozir nechta odam), «Tarmoqdan qidirish» — klinika tarmog'ini klinikadagi kompyuter qidiradi; ulash ustasi ham ochiq |
+| H.11 | Klinikada egasi: Sozlamalar → Telegram → «Masofadan kirish» → «Palantir jamoasi» | H.10 dagi kirish vaqti bilan yozilgan; «O'chirish» → H.10 dagi oyna «qayta kiring», tugma «egasi o'chirgan» deydi |

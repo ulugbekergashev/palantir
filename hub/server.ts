@@ -26,6 +26,9 @@
  *      klinikaning uzun so'roviga (/api/pull → relays) qo'shiladi, klinika uni o'zidagi panel serveriga beradi va javobni
  *      /api/relay/<id> ga qaytaradi. So'rovlar faqat xotirada (bazaga yozilmaydi): hub qayta ishga tushsa, eski so'rov qayta
  *      bajarilmaydi. Kirish — klinika panelining o'z paroli yoki Telegram Mini App imzosi; hub tanani saqlamaydi va yozmaydi.
+ *   9. Palantir jamoasi: GET /admin — klinikalar va «Panelni ochish». Admin kaliti bilan POST /admin/clinics/<klinika>/panel →
+ *      klinikaga belgilangan so'rov (support) → klinika parolsiz 12 soatlik kirish beradi, agar egasi ruxsatni o'chirmagan bo'lsa;
+ *      har kirish egasining Sozlamalarida ko'rinadi. Oddiy /c/ so'rovi bu belgini ololmaydi.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -44,8 +47,11 @@ import { pipeline } from 'node:stream/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { adminPage } from './admin.ts';
 import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
 
+/** Admin kaliti hamma klinikaning paneli, zaxirasi va diagnostikasini ochadi: qisqasi qabul qilinmaydi (hub:deploy 32 belgili yaratadi) */
+const MIN_ADMIN_KEY = 24;
 const cfg = {
   port: Number(process.env.PORT) || 3400,
   db: resolve(process.env.HUB_DB || 'hub-data/hub.db'),
@@ -53,7 +59,7 @@ const cfg = {
   appSecret: process.env.IG_APP_SECRET || '',
   publicUrl: (process.env.HUB_PUBLIC_URL || '').replace(/\/+$/, ''),
   verifyToken: process.env.HUB_VERIFY_TOKEN || '',
-  adminKey: process.env.HUB_ADMIN_KEY || '',
+  adminKey: (process.env.HUB_ADMIN_KEY ?? '').length >= MIN_ADMIN_KEY ? process.env.HUB_ADMIN_KEY! : '',
   // Faqat sinov uchun: soxta Instagram
   authUrl: process.env.IG_AUTH_URL || 'https://www.instagram.com/oauth/authorize',
   tokenUrl: process.env.IG_TOKEN_URL || 'https://api.instagram.com/oauth/access_token',
@@ -134,7 +140,8 @@ setInterval(() => { db.prepare('DELETE FROM events WHERE created_at < ?').run(ne
 
 // ─── Masofadan kirish (relay) ────────────────────────────────────────────────
 
-interface Relay { id: string; method: string; path: string; headers: Record<string, string>; body: string; ip: string }
+/** support — admin kaliti bilan ochilgan so'rov (Palantir jamoasi): klinika faqat /api/login/support da qabul qiladi */
+interface Relay { id: string; method: string; path: string; headers: Record<string, string>; body: string; ip: string; support?: boolean }
 interface RelayAnswer { status: number; headers: Record<string, string>; body: string }
 /** Klinika olishi kerak bo'lgan so'rovlar va javobini kutayotganlar — faqat xotirada */
 const relayQueue = new Map<string, Relay[]>();
@@ -170,20 +177,12 @@ const pick = (from: Record<string, unknown>, names: string[]) =>
   Object.fromEntries(names.flatMap(n => (typeof from[n] === 'string' ? [[n, from[n] as string]] : [])));
 const offlinePage = (name: string) => page('Klinika kompyuteri aloqada emas', `«${esc(name)}» kompyuteri hozir internetga ulanmagan yoki o'chiq. U yoqilgach panel shu havoladan ochiladi.`);
 
-async function relay(req: IncomingMessage, res: ServerResponse, clinicId: string, path: string): Promise<void> {
-  const clinic = db.prepare('SELECT name, seen_at FROM clinics WHERE id = ?').get(clinicId) as { name: string; seen_at: string | null } | undefined;
-  if (!clinic) return send(res, 404, page('Topilmadi', "Bunday klinika yo'q."), 'text/html');
-  const ip = clientIp(req);
-  if (!relayAllowed(ip)) return send(res, 429, { error: "Ko'p so'rov — bir daqiqadan keyin" });
-  const html = String(req.headers.accept ?? '').includes('text/html');
-  const online = !!waiters.get(clinicId)?.size || (!!clinic.seen_at && Date.now() - Date.parse(clinic.seen_at) < RELAY_GAP_MS);
-  if (!online) {
-    return html ? send(res, 503, offlinePage(clinic.name), 'text/html') : send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
-  }
-  const raw = req.method === 'GET' || req.method === 'HEAD' ? Buffer.alloc(0) : await readRaw(req, RELAY_MAX_REQUEST);
-  if (!raw) return send(res, 413, { error: 'Juda katta' });
+/** Klinika aloqada: uzun so'rovi hozir kutib turibdi yoki hozirgina ko'ringan */
+const clinicOnline = (clinicId: string, seenAt: string | null) => !!waiters.get(clinicId)?.size || (!!seenAt && Date.now() - Date.parse(seenAt) < RELAY_GAP_MS);
+
+/** So'rovni klinika navbatiga qo'yadi va javobini kutadi. Klinika olmasa yoki javob bermasa — null */
+async function dispatch(clinicId: string, r: Omit<Relay, 'id'>): Promise<RelayAnswer | null> {
   const id = randomBytes(9).toString('hex');
-  const r: Relay = { id, method: String(req.method), path, headers: pick(req.headers, RELAY_REQUEST_HEADERS), body: raw.toString('base64'), ip };
   const answer = await new Promise<RelayAnswer | null>(done => {
     const timer = setTimeout(() => { relayWaiting.delete(id); done(null); }, RELAY_TIMEOUT_MS);
     const pickup = setTimeout(() => {
@@ -193,11 +192,26 @@ async function relay(req: IncomingMessage, res: ServerResponse, clinicId: string
       done(null);
     }, RELAY_PICKUP_MS);
     relayWaiting.set(id, { clinic: clinicId, done: a => { clearTimeout(timer); clearTimeout(pickup); relayWaiting.delete(id); done(a); } });
-    relayQueue.set(clinicId, [...(relayQueue.get(clinicId) ?? []), r]);
+    relayQueue.set(clinicId, [...(relayQueue.get(clinicId) ?? []), { ...r, id }]);
     for (const wake of waiters.get(clinicId) ?? []) wake();
   });
+  if (!answer) relayQueue.set(clinicId, (relayQueue.get(clinicId) ?? []).filter(x => x.id !== id));
+  return answer;
+}
+
+async function relay(req: IncomingMessage, res: ServerResponse, clinicId: string, path: string): Promise<void> {
+  const clinic = db.prepare('SELECT name, seen_at FROM clinics WHERE id = ?').get(clinicId) as { name: string; seen_at: string | null } | undefined;
+  if (!clinic) return send(res, 404, page('Topilmadi', "Bunday klinika yo'q."), 'text/html');
+  const ip = clientIp(req);
+  if (!relayAllowed(ip)) return send(res, 429, { error: "Ko'p so'rov — bir daqiqadan keyin" });
+  const html = String(req.headers.accept ?? '').includes('text/html');
+  if (!clinicOnline(clinicId, clinic.seen_at)) {
+    return html ? send(res, 503, offlinePage(clinic.name), 'text/html') : send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
+  }
+  const raw = req.method === 'GET' || req.method === 'HEAD' ? Buffer.alloc(0) : await readRaw(req, RELAY_MAX_REQUEST);
+  if (!raw) return send(res, 413, { error: 'Juda katta' });
+  const answer = await dispatch(clinicId, { method: String(req.method), path, headers: pick(req.headers, RELAY_REQUEST_HEADERS), body: raw.toString('base64'), ip });
   if (!answer) {
-    relayQueue.set(clinicId, (relayQueue.get(clinicId) ?? []).filter(x => x.id !== id));
     return html ? send(res, 504, offlinePage(clinic.name), 'text/html') : send(res, 504, { error: 'Klinika kompyuteri javob bermadi' });
   }
   res.statusCode = answer.status;
@@ -365,6 +379,34 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const id = newId(), secret = randomBytes(24).toString('base64url');
     db.prepare('INSERT INTO clinics (id, name, key_hash, created_at) VALUES (?, ?, ?, ?)').run(id, String(body.name ?? 'Klinika').slice(0, 80), sha(secret), now());
     return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl || `http://127.0.0.1:${cfg.port}`, id, secret) });
+  }
+
+  // Admin sahifasi: klinikalar va «Panelni ochish» (kalit sahifaning o'zida so'raladi — sahifada sir yo'q)
+  if (p === '/admin' && req.method === 'GET') {
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+    res.setHeader('Referrer-Policy', 'same-origin');
+    // Klinika paneli (shu manzilda, lekin klinika kompyuteri bergan) ochilgan oynadan bu sahifaga qo'l cho'za olmasin
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    return send(res, 200, adminPage(), 'text/html');
+  }
+
+  // Admin: Palantir jamoasi sifatida klinika paneliga — klinika parolsiz kirish kalitini beradi (egasi ruxsatni o'chirmagan bo'lsa)
+  const support = /^\/admin\/clinics\/([0-9a-f]{10})\/panel$/.exec(p);
+  if (support && req.method === 'POST') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const clinic = db.prepare('SELECT seen_at FROM clinics WHERE id = ?').get(support[1]) as { seen_at: string | null } | undefined;
+    if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
+    if (!clinicOnline(support[1], clinic.seen_at)) return send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
+    const body = JSON.parse((await readRaw(req))?.toString() || '{}') as { business?: unknown };
+    const ask = typeof body.business === 'string' ? { business: body.business.slice(0, 40) } : {};
+    const answer = await dispatch(support[1], {
+      method: 'POST', path: '/api/login/support', headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify(ask)).toString('base64'), ip: clientIp(req), support: true,
+    });
+    if (!answer) return send(res, 504, { error: 'Klinika kompyuteri javob bermadi' });
+    res.statusCode = answer.status;
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    return void res.end(Buffer.from(answer.body, 'base64'));
   }
 
   // Admin: klinikalar — oxirgi ko'ringan payti va holati
@@ -609,6 +651,7 @@ server.listen(cfg.port, () => {
   const pub = cfg.publicUrl || '<HUB_PUBLIC_URL>';
   console.log(`  webhook: ${pub}/ig/webhook · OAuth: ${pub}/ig/callback · deauthorize: ${pub}/ig/deauthorize · data deletion: ${pub}/ig/data-deletion`);
   console.log(`  sahifalar: ${pub}/privacy, /terms, /data-deletion — ${cfg.contactEmail ? `${cfg.operator}, ${cfg.contactEmail}` : "HUB_CONTACT_EMAIL berilmagan: Meta aloqa manzilisiz siyosatni qabul qilmaydi"}`);
+  if (process.env.HUB_ADMIN_KEY && !cfg.adminKey) console.error(`  admin: HUB_ADMIN_KEY ${MIN_ADMIN_KEY} belgidan qisqa — admin yo'llari yopiq`);
   console.log(`  nazorat: ${cfg.botToken && cfg.alertChat ? `klinika ${Math.round(cfg.offlineMs / 60_000)} daqiqa ko'rinmasa — Telegram ${cfg.alertChat}` : "Telegram'ga aytilmaydi (HUB_BOT_TOKEN, HUB_ALERT_CHAT)"}`);
 });
 const stop = () => { server.close(); db.close(); process.exit(0); };
