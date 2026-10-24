@@ -82,6 +82,26 @@ try {
   ok('dvigatel kadr olyapti: holat «ok», oxirgi kadr vaqti bor', seen);
   ok('IP kamerada brauzer kuzatuvi rad etiladi — 409', (await api(`/api/cameras/${cam.id}/observe`, { token, body: { people: [] } })).status === 409);
 
+  // Sinov kirishida har manzil kadr beradi — registratorning 16 kanali ham «javob beradi»
+  console.log('\n# Registrator: boshqa kanallar');
+  type Channels = { channels: { channel: number; preview: string }[] };
+  const offer = (await api(`/api/cameras/${cam.id}/channels`, { token, body: {} })).json as Channels;
+  ok("1-kanal ulangan — qolgan 15 tasi kadri bilan taklif qilinadi", offer.channels.length === 15 && offer.channels.every(c => c.channel >= 2 && c.preview.startsWith('data:image/jpeg;base64,')),
+    offer.channels.map(c => c.channel).join(','));
+  const third = await api(`/api/cameras/${cam.id}/channels/3`, { token, body: { name: '3-kabinet' } });
+  ok('3-kanal alohida kamera bo\'lib ulandi (o\'sha IP, parol ko\'rinmaydi)', third.status === 200 && third.json.camera.name === '3-kabinet' && third.json.camera.ip === '192.168.1.64:554'
+    && !JSON.stringify(third.json).includes(SECRET));
+  const again = (await api(`/api/cameras/${cam.id}/channels`, { token, body: {} })).json as Channels;
+  ok('ulangan kanallar (1 va 3) qayta taklif qilinmaydi', again.channels.length === 14 && !again.channels.some(c => c.channel === 1 || c.channel === 3));
+  ok("noto'g'ri kanal raqami — 400", (await api(`/api/cameras/${cam.id}/channels/99`, { token, body: { name: 'x' } })).status === 400);
+  const single = (await api('/api/cameras', { token, body: { name: 'Oddiy' } })).json.camera;
+  await api(`/api/cameras/${single.id}/stream`, { token, method: 'PUT', body: { url: 'rtsp://192.168.1.70:554/stream1' } });
+  const none = (await api(`/api/cameras/${single.id}/channels`, { token, body: {} })).json as Channels;
+  ok("oddiy kamera (registrator manzili emas) — kanal taklif qilinmaydi", none.channels.length === 0);
+  ok('kanalni tokensiz ulab bo\'lmaydi', (await api(`/api/cameras/${cam.id}/channels/4`, { body: { name: 'x' } })).status === 401);
+  await api(`/api/cameras/${third.json.camera.id}`, { token, method: 'DELETE' });
+  await api(`/api/cameras/${single.id}`, { token, method: 'DELETE' });
+
   console.log('\n# Uzish');
   const off = await put('');
   ok('uzildi: yana shu kompyuter kamerasi', off.status === 200 && off.json.camera.ip === null && off.json.camera.feed === null);

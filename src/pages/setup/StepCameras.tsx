@@ -3,6 +3,7 @@ import { Camera as CameraIcon, Loader2, Radar, Video } from 'lucide-react';
 import { api } from '../../data/api';
 import { Button, Card, Field, TextInput } from '../../components/ui';
 import { maskSecret } from '../../lib/secrets';
+import { RecorderChannels } from '../../components/RecorderChannels';
 import type { Camera, FoundCamera, SetupView } from '../../types';
 import type { Routed } from './StepKeys';
 
@@ -37,6 +38,8 @@ export function StepCameras({ setup, routed, onCount, notify }: { setup: SetupVi
   const [cred, setCred] = useState({ login: 'admin', password: '' });
   const [names, setNames] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  /** Hozirgina ulangan kamera — registrator bo'lsa, boshqa kanallari taklif qilinadi */
+  const [recorder, setRecorder] = useState<string | null>(null);
 
   const reload = async () => {
     const cams = (await api.cameras()).cameras;
@@ -58,8 +61,9 @@ export function StepCameras({ setup, routed, onCount, notify }: { setup: SetupVi
   const connect = async (c: FoundCamera) => {
     setBusy(c.ip);
     try {
-      await api.connectCamera({ ip: c.ip, port: c.rtspPort, brand: c.brand, onvif: c.onvif, login: cred.login, password: cred.password, name: names[c.ip] || placeFor(0) });
+      const r = await api.connectCamera({ ip: c.ip, port: c.rtspPort, brand: c.brand, onvif: c.onvif, login: cred.login, password: cred.password, name: names[c.ip] || placeFor(0) });
       setFound(f => f?.map(x => (x.ip === c.ip ? { ...x, connected: true } : x)) ?? null);
+      setRecorder(r.camera.id);
       await reload();
       notify(`${names[c.ip] || c.ip} ulandi`);
     } catch (e) { notify((e as Error).message, true); } finally { setBusy(null); }
@@ -71,6 +75,7 @@ export function StepCameras({ setup, routed, onCount, notify }: { setup: SetupVi
     try {
       id = (await api.addCamera(name)).camera.id;
       await api.setCameraStream(id, url);
+      setRecorder(id);
       await reload();
       notify(`${name} ulandi`);
     } catch (e) {
@@ -113,6 +118,7 @@ export function StepCameras({ setup, routed, onCount, notify }: { setup: SetupVi
               <datalist id="camera-places">{PLACES.map(p => <option key={p} value={p} />)}</datalist>
             </>
           ))}
+        {recorder && <div className="mt-4"><RecorderChannels key={recorder} cameraId={recorder} placeFor={placeFor} notify={notify} onConnected={() => { void reload(); }} /></div>}
       </Card>
 
       {pendingUrls.length > 0 && (

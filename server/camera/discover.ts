@@ -160,6 +160,30 @@ export function candidatePaths(brand: string): string[] {
   return [...new Set([...(PATHS[brand] ?? []), ...GENERIC])];
 }
 
+// ─── Registrator (DVR/NVR) kanallari ──────────────────────────────────────────
+// Bitta IP'da bir nechta kamera: Hikvision/HiWatch — /Streaming/Channels/<kanal>0<oqim> (102 — 1-kanal yengil oqimi, 1102 — 11-kanal),
+// Dahua — /cam/realmonitor?channel=<kanal>. Boshqa ko'rinishdagi manzil — bitta kamera deb hisoblanadi.
+const HIK_CHANNEL = /^(.*\/Streaming\/Channels\/)(\d+?)0([1-9])$/i;
+
+/** Manzildagi kanal raqami; registrator manzili bo'lmasa — null */
+export function channelOf(url: string): number | null {
+  const u = new URL(url);
+  const hik = HIK_CHANNEL.exec(u.pathname);
+  if (hik) return Number(hik[2]);
+  const dahua = /\/cam\/realmonitor$/i.test(u.pathname) ? Number(u.searchParams.get('channel')) : NaN;
+  return Number.isInteger(dahua) && dahua > 0 ? dahua : null;
+}
+
+/** Shu manzilning boshqa kanali (login-parol, port va oqim turi o'sha); registrator manzili bo'lmasa — null */
+export function channelUrl(url: string, channel: number): string | null {
+  if (channelOf(url) === null) return null;
+  const u = new URL(url);
+  const hik = HIK_CHANNEL.exec(u.pathname);
+  if (hik) u.pathname = `${hik[1]}${channel}0${hik[3]}`;
+  else u.searchParams.set('channel', String(channel));
+  return u.href;
+}
+
 /** Manzilga login-parol qo'yadi (parolda @ yoki : bo'lsa ham to'g'ri kodlanadi) */
 export function withCredentials(rtsp: string, login: string, password: string): string {
   const u = new URL(rtsp);

@@ -271,6 +271,9 @@ export const api = {
   askOwner: () => call<{ setup: SetupView }>('/setup/ask', { body: {} }),
   discoverCameras: () => call<{ found: FoundCamera[]; ffmpeg: boolean }>('/cameras/discover', { body: {} }),
   connectCamera: (v: { ip: string; port: number; brand: string; onvif: string | null; login: string; password: string; name: string }) => call<{ camera: Camera }>('/cameras/connect', { body: v }),
+  /** Registratorning boshqa kanallari (kadri bilan) va tanlanganini ulash */
+  cameraChannels: (id: string) => call<{ channels: { channel: number; preview: string }[] }>(`/cameras/${id}/channels`, { body: {} }),
+  connectChannel: (id: string, channel: number, name: string) => call<{ camera: Camera }>(`/cameras/${id}/channels/${channel}`, { body: { name } }),
 
 };
 

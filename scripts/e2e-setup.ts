@@ -21,7 +21,7 @@ import { classifyLine, classifyText, containsSecret, maskSecret } from '../src/l
 import { emptyAnketa, hoursText, missingDays, cleanCode } from '../src/lib/anketa';
 import { parsePrices, splitConflicts } from '../src/lib/prices';
 import { setAboutLine } from '../server/setup/about';
-import { brandOf, candidatePaths, parseProbeMatch, pickProfile, withCredentials, wsSecurity } from '../server/camera/discover';
+import { brandOf, candidatePaths, channelOf, channelUrl, parseProbeMatch, pickProfile, withCredentials, wsSecurity } from '../server/camera/discover';
 import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
 
 const results: boolean[] = [];
@@ -69,6 +69,12 @@ ok('ONVIF javobi: IP, marka, model, boshqaruv manzili', cam?.ip === '192.168.1.6
 const spoof = parseProbeMatch(MATCH.replace('http://192.168.1.64/', 'http://127.0.0.1/'), '192.168.1.77');
 ok("ONVIF javobidagi begona IP'ga ishonilmaydi: IP — javob kelgan manzil", spoof?.ip === '192.168.1.77' && spoof.onvif === null, JSON.stringify(spoof));
 ok('marka modeldan ham taniladi', brandOf('IPC-HFW1230S') === 'Dahua' && brandOf('noma\'lum') === '');
+ok('registrator kanali: Hikvision/HiWatch (parol, ONVIF so\'rovi saqlanadi; 11-kanal), Dahua; oddiy kamera — null',
+  channelUrl('rtsp://admin:p%40ss@192.168.1.64:554/Streaming/Channels/102', 3) === 'rtsp://admin:p%40ss@192.168.1.64:554/Streaming/Channels/302'
+  && channelUrl('rtsp://192.168.1.64/Streaming/Channels/102?transportmode=unicast', 11) === 'rtsp://192.168.1.64/Streaming/Channels/1102?transportmode=unicast'
+  && channelOf('rtsp://192.168.1.64/Streaming/Channels/1101') === 11
+  && channelUrl('rtsp://192.168.1.108:554/cam/realmonitor?channel=1&subtype=1', 4) === 'rtsp://192.168.1.108:554/cam/realmonitor?channel=4&subtype=1'
+  && channelOf('rtsp://192.168.1.10:554/stream1') === null && channelUrl('rtsp://192.168.1.10:554/stream1', 2) === null);
 ok('HiWatch — Hikvision yo\'llari bilan', brandOf('HiWatch DS-I253') === 'Hikvision' && brandOf('DS-I203(D)') === 'Hikvision' && brandOf('DS-T203') === 'Hikvision');
 ok('markaning yo\'llari birinchi, umumiylari keyin', candidatePaths('Dahua')[0].startsWith('/cam/realmonitor') && candidatePaths('').length >= 4);
 ok('eng yengil profil tanlanadi', pickProfile('<trt:Profiles token="main"><tt:Width>1920</tt:Width><tt:Height>1080</tt:Height></trt:Profiles><trt:Profiles token="sub"><tt:Width>640</tt:Width><tt:Height>360</tt:Height></trt:Profiles>') === 'sub');
