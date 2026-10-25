@@ -8,7 +8,6 @@ $ErrorActionPreference = 'Stop'
 $Zip = Join-Path $PSScriptRoot 'app.zip'
 $DefaultRoot = 'C:\Palantir'
 $Log = Join-Path $env:TEMP 'palantir-exe.log'
-try { Start-Transcript -Path $Log -Force | Out-Null } catch { }
 
 function Step([string]$text) { Write-Host ''; Write-Host "== $text" -ForegroundColor Cyan }
 function Note([string]$text) { Write-Host "   $text" }
@@ -57,11 +56,27 @@ function Open-Zip([string]$target) {
   return ($p.ExitCode -eq 0)
 }
 
+# Administrator huquqi bitta ruxsat bilan: Node.js o'rnatgichi va "kompyuter yonganda o'zi ishga tushish" (Windows vazifasi) uchun.
+# Ruxsat berilgan oyna shu faylni qayta ishga tushiradi; bu oyna u tugashini kutadi
+$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $admin) {
+  Write-Host ''
+  Write-Host '   Administrator ruxsati so''raladi - chiqqan oynada "Da / Yes" ni bosing. O''rnatish yangi oynada davom etadi.' -ForegroundColor Yellow
+  try {
+    $p = Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`""
+    exit $p.ExitCode
+  } catch {
+    Write-Host '   Ruxsat berilmadi - Palantir o''rnatilmadi. Exe''ni qayta ishga tushirib, "Da / Yes" ni bosing.' -ForegroundColor Red
+    Finish 1
+  }
+}
+try { Start-Transcript -Path $Log -Force | Out-Null } catch { }
+
 Show-Front
 Write-Host ''
 Write-Host '  ==============================================================' -ForegroundColor Yellow
-Write-Host '   PALANTIR O''RNATILMOQDA - 5-15 DAQIQA. OYNANI YOPMANG.' -ForegroundColor Yellow
-Write-Host '   Bitta savol beriladi; oxirida admin paroli chiqadi.' -ForegroundColor Yellow
+Write-Host '   PALANTIR O''RNATILMOQDA - 3-10 DAQIQA. OYNANI YOPMANG.' -ForegroundColor Yellow
+Write-Host '   Savol berilmaydi. Oxirida admin paroli chiqadi.' -ForegroundColor Yellow
 Write-Host '  ==============================================================' -ForegroundColor Yellow
 
 Step "Palantir o'rnatilmoqda"

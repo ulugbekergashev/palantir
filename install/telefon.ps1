@@ -13,6 +13,9 @@ Set-Location $Root
 
 $Voice = Join-Path $Root 'tgvoice'
 $VenvPython = Join-Path $Voice '.venv\Scripts\python.exe'
+# O'rnatuvchi exe ichidagi Python (runtime\python, kutubxonalari bilan - scripts\setup-exe.ts): bo'lsa venv o'rniga shu, internetsiz
+$BundledPython = Join-Path $Root 'runtime\python\python.exe'
+if (Test-Path $BundledPython) { $VenvPython = $BundledPython }
 $WakeModel = 'vosk-model-small-ru-0.22'
 $WakeUrl = "https://alphacephei.com/vosk/models/$WakeModel.zip"
 $RootfsUrl = 'https://cloud-images.ubuntu.com/wsl/releases/24.04/current/ubuntu-noble-wsl-amd64-wsl.rootfs.tar.gz'
@@ -181,8 +184,13 @@ if (Test-Path $VenvPython) {
   Run 'Ovoz xizmati muhiti (venv)' { & $python -m venv (Join-Path $Voice '.venv') }
 }
 
-Step "Ovoz xizmati: kutubxonalar (bir necha daqiqa)"
-Run 'pip' { & $VenvPython -m pip install --disable-pip-version-check -q -r (Join-Path $Voice 'requirements.txt') }
+if ($VenvPython -eq $BundledPython) {
+  Step 'Ovoz xizmati: kutubxonalar (dastur ichida)'
+  Run 'Kutubxonalar tekshiruvi' { & $VenvPython -c 'import vosk, ntgcalls, pytgcalls, telethon, google.genai, httpx, websockets' }
+} else {
+  Step "Ovoz xizmati: kutubxonalar (bir necha daqiqa)"
+  Run 'pip' { & $VenvPython -m pip install --disable-pip-version-check -q -r (Join-Path $Voice 'requirements.txt') }
+}
 Note 'Kutubxonalar tayyor'
 
 Step "'Quloq' modeli (Palantir / Jarvis deb chaqirish)"

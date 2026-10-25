@@ -25,33 +25,33 @@ Klinikadagi kompyuter: Windows 10 yoki 11 (64-bit), 8 GB xotira, doim yoniq va i
 Telefon liniyasi uchun yana: BIOS'da virtualizatsiya (VT-x / AMD-V) yoqilgan va o'rnatuvchida administrator huquqi bo'lsin.
 **Kompyuter o'chiq yoki uyquda bo'lsa — Palantir ishlamaydi** (kechasi AI qabulxona ham javob bermaydi): BIOS'da «svet kelganda yoqilsin»
 (Restore on AC power loss → Power On) sozlamasini qo'ying, iloji bo'lsa kichik UPS qo'ying. Kompyuter yongach hech kim kirmasa ham Palantir ishlashi uchun
-o'rnatgich **avtomatik kirishni** taklif qiladi (pastda).
+o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bilan, hech kim kirmasa ham ishga tushadi (pastda).
 
 ## 2. O'rnatish
 
 1. **Eng osoni — bitta exe** (DentaLocal kabi): `Palantir-Ornatish-<nashr>.exe` ni fleshkada yoki Telegram'da olib boring va ikki marta bosing →
-   «o'rnatilsinmi?» → «Да/Yes». Exe dasturni `C:\Palantir` ga ochadi (avval o'rnatilgan bo'lsa — o'sha papkaga, `.env` va ma'lumotlar saqlanadi) va
-   pastdagi 2-qadamni o'zi boshlaydi; oyna oxirida Enter kutadi. Administrator huquqi so'ralmaydi. Exe imzosiz: internetdan (Telegram'dan) kelgan bo'lsa
-   Windows «Windows защитил компьютер» deydi — «Подробнее» → «Выполнить в любом случае». Exe yig'ish (sotuvchi kompyuterida):
-   `npm run build`, keyin `npm run setup-exe` → `reliz\Palantir-Ornatish-<nashr>.exe` (≈120 MB: kutubxonalar, panel va kamera modeli ichida).
+   «o'rnatilsinmi?» → «Да» → administrator ruxsati → «Да». **Savol berilmaydi**, internet kerak emas: Node.js, ffmpeg, Python va ovoz kutubxonalari,
+   «Quloq» modeli, panel va kamera modeli — hammasi exe ichida. 3–10 daqiqa; oxirida admin paroli chiqadi va ulash ustasi ochiladi.
+   Exe dasturni `C:Palantir` ga ochadi (avval o'rnatilgan bo'lsa — o'sha papkaga, `.env` va ma'lumotlar saqlanadi). Exe imzosiz: internetdan
+   (Telegram'dan) kelgan bo'lsa Windows «Windows защитил компьютер» deydi — «Подробнее» → «Выполнить в любом случае». Jurnal (oyna yopilsa ham
+   qoladi): `%TEMP%palantir-exe.log` va `%TEMP%palantir-ornatish.log`.
+   Exe yig'ish (sotuvchi kompyuterida): `npm run build`, keyin `npm run setup-exe` → `relizPalantir-Ornatish-<nashr>.exe`. Node.js o'rnatgichi,
+   ffmpeg va ko'chma Python bir marta `relizkesh` ga yuklanadi (SHA256 qotirilgan); `--yengil` — ularsiz kichik exe (o'rnatishda internetdan).
 
-   Exe'siz: GitHub'dagi oxirgi relizdan `palantir-<nashr>.zip` ni yuklab oling (Releases), masalan `C:\Palantir` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
-   Reliz arxivida kutubxonalar, panel va kamera modeli tayyor — o'rnatish internetsiz ham o'tadi. Keyingi nashrlar har kecha o'zi o'rnatiladi.
-2. Papkadagi **`Ornatish.cmd`** ni ikki marta bosing (`install` papkasiga kirish shart emas). U **bitta savol** beradi —
-   «Bu kompyuter klinikada kecha-kunduz yoqiq turadimi?» — klinikada «h» (Enter). Qolgani savolsiz, 5–15 daqiqa:
-   - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'zi o'rnatadi (Windows ruxsat so'rashi mumkin);
-   - kutubxonalarni yuklaydi va panelni yig'adi;
-   - `.env` faylini yozadi: admin paroli, port, ma'lumotlar papkasi (`C:\PalantirData`, boshqasi: `Ornatish.cmd -Papka D:\Baza`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
+   Exe'siz: GitHub'dagi oxirgi relizdan `palantir-<nashr>.zip` ni yuklab oling (Releases), masalan `C:Palantir` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
+   Reliz arxivida kutubxonalar, panel va kamera modeli tayyor; Node.js, ffmpeg va Python internetdan qo'yiladi. Keyingi nashrlar har kecha o'zi o'rnatiladi.
+2. Papkadagi **`Ornatish.cmd`** ni ikki marta bosing (`install` papkasiga kirish shart emas; exe buni o'zi qiladi). Savolsiz, 3–15 daqiqa:
+   - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'rnatadi (exe ichidagisini, aks holda internetdan);
+   - kutubxonalarni yuklaydi va panelni yig'adi (reliz arxivida tayyor);
+   - `.env` faylini yozadi: admin paroli, port, ma'lumotlar papkasi (`C:PalantirData`, boshqasi: `Ornatish.cmd -Papka D:Baza`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
    - dastur va ma'lumotlar papkasini kompyuterning boshqa Windows foydalanuvchilaridan yopadi;
-   - **ovoz xizmatini** o'rnatadi (panel ovozi va «Quloq»; administrator huquqisiz): Python va ovoz kutubxonalari, «Quloq» modeli (≈45 MB).
-     Ovozli agent kalitini Palantir o'zi yaratadi (`DATA_DIR\ovoz.env`), Gemini kaliti — ulash ustasida;
-   - Palantir'ni avtoyuklashga qo'shadi, ish stoliga «Palantir AI» yorlig'ini qo'yadi, ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi;
-   - savolga «ha» deyilgan bo'lsa — kompyuter tarmoqqa ulangan paytda uxlamaydi va **avtomatik kirish** yoqiladi: svet o'chib-yonganda Windows shu
-     foydalanuvchi bilan o'zi kiradi, Palantir ishga tushadi va ekran darhol qulflanadi (kompyuter yonidagi odam parolsiz kira olmaydi; odam o'zi kirganda
-     qulflanmaydi). Windows paroli bir marta so'raladi, haqiqiy kirish bilan tekshiriladi va registrda ochiq emas, Windows'ning LSA maxfiy omborida saqlanadi.
-     Keyinroq yoqish yoki o'chirish: `install\Avtokirish.cmd` (`-Off`). Microsoft hisobi emas, **mahalliy** parolli foydalanuvchi bo'lgani ma'qul.
-
-   Savolsiz o'rnatish: `Ornatish.cmd -Klinika` yoki `Ornatish.cmd -Shaxsiy` (oddiy kompyuter: avtomatik kirish va quvvat sozlamalariga tegilmaydi).
+   - **ovoz xizmatini** tayyorlaydi (panel ovozi va «Quloq»): Python, ovoz kutubxonalari, «Quloq» modeli (≈45 MB).
+     Ovozli agent kalitini Palantir o'zi yaratadi (`DATA_DIRovoz.env`), Gemini kaliti — ulash ustasida;
+   - **Windows vazifasi «Palantir»** yaratadi: kompyuter yonishi bilan Palantir shu foydalanuvchi nomidan o'zi ishga tushadi — **Windows'ga kirish
+     shart emas**, parol so'ralmaydi va saqlanmaydi (S4U); svet o'chib-yonsa ham. Administrator huquqi bo'lmasa — Windows'ga kirganda ishga tushadi.
+     Eski usul — avtomatik kirish — endi kerak emas: avval yoqilgan bo'lsa o'chiriladi;
+   - kompyuter tarmoqqa ulangan paytda uxlamaydigan qiladi (batareyadagi sozlamaga tegmaydi);
+   - ish stoliga «Palantir AI» yorlig'ini qo'yadi (administrator bo'lsa — hamma foydalanuvchiga), ishga tushiradi va brauzerda **ulash ustasini** (`/#/ulash`) ochadi.
 
    **Telefon liniyasi** (AI qabulxona shahar raqamida) bu yerda o'rnatilmaydi — Uztelecom SIP ma'lumotlari kelganda alohida: `install\Telefon.cmd`
    (administrator huquqi bilan WSL, Ubuntu 24.04 ≈340 MB SHA256 bilan, Asterisk, `.wslconfig` da mirrored tarmoq, brandmauer qoidalari 5060 va
@@ -65,7 +65,7 @@ o'rnatgich **avtomatik kirishni** taklif qiladi (pastda).
      `npm run kalit -- XXXX-XXXX-XXXX-XXXX` (yoki `~/.palantir/Kalit-yaratish.cmd`) — chiqqan `PAL1-…` kalitni klinikaga yuboradi, u o'sha oynaga qo'yadi.
    - Maxfiy kalit faqat sotuvchida (`~/.palantir/litsenziya.pem`) va Hub'da; yo'qolsa eski kalitlar ishlayveradi, yangisini berib bo'lmaydi — zaxiralang.
 
-**Qaysi Windows foydalanuvchisi ostida o'rnatish kerak.** Palantir shu foydalanuvchi kirganda ishlaydi va kalitlar, baza, bemorlar yozishmasi faqat unga ochiq bo'ladi.
+**Qaysi Windows foydalanuvchisi ostida o'rnatish kerak.** Palantir shu foydalanuvchi nomidan ishlaydi (Windows'ga kirmasa ham) va kalitlar, baza, bemorlar yozishmasi faqat unga ochiq bo'ladi.
 Eng yaxshisi — egasining (yoki faqat Palantir uchun ochilgan) alohida parolli foydalanuvchisi. Hamma xodim bitta umumiy foydalanuvchi bilan ishlasa, ular `.env` va bazani ocha oladi — buni egasiga ayting.
 Zaxira nusxani fleshkaga olsangiz: unda baza va uni ochadigan kalit yonma-yon turadi — fleshka yo'qolsa hammasi ochiq.
 
@@ -133,9 +133,9 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 - [ ] Maxfiy joy belgilangan bo'lsa: `/kamera` rasmida o'sha joy qora.
 - [ ] Kreslo zonalarida DentaCRM shifokor id'si yozilgan; «Tayyor qoidalar»dan kamida «Kechasi odam ko'rinsa» yoqilgan.
 - [ ] Kamerani qo'l bilan 2–3 daqiqa yopib ko'ring — egasiga «kamera ko'rmay qoldi» keldi, ochgach «yana ko'ryapti» (birinchi 10 daqiqada kamera odatiy ko'rinishini o'rganadi — undan keyin sinang).
-- [ ] Kompyuterni **o'chirib-yoqing** va hech narsaga tegmang: 1–2 daqiqadan keyin bot o'zi javob beryaptimi, ekran qulflanganmi?
+- [ ] Kompyuterni **o'chirib-yoqing** va hech narsaga tegmang: Windows'ga **kirmasdan** 1–2 daqiqa kuting — bot o'zi javob beryaptimi?
 - [ ] Kompyuter uxlamaydigan qilingan (Sozlamalar → Quvvat → «Hech qachon»).
-- [ ] Egasiga aytildi: kompyuter o'chirilmaydi; shu Windows foydalanuvchisi bilan kirilgan bo'lishi kerak.
+- [ ] Egasiga aytildi: kompyuter o'chirilmaydi (Windows'ga kirish shart emas — Palantir o'zi yonadi).
 
 ## 5. Keyin: kundalik ishlar
 

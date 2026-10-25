@@ -1,10 +1,12 @@
 # Palantir'ni klinika kompyuteriga o'rnatadi (Windows 10/11, PowerShell 5.1).
-#   Ornatish.cmd                  - o'rnatish (yoki yangilangan dasturni qayta yig'ish). Bitta savol beradi, qolgani o'zi
-#   Ornatish.cmd -Klinika         - savolsiz: kompyuter klinikada kecha-kunduz yoqiq (avtomatik kirish, uyqusiz)
-#   Ornatish.cmd -Shaxsiy         - savolsiz: oddiy kompyuter (avtomatik kirish va quvvat sozlamalariga tegilmaydi)
+#   Ornatish.cmd                  - o'rnatish (yoki yangilangan dasturni qayta yig'ish). Savolsiz
 #   Ornatish.cmd -Papka D:\Baza   - ma'lumotlar papkasi (standart C:\PalantirData; faqat birinchi o'rnatishda)
-#   Ornatish.cmd -Uninstall       - avtoyuklashdan olib tashlash va to'xtatish (ma'lumotlar o'chmaydi; avtomatik kirish o'chiriladi)
+#   Ornatish.cmd -Uninstall       - avtoyuklashdan olib tashlash va to'xtatish (ma'lumotlar o'chmaydi)
+#   (-Klinika / -Shaxsiy - eski nashrlardan; endi savol yo'q, e'tiborga olinmaydi)
 # Qadamlar: Node.js va ffmpeg -> kutubxonalar -> panelni yig'ish -> .env -> ovoz xizmati -> tekshiruv -> avtoyuklash -> ishga tushirish.
+# Avtoyuklash (administrator huquqi bilan): Windows vazifasi "Palantir" - kompyuter yonishi bilan shu foydalanuvchi nomidan, Windows'ga
+# kirmasdan va parol saqlamasdan (S4U) ishga tushadi; svet o'chib-yonsa ham. Huquq bo'lmasa - avtoyuklash papkasidagi yorliq (kirganda).
+# Exe (scripts\setup-exe.ts) runtime\ papkasida Node.js o'rnatgichi, ffmpeg va Python'ni beradi - o'rnatish internetsiz o'tadi.
 # Telefon liniyasi (AI qabulxona shahar raqamida) bu yerda o'rnatilmaydi: Uztelecom SIP ma'lumotlari kelganda - install\Telefon.cmd
 # Bu faylda faqat ASCII belgilar: PowerShell 5.1 boshqa belgilarni buzib o'qiydi.
 param([switch]$Uninstall, [switch]$Klinika, [switch]$Shaxsiy, [string]$Papka = '')
@@ -28,6 +30,25 @@ $Launcher = Join-Path $PSScriptRoot 'palantir-fon.vbs'
 $AutoLogon = Join-Path $PSScriptRoot 'avtokirish.ps1'
 $Winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
 $Me = "$($env:USERDOMAIN)\$($env:USERNAME)"
+$Runtime = Join-Path $Root 'runtime'
+$TaskName = 'Palantir'
+$Admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+# Panel yorlig'i: administrator bo'lsa - hamma foydalanuvchining ish stolida (umumiy), aks holda o'zinikida
+$PanelDesktop = $Desktop
+if ($Admin) { $PanelDesktop = [Environment]::GetFolderPath('CommonDesktopDirectory') }
+
+# Windows vazifasi: kompyuter yonganda (30 soniyadan keyin) nazoratchi shu foydalanuvchi nomidan ishga tushadi - kirish va parolsiz.
+# Muddatsiz (standartda 3 kundan keyin to'xtatiladi), oddiy ustuvorlikda (standarti past - kameralar sekinlashardi), batareyada ham.
+function Register-PalantirTask([string]$node) {
+  $action = New-ScheduledTaskAction -Execute $node -Argument "`"$(Join-Path $Root 'scripts\supervise.mjs')`"" -WorkingDirectory $Root
+  $trigger = New-ScheduledTaskTrigger -AtStartup
+  $trigger.Delay = 'PT30S'
+  $principal = New-ScheduledTaskPrincipal -UserId $Me -LogonType S4U -RunLevel Limited
+  $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew `
+    -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -Priority 4
+  Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
+    -Description 'Palantir: kompyuter yonganda fonda ishga tushadi (install\ornatish.ps1)' -Force | Out-Null
+}
 
 # Windows shu foydalanuvchi bilan o'zi kiradimi (install\avtokirish.ps1 yoqgan)
 function AutoLogon-Mine {
@@ -82,6 +103,10 @@ function Read-EnvValue([string]$name) {
 if ($Uninstall) {
   Step "Palantir'ni to'xtatish va avtoyuklashdan olib tashlash"
   if (Get-Command node -ErrorAction SilentlyContinue) { node scripts\supervise.mjs stop }
+  if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+    try { Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false; Note "Windows vazifasi o'chirildi" }
+    catch { Warn "Windows vazifasini o'chirib bo'lmadi (administrator huquqi kerak): Vazifalar rejalashtiruvchisi -> Palantir" }
+  }
   foreach ($startupFile in $StartupLink, $OldStartupLink) {
     if (Test-Path $startupFile) { Remove-Item $startupFile -Force -Confirm:$false; Note "Avtoyuklash yorlig'i o'chirildi" }
   }
@@ -91,35 +116,31 @@ if ($Uninstall) {
     if ($LASTEXITCODE -ne 0) { Warn "Avtomatik kirish o'chirilmadi. Keyinroq: install\Avtokirish.cmd -Off" }
   }
   foreach ($name in @('Palantir AI.lnk') + $OldPanelLinks) {
-    $panelLink = Join-Path $Desktop $name
-    if (Test-Path $panelLink) { Remove-Item $panelLink -Force -Confirm:$false }
+    foreach ($desk in $Desktop, $PanelDesktop) {
+      $panelLink = Join-Path $desk $name
+      if (Test-Path $panelLink) { Remove-Item $panelLink -Force -Confirm:$false }
+    }
   }
   Note "Tayyor. Ma'lumotlar (baza, ikkinchi miya, zaxira nusxalar) joyida qoldi: $(Read-EnvValue 'DATA_DIR')"
   exit 0
 }
 
-# --- Yagona savol ------------------------------------------------------------
-# Klinikadagi kompyuter kecha-kunduz yoqiq turadi: svet o'chib-yonganda Windows o'zi kiradi (ekran qulflanadi) va kompyuter uxlamaydi.
-# Oddiy (shaxsiy) kompyuterda bularga tegilmaydi. Qolgan hamma narsa savolsiz: o'rnatuvchi oynani qoldirib keta oladi.
-if ($Klinika -and $Shaxsiy) { Fail '-Klinika va -Shaxsiy dan bittasini bering' }
-$alwaysOn = [bool]$Klinika
-if (-not $Klinika -and -not $Shaxsiy) {
-  Write-Host ''
-  Write-Host '   SAVOL - javob yozib Enter bosing:' -ForegroundColor Yellow
-  Write-Host "   Bu kompyuter klinikada kecha-kunduz yoqiq turadimi? Unda svet o'chib-yonganda ham Palantir o'zi ishga tushadi va kompyuter uxlamaydi;" -ForegroundColor Yellow
-  Write-Host '   Windows parolingiz bir marta so''raladi. Klinika - h (yoki shunchaki Enter), oddiy kompyuter - y' -ForegroundColor Yellow
-  $answer = Read-Host '   (h/y) [h]'
-  $alwaysOn = $answer -notmatch '^[yY]'
-}
-Note "Qolgani savolsiz o'rnatiladi (internetga qarab 5-15 daqiqa). Oynani yopmang."
+Note "Savolsiz o'rnatiladi (5-15 daqiqa). Oynani yopmang."
 
 # --- 1. Node.js --------------------------------------------------------------
 Step '1/7  Node.js va ffmpeg'
 if ((Node-Major) -lt $MinNode) {
-  if (Get-Command node -ErrorAction SilentlyContinue) { Warn "Node.js $(node -v) o'rnatilgan, $MinNode yoki yangirog'i kerak" } else { Warn "Node.js o'rnatilmagan" }
-  if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Fail "Node.js $MinNode+ ni o'rnating: https://nodejs.org (LTS), keyin Ornatish.cmd ni qayta ishga tushiring." }
-  Note "Node.js o'rnatilmoqda (Windows ruxsat so'rashi mumkin)..."
-  winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+  if (Get-Command node -ErrorAction SilentlyContinue) { Warn "Node.js $(node -v) o'rnatilgan, $MinNode yoki yangirog'i kerak" } else { Note "Node.js o'rnatilmagan" }
+  $msi = Get-ChildItem $Runtime -Filter 'node-*.msi' -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($msi -and $Admin) {
+    Note "Node.js o'rnatilmoqda (dastur ichidan, internetsiz)..."
+    $p = Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i', "`"$($msi.FullName)`"", '/qn', '/norestart' -Wait -PassThru
+    if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { Fail "Node.js o'rnatilmadi (msiexec kodi $($p.ExitCode))" }
+  } else {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Fail "Node.js $MinNode+ ni o'rnating: https://nodejs.org (LTS), keyin Ornatish.cmd ni qayta ishga tushiring." }
+    Note "Node.js o'rnatilmoqda (internetdan; Windows ruxsat so'rashi mumkin)..."
+    winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+  }
   # Yangi o'rnatilgan dastur bu oynaning PATH'ida hali yo'q: tizimdagi PATH qayta o'qiladi
   $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
   if ((Node-Major) -lt $MinNode) { Fail "Node.js o'rnatildi, lekin bu oyna uni hali ko'rmayapti. Oynani yoping va Ornatish.cmd ni QAYTA ishga tushiring." }
@@ -130,7 +151,10 @@ Note "Node.js $(node -v)"
 # Yangi o'rnatilgan ffmpeg bu oynaning PATH'ida hali ko'rinmaydi, shuning uchun to'liq yo'li .env ga yoziladi.
 $ffmpegPath = ''
 $wingetFfmpeg = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links\ffmpeg.exe'
-if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+$bundledFfmpeg = Join-Path $Runtime 'ffmpeg\ffmpeg.exe'
+if (Test-Path $bundledFfmpeg) {
+  $ffmpegPath = $bundledFfmpeg; Note 'ffmpeg: dastur ichida'
+} elseif (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
   if (-not (Test-Path $wingetFfmpeg) -and (Get-Command winget -ErrorAction SilentlyContinue)) {
     Note "ffmpeg o'rnatilmoqda (IP kameralar uchun)..."
     winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements
@@ -225,31 +249,37 @@ if ($checkFailed) { Warn "Tekshiruvda xato bor. O'rnatish davom etadi, lekin xat
 # --- 6. Avtoyuklash va yorliqlar ---------------------------------------------
 Step '6/7  Avtoyuklash va yorliqlar'
 $shell = New-Object -ComObject WScript.Shell
-if (Test-Path $OldStartupLink) { Remove-Item $OldStartupLink -Force -Confirm:$false }
-$link = $shell.CreateShortcut($StartupLink)
-$link.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
-$link.Arguments = "`"$Launcher`""
-$link.WorkingDirectory = $Root
-$link.Description = 'Palantir (fonda)'
-$link.Save()
-Note "Kompyuter yonib, foydalanuvchi kirganda Palantir o'zi ishga tushadi"
-# Svet o'chib-yonganda hech kim kirmasa ham ishga tushsin: Windows o'zi kiradi, Palantir ekranni darhol qulflaydi (palantir-fon.vbs)
-if (AutoLogon-Mine) {
-  Note "Avtomatik kirish yoqilgan ($Me): svet o'chib-yonganda Palantir o'zi ishga tushadi"
-} elseif ($alwaysOn) {
-  Note "Avtomatik kirish yoqilmoqda: Windows '$Me' bilan o'zi kiradi va ekranni darhol qulflaydi. Windows parolingiz va ruxsat so'raladi"
-  & powershell -NoProfile -ExecutionPolicy Bypass -File $AutoLogon -User $Me
-  if ($LASTEXITCODE -eq 0) { Note "Avtomatik kirish yoqildi" }
-  else { Warn "Avtomatik kirish yoqilmadi: svet o'chib-yonganda kimdir Windows'ga kirmaguncha Palantir ishlamaydi. Keyinroq: install\Avtokirish.cmd" }
-} else { Note "Oddiy kompyuter: Palantir Windows'ga kirganingizda ishga tushadi. Klinikada doim yoqiq tursa: install\Avtokirish.cmd" }
+$task = $false
+if ($Admin) {
+  try { Register-PalantirTask (Get-Command node).Source; $task = $true }
+  catch { Warn "Windows vazifasi yaratilmadi ($($_.Exception.Message)) - Palantir Windows'ga kirganda ishga tushadi" }
+}
+if ($task) {
+  # Vazifa bor: avtoyuklash yorlig'i ikkinchi nusxani yoqmasin, avtomatik kirish (eski usul) endi kerak emas
+  foreach ($startupFile in $StartupLink, $OldStartupLink) { if (Test-Path $startupFile) { Remove-Item $startupFile -Force -Confirm:$false } }
+  Note "Palantir kompyuter yonishi bilan o'zi ishga tushadi - Windows'ga kirish shart emas (svet o'chib-yonsa ham)"
+  if (AutoLogon-Mine) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $AutoLogon -Off
+    if ($LASTEXITCODE -eq 0) { Note "Avtomatik kirish (eski usul) endi kerak emas - o'chirildi" }
+  }
+} else {
+  if (Test-Path $OldStartupLink) { Remove-Item $OldStartupLink -Force -Confirm:$false }
+  $link = $shell.CreateShortcut($StartupLink)
+  $link.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
+  $link.Arguments = "`"$Launcher`""
+  $link.WorkingDirectory = $Root
+  $link.Description = 'Palantir (fonda)'
+  $link.Save()
+  Note "Palantir Windows'ga kirganingizda ishga tushadi. Kirmasdan ham ishlashi uchun o'rnatishni administrator sifatida qayta ishga tushiring"
+}
 $port = Read-EnvValue 'PORT'
 if (-not $port) { $port = $DefaultPort }
-# Yorliq Palantir'ni (o'chiq bo'lsa) yoqadi va panelni ochadi; eski nomdagi yorliqlar ($OldPanelLinks) olib tashlanadi
-foreach ($name in $OldPanelLinks) {
+# Yorliq Palantir'ni (o'chiq bo'lsa) yoqadi va panelni ochadi; eski nomdagi va boshqa ish stolidagi nusxalar olib tashlanadi
+foreach ($name in $OldPanelLinks + @('Palantir AI.lnk')) {
   $oldPanelLink = Join-Path $Desktop $name
   if (Test-Path $oldPanelLink) { Remove-Item $oldPanelLink -Force -Confirm:$false }
 }
-$panel = $shell.CreateShortcut((Join-Path $Desktop 'Palantir AI.lnk'))
+$panel = $shell.CreateShortcut((Join-Path $PanelDesktop 'Palantir AI.lnk'))
 $panel.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
 $panel.Arguments = "`"$(Join-Path $PSScriptRoot 'palantir-ochish.vbs')`""
 $panel.WorkingDirectory = $Root
@@ -258,18 +288,17 @@ $panel.Description = 'Palantir: yoqish va panelni ochish'
 $panel.Save()
 Note "Ish stolida 'Palantir AI' yorlig'i - Palantir'ni yoqadi va panelni ochadi"
 
-# Kecha-kunduz ishlaydigan kompyuter tarmoqqa ulangan paytda uxlamaydi: bot tunda ham javob beradi
-if ($alwaysOn) {
-  powercfg /change standby-timeout-ac 0
-  $sleepOff = $LASTEXITCODE -eq 0
-  powercfg /change hibernate-timeout-ac 0
-  if ($sleepOff -and $LASTEXITCODE -eq 0) { Note "Uyqu rejimi o'chirildi (ekran o'chishi mumkin - bu xalaqit bermaydi)" }
-  else { Warn "Uyqu rejimini o'zgartirib bo'lmadi - Sozlamalar > Quvvat bo'limida qo'lda o'chiring" }
-}
+# Palantir kecha-kunduz ishlaydi: kompyuter tarmoqqa ulangan paytda uxlamaydi (batareyadagi sozlamaga tegilmaydi)
+powercfg /change standby-timeout-ac 0
+$sleepOff = $LASTEXITCODE -eq 0
+powercfg /change hibernate-timeout-ac 0
+if ($sleepOff -and $LASTEXITCODE -eq 0) { Note "Kompyuter tarmoqqa ulanganda uxlamaydi (ekran o'chishi mumkin - bu xalaqit bermaydi)" }
+else { Warn "Uyqu rejimini o'zgartirib bo'lmadi - Sozlamalar > Quvvat bo'limida qo'lda o'chiring" }
 
 # --- 7. Ishga tushirish ------------------------------------------------------
 Step '7/7  Ishga tushirish'
-Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') -ArgumentList "`"$Launcher`""
+if ($task) { Start-ScheduledTask -TaskName $TaskName }
+else { Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') -ArgumentList "`"$Launcher`"" }
 $up = $false
 for ($i = 0; $i -lt 60 -and -not $up; $i++) {
   Start-Sleep -Seconds 1

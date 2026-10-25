@@ -17,6 +17,8 @@ export interface ArchiveOptions {
   modules?: string;
   /** Shu papka ichidagi kuzatiladigan fayllar arxivga kirmaydi (arxiv o'zi yoziladigan joy) */
   skip?: string;
+  /** Qo'shimcha papkalar: diskdagi papka → arxivdagi nomi (o'rnatuvchi exe'ning runtime\ qismlari) */
+  extra?: { dir: string; name: string }[];
 }
 
 export interface ArchiveResult { files: number; size: number; sha256: string }
@@ -31,7 +33,7 @@ function walk(dir: string, base = ''): string[] {
   });
 }
 
-export async function writeArchive(target: string, { version, modules, skip }: ArchiveOptions): Promise<ArchiveResult> {
+export async function writeArchive(target: string, { version, modules, skip, extra = [] }: ArchiveOptions): Promise<ArchiveResult> {
   const tracked = execFileSync('git', ['ls-files', '-z']).toString().split('\0').filter(f => f && existsSync(f));
   // arxivdagi nom → diskdagi fayl
   const entries = new Map<string, string>(tracked.filter(f => !skip || !f.startsWith(`${skip}/`)).map(f => [f, f]));
@@ -39,6 +41,7 @@ export async function writeArchive(target: string, { version, modules, skip }: A
   addDir('dist', 'dist');
   addDir(join('public', 'models'), 'public/models');
   if (modules) addDir(modules, 'node_modules');
+  for (const e of extra) addDir(e.dir, e.name);
   entries.delete('files.json');
   const roots = [...new Set([...entries.keys()].map(f => f.split('/')[0]))].sort();
   const files = { version, schema: SCHEMA_VERSION, roots, files: tracked };
