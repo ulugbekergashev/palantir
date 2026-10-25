@@ -48,7 +48,23 @@ OWNER_LIMIT_S = 900                                # egasining qo'ng'irog'i (Tel
 # karnayidan qaytgan AI ovozi «gap» bo'lib (turkcha, hindcha bo'laklar) suhbatni buzmasin. Baland gap (odam AI'ni bo'lsa) o'tadi
 ECHO_GATE = int(env('SIP_ECHO_GATE', '1500'))      # 16-bit namuna RMS (0..32767)
 ECHO_TAIL_S = 0.4
-DISTRO = env('SIP_WSL_DISTRO', 'Palantir')
+def _wsl_distro() -> str:
+    """Asterisk turgan WSL distributivi: SIP_WSL_DISTRO yoki «Palantir»; dastur avval Cerebro deb atalgan — o'sha nomlisi bo'lsa, o'sha
+    (server/voice/line.ts bilan bir xil). Noto'g'ri nom bilan WSL yoqiq tutilmaydi va Asterisk har necha soniyada o'chib qoladi"""
+    chosen = env('SIP_WSL_DISTRO', '-')
+    if chosen != '-':
+        return chosen
+    if os.name != 'nt':
+        return 'Palantir'
+    try:
+        out = subprocess.run(['wsl.exe', '-l', '-q'], capture_output=True, timeout=30).stdout
+        have = {s.strip() for s in out.decode('utf-16-le', errors='ignore').replace('\0', '').splitlines()}
+    except (OSError, subprocess.SubprocessError):
+        return 'Palantir'
+    return 'Cerebro' if 'Palantir' not in have and 'Cerebro' in have else 'Palantir'  # eski nom
+
+
+DISTRO = _wsl_distro()
 TOKEN_TTL_S = 6 * 3600
 
 # AudioSocket xabarlari: 1 bayt tur, 2 bayt uzunlik (big-endian), keyin ma'lumot
