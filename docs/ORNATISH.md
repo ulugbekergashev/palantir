@@ -29,7 +29,13 @@ o'rnatgich **avtomatik kirishni** taklif qiladi (pastda).
 
 ## 2. O'rnatish
 
-1. GitHub'dagi oxirgi relizdan `palantir-<nashr>.zip` ni yuklab oling (Releases), masalan `C:\Palantir` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
+1. **Eng osoni — bitta exe** (DentaLocal kabi): `Palantir-Ornatish-<nashr>.exe` ni fleshkada yoki Telegram'da olib boring va ikki marta bosing →
+   «o'rnatilsinmi?» → «Да/Yes». Exe dasturni `C:\Palantir` ga ochadi (avval o'rnatilgan bo'lsa — o'sha papkaga, `.env` va ma'lumotlar saqlanadi) va
+   pastdagi 2-qadamni o'zi boshlaydi; oyna oxirida Enter kutadi. Administrator huquqi so'ralmaydi. Exe imzosiz: internetdan (Telegram'dan) kelgan bo'lsa
+   Windows «Windows защитил компьютер» deydi — «Подробнее» → «Выполнить в любом случае». Exe yig'ish (sotuvchi kompyuterida):
+   `npm run build`, keyin `npm run setup-exe` → `reliz\Palantir-Ornatish-<nashr>.exe` (≈120 MB: kutubxonalar, panel va kamera modeli ichida).
+
+   Exe'siz: GitHub'dagi oxirgi relizdan `palantir-<nashr>.zip` ni yuklab oling (Releases), masalan `C:\Palantir` ga oching (ichida `install`, `server`, `files.json` bo'ladi).
    Reliz arxivida kutubxonalar, panel va kamera modeli tayyor — o'rnatish internetsiz ham o'tadi. Keyingi nashrlar har kecha o'zi o'rnatiladi.
 2. Papkadagi **`Ornatish.cmd`** ni ikki marta bosing (`install` papkasiga kirish shart emas). U **bitta savol** beradi —
    «Bu kompyuter klinikada kecha-kunduz yoqiq turadimi?» — klinikada «h» (Enter). Qolgani savolsiz, 5–15 daqiqa:
@@ -52,6 +58,12 @@ o'rnatgich **avtomatik kirishni** taklif qiladi (pastda).
    10000–10100 — faqat ichki tarmoq). WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqib, `Telefon.cmd` ni yana bosing; har qadam qayta bosilganda
    bor narsani o'tkazib yuboradi.
 3. Oxirida ekranda **admin paroli** chiqadi — yozib oling. U sizniki, klinikaga berilmaydi.
+4. **Litsenziya.** Kalitsiz ham ishlaydi: 14 kun panel burchagida «Aktivlashtirilmagan · N kun qoldi» turadi, keyin panel faqat aktivlashtirish
+   oynasini ko'rsatadi (bot, kameralar va qo'ng'iroqlar to'xtamaydi). Kalit shu kompyuterga bog'langan (Windows qayta o'rnatilsa — yangi kalit kerak).
+   - Hub orqali, bir bosishda: Hub `/admin` → klinika qatorida «Aktivlashtirish» (Hub kodi kiritilgan va kompyuter aloqada bo'lsa).
+   - Qo'lda: panelda «Kalitni kiritish» → kompyuter kodini (`XXXX-XXXX-XXXX-XXXX`) sotuvchiga yuborish; sotuvchi o'z kompyuterida
+     `npm run kalit -- XXXX-XXXX-XXXX-XXXX` (yoki `~/.palantir/Kalit-yaratish.cmd`) — chiqqan `PAL1-…` kalitni klinikaga yuboradi, u o'sha oynaga qo'yadi.
+   - Maxfiy kalit faqat sotuvchida (`~/.palantir/litsenziya.pem`) va Hub'da; yo'qolsa eski kalitlar ishlayveradi, yangisini berib bo'lmaydi — zaxiralang.
 
 **Qaysi Windows foydalanuvchisi ostida o'rnatish kerak.** Palantir shu foydalanuvchi kirganda ishlaydi va kalitlar, baza, bemorlar yozishmasi faqat unga ochiq bo'ladi.
 Eng yaxshisi — egasining (yoki faqat Palantir uchun ochilgan) alohida parolli foydalanuvchisi. Hamma xodim bitta umumiy foydalanuvchi bilan ishlasa, ular `.env` va bazani ocha oladi — buni egasiga ayting.
