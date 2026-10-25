@@ -63,7 +63,9 @@ export async function writeArchive(target: string, { version, modules, skip, ext
       zip.add(entry);
       entry.push(data, true);
     };
-    for (const [name, source] of entries) add(name, readFileSync(source));
+    // Linux'da bajariladigan skriptlar (Asterisk install.sh — WSL'da) faqat LF bilan: Windows nusxasi CRLF bo'lsa bash ishlamaydi
+    const lf = (b: Buffer) => Buffer.from(b.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+    for (const [name, source] of entries) add(name, name.endsWith('.sh') ? lf(readFileSync(source)) : readFileSync(source));
     add('files.json', Buffer.from(JSON.stringify(files)));
     zip.end();
   });
