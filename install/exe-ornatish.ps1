@@ -2,10 +2,13 @@
 # Exe vaqtinchalik papkaga ochiladi va shu faylni ishga tushiradi: app.zip dastur papkasiga ochiladi, keyin install\ornatish.ps1
 # (internetsiz yo'l: files.json, node_modules va panel tayyor). Avval o'rnatilgan bo'lsa - o'sha papkaga yoziladi (.env va
 # ma'lumotlar joyida qoladi). Oyna oxirida Enter kutadi: admin paroli shu oynada chiqadi.
+# Jurnal: %TEMP%\palantir-exe.log (bu oyna) va %TEMP%\palantir-ornatish.log (ornatish.ps1) - oyna yopilsa ham qoladi.
 # Bu faylda faqat ASCII belgilar: PowerShell 5.1 boshqa belgilarni buzib o'qiydi.
 $ErrorActionPreference = 'Stop'
 $Zip = Join-Path $PSScriptRoot 'app.zip'
 $DefaultRoot = 'C:\Palantir'
+$Log = Join-Path $env:TEMP 'palantir-exe.log'
+try { Start-Transcript -Path $Log -Force | Out-Null } catch { }
 
 function Step([string]$text) { Write-Host ''; Write-Host "== $text" -ForegroundColor Cyan }
 function Note([string]$text) { Write-Host "   $text" }
@@ -14,7 +17,21 @@ function Finish([int]$code) {
   Read-Host 'Oynani yopish uchun Enter bosing' | Out-Null
   exit $code
 }
-function Fail([string]$text) { Write-Host "   X $text" -ForegroundColor Red; Finish 1 }
+function Fail([string]$text) {
+  Write-Host "   X $text" -ForegroundColor Red
+  Write-Host "   Jurnal: $Log va $(Join-Path $env:TEMP 'palantir-ornatish.log')"
+  Finish 1
+}
+
+# Oyna boshqa oynalar ortida qolib ketmasin: o'rnatuvchi "hech narsa bo'lmadi" deb yopib qo'ymasin
+function Show-Front {
+  try {
+    Add-Type -Namespace Palantir -Name Oyna -MemberDefinition '[DllImport("kernel32.dll")] public static extern System.IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h, int c); [DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr h);'
+    $h = [Palantir.Oyna]::GetConsoleWindow()
+    [Palantir.Oyna]::ShowWindow($h, 9) | Out-Null
+    [Palantir.Oyna]::SetForegroundWindow($h) | Out-Null
+  } catch { }
+}
 
 # Avvalgi o'rnatish: avtoyuklash yorlig'ining ishchi papkasi (install\ornatish.ps1 yaratadi), bo'lmasa - C:\Palantir
 function Installed-Root {
@@ -26,13 +43,38 @@ function Installed-Root {
   return $DefaultRoot
 }
 
+# tar jim ishlaydi (20 mingga yaqin fayl): har 2 soniyada vaqt chiqadi - oyna qotib qolgandek ko'rinmasin
+function Open-Zip([string]$target) {
+  if (-not (Get-Command tar.exe -ErrorAction SilentlyContinue)) { return $false }
+  $p = Start-Process -FilePath 'tar.exe' -ArgumentList '-xf', "`"$Zip`"", '-C', "`"$target`"" -NoNewWindow -PassThru
+  $null = $p.Handle # PowerShell 5.1: busiz ExitCode bo'sh qoladi
+  $started = Get-Date
+  while (-not $p.HasExited) {
+    Start-Sleep -Seconds 2
+    Write-Host ("`r   ... {0} soniya" -f [int]((Get-Date) - $started).TotalSeconds) -NoNewline
+  }
+  Write-Host ''
+  return ($p.ExitCode -eq 0)
+}
+
+Show-Front
+Write-Host ''
+Write-Host '  ==============================================================' -ForegroundColor Yellow
+Write-Host '   PALANTIR O''RNATILMOQDA - 5-15 DAQIQA. OYNANI YOPMANG.' -ForegroundColor Yellow
+Write-Host '   Bitta savol beriladi; oxirida admin paroli chiqadi.' -ForegroundColor Yellow
+Write-Host '  ==============================================================' -ForegroundColor Yellow
+
 Step "Palantir o'rnatilmoqda"
 $root = Installed-Root
-$update = Test-Path (Join-Path $root 'package.json')
-if ($update) { Note "Avvalgi o'rnatish: $root - yangilanadi (.env, baza va ma'lumotlar saqlanadi)" } else { Note "Dastur papkasi: $root" }
+# Fayllar bor, lekin .env yo'q - avvalgi o'rnatish oxiriga yetmagan (oyna yopilgan): yangi o'rnatishdek davom etadi
+$files = Test-Path (Join-Path $root 'package.json')
+$update = Test-Path (Join-Path $root '.env')
+if ($update) { Note "Avvalgi o'rnatish: $root - yangilanadi (.env, baza va ma'lumotlar saqlanadi)" }
+elseif ($files) { Note "Oxiriga yetmagan o'rnatish: $root - davom ettiriladi" }
+else { Note "Dastur papkasi: $root" }
 
 # Ishlab turgan nusxa to'xtatiladi: aks holda uning fayllari band - ustidan yozib bo'lmaydi
-if ($update -and (Get-Command node -ErrorAction SilentlyContinue)) {
+if ($files -and (Get-Command node -ErrorAction SilentlyContinue)) {
   Push-Location $root
   try {
     node scripts\supervise.mjs status | Out-Null
@@ -42,13 +84,10 @@ if ($update -and (Get-Command node -ErrorAction SilentlyContinue)) {
 
 Step 'Fayllar ochilmoqda (1-3 daqiqa)'
 try { New-Item -ItemType Directory -Force $root | Out-Null } catch { Fail "$root papkasini yaratib bo'lmadi: $($_.Exception.Message)" }
-# Windows 10/11 dagi tar zip'ni tez ochadi; u yo'q bo'lsa - PowerShell'ning o'zi (sekinroq)
-$opened = $false
-if (Get-Command tar.exe -ErrorAction SilentlyContinue) {
-  tar.exe -xf $Zip -C $root
-  $opened = $LASTEXITCODE -eq 0
-}
+# Windows 10/11 dagi tar zip'ni tez ochadi; u yo'q bo'lsa - PowerShell'ning o'zi (ancha sekin, o'z jarayon chizig'i bilan)
+$opened = Open-Zip $root
 if (-not $opened) {
+  Note "tar bilan bo'lmadi - boshqa usul bilan ochilmoqda (10 daqiqagacha)..."
   try { Expand-Archive -Path $Zip -DestinationPath $root -Force; $opened = $true } catch { Note $_.Exception.Message }
 }
 if (-not $opened) { Fail "Fayllarni ochib bo'lmadi. Palantir ishlab turgan bo'lsa - to'xtatib (install\Toxtatish.cmd), exe'ni qayta ishga tushiring." }

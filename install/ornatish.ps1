@@ -10,6 +10,8 @@
 param([switch]$Uninstall, [switch]$Klinika, [switch]$Shaxsiy, [string]$Papka = '')
 
 $ErrorActionPreference = 'Stop'
+# Jurnal: oynada chiqqan hamma narsa (oyna yopilsa ham qoladi) - o'rnatish qayerda to'xtaganini shundan ko'ramiz
+try { Start-Transcript -Path (Join-Path $env:TEMP 'palantir-ornatish.log') -Append | Out-Null } catch { }
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
@@ -103,7 +105,10 @@ if ($Klinika -and $Shaxsiy) { Fail '-Klinika va -Shaxsiy dan bittasini bering' }
 $alwaysOn = [bool]$Klinika
 if (-not $Klinika -and -not $Shaxsiy) {
   Write-Host ''
-  $answer = Read-Host "Bu kompyuter klinikada kecha-kunduz yoqiq turadimi? Unda svet o'chib-yonganda ham Palantir o'zi ishga tushadi va kompyuter uxlamaydi; Windows parolingiz bir marta so'raladi (h/y) [h]"
+  Write-Host '   SAVOL - javob yozib Enter bosing:' -ForegroundColor Yellow
+  Write-Host "   Bu kompyuter klinikada kecha-kunduz yoqiq turadimi? Unda svet o'chib-yonganda ham Palantir o'zi ishga tushadi va kompyuter uxlamaydi;" -ForegroundColor Yellow
+  Write-Host '   Windows parolingiz bir marta so''raladi. Klinika - h (yoki shunchaki Enter), oddiy kompyuter - y' -ForegroundColor Yellow
+  $answer = Read-Host '   (h/y) [h]'
   $alwaysOn = $answer -notmatch '^[yY]'
 }
 Note "Qolgani savolsiz o'rnatiladi (internetga qarab 5-15 daqiqa). Oynani yopmang."
