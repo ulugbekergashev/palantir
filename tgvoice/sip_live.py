@@ -7,9 +7,12 @@ Kim qo'ng'iroq qilganini Asterisk aytadi (sozlamasi: asterisk/extensions.conf):
            faqat ovozli agent kaliti bilan, egasining vazifalari, boshqa mijozlar va ichki ma'lumot mijozga berilmaydi.
            Ish vaqtida (Sozlamalar → Telefon liniyasi, «kerak bo'lsa o'tkazadi» rejimi) AI qo'ng'iroqni administratorga o'tkaza oladi:
            Asterisk'ga «channel redirect» — [operator]; administrator ko'tarmasa, qo'ng'iroq AI'ga qaytadi (3-rejim)
+  ilova  — klinikaning Android telefoni (android/): SIM'ga kelgan qo'ng'iroqni o'zi ko'taradi va Wi-Fi orqali shu yerga ulanadi —
+           kalit qatori (SIP_APP_KEY), keyin xuddi Asterisk'dagi kabi AudioSocket oqimi. Liniya yoki shlyuz kerak emas
 Ishga tushirish:  tgvoice\\.venv\\Scripts\\python.exe tgvoice\\sip_live.py"""
 import array
 import asyncio
+import hmac
 import os
 import struct
 import subprocess
@@ -38,6 +41,9 @@ FRAME_MS = 20
 FRAME_BYTES = LINE_RATE * FRAME_MS // 1000 * 2     # 320 bayt
 UPLINK_BYTES = FRAME_BYTES * 2                     # Live'ga 40 ms bo'laklarda (Telegram'dagidek)
 HOST = '127.0.0.1'                                 # faqat shu kompyuter ichidan (WSL — mirrored tarmoq)
+# Telefon ilovasi Wi-Fi'dan ulanadi — shuning uchun butun ichki tarmoqqa ochiq, lekin faqat kalit bilan. Kalit yo'q — o'chiq
+APP_PORT = int(env('SIP_APP_PORT', '9095'))
+APP_KEY = env('SIP_APP_KEY', '-')
 PORT = int(env('SIP_BRIDGE_PORT', '9092'))
 MAX_CALLS = int(env('SIP_MAX_CALLS', '4'))         # ortig'i ko'tarilmaydi (Gemini va kompyuter kuchiga qarab)
 # Mijozlar hamma joyni egallab, egasini o'z yordamchisidan qoldirmasin: bitta joy egasiga
@@ -373,6 +379,20 @@ class Server:
             writer.close()
 
 
+    async def handle_app(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        """Telefon ilovasi: birinchi qator «PALANTIR <kalit>», keyin oddiy AudioSocket (handle). Kalit noto'g'ri — jim uziladi"""
+        try:
+            line = await asyncio.wait_for(reader.readline(), 5)
+        except (asyncio.TimeoutError, asyncio.IncompleteReadError, ConnectionError, ValueError):
+            writer.close()
+            return
+        if not hmac.compare_digest(line.strip(), f'PALANTIR {APP_KEY}'.encode()):
+            log('—', f"telefon ilovasi: noto'g'ri kalit ({writer.get_extra_info('peername')})")
+            writer.close()
+            return
+        await self.handle(reader, writer)
+
+
 def _env_has(name: str) -> bool:
     try:
         return bool(env(name))
@@ -400,11 +420,17 @@ async def main():
     # Panel ovozi (AI bosh ekran): egasi brauzerda Palantir bilan jonli gaplashadi
     web = await serve(WebVoice().handle, HOST, WEB_PORT, max_size=1 << 20)
     log('—', f"panel ovozi tayyor: ws://{HOST}:{WEB_PORT}")
+    app = None
+    if APP_KEY != '-':
+        app = await asyncio.start_server(server.handle_app, '0.0.0.0', APP_PORT)
+        log('—', f"telefon ilovasi kutilyapti: Wi-Fi, port {APP_PORT}")
     try:
         async with srv:
             await srv.serve_forever()
     finally:
         web.close()
+        if app:
+            app.close()
         if wsl:
             wsl.terminate()
 

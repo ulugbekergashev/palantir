@@ -1,0 +1,34 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'uz.palantir.telefon'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'uz.palantir.telefon'
+        // Android 10+: ilova asosiy «Telefon» ilovasi bo'la oladi (RoleManager)
+        minSdk 29
+        targetSdk 33
+        versionCode 1
+        versionName '0.1'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Sinov nusxasi: debug kaliti bilan imzolanadi — telefonga to'g'ridan-to'g'ri o'rnatiladi
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    lint {
+        checkReleaseBuilds false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
