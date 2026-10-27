@@ -44,6 +44,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        // Qo'ng'iroq paytida oyna qulf ekrani ustida ham ko'rinadi (mikrofon shart) va ekran o'chmaydi
+        setShowWhenLocked(true);
+        setTurnScreenOn(true);
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prefs = new Prefs(this);
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);

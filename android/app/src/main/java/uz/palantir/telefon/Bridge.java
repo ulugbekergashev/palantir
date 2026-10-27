@@ -21,8 +21,8 @@ import java.security.SecureRandom;
 /**
  * Bitta qo'ng'iroq: telefon ↔ kompyuterdagi AI (tgvoice/sip_live.py, Asterisk AudioSocket bilan bir xil oqim).
  * Android ilovaga qo'ng'iroq ovozini to'g'ridan-to'g'ri bermaydi, shuning uchun ovoz karnay orqali yuradi: mijoz ovozi karnaydan
- * chiqadi va mikrofon uni eshitadi; AI ovozi karnaydan chiqadi va telefonning o'zi uni mijozga uzatadi. AI gapirayotganda
- * mikrofon jim yuboriladi — AI o'z ovozini mijozning gapi deb o'ylamasin.
+ * chiqadi va mikrofon uni eshitadi; AI ovozi karnaydan chiqadi va telefonning o'zi uni mijozga uzatadi. AI ovozining aks-sadosini
+ * kompyuter balandligidan ajratadi (sip_live.echo_gate) — mijoz AI'ni bo'la oladi.
  */
 final class Bridge extends Thread {
     private static final String TAG = "PalantirBridge";
@@ -30,7 +30,8 @@ final class Bridge extends Thread {
     private static final int FRAME_BYTES = 320;           // 20 ms, 8 kHz, 16-bit
     private static final int HANGUP = 0x00, CALL_ID = 0x01, AUDIO = 0x10, ERROR = 0xFF;
     private static final int MODE_CUSTOMER = 2;
-    private static final long ECHO_TAIL_MS = 350;         // AI gapi tugagach ham shuncha vaqt mikrofon jim
+    private static final long ECHO_TAIL_MS = 350;         // jurnal: AI gapi tugagach ham shuncha vaqt «AI gapiryapti»
+    private static final int AI_VOICE_PEAK = 300;         // shundan past bo'lak — jimlik (AI gapirmayapti)
     private static final int CONNECT_TIMEOUT_MS = 4000;
 
     interface Listener {
@@ -44,10 +45,14 @@ final class Bridge extends Thread {
     private final Listener listener;
     private volatile boolean running = true;
     private volatile long muteUntil = 0;
+    /** AI'ning navbatdagi ovozi qachon tugaydi (karnayda) */
+    private long voiceEnd = 0;
     private Socket socket;
+    private final java.io.File dumpFile;
 
-    Bridge(Prefs prefs, String caller, Listener listener) {
+    Bridge(Prefs prefs, String caller, Listener listener, java.io.File dumpFile) {
         super("palantir-bridge");
+        this.dumpFile = dumpFile;
         this.prefs = prefs;
         this.caller = caller == null ? "" : caller;
         this.listener = listener;
@@ -83,12 +88,23 @@ final class Bridge extends Thread {
             reader.start();
 
             byte[] pcm = new byte[FRAME_BYTES];
-            byte[] silence = new byte[FRAME_BYTES];
+            int peak = 0, frames = 0;
+            // Sinov: mikrofon eshitgan ovoz faylga (oxirgi qo'ng'iroq) — adb pull bilan olinadi, sifatni tekshirish uchun
+            java.io.FileOutputStream dump = dumpFile == null ? null : new java.io.FileOutputStream(dumpFile);
             while (running) {
                 int n = rec.read(pcm, 0, FRAME_BYTES);
                 if (n <= 0) continue;
-                boolean aiSpeaking = SystemClock.elapsedRealtime() < muteUntil;
-                send(out, AUDIO, aiSpeaking ? silence : pcm);
+                if (dump != null) dump.write(pcm, 0, n);
+                // Har 2 soniyada mikrofonning eng baland nuqtasi va AI gapiryaptimi — jurnal uchun
+                peak = Math.max(peak, peak(pcm, n));
+                if (++frames % 100 == 0) {
+                    Log.i(TAG, "mikrofon: " + peak + (SystemClock.elapsedRealtime() < muteUntil ? " (AI gapiryapti)" : ""));
+                    peak = 0;
+                }
+                // Mikrofon o'chirilmaydi — mijoz AI'ni bo'la olsin. Karnaydan qaytgan AI ovozi past (TECNO'da ≤600), mijoz ovozi
+                // baland (2000+): kompyuter (sip_live.echo_gate, chegara 1500) AI gapirayotganda past ovozni o'tkazmaydi, baland
+                // ovoz o'tadi va Gemini AI'ni to'xtatadi
+                send(out, AUDIO, pcm);
                 out.flush();
             }
         } catch (IOException e) {
@@ -114,9 +130,15 @@ final class Bridge extends Thread {
                 byte[] data = new byte[size];
                 in.readFully(data);
                 if (kind == AUDIO) {
+                    // Kompyuter AI jim turganda ham har 20 ms da bo'sh bo'lak yuboradi (oqim uzilmasin) — mikrofon faqat haqiqiy AI
+                    // ovozida jim qilinadi, aks holda u butun qo'ng'iroq bo'yi o'chiq qolib, AI mijozni eshitmaydi.
                     // Navbatdagi ovoz qachon tugashini hisoblaymiz: 8 kHz × 2 bayt = 16 bayt/ms
-                    long now = SystemClock.elapsedRealtime();
-                    muteUntil = Math.max(muteUntil, now) + size / 16 + ECHO_TAIL_MS;
+                    // Zaxira (ECHO_TAIL_MS) faqat bir marta — gap tugagan joyga; har bo'lakka qo'shilsa jimlik daqiqalarga cho'ziladi
+                    if (peak(data, size) > AI_VOICE_PEAK) {
+                        long now = SystemClock.elapsedRealtime();
+                        voiceEnd = Math.max(voiceEnd, now) + size / 16;
+                        muteUntil = voiceEnd + ECHO_TAIL_MS;
+                    }
                     track.write(data, 0, size);
                 } else if (kind == HANGUP || kind == ERROR) {
                     break;
@@ -129,13 +151,13 @@ final class Bridge extends Thread {
     }
 
     /**
-     * Mikrofon: qo'ng'iroq ovozining o'zi (VOICE_CALL) ba'zi telefonlarda ochiladi — eng toza; bo'lmasa karnaydan eshitiladigan ovoz
-     * (VOICE_RECOGNITION — shovqin bostirishsiz, karnaydagi mijoz ovozini o'chirib yubormaydi)
+     * Mikrofon: karnaydan eshitiladigan ovoz (VOICE_RECOGNITION — shovqin bostirishsiz, karnaydagi mijoz ovozini o'chirib yubormaydi).
+     * TECNO Spark 10'da sinaldi: qo'ng'iroq paytida oddiy MIC'ni Android butunlay to'sadi (0), VOICE_RECOGNITION esa ovoz beradi
      */
     @SuppressLint("MissingPermission")
     private AudioRecord openRecorder() throws IOException {
         int min = Math.max(AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT), FRAME_BYTES * 4);
-        int[] sources = {MediaRecorder.AudioSource.VOICE_CALL, MediaRecorder.AudioSource.VOICE_RECOGNITION, MediaRecorder.AudioSource.MIC};
+        int[] sources = {MediaRecorder.AudioSource.VOICE_RECOGNITION, MediaRecorder.AudioSource.MIC};
         for (int source : sources) {
             try {
                 AudioRecord r = new AudioRecord(source, RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, min);
@@ -166,6 +188,12 @@ final class Bridge extends Thread {
                 .setBufferSizeInBytes(Math.max(min, FRAME_BYTES * 8))
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build();
+    }
+
+    private static int peak(byte[] pcm, int n) {
+        int max = 0;
+        for (int i = 0; i + 1 < n; i += 2) max = Math.max(max, Math.abs((short) ((pcm[i] & 0xff) | (pcm[i + 1] << 8))));
+        return max;
     }
 
     private static void send(DataOutputStream out, int kind, byte[] data) throws IOException {

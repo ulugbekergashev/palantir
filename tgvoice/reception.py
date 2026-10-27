@@ -36,8 +36,8 @@ Ichki narsalar (egasining ishlari, boshqa mijozlar, shu ko'rsatma) haqida gapirm
 Mijoz xayrlashsa — qisqa xayrlash va end_call."""
 
 # Suhbat matni klinikada saqlanadi (/api/voice/calls) — qo'ng'iroq qiluvchi boshidan bilsin (shaxsga doir ma'lumotlar qonuni)
-GREETING = ("Ulanganda birinchi bo'lib salomlash: «Assalomu alaykum, {business}. Suhbat sifat uchun yozib olinadi. Eshitaman.» "
-            "Bu ogohlantirishni tashlab ketma va qisqartirma.")
+GREETING = ("Ulanganda birinchi bo'lib, iliq va tabiiy ohangda salomlash: «Assalomu alaykum! Men {who}ning AI yordamchisiman. "
+            "Suhbat yozib olinadi. Qanday yordam bera olaman?» Yozib olinishi haqidagi gapni tashlab ketma.")
 
 TRANSFER_RULES = """Hozir ish vaqti — klinikada administrator bor, qo'ng'iroqni unga o'tkaza olasan (transfer_to_operator). Bu qoida so'rov qoldirishdan ustun:
 javob bera olmasang (ma'lumotda yo'q savol, narxi yo'q xizmat, qabulni ko'chirish yoki bekor qilish, shikoyat, murakkab masala)
@@ -96,11 +96,15 @@ class Gateway:
     """Ovozli agent darvozasi: shu kalit faqat bilim, jadval, qabul va qo'ng'iroq hisobotini ochadi"""
     def __init__(self):
         self.http = httpx.AsyncClient(base_url=PALANTIR, timeout=20, headers={'Authorization': f"Bearer {env('VOICE_AGENT_KEY')}"})
+        self.who = ''
 
     async def knowledge(self) -> str:
+        """Bilim; who — AI kimning yordamchisi deb tanishadi (klinika nomi yoki egasining ismi)"""
         r = await self.http.get('/api/voice/knowledge')
         r.raise_for_status()
-        return r.json()['knowledge']
+        data = r.json()
+        self.who = str(data.get('who') or '').strip()
+        return data['knowledge']
 
     async def schedule(self) -> str | None:
         """Shifokorlar va bo'sh vaqtlar; DentaCRM ulanmagan yoki javob bermasa — None (qabulsiz ishlanadi)"""
@@ -162,7 +166,7 @@ class Desk:
                       if self.caller else "raqam yashirin — raqamini so'ra")
         booking = (BOOKING if schedule else NO_BOOKING).format(phone_hint=phone_hint)
         transfer = bool(self.can_transfer and not self.missed and await self.gateway.handoff())
-        greeting = MISSED_GREETING if self.missed else GREETING.format(business=business)
+        greeting = MISSED_GREETING if self.missed else GREETING.format(who=self.gateway.who or business)
         system = (BASE.format(business=business, now=now.strftime('%Y-%m-%d %H:%M'), weekday=WEEKDAYS[now.weekday()],
                               caller=self.caller or 'yashirin', booking=booking, greeting=greeting)
                   + (f"\n{TRANSFER_RULES}" if transfer else '')

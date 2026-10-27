@@ -34,6 +34,16 @@ const LIMIT = "Hozir qabulga yozib bo'lmaydi — qo'ng'iroqni administratorga uz
 
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
+/**
+ * AI telefonda kimning yordamchisi deb tanishadi: biznes (klinika) nomi; nom berilmagan yoki dasturning o'z nomi bo'lsa —
+ * egasining ismi («Ulug'bekning AI yordamchisi»)
+ */
+export function assistantOf(biz: BusinessRow): string {
+  const name = biz.profile.name.trim(), owner = biz.profile.ownerName.trim();
+  const generic = !name || /^(cerebro|palantir|mening biznesim)$/i.test(name);
+  return generic && owner ? owner : name || 'klinika';
+}
+
 function bizOf(req: Request): BusinessRow | null {
   const bizId = voiceKeyOwner(req.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '');
   const biz = bizId ? businesses.byId(bizId) : undefined;
@@ -130,7 +140,7 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
 
   // Agent: qabulga yozish
   // Agent: biznes haqida mijozga aytsa bo'ladigan bilim (narxlar, manzil, egasi tasdiqlagan javoblar)
-  app.get('/api/voice/knowledge', asAgent((_req, res, biz) => res.json({ knowledge: knowledgeText(biz) })));
+  app.get('/api/voice/knowledge', asAgent((_req, res, biz) => res.json({ knowledge: knowledgeText(biz), who: assistantOf(biz) })));
 
   app.post('/api/voice/book', asAgent(async (req, res, biz) => {
     const p = BookSchema.safeParse(req.body);

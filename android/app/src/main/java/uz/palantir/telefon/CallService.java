@@ -4,6 +4,7 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.media.AudioManager;
 import android.net.Uri;
@@ -76,8 +77,12 @@ public class CallService extends InCallService {
         setAudioRoute(CallAudioState.ROUTE_SPEAKER);
         AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         am.setStreamVolume(AudioManager.STREAM_MUSIC, am.getStreamMaxVolume(AudioManager.STREAM_MUSIC), 0);
-        am.setStreamVolume(AudioManager.STREAM_VOICE_CALL, am.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL), 0);
+        // Mijoz ovozi to'liq balandlikda mikrofonni bo'g'ib qo'yadi (nutq tanilmaydi) — ~70%
+        am.setStreamVolume(AudioManager.STREAM_VOICE_CALL, am.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL) * 7 / 10, 0);
         foreground();
+        // Android qo'ng'iroq paytida mikrofonni faqat ekranning eng ustidagi ilovaga (maxsus imkoniyatlar bilan) ochiq beradi —
+        // shuning uchun oynamiz ekranga chiqadi (qulf ustida ham)
+        startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
         bridge = new Bridge(new Prefs(this), number(call), new Bridge.Listener() {
             @Override public void onStatus(String text) { status(text); }
             @Override public void onEnded() {
@@ -85,7 +90,7 @@ public class CallService extends InCallService {
                     if (current != null && current.getState() != Call.STATE_DISCONNECTED) current.disconnect();
                 });
             }
-        });
+        }, new java.io.File(getExternalFilesDir(null), "oxirgi-qongiroq.pcm"));
         bridge.start();
     }
 
