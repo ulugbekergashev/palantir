@@ -31,6 +31,8 @@
  *      har kirish egasining Sozlamalarida ko'rinadi. Oddiy /c/ so'rovi bu belgini ololmaydi.
  *  10. Litsenziya: holat xabarida (heartbeat) aktivlashtirilganmi va necha kun qolgani; POST /admin/clinics/<klinika>/license
  *      (admin kaliti) — klinikadan kompyuter kodi olinadi, LICENSE_SIGNING_KEY bilan imzolanadi va kalit klinikaga yuboriladi.
+ *  11. O'zi ulanish: POST /api/register {machineId, name} — yangi o'rnatilgan Palantir Hub kodini o'zi oladi (server/hubJoin.ts);
+ *      /admin ro'yxatida «yangi». Cheklov: bir manzildan HUB_REGISTER_PER_IP (3) va kuniga jami HUB_REGISTER_PER_DAY (30); HUB_REGISTRATION=0 — yopiq.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -65,6 +67,10 @@ const cfg = {
   adminKey: (process.env.HUB_ADMIN_KEY ?? '').length >= MIN_ADMIN_KEY ? process.env.HUB_ADMIN_KEY! : '',
   /** Litsenziya imzolovchi maxfiy kalit (licenseKey.ts; bir qatordagi base64 PKCS8) — bo'lmasa bir bosishda aktivlashtirish yopiq */
   licenseKey: process.env.LICENSE_SIGNING_KEY || '',
+  /** O'zi ulanish (POST /api/register): yangi o'rnatilgan kompyuter Hub kodini o'zi oladi. 0 — yopiq; cheklov — bir manzildan va kuniga jami */
+  registration: process.env.HUB_REGISTRATION !== '0',
+  registerPerIp: Number(process.env.HUB_REGISTER_PER_IP) || 3,
+  registerPerDay: Number(process.env.HUB_REGISTER_PER_DAY) || 30,
   // Faqat sinov uchun: soxta Instagram
   authUrl: process.env.IG_AUTH_URL || 'https://www.instagram.com/oauth/authorize',
   tokenUrl: process.env.IG_TOKEN_URL || 'https://api.instagram.com/oauth/access_token',
@@ -107,7 +113,8 @@ CREATE TABLE IF NOT EXISTS deletions (code TEXT PRIMARY KEY, ig_user_id TEXT NOT
 // Eski hub bazasiga nazorat ustunlari: status — oxirgi holat (JSON), alerted_at — «aloqa yo'q» aytilgan payt
 {
   const have = new Set((db.prepare('PRAGMA table_info(clinics)').all() as { name: string }[]).map(c => c.name));
-  for (const [name, type] of [['status', 'TEXT'], ['alerted_at', 'TEXT']]) if (!have.has(name)) db.exec(`ALTER TABLE clinics ADD COLUMN ${name} ${type}`);
+  // machine_id va self — o'zi ulangan kompyuter (POST /api/register): kompyuter kodi (litsenziya bilan bir xil) va belgisi
+  for (const [name, type] of [['status', 'TEXT'], ['alerted_at', 'TEXT'], ['machine_id', 'TEXT'], ['self', 'INTEGER']]) if (!have.has(name)) db.exec(`ALTER TABLE clinics ADD COLUMN ${name} ${type}`);
 }
 // Ilova doirasidagi foydalanuvchi id'si (/me → id): Meta signed_request'da qaysi id kelishi aniq emas — ikkalasi bo'yicha topiladi
 {
@@ -163,6 +170,8 @@ const RELAY_ANSWER_HEADERS = ['content-type', 'cache-control', 'etag', 'content-
 /** Bir manzildan daqiqasiga (panel ochilganda o'nlab fayl va so'rov) */
 const RELAY_PER_MINUTE = 600;
 const relayHits = new Map<string, { n: number; until: number }>();
+/** O'zi ulanishlar: manzil → oxirgi sutkadagi paytlari */
+const registerHits = new Map<string, number[]>();
 function relayAllowed(ip: string): boolean {
   const now = Date.now();
   if (relayHits.size > 5000) for (const [k, v] of relayHits) if (v.until < now) relayHits.delete(k);
@@ -285,7 +294,7 @@ function cleanStatus(v: unknown) {
   const lastOffsite = b ? { day: text(b.day, 10), ok: b.ok === true, size: num(b.size), error: text(b.error, 300), at: text(b.at, 40) } : null;
   const l = o.license ? record(o.license) : null;
   const license = l ? { activated: l.activated === true, daysLeft: num(l.daysLeft) } : null;
-  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), problems, lastUpdate, lastOffsite, license, at: now() };
+  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), label: text(o.label, 80), problems, lastUpdate, lastOffsite, license, at: now() };
 }
 
 /** OAuth holati: klinika, biznes, muddat — imzolangan (begona odam boshqa klinika nomidan ulay olmasin) */
@@ -379,6 +388,26 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     return send(res, 200, { ok: true, updated: Number(r.changes) });
   }
 
+  // O'zi ulanish: yangi o'rnatilgan Palantir Hub kodini o'zi oladi (sotuvchi /admin da «yangi» deb ko'radi, litsenziyani bir bosishda beradi).
+  // Har chaqiriq — yangi yozuv: kompyuter kodi maxfiy emas, uning bo'yicha bor klinikaning kaliti hech qachon qayta berilmaydi
+  // (aks holda kodni bilgan odam o'sha klinikaning «Panelni ochish» so'rovlarini o'ziga oqizardi)
+  if (p === '/api/register' && req.method === 'POST') {
+    if (!cfg.registration || !cfg.publicUrl) return send(res, 403, { error: "O'zi ulanish yopiq — sotuvchidan Hub kodini so'rang" });
+    const ip = clientIp(req), day = new Date(Date.now() - 86_400_000).toISOString();
+    const fromIp = (registerHits.get(ip) ?? []).filter(t => t > Date.now() - 86_400_000);
+    const today = Number((db.prepare('SELECT COUNT(*) AS n FROM clinics WHERE self = 1 AND created_at > ?').get(day) as { n: number }).n);
+    if (fromIp.length >= cfg.registerPerIp || today >= cfg.registerPerDay) return send(res, 429, { error: "Bugun juda ko'p ulanish — ertaga yoki sotuvchidan Hub kodini so'rang" });
+    let body: { machineId?: unknown; name?: unknown };
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    const machine = normalizeMachineId(String(body.machineId ?? ''));
+    if (!machine) return send(res, 400, { error: "Kompyuter kodi noto'g'ri" });
+    const name = (text(body.name, 60) ?? '').replace(/[^\p{L}\p{N} ._'()-]/gu, '').trim() || 'Yangi kompyuter';
+    registerHits.set(ip, [...fromIp, Date.now()]);
+    const id = newId(), secret = randomBytes(24).toString('base64url');
+    db.prepare('INSERT INTO clinics (id, name, key_hash, created_at, machine_id, self) VALUES (?, ?, ?, ?, ?, 1)').run(id, name, sha(secret), now(), machine);
+    return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl, id, secret) });
+  }
+
   // Admin: yangi klinika — ulanish kodi bir marta ko'rsatiladi (bazada faqat xeshi)
   if (p === '/admin/clinics' && req.method === 'POST') {
     if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
@@ -443,10 +472,11 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   // Admin: klinikalar — oxirgi ko'ringan payti va holati
   if (p === '/admin/clinics' && req.method === 'GET') {
     if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
-    const rows = db.prepare('SELECT id, name, created_at, seen_at, status FROM clinics ORDER BY name').all() as { id: string; name: string; created_at: string; seen_at: string | null; status: string | null }[];
+    const rows = db.prepare('SELECT id, name, created_at, seen_at, status, machine_id, self FROM clinics ORDER BY created_at DESC').all() as
+      { id: string; name: string; created_at: string; seen_at: string | null; status: string | null; machine_id: string | null; self: number | null }[];
     return send(res, 200, {
       clinics: rows.map(r => ({
-        id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at,
+        id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at, machineId: r.machine_id, self: r.self === 1,
         online: !!r.seen_at && Date.now() - Date.parse(r.seen_at) < cfg.offlineMs, status: r.status ? JSON.parse(r.status) as unknown : null,
       })),
     });

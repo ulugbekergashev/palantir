@@ -33,6 +33,8 @@ function sessionSecret(): string {
 }
 
 const LICENSE_GRACE_DAYS = 14;
+/** Palantir Hub (sotuvchining serveri, Oracle): yangi o'rnatilgan kompyuter shu yerga o'zi ulanadi (hubJoin.ts) */
+const DEFAULT_HUB_URL = 'https://92-5-56-138.sslip.io';
 /** Kalitsiz ishlash muddati (kun, license.ts): .env faqat qisqartira oladi (sinovda 0); noto'g'ri yoki bo'sh — 14 */
 function graceDays(v: string | undefined): number {
   const n = Number(v);
@@ -118,6 +120,11 @@ export const env = {
 
   /** Masofadan kirish: panel Palantir Hub orqali (telefondan, Telegram Mini App). Hub kodi bo'lsa yoqiq; 0 — o'chiq (remote.ts) */
   remotePanel: process.env.REMOTE_PANEL !== '0',
+  /**
+   * O'zi ulanish (hubJoin.ts): Hub kodi yo'q bo'lsa shu Hub'dan o'zi oladi. Sinov serverida va dasturchi nusxasida (.git bor) — faqat
+   * HUB_URL berilsa (sotuvchining haqiqiy Hub'ida sinov yozuvlari paydo bo'lmasin); HUB_AUTO=0 — o'chiq
+   */
+  hubJoinUrl: process.env.HUB_AUTO === '0' ? '' : (process.env.HUB_URL || (testRun || existsSync('.git') ? '' : DEFAULT_HUB_URL)).replace(/\/+$/, ''),
   /**
    * Litsenziya (license.ts): kalitsiz ishlash muddati (kun) — faqat qisqartiriladi; sinov uchun kompyuter kodi va sotuvchining ochiq
    * kaliti — faqat sinov serverida. Kod ochiq: .env ga bir qator yozib (o'z ochiq kaliti, boshqa kompyuter kodi) litsenziyani chetlab

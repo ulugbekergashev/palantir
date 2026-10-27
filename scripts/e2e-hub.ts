@@ -231,6 +231,28 @@ try {
   ok('panel yana ochiq, holat — aktivlashtirilgan', (await lic()).activated && (await viaHub('/api/me', { headers: owner })).status === 200);
   const afterList = (await adminList()).find(c => c.id === clinic.clinicId);
   ok("hub ro'yxatida darhol: litsenziya bor", (afterList?.status as { license?: { activated: boolean } } | null)?.license?.activated === true);
+
+  console.log("\n# O'zi ulanish: yangi o'rnatilgan kompyuter Hub kodini o'zi oladi");
+  const NEW_MACHINE = '1111-2222-3333-4444', NEW_PORT = 3297;
+  const newcomerEnv = {
+    ...palantirEnv, PORT: String(NEW_PORT), DATA_DIR: path.join(work, 'data-yangi'), BOT_TOKEN: '', PALANTIR_HUB: '', HUB_URL: HUB, LICENSE_MACHINE_ID: NEW_MACHINE,
+  };
+  type Listed = { id: string; name: string; online: boolean; self?: boolean; machineId?: string | null };
+  const mine = async () => (await adminList() as Listed[]).filter(c => c.machineId === NEW_MACHINE);
+  let newcomer = start('server/index.ts', newcomerEnv);
+  ok('yangi Palantir ishga tushdi (Hub kodisiz)', await up(`http://127.0.0.1:${NEW_PORT}/api/health`));
+  const joined = await until("o'zi ulangan kompyuter", async () => (await mine()).find(c => c.online), 15_000);
+  ok("hub /admin ro'yxatida: «yangi» (o'zi ulangan), kompyuter kodi va nomi bilan, aloqada", !!joined && joined.self === true && joined.name.length > 0, JSON.stringify(joined));
+  await stopProcess(newcomer);
+  newcomer = start('server/index.ts', newcomerEnv);
+  ok('qayta yonganda ham ishlaydi', await up(`http://127.0.0.1:${NEW_PORT}/api/health`));
+  await sleep(1500);
+  ok("qayta yonganda ikkinchi marta ro'yxatdan o'tmaydi (saqlangan kod bilan)", (await mine()).length === 1, JSON.stringify(await mine()));
+  const register = (machineId: string) => fetch(`${HUB}/api/register`, { method: 'POST', body: JSON.stringify({ machineId, name: 'sinov' }) });
+  ok("noto'g'ri kompyuter kodi — 400", (await register('xato')).status === 400);
+  const statuses = [];
+  for (let i = 0; i < 3; i++) statuses.push((await register('5555-6666-7777-8888')).status);
+  ok("bir manzildan sutkada 3 tadan ko'p emas — keyingisi 429", statuses.join() === '200,200,429', statuses.join());
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

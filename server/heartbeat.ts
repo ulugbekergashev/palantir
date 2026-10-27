@@ -29,6 +29,8 @@ export function heartbeatStatus() {
     startedAt,
     diskFreeMb: freeMb(env.dataDir),
     businesses: active.length,
+    // Sotuvchi /admin ro'yxatida kompyuter nomi yonida ko'radi (ulash ustasida yozilgan biznes nomlari)
+    label: active.map(b => b.profile.name).join(', ').slice(0, 80),
     problems: active.flatMap(b => openProblems(b.id).map(p => ({ business: b.profile.name, label: p.label, problem: p.problem, since: p.since }))),
     // Yangilovchining oxirgi natijasi (scripts/update.mjs): «qaytarildi» yoki «sinov» — sotuvchi bilsin
     lastUpdate: lastUpdate(),

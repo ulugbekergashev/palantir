@@ -81,7 +81,10 @@ function row(c) {
   const who = el('div', 'who');
   const lic = c.status && c.status.license;
   const licText = !lic ? '' : lic.activated ? ' · litsenziya bor' : ' · litsenziyasiz (' + lic.daysLeft + ' kun qoldi)';
-  who.append(el('b', '', c.name), el('small', '', (c.online ? 'aloqada' : 'aloqada emas · ' + ago(c.seenAt)) + (c.status && c.status.version ? ' · v' + c.status.version : '') + licText));
+  // O'zi ulangan kompyuter: nomi — kompyuter nomi, yonida ulash ustasida yozilgan klinika nomi; litsenziya berilguncha «yangi»
+  const label = c.status && c.status.label ? ' — ' + c.status.label : '';
+  const fresh = c.self && !(lic && lic.activated) ? 'yangi · ' : '';
+  who.append(el('b', '', c.name + label), el('small', '', fresh + (c.online ? 'aloqada' : 'aloqada emas · ' + ago(c.seenAt)) + (c.status && c.status.version ? ' · v' + c.status.version : '') + licText + (c.machineId ? ' · ' + c.machineId : '')));
   const btn = el('button', '', 'Panelni ochish');
   btn.disabled = !c.online;
   btn.onclick = () => enter(c, li, btn);
