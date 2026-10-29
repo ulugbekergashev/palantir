@@ -93,6 +93,26 @@ console.log('\n# Litsenziya kaliti (sof)');
   const testServer = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: '3', LICENSE_MACHINE_ID: id }), bad = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: 'abc' });
   ok("sinov serverida olinadi; muddat faqat qisqaradi, noto'g'risi — 14", testServer[0] === 3 && testServer[1] === id && bad[0] === 14, JSON.stringify([testServer, bad]));
   rmSync(envDir, { recursive: true, force: true });
+  // Litsenziya qo'shilgan yangilanish oldindan ishlab turgan klinikaga kelsa: biznesi hisob boshlanishidan oldin yaratilgan — 30 kun
+  const statusAfter = (businessAgeDays: number, firstRunDaysAgo: number) => {
+    const dir = mkdtempSync(join(tmpdir(), 'palantir-lic-'));
+    const at = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+    writeFileSync(join(dir, 'litsenziya.json'), JSON.stringify({ key: null, firstRun: { [id]: at(firstRunDaysAgo) } }));
+    const url = (f: string) => JSON.stringify(pathToFileURL(resolve(f)).href);
+    try {
+      return JSON.parse(execFileSync(process.execPath, ['--no-warnings', '--import', pathToFileURL(resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e',
+        `const { businesses, sql } = await import(${url('server/db.ts')}); const { licenseStatus } = await import(${url('server/license.ts')});
+         businesses.create('klinika', 'x', { name: 'Klinika', ownerName: '', industry: 'stomatologiya', phone: '', address: '', brand: {}, offerings: [], team: [] });
+         sql.run('UPDATE businesses SET created_at = ?', ${JSON.stringify(at(businessAgeDays))});
+         console.log(JSON.stringify(licenseStatus()))`],
+      { env: { ...process.env, DOTENV: '0', DATA_DIR: dir, LICENSE_MACHINE_ID: id, LICENSE_GRACE_DAYS: '' }, encoding: 'utf8' }).trim().split('\n').at(-1)!) as { daysLeft: number; blocked: boolean };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const upgraded = statusAfter(60, 20), fresh = statusAfter(0, 20);
+  ok("yangilangan eski klinika: 30 kun (20 kun o'tdi — 10 qoldi); yangi o'rnatish: 14 kun (yopiq)", upgraded.daysLeft === 10 && !upgraded.blocked && fresh.daysLeft === 0 && fresh.blocked,
+    JSON.stringify([upgraded, fresh]));
 }
 
 console.log('\n# Kamera qidiruvi (sof)');

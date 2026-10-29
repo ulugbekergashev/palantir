@@ -186,7 +186,8 @@ if (Test-Path $VenvPython) {
 
 if ($VenvPython -eq $BundledPython) {
   Step 'Ovoz xizmati: kutubxonalar (dastur ichida)'
-  Run 'Kutubxonalar tekshiruvi' { & $VenvPython -c 'import vosk, ntgcalls, pytgcalls, telethon, google.genai, httpx, websockets' }
+  # Ovoz skriptlarining o'z modullari ham: dastur ichidagi Python skript papkasini o'zi qo'shmaydi (._pth - scripts\setup-exe.ts)
+  Run 'Kutubxonalar tekshiruvi' { & $VenvPython -c 'import vosk, ntgcalls, pytgcalls, telethon, google.genai, httpx, websockets; import common, call_live, reception' }
 } else {
   Step "Ovoz xizmati: kutubxonalar (bir necha daqiqa)"
   Run 'pip' { & $VenvPython -m pip install --disable-pip-version-check -q -r (Join-Path $Voice 'requirements.txt') }

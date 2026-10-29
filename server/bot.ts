@@ -41,6 +41,7 @@ import { linkStaff, listOpen, requestButton, requestReply, staffText, teamOutlet
 import { MAX_LOOK_CAMERAS, lookAt, lookRequest, shotCaption } from './camera/ask';
 import { events } from './orders/store';
 import { remoteUrl } from './remote';
+import { answerSupport } from './supportAsk';
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
 import { approveReply, clearBotOutlets, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 
@@ -515,6 +516,19 @@ export function createBot(): BotService {
     const biz = ownerBiz ?? ((code === 'ra' || code === 'rx') && ctx.chat?.type === 'private' ? actorOf(String(ctx.chat.id))?.biz : undefined);
     if (!biz || !id) return toast(ctx, 'Bu tugma eskirgan');
     const msg = ctx.callbackQuery.message;
+
+    // Palantir jamoasi kirmoqchi (supportAsk.ts): ruxsat / rad; kirgandan keyin — «Kirishni yopish» (jamoa darhol chiqariladi)
+    if (code === 'ja' || code === 'jx') {
+      const said = answerSupport(biz.id, id, code === 'ja');
+      if (said) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      return toast(ctx, said ?? "Bu so'rov eskirgan");
+    }
+    if (code === 'jy') {
+      if (id !== biz.id) return toast(ctx, 'Bu tugma eskirgan');
+      businesses.closeSupport(biz.id);
+      await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      return toast(ctx, 'Palantir jamoasi kirishi yopildi', { show_alert: true });
+    }
 
     // Postlar olib tashlangan: eski xabarlardagi «Kanalga joylash» va «O'chirish» tugmalari
     if (code === 'pp' || code === 'pd') return toast(ctx, 'Postlar olib tashlangan', { show_alert: true });

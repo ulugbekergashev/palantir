@@ -14,7 +14,8 @@ import { costUsd } from './claude';
 import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
 import { facts as notes, refresh as refreshVault } from './brain/vault';
 import { syncTasks } from './brain/mirror';
-import { aiUsage, businesses, chatLog, documents, inbox, leads, moneyEntries, outbound, publicLead, replies, supportVisits, tasks, type BusinessRow } from './db';
+import { aiUsage, businesses, chatLog, documents, inbox, leads, moneyEntries, outbound, publicLead, replies, supportOpen, supportVisits, tasks, type BusinessRow } from './db';
+import { askSupport, notifySupportVisit } from './supportAsk';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
 import { SilenceError, transcribe } from './stt';
@@ -164,7 +165,7 @@ export function createApp(bot: BotService) {
   const sessionOf = (req: Request) => {
     const s = readToken(token(req));
     const biz = s?.role === 'business' ? businesses.byId(s.sub) : undefined;
-    if (!s || !biz || !biz.active || (s.v ?? 0) !== biz.tokenVer || (s.sup && (!biz.supportAccess || (s.sv ?? 0) !== biz.supportVer))) return null;
+    if (!s || !biz || !biz.active || (s.v ?? 0) !== biz.tokenVer || (s.sup && (!supportOpen(biz) || (s.sv ?? 0) !== biz.supportVer))) return null;
     return { biz, support: s.sup === true };
   };
   const statusFor = (req: Request, biz: BusinessRow) => status(biz, bot, !!sessionOf(req)?.support);
@@ -274,9 +275,10 @@ export function createApp(bot: BotService) {
     res.json({ token: issueToken(biz.id, 'business', 30, businesses.revokeSessions(biz.id)) });
   }));
 
-  // Palantir jamoasi: hubdagi «Panelni ochish» (admin kaliti bilan) — parolsiz, egasi ruxsatni o'chirmagan bo'lsa; har kirish egasiga ko'rinadi.
+  // Palantir jamoasi: hubdagi «Panelni ochish» (admin kaliti bilan) — egasining roziligi bilan: doimiy ruxsat yoqilgan bo'lsa darhol,
+  // aks holda Telegram'da so'raladi (supportAsk.ts). Har kirish egasiga Telegram'da aytiladi va Sozlamalarda yoziladi.
   // Bu kompyuterda bir nechta biznes bo'lsa — qaysi biri so'raladi (ro'yxat hubga qaytadi)
-  app.post('/api/login/support', (req, res) => {
+  app.post('/api/login/support', async (req, res) => {
     if (!isSupportRelay(req)) return res.status(403).json({ error: 'Faqat Palantir Hub orqali' });
     const active = businesses.all().filter(b => b.active);
     const wanted = typeof req.body?.business === 'string' ? req.body.business : null;
@@ -287,14 +289,28 @@ export function createApp(bot: BotService) {
         businesses: active.map(b => ({ id: b.id, name: b.profile.name })),
       });
     }
-    if (!biz.supportAccess) return res.status(403).json({ error: "Klinika egasi Palantir jamoasi kirishini o'chirgan" });
+    const hours = SUPPORT_SESSION_DAYS * 24;
+    if (!supportOpen(biz)) {
+      const answer = await askSupport(biz, hours);
+      if (answer !== 'yes') {
+        return res.status(403).json({
+          error: answer === 'no' ? 'Klinika egasi rad etdi'
+            : answer === 'timeout' ? "Klinika egasi Telegram'da javob bermadi — keyinroq qayta urining"
+              : "Klinika egasi Telegram'ga ulanmagan va jamoa kirishini yoqmagan",
+        });
+      }
+      businesses.grantSupport(biz.id, new Date(Date.now() + SUPPORT_SESSION_DAYS * 86_400_000).toISOString());
+    }
+    const now = businesses.byId(biz.id) ?? biz;
     supportVisits.add(biz.id, req.get(CLIENT_HEADER) ?? null);
-    res.json({ token: issueToken(biz.id, 'business', SUPPORT_SESSION_DAYS, biz.tokenVer, biz.supportVer) });
+    void notifySupportVisit(now, hours);
+    res.json({ token: issueToken(biz.id, 'business', SUPPORT_SESSION_DAYS, now.tokenVer, now.supportVer) });
   });
 
   // Egasi: jamoa kira oladimi va qachon kirgan. mine — hozirgi kirish jamoaniki (u ruxsatni o'zgartira olmaydi)
   app.get('/api/account/support', asBiz((req, res, biz) => {
-    res.json({ allowed: biz.supportAccess, hub: !!remoteUrl(), mine: !!sessionOf(req)?.support, visits: supportVisits.recent(biz.id, SUPPORT_VISITS_SHOWN) });
+    const until = biz.supportUntil && Date.parse(biz.supportUntil) > Date.now() ? biz.supportUntil : null;
+    res.json({ allowed: biz.supportAccess, until, hub: !!remoteUrl(), mine: !!sessionOf(req)?.support, visits: supportVisits.recent(biz.id, SUPPORT_VISITS_SHOWN) });
   }));
   app.put('/api/account/support', asOwner((req, res, biz) => {
     const p = z.object({ allowed: z.boolean() }).safeParse(req.body);
@@ -599,7 +615,7 @@ export function createApp(bot: BotService) {
   mountCamera(app, { asBiz, bad });
   mountVoice(app, { asBiz, bad });
   mountRequests(app, { asBiz, bad, bot });
-  mountPhone(app, { asBiz, bad, fail, clientKey });
+  mountPhone(app, { asBiz, asOwner, bad, fail, clientKey });
   mountBrain(app, { asBiz, bad, fail });
   mountOrders(app, { asBiz, bad, fail, bot });
   mountAttention(app, { asBiz });

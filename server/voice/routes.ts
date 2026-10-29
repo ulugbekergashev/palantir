@@ -40,6 +40,7 @@ const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
  */
 export function assistantOf(biz: BusinessRow): string {
   const name = biz.profile.name.trim(), owner = biz.profile.ownerName.trim();
+  // «Cerebro» — eski nom: eski bazalarda biznes nomi shunday qolgan bo'lishi mumkin
   const generic = !name || /^(cerebro|palantir|mening biznesim)$/i.test(name);
   return generic && owner ? owner : name || 'klinika';
 }

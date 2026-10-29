@@ -1,5 +1,6 @@
 /**
- * Litsenziya (server/license.ts): kalitsiz muddatda — pastki burchakda kichik eslatma («Kalitni kiritish» — oyna ochiladi);
+ * Litsenziya (server/license.ts): kalitsiz muddatda — kichik eslatma («Kalitni kiritish» — oyna ochiladi): kompyuterda pastki burchakda
+ * (bo'limlar ustunining yonida), telefonda sahifa tepasida — pastki bo'limlar paneli va yozish maydonini yopmasin;
  * muddat tugagach — butun ekran aktivlashtirish oynasi. Kompyuter kodini egasi Palantir jamoasiga yuboradi va kalitni qo'yadi
  * (klinika Hub'ga ulangan bo'lsa, jamoa Hub'dan o'zi aktivlashtiradi — kod almashish shart emas).
  */
@@ -11,7 +12,7 @@ import { Button } from './ui';
 export function LicenseReminder({ license, onOpen }: { license: LicenseView; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen}
-      className="fixed bottom-4 left-4 z-40 flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-900 shadow-lg hover:bg-amber-100">
+      className="flex w-full items-center justify-center gap-2 border-b border-amber-300/40 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 lg:fixed lg:bottom-4 lg:left-[108px] lg:z-40 lg:w-auto lg:rounded-full lg:border lg:shadow-lg">
       <KeyRound className="h-4 w-4" aria-hidden="true" />
       Aktivlashtirilmagan · {license.daysLeft} kun qoldi · Kalitni kiritish
     </button>
