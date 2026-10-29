@@ -15,6 +15,7 @@
     "status": "node scripts/supervise.mjs status",
     "update": "node scripts/update.mjs",
     "release": "tsx scripts/release.ts",
+    "setup-exe": "tsx scripts/setup-exe.ts",
     "restore-backup": "tsx scripts/restore-backup.ts",
     "check": "node --no-warnings --import tsx scripts/preflight.ts",
     "preview": "vite preview --port 3101 --host localhost",
@@ -46,7 +47,8 @@
     "demo": "tsx scripts/demo.ts",
     "stend": "tsx scripts/stend.ts",
     "test:stend": "tsx scripts/e2e-stend.ts",
-    "scenarios": "tsx scripts/scenarios.ts"
+    "scenarios": "tsx scripts/scenarios.ts",
+    "kalit": "tsx scripts/kalit.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",

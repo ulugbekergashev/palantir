@@ -62,18 +62,31 @@ export interface TeamView { staff: (StaffMember & { link: string | null })[]; co
 /** Hub orqali masofadan ochilganda panel /c/<klinika>/ ostida turadi — API ham shu yo'l bilan (oddiy holatda — bo'sh) */
 export const apiBase = location.pathname.match(/^\/c\/[0-9a-f]{10}(?=\/)/)?.[0] ?? '';
 
-/** Server bilan ishlash. Token — shu brauzerda */
-const TOKEN_KEY = 'palantir_token';
+/** Litsenziya (server/license.ts): blocked — kalitsiz muddat tugadi, panel yopiq */
+export interface LicenseView { activated: boolean; machineId: string; issuedAt: string | null; daysLeft: number; blocked: boolean }
+
+/** Palantir jamoasi kirishi: egasi ruxsat berganmi, hozirgi kirish jamoanikimi (mine), oxirgi kirishlar */
+/** allowed — doimiy ruxsat (so'ramasdan); until — egasi Telegram'da bergan bir martalik ruxsat shu paytgacha ochiq */
+export interface SupportAccessView { allowed: boolean; until: string | null; hub: boolean; mine: boolean; visits: { at: string; ip: string | null }[] }
+
+/**
+ * Server bilan ishlash. Token — shu brauzerda; hub orqali — har klinikaniki alohida (hammasi bitta hub manzilida turadi:
+ * jamoa bir nechta klinikani yonma-yon ochganda bir-birining kirishini almashtirib qo'ymasin)
+ */
+const TOKEN_KEY = `palantir_token${apiBase}`;
 const ADMIN_KEY = 'palantir_admin_token';
 
-const read = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
-const write = (key: string, v: string | null) => {
-  try { if (v) localStorage.setItem(key, v); else localStorage.removeItem(key); } catch { /* yopiq xotira */ }
+const read = (key: string, store: () => Storage = () => localStorage) => { try { return store().getItem(key); } catch { return null; } };
+const write = (key: string, v: string | null, store: () => Storage = () => localStorage) => {
+  try { if (v) store().setItem(key, v); else store().removeItem(key); } catch { /* yopiq xotira */ }
 };
+const tab = () => sessionStorage;
 
 export const session = {
-  token: () => read(TOKEN_KEY),
-  set: (t: string | null) => write(TOKEN_KEY, t),
+  token: () => read(TOKEN_KEY, tab) ?? read(TOKEN_KEY),
+  set: (t: string | null) => { write(TOKEN_KEY, null, tab); write(TOKEN_KEY, t); },
+  /** Palantir jamoasi kirishi (hubdagi «Panelni ochish»): faqat shu oynada — hub manzilidagi boshqa klinika sahifasi uni o'qiy olmaydi */
+  setTab: (t: string) => write(TOKEN_KEY, t, tab),
   adminToken: () => read(ADMIN_KEY),
   setAdmin: (t: string | null) => write(ADMIN_KEY, t),
 };
@@ -231,6 +244,11 @@ export const api = {
   /** Parolni almashtirish: boshqa qurilmalardagi kirish bekor, shu qurilma uchun yangi kalit qaytadi */
   changePassword: (current: string, next: string) => call<{ token: string }>('/account/password', { body: { current, next } }),
   signOutOthers: () => call<{ token: string }>('/account/sign-out-others', { body: {} }),
+  /** Litsenziya: holat (kirishsiz) va kalitni kiritish */
+  license: () => call<{ license: LicenseView }>('/license'),
+  activateLicense: (key: string) => call<{ license: LicenseView }>('/license', { body: { key } }),
+  supportAccess: () => call<SupportAccessView>('/account/support'),
+  setSupportAccess: (allowed: boolean) => call<{ allowed: boolean }>('/account/support', { method: 'PUT', body: { allowed } }),
   /** Mijoz so'rasa: karta, yozishmalar, so'rovlar, qo'ng'iroqlar va yozuvlari — butunlay */
   forgetLead: (leadId: string) => call<{ ok: true }>(`/leads/${leadId}`, { method: 'DELETE' }),
   thread: (leadId: string) => call<{ lead: Lead; messages: InboxMessage[]; replies: ReplyDraft[] }>(`/inbox/${leadId}`),
@@ -260,6 +278,9 @@ export const api = {
   askOwner: () => call<{ setup: SetupView }>('/setup/ask', { body: {} }),
   discoverCameras: () => call<{ found: FoundCamera[]; ffmpeg: boolean }>('/cameras/discover', { body: {} }),
   connectCamera: (v: { ip: string; port: number; brand: string; onvif: string | null; login: string; password: string; name: string }) => call<{ camera: Camera }>('/cameras/connect', { body: v }),
+  /** Registratorning boshqa kanallari (kadri bilan) va tanlanganini ulash */
+  cameraChannels: (id: string) => call<{ channels: { channel: number; preview: string }[] }>(`/cameras/${id}/channels`, { body: {} }),
+  connectChannel: (id: string, channel: number, name: string) => call<{ camera: Camera }>(`/cameras/${id}/channels/${channel}`, { body: { name } }),
 
 };
 

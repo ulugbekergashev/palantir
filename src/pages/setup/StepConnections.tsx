@@ -37,6 +37,8 @@ export function StepOwner({ status, refresh, notify }: { status: LiveStatus; ref
   usePoll(!status.ownerLinked && !!status.linkUrl, refresh);
   if (!status.bot) return <Note>Avval «Kalitlar» qadamida Telegram bot tokenini kiriting — keyin egasi uchun ulash havolasi shu yerda chiqadi.</Note>;
   if (status.ownerLinked) return <Done title={`Egasi @${status.bot} bilan ulangan`}>Eslatmalar, ertalabki xulosa va mijozlarga javob takliflari egasining Telegram'iga keladi.</Done>;
+  // Palantir jamoasi kirishida havola berilmaydi (u bilan jamoa o'zini egasi qilib ulay olardi)
+  if (!status.linkUrl) return <Note>Egasini ulash havolasi faqat egasining o'z kirishida ko'rinadi: klinika kompyuterida yoki egasi o'z panelida — Sozlamalar → Telegram.</Note>;
   const copy = () => { void navigator.clipboard?.writeText(status.linkUrl ?? '').then(() => notify('Havola nusxalandi'), () => {}); };
   return (
     <Card title="Egasi o'z telefonida shu havolani ochsin" description="Havolani Telegram'da ochib «Start» bosadi — bot «Ulandi» deb javob beradi va bu sahifa o'zi yangilanadi. Havola bir martalik: boshqa odamga bermang.">

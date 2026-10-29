@@ -17,7 +17,8 @@ interface Deps {
   asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler;
   bad: (res: Response, error: z.ZodError) => unknown;
   fail: (res: Response, e: unknown, code?: number) => unknown;
-  statusOf: (bizId: string) => LiveStatus;
+  /** req — kim so'rayapti (Palantir jamoasiga egasini ulash havolasi berilmaydi) */
+  statusOf: (bizId: string, req: Request) => LiveStatus;
 }
 
 /** Hozir ulanayotgan bizneslar: ikkinchi urinish birinchisi tugaguncha kutadi */
@@ -48,15 +49,15 @@ export function mountCrm(app: Express, { asBiz, bad, fail, statusOf }: Deps): vo
     }
     // Yordamchiga yangi asboblar va klinika nomi — yangi suhbatdan
     resetConversation(biz.id);
-    res.json({ status: statusOf(biz.id) });
+    res.json({ status: statusOf(biz.id, req) });
   }));
 
   app.get('/api/crm/find', asBiz(async (_req, res) => { res.json({ url: await findLocalCrm(undefined, env.crmAllowPrivate) }); }));
 
-  app.delete('/api/crm', asBiz((_req, res, biz) => {
+  app.delete('/api/crm', asBiz((req, res, biz) => {
     disconnectCrm(biz.id);
     resetConversation(biz.id);
-    res.json({ status: statusOf(biz.id) });
+    res.json({ status: statusOf(biz.id, req) });
   }));
 
   /** Panel bosh sahifasi: klinikaning kuni — qabullar shifokorlar bo'yicha, kelgan/kelmagan, tushum (yordamchining clinic_day asbobi bilan bir xil hisob) */

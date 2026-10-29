@@ -1,0 +1,39 @@
+# Hub qorovuli: har 30 daqiqada Hub'ni tekshiradi; Oracle bepul serverni «bo'sh» deb to'xtatgan bo'lsa — qayta yoqadi
+# (scripts/hub-watchdog.ts). Email yuborilmaydi: ish yiqilmaydi, natija — Actions jurnalida.
+# Identifikatorlar ochiq (maxfiy emas); kalit — repo siri OCI_PRIVATE_KEY (Settings → Secrets and variables → Actions).
+name: Hub qorovuli
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hub-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/hub-watchdog.ts
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # --holat: Oracle kaliti har safar tekshiriladi (Hub sog' bo'lsa ham)
+      - run: node scripts/hub-watchdog.ts --holat
+        env:
+          HUB_URL: https://92-5-56-138.sslip.io
+          OCI_REGION: eu-frankfurt-1
+          OCI_TENANCY: ocid1.tenancy.oc1..aaaaaaaa5uij3pv5yc4ujkcu7ak5lnztahhhpsxu5vv452b5ota5vnq7usba
+          OCI_USER: ocid1.user.oc1..aaaaaaaatefmpyxhpz6wuebi2vio2twsvc6cc5e7xyoli6efvrbkiq27433q
+          OCI_FINGERPRINT: e5:11:d7:28:5d:bf:a9:61:3c:75:a9:ca:81:ce:98:a3
+          HUB_INSTANCE_ID: ocid1.instance.oc1.eu-frankfurt-1.antheljt5lh4biacvpzmwywti7no6guxppgvqzait5k5xq6xeqw3qbk5bm5q
+          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}

@@ -133,6 +133,7 @@ export async function brainApiTests(h: Harness): Promise<void> {
   const voice = await api('/api/voice/knowledge', { token: key });
   const said = String(voice.json.knowledge ?? '');
   ok("ovozli agent: bilim — narx, tasdiqlangan javoblar; kalitsiz berilmaydi", voice.status === 200 && said.includes('Vinir: 1500000') && said.includes('6 oygacha') && said.includes('Yakshanba dam olamiz') && (await api('/api/voice/knowledge')).status === 401, said);
+  ok('ovozli agent: kimning yordamchisi deb tanishadi — biznes nomi', typeof voice.json.who === 'string' && voice.json.who.length > 0, String(voice.json.who));
 
   const flagged = await api('/api/brain/qa', { token, body: { question: 'Sifatiga javob berasizmi?', answer: 'Ha, 100% sifatli, yoqmasa almashtirib beramiz' } });
   const flaggedRow = brainOf(flagged).qa.find(k => k.question === 'Sifatiga javob berasizmi?');

@@ -21,6 +21,7 @@ import { startScheduler } from './scheduler';
 import { startCallSweeper, startPhone, startRecordingRetention, stopPhone } from './phone/index';
 import { startMonitor } from './monitor';
 import { startHeartbeat } from './heartbeat';
+import { startHubJoin } from './hubJoin';
 import { startOrders } from './orders/run';
 import { startVoiceEnv } from './voice/serviceEnv';
 
@@ -79,6 +80,8 @@ const stopBackups = startBackups();
 const stopMonitor = startMonitor();
 // Hub kodi bo'lsa: holat 5 daqiqada (kompyuter o'chsa hub sotuvchiga aytadi)
 const stopHeartbeat = startHeartbeat();
+// Hub kodi yo'q (yangi o'rnatish) — sotuvchining Hub'iga o'zi ulanadi
+const stopHubJoin = startHubJoin();
 
 const open = !env.listenHost || env.listenHost === '0.0.0.0' || env.listenHost === '::';
 console.log(`Palantir server: http://localhost:${env.port}${open ? ' (hamma tarmoq interfeyslari)' : ` (${env.listenHost})`}`);
@@ -105,6 +108,7 @@ const shutdown = () => {
   stopRetention();
   stopMonitor();
   stopHeartbeat();
+  stopHubJoin();
   stopInstagramApi();
   bot.stop();
   flushAllWaits();

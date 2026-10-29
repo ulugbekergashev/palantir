@@ -26,6 +26,18 @@
  *      klinikaning uzun so'roviga (/api/pull → relays) qo'shiladi, klinika uni o'zidagi panel serveriga beradi va javobni
  *      /api/relay/<id> ga qaytaradi. So'rovlar faqat xotirada (bazaga yozilmaydi): hub qayta ishga tushsa, eski so'rov qayta
  *      bajarilmaydi. Kirish — klinika panelining o'z paroli yoki Telegram Mini App imzosi; hub tanani saqlamaydi va yozmaydi.
+ *   9. Palantir jamoasi: GET /admin — klinikalar va «Panelni ochish». Admin kaliti bilan POST /admin/clinics/<klinika>/panel →
+ *      klinikaga belgilangan so'rov (support) → klinika parolsiz 12 soatlik kirish beradi, faqat egasining roziligi bilan: egasi doimiy
+ *      ruxsat bermagan bo'lsa — Telegram'da so'raydi (javob ~2 daqiqa kutiladi); har kirish egasiga aytiladi va Sozlamalarida ko'rinadi.
+ *      Oddiy /c/ so'rovi bu belgini ololmaydi.
+ *  10. Litsenziya: holat xabarida (heartbeat) aktivlashtirilganmi va necha kun qolgani; POST /admin/clinics/<klinika>/license
+ *      (admin kaliti) — klinikadan kompyuter kodi olinadi, LICENSE_SIGNING_KEY bilan imzolanadi va kalit klinikaga yuboriladi.
+ *  11. O'zi ulanish: POST /api/register {machineId, name} — yangi o'rnatilgan Palantir Hub kodini o'zi oladi (server/hubJoin.ts);
+ *      /admin ro'yxatida «tasdiqlanmagan». Cheklov: bir manzildan HUB_REGISTER_PER_IP (3) va kuniga jami HUB_REGISTER_PER_DAY (30); HUB_REGISTRATION=0 — yopiq.
+ *      Ro'yxatdan o'tishni internetdagi har kim qila oladi, shuning uchun sotuvchi tasdiqlaguncha (POST /admin/clinics/<klinika>/approve —
+ *      egasi panelidagi kompyuter kodi bilan solishtiriladi) bunday kompyuter karantinda: /c/ orqali hech narsa bermaydi (klinika panellari
+ *      va ularning kirish kalitlari shu manzilda turadi — begona sahifa ular yonida ochilmasin), jamoa kirishi, litsenziya, zaxira va
+ *      Instagram yopiq. Faqat holat, diagnostika va navbat. Soxta yozuv — POST /admin/clinics/<klinika>/delete.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -33,19 +45,23 @@
  *
  * Sozlama (muhit o'zgaruvchilari): IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL, HUB_VERIFY_TOKEN, HUB_ADMIN_KEY, PORT, HUB_DB;
  * ochiq sahifalar uchun HUB_OPERATOR (xizmatni taqdim etuvchi, yuridik nomi) va HUB_CONTACT_EMAIL;
- * proksi ortida (Railway) — HUB_TRUST_PROXY=1 (masofadan kirishda mijoz manzili X-Forwarded-For'dan);
+ * proksi ortida (Caddy) — HUB_TRUST_PROXY=1 (masofadan kirishda mijoz manzili X-Forwarded-For'dan);
  * nazorat uchun HUB_BOT_TOKEN (sotuvchining boti) va HUB_ALERT_CHAT (xabar boradigan chat), HUB_OFFLINE_MS (standart 15 daqiqa).
  * Ishga tushirish: npm run hub
  */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, openSync, closeSync, readFileSync, readSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, openSync, closeSync, readFileSync, readSync, readdirSync, renameSync, rmSync, statSync, statfsSync, writeFileSync } from 'node:fs';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { adminPage } from './admin.ts';
+import { issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
 import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
 
+/** Admin kaliti hamma klinikaning paneli, zaxirasi va diagnostikasini ochadi: qisqasi qabul qilinmaydi (hub:deploy 32 belgili yaratadi) */
+const MIN_ADMIN_KEY = 24;
 const cfg = {
   port: Number(process.env.PORT) || 3400,
   db: resolve(process.env.HUB_DB || 'hub-data/hub.db'),
@@ -53,7 +69,13 @@ const cfg = {
   appSecret: process.env.IG_APP_SECRET || '',
   publicUrl: (process.env.HUB_PUBLIC_URL || '').replace(/\/+$/, ''),
   verifyToken: process.env.HUB_VERIFY_TOKEN || '',
-  adminKey: process.env.HUB_ADMIN_KEY || '',
+  adminKey: (process.env.HUB_ADMIN_KEY ?? '').length >= MIN_ADMIN_KEY ? process.env.HUB_ADMIN_KEY! : '',
+  /** Litsenziya imzolovchi maxfiy kalit (licenseKey.ts; bir qatordagi base64 PKCS8) — bo'lmasa bir bosishda aktivlashtirish yopiq */
+  licenseKey: process.env.LICENSE_SIGNING_KEY || '',
+  /** O'zi ulanish (POST /api/register): yangi o'rnatilgan kompyuter Hub kodini o'zi oladi. 0 — yopiq; cheklov — bir manzildan va kuniga jami */
+  registration: process.env.HUB_REGISTRATION !== '0',
+  registerPerIp: Number(process.env.HUB_REGISTER_PER_IP) || 3,
+  registerPerDay: Number(process.env.HUB_REGISTER_PER_DAY) || 30,
   // Faqat sinov uchun: soxta Instagram
   authUrl: process.env.IG_AUTH_URL || 'https://www.instagram.com/oauth/authorize',
   tokenUrl: process.env.IG_TOKEN_URL || 'https://api.instagram.com/oauth/access_token',
@@ -69,7 +91,7 @@ const cfg = {
   backupKeep: Number(process.env.HUB_BACKUP_KEEP) || 7,
   backupMaxBytes: (Number(process.env.HUB_BACKUP_MAX_MB) || 512) * 1_048_576,
   diagDir: resolve(process.env.HUB_DIAG_DIR || join(dirname(resolve(process.env.HUB_DB || 'hub-data/hub.db')), 'diagnostika')),
-  // Hub xosting proksisi ortida (Railway va h.k.): mijoz manzili — X-Forwarded-For'ning oxirgisi (proksi qo'shgani)
+  // Hub proksi ortida (Caddy va h.k.): mijoz manzili — X-Forwarded-For'ning oxirgisi (proksi qo'shgani)
   trustProxy: process.env.HUB_TRUST_PROXY === '1',
   operator: process.env.HUB_OPERATOR || 'Palantir',
   contactEmail: process.env.HUB_CONTACT_EMAIL || '',
@@ -96,7 +118,11 @@ CREATE TABLE IF NOT EXISTS deletions (code TEXT PRIMARY KEY, ig_user_id TEXT NOT
 // Eski hub bazasiga nazorat ustunlari: status — oxirgi holat (JSON), alerted_at — «aloqa yo'q» aytilgan payt
 {
   const have = new Set((db.prepare('PRAGMA table_info(clinics)').all() as { name: string }[]).map(c => c.name));
-  for (const [name, type] of [['status', 'TEXT'], ['alerted_at', 'TEXT']]) if (!have.has(name)) db.exec(`ALTER TABLE clinics ADD COLUMN ${name} ${type}`);
+  // machine_id va self — o'zi ulangan kompyuter (POST /api/register): kompyuter kodi (litsenziya bilan bir xil) va belgisi
+  // approved — sotuvchi tasdiqlagan (o'zi ulanganlar karantinda — 11-band)
+  for (const [name, type] of [['status', 'TEXT'], ['alerted_at', 'TEXT'], ['machine_id', 'TEXT'], ['self', 'INTEGER'], ['approved', 'INTEGER']]) if (!have.has(name)) db.exec(`ALTER TABLE clinics ADD COLUMN ${name} ${type}`);
+  // Ustun paydo bo'lishidan oldingilar: sotuvchi yaratgan va litsenziyasini bergan (demak ko'rib chiqqan) o'zi ulangan — tasdiqlangan
+  db.exec("UPDATE clinics SET approved = CASE WHEN COALESCE(self, 0) = 0 OR json_extract(status, '$.license.activated') = 1 THEN 1 ELSE 0 END WHERE approved IS NULL");
 }
 // Ilova doirasidagi foydalanuvchi id'si (/me → id): Meta signed_request'da qaysi id kelishi aniq emas — ikkalasi bo'yicha topiladi
 {
@@ -119,6 +145,12 @@ const makeHubCode = (url: string, clinicId: string, secret: string) => `phub.${B
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const sameText = (a: string, b: string) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 const newId = () => randomBytes(5).toString('hex');
+/** Sotuvchi tasdiqlagan klinika (11-band): karantindagi kompyuterga panel, jamoa kirishi, litsenziya, zaxira va Instagram yopiq */
+const approved = (clinicId: string) => (db.prepare('SELECT approved FROM clinics WHERE id = ?').get(clinicId) as { approved: number | null } | undefined)?.approved === 1;
+const QUARANTINE = "Bu kompyuter hali tasdiqlanmagan — sotuvchi uni /admin da kompyuter kodi bilan tasdiqlashi kerak";
+/** Zaxira shuncha bo'sh joy qolguncha qabul qilinadi: disk to'lsa hub bazasi ham yozilmay qoladi (hamma klinika uchun) */
+const BACKUP_MIN_FREE = 2 * 1024 ** 3;
+const freeBytes = (dir: string) => { try { const st = statfsSync(dir); return st.bavail * st.bsize; } catch { return Infinity; } };
 
 // ─── Navbat ──────────────────────────────────────────────────────────────────
 
@@ -134,7 +166,8 @@ setInterval(() => { db.prepare('DELETE FROM events WHERE created_at < ?').run(ne
 
 // ─── Masofadan kirish (relay) ────────────────────────────────────────────────
 
-interface Relay { id: string; method: string; path: string; headers: Record<string, string>; body: string; ip: string }
+/** support — admin kaliti bilan ochilgan so'rov (Palantir jamoasi): klinika faqat /api/login/support da qabul qiladi */
+interface Relay { id: string; method: string; path: string; headers: Record<string, string>; body: string; ip: string; support?: boolean }
 interface RelayAnswer { status: number; headers: Record<string, string>; body: string }
 /** Klinika olishi kerak bo'lgan so'rovlar va javobini kutayotganlar — faqat xotirada */
 const relayQueue = new Map<string, Relay[]>();
@@ -151,6 +184,8 @@ const RELAY_ANSWER_HEADERS = ['content-type', 'cache-control', 'etag', 'content-
 /** Bir manzildan daqiqasiga (panel ochilganda o'nlab fayl va so'rov) */
 const RELAY_PER_MINUTE = 600;
 const relayHits = new Map<string, { n: number; until: number }>();
+/** O'zi ulanishlar: manzil → oxirgi sutkadagi paytlari */
+const registerHits = new Map<string, number[]>();
 function relayAllowed(ip: string): boolean {
   const now = Date.now();
   if (relayHits.size > 5000) for (const [k, v] of relayHits) if (v.until < now) relayHits.delete(k);
@@ -170,20 +205,12 @@ const pick = (from: Record<string, unknown>, names: string[]) =>
   Object.fromEntries(names.flatMap(n => (typeof from[n] === 'string' ? [[n, from[n] as string]] : [])));
 const offlinePage = (name: string) => page('Klinika kompyuteri aloqada emas', `«${esc(name)}» kompyuteri hozir internetga ulanmagan yoki o'chiq. U yoqilgach panel shu havoladan ochiladi.`);
 
-async function relay(req: IncomingMessage, res: ServerResponse, clinicId: string, path: string): Promise<void> {
-  const clinic = db.prepare('SELECT name, seen_at FROM clinics WHERE id = ?').get(clinicId) as { name: string; seen_at: string | null } | undefined;
-  if (!clinic) return send(res, 404, page('Topilmadi', "Bunday klinika yo'q."), 'text/html');
-  const ip = clientIp(req);
-  if (!relayAllowed(ip)) return send(res, 429, { error: "Ko'p so'rov — bir daqiqadan keyin" });
-  const html = String(req.headers.accept ?? '').includes('text/html');
-  const online = !!waiters.get(clinicId)?.size || (!!clinic.seen_at && Date.now() - Date.parse(clinic.seen_at) < RELAY_GAP_MS);
-  if (!online) {
-    return html ? send(res, 503, offlinePage(clinic.name), 'text/html') : send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
-  }
-  const raw = req.method === 'GET' || req.method === 'HEAD' ? Buffer.alloc(0) : await readRaw(req, RELAY_MAX_REQUEST);
-  if (!raw) return send(res, 413, { error: 'Juda katta' });
+/** Klinika aloqada: uzun so'rovi hozir kutib turibdi yoki hozirgina ko'ringan */
+const clinicOnline = (clinicId: string, seenAt: string | null) => !!waiters.get(clinicId)?.size || (!!seenAt && Date.now() - Date.parse(seenAt) < RELAY_GAP_MS);
+
+/** So'rovni klinika navbatiga qo'yadi va javobini kutadi. Klinika olmasa yoki javob bermasa — null */
+async function dispatch(clinicId: string, r: Omit<Relay, 'id'>): Promise<RelayAnswer | null> {
   const id = randomBytes(9).toString('hex');
-  const r: Relay = { id, method: String(req.method), path, headers: pick(req.headers, RELAY_REQUEST_HEADERS), body: raw.toString('base64'), ip };
   const answer = await new Promise<RelayAnswer | null>(done => {
     const timer = setTimeout(() => { relayWaiting.delete(id); done(null); }, RELAY_TIMEOUT_MS);
     const pickup = setTimeout(() => {
@@ -193,11 +220,32 @@ async function relay(req: IncomingMessage, res: ServerResponse, clinicId: string
       done(null);
     }, RELAY_PICKUP_MS);
     relayWaiting.set(id, { clinic: clinicId, done: a => { clearTimeout(timer); clearTimeout(pickup); relayWaiting.delete(id); done(a); } });
-    relayQueue.set(clinicId, [...(relayQueue.get(clinicId) ?? []), r]);
+    relayQueue.set(clinicId, [...(relayQueue.get(clinicId) ?? []), { ...r, id }]);
     for (const wake of waiters.get(clinicId) ?? []) wake();
   });
+  if (!answer) relayQueue.set(clinicId, (relayQueue.get(clinicId) ?? []).filter(x => x.id !== id));
+  return answer;
+}
+
+async function relay(req: IncomingMessage, res: ServerResponse, clinicId: string, path: string): Promise<void> {
+  const clinic = db.prepare('SELECT name, seen_at, approved FROM clinics WHERE id = ?').get(clinicId) as { name: string; seen_at: string | null; approved: number | null } | undefined;
+  if (!clinic) return send(res, 404, page('Topilmadi', "Bunday klinika yo'q."), 'text/html');
+  // Karantin: tasdiqlanmagan kompyuter bergan sahifa shu manzilda (boshqa klinikalar kirish kalitlari yonida) ochilmaydi
+  if (clinic.approved !== 1) {
+    return String(req.headers.accept ?? '').includes('text/html')
+      ? send(res, 403, page('Kompyuter hali tasdiqlanmagan', "Bu Palantir yangi o'rnatilgan va sotuvchi uni hali tasdiqlamagan. Tasdiqlangach panel shu havoladan ochiladi."), 'text/html')
+      : send(res, 403, { error: QUARANTINE });
+  }
+  const ip = clientIp(req);
+  if (!relayAllowed(ip)) return send(res, 429, { error: "Ko'p so'rov — bir daqiqadan keyin" });
+  const html = String(req.headers.accept ?? '').includes('text/html');
+  if (!clinicOnline(clinicId, clinic.seen_at)) {
+    return html ? send(res, 503, offlinePage(clinic.name), 'text/html') : send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
+  }
+  const raw = req.method === 'GET' || req.method === 'HEAD' ? Buffer.alloc(0) : await readRaw(req, RELAY_MAX_REQUEST);
+  if (!raw) return send(res, 413, { error: 'Juda katta' });
+  const answer = await dispatch(clinicId, { method: String(req.method), path, headers: pick(req.headers, RELAY_REQUEST_HEADERS), body: raw.toString('base64'), ip });
   if (!answer) {
-    relayQueue.set(clinicId, (relayQueue.get(clinicId) ?? []).filter(x => x.id !== id));
     return html ? send(res, 504, offlinePage(clinic.name), 'text/html') : send(res, 504, { error: 'Klinika kompyuteri javob bermadi' });
   }
   res.statusCode = answer.status;
@@ -264,7 +312,9 @@ function cleanStatus(v: unknown) {
   const lastUpdate = u ? { from: text(u.from, 40), to: text(u.to, 40), result: text(u.result, 20), reason: text(u.reason, 500), at: text(u.at, 40) } : null;
   const b = o.lastOffsite ? record(o.lastOffsite) : null;
   const lastOffsite = b ? { day: text(b.day, 10), ok: b.ok === true, size: num(b.size), error: text(b.error, 300), at: text(b.at, 40) } : null;
-  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), problems, lastUpdate, lastOffsite, at: now() };
+  const l = o.license ? record(o.license) : null;
+  const license = l ? { activated: l.activated === true, daysLeft: num(l.daysLeft) } : null;
+  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), label: text(o.label, 80), problems, lastUpdate, lastOffsite, license, at: now() };
 }
 
 /** OAuth holati: klinika, biznes, muddat — imzolangan (begona odam boshqa klinika nomidan ulay olmasin) */
@@ -358,22 +408,134 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     return send(res, 200, { ok: true, updated: Number(r.changes) });
   }
 
+  // O'zi ulanish: yangi o'rnatilgan Palantir Hub kodini o'zi oladi (sotuvchi /admin da «yangi» deb ko'radi, litsenziyani bir bosishda beradi).
+  // Har chaqiriq — yangi yozuv: kompyuter kodi maxfiy emas, uning bo'yicha bor klinikaning kaliti hech qachon qayta berilmaydi
+  // (aks holda kodni bilgan odam o'sha klinikaning «Panelni ochish» so'rovlarini o'ziga oqizardi)
+  if (p === '/api/register' && req.method === 'POST') {
+    if (!cfg.registration || !cfg.publicUrl) return send(res, 403, { error: "O'zi ulanish yopiq — sotuvchidan Hub kodini so'rang" });
+    const ip = clientIp(req), day = new Date(Date.now() - 86_400_000).toISOString();
+    const fromIp = (registerHits.get(ip) ?? []).filter(t => t > Date.now() - 86_400_000);
+    const today = Number((db.prepare('SELECT COUNT(*) AS n FROM clinics WHERE self = 1 AND created_at > ?').get(day) as { n: number }).n);
+    if (fromIp.length >= cfg.registerPerIp || today >= cfg.registerPerDay) return send(res, 429, { error: "Bugun juda ko'p ulanish — ertaga yoki sotuvchidan Hub kodini so'rang" });
+    let body: { machineId?: unknown; name?: unknown };
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    const machine = normalizeMachineId(String(body.machineId ?? ''));
+    if (!machine) return send(res, 400, { error: "Kompyuter kodi noto'g'ri" });
+    const name = (text(body.name, 60) ?? '').replace(/[^\p{L}\p{N} ._'()-]/gu, '').trim() || 'Yangi kompyuter';
+    registerHits.set(ip, [...fromIp, Date.now()]);
+    const id = newId(), secret = randomBytes(24).toString('base64url');
+    db.prepare('INSERT INTO clinics (id, name, key_hash, created_at, machine_id, self, approved) VALUES (?, ?, ?, ?, ?, 1, 0)').run(id, name, sha(secret), now(), machine);
+    return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl, id, secret) });
+  }
+
   // Admin: yangi klinika — ulanish kodi bir marta ko'rsatiladi (bazada faqat xeshi)
   if (p === '/admin/clinics' && req.method === 'POST') {
     if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
     const body = JSON.parse((await readRaw(req))?.toString() || '{}') as { name?: string };
     const id = newId(), secret = randomBytes(24).toString('base64url');
-    db.prepare('INSERT INTO clinics (id, name, key_hash, created_at) VALUES (?, ?, ?, ?)').run(id, String(body.name ?? 'Klinika').slice(0, 80), sha(secret), now());
+    db.prepare('INSERT INTO clinics (id, name, key_hash, created_at, approved) VALUES (?, ?, ?, ?, 1)').run(id, String(body.name ?? 'Klinika').slice(0, 80), sha(secret), now());
     return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl || `http://127.0.0.1:${cfg.port}`, id, secret) });
+  }
+
+  // Admin sahifasi: klinikalar va «Panelni ochish» (kalit sahifaning o'zida so'raladi — sahifada sir yo'q)
+  if (p === '/admin' && req.method === 'GET') {
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+    res.setHeader('Referrer-Policy', 'same-origin');
+    // Klinika paneli (shu manzilda, lekin klinika kompyuteri bergan) ochilgan oynadan bu sahifaga qo'l cho'za olmasin
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    return send(res, 200, adminPage(), 'text/html');
+  }
+
+  // Admin: Palantir jamoasi sifatida klinika paneliga — klinika parolsiz kirish kalitini beradi (egasi ruxsatni o'chirmagan bo'lsa)
+  const support = /^\/admin\/clinics\/([0-9a-f]{10})\/panel$/.exec(p);
+  if (support && req.method === 'POST') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const clinic = db.prepare('SELECT seen_at FROM clinics WHERE id = ?').get(support[1]) as { seen_at: string | null } | undefined;
+    if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
+    if (!approved(support[1])) return send(res, 409, { error: QUARANTINE });
+    if (!clinicOnline(support[1], clinic.seen_at)) return send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
+    const body = JSON.parse((await readRaw(req))?.toString() || '{}') as { business?: unknown };
+    const ask = typeof body.business === 'string' ? { business: body.business.slice(0, 40) } : {};
+    const answer = await dispatch(support[1], {
+      method: 'POST', path: '/api/login/support', headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify(ask)).toString('base64'), ip: clientIp(req), support: true,
+    });
+    if (!answer) return send(res, 504, { error: 'Klinika kompyuteri javob bermadi' });
+    res.statusCode = answer.status;
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    return void res.end(Buffer.from(answer.body, 'base64'));
+  }
+
+  // Admin: litsenziyani bir bosishda berish — klinikadan kompyuter kodi so'raladi, hub imzolaydi va kalitni klinikaga yuboradi
+  const licensing = /^\/admin\/clinics\/([0-9a-f]{10})\/license$/.exec(p);
+  if (licensing && req.method === 'POST') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    if (!cfg.licenseKey) return send(res, 409, { error: "Hub'da litsenziya kaliti yo'q — npm run hub:deploy (~/.palantir/litsenziya.pem)" });
+    const id = licensing[1];
+    const clinic = db.prepare('SELECT seen_at, status, machine_id, approved FROM clinics WHERE id = ?').get(id) as { seen_at: string | null; status: string | null; machine_id: string | null; approved: number | null } | undefined;
+    if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
+    if (clinic.approved !== 1) return send(res, 409, { error: QUARANTINE });
+    if (!clinicOnline(id, clinic.seen_at)) return send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
+    const ask = (method: string, path: string, body: string) =>
+      dispatch(id, { method, path, headers: { 'content-type': 'application/json' }, body: Buffer.from(body).toString('base64'), ip: clientIp(req) });
+    const parsed = (a: RelayAnswer | null) => { try { return a ? JSON.parse(Buffer.from(a.body, 'base64').toString()) as { license?: { machineId?: string }; error?: string } : null; } catch { return null; } };
+    const state = parsed(await ask('GET', '/api/license', ''));
+    const machine = normalizeMachineId(String(state?.license?.machineId ?? ''));
+    if (!machine) return send(res, 502, { error: "Klinika kompyuter kodini bermadi (eski nashr bo'lishi mumkin)" });
+    // Ro'yxatdan o'tgandagi (sotuvchi tasdiqlagan) kod bilan bir xil bo'lishi kerak: kalit boshqa kompyuterga ketmasin
+    if (clinic.machine_id && clinic.machine_id !== machine) return send(res, 409, { error: `Kompyuter kodi o'zgargan (${clinic.machine_id} → ${machine}) — egasidan kodni qayta so'rang` });
+    const answer = await ask('POST', '/api/license', JSON.stringify({ key: issueLicense(machine, signingKey(cfg.licenseKey)) }));
+    const done = parsed(answer);
+    if (!answer || answer.status !== 200) return send(res, answer?.status ?? 504, { error: done?.error ?? 'Klinika kompyuteri javob bermadi' });
+    // Ro'yxat keyingi holat xabarini (5 daqiqa) kutmasin
+    const status = clinic.status ? JSON.parse(clinic.status) as Record<string, unknown> : {};
+    db.prepare('UPDATE clinics SET status = ? WHERE id = ?').run(JSON.stringify({ ...status, license: { activated: true, daysLeft: 0 } }), id);
+    return send(res, 200, { license: done?.license ?? null });
+  }
+
+  // Admin: o'zi ulangan kompyuterni tasdiqlash — sotuvchi egasidan panelidagi kompyuter kodini so'raydi va kiritadi. Kod maxfiy emas,
+  // lekin uni faqat o'sha kompyuter oldida o'tirgan egasi aytadi: begona yozuv kim bilandir gaplashmasdan tasdiqlanib qolmaydi
+  const approving = /^\/admin\/clinics\/([0-9a-f]{10})\/approve$/.exec(p);
+  if (approving && req.method === 'POST') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const clinic = db.prepare('SELECT machine_id, approved FROM clinics WHERE id = ?').get(approving[1]) as { machine_id: string | null; approved: number | null } | undefined;
+    if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
+    if (clinic.approved === 1) return send(res, 200, { approved: true });
+    let body: { machineId?: unknown };
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    const machine = normalizeMachineId(String(body.machineId ?? ''));
+    if (!machine) return send(res, 400, { error: "Kompyuter kodi noto'g'ri yozilgan (XXXX-XXXX-XXXX-XXXX)" });
+    if (clinic.machine_id && clinic.machine_id !== machine) return send(res, 409, { error: 'Kod bu yozuvniki emas — egasi aytgan kod bilan yozuvni tekshiring' });
+    const twin = db.prepare('SELECT name FROM clinics WHERE machine_id = ? AND approved = 1 AND id <> ?').get(machine, approving[1]) as { name: string } | undefined;
+    if (twin) return send(res, 409, { error: `Bu kompyuter kodi tasdiqlangan «${twin.name}» yozuvida bor — bu takror yoki soxta yozuv, uni o'chiring` });
+    db.prepare('UPDATE clinics SET approved = 1 WHERE id = ?').run(approving[1]);
+    return send(res, 200, { approved: true });
+  }
+
+  // Admin: tasdiqlanmagan (soxta yoki takror) yozuvni o'chirish — tasdiqlangan klinika bu yo'l bilan o'chmaydi
+  const removing = /^\/admin\/clinics\/([0-9a-f]{10})\/delete$/.exec(p);
+  if (removing && req.method === 'POST') {
+    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const id = removing[1];
+    const clinic = db.prepare('SELECT approved FROM clinics WHERE id = ?').get(id) as { approved: number | null } | undefined;
+    if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
+    if (clinic.approved === 1) return send(res, 409, { error: "Tasdiqlangan klinika bu yerdan o'chirilmaydi" });
+    db.prepare('DELETE FROM events WHERE clinic_id = ?').run(id);
+    db.prepare('DELETE FROM accounts WHERE clinic_id = ?').run(id);
+    db.prepare('DELETE FROM clinics WHERE id = ?').run(id);
+    relayQueue.delete(id);
+    for (const dir of [join(cfg.backupDir, id), join(cfg.diagDir, id)]) rmSync(dir, { recursive: true, force: true });
+    return send(res, 200, { deleted: true });
   }
 
   // Admin: klinikalar — oxirgi ko'ringan payti va holati
   if (p === '/admin/clinics' && req.method === 'GET') {
     if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
-    const rows = db.prepare('SELECT id, name, created_at, seen_at, status FROM clinics ORDER BY name').all() as { id: string; name: string; created_at: string; seen_at: string | null; status: string | null }[];
+    const rows = db.prepare('SELECT id, name, created_at, seen_at, status, machine_id, self, approved FROM clinics ORDER BY created_at DESC').all() as
+      { id: string; name: string; created_at: string; seen_at: string | null; status: string | null; machine_id: string | null; self: number | null; approved: number | null }[];
     return send(res, 200, {
       clinics: rows.map(r => ({
-        id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at,
+        id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at, machineId: r.machine_id, self: r.self === 1, approved: r.approved === 1,
         online: !!r.seen_at && Date.now() - Date.parse(r.seen_at) < cfg.offlineMs, status: r.status ? JSON.parse(r.status) as unknown : null,
       })),
     });
@@ -383,6 +545,8 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (p === '/api/backup' && req.method === 'POST') {
     const clinic = clinicOf(req);
     if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    if (!approved(clinic)) return send(res, 403, { error: QUARANTINE });
+    if (freeBytes(cfg.backupDir) < BACKUP_MIN_FREE) return send(res, 507, { error: "Hub diskida joy qolmadi — zaxira qabul qilinmadi" });
     const day = url.searchParams.get('day') ?? '';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return send(res, 400, { error: 'day: YYYY-MM-DD' });
     const dir = join(cfg.backupDir, clinic), tmp = join(dir, `.${day}-${randomBytes(4).toString('hex')}`), file = join(dir, `${day}.pzb`);
@@ -469,6 +633,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (p === '/api/ig/connect-url' && req.method === 'POST') {
     const clinic = clinicOf(req);
     if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    if (!approved(clinic)) return send(res, 403, { error: QUARANTINE });
     if (!cfg.appId || !cfg.appSecret || !cfg.publicUrl) return send(res, 503, { error: 'Hubda Meta ilovasi sozlanmagan (IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL)' });
     const body = JSON.parse((await readRaw(req))?.toString() || '{}') as { businessId?: string };
     if (!body.businessId || !/^[a-z0-9]{4,20}$/.test(body.businessId)) return send(res, 400, { error: 'businessId kerak' });
@@ -609,6 +774,7 @@ server.listen(cfg.port, () => {
   const pub = cfg.publicUrl || '<HUB_PUBLIC_URL>';
   console.log(`  webhook: ${pub}/ig/webhook · OAuth: ${pub}/ig/callback · deauthorize: ${pub}/ig/deauthorize · data deletion: ${pub}/ig/data-deletion`);
   console.log(`  sahifalar: ${pub}/privacy, /terms, /data-deletion — ${cfg.contactEmail ? `${cfg.operator}, ${cfg.contactEmail}` : "HUB_CONTACT_EMAIL berilmagan: Meta aloqa manzilisiz siyosatni qabul qilmaydi"}`);
+  if (process.env.HUB_ADMIN_KEY && !cfg.adminKey) console.error(`  admin: HUB_ADMIN_KEY ${MIN_ADMIN_KEY} belgidan qisqa — admin yo'llari yopiq`);
   console.log(`  nazorat: ${cfg.botToken && cfg.alertChat ? `klinika ${Math.round(cfg.offlineMs / 60_000)} daqiqa ko'rinmasa — Telegram ${cfg.alertChat}` : "Telegram'ga aytilmaydi (HUB_BOT_TOKEN, HUB_ALERT_CHAT)"}`);
 });
 const stop = () => { server.close(); db.close(); process.exit(0); };

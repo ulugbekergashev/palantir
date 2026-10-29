@@ -21,7 +21,10 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
   const [code, setCode] = useState('');
   const [source, setSource] = useState(readSource);
   const [result, setResult] = useState<AnketaImport | null>(null);
+  const [anketaOpen, setAnketaOpen] = useState(false);
   const showForm = adding || list?.length === 0;
+  // Anketa — ixtiyoriy: odatda yopiq, chunki ma'lumot egasi Telegram'ni ulagach tanishuv suhbatida yig'iladi
+  const showAnketa = anketaOpen || !!result || !!setup?.anketa;
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
@@ -94,7 +97,12 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
       </Card>
 
       {selected && (
-        <Card title="Anketa" description="Egasi o'rnatishdan oldin telefonidan to'ldirgan bo'lsa: manzil, ish vaqti, narxlar va ko'p so'raladigan savollarga javoblar shu yerdan tushadi. To'ldirmagan bo'lsa — o'tkazib yuboring.">
+        <Card title="Klinika ma'lumotlari" description="Hech narsa qilish shart emas: egasi Telegram'ni ulagach, bot o'zi tanishishni taklif qiladi — manzil, ish vaqti, narxlar va mijozlar ko'p so'raydigan savollar. Narxlar ro'yxatini fayl qilib botga yuborsa ham bo'ladi.">
+          {!showAnketa ? (
+            <button type="button" onClick={() => setAnketaOpen(true)} className="text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+              Egasi anketani oldindan to'ldirganmi? Kod bilan yuklash
+            </button>
+          ) : <>
           <form onSubmit={byCode} className="grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto] sm:items-end">
             <Field label="Anketa kodi"><TextInput value={code} onChange={e => setCode(e.target.value)} placeholder="K7QM-2XPA" className="font-mono uppercase tracking-widest" required /></Field>
             <Field label="Anketa serveri" hint="Siz anketa yaratgan Palantir manzili"><TextInput value={source} onChange={e => setSource(e.target.value)} placeholder="https://palantir.sizning-domen.uz" type="url" required /></Field>
@@ -114,6 +122,7 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
               ) : <p>Anketa {new Date(setup!.anketa!.importedAt).toLocaleString('uz-UZ')} da yuklangan{setup!.anketa!.code ? ` (${setup!.anketa!.code})` : ''}.</p>}
             </div>
           )}
+          </>}
         </Card>
       )}
     </div>

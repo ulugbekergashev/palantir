@@ -28,7 +28,8 @@ interface Deps {
   bad: (res: Response, error: z.ZodError) => unknown;
   fail: (res: Response, e: unknown, code?: number) => unknown;
   bot: BotService;
-  statusOf: (bizId: string) => LiveStatus;
+  /** req — kim so'rayapti (Palantir jamoasiga egasini ulash havolasi berilmaydi) */
+  statusOf: (bizId: string, req: Request) => LiveStatus;
 }
 
 const KeyBody = z.object({ value: z.string().max(400), force: z.boolean().optional() });
@@ -145,7 +146,7 @@ export function mountSetup(app: Express, { asBiz, asAdmin, bad, fail, bot, statu
   });
 
   // ─── Kabinet: o'rnatish ─────────────────────────────────────────────────────
-  const setupView = (biz: BusinessRow) => {
+  const setupView = (biz: BusinessRow, req: Request) => {
     const fresh = businesses.byId(biz.id) ?? biz;
     const s = setupOf(fresh);
     const pack = packView(packOf(fresh), vault.list(biz.id, 'qa').filter(k => k.status === 'active'));
@@ -154,11 +155,11 @@ export function mountSetup(app: Express, { asBiz, asAdmin, bad, fail, bot, statu
       gaps: gapsOf(fresh),
       pack: { answered: pack.filter(q => q.answer).length, total: pack.length },
       prices: fresh.profile.offerings.length,
-      status: statusOf(biz.id),
+      status: statusOf(biz.id, req),
     };
   };
 
-  app.get('/api/setup', asBiz((_req, res, biz) => res.json({ setup: setupView(biz) })));
+  app.get('/api/setup', asBiz((req, res, biz) => res.json({ setup: setupView(biz, req) })));
 
   app.post('/api/setup/anketa', asBiz(async (req, res, biz) => {
     const p = ImportAnketa.safeParse(req.body);
@@ -175,13 +176,13 @@ export function mountSetup(app: Express, { asBiz, asAdmin, bad, fail, bot, statu
       data = parsed.data;
     }
     const result = applyAnketa(biz, data, code);
-    res.json({ result, setup: setupView(biz) });
+    res.json({ result, setup: setupView(biz, req) });
   }));
 
   /** Egasining Telegram'ida birinchi kun suhbati: bo'shliqlar, keyin tayyor savollar */
-  app.post('/api/setup/ask', asBiz(async (_req, res, biz) => {
+  app.post('/api/setup/ask', asBiz(async (req, res, biz) => {
     if (!bot.enabled) return res.status(409).json({ error: 'Telegram bot ulanmagan — avval bot tokenini kiriting' });
     try { await bot.startInterview(biz); } catch (e) { return fail(res, e); }
-    res.json({ setup: setupView(biz) });
+    res.json({ setup: setupView(biz, req) });
   }));
 }

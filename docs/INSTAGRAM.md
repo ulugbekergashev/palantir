@@ -35,8 +35,8 @@ Instagram → Настройки → «Тип аккаунта» → **Проф�
 
 Пока у приложения нет Advanced Access, работают только аккаунты с ролью в приложении (тестировщики) — для первых клиник этого достаточно. Для массового подключения: App Review на `instagram_business_basic` и `instagram_business_manage_messages` + Business Verification (документы компании, политика конфиденциальности, видео работы). Срок — от нескольких дней до недель, поэтому подавать стоит сразу. Функция **Human Agent** (ответ до 7 дней) — отдельная заявка; после одобрения на ПК клиники `IG_HUMAN_AGENT=1`.
 
-## Шаг 3. Развернуть Palantir Hub (Railway или любой хостинг с HTTPS)
-**Быстро (Railway, одна команда):** `railway login`, затем `npm run hub:deploy` (необязательно: `HUB_CONTACT_EMAIL=… HUB_OPERATOR=… IG_APP_ID=… IG_APP_SECRET=…` перед командой). Скрипт создаёт проект `palantir-hub`, сервис `hub` из папки `hub/` (`hub/railway.json`: запуск, проверка `/health`), том `/data`, домен, все переменные (секреты — один раз, хранятся в `~/.palantir/hub.env`), разворачивает и ждёт `/health`; в конце печатает адреса для Meta. Повторный запуск — обновление (переменные из окружения добавляются/меняются).
+## Шаг 3. Развернуть Palantir Hub (свой сервер с SSH — сейчас Oracle Cloud Always Free, без абонплаты)
+**Одна команда:** `npm run hub:deploy` (первый раз — `HUB_SSH=opc@<IP> npm run hub:deploy`; необязательно: `HUB_CONTACT_EMAIL=… HUB_OPERATOR=… IG_APP_ID=… IG_APP_SECRET=…` перед командой). Скрипт загружает `hub/` и `hub/setup-server.sh` по SSH (ключ `~/.palantir/oracle-hub`), ставит swap, Node.js 24, Caddy (HTTPS от Let's Encrypt, домен `<IP>.sslip.io` — без покупки домена), службу `palantir-hub`, пишет переменные в `/etc/palantir-hub.env` (секреты — один раз, хранятся в `~/.palantir/hub.env`) и ждёт `/health`; в конце печатает адреса для Meta. Повторный запуск — обновление.
 
 Вручную:
 Папка `hub/` самостоятельная: Node 24, без зависимостей (`node server.ts`).
@@ -45,7 +45,7 @@ Instagram → Настройки → «Тип аккаунта» → **Проф�
 2. Volume, смонтированный в `/data`, и переменная `HUB_DB=/data/hub.db` (иначе очередь пропадёт при перезапуске).
 3. Переменные:
    - `IG_APP_ID`, `IG_APP_SECRET` — из шага 2;
-   - `HUB_PUBLIC_URL` — публичный адрес (`https://…up.railway.app`), без `/` в конце;
+   - `HUB_PUBLIC_URL` — публичный адрес (`https://<IP>.sslip.io` или свой домен), без `/` в конце;
    - `HUB_VERIFY_TOKEN` — любая длинная случайная строка (та же — в Meta, шаг 2.4);
    - `HUB_ADMIN_KEY` — длинная случайная строка, только для вас.
    - `HUB_TRUST_PROXY=1` — на Railway и любом хостинге за прокси: для удалённого доступа к панели адрес телефона берётся из `X-Forwarded-For` (иначе все клиенты выглядят одним адресом и ограничение попыток пароля общее на всех).

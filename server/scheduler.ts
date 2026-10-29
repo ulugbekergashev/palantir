@@ -12,7 +12,8 @@ import { dayLong, fromIso, iso, stamp } from '../src/lib/week';
 import type { BotService } from './bot';
 import { callState, callsEnabled, placeCall } from './calls';
 import { speak, speechEnabled } from './tts';
-import { businesses, leads, notices, outbound, publicLead, replies, tasks, type BusinessRow } from './db';
+import { businesses, leads, notices, outbound, publicLead, replies, settings, tasks, type BusinessRow } from './db';
+import { licenseStatus } from './license';
 import { env } from './env';
 import { crmBriefLines, crmConnected, crmWeekLine, recallPatients } from './crm/index';
 import { industryOf } from '../src/data/industries';
@@ -206,6 +207,29 @@ function phoneReminder(bot: BotService, biz: BusinessRow, t: Task): void {
   })();
 }
 
+const LICENSE_WARNED = 'license.warned';
+const LICENSE_STEPS = [0, 1, 3, 7];
+/** Kalitsiz muddat tugayapti yoki tugadi — egasiga kompyuter kodi bilan (sotuvchiga yuborsin) */
+async function warnLicense(bot: BotService): Promise<void> {
+  const lic = licenseStatus();
+  const step = lic.activated ? undefined : LICENSE_STEPS.find(d => lic.daysLeft <= d);
+  if (step === undefined || settings.all().find(r => r.name === LICENSE_WARNED)?.value === String(step)) return;
+  const code = `Kompyuter kodi: <code>${lic.machineId}</code> — sotuvchiga yuboring, u kalit beradi (panelda «Aktivlashtirish»ga qo'yasiz).`;
+  const html = step === 0
+    ? `🔒 <b>Palantir paneli yopildi</b> — aktivlashtirilmagan. Bot, qo'ng'iroqlar va eslatmalar ishlashda davom etadi.\n${code}`
+    : `⏳ <b>Palantir hali aktivlashtirilmagan</b>: panel ${lic.daysLeft} kundan keyin yopiladi (bot, qo'ng'iroqlar va eslatmalar ishlayveradi).\n${code}`;
+  for (const b of businesses.all()) {
+    if (!b.active || !b.ownerChatId) continue;
+    try {
+      await bot.sendText(b.ownerChatId, html);
+    } catch (e) {
+      console.error('[jadval] litsenziya eslatmasi:', (e as Error).message);
+      if (transient(e)) return;
+    }
+  }
+  settings.set(LICENSE_WARNED, String(step));
+}
+
 export function startScheduler(bot: BotService): () => void {
   const stopInbox = startInbox();
   let running = false;
@@ -287,6 +311,8 @@ export function startScheduler(bot: BotService): () => void {
           businesses.update(biz.id, { briefDate: today });
         }
       }
+      // 4) Litsenziya: panel yopilishiga 7, 3, 1 kun qolganda va yopilganda — egasiga Telegram'da (kunduzi — REQUEST_HOURS, har bosqichda bir marta)
+      if (hour >= env.requestHours.from && hour < env.requestHours.to) await warnLicense(bot);
     } catch (e) {
       console.error('[jadval]', e);
     } finally {

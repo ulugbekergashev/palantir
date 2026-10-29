@@ -6,6 +6,8 @@ import { join, resolve } from 'node:path';
 // DOTENV=0 — o'qilmaydi: sinov serverlari haqiqiy kalitlarni olmasin (Windows'da bo'sh qiymatli o'zgaruvchi umuman yo'q hisoblanadi —
 // «VOICELAB_API_KEY: ''» berilsa ham .env dagisi o'qilib qolardi)
 if (process.env.DOTENV !== '0' && existsSync('.env')) process.loadEnvFile('.env');
+/** Sinov serveri (.env o'qilmadi; .env dagi DOTENV=0 bunga ta'sir qilmaydi — u yuqorida o'qiladi): litsenziyaning sinov sozlamalari faqat shunda */
+const testRun = process.env.DOTENV === '0';
 
 const dataDir = resolve(process.env.DATA_DIR || 'data');
 mkdirSync(dataDir, { recursive: true });
@@ -28,6 +30,15 @@ function sessionSecret(): string {
   writeFileSync(`${file}.tmp`, fresh, { mode: 0o600 });
   renameSync(`${file}.tmp`, file);
   return fresh;
+}
+
+const LICENSE_GRACE_DAYS = 14;
+/** Palantir Hub (sotuvchining serveri, Oracle): yangi o'rnatilgan kompyuter shu yerga o'zi ulanadi (hubJoin.ts) */
+const DEFAULT_HUB_URL = 'https://92-5-56-138.sslip.io';
+/** Kalitsiz ishlash muddati (kun, license.ts): .env faqat qisqartira oladi (sinovda 0); noto'g'ri yoki bo'sh — 14 */
+function graceDays(v: string | undefined): number {
+  const n = Number(v);
+  return v?.trim() && Number.isFinite(n) && n >= 0 ? Math.min(n, LICENSE_GRACE_DAYS) : LICENSE_GRACE_DAYS;
 }
 
 type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
@@ -113,6 +124,19 @@ export const env = {
 
   /** Masofadan kirish: panel Palantir Hub orqali (telefondan, Telegram Mini App). Hub kodi bo'lsa yoqiq; 0 — o'chiq (remote.ts) */
   remotePanel: process.env.REMOTE_PANEL !== '0',
+  /**
+   * O'zi ulanish (hubJoin.ts): Hub kodi yo'q bo'lsa shu Hub'dan o'zi oladi. Sinov serverida va dasturchi nusxasida (.git bor) — faqat
+   * HUB_URL berilsa (sotuvchining haqiqiy Hub'ida sinov yozuvlari paydo bo'lmasin); HUB_AUTO=0 — o'chiq
+   */
+  hubJoinUrl: process.env.HUB_AUTO === '0' ? '' : (process.env.HUB_URL || (testRun || existsSync('.git') ? '' : DEFAULT_HUB_URL)).replace(/\/+$/, ''),
+  /**
+   * Litsenziya (license.ts): kalitsiz ishlash muddati (kun) — faqat qisqartiriladi; sinov uchun kompyuter kodi va sotuvchining ochiq
+   * kaliti — faqat sinov serverida. Kod ochiq: .env ga bir qator yozib (o'z ochiq kaliti, boshqa kompyuter kodi) litsenziyani chetlab
+   * o'tib bo'lmasin — bunday o'zgarish kechasi yangilanishdan keyin ham qolardi
+   */
+  licenseGraceDays: graceDays(process.env.LICENSE_GRACE_DAYS),
+  licenseMachineId: testRun ? process.env.LICENSE_MACHINE_ID || '' : '',
+  licensePublicKey: testRun ? process.env.LICENSE_PUBLIC_KEY || '' : '',
   /** Palantir Hub (rasmiy Instagram uchun): manzili va klinika kaliti — PALANTIR_HUB kodidan (keys.ts o'rnatadi) */
   hub: null as { url: string; clinicId: string; key: string } | null,
   /** Faqat sinov uchun: soxta Instagram Graph API */

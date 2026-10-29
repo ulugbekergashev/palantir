@@ -3,15 +3,17 @@
  * so'rov (/api/pull, port ochilmaydi) → shu yerdagi panel serveri → javob hubga → telefonga.
  * Hub orqali kelgan so'rov http.ts'da shu jarayonning siri bilan belgilanadi: admin, ulash ustasi va ichki xizmatlar yo'llari
  * masofadan yopiq, kirish urinishlari mijozning haqiqiy manzili bo'yicha sanaladi. REMOTE_PANEL=0 — o'chiq.
+ * support — hub admin kaliti bilan ochilgan so'rov (Palantir jamoasi, hub/server.ts): faqat /api/login/support uni qabul qiladi.
+ * Hubga ishoniladi — u baribir masofaviy so'rovlarning hammasini o'tkazadi; egasi jamoa kirishini Sozlamalarda o'chira oladi.
  */
 import { randomBytes } from 'node:crypto';
 import { env } from './env';
 
 /** Hub'dan kelgan so'rovni belgilovchi sir: har ishga tushishda yangi, tashqariga chiqmaydi */
 export const RELAY_SECRET = randomBytes(24).toString('hex');
-export const RELAY_HEADER = 'x-palantir-relay', CLIENT_HEADER = 'x-palantir-client';
+export const RELAY_HEADER = 'x-palantir-relay', CLIENT_HEADER = 'x-palantir-client', SUPPORT_HEADER = 'x-palantir-support';
 
-export interface RelayRequest { id: string; method: string; path: string; headers: Record<string, string>; body: string; ip: string }
+export interface RelayRequest { id: string; method: string; path: string; headers: Record<string, string>; body: string; ip: string; support?: boolean }
 interface RelayAnswer { status: number; headers: Record<string, string>; body: string }
 
 const ANSWER_HEADERS = ['content-type', 'cache-control', 'etag', 'content-disposition', 'last-modified'];
@@ -28,9 +30,11 @@ async function answerOf(r: RelayRequest): Promise<RelayAnswer> {
   if (!env.remotePanel) return text(403, "Masofadan kirish o'chirilgan (klinika kompyuterida REMOTE_PANEL=0)");
   if (!r.path.startsWith('/')) return text(400, "Noto'g'ri yo'l");
   try {
+    // Ichki belgilar faqat shu yerda qo'yiladi: tashqaridan kelgani olib tashlanadi
+    const given = Object.fromEntries(Object.entries(r.headers).filter(([k]) => !k.toLowerCase().startsWith('x-palantir-')));
     const res = await fetch(`${localBase()}${r.path}`, {
       method: r.method,
-      headers: { ...r.headers, [RELAY_HEADER]: RELAY_SECRET, [CLIENT_HEADER]: r.ip },
+      headers: { ...given, [RELAY_HEADER]: RELAY_SECRET, [CLIENT_HEADER]: r.ip, ...(r.support === true ? { [SUPPORT_HEADER]: RELAY_SECRET } : {}) },
       body: r.method === 'GET' || r.method === 'HEAD' ? undefined : Buffer.from(r.body, 'base64'),
       redirect: 'manual',
       signal: AbortSignal.timeout(LOCAL_TIMEOUT_MS),

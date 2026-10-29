@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS businesses (
   owner_chat_id TEXT UNIQUE, link_code TEXT NOT NULL UNIQUE,
   active INTEGER NOT NULL DEFAULT 1, brief_date TEXT, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS support_visits (business_id TEXT NOT NULL, at TEXT NOT NULL, ip TEXT);
+CREATE INDEX IF NOT EXISTS support_visits_biz ON support_visits (business_id, at);
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY, business_id TEXT NOT NULL, title TEXT NOT NULL, notes TEXT, due_at TEXT,
   status TEXT NOT NULL DEFAULT 'open', reminded_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -94,7 +96,7 @@ function ensureColumns(table: string, columns: Record<string, string>): void {
   for (const [name, type] of Object.entries(columns)) if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
 }
 ensureColumns('replies', { booking: 'TEXT', booked_at: 'TEXT', question: 'TEXT', visit_change: 'TEXT', changed_at: 'TEXT' });
-ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT', token_ver: 'INTEGER NOT NULL DEFAULT 0' });
+ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT', token_ver: 'INTEGER NOT NULL DEFAULT 0', support_access: 'INTEGER NOT NULL DEFAULT 0', support_ver: 'INTEGER NOT NULL DEFAULT 0', support_until: 'TEXT' });
 ensureColumns('tasks', { call_to: 'TEXT', spoken: 'INTEGER NOT NULL DEFAULT 0', lead_id: 'TEXT' });
 ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT', next_step: 'TEXT', next_at: 'TEXT', phone_key: 'TEXT', patient_id: 'TEXT', phone_proof: 'TEXT' });
 db.exec(`UPDATE leads SET channel = 'bot', bot_started = 1 WHERE tg_user_id IS NOT NULL AND channel = 'manual' AND ig_user_id IS NULL AND tg_access_hash IS NULL`);
@@ -157,6 +159,12 @@ export interface BusinessRow {
   briefSentDate: string | null;
   /** Kirish kalitlari avlodi (auth.ts): oshirilsa — avval berilgan hamma kirishlar bekor (parol almashdi, «boshqa qurilmalardan chiqish») */
   tokenVer: number;
+  /** Palantir jamoasi hub orqali so'ramasdan kira oladimi — egasi Sozlamalarda o'zi yoqadi (standart: yo'q, har kirish Telegram'da so'raladi) */
+  supportAccess: boolean;
+  /** Egasi Telegram'da bir martalik ruxsat bergan: shu paytgacha jamoa kirishi ochiq (ISO) */
+  supportUntil: string | null;
+  /** Jamoa kirishlari avlodi: egasi o'chirganda oshadi — qayta yoqsa ham eski kirishlar qaytmaydi */
+  supportVer: number;
   createdAt: string;
 }
 
@@ -176,13 +184,16 @@ const toBusiness = (r: Raw): BusinessRow => ({
   eveningDate: str(r.evening_date),
   briefSentDate: str(r.brief_sent_date),
   tokenVer: Number(r.token_ver ?? 0),
+  supportAccess: Number(r.support_access ?? 0) === 1,
+  supportUntil: str(r.support_until),
+  supportVer: Number(r.support_ver ?? 0),
   createdAt: String(r.created_at),
 });
 
 const BIZ_COLUMNS = {
   passwordHash: 'password_hash', profile: 'profile', ownerChatId: 'owner_chat_id', linkCode: 'link_code',
   active: 'active', briefDate: 'brief_date', interview: 'interview', ownerPhone: 'owner_phone',
-  setup: 'setup', outcome: 'outcome', eveningDate: 'evening_date', briefSentDate: 'brief_sent_date',
+  setup: 'setup', outcome: 'outcome', eveningDate: 'evening_date', briefSentDate: 'brief_sent_date', supportAccess: 'support_access',
 } as const;
 
 export const businesses = {
@@ -205,7 +216,7 @@ export const businesses = {
     // Bitta Telegram chat — bitta biznes: boshqasiga ulansa, eskisi uziladi
     if (patch.ownerChatId) run('UPDATE businesses SET owner_chat_id = NULL WHERE owner_chat_id = ? AND id <> ?', patch.ownerChatId, id);
     const sets = entries.map(([k]) => `${BIZ_COLUMNS[k]} = ?`).join(', ');
-    const values = entries.map(([k, v]) => (k === 'profile' ? JSON.stringify(v) : k === 'active' ? (v ? 1 : 0) : (v as string | null)));
+    const values = entries.map(([k, v]) => (k === 'profile' ? JSON.stringify(v) : k === 'active' || k === 'supportAccess' ? (v ? 1 : 0) : (v as string | null)));
     run(`UPDATE businesses SET ${sets} WHERE id = ?`, ...values, id);
   },
   /** Avval berilgan hamma kirishlarni bekor qiladi. Qaytadi — yangi avlod (shu bilan berilgan kalit ishlaydi) */
@@ -213,6 +224,28 @@ export const businesses = {
     run('UPDATE businesses SET token_ver = token_ver + 1 WHERE id = ?', id);
     return businesses.byId(id)?.tokenVer ?? 0;
   },
+  /** Palantir jamoasi kirishini o'chiradi va berilgan jamoa kirishlarini butunlay bekor qiladi (egasining kirishiga tegmaydi) */
+  closeSupport(id: string): void {
+    run('UPDATE businesses SET support_access = 0, support_until = NULL, support_ver = support_ver + 1 WHERE id = ?', id);
+  },
+  /** Egasi Telegram'da bir martalik ruxsat berdi: shu paytgacha jamoa kira oladi */
+  grantSupport(id: string, until: string): void {
+    run('UPDATE businesses SET support_until = ? WHERE id = ?', until, id);
+  },
+};
+
+/** Palantir jamoasi hozir kira oladimi: egasi doimiy yoqib qo'ygan yoki Telegram'da bir martalik ruxsat bergan (muddati o'tmagan) */
+export const supportOpen = (b: BusinessRow, now = Date.now()): boolean => b.supportAccess || (!!b.supportUntil && Date.parse(b.supportUntil) > now);
+
+/** Palantir jamoasi kirishlari: egasi Sozlamalarda ko'radi */
+const SUPPORT_VISITS_KEEP = 50;
+export const supportVisits = {
+  add(businessId: string, ip: string | null): void {
+    run('INSERT INTO support_visits (business_id, at, ip) VALUES (?, ?, ?)', businessId, nowIso(), ip);
+    run('DELETE FROM support_visits WHERE business_id = ? AND at NOT IN (SELECT at FROM support_visits WHERE business_id = ? ORDER BY at DESC LIMIT ?)', businessId, businessId, SUPPORT_VISITS_KEEP);
+  },
+  recent: (businessId: string, limit: number) =>
+    many('SELECT at, ip FROM support_visits WHERE business_id = ? ORDER BY at DESC LIMIT ?', r => ({ at: String(r.at), ip: str(r.ip) }), businessId, limit),
 };
 
 // ─── Vazifalar ────────────────────────────────────────────────────────────────
@@ -897,6 +930,13 @@ export const aiUsage = {
 
 // ─── Server kalitlari (ulash ustasida kiritiladi) ────────────────────────────
 db.exec('CREATE TABLE IF NOT EXISTS settings (name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)');
+
+// Palantir jamoasi kirishi endi egasining roziligi bilan (http.ts, /api/login/support). Avval standart yoqiq edi — egasi o'zi tanlamagan,
+// shuning uchun bir marta hammasi yopiladi (berilgan jamoa kirishlari ham bekor); xohlagan egasi Sozlamalarda qayta yoqadi
+if (!one("SELECT 1 AS x FROM settings WHERE name = 'support.optin'", () => true)) {
+  run('UPDATE businesses SET support_access = 0, support_until = NULL, support_ver = support_ver + 1');
+  run("INSERT INTO settings (name, value, updated_at) VALUES ('support.optin', '1', ?)", nowIso());
+}
 
 /** Server bo'yicha kalitlar: qiymat shifrlangan holda (secret.ts) keladi va shunday saqlanadi */
 export const settings = {

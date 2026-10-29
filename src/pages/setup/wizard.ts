@@ -10,7 +10,7 @@ export type StepState = 'ok' | 'warn' | 'skip' | '';
 
 export interface StepInfo { key: StepKey; title: string; lead: string }
 export const STEPS: StepInfo[] = [
-  { key: 'clinic', title: 'Klinika', lead: "Qaysi klinikani ulayapmiz. Egasi anketani oldindan to'ldirgan bo'lsa — kodini kiriting: manzil, narxlar va javoblar shu kompyuterga tushadi." },
+  { key: 'clinic', title: 'Klinika', lead: "Qaysi klinikani ulayapmiz. Manzil, ish vaqti va narxlarni keyin egasi Telegram'da aytadi — bot o'zi so'raydi." },
   { key: 'keys', title: 'Kalitlar', lead: "Bot tokeni, AI kalitlari, kamera manzili, DentaCRM havolasi — hammasini bitta maydonga qo'ying. Palantir har birining turini o'zi taniydi va darhol tekshiradi." },
   { key: 'owner', title: "Egasining Telegram'i", lead: "Egasi yordamchi bilan shu botda gaplashadi: eslatmalar, ertalabki xulosa, mijozlarga javob takliflari unga keladi." },
   { key: 'crm', title: 'DentaCRM', lead: "Qabullar, kelgan-kelmaganlar va tushum Palantir'ga shu yerdan keladi." },

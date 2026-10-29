@@ -9,20 +9,22 @@
 process.env.TZ = 'Asia/Tashkent';
 // Bu sinov server modullarini o'zi import qiladi (about → vault → db): haqiqiy bazaga tegmasin
 import './isolate';
-import { spawn, type ChildProcess } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import { createSocket } from 'node:dgram';
 import { createServer as createTcp } from 'node:net';
 import { createServer, type IncomingMessage } from 'node:http';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { classifyLine, classifyText, containsSecret, maskSecret } from '../src/lib/secrets';
 import { emptyAnketa, hoursText, missingDays, cleanCode } from '../src/lib/anketa';
 import { parsePrices, splitConflicts } from '../src/lib/prices';
 import { setAboutLine } from '../server/setup/about';
-import { brandOf, candidatePaths, parseProbeMatch, pickProfile, withCredentials, wsSecurity } from '../server/camera/discover';
+import { brandOf, candidatePaths, channelOf, channelUrl, parseProbeMatch, pickProfile, withCredentials, wsSecurity } from '../server/camera/discover';
 import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
+import { checkLicense, issueLicense, normalizeMachineId, signingKey } from '../hub/licenseKey';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => {
@@ -62,6 +64,57 @@ ok('anketa kodi: harf-raqam aralash yozilsa ham tozalanadi', cleanCode('k7qm 2xp
 ok('«Biznes haqida»: qator almashadi, yangi qator aloqa qatorlari yoniga', setAboutLine('Matn\n\n- Telefon: 1\n\n## Jamoa\n- A', 'Manzil', 'X') === 'Matn\n\n- Telefon: 1\n- Manzil: X\n\n## Jamoa\n- A'
   && setAboutLine('- Manzil: eski', 'Manzil', 'yangi') === '- Manzil: yangi' && setAboutLine('', 'Manzil', 'X') === '- Manzil: X');
 
+console.log('\n# Litsenziya kaliti (sof)');
+{
+  const pair = generateKeyPairSync('ed25519'), other = generateKeyPairSync('ed25519');
+  const pub = pair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+  const otherPub = other.publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+  const id = 'ABCD-1234-EF56-7890', day = Date.UTC(2026, 9, 25);
+  const key = issueLicense(id, pair.privateKey, day);
+  ok('kompyuter kodi: bo\'shliq, kichik harf va chiziqsiz yozilsa ham taniladi; noto\'g\'risi — null',
+    normalizeMachineId(' abcd1234 ef56-7890 ') === id && normalizeMachineId('ABCD-1234') === null && normalizeMachineId('XYZW-1234-EF56-7890') === null);
+  ok('kalit: PAL1-, 107 belgi, shu kompyuterda — berilgan kun bilan', key.startsWith('PAL1-') && key.length === 107 && checkLicense(key, id, pub)?.issuedAt === '2026-10-25', key.slice(0, 12));
+  ok("boshqa kompyuterda ishlamaydi", checkLicense(key, 'ABCD-1234-EF56-7891', pub) === null);
+  const flipped = key.slice(0, 60) + (key[60] === 'A' ? 'B' : 'A') + key.slice(61);
+  ok("bitta belgi o'zgarsa — ishlamaydi (imzo)", checkLicense(flipped, id, pub) === null);
+  ok("boshqa (begona) maxfiy kalit bilan yasalgani ishlamaydi", checkLicense(issueLicense(id, other.privateKey), id, pub) === null && checkLicense(key, id, otherPub) === null);
+  ok('kalit Telegram\'dan qatorlarga bo\'linib kelsa ham o\'qiladi', checkLicense(`${key.slice(0, 50)}\n ${key.slice(50)}`, id, pub) !== null);
+  const der = pair.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64');
+  ok("Hub'dagi bir qatorli maxfiy kalit (base64) ham PEM kabi ishlaydi", checkLicense(issueLicense(id, signingKey(der), day), id, pub) !== null
+    && checkLicense(issueLicense(id, signingKey(String(pair.privateKey.export({ type: 'pkcs8', format: 'pem' }))), day), id, pub) !== null);
+  // Kod ochiq: .env ga bir qator yozib (o'z ochiq kaliti, boshqa kompyuter kodi, uzun muddat) litsenziyani chetlab bo'lmasin
+  const envDir = mkdtempSync(join(tmpdir(), 'palantir-env-'));
+  writeFileSync(join(envDir, '.env'), `LICENSE_PUBLIC_KEY=${otherPub}\nLICENSE_MACHINE_ID=${id}\nLICENSE_GRACE_DAYS=9999\nDOTENV=0\n`);
+  const envOf = (vars: Record<string, string>) => JSON.parse(execFileSync(process.execPath, ['--no-warnings', '--import', pathToFileURL(resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e',
+    `const { env } = await import(${JSON.stringify(pathToFileURL(resolve('server/env.ts')).href)}); console.log(JSON.stringify([env.licenseGraceDays, env.licenseMachineId, env.licensePublicKey]))`],
+  { cwd: envDir, env: { ...process.env, ...vars }, encoding: 'utf8' })) as [number, string, string];
+  const fromDotenv = envOf({ DOTENV: '' });
+  ok(".env dagi ochiq kalit, kompyuter kodi va uzun muddat hisobga olinmaydi (DOTENV=0 ham)", JSON.stringify(fromDotenv) === JSON.stringify([14, '', '']), JSON.stringify(fromDotenv));
+  const testServer = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: '3', LICENSE_MACHINE_ID: id }), bad = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: 'abc' });
+  ok("sinov serverida olinadi; muddat faqat qisqaradi, noto'g'risi — 14", testServer[0] === 3 && testServer[1] === id && bad[0] === 14, JSON.stringify([testServer, bad]));
+  rmSync(envDir, { recursive: true, force: true });
+  // Litsenziya qo'shilgan yangilanish oldindan ishlab turgan klinikaga kelsa: biznesi hisob boshlanishidan oldin yaratilgan — 30 kun
+  const statusAfter = (businessAgeDays: number, firstRunDaysAgo: number) => {
+    const dir = mkdtempSync(join(tmpdir(), 'palantir-lic-'));
+    const at = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+    writeFileSync(join(dir, 'litsenziya.json'), JSON.stringify({ key: null, firstRun: { [id]: at(firstRunDaysAgo) } }));
+    const url = (f: string) => JSON.stringify(pathToFileURL(resolve(f)).href);
+    try {
+      return JSON.parse(execFileSync(process.execPath, ['--no-warnings', '--import', pathToFileURL(resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e',
+        `const { businesses, sql } = await import(${url('server/db.ts')}); const { licenseStatus } = await import(${url('server/license.ts')});
+         businesses.create('klinika', 'x', { name: 'Klinika', ownerName: '', industry: 'stomatologiya', phone: '', address: '', brand: {}, offerings: [], team: [] });
+         sql.run('UPDATE businesses SET created_at = ?', ${JSON.stringify(at(businessAgeDays))});
+         console.log(JSON.stringify(licenseStatus()))`],
+      { env: { ...process.env, DOTENV: '0', DATA_DIR: dir, LICENSE_MACHINE_ID: id, LICENSE_GRACE_DAYS: '' }, encoding: 'utf8' }).trim().split('\n').at(-1)!) as { daysLeft: number; blocked: boolean };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const upgraded = statusAfter(60, 20), fresh = statusAfter(0, 20);
+  ok("yangilangan eski klinika: 30 kun (20 kun o'tdi — 10 qoldi); yangi o'rnatish: 14 kun (yopiq)", upgraded.daysLeft === 10 && !upgraded.blocked && fresh.daysLeft === 0 && fresh.blocked,
+    JSON.stringify([upgraded, fresh]));
+}
+
 console.log('\n# Kamera qidiruvi (sof)');
 const MATCH = `<?xml version="1.0"?><s:Envelope><s:Body><d:ProbeMatches><d:ProbeMatch><d:Scopes>onvif://www.onvif.org/name/HIKVISION%20DS-2CD1043G0-I onvif://www.onvif.org/hardware/DS-2CD1043G0-I</d:Scopes><d:XAddrs>http://192.168.1.64/onvif/device_service http://[fe80::1]/onvif/device_service</d:XAddrs></d:ProbeMatch></d:ProbeMatches></s:Body></s:Envelope>`;
 const cam = parseProbeMatch(MATCH, '192.168.1.64');
@@ -69,6 +122,13 @@ ok('ONVIF javobi: IP, marka, model, boshqaruv manzili', cam?.ip === '192.168.1.6
 const spoof = parseProbeMatch(MATCH.replace('http://192.168.1.64/', 'http://127.0.0.1/'), '192.168.1.77');
 ok("ONVIF javobidagi begona IP'ga ishonilmaydi: IP — javob kelgan manzil", spoof?.ip === '192.168.1.77' && spoof.onvif === null, JSON.stringify(spoof));
 ok('marka modeldan ham taniladi', brandOf('IPC-HFW1230S') === 'Dahua' && brandOf('noma\'lum') === '');
+ok('registrator kanali: Hikvision/HiWatch (parol, ONVIF so\'rovi saqlanadi; 11-kanal), Dahua; oddiy kamera — null',
+  channelUrl('rtsp://admin:p%40ss@192.168.1.64:554/Streaming/Channels/102', 3) === 'rtsp://admin:p%40ss@192.168.1.64:554/Streaming/Channels/302'
+  && channelUrl('rtsp://192.168.1.64/Streaming/Channels/102?transportmode=unicast', 11) === 'rtsp://192.168.1.64/Streaming/Channels/1102?transportmode=unicast'
+  && channelOf('rtsp://192.168.1.64/Streaming/Channels/1101') === 11
+  && channelUrl('rtsp://192.168.1.108:554/cam/realmonitor?channel=1&subtype=1', 4) === 'rtsp://192.168.1.108:554/cam/realmonitor?channel=4&subtype=1'
+  && channelOf('rtsp://192.168.1.10:554/stream1') === null && channelUrl('rtsp://192.168.1.10:554/stream1', 2) === null);
+ok('HiWatch — Hikvision yo\'llari bilan', brandOf('HiWatch DS-I253') === 'Hikvision' && brandOf('DS-I203(D)') === 'Hikvision' && brandOf('DS-T203') === 'Hikvision');
 ok('markaning yo\'llari birinchi, umumiylari keyin', candidatePaths('Dahua')[0].startsWith('/cam/realmonitor') && candidatePaths('').length >= 4);
 ok('eng yengil profil tanlanadi', pickProfile('<trt:Profiles token="main"><tt:Width>1920</tt:Width><tt:Height>1080</tt:Height></trt:Profiles><trt:Profiles token="sub"><tt:Width>640</tt:Width><tt:Height>360</tt:Height></trt:Profiles>') === 'sub');
 ok("parolda @ va : bo'lsa ham manzil buzilmaydi", new URL(withCredentials('rtsp://1.2.3.4:554/x', 'admin', 'a@b:c')).password === 'a%40b%3Ac');
@@ -254,6 +314,14 @@ try {
   let mark = sent.length;
   say(OWNER, `/start ${link.split('start=')[1]}`);
   ok('egasi botni ulab oldi', !!(await waitFor('ulandi', () => toOwner(mark, 'Ulandi'))));
+  // Anketa bo'lmasa ham ma'lumot yig'iladi: birinchi ulanishda tanishuv taklif qilinadi, lekin o'zi boshlanmaydi
+  const offer = await waitFor('tanishuv taklifi', () => toOwner(mark, 'tanishib olay'));
+  const offerData = buttons(offer).map(x => x.callback_data);
+  ok('ulanishda tanishuv taklifi: «Boshlash» va «Keyinroq» tugmalari', !!offer && offerData.includes('iv|go') && offerData.includes('iv|later'), JSON.stringify(offerData));
+  ok("taklifda savollar soni va fayl bilan narx yuborish aytilgan", !!offer && /\d+ ta qisqa savol/.test(textOf(offer)) && textOf(offer).includes('Excel, PDF yoki Word'));
+  mark = sent.length;
+  press(OWNER, 'iv|go', offer!.id!);
+  ok('«Tanishishni boshlash» — birinchi savol keldi', !!(await waitFor('boshlash', () => toOwner(mark, 'narxi ikki xil'))));
   mark = sent.length;
   ok('«Egasidan so\'rash» bosildi', (await api('/api/setup/ask', { token, body: {} })).status === 200);
   const first = await waitFor('narx savoli', () => toOwner(mark, 'narxi ikki xil'));
@@ -278,6 +346,14 @@ try {
   const me2 = (await api('/api/me', { token })).json.business;
   ok('narx jadvalda: tugmada tanlangani (eski tugma ustidan yozmadi)', me2.offerings.find((o: { name: string }) => o.name === 'Tish tozalash')?.price === 250_000);
   ok("bo'shliq qolmadi", (await api('/api/setup', { token })).json.setup.gaps.length === 0);
+
+  // Tayyor savollar hali javobsiz — taklif chiqishi mumkin edi, lekin u faqat birinchi ulanishda (qurilma almashganda emas)
+  const relink = (await api('/api/me', { token })).json.status.linkUrl as string;
+  mark = sent.length;
+  say(OWNER, `/start ${relink.split('start=')[1]}`);
+  ok('egasi yangi havola bilan qayta ulandi', !!(await waitFor('qayta ulandi', () => toOwner(mark, 'Ulandi'))));
+  await new Promise(r => setTimeout(r, 500));
+  ok("qayta ulanishda tanishuv qayta taklif qilinmaydi", !toOwner(mark, 'tanishib olay'));
 
   console.log('\n# Maxfiy kalit suhbatga yozilsa');
   mark = sent.length;

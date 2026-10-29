@@ -13,6 +13,9 @@ Set-Location $Root
 
 $Voice = Join-Path $Root 'tgvoice'
 $VenvPython = Join-Path $Voice '.venv\Scripts\python.exe'
+# O'rnatuvchi exe ichidagi Python (runtime\python, kutubxonalari bilan - scripts\setup-exe.ts): bo'lsa venv o'rniga shu, internetsiz
+$BundledPython = Join-Path $Root 'runtime\python\python.exe'
+if (Test-Path $BundledPython) { $VenvPython = $BundledPython }
 $WakeModel = 'vosk-model-small-ru-0.22'
 $WakeUrl = "https://alphacephei.com/vosk/models/$WakeModel.zip"
 $RootfsUrl = 'https://cloud-images.ubuntu.com/wsl/releases/24.04/current/ubuntu-noble-wsl-amd64-wsl.rootfs.tar.gz'
@@ -70,7 +73,7 @@ if ($AsteriskPart) {
     & wsl.exe --install --no-distribution
     if ($LASTEXITCODE -ne 0) { Fail "WSL o'rnatilmadi. Kompyuter BIOS'ida virtualizatsiya (VT-x / AMD-V, SVM) yoqilganini tekshiring." }
     Write-Host ''
-    Write-Host '   WSL o''rnatildi. KOMPYUTERNI QAYTA YOQING, keyin install\Ornatish.cmd ni yana ishga tushiring.' -ForegroundColor Yellow
+    Write-Host '   WSL o''rnatildi. KOMPYUTERNI QAYTA YOQING, keyin install\Telefon.cmd ni yana ishga tushiring.' -ForegroundColor Yellow
     exit 3010
   }
   Note 'WSL bor'
@@ -181,8 +184,14 @@ if (Test-Path $VenvPython) {
   Run 'Ovoz xizmati muhiti (venv)' { & $python -m venv (Join-Path $Voice '.venv') }
 }
 
-Step "Ovoz xizmati: kutubxonalar (bir necha daqiqa)"
-Run 'pip' { & $VenvPython -m pip install --disable-pip-version-check -q -r (Join-Path $Voice 'requirements.txt') }
+if ($VenvPython -eq $BundledPython) {
+  Step 'Ovoz xizmati: kutubxonalar (dastur ichida)'
+  # Ovoz skriptlarining o'z modullari ham: dastur ichidagi Python skript papkasini o'zi qo'shmaydi (._pth - scripts\setup-exe.ts)
+  Run 'Kutubxonalar tekshiruvi' { & $VenvPython -c 'import vosk, ntgcalls, pytgcalls, telethon, google.genai, httpx, websockets; import common, call_live, reception' }
+} else {
+  Step "Ovoz xizmati: kutubxonalar (bir necha daqiqa)"
+  Run 'pip' { & $VenvPython -m pip install --disable-pip-version-check -q -r (Join-Path $Voice 'requirements.txt') }
+}
 Note 'Kutubxonalar tayyor'
 
 Step "'Quloq' modeli (Palantir / Jarvis deb chaqirish)"
@@ -200,7 +209,7 @@ if (Test-Path (Join-Path $models $WakeModel)) { Note 'Model bor' } else {
 }
 
 Step 'Ovoz xizmati: sozlamalar (.env)'
-if (-not (Test-Path '.env')) { Fail ".env yo'q - avval install\Ornatish.cmd ni ishga tushiring" }
+if (-not (Test-Path '.env')) { Fail ".env yo'q - avval Ornatish.cmd ni ishga tushiring (dastur papkasida)" }
 Add-EnvValue 'TG_CALL_PYTHON' $VenvPython
 Add-EnvValue 'TG_CALL_SCRIPT' (Join-Path $Voice 'call_live.py')
 # Egasining SIP ilovasi uchun parol (telefon liniyasi); ovozli agent kalitini Palantir o'zi yaratadi (DATA_DIR\ovoz.env)

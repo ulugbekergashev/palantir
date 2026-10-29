@@ -30,12 +30,18 @@ export interface Session {
   exp: number;
   /** Biznes kirishlari avlodi (businesses.token_ver): mos kelmasa — kirish bekor qilingan. Eski kalitlarda yo'q — 0 */
   v?: number;
+  /** Palantir jamoasi (hub orqali, parolsiz): egasi ruxsatni o'chirsa — kirish bekor; egasining o'z sozlamalariga tegmaydi */
+  sup?: true;
+  /** Jamoa kirishlari avlodi (businesses.support_ver): egasi o'chirib qayta yoqsa ham eski jamoa kirishi qaytmaydi */
+  sv?: number;
 }
 
 const sign = (body: string) => createHmac('sha256', env.sessionSecret).update(body).digest('base64url');
 
-export function issueToken(sub: string, role: Session['role'], days = 30, v = 0): string {
-  const body = Buffer.from(JSON.stringify({ sub, role, exp: Date.now() + days * 86_400_000, v } satisfies Session)).toString('base64url');
+/** supportVer berilsa — Palantir jamoasi kirishi (shu avlod bilan) */
+export function issueToken(sub: string, role: Session['role'], days = 30, v = 0, supportVer: number | null = null): string {
+  const support = supportVer === null ? {} : { sup: true as const, sv: supportVer };
+  const body = Buffer.from(JSON.stringify({ sub, role, exp: Date.now() + days * 86_400_000, v, ...support } satisfies Session)).toString('base64url');
   return `${body}.${sign(body)}`;
 }
 

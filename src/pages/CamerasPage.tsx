@@ -6,6 +6,7 @@ import { loadPersonDetector, type PersonBox } from '../lib/personDetector';
 import { api } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { Button, inputClass } from '../components/ui';
+import { RecorderChannels } from '../components/RecorderChannels';
 
 type Draft = Omit<CameraZone, 'id'> & { id?: string };
 /** Bitta kamerada zonalar (server ham shuni tekshiradi) */
@@ -54,6 +55,8 @@ export function CamerasPage({ notify }: { notify: Notify }) {
   const [manual, setManual] = useState({ name: '', url: '' });
   const [local, setLocal] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  /** Hozirgina ulangan IP kamera — registrator bo'lsa, boshqa kanallari taklif qilinadi */
+  const [recorder, setRecorder] = useState<string | null>(null);
   const fail = (e: unknown) => notify((e as Error).message, true);
   const load = () => api.cameras().then(c => { setList(c.cameras); setTiming(c.timing); }).catch(fail);
   useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 10_000); return () => clearInterval(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -73,6 +76,7 @@ export function CamerasPage({ notify }: { notify: Notify }) {
     const r = await api.connectCamera({ ip: c.ip, port: c.rtspPort, brand: c.brand, onvif: c.onvif, login: cred.login, password: cred.password, name: names[c.ip] || placeFor(0) });
     setFound(f => f?.map(x => (x.ip === c.ip ? { ...x, connected: true } : x)) ?? null);
     setPicked(r.camera.id);
+    setRecorder(r.camera.id);
     await load();
     notify(`${r.camera.name} ulandi — endi kreslo va kassani belgilang`);
   });
@@ -83,6 +87,7 @@ export function CamerasPage({ notify }: { notify: Notify }) {
     try { await api.setCameraStream(id, manual.url.trim()); } catch (e) { await api.removeCamera(id).catch(() => {}); throw e; }
     setManual({ name: '', url: '' });
     setPicked(id);
+    setRecorder(id);
     await load();
     notify(`${name} ulandi`);
   });
@@ -151,6 +156,7 @@ export function CamerasPage({ notify }: { notify: Notify }) {
               </ul>
             </div>
           ))}
+        {recorder && <div className="mb-5"><RecorderChannels key={recorder} cameraId={recorder} placeFor={placeFor} notify={notify} onConnected={() => { void load(); }} /></div>}
         <datalist id="camera-places">{PLACES.map(p => <option key={p} value={p} />)}</datalist>
         <form onSubmit={e => { e.preventDefault(); if (manual.url.trim()) void connectUrl(); }} className="grid gap-3 sm:grid-cols-[200px_minmax(0,1fr)_auto] sm:items-end">
           <label className={label}>Qayerda turibdi<input className={field} value={manual.name} onChange={e => setManual({ ...manual, name: e.target.value })} placeholder={placeFor(0)} maxLength={40} list="camera-places" /></label>

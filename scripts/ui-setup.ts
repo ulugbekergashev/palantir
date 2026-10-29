@@ -116,6 +116,11 @@ try {
   await shot(page, 'usta-klinika-yangi');
   await page.getByRole('button', { name: "Klinikani qo'shish" }).click();
   ok("klinika qo'shildi, login-parol ko'rsatildi", await page.getByText("Klinika qo'shildi").waitFor({ timeout: 15000 }).then(() => true, () => false));
+  // Anketa ixtiyoriy: forma yopiq turadi (ma'lumot egasi ulangach tanishuvda yig'iladi), kod bo'lsa ochiladi
+  const anketaOpener = page.getByRole('button', { name: /Kod bilan yuklash/ });
+  const opener = await anketaOpener.waitFor({ timeout: 10000 }).then(() => true, () => false);
+  ok('anketa formasi odatda yopiq — «Kod bilan yuklash» bilan ochiladi', opener && !(await page.getByLabel('Anketa kodi').isVisible()));
+  await anketaOpener.click();
   await page.getByLabel('Anketa kodi').fill(code.toLowerCase());
   await page.getByLabel('Anketa serveri').fill(base);
   await page.getByRole('button', { name: 'Yuklash' }).click();

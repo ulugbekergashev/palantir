@@ -13,7 +13,7 @@ import { businesses, cameraSessions, cameras, newId, type BusinessRow } from '..
 import { env } from '../env';
 import { open, seal } from '../secret';
 import { TARGET_FRAMES_PER_MIN, cameraLoad, checkStreamHost, feedOf, ffmpegAvailable, parseStream, snapshot, startCameraEngine, syncEngine } from './stream';
-import { candidatePaths, discoverCameras, onvifStreamUri, withCredentials } from './discover';
+import { candidatePaths, channelOf, channelUrl, discoverCameras, onvifStreamUri, withCredentials } from './discover';
 import { loginBlocked, loginFailed, loginOk } from '../auth';
 import { findings, reconcile, unbilled, type Sitting } from './reconcile';
 import { cameraAccuracy } from './accuracy';
@@ -60,6 +60,9 @@ const ConnectSchema = z.object({
 /** Bitta ulanishda shuncha manzil sinab ko'riladi, har biri shuncha kutiladi (so'rov uzoq osilib qolmasin) */
 const MAX_TRIES = 8, TRY_TIMEOUT_MS = 8_000;
 let discovering = false;
+/** Registrator kanallari: 1..MAX_CHANNELS tekshiriladi, bir vaqtda CHANNEL_PARALLEL tasi (registrator ko'p ulanishni yoqtirmaydi) */
+const MAX_CHANNELS = 16, CHANNEL_PARALLEL = 4, CHANNEL_TIMEOUT_MS = 6_000;
+let probing = false;
 /** Kamera o'z manzilini boshqa IP bilan bersa (tashqi tarmoq uchun sozlangan) — biz topgan IP qo'yiladi */
 const onHost = (rtsp: string, ip: string): string => { const u = new URL(rtsp); u.hostname = ip; return u.href; };
 const hostsOf = (list: string) => list.split(',').map(s => s.trim()).filter(Boolean).map(s => { const [host, port] = s.split(':'); return { host, port: Number(port) }; });
@@ -288,6 +291,60 @@ export function mountCamera(app: Express, { asBiz, bad }: Deps): void {
     cameras.setStream(biz.id, cam.id, seal(stream.url), stream.host);
     syncEngine();
     res.json({ camera: view(cameras.get(biz.id, cam.id)!) });
+  }));
+
+  /** Kameraning manzili (ochilgan) — IP kamera bo'lmasa null */
+  const streamOf = (bizId: string, cameraId: string): string | null => { const s = cameras.stream(bizId, cameraId); return s ? open(s) : null; };
+
+  /**
+   * Registratorning boshqa kanallari: kamera ulangach — shu qurilmada yana qaysi kanallardan kadr keladi. Kadri bilan qaytadi:
+   * egasi ko'rib tanlab ulaydi (registratorning bo'sh kanali ham «Video yo'q» kadrini berishi mumkin — avtomatik ulanmaydi).
+   * Allaqachon ulangan kanallar taklif qilinmaydi
+   */
+  app.post('/api/cameras/:id/channels', asBiz(async (req, res, biz) => {
+    const cam = found(res, biz, req.params.id);
+    if (!cam) return;
+    const url = streamOf(biz.id, cam.id);
+    if (!url || channelOf(url) === null) return res.json({ channels: [] });
+    if (probing) return res.status(429).json({ error: 'Kanallar tekshirilyapti — biroz kuting' });
+    const host = new URL(url).host;
+    const taken = new Set(cameras.list(biz.id).flatMap(c => {
+      const other = streamOf(biz.id, c.id);
+      return other && new URL(other).host === host ? [channelOf(other)] : [];
+    }));
+    const todo = Array.from({ length: MAX_CHANNELS }, (_, i) => i + 1).filter(n => !taken.has(n));
+    probing = true;
+    try {
+      const channels: { channel: number; preview: string }[] = [];
+      for (let i = 0; i < todo.length; i += CHANNEL_PARALLEL) {
+        const shots = await Promise.all(todo.slice(i, i + CHANNEL_PARALLEL).map(n =>
+          snapshot(channelUrl(url, n)!, CHANNEL_TIMEOUT_MS).then(img => ({ channel: n, preview: `data:image/jpeg;base64,${img.toString('base64')}` }), () => null)));
+        channels.push(...shots.filter(s => s !== null));
+      }
+      res.json({ channels });
+    } finally {
+      probing = false;
+    }
+  }));
+
+  /** Registratorning tanlangan kanalini alohida kamera qilib ulash (login-parol o'sha kameraniki) */
+  app.post('/api/cameras/:id/channels/:n', asBiz(async (req, res, biz) => {
+    const cam = found(res, biz, req.params.id);
+    if (!cam) return;
+    const n = Number(req.params.n);
+    const p = z.object({ name: z.string().trim().min(1).max(40) }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    if (!Number.isInteger(n) || n < 1 || n > MAX_CHANNELS) return res.status(400).json({ error: "Kanal raqami noto'g'ri" });
+    if (cameras.list(biz.id).length >= MAX_CAMERAS) return res.status(409).json({ error: `Ko'pi bilan ${MAX_CAMERAS} ta kamera` });
+    const url = streamOf(biz.id, cam.id);
+    const target = url ? channelUrl(url, n) : null;
+    if (!target) return res.status(400).json({ error: 'Bu kamera registratorga ulanmagan' });
+    try { await snapshot(target, TRY_TIMEOUT_MS); } catch (e) { return res.status(400).json({ error: (e as Error).message }); }
+    const added = cameras.create(biz.id, p.data.name);
+    const stream = parseStream(target);
+    cameras.setStream(biz.id, added.id, seal(stream.url), stream.host);
+    syncEngine();
+    res.json({ camera: view(cameras.get(biz.id, added.id)!) });
   }));
 
   app.put('/api/cameras/:id/zones', asBiz((req, res, biz) => {

@@ -117,11 +117,15 @@ const confValue = (v: string) => v.replace(/[\r\n;[\]]/g, '').trim();
 function writeTrunkConf(t: LineTrunk, password: string): void {
   if (!ENABLED) return;
   const host = confValue(t.host), port = t.port === 5060 ? '' : `:${t.port}`, user = confValue(t.login), num = confValue(t.number);
+  // 5061 — shifrlangan SIP (TLS): provayder oddiy SIP'ni to'sganda ham o'tadi. Aks holda UDP (DNS TCP'ni taklif qilsa ham — TCP'da
+  // javob kelmaydi, sip.zadarma.com)
+  const proto = t.port === 5061 ? 'tls' : 'udp', uriTail = proto === 'tls' ? ';transport=tls' : '';
   writeFileSync(join(DIR, 'pjsip_shahar.conf'), `; Panel yozgan (Sozlamalar → Telefon liniyasi) — qo'lda o'zgartirmang
 [shahar]
 type=registration
+transport=${proto}
 outbound_auth=shahar
-server_uri=sip:${host}${port}
+server_uri=sip:${host}${port}${uriTail}
 client_uri=sip:${user}@${host}${port}
 contact_user=${num || user}
 retry_interval=60
@@ -134,10 +138,11 @@ password=${confValue(password)}
 
 [shahar]
 type=aor
-contact=sip:${host}${port}
+contact=sip:${host}${port}${uriTail}
 
 [shahar]
 type=endpoint
+transport=${proto}
 context=shahar
 disallow=all
 allow=alaw,ulaw
