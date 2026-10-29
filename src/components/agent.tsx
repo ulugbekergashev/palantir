@@ -46,7 +46,8 @@ export function AgentHero({ member, state, stats, children, compact = false }: {
           <h1 className="text-[20px] font-bold leading-tight tracking-tight text-[#f2f0ea]">{m.name}</h1>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: h.text }}>{m.role}</p>
         </div>
-        {children && <div className="relative">{children}</div>}
+        {/* Telefonda varaqlar alohida qatorda va ekran enida (suriladi) — sarlavhadan chiqib ketmaydi */}
+        {children && <div className="relative min-w-0 max-w-full basis-full sm:basis-auto">{children}</div>}
       </header>
     );
   }

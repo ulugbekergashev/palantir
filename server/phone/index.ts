@@ -31,6 +31,7 @@ import {
 import { AUDIO_EXT, MIME, findRecording, moveRecording, pickRecording } from './recordings';
 import { STATION_RECORDINGS_DIR, queueDial, stationRecordings, stations, type Station } from './stations';
 import { RECORDINGS_DIR, phoneCalls, type PhoneCallRow } from './store';
+import { CALL_OUTCOME, CALL_OUTCOME_ICON, type CallOutcomeKey } from '../../src/lib/requests';
 
 export { RECORDINGS_DIR };
 
@@ -274,7 +275,7 @@ export function stationRecording(station: Station): void {
 // ─── Tahlil ──────────────────────────────────────────────────────────────────
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const OUTCOME_LABEL = { booked: '✅ Kelishildi', callback: "🔁 Qayta bog'lanish kerak", info: "ℹ️ Ma'lumot oldi", lost: "❌ Qiziqmadi", complaint: '⚠️ Shikoyat', other: '•' } as const;
+const OUTCOME_LABEL = Object.fromEntries((Object.keys(CALL_OUTCOME) as CallOutcomeKey[]).map(k => [k, k === 'other' ? '•' : `${CALL_OUTCOME_ICON[k]} ${CALL_OUTCOME[k]}`])) as Record<CallOutcomeKey, string>;
 
 /** Yozuv → matn → tahlil → mijoz kartasi, so'rov, egasiga xabar. Xato bo'lsa — «failed» (panelda ko'rinadi) */
 export async function review(bizId: string, callId: string): Promise<void> {

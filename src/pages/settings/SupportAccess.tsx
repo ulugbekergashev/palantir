@@ -9,6 +9,7 @@ import { api, type SupportAccessView } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { Button } from '../../components/ui';
 import { ago } from '../../components/agent';
+import { when } from '../../lib/text';
 
 const VISITS_SHOWN = 5;
 
@@ -35,7 +36,7 @@ export function SupportAccess({ notify }: { notify: Notify }) {
   };
 
   const Icon = open ? ShieldCheck : ShieldOff;
-  const until = view.until ? new Date(view.until).toLocaleString('uz-UZ', { dateStyle: 'short', timeStyle: 'short' }) : '';
+  const until = view.until ? when(view.until) : '';
   return (
     <div className="mt-5 space-y-3 border-t border-slate-100 pt-4 text-sm text-slate-600">
       <div className="flex flex-wrap items-center gap-3">
@@ -54,7 +55,7 @@ export function SupportAccess({ notify }: { notify: Notify }) {
       {view.visits.length > 0 && (
         <ul className="space-y-1 text-xs text-slate-500">
           {view.visits.slice(0, VISITS_SHOWN).map(v => (
-            <li key={v.at}>Kirgan: {new Date(v.at).toLocaleString('uz-UZ', { dateStyle: 'short', timeStyle: 'short' })} ({ago(v.at)})</li>
+            <li key={v.at}>Kirgan: {when(v.at)} ({ago(v.at)})</li>
           ))}
         </ul>
       )}

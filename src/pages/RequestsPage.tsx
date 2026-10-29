@@ -5,14 +5,13 @@ import { api, type RequestView, type TeamView } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { Button, Card, EmptyState, Field, PageHeader, TextInput, controlClass, inputClass } from '../components/ui';
 import { prettyPhone } from '../lib/phone';
+import { when } from '../lib/text';
+import { REQUEST_KIND, requestKind, type RequestKindKey } from '../lib/requests';
 
-const KIND: Record<RequestKind, string> = {
-  callback: "📞 Qo'ng'iroq qilish", booking: '📅 Qabulga yozish', change: '🔁 Surish yoki bekor qilish', complaint: '⚠️ Shikoyat', other: "📌 Boshqa ish",
-};
+const KIND = Object.fromEntries((Object.keys(REQUEST_KIND) as RequestKindKey[]).map(k => [k, requestKind(k, true)])) as Record<RequestKind, string>;
 const SOURCE: Record<RequestSource, string> = {
   bot: 'Telegram bot', telegram: 'Telegram', instagram: 'Instagram', manual: "qo'lda", call: "o'tkazib yuborilgan qo'ng'iroq", voice: 'ovozli agent', owner: 'egasi', panel: 'panel',
 };
-const when = (isoTime: string) => new Date(isoTime).toLocaleString('uz', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const waited = (isoTime: string) => {
   const min = Math.max(1, Math.round((Date.now() - Date.parse(isoTime)) / 60_000));
   return min < 60 ? `${min} daq` : min < 1440 ? `${Math.round(min / 60)} soat` : `${Math.round(min / 1440)} kun`;

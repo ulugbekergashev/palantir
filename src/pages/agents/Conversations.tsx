@@ -10,13 +10,14 @@ import { api } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { clock } from '../../components/agent';
 import { scrollToEnd } from '../../lib/scroll';
+import { CALL_OUTCOME } from '../../lib/requests';
 
 type Item = { kind: 'chat'; id: string; at: string; thread: InboxThread } | { kind: 'call'; id: string; at: string; call: Call };
 type Filter = 'all' | 'waiting' | 'calls' | 'chats';
 
 const leadName = (l: Lead) => l.name || (l.username ? `@${l.username}` : null) || l.phone || 'Mijoz';
 const CH: Record<string, string> = { instagram: 'Instagram', telegram: 'Telegram', bot: 'Telegram bot', manual: 'Qo‘lda' };
-const OUTCOME: Record<string, string> = { booked: 'Qabulga yozildi', callback: "Qayta qo'ng'iroq kerak", info: "Ma'lumot oldi", lost: 'Qiziqmadi', complaint: 'Shikoyat', other: 'Boshqa' };
+const OUTCOME: Record<string, string> = CALL_OUTCOME;
 const day = (iso: string) => {
   const d = new Date(iso), t = new Date();
   return d.toDateString() === t.toDateString() ? clock(iso) : `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -160,7 +161,7 @@ export function Conversations({ notify, onChanged, tick }: { notify: Notify; onC
   const shown = items.filter(i => filter === 'all' || (filter === 'waiting' ? i.kind === 'chat' && i.thread.pending > 0 : filter === 'calls' ? i.kind === 'call' : i.kind === 'chat'));
   const current = items.find(i => i.id === selected) ?? shown[0] ?? null;
   const waiting = items.filter(i => i.kind === 'chat' && i.thread.pending > 0).length;
-  const filters: { id: Filter; label: string; count?: number }[] = [{ id: 'all', label: 'Hammasi' }, { id: 'waiting', label: 'Kutyapti', count: waiting }, { id: 'calls', label: "Qo'ng'iroq" }, { id: 'chats', label: 'Yozishma' }];
+  const filters: { id: Filter; label: string; count?: number }[] = [{ id: 'all', label: 'Hammasi' }, { id: 'waiting', label: 'Javob tayyor', count: waiting }, { id: 'calls', label: "Qo'ng'iroq" }, { id: 'chats', label: 'Yozishma' }];
 
   // Hali hech kim murojaat qilmagan: bo'sh ikki maydon emas — nima bo'lishi va hozir qanday sinash
   if (threads && !items.length) {

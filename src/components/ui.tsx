@@ -11,7 +11,8 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 type Size = 'sm' | 'md';
-const SIZES: Record<Size, string> = { sm: 'h-8 px-3 text-xs gap-1.5', md: 'h-10 px-4 text-sm gap-2' };
+// Telefonda barmoq bilan bosiladi — kamida 40–44px; kompyuterda ixchamroq
+const SIZES: Record<Size, string> = { sm: 'h-10 px-3.5 text-[13px] gap-1.5 sm:h-8 sm:px-3 sm:text-xs', md: 'h-11 px-4 text-sm gap-2 sm:h-10' };
 const BUTTON = 'inline-flex items-center justify-center whitespace-nowrap rounded-xl font-semibold transition-colors';
 
 export function Button({ variant = 'secondary', size = 'md', className = '', children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -66,7 +67,8 @@ export function Card({ title, description, action, children, className = '' }: {
   return (
     <section className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sheet sm:p-6 ${className}`}>
       {(title || action) && (
-        <header className="mb-4 flex items-start justify-between gap-3">
+        // Telefonda amal tugmasi sarlavha ostida: yonida tursa sarlavha va tavsif tor ustunga siqiladi
+        <header className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
           <div className="min-w-0">
             {title && <h2 className="text-base font-bold tracking-tight text-slate-900">{title}</h2>}
             {description && <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-500">{description}</p>}

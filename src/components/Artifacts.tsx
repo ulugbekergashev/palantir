@@ -134,7 +134,7 @@ export function TaskChip({ task, notify, onChange, now }: { task: Task; notify: 
         aria-label={done ? 'Qayta ochish' : 'Bajarildi'}
         disabled={!!busy || task.status === 'cancelled'}
         onClick={() => run('t', async () => onChange((await api.updateTask(task.id, { status: done ? 'open' : 'done' })).task))}
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition ${done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 hover:border-indigo-500'}`}
+        className={`relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 before:absolute before:-inset-2.5 before:content-[''] transition ${done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 hover:border-indigo-500'}`}
       >
         {done && <Check className="h-3.5 w-3.5" />}
       </button>

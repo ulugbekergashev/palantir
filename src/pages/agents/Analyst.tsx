@@ -7,6 +7,7 @@ import { api } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { AgentAsk, HUE, Panel, Quiet, type Stat } from '../../components/agent';
 import { PERIOD_LABEL, type DashboardView, type FunnelView, type PeriodKey } from '../../lib/dashboard';
+import { money } from '../../lib/text';
 
 export interface AnalystData { dashboard: DashboardView | null; funnel: FunnelView | null }
 type Period = Exclude<PeriodKey, 'custom'>;
@@ -25,7 +26,7 @@ export function useAnalystData(period: Period, notify: Notify): AnalystData | nu
 }
 
 const delta = (v: number, prev: number) => (prev ? `${v >= prev ? '+' : ''}${Math.round(((v - prev) / prev) * 100)}% oldingi davrga` : v ? 'oldingi davrda yo‘q edi' : undefined);
-const som = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace('.0', '')} mln` : n.toLocaleString('uz-UZ'));
+const som = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace('.0', '')} mln` : money(n));
 
 export function analystStats(d: DashboardView | null, f: FunnelView | null): Stat[] {
   if (!d) return [];

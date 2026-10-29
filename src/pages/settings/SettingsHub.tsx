@@ -52,7 +52,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
     { id: 'telegram', name: 'Telegram', icon: Send, tone: status.ownerLinked ? 'on' : 'off', state: status.ownerLinked ? (status.telegramUser.account || status.telegramBusiness.account ? 'bot va shaxsiy chatlar' : 'bot ulangan') : 'ulanmagan' },
     { id: 'instagram', name: 'Instagram', icon: MessageCircleHeart, tone: ig ? (igProblem ? 'warn' : 'on') : 'off', state: ig ? (igProblem ? 'muammo bor' : 'ulangan') : 'ulanmagan' },
     ...(clinic ? [{ id: 'dentacrm', name: 'DentaCRM', icon: Stethoscope, tone: (status.crm.account ? (status.crm.problem ? 'warn' : 'on') : 'off') as Tone, state: status.crm.account ? (status.crm.problem ? 'muammo bor' : 'ulangan') : 'ulanmagan' }] : []),
-    { id: 'telefon', name: 'Telefon liniyasi', icon: Phone, tone: line?.status.trunk === 'registered' ? 'on' : line?.status.trunk === 'failed' ? 'warn' : 'off', state: line ? (line.status.trunk === 'registered' ? 'shahar raqami ulangan' : line.status.trunk === 'failed' ? 'raqam ulanmadi' : line.status.asterisk ? 'raqam kiritilmagan' : 'Asterisk ishlamayapti') : '…' },
+    { id: 'telefon', name: 'Telefon liniyasi', icon: Phone, tone: line?.status.trunk === 'registered' ? 'on' : line?.status.trunk === 'failed' ? 'warn' : 'off', state: line ? (line.status.trunk === 'registered' ? 'shahar raqami ulangan' : line.status.trunk === 'failed' ? 'raqam ulanmadi' : line.status.asterisk ? 'raqam kiritilmagan' : 'telefon xizmati o‘chiq') : '…' },
     { id: 'kameralar', name: 'Kameralar', icon: CameraIcon, tone: cameras ? 'on' : 'off', state: cameras == null ? '…' : cameras ? `${cameras} ta kamera` : "kamera yo'q", href: hrefOf('kuzatuvchi', 'ulash') },
     { id: 'ai', name: 'AI va ovoz', icon: Sparkles, tone: status.ai ? (status.voice ? 'on' : 'warn') : 'warn', state: status.ai ? (status.voice ? 'ishlayapti' : 'ovozli xabar o‘chiq') : 'AI kaliti yo‘q', href: '#/ulash' },
   ];
@@ -98,7 +98,8 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
         <Part title="Instagram Direct" hint="Mijozlar Instagram'da yozsa — Qabulxona javob beradi.">
           <InstagramOfficial status={status} onStatus={onStatus} notify={notify} />
           {status.instagram.enabled && !status.instagramApi.account && (
-            <details className="mt-4 border-t border-glass/[0.06] pt-3">
+            // Shu yo'l bilan ulangan bo'lsa — ochiq: akkaunt va «Uzish» yopiq bo'lim ichida yashirinib qolmasin
+            <details open={!!status.instagram.account} className="mt-4 border-t border-glass/[0.06] pt-3">
               <summary className="cursor-pointer text-[13px] font-semibold text-[#a3a9b5]">Meta ilovasisiz — shu kompyuterdagi brauzer orqali (zaxira yo'l)</summary>
               <div className="mt-3"><Instagram status={status} onStatus={onStatus} notify={notify} /></div>
             </details>
@@ -111,7 +112,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
         </Part>
       )}
       {active === 'telefon' && <PhoneLineSettings notify={notify} />}
-      {!status.voice && <p className="text-[12px] text-[#7d838f]">Ovozli xabarlar hozircha o'chiq: serverda GEMINI_API_KEY yoki GROQ_API_KEY yo'q.</p>}
+      {!status.voice && <p className="text-[12px] text-[#7d838f]">Ovozli xabarlar hozircha o'chiq: ovozni matnga aylantirish kaliti kiritilmagan (ulash ustasi → kalitlar).</p>}
     </div>
   );
 }

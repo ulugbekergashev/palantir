@@ -315,7 +315,7 @@ try {
   const gone = await page.getByRole('button', { name: "Narxni o'chirish: Kreslo" }).waitFor({ state: 'detached', timeout: 10000 }).then(() => true, () => false);
   ok("miya: narxlar ro'yxati shu sahifada — bittasi o'chirildi, qolgani joyida", gone && (await page.getByRole('button', { name: "Narxni o'chirish: Divan" }).count()) === 1);
   await shot('14-miya', true);
-  await go('miya');
+  await go('miya/sahifalar');
   ok("miya: sahifalar (Obsidian kabi) — «Biznes haqida» ro'yxatda", await visible(page.getByText('Biznes haqida').first(), 10000));
   await shot('14b-miya-sahifalar');
 

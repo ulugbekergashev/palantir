@@ -9,6 +9,7 @@ import { api, type DeepFinding, type DeepInsights } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { Panel, Quiet } from '../../components/agent';
 import { addDays, iso } from '../../lib/week';
+import { when } from '../../lib/text';
 
 const POLL_MS = 10_000;
 const IMPACT: Record<DeepFinding['impact'], { text: string; cls: string }> = {
@@ -16,7 +17,6 @@ const IMPACT: Record<DeepFinding['impact'], { text: string; cls: string }> = {
   medium: { text: "O'rta", cls: 'bg-[#f5b454]/15 text-[#fbd38d]' },
   low: { text: 'Kichik', cls: 'bg-glass/10 text-[#a3a9b5]' },
 };
-const when = (s: string) => new Date(s).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 function Chart({ run, file, alt }: { run: string; file: string; alt: string }) {
   const [src, setSrc] = useState<string | null>(null);

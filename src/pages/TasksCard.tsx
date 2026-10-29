@@ -21,7 +21,7 @@ export function TaskRow({ task, now, onChange, notify }: { task: Task; now: Date
         type="button"
         aria-label={done ? `Qayta ochish: ${task.title}` : `Bajarildi: ${task.title}`}
         onClick={() => save({ status: done ? 'open' : 'done' })}
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition ${done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 hover:border-indigo-500'}`}
+        className={`relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 before:absolute before:-inset-2.5 before:content-[''] transition ${done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 hover:border-indigo-500'}`}
       >
         {done && <Check className="h-3.5 w-3.5" />}
       </button>

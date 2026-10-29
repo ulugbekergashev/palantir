@@ -18,6 +18,7 @@ import { env } from '../env';
 import { settlePerson } from '../people';
 import { requestCards, requests, staff, type StaffRow } from './store';
 import { MAX_ATTEMPTS, MAX_REMINDERS, REPEAT_MIN, RETRY_MIN, cleanDue, daytime as toDaytime, firstRemind as firstAt, isNight as night, later } from './timing';
+import { REQUEST_KIND, requestKind, type RequestKindKey } from '../../src/lib/requests';
 
 /** Telegram orqali yuborish (bot): chatga yangi xabar va mavjud xabarni yangilash */
 export interface TeamOutlet {
@@ -30,9 +31,7 @@ export const setTeamOutlet = (o: TeamOutlet | null) => { outlet = o; };
 let canDial: (bizId: string) => boolean = () => false;
 export const setDialer = (fn: (bizId: string) => boolean) => { canDial = fn; };
 
-export const KIND_LABEL: Record<RequestKind, string> = {
-  callback: "📞 Qo'ng'iroq qilish", booking: '📅 Qabulga yozish', change: '🔁 Qabulni surish yoki bekor qilish', complaint: '⚠️ Shikoyat', other: '📌 So\'rov',
-};
+export const KIND_LABEL = Object.fromEntries((Object.keys(REQUEST_KIND) as RequestKindKey[]).map(k => [k, requestKind(k, true)])) as Record<RequestKind, string>;
 const SOURCE_LABEL: Record<RequestSource, string> = {
   bot: 'Telegram bot', telegram: 'Telegram', instagram: 'Instagram', manual: "qo'lda", call: "o'tkazib yuborilgan qo'ng'iroq", voice: 'ovozli agent', owner: 'egasi', panel: 'panel',
 };

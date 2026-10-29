@@ -242,7 +242,8 @@ function Vault({ notify }: { notify: Notify }) {
 }
 
 export function MiyaArea({ tab, notify }: { tab: string | null; notify: Notify }) {
-  const active = tab === 'savollar' ? 'savollar' : 'sahifalar';
+  // Standart — savollar va narxlar (egasi ko'proq shuni to'ldiradi); papka ko'rinishi (Obsidian kabi) — ikkinchi varaqda
+  const active = tab === 'sahifalar' ? 'sahifalar' : 'savollar';
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-5 border-b border-glass/[0.06] pb-6">
@@ -254,7 +255,7 @@ export function MiyaArea({ tab, notify }: { tab: string | null; notify: Notify }
           </div>
         </div>
         <nav aria-label="Varaqlar" className="flex flex-wrap gap-1.5">
-          {[{ id: 'sahifalar', label: 'Sahifalar' }, { id: 'savollar', label: 'Savollar va narxlar' }].map(t => (
+          {[{ id: 'savollar', label: 'Savollar va narxlar' }, { id: 'sahifalar', label: 'Sahifalar' }].map(t => (
             <a key={t.id} href={hrefOf('miya', t.id)} aria-current={t.id === active ? 'page' : undefined}
               className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium no-underline transition-colors ${t.id === active ? 'bg-[#f2f0ea] text-[#07080b]' : 'text-[#a3a9b5] hover:bg-glass/5 hover:text-[#f2f0ea]'}`}>{t.label}</a>
           ))}

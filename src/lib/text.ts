@@ -64,3 +64,25 @@ export const initials = (name: string): string =>
 
 /** 1250000 → "1 250 000" */
 export const money = (n: number): string => Math.round(n).toLocaleString('ru-RU').replace(/ /g, ' ');
+
+/** 1250000 → "1 250 000 so'm" */
+export const som = (n: number): string => `${money(n)} so'm`;
+
+const MONTHS_SHORT = ['yan', 'fev', 'mar', 'apr', 'may', 'iyun', 'iyul', 'avg', 'sen', 'okt', 'noy', 'dek'];
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+/** Sana hamma joyda bir xil: «29-okt» (boshqa yil bo'lsa «29-okt 2025») */
+export function dateShort(isoTime: string, now = new Date()): string {
+  const d = new Date(isoTime);
+  return `${d.getDate()}-${MONTHS_SHORT[d.getMonth()]}${d.getFullYear() === now.getFullYear() ? '' : ` ${d.getFullYear()}`}`;
+}
+
+/** Vaqt bilan: «bugun 17:08», «kecha 09:30», «27-okt 14:00» */
+export function when(isoTime: string, now = new Date()): string {
+  const d = new Date(isoTime), time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (dayKey(d) === dayKey(now)) return `bugun ${time}`;
+  if (dayKey(d) === dayKey(yesterday)) return `kecha ${time}`;
+  return `${dateShort(isoTime, now)} ${time}`;
+}

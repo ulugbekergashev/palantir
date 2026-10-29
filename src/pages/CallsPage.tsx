@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Loader2, PhoneCall, PhoneIncoming, PhoneMissed, PhoneOutgoing } from 'lucide-react';
+import { Loader2, PhoneCall, PhoneIncoming, PhoneMissed, PhoneOutgoing, Settings2 } from 'lucide-react';
 import type { Call } from '../types';
 import { api, type PhoneStation, type PhoneStatus, type StationServers } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { Button, Card, EmptyState, PageHeader } from '../components/ui';
 import { prettyPhone } from '../lib/phone';
+import { when } from '../lib/text';
+import { CALL_OUTCOME, CALL_OUTCOME_ICON, type CallOutcomeKey } from '../lib/requests';
 
-const when = (isoTime: string) => new Date(isoTime).toLocaleString('uz', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const length = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 const STATUS: Record<NonNullable<Call['status']>, string> = {
   ringing: 'jiringlayapti', dialing: 'terilmoqda', talking: 'gaplashilmoqda', ended: 'gaplashildi', missed: "o'tkazib yuborildi", no_answer: "ko'tarmadi",
 };
-const OUTCOME: Record<string, string> = { booked: '✅ Kelishildi', callback: "🔁 Qayta bog'lanish kerak", info: "ℹ️ Ma'lumot oldi", lost: '❌ Qiziqmadi', complaint: '⚠️ Shikoyat', other: '' };
+const OUTCOME: Record<string, string> = Object.fromEntries((Object.keys(CALL_OUTCOME) as CallOutcomeKey[]).map(k => [k, k === 'other' ? '' : `${CALL_OUTCOME_ICON[k]} ${CALL_OUTCOME[k]}`]));
 
 function CallIcon({ c }: { c: Call }) {
   const Icon = c.status === 'missed' || c.status === 'no_answer' ? PhoneMissed : c.direction === 'out' ? PhoneOutgoing : c.direction === 'in' ? PhoneIncoming : PhoneCall;
@@ -26,18 +27,18 @@ export function CallsPage({ notify }: { notify: Notify }) {
   const load = () => api.calls().then(r => setList(r.calls)).catch(fail);
   useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 10_000); return () => clearInterval(t); }, []);
   const call = list?.find(c => c.id === picked) ?? list?.[0] ?? null;
+  // Telefonni ulash — o'rnatuvchining ishi: egasi avval qo'ng'iroqlarni ko'radi; hali qo'ng'iroq bo'lmasa sozlash ochiq turadi
+  const [setup, setSetup] = useState<boolean | null>(null);
+  const setupOpen = setup ?? (list !== null && !list.length);
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Qo'ng'iroqlar" description="Klinika telefoni (MicroSIP) orqali bo'lgan har bir qo'ng'iroq: kim, qachon, ko'tarildimi; suhbat yozib olinadi, matnga aylanadi va tahlil qilinadi. O'tkazib yuborilgan qo'ng'iroq — qabulxonaga «qayta qo'ng'iroq qiling» so'rovi." />
-
-      <PhoneCard notify={notify} />
-      <StationsCard notify={notify} />
+      <PageHeader title="Qo'ng'iroqlar" description="Klinika telefoniga kelgan va undan qilingan har bir qo'ng'iroq: kim, qachon, ko'tarildimi; suhbat yozib olinadi, matnga aylanadi va tahlil qilinadi. O'tkazib yuborilgan qo'ng'iroq — qabulxonaga «qayta qo'ng'iroq qiling» so'rovi." />
 
       {list === null ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : !list.length ? (
-        <Card><EmptyState icon={PhoneCall} title="Hali qo'ng'iroq yo'q">MicroSIP ulangach, har bir kiruvchi va chiquvchi qo'ng'iroq shu yerda paydo bo'ladi.</EmptyState></Card>
+        <Card><EmptyState icon={PhoneCall} title="Hali qo'ng'iroq yo'q">Telefon ulangach (pastda), har bir kiruvchi va chiquvchi qo'ng'iroq shu yerda paydo bo'ladi.</EmptyState></Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
           <div className="space-y-1">
             {list.map(c => (
               <button key={c.id} type="button" onClick={() => setPicked(c.id)} aria-current={c.id === call?.id} className={`w-full rounded-xl px-3 py-2 text-left transition-colors ${c.id === call?.id ? 'bg-white shadow-sheet ring-1 ring-slate-200' : 'hover:bg-slate-200/60'}`}>
@@ -53,7 +54,17 @@ export function CallsPage({ notify }: { notify: Notify }) {
         </div>
       )}
 
-      <VoiceAgentCard notify={notify} />
+      <details open={setupOpen} onToggle={e => setSetup((e.currentTarget as HTMLDetailsElement).open)} className="rounded-2xl border border-slate-200 bg-white shadow-sheet">
+        <summary className="flex min-h-12 cursor-pointer items-center gap-2 px-5 text-sm font-semibold text-slate-700">
+          <Settings2 className="h-4 w-4 text-slate-400" aria-hidden="true" />Telefonni ulash va sozlash
+          <span className="font-normal text-slate-500">— o'rnatuvchi uchun</span>
+        </summary>
+        <div className="space-y-5 border-t border-slate-200 p-3 sm:p-4">
+          <PhoneCard notify={notify} />
+          <StationsCard notify={notify} />
+          <VoiceAgentCard notify={notify} />
+        </div>
+      </details>
     </div>
   );
 }

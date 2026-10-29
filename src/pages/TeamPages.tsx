@@ -43,7 +43,8 @@ export function ReceptionArea({ tab, notify, onChanged, state, status, tick }: C
     { label: 'Javob berildi', value: k?.answered.value ?? '—', hint: k?.answered.responseMin != null ? `o'rtacha ${k.answered.responseMin} daqiqada` : undefined },
     { label: 'Qabulga yozildi', value: k?.booked.value ?? '—', tone: k?.booked.value ? 'good' as const : undefined },
     { label: "Qo'ng'iroq", value: data ? data.calls.filter(c => c.startedAt.slice(0, 10) === today).length : '—', hint: k?.unanswered.missedCalls ? `${k.unanswered.missedCalls} tasi o'tkazib yuborilgan` : undefined },
-    { label: 'Sizni kutyapti', value: data?.requests.length ?? '—', tone: data?.requests.length ? 'warn' as const : undefined },
+    // So'rovlar va tasdiqingizni kutayotgan javoblar — bosh ekrandagi «Sizni kutyapti»dagi Qabulxona bandlari bilan bir xil son
+    { label: 'Sizni kutyapti', value: state ? state.badge : '—', tone: state?.badge ? 'warn' as const : undefined },
   ];
   return (
     <div className="space-y-6">

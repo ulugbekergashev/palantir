@@ -10,10 +10,10 @@ import type { Notify } from '../../components/Artifacts';
 import { Panel, Quiet } from '../../components/agent';
 import { hrefOf } from '../../lib/nav';
 import { addDays, iso } from '../../lib/week';
+import { when } from '../../lib/text';
 
 const DAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
 const pct = (x: number) => `${Math.round(x * 100)}%`;
-const when = (s: string) => new Date(s).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 function Themes({ list, total }: { list: DemandGroup[]; total: number }) {
   const [open, setOpen] = useState<string | null>(null);
