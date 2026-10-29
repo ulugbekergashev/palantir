@@ -46,3 +46,6 @@ tgvoice/asterisk/pjsip_admin.conf
 # Reliz arxivi (npm run release)
 /reliz/
 /eval-natijalar/
+
+# Ildizdagi qo'l arxivlar (masalan node_modules.zip zaxirasi) — git va sinov manbasiga kirmasin
+/*.zip

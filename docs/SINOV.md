@@ -8,7 +8,7 @@ Kod tayyor, avtomatik sinovlar o'tadi (Windows va Ubuntu CI). Bu ro'yxat — **h
 
 | # | Qilish | Natija |
 |---|---|---|
-| 0.1 | Ikkita kalitni (`reliz-imzo-kaliti.pem`, `zaxira-kaliti.pem` — `~/.palantir/` da; shu kompyuterda hozircha `~/.cerebro/` da, eski nom) internetsiz joyga nusxalang (fleshka) | Ularsiz yangilanish chiqarib bo'lmaydi va tashqi zaxirani ochib bo'lmaydi |
+| 0.1 | Ikkita kalitni (`reliz-imzo-kaliti.pem`, `zaxira-kaliti.pem` — `~/.palantir/` da; reliz kaliti 2026-10-30 da qayta yaratildi — avvalgisi hech qayerda saqlanmagan edi) internetsiz joyga nusxalang (fleshka). Reliz kalitining o'zi GitHub sirida ham turadi: `RELEASE_SIGNING_KEY` | Ularsiz yangilanish chiqarib bo'lmaydi va tashqi zaxirani ochib bo'lmaydi |
 
 ## 1. Klinika kompyuteri
 

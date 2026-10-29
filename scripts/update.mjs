@@ -39,7 +39,7 @@ const PORT = Number(process.env.PORT) || 3200;
 const SOURCE = (process.env.UPDATE_URL || 'https://github.com/ulugbekergashev/palantir/releases/latest/download').replace(/\/+$/, '');
 /** Relizlarni imzolovchi kalitning ochiq qismi (maxfiy qismi sotuvchida). UPDATE_PUBLIC_KEY — o'z yig'ilmalari va sinov uchun */
 const PUBLIC_KEY = process.env.UPDATE_PUBLIC_KEY || `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAUk4OODzBrh17sZt2cdJvqnLIXcFUkZUMf/UqNTeUZf0=
+MCowBQYDK2VwAyEAof8zYcguvj+tOabkX1qrhe7AZULkqasISVGeHpX6okM=
 -----END PUBLIC KEY-----
 `;
 /** Butunlay almashtiriladigan ildizlar: ichida ish fayli saqlanmaydi va ichi ko'rib chiqilmaydi (juda katta) */
@@ -95,7 +95,8 @@ function extract(zip, dir) {
     if (file.name.endsWith('/')) { mkdirSync(target, { recursive: true }); return; }
     const chunks = [];
     file.ondata = (err, data, final) => {
-      if (err) { failure = err; return; }
+      // Fayl nomi bilan: jurnalda qaysi fayl ochilmagani ko'rinsin
+      if (err) { failure ??= new Error(`${file.name}: ${err.message}`); return; }
       chunks.push(data);
       if (final) { mkdirSync(dirname(target), { recursive: true }); writeFileSync(target, Buffer.concat(chunks)); count++; }
     };
