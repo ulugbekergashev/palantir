@@ -20,12 +20,15 @@ export const TEAM: Record<Member, { name: string; role: string; about: string; i
 export const MEMBERS = Object.keys(TEAM) as Member[];
 export const isMember = (a: Area): a is Member => (MEMBERS as string[]).includes(a);
 
-export interface MemberState { status: string; detail: string; live: boolean; badge: number }
+/** on — ishlayapti (yashil nuqta); live — hozir faol ish ustida (qo'ng'iroqda, kamera kuzatyapti): nuqta yorqin halqa bilan */
+export interface MemberState { status: string; detail: string; on: boolean; live: boolean; badge: number }
 
 /** tick — biror ish bajarilganda (so'rov yopildi, vazifa qo'shildi) darhol yangilash uchun */
 export function useTeam(status: LiveStatus, tick = 0): Record<Member, MemberState> | null {
   const [team, setTeam] = useState<Record<Member, MemberState> | null>(null);
   const crm = !!status.crm?.account;
+  // Qabulxona navbatchilikda — mijoz yozadigan yoki qo'ng'iroq qiladigan kamida bitta kanal ulangan bo'lsa
+  const reachable = !!(status.bot || status.telegramBusiness?.account || status.instagram?.account || status.instagramApi?.account);
   useEffect(() => {
     let stale = false;
     const load = async () => {
@@ -44,22 +47,22 @@ export function useTeam(status: LiveStatus, tick = 0): Record<Member, MemberStat
       const cams = cameras?.cameras.length ?? 0;
       setTeam({
         qabulxona: {
-          live: talking, badge: requests?.open ?? 0,
-          status: talking ? 'Hozir qo‘ng‘iroqda' : 'Navbatchilikda',
+          on: talking || reachable, live: talking, badge: requests?.open ?? 0,
+          status: talking ? 'Hozir qo‘ng‘iroqda' : reachable ? 'Navbatchilikda' : 'Kanal ulanmagan',
           detail: `Bugun ${callsToday.length} qo‘ng‘iroq${requests?.open ? ` · ${requests.open} so‘rov sizni kutyapti` : ''}`,
         },
         yordamchi: {
-          live: false, badge: late + todayLeft,
+          on: true, live: false, badge: late + todayLeft,
           status: late ? `${late} ta kechikkan ish` : todayLeft ? `Bugun ${todayLeft} ish` : 'Bugun ish yo‘q',
           detail: next ? `Keyingisi: ${next.title}` : 'Eslatma qo‘yish uchun ayting',
         },
         kuzatuvchi: {
-          live: cams > 0, badge: 0,
+          on: cams > 0, live: cams > 0, badge: 0,
           status: cams ? `${cams} kamera kuzatyapti` : 'Kamera ulanmagan',
           detail: cams ? 'Kreslo va kassa — jadval bilan solishtiriladi' : 'Ulash — 2 daqiqa',
         },
         tahlilchi: {
-          live: !!day, badge: 0,
+          on: !!day, live: !!day, badge: 0,
           status: day ? `Bugun ${day.total} qabul · ${day.came} keldi` : crm ? 'DentaCRM javob bermadi' : 'DentaCRM ulanmagan',
           detail: day ? `Tushum ${day.revenue.total.toLocaleString('uz-UZ')} so‘m` : 'Ulasangiz, qabul va tushumni aytadi',
         },
@@ -68,6 +71,6 @@ export function useTeam(status: LiveStatus, tick = 0): Record<Member, MemberStat
     void load();
     const t = setInterval(() => { void load(); }, 30_000);
     return () => { stale = true; clearInterval(t); };
-  }, [crm, tick]);
+  }, [crm, reachable, tick]);
   return team;
 }

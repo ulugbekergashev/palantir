@@ -72,9 +72,9 @@ function Live({ cam, people, big = false, onOpen }: { cam: Camera; people?: numb
       {src ? <img src={src} alt={`${cam.name} — jonli kadr`} className="aspect-video w-full object-cover" />
         : <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 text-[#7d838f]"><Video className="h-8 w-8" aria-hidden="true" />{!cam.ip && <span className="text-[12px]">shu kompyuter kamerasi — kadr brauzerda</span>}</div>}
       {people !== undefined && (
-        <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[12px] font-semibold text-white backdrop-blur"><Users className="h-3.5 w-3.5" aria-hidden="true" />{people}</span>
+        <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-[rgb(0_0_0/0.60)] px-2.5 py-1 text-[12px] font-semibold text-[#f8f8f6] backdrop-blur"><Users className="h-3.5 w-3.5" aria-hidden="true" />{people}</span>
       )}
-      <figcaption className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/80 to-transparent px-4 pb-3 pt-8 text-[13px] text-[#f2f0ea]">
+      <figcaption className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-[rgb(0_0_0/0.80)] to-transparent px-4 pb-3 pt-8 text-[13px] text-[#f2f0ea]">
         <span className={`h-2 w-2 rounded-full ${online ? 'bg-emerald-400' : 'bg-glass/30'}`} aria-hidden="true" />{cam.name}
         <span className="ml-auto text-[11px] text-[#a3a9b5]">{online ? 'jonli' : cam.lastSeenAt ? `oxirgi kadr ${clock(cam.lastSeenAt)}` : 'hali kadr yo‘q'}</span>
       </figcaption>
@@ -123,7 +123,7 @@ function Findings({ s }: { s: CameraSummary | null | undefined }) {
   return s?.findings.length ? (
     <ul className="flex flex-col gap-2">
       {s.findings.map((f, i) => (
-        <li key={i} className={`flex items-start gap-2.5 rounded-xl px-3 py-2.5 text-[14px] leading-snug ${f.level === 'crit' ? 'bg-rose-400/[0.07] text-rose-200' : f.level === 'warn' ? 'bg-[#f5b454]/[0.07] text-[#fde2b0]' : 'bg-emerald-400/[0.06] text-emerald-200'}`}>
+        <li key={i} className={`flex items-start gap-2.5 rounded-xl px-3 py-2.5 text-[14px] leading-snug ${f.level === 'crit' ? 'bg-rose-400/[0.07] text-rose-700' : f.level === 'warn' ? 'bg-[#f5b454]/[0.07] text-[#fde2b0]' : 'bg-emerald-400/[0.06] text-emerald-800'}`}>
           {f.level === 'ok' ? <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}{f.text}
         </li>
       ))}

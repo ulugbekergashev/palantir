@@ -24,7 +24,7 @@ export function TeamDay({ tick = 0 }: { tick?: number }) {
   return (
     <section aria-labelledby="jamoa-bugun" className="mt-10 w-full text-left">
       <h2 id="jamoa-bugun" className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#9ba1ad]">Bugun jamoa nima qildi</h2>
-      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className={`grid items-start gap-3 ${day.timeline.length ? 'lg:grid-cols-[minmax(0,1fr)_340px]' : ''}`}>
         <ul className="flex flex-col divide-y divide-glass/[0.06] rounded-2xl border border-glass/[0.08] bg-glass/[0.03]">
           {day.members.map(m => {
             const h = HUE[m.member], meta = TEAM[m.member];
@@ -35,33 +35,37 @@ export function TeamDay({ tick = 0 }: { tick?: number }) {
                   <span className="min-w-0 flex-1">
                     <span className="block text-[14px] font-semibold text-[#f2f0ea]">{meta.name}</span>
                     <span className="mt-0.5 block text-[13.5px] leading-relaxed text-[#a3a9b5]">{m.summary}</span>
-                    <span className="mt-2 flex flex-wrap gap-1.5">
-                      {m.facts.map(f => (
-                        <span key={f.label} className={`rounded-lg border px-2 py-0.5 text-[12px] ${f.value ? 'border-glass/10 text-[#d9dbe1]' : 'border-glass/[0.05] text-[#6b717d]'}`}>
-                          <b className="tabular-nums font-semibold" style={f.value ? { color: h.text } : undefined}>{f.value}</b> {f.label.toLowerCase()}
-                        </span>
-                      ))}
-                    </span>
+                    {/* Faqat bo'lgan ish: «0 eslatma, 0 yozuv…» qatori ko'z tirmaydi — bo'sh kunni xulosa matni aytadi */}
+                    {m.facts.some(f => f.value) && (
+                      <span className="mt-2 flex flex-wrap gap-1.5">
+                        {m.facts.filter(f => f.value).map(f => (
+                          <span key={f.label} className="rounded-lg border border-glass/10 px-2 py-0.5 text-[12px] text-[#d9dbe1]">
+                            <b className="tabular-nums font-semibold" style={{ color: h.text }}>{f.value}</b> {f.label.toLowerCase()}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </span>
                 </a>
               </li>
             );
           })}
         </ul>
-        <div className="rounded-2xl border border-glass/[0.08] bg-glass/[0.03] p-4">
-          <h3 className="mb-3 text-[13px] font-semibold text-[#d9dbe1]">Bugungi jurnal</h3>
-          {day.timeline.length ? (
+        {/* Jurnal bo'sh bo'lsa — alohida «hali yozuv yo'q» kartasi ko'rsatilmaydi (ro'yxat butun enni oladi) */}
+        {day.timeline.length > 0 && (
+          <div className="rounded-2xl border border-glass/[0.08] bg-glass/[0.03] p-4">
+            <h3 className="mb-3 text-[13px] font-semibold text-[#d9dbe1]">Bugungi jurnal</h3>
             <ol className="flex flex-col gap-2.5">
               {day.timeline.map(e => (
                 <li key={e.id} className="flex gap-2.5 text-[13px]">
-                  <span className="w-10 shrink-0 tabular-nums text-[#7d838f]">{clock(e.at)}</span>
+                  <span className="w-10 shrink-0 tabular-nums text-[#8a909c]">{clock(e.at)}</span>
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: e.level === 'crit' ? '#fb7185' : e.level === 'warn' ? '#f5b454' : HUE[e.member].a }} aria-hidden="true" />
-                  <span className="min-w-0 flex-1 leading-snug text-[#d9dbe1]"><span className="text-[#7d838f]">{TEAM[e.member].name} · </span>{e.title}</span>
+                  <span className="min-w-0 flex-1 leading-snug text-[#d9dbe1]"><span className="text-[#8a909c]">{TEAM[e.member].name} · </span>{e.title}</span>
                 </li>
               ))}
             </ol>
-          ) : <p className="m-0 text-[13px] leading-relaxed text-[#7d838f]">Bugun hali yozuv yo'q. Xodimlarga topshiriq bersangiz, bajargani shu yerda chiqadi.</p>}
-        </div>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -45,7 +45,7 @@ export function Gaps({ notify, onChanged }: { notify: Notify; onChanged: () => v
                   <form onSubmit={e => { e.preventDefault(); void save(p.id); }} className="flex flex-col gap-2 p-3">
                     <label htmlFor={`gap-${p.id}`} className="text-[14px] font-medium text-[#f2f0ea]">{p.question}</label>
                     <textarea id={`gap-${p.id}`} autoFocus rows={3} value={text} onChange={e => setText(e.target.value)} placeholder={p.hint}
-                      className="w-full resize-none rounded-lg border border-glass/10 bg-[#07080b] p-2.5 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#6e7582] focus:border-[#3fd6c3]/50" />
+                      className="w-full resize-none rounded-lg border border-glass/10 bg-[#07080b] p-2.5 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#8a909c] focus:border-[#3fd6c3]/50" />
                     <div className="flex gap-2">
                       <button type="submit" disabled={!text.trim() || busy} className="min-h-9 rounded-lg bg-[#3fd6c3] px-4 text-[13px] font-semibold text-[#07080b] disabled:opacity-40">Saqlash</button>
                       <button type="button" onClick={() => { setOpen(null); setText(''); }} className="min-h-9 rounded-lg px-3 text-[13px] text-[#a3a9b5] hover:bg-glass/5">Bekor</button>

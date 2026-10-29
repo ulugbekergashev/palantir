@@ -94,7 +94,7 @@ export function DiscoveriesBody({ notify }: { notify: Notify }) {
   return (
     <div className="flex flex-col gap-5">
       {head}
-      {error && !running && <p className="flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-[13.5px] text-rose-200"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{error}</p>}
+      {error && !running && <p className="flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-[13.5px] text-rose-700"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{error}</p>}
       {notice && !running && (
         <div className="flex flex-col gap-3 rounded-2xl border border-glass/[0.08] bg-glass/[0.03] px-4 py-3 sm:flex-row sm:items-center">
           <p className="flex min-w-0 flex-1 items-start gap-2 text-[13.5px] leading-snug text-[#c9ccd4]"><Info className="mt-0.5 h-4 w-4 shrink-0 text-[#86efc4]" aria-hidden="true" />{notice}</p>

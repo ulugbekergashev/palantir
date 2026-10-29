@@ -74,7 +74,7 @@ function Chart({ d }: { d: DashboardView }) {
         ))}
       </div>
       <div className="mt-2 flex gap-[3px]" aria-hidden="true">
-        {d.period.labels.map((label, i) => <span key={label} className="min-w-0 flex-1 truncate text-center tabular-nums text-[10px] text-[#6e7582]">{i % every ? '' : label}</span>)}
+        {d.period.labels.map((label, i) => <span key={label} className="min-w-0 flex-1 truncate text-center tabular-nums text-[10px] text-[#8a909c]">{i % every ? '' : label}</span>)}
       </div>
       <figcaption className="mt-4 flex flex-wrap gap-4">
         {SERIES.map(s => <span key={s.key} className="flex items-center gap-2 text-[12px] text-[#a3a9b5]"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} />{s.label}</span>)}

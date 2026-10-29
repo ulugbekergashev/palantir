@@ -84,7 +84,7 @@ export function Attention({ notify, tick = 0, onChanged }: { notify: Notify; tic
       {items.length ? (
         <ul className="flex flex-col gap-2.5">{items.slice(0, 8).map(it => <Item key={it.key} it={it} notify={notify} onDone={key => { setItems(list => list?.filter(x => x.key !== key) ?? list); onChanged?.(); }} />)}</ul>
       ) : (
-        <p className="flex items-center gap-2.5 rounded-2xl border border-glass/[0.06] bg-glass/[0.02] px-4 py-3.5 text-[14px] text-[#a3a9b5]"><CircleCheck className="h-5 w-5 text-emerald-300" aria-hidden="true" />Hammasi joyida — sizning qaroringizni kutayotgan narsa yo'q.</p>
+        <p className="flex items-center gap-2.5 rounded-2xl border border-glass/[0.06] bg-glass/[0.02] px-4 py-3.5 text-[14px] text-[#a3a9b5]"><CircleCheck className="h-5 w-5 text-emerald-700" aria-hidden="true" />Hammasi joyida — sizning qaroringizni kutayotgan narsa yo'q.</p>
       )}
       {items.length > 8 && <p className="mt-2 text-[13px] text-[#7d838f]">Yana {items.length - 8} ta — xodimlar sahifalarida.</p>}
     </section>

@@ -96,8 +96,8 @@ try {
   await page.getByLabel("Palantir'ga yozing").fill('Bugun nima qilishim kerak?');
   await page.getByLabel("Palantir'ga yozing").press('Enter');
   ok("bosh ekran: yozilgan savolga javob shu yerda karta bo'lib chiqadi", await visible(page.getByRole('region', { name: 'Natijalar' }).getByText('Bugun:').first(), 15000));
-  ok("bosh ekran: «Bugun jamoa nima qildi» — xodimlarning bugungi ishi va jurnal", await visible(page.getByRole('heading', { name: 'Bugun jamoa nima qildi' }))
-    && await page.getByRole('heading', { name: 'Bugungi jurnal' }).isVisible());
+  ok("bosh ekran: «Bugun jamoa nima qildi» — xodimlarning bugungi ishi; jurnal bo'sh bo'lsa alohida karta chiqmaydi", await visible(page.getByRole('heading', { name: 'Bugun jamoa nima qildi' }))
+    && !(await page.getByRole('heading', { name: 'Bugungi jurnal' }).isVisible()) && !(await page.getByText("Bugun hali yozuv yo'q").isVisible()));
   await shot('02a-home', true);
 
   console.log('\n# Yordamchi: suhbat');
