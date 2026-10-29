@@ -14,6 +14,7 @@ import { api } from '../data/api';
 import { Markdown } from '../components/Markdown';
 import { useVoice, type VoiceMode } from '../lib/useVoice';
 import { Attention } from '../components/Attention';
+import { dotClass } from '../components/agent';
 import { TeamDay } from '../components/TeamDay';
 import type { Notify } from '../components/Artifacts';
 
@@ -66,7 +67,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
       </header>
 
       <main className="relative z-10 mx-auto flex max-w-5xl flex-col items-center px-5 pb-10 sm:px-8">
-        <p className="mt-4 text-center text-sm text-[#9ba1ad] sm:mt-8">{greeting(now.getHours())}{owner ? `, ${owner}` : ''}</p>
+        <p className="mt-1 text-center text-sm text-[#9ba1ad] sm:mt-8">{greeting(now.getHours())}{owner ? `, ${owner}` : ''}</p>
 
         {/* Sfera — Palantir'ning o'zi. Bosish: suhbatni boshlash / tugatish */}
         <button
@@ -74,7 +75,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
           onClick={() => { void toggle(); }}
           aria-pressed={active}
           aria-label={active ? 'Suhbatni tugatish' : 'Palantir bilan gaplashish'}
-          className="group relative mt-6 flex h-56 w-56 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[#a9aaff] focus-visible:ring-offset-4 focus-visible:ring-offset-[#06070a] sm:h-64 sm:w-64"
+          className="group relative mt-4 flex h-40 w-40 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[#a9aaff] focus-visible:ring-offset-4 focus-visible:ring-offset-[#06070a] sm:mt-6 sm:h-64 sm:w-64"
         >
           <div
             ref={orb}
@@ -87,25 +88,26 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
             <div className="absolute inset-3 rounded-full bg-[radial-gradient(circle_at_70%_75%,rgba(63,214,195,0.55),transparent_55%)] mix-blend-screen" />
             <div className="absolute inset-3 rounded-full ring-1 ring-glass/15" />
           </div>
-          <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-black/25 backdrop-blur-sm">
+          <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-[rgb(0_0_0/0.25)] backdrop-blur-sm">
             {mode === 'idle' ? <Mic className="h-6 w-6" aria-hidden="true" /> : <Square className="h-5 w-5 fill-current" aria-hidden="true" />}
           </span>
         </button>
 
-        <p className="mt-6 flex items-center gap-2 text-sm font-medium text-[#c9cbd2]" aria-live="polite">
+        <p className="mt-4 flex items-center gap-2 text-sm font-medium text-[#c9cbd2] sm:mt-6" aria-live="polite">
           {active && <span className={`h-2 w-2 rounded-full ${mode === 'thinking' ? 'bg-amber-400' : mode === 'connecting' ? 'bg-glass/40' : 'bg-emerald-400'} shadow-[0_0_0_4px_rgba(52,211,153,0.15)]`} aria-hidden="true" />}
           {busyText ? 'Bajaryapman…' : STATE_TEXT[mode]}
         </p>
-        {error && <p role="alert" className="mt-3 rounded-xl bg-rose-500/10 px-4 py-2 text-sm text-rose-200">{error}</p>}
+        {error && <p role="alert" className="mt-3 rounded-xl bg-rose-500/10 px-4 py-2 text-sm text-rose-700">{error}</p>}
 
         {/* Jonli matn: siz nima dedingiz — Palantir nima deyapti */}
-        <section aria-live="polite" className="mt-8 flex min-h-28 w-full max-w-3xl flex-col items-center gap-3 text-center">
+        <section aria-live="polite" className="mt-5 flex w-full max-w-3xl flex-col items-center gap-3 text-center sm:mt-8 sm:min-h-28">
           {you && <p className="text-base text-[#9ba1ad]">«{you}»</p>}
           {ai && <p className="text-2xl font-semibold leading-snug tracking-tight sm:text-[28px]">{ai}</p>}
           {!you && !ai && (
-            <div className="flex flex-wrap justify-center gap-2">
+            // Telefonda bitta suriladigan qator: to'rt qator bo'lib «Sizni kutyapti»ni ekrandan siqib chiqarmasin
+            <div className="-mx-5 flex w-[calc(100%+2.5rem)] gap-2 overflow-x-auto px-5 [scrollbar-width:none] sm:mx-0 sm:w-auto sm:flex-wrap sm:justify-center sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
               {SUGGESTIONS.map(s => (
-                <button key={s} type="button" onClick={() => { void ask(s); }} className="min-h-11 rounded-full border border-glass/10 px-4 text-sm text-[#c9cbd2] transition-colors hover:bg-glass/5">{s}</button>
+                <button key={s} type="button" onClick={() => { void ask(s); }} className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-glass/10 px-4 text-sm text-[#c9cbd2] transition-colors hover:bg-glass/5">{s}</button>
               ))}
             </div>
           )}
@@ -117,7 +119,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
             {cards.map(c => (
               <article key={c.id} className={`animate-rise rounded-2xl border px-5 py-4 text-left ${c.kind === 'working' ? 'border-amber-300/20 bg-amber-300/[0.06]' : 'border-glass/10 bg-glass/[0.04]'}`}>
                 <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#9ba1ad]">
-                  {c.kind === 'working' && <Sparkles className="h-3.5 w-3.5 animate-pulse text-amber-300" aria-hidden="true" />}{c.title}
+                  {c.kind === 'working' && <Sparkles className="h-3.5 w-3.5 animate-pulse text-amber-700" aria-hidden="true" />}{c.title}
                 </h3>
                 {c.items && (
                   <ul className="mt-3 flex flex-col divide-y divide-glass/5">
@@ -135,7 +137,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
         )}
 
         {/* Ovoz noqulay bo'lsa — yozib so'rash */}
-        <form onSubmit={submit} className="mt-8 flex w-full max-w-2xl items-center gap-2 rounded-2xl border border-glass/10 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/25">
+        <form onSubmit={submit} className="mt-5 flex w-full max-w-2xl sm:mt-8 items-center gap-2 rounded-2xl border border-glass/10 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/25">
           <label htmlFor="ai-ask" className="sr-only">Palantir'ga yozing</label>
           <input id="ai-ask" value={typed} onChange={e => setTyped(e.target.value)} placeholder="Yoki yozing: «Akmalga ertaga qo‘ng‘iroq qilishni eslat»" className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f]" />
           <button type="submit" disabled={!typed.trim() || busyText} aria-label="Yuborish" className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#8b8cff] text-[#06070a] transition-opacity disabled:opacity-40">
@@ -163,7 +165,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
                     {st.badge > 0 && <span className="ml-auto rounded-full bg-[#f5b454] px-2 py-0.5 text-xs font-bold text-[#06070a]">{st.badge}</span>}
                   </div>
                   <div className="flex items-center gap-2 text-sm text-[#e4e3de]">
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${st.live ? 'bg-emerald-400' : 'bg-glass/25'}`} aria-hidden="true" />{st.status}
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${dotClass(st)}`} aria-hidden="true" />{st.status}
                   </div>
                   <p className="m-0 text-xs leading-relaxed text-[#9ba1ad]">{st.detail}</p>
                 </a>

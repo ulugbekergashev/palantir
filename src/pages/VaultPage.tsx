@@ -42,7 +42,7 @@ function TreeView({ nodes, open, toggle, selected, onPick, filter }: {
             {open.has(n.path) || filter ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#8a909c]" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#8a909c]" aria-hidden="true" />}
             <Folder className="h-4 w-4 shrink-0 text-[#8a909c]" aria-hidden="true" />
             <span className="truncate">{n.name}</span>
-            <span className="ml-auto tabular-nums text-[11px] text-[#6e7582]">{files(n.children ?? []).length || ''}</span>
+            <span className="ml-auto tabular-nums text-[11px] text-[#8a909c]">{files(n.children ?? []).length || ''}</span>
           </button>
           {(open.has(n.path) || !!filter) && <div className="ml-3 border-l border-glass/[0.06] pl-1"><TreeView nodes={n.children ?? []} open={open} toggle={toggle} selected={selected} onPick={onPick} filter={filter} /></div>}
         </li>
@@ -169,7 +169,7 @@ function Vault({ notify }: { notify: Notify }) {
         <div className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-glass/[0.08] bg-[#07080b] px-2.5">
           <Search className="h-3.5 w-3.5 shrink-0 text-[#8a909c]" aria-hidden="true" />
           <label htmlFor="vault-search" className="sr-only">Sahifa qidirish</label>
-          <input id="vault-search" value={filter} onChange={e => setFilter(e.target.value.toLowerCase())} placeholder="Qidirish…" className="h-9 min-w-0 flex-1 bg-transparent text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#6e7582]" />
+          <input id="vault-search" value={filter} onChange={e => setFilter(e.target.value.toLowerCase())} placeholder="Qidirish…" className="h-9 min-w-0 flex-1 bg-transparent text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#8a909c]" />
         </div>
         <div className="max-h-72 flex-1 overflow-y-auto px-1.5 pb-3 lg:max-h-none">
           {tree ? <TreeView nodes={tree} open={open} toggle={p => setOpen(prev => { const s = new Set(prev); if (s.has(p)) s.delete(p); else s.add(p); return s; })} selected={selected} onPick={p => { void openNote(p); }} filter={filter} />
@@ -227,14 +227,14 @@ function Vault({ notify }: { notify: Notify }) {
                 </button>
               </li>
             ))}
-            {!note.backlinks.length && <li className="text-[13px] text-[#6e7582]">Hech qaysi sahifa havola qilmagan</li>}
+            {!note.backlinks.length && <li className="text-[13px] text-[#8a909c]">Hech qaysi sahifa havola qilmagan</li>}
           </ul>
           <h2 className="mt-6 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#8a909c]"><FileText className="h-3.5 w-3.5" aria-hidden="true" />Bu sahifadagi havolalar · {links.length}</h2>
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {links.map(l => <li key={l}><button type="button" onClick={() => follow(l)} className="rounded-full bg-[#8b8cff]/12 px-2.5 py-1 text-[12px] text-[#c7c8ff] hover:bg-[#8b8cff]/20" title={l}>{l.split("/").pop()}</button></li>)}
-            {!links.length && <li className="text-[13px] text-[#6e7582]">Havola yo'q</li>}
+            {!links.length && <li className="text-[13px] text-[#8a909c]">Havola yo'q</li>}
           </ul>
-          <p className="mt-6 text-[12px] text-[#6e7582]">O'zgargan: {when(note.modified)}</p>
+          <p className="mt-6 text-[12px] text-[#8a909c]">O'zgargan: {when(note.modified)}</p>
         </aside>
       )}
     </div>
@@ -242,7 +242,8 @@ function Vault({ notify }: { notify: Notify }) {
 }
 
 export function MiyaArea({ tab, notify }: { tab: string | null; notify: Notify }) {
-  const active = tab === 'savollar' ? 'savollar' : 'sahifalar';
+  // Standart — savollar va narxlar (egasi ko'proq shuni to'ldiradi); papka ko'rinishi (Obsidian kabi) — ikkinchi varaqda
+  const active = tab === 'sahifalar' ? 'sahifalar' : 'savollar';
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-5 border-b border-glass/[0.06] pb-6">
@@ -254,7 +255,7 @@ export function MiyaArea({ tab, notify }: { tab: string | null; notify: Notify }
           </div>
         </div>
         <nav aria-label="Varaqlar" className="flex flex-wrap gap-1.5">
-          {[{ id: 'sahifalar', label: 'Sahifalar' }, { id: 'savollar', label: 'Savollar va narxlar' }].map(t => (
+          {[{ id: 'savollar', label: 'Savollar va narxlar' }, { id: 'sahifalar', label: 'Sahifalar' }].map(t => (
             <a key={t.id} href={hrefOf('miya', t.id)} aria-current={t.id === active ? 'page' : undefined}
               className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium no-underline transition-colors ${t.id === active ? 'bg-[#f2f0ea] text-[#07080b]' : 'text-[#a3a9b5] hover:bg-glass/5 hover:text-[#f2f0ea]'}`}>{t.label}</a>
           ))}

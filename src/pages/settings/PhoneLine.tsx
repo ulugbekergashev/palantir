@@ -10,7 +10,7 @@ import type { Notify } from '../../components/Artifacts';
 
 const DAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
 const RINGS = [10, 15, 20, 30];
-const input = 'h-11 w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#6b717c] focus:border-glass/25';
+const input = 'h-11 w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#8a909c] focus:border-glass/25';
 
 function Block({ icon, title, hint, children }: { icon: ReactNode; title: string; hint: string; children: ReactNode }) {
   return (
@@ -31,7 +31,7 @@ const Label = ({ text, children }: { text: string; children: ReactNode }) => (
 function Status({ line }: { line: Line }) {
   const s = line.status;
   const items = [
-    { name: 'Asterisk', on: s.asterisk, text: s.asterisk ? 'ishlayapti' : "ishlamayapti" },
+    { name: 'Telefon xizmati', on: s.asterisk, text: s.asterisk ? 'ishlayapti' : "o'chiq — o'rnatuvchiga ayting" },
     { name: 'Shahar raqami', on: s.trunk === 'registered', text: s.trunk === 'registered' ? `ulangan${line.trunk?.number ? ` · ${line.trunk.number}` : ''}` : s.trunk === 'failed' ? "ulanmadi — login yoki parolni tekshiring" : line.trunk ? 'tekshirilmoqda' : 'kiritilmagan' },
     { name: 'Egasi telefoni', on: s.phones.includes('egasi'), text: s.phones.includes('egasi') ? 'ulangan' : 'ulanmagan' },
     { name: 'Administrator telefoni', on: s.phones.includes('admin'), text: s.phones.includes('admin') ? 'ulangan' : 'ulanmagan' },
@@ -61,7 +61,7 @@ function Trunk({ line, onLine, notify }: { line: Line; onLine: (l: Line) => void
       const r = await api.savePhoneTrunk({ host: form.host.trim(), port: Number(form.port) || 5060, login: form.login.trim(), number: form.number.trim(), ...(form.password ? { password: form.password } : {}) });
       onLine(r.line);
       setForm(f => ({ ...f, password: '' }));
-      notify(r.warning ? `Saqlandi, lekin Asterisk'ka o'rnatilmadi: ${r.warning}` : 'Saqlandi — raqam bir daqiqada ulanadi', !!r.warning);
+      notify(r.warning ? `Saqlandi, lekin telefon xizmatiga o'rnatilmadi: ${r.warning}` : 'Saqlandi — raqam bir daqiqada ulanadi', !!r.warning);
     } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
   };
   return (
@@ -78,7 +78,7 @@ function Trunk({ line, onLine, notify }: { line: Line; onLine: (l: Line) => void
           <button type="submit" disabled={busy} className="flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[#3fd6c3] px-5 text-[14px] font-semibold text-[#07080b] disabled:opacity-50">
             {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Saqlash va ulash
           </button>
-          <p className="text-[12px] text-[#7d838f]">Parol shifrlangan holda saqlanadi, faqat shu kompyuterdagi Asterisk'ka beriladi.</p>
+          <p className="text-[12px] text-[#7d838f]">Parol shifrlangan holda saqlanadi, faqat shu kompyuterdagi telefon xizmatiga beriladi.</p>
         </div>
       </form>
     </Block>
@@ -144,7 +144,7 @@ function AdminPhone({ line, onLine, notify }: { line: Line; onLine: (l: Line) =>
       const r = await api.newAdminPhone();
       onLine(r.line);
       setShow(true);
-      notify(r.warning ? `Parol yaratildi, lekin Asterisk'ka o'rnatilmadi: ${r.warning}` : 'Akkaunt tayyor', !!r.warning);
+      notify(r.warning ? `Parol yaratildi, lekin telefon xizmatiga o'rnatilmadi: ${r.warning}` : 'Akkaunt tayyor', !!r.warning);
     } catch (e) { notify((e as Error).message, true); } finally { setBusy(false); }
   };
   const row = (k: string, v: ReactNode) => <div className="flex items-center justify-between gap-3 border-b border-glass/[0.05] py-2.5 text-[14px] last:border-0"><span className="text-[#8a909c]">{k}</span><span className="tabular-nums font-medium text-[#f2f0ea]">{v}</span></div>;

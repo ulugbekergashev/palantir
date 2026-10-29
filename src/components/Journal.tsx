@@ -18,7 +18,7 @@ const dayOf = (at: string) => {
 const TONE: Record<AgentEvent['level'], { cls: string; icon: typeof Info }> = {
   crit: { cls: 'text-rose-300 bg-rose-400/10', icon: CircleAlert },
   warn: { cls: 'text-[#f5b454] bg-[#f5b454]/10', icon: CircleAlert },
-  info: { cls: 'text-emerald-300 bg-emerald-400/10', icon: CircleCheck },
+  info: { cls: 'text-emerald-700 bg-emerald-400/10', icon: CircleCheck },
 };
 
 /** Jurnal yozuvining kadri (kirish bilan yuklanadi): src — tayyor bo'lsa, lost — o'chirilgan yoki yo'q (id yo'q — kadr olinmagan) */
@@ -81,9 +81,9 @@ export function AgentJournal({ member, notify, cameraId, tick = 0, empty }: { me
         </section>
       ))}
       {big && (
-        <div role="dialog" aria-label="Kadr" className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-6" onClick={() => setBig(null)}>
+        <div role="dialog" aria-label="Kadr" className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgb(0_0_0/0.80)] p-6" onClick={() => setBig(null)}>
           <img src={big} alt="Hodisa kadri" className="max-h-full max-w-full rounded-2xl" />
-          <button type="button" onClick={() => setBig(null)} aria-label="Yopish" className="absolute right-6 top-6 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white"><X className="h-5 w-5" aria-hidden="true" /></button>
+          <button type="button" onClick={() => setBig(null)} aria-label="Yopish" className="absolute right-6 top-6 flex h-11 w-11 items-center justify-center rounded-full bg-[rgb(0_0_0/0.60)] text-[#f8f8f6]"><X className="h-5 w-5" aria-hidden="true" /></button>
         </div>
       )}
     </div>

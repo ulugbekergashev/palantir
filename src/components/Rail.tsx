@@ -35,7 +35,7 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
         href={hrefOf(it.area)}
         aria-current={active ? 'page' : undefined}
         aria-label={it.label}
-        className={`group relative flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[10px] font-medium sm:text-[11px] no-underline transition-colors lg:flex-none lg:py-2 ${active ? 'text-[#f2f0ea]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
+        className={`group relative flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[11px] font-medium no-underline transition-colors lg:flex-none lg:py-2 ${active ? 'text-[#f2f0ea]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
       >
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${active ? 'bg-[#8b8cff]/18 text-[#c7c8ff]' : 'group-hover:bg-glass/5'}`}>
           <it.icon className="h-[19px] w-[19px]" aria-hidden="true" />

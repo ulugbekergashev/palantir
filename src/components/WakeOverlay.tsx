@@ -30,7 +30,7 @@ export function WakeOverlay({ wake }: { wake: Wake }) {
           : <button type="button" onClick={wake.hide} aria-label="Yopish" className="flex h-10 w-10 items-center justify-center rounded-xl text-[#a3a9b5] hover:bg-glass/5"><X className="h-4 w-4" aria-hidden="true" /></button>}
       </div>
       {wake.ai && <p className="relative mt-4 text-[18px] font-medium leading-snug text-[#f2f0ea]">{wake.ai}</p>}
-      {wake.error && <p role="alert" className="relative mt-3 rounded-xl bg-rose-500/10 px-3 py-2 text-[13px] text-rose-200">{wake.error}</p>}
+      {wake.error && <p role="alert" className="relative mt-3 rounded-xl bg-rose-500/10 px-3 py-2 text-[13px] text-rose-700">{wake.error}</p>}
       {wake.cards.length > 0 && (
         <ul className="relative mt-3 flex flex-col gap-2">
           {wake.cards.map(c => (

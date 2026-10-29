@@ -6,6 +6,7 @@ import { api } from '../data/api';
 import { FollowupCard, type Notify } from '../components/Artifacts';
 import { Button, ButtonLink, Card, EmptyState, PageHeader, controlClass } from '../components/ui';
 import { shortDate } from '../lib/week';
+import { scrollToEnd } from '../lib/scroll';
 
 const CHANNEL: Record<LeadChannel, { label: string; cls: string }> = {
   telegram: { label: 'Telegram', cls: 'bg-sky-100 text-sky-800' },
@@ -110,7 +111,7 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
   const bottom = useRef<HTMLDivElement>(null);
   const load = () => api.thread(leadId).then(setData).catch(e => notify((e as Error).message, true));
   useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 10_000); return () => clearInterval(t); }, [leadId]);
-  useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }); }, [data?.messages.length]);
+  useEffect(() => { scrollToEnd(bottom.current); }, [data?.messages.length]);
 
   const act = async (key: string, fn: () => Promise<unknown>, ok?: string) => {
     setBusy(key);

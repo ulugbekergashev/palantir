@@ -9,6 +9,7 @@ import { api, type DeepFinding, type DeepInsights } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { Panel, Quiet } from '../../components/agent';
 import { addDays, iso } from '../../lib/week';
+import { when } from '../../lib/text';
 
 const POLL_MS = 10_000;
 const IMPACT: Record<DeepFinding['impact'], { text: string; cls: string }> = {
@@ -16,7 +17,6 @@ const IMPACT: Record<DeepFinding['impact'], { text: string; cls: string }> = {
   medium: { text: "O'rta", cls: 'bg-[#f5b454]/15 text-[#fbd38d]' },
   low: { text: 'Kichik', cls: 'bg-glass/10 text-[#a3a9b5]' },
 };
-const when = (s: string) => new Date(s).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 function Chart({ run, file, alt }: { run: string; file: string; alt: string }) {
   const [src, setSrc] = useState<string | null>(null);
@@ -94,7 +94,7 @@ export function DiscoveriesBody({ notify }: { notify: Notify }) {
   return (
     <div className="flex flex-col gap-5">
       {head}
-      {error && !running && <p className="flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-[13.5px] text-rose-200"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{error}</p>}
+      {error && !running && <p className="flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-4 py-3 text-[13.5px] text-rose-700"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{error}</p>}
       {notice && !running && (
         <div className="flex flex-col gap-3 rounded-2xl border border-glass/[0.08] bg-glass/[0.03] px-4 py-3 sm:flex-row sm:items-center">
           <p className="flex min-w-0 flex-1 items-start gap-2 text-[13.5px] leading-snug text-[#c9ccd4]"><Info className="mt-0.5 h-4 w-4 shrink-0 text-[#86efc4]" aria-hidden="true" />{notice}</p>

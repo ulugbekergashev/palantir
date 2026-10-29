@@ -99,7 +99,7 @@ function Agenda({ data, reload, notify, onChanged }: { data: AssistantData; relo
                   {list.map(t => (
                     <li key={t.id} className={`group flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border px-4 py-3 ${g.id === 'late' ? 'border-[#f5b454]/15 bg-[#f5b454]/[0.03]' : 'border-glass/[0.06] bg-glass/[0.02]'}`}>
                       <button type="button" disabled={busy === t.id} onClick={() => { void act(t, { status: 'done' }, `Bajarildi: ${t.title}`); }} aria-label={`Bajarildi: ${t.title}`}
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-glass/25 text-transparent transition-colors hover:border-emerald-400 hover:bg-emerald-400/10 hover:text-emerald-300">
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-glass/25 text-transparent transition-colors hover:border-emerald-400 hover:bg-emerald-400/10 hover:text-emerald-700">
                         <Check className="h-4 w-4" aria-hidden="true" />
                       </button>
                       <span className="min-w-0 flex-1 basis-56">

@@ -17,7 +17,7 @@ function Row({ label, step, top, prev }: { label: string; step: FunnelStep; top:
         <span className="absolute inset-y-0 left-0 flex overflow-hidden rounded-lg" style={{ width: `${w}%` }}>
           {CH.map(c => step.byChannel[c.key] > 0 && <span key={c.key} style={{ background: c.color, flexGrow: step.byChannel[c.key] }} />)}
         </span>
-        <span className="absolute inset-y-0 left-2 flex items-center text-sm font-extrabold tabular-nums text-white mix-blend-normal drop-shadow-[0_1px_1px_rgb(0_0_0/0.35)]">{step.total}</span>
+        <span className="absolute inset-y-0 left-2 flex items-center text-sm font-extrabold tabular-nums text-[#ffffff] drop-shadow-[0_1px_2px_rgb(0_0_0/0.7)]">{step.total}</span>
       </span>
       <span className="text-right text-xs tabular-nums text-slate-500" title="Oldingi bosqichdagilardan">{prev === null ? '' : <>→ <b className="text-slate-800">{pct(step.total, prev)}</b></>}</span>
     </li>

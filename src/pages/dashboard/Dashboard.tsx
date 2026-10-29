@@ -10,6 +10,7 @@ import { prettyPhone } from '../../lib/phone';
 import { iso } from '../../lib/week';
 import { LineChart, Sparkline } from './Charts';
 import { Funnel } from './Funnel';
+import { dateShort } from '../../lib/text';
 
 type Icon = ComponentType<{ className?: string }>;
 /** Instagram belgisi (lucide'da brend belgilari yo'q) */
@@ -39,7 +40,7 @@ const ago = (at: string) => {
   if (m < 1) return 'hozir';
   if (m < 60) return `${m} daq oldin`;
   if (m < 1440) return `${Math.floor(m / 60)} soat oldin`;
-  return new Date(at).toLocaleDateString('uz', { day: '2-digit', month: '2-digit' });
+  return dateShort(at);
 };
 const versus = (key: PeriodKey) => ({ today: 'kechagiga nisbatan', yesterday: 'oldingi kunga nisbatan', week: 'oldingi 7 kunga nisbatan', month: 'oldingi 30 kunga nisbatan', custom: 'oldingi davrga nisbatan' }[key]);
 

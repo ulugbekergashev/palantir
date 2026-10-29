@@ -97,7 +97,7 @@ function OrderCard({ o, cams, notify, onChange, accent }: { o: AgentOrder; cams:
           {busy === 'run' ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Play className="h-3.5 w-3.5" aria-hidden="true" />}{o.spec.kind === 'watch' ? 'Hozir tekshirish' : o.spec.kind === 'standing' ? 'Qanday ishlaydi' : 'Hozir bajarish'}
         </button>
         <button type="button" disabled={!!busy} onClick={() => { void act('del', async () => { await api.deleteOrder(o.id); onChange(null); }); }} aria-label={`O'chirish: ${o.summary}`}
-          className="ml-auto flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] text-[#8a909c] hover:bg-rose-400/10 hover:text-rose-200 disabled:opacity-40">
+          className="ml-auto flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-[13px] text-[#8a909c] hover:bg-rose-400/10 hover:text-rose-700 disabled:opacity-40">
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />O'chirish
         </button>
       </div>
@@ -120,7 +120,7 @@ function Presets({ presets, orders, busy, onAdd }: { presets: Preset[]; orders: 
                 <span className="block text-[12px] text-[#8a909c]">{p.hint}</span>
               </span>
               {on
-                ? <span className="flex min-h-9 items-center gap-1.5 px-2 text-[13px] text-emerald-300"><Check className="h-4 w-4" aria-hidden="true" />Yoqilgan</span>
+                ? <span className="flex min-h-9 items-center gap-1.5 px-2 text-[13px] text-emerald-700"><Check className="h-4 w-4" aria-hidden="true" />Yoqilgan</span>
                 : (
                   <button type="button" disabled={!!busy} onClick={() => onAdd(p)} aria-label={`Yoqish: ${p.title}`}
                     className="flex min-h-9 items-center gap-1.5 rounded-xl border border-glass/10 px-3 text-[13px] font-semibold text-[#f2f0ea] hover:bg-glass/5 disabled:opacity-50">

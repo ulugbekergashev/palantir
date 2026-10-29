@@ -34,7 +34,7 @@ function Block({ title, hint, action, children }: { title: string; hint: string;
     </section>
   );
 }
-const field = 'h-11 w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#6b717c] focus:border-glass/25';
+const field = 'h-11 w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#8a909c] focus:border-glass/25';
 const label = 'flex flex-col gap-1.5 text-[12px] font-medium text-[#a3a9b5]';
 
 /**
@@ -143,7 +143,7 @@ export function CamerasPage({ notify }: { notify: Notify }) {
                       <p className="text-[14px] font-semibold text-[#f2f0ea]">{c.brand || "Noma'lum marka"} · <span className="tabular-nums">{c.ip}</span></p>
                       <p className="text-[12px] text-[#7d838f]">{c.model || (c.onvif ? 'ONVIF' : `faqat RTSP porti ${c.rtspPort}`)}</p>
                     </div>
-                    {c.connected ? <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[12px] font-semibold text-emerald-300">Ulangan</span> : (
+                    {c.connected ? <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">Ulangan</span> : (
                       <>
                         <input className={`${field} w-40`} aria-label="Qayerda turibdi" value={names[c.ip] ?? ''} onChange={e => setNames({ ...names, [c.ip]: e.target.value })} list="camera-places" />
                         <button type="button" onClick={() => { void connect(c); }} disabled={!!busy} className="flex min-h-11 items-center gap-2 rounded-xl bg-[#f2f0ea] px-4 text-[14px] font-semibold text-[#07080b] disabled:opacity-50">
@@ -338,13 +338,13 @@ function ZoneEditor({ camera, timing, notify, onSaved, onRemoved }: { camera: Ca
           <span className="text-slate-500">Odamlarni server o'zi sanaydi — bu sahifa ochiq turishi shart emas.</span>
         </p>
       )}
-      {counting === 'on' && <p role="status" className="text-sm font-semibold text-emerald-300">Sanash yoqilgan: topilgan odamlar oq ramkada, zona holati uning yorlig'ida.</p>}
+      {counting === 'on' && <p role="status" className="text-sm font-semibold text-emerald-700">Sanash yoqilgan: topilgan odamlar oq ramkada, zona holati uning yorlig'ida.</p>}
       <div className="relative mx-auto max-w-3xl touch-none select-none overflow-hidden rounded-xl bg-[#06070a]" onPointerDown={e => { if (counting !== 'off') return; e.currentTarget.setPointerCapture(e.pointerId); const p = at(e); setDrag({ x0: p.x, y0: p.y, ...p }); }}
         onPointerMove={e => { if (drag) setDrag({ ...drag, ...at(e) }); }} onPointerUp={finish} onPointerCancel={() => setDrag(null)}>
 {isIp
           ? shot ? <img src={shot} alt={`${camera.name} kamerasi kadri`} draggable={false} className="block min-h-40 w-full" /> : <div className="flex min-h-40 items-center justify-center text-sm text-[#7d838f]">Kadr olinmoqda…</div>
           : <video ref={video} autoPlay muted playsInline onLoadedData={() => setReady(true)} aria-label={`${camera.name} kamerasi tasviri`} className="block min-h-40 w-full" />}
-        {zones.map((z, i) => <div key={i} className={`absolute border-2 ${ZONE_BORDER[z.kind]}`} style={box(z)}><span className="bg-black/70 px-1 text-xs font-semibold text-white">{z.name}{seen && z.id && seen.zones[z.id] ? ` · ${NOW[seen.zones[z.id]]}` : ''}</span></div>)}
+        {zones.map((z, i) => <div key={i} className={`absolute border-2 ${ZONE_BORDER[z.kind]}`} style={box(z)}><span className="bg-[rgb(0_0_0/0.70)] px-1 text-xs font-semibold text-[#f8f8f6]">{z.name}{seen && z.id && seen.zones[z.id] ? ` · ${NOW[seen.zones[z.id]]}` : ''}</span></div>)}
         {seen?.people.map((p, i) => <div key={`p${i}`} className="absolute border-2 border-dashed border-white/90" style={box(p)} />)}
         {drag && <div className="absolute border-2 border-dashed border-white" style={box(rect(drag))} />}
       </div>

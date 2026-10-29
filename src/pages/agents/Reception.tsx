@@ -14,11 +14,12 @@ import type { DashboardView } from '../../lib/dashboard';
 import { hrefOf } from '../../lib/nav';
 import { Conversations } from './Conversations';
 import { Gaps } from './Gaps';
+import { requestKind } from '../../lib/requests';
 
-const KIND: Record<string, string> = { callback: "Qayta qo'ng'iroq", booking: 'Yozilmoqchi', change: "Ko'chirish / bekor", complaint: 'Shikoyat', other: "So'rov" };
+// Nomlar Sozlamalar → Mijozlarga javob (TelegramPage) bilan bir xil
 const MODES: { id: ReplyMode; label: string; hint: string }[] = [
-  { id: 'auto', label: "O'zi javob beradi", hint: 'Bilganiga darhol javob beradi, bilmaganini sizga so‘rov qiladi' },
-  { id: 'draft', label: 'Avval menga ko‘rsatsin', hint: 'Javobni tayyorlaydi, siz tasdiqlaysiz' },
+  { id: 'draft', label: 'Men tasdiqlayman', hint: 'Javobni tayyorlab sizga ko‘rsatadi — «Yuborish»ni bossangiz ketadi' },
+  { id: 'auto', label: "O'zi javob bersin", hint: 'Bilganiga o‘zi javob beradi, bilmaganini sizdan so‘raydi' },
   { id: 'off', label: "O'chiq", hint: 'Yozishmalarga javob bermaydi' },
 ];
 
@@ -28,7 +29,7 @@ function RequestCard({ r, onDone, notify }: { r: RequestView; onDone: () => void
     setBusy(true);
     try {
       await api.requestAction(r.id, verb);
-      notify(verb === 'done' ? 'Hal qilindi' : "Ko'tarmadi — 30 daqiqadan keyin yana eslatiladi");
+      notify(verb === 'done' ? 'Bajarildi' : "Ko'tarmadi — 30 daqiqadan keyin yana eslatiladi");
       onDone();
     } catch (e) {
       notify((e as Error).message, true);
@@ -40,14 +41,14 @@ function RequestCard({ r, onDone, notify }: { r: RequestView; onDone: () => void
   return (
     <li className={`flex flex-col gap-2.5 rounded-2xl border p-4 ${r.kind === 'complaint' ? 'border-rose-400/25 bg-rose-400/[0.05]' : 'border-[#f5b454]/20 bg-[#f5b454]/[0.04]'}`}>
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <span className={`text-[11px] font-bold uppercase tracking-[0.1em] ${r.kind === 'complaint' ? 'text-rose-300' : 'text-[#f5b454]'}`}>{KIND[r.kind] ?? "So'rov"}</span>
+        <span className={`text-[11px] font-bold uppercase tracking-[0.1em] ${r.kind === 'complaint' ? 'text-rose-300' : 'text-[#f5b454]'}`}>{requestKind(r.kind)}</span>
         <span className="text-[12px] text-[#7d838f]">{ago(r.createdAt)}</span>
       </div>
       <p className="text-[15px] font-semibold text-[#f2f0ea]">{r.name ?? r.lead?.name ?? 'Mijoz'}{phone && <a href={`tel:${phone}`} className="ml-2 tabular-nums text-[13px] font-normal text-[#a3a9b5] no-underline hover:text-[#f2f0ea]">{phone}</a>}</p>
       <p className="text-[14px] leading-relaxed text-[#d9dbe1]">{r.summary}{r.whenText && <span className="text-[#a3a9b5]"> · {r.whenText}</span>}</p>
       {r.quote && <p className="border-l-2 border-glass/15 pl-3 text-[13px] italic text-[#a3a9b5]">«{r.quote}»</p>}
       <div className="flex flex-wrap gap-2 pt-1">
-        <button type="button" disabled={busy} onClick={() => { void act('done'); }} className="flex min-h-10 items-center gap-1.5 rounded-xl bg-[#f2f0ea] px-3.5 text-[13px] font-semibold text-[#07080b] disabled:opacity-50"><Check className="h-4 w-4" aria-hidden="true" />Hal qilindi</button>
+        <button type="button" disabled={busy} onClick={() => { void act('done'); }} className="flex min-h-10 items-center gap-1.5 rounded-xl bg-[#f2f0ea] px-3.5 text-[13px] font-semibold text-[#07080b] disabled:opacity-50"><Check className="h-4 w-4" aria-hidden="true" />Bajarildi</button>
         {phone && <button type="button" disabled={busy} onClick={() => { void act('no-answer'); }} className="min-h-10 rounded-xl border border-glass/10 px-3.5 text-[13px] text-[#d9dbe1] hover:bg-glass/5 disabled:opacity-50">Ko'tarmadi</button>}
       </div>
     </li>
@@ -94,7 +95,7 @@ export function ReceptionToday({ data, reload, notify, status, onChanged, tick }
           <VoicePanel kind="customer" member="qabulxona" title="Mijoz bo'lib qo'ng'iroq qiling"
             hint="Qabulxona sizga mijozdek javob beradi. Sinov: jadvalga yozilmaydi, so'rov ochilmaydi."
             labels={{ start: "Qabulxonaga qo'ng'iroq qilish", stop: "Qo'ng'iroqni tugatish", speaking: 'Qabulxona gapiryapti' }} />
-          <Panel title={`Sizni kutyapti${data?.requests.length ? ` · ${data.requests.length}` : ''}`} action={<a href={hrefOf('qabulxona', 'sorovlar')} className="text-[13px] text-[#a3a9b5] no-underline hover:text-[#f2f0ea]">Hammasi →</a>}>
+          <Panel title={`So'rovlar${data?.requests.length ? ` · ${data.requests.length}` : ''}`} action={<a href={hrefOf('qabulxona', 'sorovlar')} className="text-[13px] text-[#a3a9b5] no-underline hover:text-[#f2f0ea]">Hammasi →</a>}>
             {data?.requests.length ? <ul className="flex flex-col gap-2.5">{data.requests.slice(0, 4).map(r => <RequestCard key={r.id} r={r} notify={notify} onDone={changed} />)}</ul>
               : <Quiet>Hammasi hal qilingan — siz hal qilishingiz kerak bo'lgan so'rov yo'q.</Quiet>}
           </Panel>

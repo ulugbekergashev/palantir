@@ -5,6 +5,7 @@ import { api } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { Button } from '../components/ui';
 import { prettyPhone } from '../lib/phone';
+import { REQUEST_KIND, requestKind, type RequestKindKey } from '../lib/requests';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 /** «19.10.2026 00:35» (brauzer tilidan qat'i nazar bir xil) */
@@ -12,7 +13,7 @@ const when = (t: string) => { const d = new Date(t); return `${pad(d.getDate())}
 const day = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
 const sum = (n: number) => `${Math.round(Math.abs(n)).toLocaleString('ru-RU').replace(/ /g, ' ')} so'm`;
 const length = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
-const KIND: Record<LeadRequest['kind'], string> = { callback: "📞 Qo'ng'iroq qilish", booking: '📅 Qabulga yozish', change: '🔁 Surish/bekor', complaint: '⚠️ Shikoyat', other: '📌 Boshqa' };
+const KIND = Object.fromEntries((Object.keys(REQUEST_KIND) as RequestKindKey[]).map(k => [k, requestKind(k, true)])) as Record<LeadRequest['kind'], string>;
 const CALL_STATE: Record<string, string> = { ended: 'gaplashildi', missed: "o'tkazib yuborildi", no_answer: "ko'tarmadi", talking: 'suhbatda', ringing: 'jiringlayapti', dialing: 'terilmoqda' };
 
 function Block({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {

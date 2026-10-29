@@ -9,13 +9,15 @@ import type { Call, InboxMessage, InboxThread, Lead, ReplyDraft } from '../../ty
 import { api } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { clock } from '../../components/agent';
+import { scrollToEnd } from '../../lib/scroll';
+import { CALL_OUTCOME } from '../../lib/requests';
 
 type Item = { kind: 'chat'; id: string; at: string; thread: InboxThread } | { kind: 'call'; id: string; at: string; call: Call };
 type Filter = 'all' | 'waiting' | 'calls' | 'chats';
 
 const leadName = (l: Lead) => l.name || (l.username ? `@${l.username}` : null) || l.phone || 'Mijoz';
 const CH: Record<string, string> = { instagram: 'Instagram', telegram: 'Telegram', bot: 'Telegram bot', manual: 'Qo‘lda' };
-const OUTCOME: Record<string, string> = { booked: 'Qabulga yozildi', callback: "Qayta qo'ng'iroq kerak", info: "Ma'lumot oldi", lost: 'Qiziqmadi', complaint: 'Shikoyat', other: 'Boshqa' };
+const OUTCOME: Record<string, string> = CALL_OUTCOME;
 const day = (iso: string) => {
   const d = new Date(iso), t = new Date();
   return d.toDateString() === t.toDateString() ? clock(iso) : `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -30,7 +32,7 @@ function ChatThread({ thread, notify, onChanged }: { thread: InboxThread; notify
   const end = useRef<HTMLDivElement>(null);
   const load = () => api.thread(thread.lead.id).then(r => setData({ messages: r.messages, replies: r.replies })).catch(e => notify((e as Error).message, true));
   useEffect(() => { setData(null); setText(''); setEditing(null); void load(); }, [thread.lead.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [data]);
+  useEffect(() => { scrollToEnd(end.current); }, [data]);
   const pending = data?.replies.filter(r => r.status === 'pending') ?? [];
   const run = async (work: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -57,7 +59,7 @@ function ChatThread({ thread, notify, onChanged }: { thread: InboxThread; notify
               <li key={m.id} className={`flex flex-col ${m.direction === 'in' ? 'items-start' : 'items-end'}`}>
                 {m.direction === 'out' && <span className="mb-0.5 text-[11px] font-medium text-[#7d838f]">{m.by === 'palantir' ? 'AI qabulxona' : 'Siz'}</span>}
                 <p className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2 text-[14px] leading-relaxed ${m.direction === 'in' ? 'rounded-bl-md bg-glass/[0.06] text-[#e4e3de]' : m.by === 'palantir' ? 'rounded-br-md bg-[#3fd6c3]/15 text-[#dffaf5]' : 'rounded-br-md bg-[#8b8cff]/20 text-[#e9e9ff]'}`}>{m.text}</p>
-                <span className="mt-0.5 text-[11px] text-[#6e7582]">{day(m.createdAt)}</span>
+                <span className="mt-0.5 text-[11px] text-[#8a909c]">{day(m.createdAt)}</span>
               </li>
             ))}
             {!data.messages.length && <li className="py-8 text-center text-[14px] text-[#7d838f]">Xabar yo'q</li>}
@@ -120,7 +122,7 @@ function CallThread({ call }: { call: Call }) {
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <div className={`rounded-2xl border p-4 ${call.booked || a?.outcome === 'booked' ? 'border-emerald-400/25 bg-emerald-400/[0.05]' : 'border-glass/[0.08] bg-glass/[0.03]'}`}>
-          <p className={`text-[15px] font-semibold ${call.booked || a?.outcome === 'booked' ? 'text-emerald-300' : 'text-[#f2f0ea]'}`}>{call.booked ? `Qabulga yozildi · ${call.booked}` : a ? OUTCOME[a.outcome] : call.outcome}</p>
+          <p className={`text-[15px] font-semibold ${call.booked || a?.outcome === 'booked' ? 'text-emerald-700' : 'text-[#f2f0ea]'}`}>{call.booked ? `Qabulga yozildi · ${call.booked}` : a ? OUTCOME[a.outcome] : call.outcome}</p>
           {a?.summary && <p className="mt-1.5 text-[14px] leading-relaxed text-[#c9cbd2]">{a.summary}</p>}
           {a?.nextStep && <p className="mt-1.5 text-[13px] text-[#a3a9b5]">Keyingi qadam: {a.nextStep}</p>}
         </div>
@@ -159,7 +161,7 @@ export function Conversations({ notify, onChanged, tick }: { notify: Notify; onC
   const shown = items.filter(i => filter === 'all' || (filter === 'waiting' ? i.kind === 'chat' && i.thread.pending > 0 : filter === 'calls' ? i.kind === 'call' : i.kind === 'chat'));
   const current = items.find(i => i.id === selected) ?? shown[0] ?? null;
   const waiting = items.filter(i => i.kind === 'chat' && i.thread.pending > 0).length;
-  const filters: { id: Filter; label: string; count?: number }[] = [{ id: 'all', label: 'Hammasi' }, { id: 'waiting', label: 'Kutyapti', count: waiting }, { id: 'calls', label: "Qo'ng'iroq" }, { id: 'chats', label: 'Yozishma' }];
+  const filters: { id: Filter; label: string; count?: number }[] = [{ id: 'all', label: 'Hammasi' }, { id: 'waiting', label: 'Javob tayyor', count: waiting }, { id: 'calls', label: "Qo'ng'iroq" }, { id: 'chats', label: 'Yozishma' }];
 
   // Hali hech kim murojaat qilmagan: bo'sh ikki maydon emas — nima bo'lishi va hozir qanday sinash
   if (threads && !items.length) {
@@ -180,10 +182,10 @@ export function Conversations({ notify, onChanged, tick }: { notify: Notify; onC
           <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[#a3a9b5]">Suhbatlar</h2>
           <span className="text-[12px] text-[#7d838f]">{items.length}</span>
         </div>
-        <div role="tablist" aria-label="Filtr" className="flex flex-wrap gap-1 px-3 pb-3">
+        <div role="tablist" aria-label="Filtr" className="flex gap-1 overflow-x-auto px-3 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {filters.map(f => (
             <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} onClick={() => setFilter(f.id)}
-              className={`flex min-h-8 items-center gap-1.5 rounded-full px-3 text-[12px] font-medium transition-colors ${filter === f.id ? 'bg-[#f2f0ea] text-[#07080b]' : 'text-[#a3a9b5] hover:bg-glass/5'}`}>
+              className={`flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[12px] font-medium transition-colors ${filter === f.id ? 'bg-[#f2f0ea] text-[#07080b]' : 'text-[#a3a9b5] hover:bg-glass/5'}`}>
               {f.label}{!!f.count && <span className="rounded-full bg-[#f5b454] px-1.5 text-[10px] font-bold text-[#07080b]">{f.count}</span>}
             </button>
           ))}
@@ -203,8 +205,8 @@ export function Conversations({ notify, onChanged, tick }: { notify: Notify; onC
                     <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-[#0b0c10] bg-[#14161c] text-[#8ff0e2]"><Icon className="h-2.5 w-2.5" aria-hidden="true" /></span>
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline gap-2"><span className="truncate text-[14px] font-semibold text-[#f2f0ea]">{name}</span><span className="ml-auto shrink-0 tabular-nums text-[11px] text-[#6e7582]">{i.at ? day(i.at) : ''}</span></span>
-                    <span className={`block truncate text-[13px] ${i.kind === 'call' && (i.call.booked || i.call.analysis?.outcome === 'booked') ? 'text-emerald-300' : 'text-[#8a909c]'}`}>{preview}</span>
+                    <span className="flex items-baseline gap-2"><span className="truncate text-[14px] font-semibold text-[#f2f0ea]">{name}</span><span className="ml-auto shrink-0 tabular-nums text-[11px] text-[#8a909c]">{i.at ? day(i.at) : ''}</span></span>
+                    <span className={`block truncate text-[13px] ${i.kind === 'call' && (i.call.booked || i.call.analysis?.outcome === 'booked') ? 'text-emerald-700' : 'text-[#8a909c]'}`}>{preview}</span>
                     {i.kind === 'chat' && i.thread.pending > 0 && <span className="mt-1 inline-block rounded-full bg-[#f5b454]/15 px-2 py-0.5 text-[11px] font-medium text-[#fbd38d]">AI javobi tayyor</span>}
                   </span>
                 </button>

@@ -16,6 +16,7 @@ import { sectionFor } from '../lib/commands';
 import { startRecording, type Recording } from '../lib/recorder';
 import { useVoice } from '../lib/useVoice';
 import { iso } from '../lib/week';
+import { scrollToEnd } from '../lib/scroll';
 
 const SUGGESTIONS = [
   'Bugun nima qilishim kerak?',
@@ -59,7 +60,7 @@ function VoiceSession({ e }: { e: ChatEntry }) {
         {shown.map((l, i) => {
           const done = l.startsWith('✓'), me = l.startsWith('Siz:');
           return (
-            <li key={i} className={done ? 'text-emerald-300' : me ? 'text-[#a3a9b5]' : 'text-[#e4e3de]'}>
+            <li key={i} className={done ? 'text-emerald-700' : me ? 'text-[#a3a9b5]' : 'text-[#e4e3de]'}>
               {done ? l : <><span className="mr-1.5 text-[12px] font-semibold text-[#7d838f]">{me ? 'Siz' : 'Palantir'}</span>{l.replace(SPEAKER, '')}</>}
             </li>
           );
@@ -128,7 +129,7 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
     if (wasLive.current && !live.active) { const t = setTimeout(() => { void load(); setMemoryTick(x => x + 1); }, 1500); wasLive.current = false; return () => clearTimeout(t); }
     wasLive.current = live.active;
   }, [live.active]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [entries?.length, pending]);
+  useEffect(() => { scrollToEnd(bottom.current, { smooth: true, page: true }); }, [entries?.length, pending]);
 
   const submit = async (value: string, voice?: Blob) => {
     const clean = value.trim();
@@ -214,11 +215,12 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
     <div className="grid h-[calc(100dvh-var(--shell-y))] min-h-[560px] gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section aria-label="Palantir bilan suhbat" className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-glass/[0.07] bg-[#0a0b0f]">
         <div aria-hidden="true" className="pointer-events-none absolute -left-24 -top-40 h-[380px] w-[380px] rounded-full" style={{ background: `radial-gradient(closest-side, ${h.glow}, transparent)` }} />
-        <header className="relative flex flex-wrap items-center gap-3 border-b border-glass/[0.06] px-5 py-4 sm:px-6">
-          <AgentOrb member="yordamchi" size={40} live={live.active} />
+        {/* Telefonda faqat amallar: sahifa sarlavhasi (Yordamchi) tepada bor — ikkinchi sarlavha yozish maydonini pastga itarardi */}
+        <header className="relative flex flex-wrap items-center gap-3 border-b border-glass/[0.06] px-4 py-2.5 sm:px-6 sm:py-4">
+          <span className="hidden sm:inline-flex"><AgentOrb member="yordamchi" size={40} live={live.active} /></span>
           <div className="mr-auto min-w-0">
-            <h1 className="text-[17px] font-semibold text-[#f2f0ea]">Palantir bilan suhbat</h1>
-            <p className="text-[13px] text-[#8a909c]">Yozing, gapiring yoki fayl tashlang. Telegram va ovozli suhbatlar ham shu yerda.</p>
+            <h1 className="sr-only text-[17px] font-semibold text-[#f2f0ea] sm:not-sr-only">Palantir bilan suhbat</h1>
+            <p className="hidden text-[13px] text-[#8a909c] sm:block">Yozing, gapiring yoki fayl tashlang. Telegram va ovozli suhbatlar ham shu yerda.</p>
           </div>
           {!status.ai && <span className="rounded-full bg-[#f5b454]/15 px-3 py-1 text-[12px] font-semibold text-[#fde2b0]">AI ulanmagan</span>}
           {status.bot && !status.ownerLinked && <a href="#/sozlamalar/telegram" className="rounded-full bg-[#f5b454]/15 px-3 py-1 text-[12px] font-semibold text-[#fde2b0] no-underline">Telegram'ni ulang →</a>}
@@ -250,7 +252,7 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
                         {e.role === 'owner' ? <OwnerBubble e={e} />
                           : <div data-msg="assistant" className="text-[15.5px] leading-[1.7] text-[#e4e3de]"><Markdown text={e.text} /></div>}
                         {e.artifacts.map((a, i) => <ArtifactView key={i} a={a} notify={notify} now={now} onChange={x => replaceArtifact(e.id, i, x)} />)}
-                        <span className="text-[11px] text-[#6b717c]">{time(e.createdAt)}{e.channel === 'telegram' ? ' · Telegram' : ''}</span>
+                        <span className="text-[11px] text-[#8a909c]">{time(e.createdAt)}{e.channel === 'telegram' ? ' · Telegram' : ''}</span>
                       </div>
                     </div>
                   ))}
@@ -272,7 +274,7 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
             <div ref={live.orb} aria-hidden="true" className="h-10 w-10 shrink-0 rounded-full transition-transform duration-100"
               style={{ background: `radial-gradient(circle at 30% 28%, #ffffffcc, ${h.a} 38%, ${h.b} 72%, #15123a 100%)`, transform: 'scale(calc(1 + var(--mic, 0) * 0.25 + var(--ai, 0) * 0.15))' }} />
             <div className="min-w-0 flex-1 text-[14px]">
-              {live.error ? <p role="alert" className="text-rose-200">{live.error}</p> : (
+              {live.error ? <p role="alert" className="text-rose-700">{live.error}</p> : (
                 <>
                   <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[#c7c8ff]">{live.mode === 'connecting' ? 'Ulanmoqda…' : live.mode === 'thinking' ? 'Bajaryapti…' : live.mode === 'speaking' ? 'Palantir gapiryapti' : 'Eshityapti — gapiring'}</p>
                   {live.ai ? <p className="truncate text-[#f2f0ea]">{live.ai}</p> : live.you ? <p className="truncate text-[#a3a9b5]">«{live.you}»</p> : null}

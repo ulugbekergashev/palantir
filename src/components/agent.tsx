@@ -2,7 +2,7 @@
  * AI xodim sahifalarining umumiy qismlari — bosh ekran (sfera) bilan bir uslubda: har xodimning o'z rangidagi sferasi,
  * katta sarlavha va bugungi raqamlar, «xodimdan so'rang» qatori (javob Palantir yordamchisidan), bo'lim kartasi, varaqlar.
  */
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowUp, Loader2 } from 'lucide-react';
 import { api } from '../data/api';
 import { hrefOf, type Area } from '../lib/nav';
@@ -10,6 +10,9 @@ import { Markdown } from './Markdown';
 import { TEAM, type Member, type MemberState } from './team';
 
 /** Har xodimning rangi: sfera, nur va urg'u */
+/** Holat nuqtasi: faol ish — yorqin halqa, ishlayapti — yashil, ulanmagan — kulrang */
+export const dotClass = (s: MemberState) => (s.live ? 'bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]' : s.on ? 'bg-emerald-400' : 'bg-glass/30');
+
 export const HUE: Record<Member, { a: string; b: string; glow: string; text: string }> = {
   qabulxona: { a: '#3fd6c3', b: '#6f73ff', glow: 'rgba(63,214,195,0.16)', text: '#8ff0e2' },
   yordamchi: { a: '#8b8cff', b: '#b38cff', glow: 'rgba(139,140,255,0.18)', text: '#c7c8ff' },
@@ -43,51 +46,68 @@ export function AgentHero({ member, state, stats, children, compact = false }: {
           <h1 className="text-[20px] font-bold leading-tight tracking-tight text-[#f2f0ea]">{m.name}</h1>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: h.text }}>{m.role}</p>
         </div>
-        {children && <div className="relative">{children}</div>}
+        {/* Telefonda varaqlar alohida qatorda va ekran enida (suriladi) — sarlavhadan chiqib ketmaydi */}
+        {children && <div className="relative min-w-0 max-w-full basis-full sm:basis-auto">{children}</div>}
       </header>
     );
   }
   return (
-    <header className="relative overflow-hidden rounded-[28px] border border-glass/[0.07] bg-[#0a0b0f] p-6 sm:p-8">
+    // Telefonda ixcham: sfera va tavsif yashiriladi, raqamlar bitta qatorda — birinchi ekranda ish ko'rinsin, sarlavha emas
+    <header className="relative overflow-hidden rounded-[22px] border border-glass/[0.07] bg-[#0a0b0f] p-4 sm:rounded-[28px] sm:p-8">
       <div aria-hidden="true" className="pointer-events-none absolute -left-24 -top-32 h-[420px] w-[420px] rounded-full" style={{ background: `radial-gradient(closest-side, ${h.glow}, transparent)` }} />
-      <div className="relative flex flex-wrap items-center gap-6">
-        <AgentOrb member={member} live={state?.live} />
-        <div className="min-w-0 flex-1 basis-72">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.16em]" style={{ color: h.text }}>{m.role}</p>
-          <h1 className="mt-1 text-[38px] font-bold leading-[1.05] tracking-[-0.02em] text-[#f2f0ea]">{m.name}</h1>
-          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[#a3a9b5]">{m.about}</p>
+      <div className="relative flex flex-wrap items-center gap-3 sm:gap-6">
+        <span className="hidden sm:inline-flex"><AgentOrb member={member} live={state?.live} /></span>
+        <div className="min-w-0 flex-1 sm:basis-72">
+          <p className="hidden text-[12px] font-semibold uppercase tracking-[0.16em] sm:block" style={{ color: h.text }}>{m.role}</p>
+          <h1 className="text-[24px] font-bold leading-[1.05] tracking-[-0.02em] text-[#f2f0ea] sm:mt-1 sm:text-[38px]">{m.name}</h1>
+          <p className="mt-2 hidden max-w-2xl text-[15px] leading-relaxed text-[#a3a9b5] sm:block">{m.about}</p>
         </div>
         {state && (
-          <span className="flex items-center gap-2 rounded-full border border-glass/10 bg-glass/[0.04] px-4 py-2 text-sm font-medium text-[#f2f0ea]">
-            <span className={`h-2 w-2 rounded-full ${state.live ? 'bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]' : 'bg-glass/30'}`} aria-hidden="true" />{state.status}
+          <span className="flex items-center gap-2 rounded-full border border-glass/10 bg-glass/[0.04] px-3 py-1.5 text-[13px] font-medium text-[#f2f0ea] sm:px-4 sm:py-2 sm:text-sm">
+            <span className={`h-2 w-2 rounded-full ${dotClass(state)}`} aria-hidden="true" />{state.status}
           </span>
         )}
       </div>
       {stats.length > 0 && (
-        <dl className="relative mt-8 grid grid-cols-2 gap-x-6 gap-y-6 lg:grid-cols-4">
+        <dl className={`relative mt-4 grid gap-x-3 gap-y-4 sm:mt-8 sm:gap-x-6 sm:gap-y-6 ${stats.length >= 4 ? 'grid-cols-4' : stats.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} lg:grid-cols-4`}>
           {stats.map(s => (
-            <div key={s.label} className="flex flex-col gap-1 border-l border-glass/10 pl-4">
-              <dt className="order-2 text-[13px] text-[#a3a9b5]">{s.label}</dt>
-              <dd className={`order-1 m-0 tabular-nums text-[34px] font-semibold leading-none tracking-tight ${s.tone === 'warn' ? 'text-[#f5b454]' : s.tone === 'good' ? 'text-emerald-300' : 'text-[#f2f0ea]'}`}>{s.value}</dd>
-              {s.hint && <dd className="order-3 m-0 text-[12px] text-[#7d838f]">{s.hint}</dd>}
+            <div key={s.label} className="flex min-w-0 flex-col gap-1 border-l border-glass/10 pl-2.5 sm:pl-4">
+              <dt className="order-2 text-[11px] leading-tight text-[#a3a9b5] sm:text-[13px]">{s.label}</dt>
+              <dd className={`order-1 m-0 tabular-nums text-[22px] font-semibold leading-none tracking-tight sm:text-[34px] ${s.tone === 'warn' ? 'text-[#f5b454]' : s.tone === 'good' ? 'text-emerald-700' : 'text-[#f2f0ea]'}`}>{s.value}</dd>
+              {s.hint && <dd className="order-3 m-0 hidden text-[12px] text-[#8a909c] sm:block">{s.hint}</dd>}
             </div>
           ))}
         </dl>
       )}
-      {children && <div className="relative mt-7">{children}</div>}
+      {children && <div className="relative mt-4 sm:mt-7">{children}</div>}
     </header>
   );
 }
 
 export function AgentTabs({ area, tabs, active }: { area: Area; tabs: { id: string; label: string; count?: number }[]; active: string }) {
+  const nav = useRef<HTMLElement>(null);
+  // Qator suriladigan bo'lsa (telefon) — faol varaq ko'rinadigan joyga (faqat yon tomonga: sahifa surilmaydi)
+  useEffect(() => {
+    const show = () => {
+      const box = nav.current, on = box?.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!box || !on || box.scrollWidth <= box.clientWidth) return;
+      box.scrollLeft += on.getBoundingClientRect().left - box.getBoundingClientRect().left - (box.clientWidth - on.offsetWidth) / 2;
+    };
+    show();
+    // Shrift yuklangach varaqlar kengayadi — qayta hisoblanadi; sanoqlar (badge) kelganda ham (deps)
+    void document.fonts?.ready.then(show);
+  }, [active, tabs.map(t => t.count ?? 0).join()]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <nav aria-label="Varaqlar" className="flex flex-wrap gap-1.5">
+    // Telefonda bitta qator, yon tomonga suriladi (uch qatorga bo'linib sarlavhani cho'zmasin)
+    <nav ref={nav} aria-label="Varaqlar" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
       {tabs.map(t => (
         <a key={t.id} href={hrefOf(area, t.id)} aria-current={t.id === active ? 'page' : undefined}
-          className={`flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-medium no-underline transition-colors ${t.id === active ? 'bg-[#f2f0ea] text-[#07080b]' : 'text-[#a3a9b5] hover:bg-glass/5 hover:text-[#f2f0ea]'}`}>
+          className={`flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-medium no-underline transition-colors ${t.id === active ? 'bg-[#f2f0ea] text-[#07080b]' : 'text-[#a3a9b5] hover:bg-glass/5 hover:text-[#f2f0ea]'}`}>
           {t.label}{!!t.count && <span className={`rounded-full px-1.5 text-[11px] font-bold ${t.id === active ? 'bg-[#07080b]/10' : 'bg-[#f5b454] text-[#07080b]'}`}>{t.count}</span>}
         </a>
       ))}
+      {/* Suriladigan qatorning o'ng cheti: oxirgi varaq kesilmasin (flex ichidagi o'ng padding surish chegarasiga kirmaydi) */}
+      <span aria-hidden="true" className="w-2 shrink-0 sm:hidden" />
     </nav>
   );
 }

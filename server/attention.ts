@@ -11,6 +11,7 @@ import { dueLabel, stamp } from '../src/lib/week';
 import { leads, replies, tasks, type BusinessRow } from './db';
 import { requests } from './requests/store';
 import { events, orders } from './orders/store';
+import { requestKind } from '../src/lib/requests';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps { asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler }
@@ -27,7 +28,6 @@ export interface AttentionItem {
 
 const DAY_MS = 86_400_000;
 const LIMIT = 30;
-const KIND_LABEL: Record<string, string> = { callback: "Qayta qo'ng'iroq", booking: 'Yozilmoqchi', change: "Ko'chirish / bekor", complaint: 'Shikoyat', other: "So'rov" };
 const ORDER: AttentionKind[] = ['camera', 'request', 'reply', 'task', 'order'];
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -39,7 +39,7 @@ export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
   for (const r of requests.list(biz.id, 'open', LIMIT)) {
     const lead = r.leadId ? leads.get(biz.id, r.leadId) : null;
     const who = r.name ?? lead?.name ?? lead?.username ?? 'Mijoz';
-    items.push({ key: `request:${r.id}`, kind: 'request', member: 'qabulxona', refId: r.id, title: `${KIND_LABEL[r.kind] ?? "So'rov"} · ${who}`, body: cut(r.summary + (r.whenText ? ` · ${r.whenText}` : ''), 240), at: r.createdAt, phone: r.phone ?? lead?.phone ?? null, urgent: r.kind === 'complaint' });
+    items.push({ key: `request:${r.id}`, kind: 'request', member: 'qabulxona', refId: r.id, title: `${requestKind(r.kind)} · ${who}`, body: cut(r.summary + (r.whenText ? ` · ${r.whenText}` : ''), 240), at: r.createdAt, phone: r.phone ?? lead?.phone ?? null, urgent: r.kind === 'complaint' });
   }
   for (const r of replies.pendingList(biz.id, LIMIT)) {
     const lead = leads.get(biz.id, r.leadId);

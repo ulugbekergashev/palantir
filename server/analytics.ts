@@ -11,6 +11,7 @@ import { leads, sql, type BusinessRow } from './db';
 import { staff } from './requests/store';
 // Qo'ng'iroqlar jadvalining MicroSIP ustunlari shu yerda tayyor bo'lsin
 import './phone/store';
+import { requestKind } from '../src/lib/requests';
 
 const HOUR_MS = 3_600_000, DAY_MS = 24 * HOUR_MS;
 /** Javob shundan kech yozilsa — «javob» emas, keyingi gap (murojaat javobsiz qolgan) */
@@ -168,7 +169,7 @@ function recent(bizId: string): RecentItem[] {
       text: String(x.outcome || ''), state: String(x.source) === 'voice' ? 'ended' : `${String(x.direction ?? 'in')}:${String(x.status ?? 'ended')}`,
     }), bizId, RECENT);
   const reqs = sql.many('SELECT lead_id, name, phone, kind, source, summary, status, created_at FROM requests WHERE business_id = ? ORDER BY created_at DESC LIMIT ?',
-    (x): RecentItem => ({ kind: 'request', at: String(x.created_at), leadId: sql.str(x.lead_id), who: sql.str(x.name) ?? who(sql.str(x.lead_id), String(x.phone ?? 'Mijoz')), channel: String(x.source), text: `${String(x.kind)}: ${String(x.summary)}`.slice(0, 160), state: String(x.status) }),
+    (x): RecentItem => ({ kind: 'request', at: String(x.created_at), leadId: sql.str(x.lead_id), who: sql.str(x.name) ?? who(sql.str(x.lead_id), String(x.phone ?? 'Mijoz')), channel: String(x.source), text: `${requestKind(String(x.kind))}: ${String(x.summary)}`.slice(0, 160), state: String(x.status) }),
     bizId, RECENT);
   return [...msgs, ...calls, ...reqs].sort((a, b) => b.at.localeCompare(a.at)).slice(0, RECENT);
 }

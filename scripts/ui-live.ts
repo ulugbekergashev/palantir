@@ -96,8 +96,8 @@ try {
   await page.getByLabel("Palantir'ga yozing").fill('Bugun nima qilishim kerak?');
   await page.getByLabel("Palantir'ga yozing").press('Enter');
   ok("bosh ekran: yozilgan savolga javob shu yerda karta bo'lib chiqadi", await visible(page.getByRole('region', { name: 'Natijalar' }).getByText('Bugun:').first(), 15000));
-  ok("bosh ekran: «Bugun jamoa nima qildi» — xodimlarning bugungi ishi va jurnal", await visible(page.getByRole('heading', { name: 'Bugun jamoa nima qildi' }))
-    && await page.getByRole('heading', { name: 'Bugungi jurnal' }).isVisible());
+  ok("bosh ekran: «Bugun jamoa nima qildi» — xodimlarning bugungi ishi; jurnal bo'sh bo'lsa alohida karta chiqmaydi", await visible(page.getByRole('heading', { name: 'Bugun jamoa nima qildi' }))
+    && !(await page.getByRole('heading', { name: 'Bugungi jurnal' }).isVisible()) && !(await page.getByText("Bugun hali yozuv yo'q").isVisible()));
   await shot('02a-home', true);
 
   console.log('\n# Yordamchi: suhbat');
@@ -315,7 +315,7 @@ try {
   const gone = await page.getByRole('button', { name: "Narxni o'chirish: Kreslo" }).waitFor({ state: 'detached', timeout: 10000 }).then(() => true, () => false);
   ok("miya: narxlar ro'yxati shu sahifada — bittasi o'chirildi, qolgani joyida", gone && (await page.getByRole('button', { name: "Narxni o'chirish: Divan" }).count()) === 1);
   await shot('14-miya', true);
-  await go('miya');
+  await go('miya/sahifalar');
   ok("miya: sahifalar (Obsidian kabi) — «Biznes haqida» ro'yxatda", await visible(page.getByText('Biznes haqida').first(), 10000));
   await shot('14b-miya-sahifalar');
 

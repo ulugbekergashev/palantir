@@ -7,6 +7,7 @@ import { api } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { AgentAsk, HUE, Panel, Quiet, type Stat } from '../../components/agent';
 import { PERIOD_LABEL, type DashboardView, type FunnelView, type PeriodKey } from '../../lib/dashboard';
+import { money } from '../../lib/text';
 
 export interface AnalystData { dashboard: DashboardView | null; funnel: FunnelView | null }
 type Period = Exclude<PeriodKey, 'custom'>;
@@ -25,7 +26,7 @@ export function useAnalystData(period: Period, notify: Notify): AnalystData | nu
 }
 
 const delta = (v: number, prev: number) => (prev ? `${v >= prev ? '+' : ''}${Math.round(((v - prev) / prev) * 100)}% oldingi davrga` : v ? 'oldingi davrda yo‘q edi' : undefined);
-const som = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace('.0', '')} mln` : n.toLocaleString('uz-UZ'));
+const som = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace('.0', '')} mln` : money(n));
 
 export function analystStats(d: DashboardView | null, f: FunnelView | null): Stat[] {
   if (!d) return [];
@@ -74,7 +75,7 @@ function Chart({ d }: { d: DashboardView }) {
         ))}
       </div>
       <div className="mt-2 flex gap-[3px]" aria-hidden="true">
-        {d.period.labels.map((label, i) => <span key={label} className="min-w-0 flex-1 truncate text-center tabular-nums text-[10px] text-[#6e7582]">{i % every ? '' : label}</span>)}
+        {d.period.labels.map((label, i) => <span key={label} className="min-w-0 flex-1 truncate text-center tabular-nums text-[10px] text-[#8a909c]">{i % every ? '' : label}</span>)}
       </div>
       <figcaption className="mt-4 flex flex-wrap gap-4">
         {SERIES.map(s => <span key={s.key} className="flex items-center gap-2 text-[12px] text-[#a3a9b5]"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} />{s.label}</span>)}
