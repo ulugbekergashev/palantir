@@ -76,7 +76,9 @@ function stagePython(zipFile: string, dir: string): void {
   if (have !== PARTS.python.minor) fail(`py -${PARTS.python.minor} topilmadi (${have}) — Python ${PARTS.python.minor} o'rnating`);
   unpack(zipFile, dir, name => name);
   const pth = join(dir, `python${PARTS.python.minor.replace('.', '')}._pth`);
-  writeFileSync(pth, readFileSync(pth, 'utf8').replace('#import site', 'Lib\\site-packages\r\nimport site'));
+  // ._pth bor bo'lsa Python skript papkasini yo'lga qo'shmaydi (izolyatsiya rejimi): ovoz skriptlari bir-birini (call_live, common…)
+  // topishi uchun tgvoice\ ham yozib qo'yiladi — klinikada runtime\python\ dan ikki pog'ona yuqorida
+  writeFileSync(pth, readFileSync(pth, 'utf8').replace('#import site', 'Lib\\site-packages\r\n..\\..\\tgvoice\r\nimport site'));
   console.log("ovoz xizmati kutubxonalari o'rnatilmoqda...");
   execFileSync('py', [`-${PARTS.python.minor}`, '-m', 'pip', 'install', '--disable-pip-version-check', '-q', '--no-warn-script-location',
     '--target', join(dir, 'Lib', 'site-packages'), '-r', join('tgvoice', 'requirements.txt')], { stdio: 'inherit' });

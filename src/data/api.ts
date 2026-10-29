@@ -66,7 +66,8 @@ export const apiBase = location.pathname.match(/^\/c\/[0-9a-f]{10}(?=\/)/)?.[0] 
 export interface LicenseView { activated: boolean; machineId: string; issuedAt: string | null; daysLeft: number; blocked: boolean }
 
 /** Palantir jamoasi kirishi: egasi ruxsat berganmi, hozirgi kirish jamoanikimi (mine), oxirgi kirishlar */
-export interface SupportAccessView { allowed: boolean; hub: boolean; mine: boolean; visits: { at: string; ip: string | null }[] }
+/** allowed — doimiy ruxsat (so'ramasdan); until — egasi Telegram'da bergan bir martalik ruxsat shu paytgacha ochiq */
+export interface SupportAccessView { allowed: boolean; until: string | null; hub: boolean; mine: boolean; visits: { at: string; ip: string | null }[] }
 
 /**
  * Server bilan ishlash. Token — shu brauzerda; hub orqali — har klinikaniki alohida (hammasi bitta hub manzilida turadi:

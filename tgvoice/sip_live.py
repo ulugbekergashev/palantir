@@ -55,7 +55,7 @@ OWNER_LIMIT_S = 900                                # egasining qo'ng'irog'i (Tel
 ECHO_GATE = int(env('SIP_ECHO_GATE', '1500'))      # 16-bit namuna RMS (0..32767)
 ECHO_TAIL_S = 0.4
 def _wsl_distro() -> str:
-    """Asterisk turgan WSL distributivi: SIP_WSL_DISTRO yoki «Palantir»; dastur avval Cerebro deb atalgan — o'sha nomlisi bo'lsa, o'sha
+    """Asterisk turgan WSL distributivi: SIP_WSL_DISTRO yoki «Palantir»; dastur avval Cerebro deb atalgan (eski nom) — o'sha nomlisi bo'lsa, o'sha
     (server/voice/line.ts bilan bir xil). Noto'g'ri nom bilan WSL yoqiq tutilmaydi va Asterisk har necha soniyada o'chib qoladi"""
     chosen = env('SIP_WSL_DISTRO', '-')
     if chosen != '-':

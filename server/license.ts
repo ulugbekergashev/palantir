@@ -5,6 +5,9 @@
  * Kompyuter kodi: Windows MachineGuid'ining xeshi — Windows qayta o'rnatilsa almashadi (yangi kalit kerak). LICENSE_MACHINE_ID — sinov.
  * Saqlanadi: <DATA_DIR>/litsenziya.json — kalit va har kompyuterning birinchi ishga tushgan payti (zaxira boshqa kompyuterga tiklansa,
  * o'sha kompyuterning muddati alohida boshlanadi).
+ * Litsenziya qo'shilishidan oldin ham ishlab turgan klinika (biznesi hisob boshlanishidan oldin yaratilgan) — muddat uzunroq
+ * (EXISTING_GRACE_DAYS): yangilanish kechasi o'zi keladi, sotuvchi hammasini bir vaqtda aktivlashtirib ulgurmasligi mumkin.
+ * Muddat tugashiga yaqin egasiga Telegram'da aytiladi (scheduler.ts) — faqat Telegram ishlatadigan egasi panel yopilganini bilmay qolmasin.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -12,9 +15,12 @@ import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { checkLicense, normalizeMachineId } from '../hub/licenseKey';
+import { businesses } from './db';
 import { env } from './env';
 
 const DAY_MS = 86_400_000;
+/** Oldindan ishlab turgan o'rnatish uchun kalitsiz muddat (kun); .env muddatni qisqartirgan bo'lsa (sinov) — qisqartirilgani */
+const EXISTING_GRACE_DAYS = 30;
 
 let cachedId: string | null = null;
 /** Shu kompyuterning kodi (XXXX-XXXX-XXXX-XXXX) */
@@ -75,10 +81,20 @@ export interface LicenseView {
   blocked: boolean;
 }
 
+let existing: boolean | null = null;
+/** Biznes hisob boshlanishidan kamida bir kun oldin yaratilgan — bu yangilanish, yangi o'rnatish emas (bir marta aniqlanadi) */
+function existingInstall(started: number): boolean {
+  if (existing !== null) return existing;
+  const oldest = Math.min(...businesses.all().map(b => Date.parse(b.createdAt)).filter(Number.isFinite));
+  existing = Number.isFinite(oldest) && oldest < started - DAY_MS;
+  return existing;
+}
+const graceDays = (started: number) => (env.licenseGraceDays >= 14 && existingInstall(started) ? EXISTING_GRACE_DAYS : env.licenseGraceDays);
+
 export function licenseStatus(now = Date.now()): LicenseView {
   const id = machineId(), started = firstRun(id, now), key = load().key;
   const ok = key ? checkLicense(key, id, env.licensePublicKey || undefined) : null;
-  const left = Math.max(0, env.licenseGraceDays - Math.floor((now - started) / DAY_MS));
+  const left = Math.max(0, graceDays(started) - Math.floor((now - started) / DAY_MS));
   return { activated: !!ok, machineId: id, issuedAt: ok?.issuedAt ?? null, daysLeft: ok ? 0 : left, blocked: !ok && left <= 0 };
 }
 

@@ -19,6 +19,8 @@ import { phoneCalls } from './store';
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
   asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler;
+  /** Faqat egasining o'zi (Palantir jamoasi kirishi bilan emas) */
+  asOwner: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler;
   bad: (res: Response, error: z.ZodError) => unknown;
   fail: (res: Response, e: unknown, code?: number) => unknown;
   /** Urinishlarni sanash uchun mijoz manzili (hub orqali kelganda — telefonning/kompyuterning haqiqiy manzili) */
@@ -36,7 +38,7 @@ const EVENTS = ['incoming', 'answer', 'start', 'end', 'outgoing'] as const;
 /** Kompyuterdan bitta yozuv (klinika tarmog'idan; hub orqali — hub chegarasi 15 MB) */
 const MAX_RECORDING = '60mb';
 
-export function mountPhone(app: Express, { asBiz, bad, fail, clientKey }: Deps): void {
+export function mountPhone(app: Express, { asBiz, asOwner, bad, fail, clientKey }: Deps): void {
   app.get('/api/phone', asBiz(async (_req, res, biz) => res.json({ phone: await phoneStatus(biz) })));
 
   app.post('/api/phone/connect', asBiz(async (req, res, biz) => {
@@ -58,7 +60,8 @@ export function mountPhone(app: Express, { asBiz, bad, fail, clientKey }: Deps):
 
   const StationBody = z.object({ name: z.string().trim().min(1).max(60), staffId: z.string().trim().max(20).nullable().optional() });
   const knownStaff = (biz: BusinessRow, id: string | null | undefined) => !id || staff.list(biz.id).some(x => x.id === id);
-  app.post('/api/phone/stations', asBiz((req, res, biz) => {
+  // Ulash kodi — faqat egasiga: jamoa kirishi bilan olingan kod stansiya kaliti bo'lib, egasi kirishni yopgandan keyin ham ishlab qolardi
+  app.post('/api/phone/stations', asOwner((req, res, biz) => {
     const p = StationBody.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
     if (!knownStaff(biz, p.data.staffId)) return res.status(400).json({ error: "Bunday xodim yo'q" });

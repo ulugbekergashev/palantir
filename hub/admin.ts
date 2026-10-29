@@ -7,6 +7,9 @@
  * o'qishga urinishi mumkin. Shuning uchun: kalit faqat sahifa xotirasida (o'zgaruvchida, brauzer xotirasida emas — yangi oynaga
  * nusxalanmaydi), panel oynasi ochuvchisiz (opener = null) va sahifada Cross-Origin-Opener-Policy (hub/server.ts) — panel bu
  * sahifaga qo'l cho'za olmaydi. Sahifa yangilansa, kalit qayta so'raladi.
+ *
+ * O'zi ulangan kompyuter «tasdiqlanmagan» (hub/server.ts, 11-band): «Tasdiqlash» — egasi panelidagi kompyuter kodini kiritasiz (kod
+ * yozuvnikiga mos kelishi kerak); bir xil kodli bir nechta yozuv bo'lsa ogohlantiriladi. Soxta yozuv — «O'chirish».
  */
 
 export function adminPage(): string {
@@ -36,7 +39,7 @@ li{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 14p
 </style>
 <main>
 <h1>Palantir klinikalari</h1>
-<p class="lead">Klinika paneliga Palantir jamoasi sifatida kirish. Egasi har kirishni Sozlamalarda ko'radi va xohlasa o'chiradi.</p>
+<p class="lead">Klinika paneliga Palantir jamoasi sifatida kirish — egasining roziligi bilan: doimiy ruxsat bermagan bo'lsa, Telegram'da so'raladi (2 daqiqagacha). Har kirish egasiga aytiladi.</p>
 <form id="key" hidden><input id="k" type="password" placeholder="Admin kaliti (HUB_ADMIN_KEY)" autocomplete="off" required><button>Kirish</button></form>
 <div id="msg" role="status"></div>
 <ul id="list"></ul>
@@ -70,25 +73,37 @@ async function load() {
   if (!r.ok) return say('Xato: ' + r.status);
   $('key').hidden = true;
   const { clinics } = await r.json();
-  $('list').replaceChildren(...clinics.map(row));
+  // Bir xil kompyuter kodi bir nechta yozuvda — takror o'rnatish yoki kimdir kodni bilib soxta yozuv ochgan
+  const seen = {};
+  for (const c of clinics) if (c.machineId) seen[c.machineId] = (seen[c.machineId] || 0) + 1;
+  $('list').replaceChildren(...clinics.map(c => row(c, c.machineId ? seen[c.machineId] : 1)));
   say(clinics.length ? '' : "Hali klinika yo'q");
 }
 
-function row(c) {
+function row(c, twins) {
   const li = el('li');
   const dot = el('span', 'dot' + (c.online ? ' on' : ''));
   dot.title = c.online ? 'aloqada' : 'aloqada emas';
   const who = el('div', 'who');
   const lic = c.status && c.status.license;
   const licText = !lic ? '' : lic.activated ? ' · litsenziya bor' : ' · litsenziyasiz (' + lic.daysLeft + ' kun qoldi)';
-  // O'zi ulangan kompyuter: nomi — kompyuter nomi, yonida ulash ustasida yozilgan klinika nomi; litsenziya berilguncha «yangi»
+  // O'zi ulangan kompyuter: nomi — kompyuter nomi, yonida ulash ustasida yozilgan klinika nomi
   const label = c.status && c.status.label ? ' — ' + c.status.label : '';
-  const fresh = c.self && !(lic && lic.activated) ? 'yangi · ' : '';
-  who.append(el('b', '', c.name + label), el('small', '', fresh + (c.online ? 'aloqada' : 'aloqada emas · ' + ago(c.seenAt)) + (c.status && c.status.version ? ' · v' + c.status.version : '') + licText + (c.machineId ? ' · ' + c.machineId : '')));
+  const fresh = c.approved ? '' : 'tasdiqlanmagan · ';
+  const twin = twins > 1 ? ' · ⚠ bu kod ' + twins + ' ta yozuvda' : '';
+  who.append(el('b', '', c.name + label), el('small', '', fresh + (c.online ? 'aloqada' : 'aloqada emas · ' + ago(c.seenAt)) + (c.status && c.status.version ? ' · v' + c.status.version : '') + licText + (c.machineId ? ' · ' + c.machineId : '') + twin));
+  li.append(dot, who);
+  if (!c.approved) {
+    const ok = el('button', '', 'Tasdiqlash');
+    ok.onclick = () => approve(c, ok);
+    const del = el('button', 'second', "O'chirish");
+    del.onclick = () => remove(c, del);
+    li.append(ok, del);
+    return li;
+  }
   const btn = el('button', '', 'Panelni ochish');
   btn.disabled = !c.online;
   btn.onclick = () => enter(c, li, btn);
-  li.append(dot, who);
   if (lic && !lic.activated) {
     const act = el('button', 'second', 'Aktivlashtirish');
     act.disabled = !c.online;
@@ -97,6 +112,39 @@ function row(c) {
   }
   li.append(btn);
   return li;
+}
+
+async function approve(c, btn) {
+  const code = prompt("«" + c.name + "» egasidan panelidagi kompyuter kodini so'rang (Litsenziya oynasi) va kiriting — XXXX-XXXX-XXXX-XXXX:");
+  if (!code) return;
+  btn.disabled = true;
+  try {
+    const r = await api('/admin/clinics/' + c.id + '/approve', { machineId: code.trim() });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) return load();
+    say(r.ok ? '«' + c.name + '» tasdiqlandi' : (j.error || 'Xato: ' + r.status));
+    if (r.ok) load();
+  } catch {
+    say("Hub bilan aloqa yo'q");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function remove(c, btn) {
+  if (!confirm("«" + c.name + "» yozuvi o'chirilsinmi? (tasdiqlanmagan — soxta yoki takror yozuv)")) return;
+  btn.disabled = true;
+  try {
+    const r = await api('/admin/clinics/' + c.id + '/delete', {});
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) return load();
+    say(r.ok ? "O'chirildi" : (j.error || 'Xato: ' + r.status));
+    if (r.ok) load();
+  } catch {
+    say("Hub bilan aloqa yo'q");
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function license(c, btn) {
@@ -120,7 +168,7 @@ async function enter(c, li, btn, business) {
   const tab = window.open('', '_blank');
   if (tab) tab.opener = null;
   btn.disabled = true;
-  say('«' + c.name + "» kompyuteridan kirish so'ralmoqda…");
+  say('«' + c.name + "» egasidan ruxsat so'ralmoqda (Telegram'da, 2 daqiqagacha)…");
   try {
     const r = await api('/admin/clinics/' + c.id + '/panel', business ? { business } : {});
     const j = await r.json().catch(() => ({}));
