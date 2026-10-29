@@ -40,11 +40,11 @@ export default function App() {
   if (showLicense && license.blocked) return <ActivationPanel license={license} onActivated={activated} />;
   return (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-slate-400"><Loader2 className="h-7 w-7 animate-spin" /></div>}>
+      {showLicense && <LicenseReminder license={license} onOpen={() => setActivating(true)} />}
       {where === 'admin' ? <AdminPage />
         : where === 'setup' ? <SetupWizard />
         : where === 'anketa' ? <AnketaPage />
         : authed ? <LiveApp /> : <LoginPage onLogin={() => setAuthed(true)} />}
-      {showLicense && <LicenseReminder license={license} onOpen={() => setActivating(true)} />}
       {showLicense && activating && <ActivationPanel license={license} onActivated={activated} onClose={() => setActivating(false)} />}
     </Suspense>
   );
