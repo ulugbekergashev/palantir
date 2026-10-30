@@ -60,8 +60,9 @@ export function lineLogicTests(ok: Harness['ok']): void {
   ok("liniya: boshqa rejimlarda AI o'tkazmaydi", transferNow(DAY, at('2026-10-19', '12:00')) === null && transferNow({ ...DAY, mode: 'ai' }, at('2026-10-19', '12:00')) === null);
 
   console.log("\n# Telefon liniyasi: nazorat (egasiga xabar)");
-  const st = (asterisk: boolean, trunk: 'none' | 'registered' | 'failed' | 'unknown') => ({ asterisk, trunk, phones: [], note: null });
+  const st = (asterisk: boolean, trunk: 'none' | 'registered' | 'failed' | 'unknown', ai: boolean | null = true) => ({ asterisk, trunk, phones: [], ai, note: null });
   ok('nazorat: hammasi ulangan — muammo yo\'q', lineProblemOf(st(true, 'registered')) === null);
+  ok("nazorat: AI ovoz xizmati to'xtagan — «javob berilmaydi»", /javob berilmaydi/.test(lineProblemOf(st(true, 'registered', false)) ?? ''));
   ok("nazorat: Asterisk javob bermayapti — «qayta yoqing»", /qayta yoqing/.test(lineProblemOf(st(false, 'unknown')) ?? ''));
   ok("nazorat: raqam ulanmadi — «internetni tekshiring»", /internetni/.test(lineProblemOf(st(true, 'failed')) ?? ''));
   const now = Date.parse('2026-10-30T12:00:00Z');

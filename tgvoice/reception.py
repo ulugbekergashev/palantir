@@ -140,6 +140,20 @@ class Gateway:
         await self.http.aclose()
 
 
+MISSED_BUSY = "Liniya band edi — AI ko'tara olmadi. Qayta qo'ng'iroq qiling"
+
+
+async def missed_call(caller: str, summary: str = MISSED_BUSY) -> bool:
+    """Ko'tarilmay qolgan mijoz qo'ng'irog'i — qabulxonaga «qayta qo'ng'iroq qiling» so'rovi (panel «So'rovlar», administratorga xabar)"""
+    gateway = Gateway()
+    try:
+        return await gateway.request({'phone': caller, 'kind': 'callback', 'summary': summary})
+    except httpx.HTTPError:
+        return False
+    finally:
+        await gateway.close()
+
+
 class Desk:
     """Bitta mijoz qo'ng'irog'i: ko'rsatma, asboblar, qabul va so'rovlar, oxirida hisobot (egasiga Telegram + panel «Qo'ng'iroqlar»)"""
     def __init__(self, caller: str, test: bool = False, missed: bool = False, can_transfer: bool = False):

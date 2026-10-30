@@ -33,7 +33,7 @@ if '--stend' in sys.argv:
 
 from call_live import PALANTIR, LIVE_VOICE, UZ_TZ, Bridge, down_48_to_16, log, up_24_to_48
 from common import env
-from reception import Desk
+from reception import Desk, missed_call
 from web_live import WEB_PORT, WebVoice
 
 LINE_RATE = 8000                                   # Asterisk AudioSocket: 8 kHz, mono, 16-bit
@@ -317,6 +317,11 @@ class Server:
         self.customers = 0
         self.count = 0
         self.token = Token()
+        self.pending: set[asyncio.Task] = set()
+
+    async def missed(self, caller: str) -> None:
+        ok = await missed_call(caller)
+        log('—', f"{caller}: «qayta qo'ng'iroq qiling» so'rovi {'ochildi' if ok else 'ochilmadi'}")
 
     @property
     def reception(self) -> bool:
@@ -348,6 +353,11 @@ class Server:
             log('—', f"band: {self.active} ta qo'ng'iroq ketyapti, {caller or 'yashirin raqam'} ko'tarilmadi")
             writer.write(frame(HANGUP))
             writer.close()
+            # Mijoz javobsiz qolmasin: administratorga «qayta qo'ng'iroq qiling» so'rovi
+            if mode in CUSTOMERS and caller:
+                task = asyncio.create_task(self.missed(caller))
+                self.pending.add(task)
+                task.add_done_callback(self.pending.discard)
             return
         self.active += 1
         self.customers += mode in CUSTOMERS

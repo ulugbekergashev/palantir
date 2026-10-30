@@ -42,7 +42,7 @@ export interface PhoneLine {
   provider: 'zadarma' | 'manual' | null;
   routing: { mode: 'ai' | 'ai_transfer' | 'day_admin'; ring: number; days: number[]; from: string; to: string };
   admin: { server: string; login: string; password: string | null };
-  status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; note: string | null };
+  status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; ai: boolean | null; note: string | null };
 }
 /** MicroSIP shu kompyuterda: topildimi, ulanganmi (shu biznesga), operator hisobi bormi, suhbatlar yozib olinadimi */
 export interface PhoneStatus {

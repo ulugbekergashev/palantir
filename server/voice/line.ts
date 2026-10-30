@@ -9,6 +9,7 @@
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { connect } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import { join, resolve } from 'node:path';
 import { connections, type BusinessRow } from '../db';
@@ -29,7 +30,8 @@ export interface LineView {
   /** Administrator telefoni uchun SIP akkaunt (Zoiper): server — shu kompyuterning ichki tarmoqdagi manzili */
   admin: { server: string; login: string; password: string | null };
   /** Asterisk holati: ishlayaptimi, shahar raqami ro'yxatdan o'tganmi, qaysi telefonlar ulangan */
-  status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; note: string | null };
+  /** ai — AI ovoz xizmati qo'ng'iroq qabul qilyaptimi (null — tekshirilmadi) */
+  status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; ai: boolean | null; note: string | null };
 }
 
 const KIND = 'sip_line';
@@ -91,22 +93,32 @@ const asterisk = (cmd: string) => wsl(['asterisk', '-rx', cmd]);
 /** D:\Projects\palantir → /mnt/d/Projects/palantir */
 const wslPath = (p: string) => p.replace(/^([A-Za-z]):/, (_, d: string) => `/mnt/${d.toLowerCase()}`).replace(/\\/g, '/');
 
+/** AI ovoz xizmati (tgvoice/sip_live.py) shu kompyuterda qo'ng'iroq qabul qilyaptimi — Asterisk unga ulanadigan port ochiqmi */
+const AI_PORT = Number(process.env.SIP_BRIDGE_PORT) || 9092;
+const aiListening = () => new Promise<boolean>(ok => {
+  const s = connect({ host: '127.0.0.1', port: AI_PORT, timeout: 1500 }, () => { s.destroy(); ok(true); });
+  s.on('error', () => ok(false));
+  s.on('timeout', () => { s.destroy(); ok(false); });
+});
+
 export async function lineStatus(): Promise<LineView['status']> {
-  if (!ENABLED) return { asterisk: false, trunk: 'unknown', phones: [], note: "Telefon liniyasi faqat klinika kompyuterida (Windows + WSL) ishlaydi" };
+  if (!ENABLED) return { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: "Telefon liniyasi faqat klinika kompyuterida (Windows + WSL) ishlaydi" };
+  const ai = await aiListening();
   try {
     const regs = await asterisk('pjsip show registrations');
     const contacts = await asterisk('pjsip show contacts');
     const trunk = !/shahar/.test(regs) ? 'none' : /Registered/i.test(regs) ? 'registered' : 'failed';
     const phones = [...new Set([...contacts.matchAll(/Contact:\s+(egasi|admin)\//g)].map(m => m[1]))];
-    return { asterisk: true, trunk, phones, note: null };
+    return { asterisk: true, trunk, phones, ai, note: null };
   } catch (e) {
-    return { asterisk: false, trunk: 'unknown', phones: [], note: `Asterisk javob bermadi: ${(e as Error).message}` };
+    return { asterisk: false, trunk: 'unknown', phones: [], ai, note: `Asterisk javob bermadi: ${(e as Error).message}` };
   }
 }
 
 /** Liniya holatidan egasiga aytiladigan muammo (raqam kiritilgan bo'lsa); hammasi joyida — null */
 export function lineProblemOf(s: LineView['status']): string | null {
   if (!s.asterisk) return "telefon xizmati (Asterisk) javob bermayapti — mijozlar qo'ng'iroqlari qabul qilinmayapti. Kompyuterni qayta yoqing";
+  if (s.ai === false) return "AI ovoz xizmati ishlamayapti — qo'ng'iroqlarga javob berilmaydi. Kompyuterni qayta yoqing; davom etsa o'rnatuvchiga ayting";
   if (s.trunk === 'failed') return "raqam ulanmadi — internetni tekshiring; davom etsa Sozlamalar → Telefon liniyasi → Qayta ulash";
   if (s.trunk === 'none') return "raqam telefon xizmatiga o'rnatilmagan — Sozlamalar → Telefon liniyasi → Qayta ulash";
   return null;
@@ -145,7 +157,7 @@ export async function lineView(biz: BusinessRow, withStatus = true): Promise<Lin
     provider: a.host ? (a.provider === 'zadarma' ? 'zadarma' : 'manual') : null,
     routing: lineRouting(biz.id),
     admin: { server: lanIp(), login: 'admin', password: s.admin ?? null },
-    status: withStatus ? await lineStatus() : { asterisk: false, trunk: 'unknown', phones: [], note: null },
+    status: withStatus ? await lineStatus() : { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: null },
   };
 }
 

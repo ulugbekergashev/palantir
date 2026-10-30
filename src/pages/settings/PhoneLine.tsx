@@ -33,19 +33,20 @@ function Status({ line }: { line: Line }) {
   const s = line.status;
   const items = [
     { name: 'Telefon xizmati', on: s.asterisk, text: s.asterisk ? 'ishlayapti' : "o'chiq — o'rnatuvchiga ayting" },
+    { name: 'AI qabulxona', on: s.ai === true, text: s.ai ? "qo'ng'iroq kutyapti" : s.ai === false ? "to'xtagan — kompyuterni qayta yoqing" : 'tekshirilmadi' },
     { name: 'Telefon raqami', on: s.trunk === 'registered', text: s.trunk === 'registered' ? `ulangan${line.trunk?.number ? ` · ${line.trunk.number}` : ''}` : s.trunk === 'failed' ? "ulanmadi — kalit yoki parolni tekshiring" : line.trunk ? 'tekshirilmoqda' : 'kiritilmagan' },
     { name: 'Egasi telefoni', on: s.phones.includes('egasi'), text: s.phones.includes('egasi') ? 'ulangan' : 'ulanmagan' },
     { name: 'Administrator telefoni', on: s.phones.includes('admin'), text: s.phones.includes('admin') ? 'ulangan' : 'ulanmagan' },
   ];
   return (
-    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
       {items.map(i => (
         <div key={i.name} className="flex items-center gap-2.5 rounded-2xl border border-glass/[0.06] bg-glass/[0.02] px-3.5 py-3">
           <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${i.on ? 'bg-emerald-400' : 'bg-glass/25'}`} aria-hidden="true" />
           <span className="min-w-0"><span className="block text-[13px] font-medium text-[#f2f0ea]">{i.name}</span><span className="block truncate text-[12px] text-[#8a909c]">{i.text}</span></span>
         </div>
       ))}
-      {s.note && <p className="text-[12px] text-[#fde2b0] sm:col-span-2 xl:col-span-4">{s.note}</p>}
+      {s.note && <p className="text-[12px] text-[#fde2b0] sm:col-span-2 xl:col-span-5">{s.note}</p>}
     </div>
   );
 }
