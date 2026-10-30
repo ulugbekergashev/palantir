@@ -39,6 +39,8 @@ const pause = (min: number, max: number) => sleep(min + Math.random() * (max - m
 export class IgStop extends Error {
   constructor(message: string, readonly kind: 'login' | 'limit') { super(message); }
 }
+/** Post yaratish so'rovi ketdi, lekin natija noma'lum (javob kelmadi yoki tushunarsiz): post chiqqan bo'lishi mumkin — qayta joylanmasin */
+export class IgUnsure extends Error {}
 /** Brauzer yopilib qolgan — qayta ochiladi */
 class Detached extends Error {
   constructor() { super('Instagram brauzeri ishlamayapti — birozdan keyin qayta ochiladi'); }
@@ -57,6 +59,8 @@ interface Driver {
   request(bizId: string, method: 'GET' | 'POST', path: string, form?: Record<string, string>): Promise<Reply>;
   /** Suhbatni ochadi, matnni yozadi va yuboradi */
   type(bizId: string, threadIds: string[], text: string): Promise<void>;
+  /** Fayl yuklash (post rasmi) — instagram.com ichidan, brauzer cookie'lari bilan */
+  upload(bizId: string, path: string, headers: Record<string, string>, bytes: Buffer): Promise<Reply>;
 }
 
 // ─── Playwright (haqiqiy brauzer) ─────────────────────────────────────────────
@@ -179,9 +183,26 @@ function playwright(executablePath: string): Driver {
             ...(form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}),
           },
           body: form ? new URLSearchParams(form).toString() : undefined,
+          // Instagram javob bermasa — navbat (shu akkauntdagi boshqa ishlar) osilib qolmasin
+          signal: AbortSignal.timeout(60_000),
         });
         return { status: r.status, url: r.url, body: await r.text() };
       }, { method, path, form, appId: WEB_APP_ID });
+    }),
+
+    upload: (bizId, path, headers, bytes) => serial(bizId, async () => {
+      const s = session(bizId);
+      if (!s.page.url().startsWith(IG) || Date.now() - s.at > 30 * 60_000) await openInbox(s);
+      if (onLoginPage(s.page.url())) return { status: 401, url: s.page.url(), body: '' };
+      return s.page.evaluate(async ({ path, headers, b64, appId }) => {
+        const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const csrf = /(?:^|;\s*)csrftoken=([^;]+)/.exec(document.cookie)?.[1] ?? '';
+        const r = await fetch(path, {
+          method: 'POST', credentials: 'include', body: bin, signal: AbortSignal.timeout(90_000),
+          headers: { ...headers, 'x-ig-app-id': appId, 'x-csrftoken': csrf, 'x-requested-with': 'XMLHttpRequest', 'x-ig-www-claim': sessionStorage.getItem('www-claim-v2') ?? '0' },
+        });
+        return { status: r.status, url: r.url, body: await r.text() };
+      }, { path, headers, b64: bytes.toString('base64'), appId: WEB_APP_ID });
     }),
 
     type: (bizId, threadIds, text) => serial(bizId, async () => {
@@ -265,6 +286,10 @@ function fake(base: string): Driver {
     async type(bizId, threadIds, text) {
       if (!live.has(bizId)) throw new Detached();
       await post('/type', { bizId, threadIds, text });
+    },
+    async upload(bizId, path, headers, bytes) {
+      if (!live.has(bizId)) throw new Detached();
+      return post<Reply>('/upload', { bizId, path, headers, size: bytes.length });
     },
   };
 }
@@ -519,6 +544,53 @@ export async function instagramUserExists(bizId: string, username: string): Prom
     return j.data?.user ? true : j.data && j.data.user === null ? false : null;
   } catch {
     return null;
+  }
+}
+
+/** Instagram'ga bir kunda shuncha post (akkaunt xavfsizligi) */
+const POSTS_PER_DAY = 5;
+
+/**
+ * Rasmli post joylash (Marketolog, egasi tasdiqlagach): instagram.com veb-ilovasi o'zi ishlatadigan yo'l — rasm yuklanadi
+ * (rupload_igphoto), keyin post yaratiladi (media/configure). jpeg — Instagram qabul qiladigan o'lchamda (marketing/image.ts)
+ */
+export async function publishInstagramPhoto(bizId: string, jpeg: Buffer, width: number, height: number, caption: string): Promise<{ code: string; url: string }> {
+  const d = need();
+  const c = connections.get(bizId, 'instagram');
+  if (!c) throw new Error("Instagram brauzer orqali ulanmagan — Sozlamalar → Instagram → «Instagram'ga kirish»");
+  const problem = problemOf(c);
+  if (problem) throw new Error(problem.text);
+  const today = iso(new Date());
+  const posted = c.meta.postDay === today ? Number(c.meta.posts ?? 0) : 0;
+  if (posted >= POSTS_PER_DAY) throw new Error(`Bugun Instagram'ga ${posted} ta post joylandi — akkaunt xavfsizligi uchun ertagacha shu yetarli`);
+  const uploadId = String(Date.now());
+  const name = `fb_uploader_${uploadId}`;
+  try {
+    const up = await d.upload(bizId, `/rupload_igphoto/${name}`, {
+      'content-type': 'image/jpeg', 'x-entity-type': 'image/jpeg', 'x-entity-name': name, 'x-entity-length': String(jpeg.length), offset: '0',
+      'x-instagram-rupload-params': JSON.stringify({ media_type: 1, upload_id: uploadId, upload_media_height: height, upload_media_width: width }),
+    }, jpeg);
+    if (onLoginPage(up.url) || up.status === 401) throw new IgStop("Instagram qayta kirishni so'rayapti", 'login');
+    if (up.status === 429) throw new IgStop("Instagram vaqtincha cheklov qo'ydi", 'limit');
+    if (up.status !== 200) throw new Error(`Instagram rasmni qabul qilmadi (javob ${up.status})`);
+    await pause(1500, 3500);
+    // Shu so'rovdan keyin post chiqqan bo'lishi mumkin: aniq rad (kirish so'raldi, cheklov) — joylanmadi; boshqa xato — natija noma'lum
+    let code: string | undefined;
+    try {
+      const j = await call<{ media?: { code?: string } }>(bizId, 'POST', '/api/v1/media/configure/', {
+        source_type: 'library', caption, upload_id: uploadId, disable_comments: '0', like_and_view_counts_disabled: '0',
+      });
+      code = j.media?.code;
+    } catch (e) {
+      if (e instanceof IgStop || e instanceof Detached) throw e;
+      throw new IgUnsure(`Instagram post yaratish javobini bermadi (${(e as Error).message.split('\n')[0].slice(0, 120)})`);
+    }
+    if (!code) throw new IgUnsure("Instagram javobida post havolasi yo'q");
+    try { connections.patchMeta(bizId, 'instagram', { postDay: today, posts: String(posted + 1) }); } catch (e) { console.error('[instagram] post hisobi:', (e as Error).message); }
+    return { code, url: `${IG}/p/${code}/` };
+  } catch (e) {
+    if (e instanceof IgStop || e instanceof Detached) void trouble(bizId, e);
+    throw e;
   }
 }
 

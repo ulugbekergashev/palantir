@@ -15,6 +15,7 @@ import { instagramUserExists } from '../inbox/instagram';
 import { events } from '../orders/store';
 import { ToolError, def } from '../toolkit';
 import { MetaAiError, askMetaAi, assertMetaAiReady, metaAiAvailable } from './metaAi';
+import { MAX_CAPTION, PostError, captionWarnings, draftWithMetaAi } from './posts';
 
 /** Bir javobdan tekshiriladigan akkauntlar soni */
 const MAX_HANDLES = 8;
@@ -106,6 +107,30 @@ export const MARKETING_DEFS = {
         started: true, queued_before: waiting,
         note: "Asked Meta AI in the background. The answer will come to the owner's Telegram and to panel → Marketolog → Hisobotlar in a few minutes.",
       };
+    },
+  }),
+
+  draft_post: def({
+    description: "Prepare an Instagram post (a picture with a caption) for the owner to approve — nothing is published until the owner presses «Instagram'ga joylash» in Telegram or in panel → Marketolog → Postlar. You write the caption yourself, in the business's content language: a hook line, the substance in 2-4 short lines, a call to action, 5-10 hashtags; no exaggerated promises (for clinics: no «kafolat», «og'riqsiz», «eng yaxshi»). Meta AI draws the picture from image_description (in the background, a few minutes; it shares the daily Meta AI limit); describe what is in the picture concretely (scene, style, colours) and never ask for text inside the picture. If the owner wants their own photo, tell them to add it in panel → Marketolog → Postlar → «Yangi post». Tell the owner the draft will come to Telegram for approval.",
+    input: z.object({
+      caption: z.string().trim().min(10).max(MAX_CAPTION).describe('The full post caption, ready to publish'),
+      image_description: z.string().trim().min(10).max(1000).describe('What Meta AI should draw for the picture'),
+    }),
+    run: (i, ctx) => {
+      if (!metaAiAvailable()) throw new ToolError("Bu kompyuterda Chrome yoki Edge yo'q — Meta AI rasm chiza olmaydi");
+      try {
+        assertMetaAiReady(ctx.biz);
+        const p = draftWithMetaAi(ctx.biz, i.caption, i.image_description);
+        const warnings = captionWarnings(ctx.biz, p.caption);
+        return {
+          started: true, post_id: p.id,
+          note: "Meta AI is drawing the picture in the background; the draft with the picture will come to the owner's Telegram with a «Joylash» button, and to panel → Marketolog → Postlar.",
+          ...(warnings.length ? { caption_warnings: warnings } : {}),
+        };
+      } catch (e) {
+        if (e instanceof MetaAiError || e instanceof PostError) throw new ToolError(e.message);
+        throw e;
+      }
     },
   }),
 };

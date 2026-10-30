@@ -46,6 +46,7 @@ import { ComputerError, answerApproval, closeLoginWindow, openLoginWindow, runni
 import { answerSupport } from './supportAsk';
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
 import { approveReply, clearBotOutlets, dismissReply, notifyOwner, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
+import { cancelPost, posts, publishPost } from './marketing/posts';
 
 export interface BotService {
   enabled: boolean;
@@ -562,6 +563,31 @@ export function createBot(): BotService {
       return toast(ctx, 'Palantir jamoasi kirishi yopildi', { show_alert: true });
     }
 
+    // Marketolog posti: Instagram'ga joylash (fonda — Instagram sekin bo'lishi mumkin) yoki bekor qilish
+    if (code === 'gp' || code === 'gx') {
+      if (code === 'gx') {
+        try { cancelPost(biz, id); } catch (e) { return toast(ctx, (e as Error).message, { show_alert: true }); }
+        await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+        return toast(ctx, 'Bekor qilindi');
+      }
+      const p = posts.get(biz.id, id);
+      const stop: Partial<Record<string, string>> = {
+        published: 'Allaqachon joylangan', cancelled: 'Bekor qilingan', publishing: 'Joylanyapti…', drawing: 'Rasm hali chizilmoqda',
+        unknown: "Oldingi urinish natijasi noma'lum — Instagram'da tekshiring, keyin panel → Marketolog → Postlar",
+      };
+      if (!p || stop[p.status]) return toast(ctx, !p ? 'Post topilmadi' : stop[p.status]!, { show_alert: true });
+      // Kartadagi tugma shu matnga berilgan: panelda matn o'zgargan bo'lsa — joylanmaydi, yangi karta keladi
+      const mark = data.split('|')[2];
+      await toast(ctx, "Instagram'ga joylanmoqda…");
+      await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      detach('instagram posti', async () => {
+        try { await publishPost(biz, id, { mark }); } catch (e) {
+          await tg.sendMessage(biz.ownerChatId!, `⚠️ Post joylanmadi: ${(e as Error).message}`).catch(() => {});
+        }
+      });
+      return;
+    }
+
     // Postlar olib tashlangan: eski xabarlardagi «Kanalga joylash» va «O'chirish» tugmalari
     if (code === 'pp' || code === 'pd') return toast(ctx, 'Postlar olib tashlangan', { show_alert: true });
 
@@ -1009,6 +1035,11 @@ export function createBot(): BotService {
     async sendFile(biz, path, caption) {
       if (!biz.ownerChatId) return;
       await tg.sendDocument(biz.ownerChatId, { source: path, filename: basename(path) }, { caption: cut(caption, 1000) });
+    },
+    async sendPhoto(biz, path, html, keyboard) {
+      if (!biz.ownerChatId) return null;
+      const m = await tg.sendPhoto(biz.ownerChatId, { source: path }, { caption: html, parse_mode: 'HTML', reply_markup: keyboard });
+      return m.message_id;
     },
   });
 

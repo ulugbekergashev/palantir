@@ -18,6 +18,7 @@ import { DemandBody } from './agents/Demand';
 import { DiscoveriesBody } from './agents/Discoveries';
 import { AssistantDesk, dueGroup, useAssistantData } from './agents/Assistant';
 import { MarketingDesk, MarketingReports, MetaAiConnect, marketingStats, useMarketingReports } from './agents/Marketing';
+import { MarketingPosts } from './agents/Posts';
 import { ReceptionToday, useReceptionData } from './agents/Reception';
 import { WatchCameras, WatchNow, useWatchData } from './agents/Watch';
 import { OrdersPanel } from '../components/Orders';
@@ -148,15 +149,16 @@ export function AnalystArea({ tab, biz, status, notify, state }: Common) {
 }
 
 export function MarketingArea({ tab, status, notify, onStatus, state, tick }: Common & { onStatus: (s: LiveStatus) => void }) {
-  const active = pick(tab, ['sorash', 'hisobotlar', 'topshiriqlar', 'ulash']);
+  const active = pick(tab, ['sorash', 'postlar', 'hisobotlar', 'topshiriqlar', 'ulash']);
   const [asked, setAsked] = useState(0);
   const reports = useMarketingReports(notify, tick + asked);
   return (
     <div className="space-y-6">
       <AgentHero member="marketolog" state={state} stats={marketingStats(status, reports)}>
-        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'sorash', label: "So'rash" }, { id: 'hisobotlar', label: 'Hisobotlar', count: reports?.length }, { id: 'topshiriqlar', label: 'Topshiriqlar' }, { id: 'ulash', label: 'Ulash' }]} />
+        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'sorash', label: "So'rash" }, { id: 'postlar', label: 'Postlar' }, { id: 'hisobotlar', label: 'Hisobotlar', count: reports?.length }, { id: 'topshiriqlar', label: 'Topshiriqlar' }, { id: 'ulash', label: 'Ulash' }]} />
       </AgentHero>
       {active === 'sorash' && <MarketingDesk status={status} onStatus={onStatus} notify={notify} reports={reports} onAsked={() => setAsked(n => n + 1)} />}
+      {active === 'postlar' && <MarketingPosts status={status} notify={notify} tick={tick + asked} />}
       {active === 'hisobotlar' && <MarketingReports reports={reports} />}
       {active === 'topshiriqlar' && <OrdersPanel member="marketolog" notify={notify} />}
       {active === 'ulash' && <section aria-label="Meta AI ulash" className="rounded-[22px] border border-glass/[0.07] bg-[#0b0c10] p-5"><MetaAiConnect status={status} onStatus={onStatus} notify={notify} /></section>}

@@ -6,7 +6,7 @@ import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, SetupVie
 import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffMember } from '../types';
-import type { AgentEvent, AgentOrder, OrderMember, OrderSpec } from '../types';
+import type { AgentEvent, AgentOrder, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
 import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 
 export type RequestView = LeadRequest & { lead: Lead | null };
@@ -277,6 +277,14 @@ export const api = {
   metaAiLogin: () => call<{ status: LiveStatus }>('/meta-ai/login', { body: {} }),
   metaAiCancel: () => call<{ ok: true }>('/meta-ai/cancel', { body: {} }),
   metaAiDisconnect: () => call<{ status: LiveStatus }>('/meta-ai', { method: 'DELETE' }),
+  posts: () => call<{ posts: PostView[] }>('/posts'),
+  postImage: async (id: string) => (await send(`/posts/${id}/image`, { method: 'GET' })).blob(),
+  postPhoto: (caption: string, image: string) => call<{ post: MarketingPost }>('/posts', { body: { caption, image } }),
+  postMeta: (caption: string, description: string) => call<{ post: MarketingPost }>('/posts/meta', { body: { caption, description } }),
+  postCaption: (topic: string) => call<{ caption: string }>('/posts/caption', { body: { topic } }),
+  postEdit: (id: string, caption: string) => call<{ posts: PostView[] }>(`/posts/${id}`, { method: 'PATCH', body: { caption } }),
+  postPublish: (id: string, confirm = false) => call<{ posts: PostView[] }>(`/posts/${id}/publish`, { body: { confirm } }),
+  postCancel: (id: string) => call<{ posts: PostView[] }>(`/posts/${id}`, { method: 'DELETE' }),
 
   /** Ulash ustasi: o'rnatish holati, anketani yuklash (kod yoki fayl), egasidan Telegram'da so'rash */
   setup: () => call<{ setup: SetupView }>('/setup'),

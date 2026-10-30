@@ -18,6 +18,7 @@ const CHIPS = [
   "Instagram akkauntimizni tahlil qil: nima yaxshi, nimani o'zgartirish kerak",
   "Keyingi haftaga 7 kunlik kontent-reja tuz",
   "Bizning sohada hozir qanday Reels ko'p ko'rilyapti?",
+  "Ertangi kun uchun Instagram post tayyorla",
 ];
 
 export function useMarketingReports(notify: Notify, tick: number): AgentEvent[] | null {
@@ -37,7 +38,8 @@ export function marketingStats(status: LiveStatus, reports: AgentEvent[] | null)
     { label: 'Bugungi tahlil', value: reports ? reports.filter(e => iso(new Date(e.at)) === today).length : '—' },
     { label: 'Meta AI savollari', value: m.connected ? `${m.usedToday}/${m.dailyLimit}` : '—', hint: 'bugun · akkaunt xavfsizligi uchun chegara' },
     { label: 'Hisobotlar', value: reports?.length ?? '—', hint: 'oxirgilari' },
-    { label: 'Meta AI', value: m.problem ? 'Qayta kiring' : m.connected ? 'Ulangan' : 'Ulanmagan', tone: m.problem || !m.connected ? 'warn' : 'good' },
+    // Qisqa belgi: telefonda to'rt raqam bir qatorga sig'sin; izohi — ostida
+    { label: 'Meta AI', value: m.problem ? '!' : m.connected ? '✓' : '—', hint: m.problem ? 'qayta kiring' : m.connected ? 'ulangan' : 'ulanmagan', tone: m.problem || !m.connected ? 'warn' : 'good' },
   ];
 }
 

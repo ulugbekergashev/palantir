@@ -440,6 +440,18 @@ export interface AgentEvent {
   cameraId: string | null; hasImage: boolean; at: string;
 }
 
+/**
+ * Marketolog posti: drawing — Meta AI rasm chizyapti; draft — egasi tasdiqini kutyapti; failed — joylanmadi (qayta urinsa bo'ladi);
+ * unknown — Instagram post yaratishni boshlagan, natijasi noma'lum (egasi Instagram'da tekshirib, tasdiq bilan qayta joylaydi)
+ */
+export interface MarketingPost {
+  id: string; caption: string; source: 'photo' | 'meta_ai'; prompt: string | null;
+  status: 'drawing' | 'draft' | 'publishing' | 'published' | 'failed' | 'unknown' | 'cancelled'; url: string | null; error: string | null;
+  createdAt: string; publishedAt: string | null;
+}
+/** Panelda: post, reklama filtri ogohlantirishlari (klinika) va rasmi bormi */
+export interface PostView extends MarketingPost { warnings: string[]; hasImage: boolean }
+
 export interface CallLine { who: 'ai' | 'caller'; text: string }
 /**
  * Qo'ng'iroq: ovozli agent qabul qilgani (source 'voice') yoki MicroSIP orqali bo'lgan haqiqiy qo'ng'iroq (source 'microsip').

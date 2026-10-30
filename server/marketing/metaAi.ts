@@ -60,6 +60,8 @@ interface Driver {
   detach(bizId: string, wipe: boolean): Promise<void>;
   /** Yangi suhbatda savol beradi va javob matnini qaytaradi. Brauzer yopiq — Closed */
   ask(bizId: string, prompt: string): Promise<string>;
+  /** Yangi suhbatda rasm chizdiradi va birinchi rasmni qaytaradi (bayt). Brauzer yopiq — Closed */
+  image(bizId: string, prompt: string): Promise<Buffer>;
   /** Server to'xtayapti: hamma oyna (kirish oynasi ham) yopiladi */
   closeAll(): Promise<void>;
 }
@@ -175,10 +177,73 @@ function playwright(executablePath: string): Driver {
     }
     return last;
   }
+  /** Javobda paydo bo'lgan katta rasm (oldin sahifada bo'lmagan) — chizib bo'lingach, birinchisi */
+  async function picture(page: Page, prompt: string, before: Set<string>): Promise<Buffer> {
+    // Faqat savoldan keyin (javob ichida) paydo bo'lgan rasmlar: bosh sahifaning kech yuklangan kartalari tanlanmasin
+    const head = flat(prompt).slice(0, 40);
+    const fresh = () => page.evaluate(h => {
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      let anchor: Node | null = null;
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) if ((n.textContent ?? '').replace(/\s+/g, ' ').includes(h)) anchor = n;
+      return [...document.images]
+        .filter(i => i.complete && i.naturalWidth >= 400 && (!anchor || (anchor.compareDocumentPosition(i) & Node.DOCUMENT_POSITION_FOLLOWING)))
+        .map(i => i.currentSrc || i.src);
+    }, head).then(list => list.filter(s => s && !before.has(s)));
+    const end = Date.now() + ANSWER_MS;
+    let last = '', stableSince = Date.now();
+    for (;;) {
+      if (Date.now() > end) throw new MetaAiError("Meta AI 4 daqiqada rasm chizmadi — keyinroq qayta urinib ko'ring");
+      await sleep(1500);
+      if (await page.locator(LOGIN_BUTTON).first().isVisible({ timeout: 5_000 }).catch(() => false)) throw new MetaAiLogin();
+      const now = (await fresh().catch(() => [] as string[])).join('|');
+      if (now !== last) { last = now; stableSince = Date.now(); continue; }
+      const generating = await page.getByRole('button', { name: STOP }).first().isVisible({ timeout: 5_000 }).catch(() => false);
+      if (last && !generating && Date.now() - stableSince >= SETTLE_MS) break;
+    }
+    const src = last.split('|')[0];
+    // Brauzer cookie'lari bilan, sahifa CORS'isiz (rasm boshqa domenda — Meta CDN)
+    if (/^https?:/.test(src)) {
+      const r = await page.context().request.get(src, { timeout: 30_000 });
+      if (r.ok()) return Buffer.from(await r.body());
+    }
+    // data:/blob: yoki yuklab bo'lmadi — rasm elementining o'zi suratga olinadi (belgi qo'yib topiladi: src va currentSrc farq qilishi mumkin)
+    await page.evaluate(s => { const img = [...document.images].find(i => (i.currentSrc || i.src) === s); img?.setAttribute('data-palantir-pick', '1'); }, src);
+    return page.locator('img[data-palantir-pick="1"]').first().screenshot({ timeout: 10_000, type: 'png' });
+  }
   const withTimeout = <T,>(p: Promise<T>, ms: number, what: string) => {
     let t: NodeJS.Timeout | undefined;
     return Promise.race([p, new Promise<never>((_, rej) => { t = setTimeout(() => rej(new MetaAiError(what)), ms); })]).finally(() => clearTimeout(t));
   };
+  /** Yangi suhbatda yozadi va natijani take bilan oladi (before — yozishdan oldin sahifadagi rasmlar) */
+  const send = <T,>(bizId: string, prompt: string, take: (page: Page, before: Set<string>) => Promise<T>): Promise<T> => serial(bizId, async () => {
+    const s = live.get(bizId);
+    if (!s || s.page.isClosed()) throw new Closed();
+    const { page } = s;
+    s.busy = true;
+    try {
+      // Har savol — yangi suhbat: oldingi javoblar aralashmasin
+      const state = await home(page);
+      if (state === 'out') throw new MetaAiLogin();
+      if (state !== 'in') throw new MetaAiError("meta.ai sahifasi ochilmadi — keyinroq qayta urinib ko'ring");
+      const box = page.locator(COMPOSER).first();
+      const single = await box.evaluate(el => el.tagName === 'INPUT', undefined, { timeout: 5_000 });
+      await pause(600, 1500);
+      await box.click({ timeout: 10_000 });
+      await box.fill(single ? flat(prompt) : prompt, { timeout: 10_000 });
+      await pause(400, 1000);
+      // Yuborishdan oldingi lahzadagi rasmlar — javobdagilar shundan keyin paydo bo'ladi
+      const before = new Set(await page.evaluate(() => [...document.images].map(i => i.currentSrc || i.src)));
+      await page.keyboard.press('Enter');
+      return await withTimeout(take(page, before), ANSWER_MS + 30_000, "Meta AI 4 daqiqada javob bermadi — keyinroq qayta urinib ko'ring");
+    } catch (e) {
+      // Chala qolgan yoki qotgan sahifa keyingi savolga o'tmasin — brauzer yopiladi, keyingi savol yangidan ochadi
+      await close(bizId);
+      throw e;
+    } finally {
+      s.busy = false;
+      touch(bizId);
+    }
+  });
 
   return {
     async login(bizId, signal) {
@@ -247,33 +312,8 @@ function playwright(executablePath: string): Driver {
       }
     }),
 
-    ask: (bizId, prompt) => serial(bizId, async () => {
-      const s = live.get(bizId);
-      if (!s || s.page.isClosed()) throw new Closed();
-      const { page } = s;
-      s.busy = true;
-      try {
-        // Har savol — yangi suhbat: oldingi javoblar aralashmasin
-        const state = await home(page);
-        if (state === 'out') throw new MetaAiLogin();
-        if (state !== 'in') throw new MetaAiError("meta.ai sahifasi ochilmadi — keyinroq qayta urinib ko'ring");
-        const box = page.locator(COMPOSER).first();
-        const single = await box.evaluate(el => el.tagName === 'INPUT', undefined, { timeout: 5_000 });
-        await pause(600, 1500);
-        await box.click({ timeout: 10_000 });
-        await box.fill(single ? flat(prompt) : prompt, { timeout: 10_000 });
-        await pause(400, 1000);
-        await page.keyboard.press('Enter');
-        return await withTimeout(answer(page, prompt), ANSWER_MS + 30_000, "Meta AI 4 daqiqada javob bermadi — keyinroq qayta urinib ko'ring");
-      } catch (e) {
-        // Chala qolgan yoki qotgan sahifa keyingi savolga o'tmasin — brauzer yopiladi, keyingi savol yangidan ochadi
-        await close(bizId);
-        throw e;
-      } finally {
-        s.busy = false;
-        touch(bizId);
-      }
-    }),
+    ask: (bizId, prompt) => send(bizId, prompt, page => answer(page, prompt)),
+    image: (bizId, prompt) => send(bizId, prompt, (page, before) => picture(page, prompt, before)),
 
     async closeAll() {
       for (const ctx of windows) await ctx.close().catch(() => {});
@@ -315,6 +355,15 @@ function fake(base: string): Driver {
       if (!live.has(bizId)) throw new Closed();
       try {
         return (await post<{ text: string }>('/ask', { bizId, prompt })).text;
+      } catch (e) {
+        live.delete(bizId);
+        throw e;
+      }
+    },
+    async image(bizId, prompt) {
+      if (!live.has(bizId)) throw new Closed();
+      try {
+        return Buffer.from((await post<{ base64: string }>('/image', { bizId, prompt })).base64, 'base64');
       } catch (e) {
         live.delete(bizId);
         throw e;
@@ -383,7 +432,13 @@ function count(bizId: string, delta: 1 | -1): void {
  * Meta AI'ga savol (yangi suhbatda) — javob matni. Bir necha daqiqa ketishi mumkin: chaqiruvchi uni fonda ishlatadi.
  * Xato bo'lsa MetaAiError (sababi egasiga aytsa bo'ladigan tilda)
  */
-export async function askMetaAi(biz: BusinessRow, prompt: string): Promise<string> {
+export const askMetaAi = (biz: BusinessRow, prompt: string): Promise<string> => use(biz, prompt, (d, text) => d.ask(biz.id, text));
+
+/** Meta AI rasm chizadi (post uchun) — rasm baytlari. Kunlik chegara savollar bilan umumiy */
+export const imagineMetaAi = (biz: BusinessRow, description: string): Promise<Buffer> =>
+  use(biz, `Создай одно изображение для поста в Instagram (без текста на картинке): ${description}`, (d, text) => d.image(biz.id, text));
+
+async function use<T>(biz: BusinessRow, prompt: string, call: (d: Driver, text: string) => Promise<T>): Promise<T> {
   assertMetaAiReady(biz);
   const d = need();
   const ua = connections.get(biz.id, KIND)?.meta.ua;
@@ -394,12 +449,12 @@ export async function askMetaAi(biz: BusinessRow, prompt: string): Promise<strin
   try {
     if (!d.alive(biz.id)) await open(biz.id, ua);
     try {
-      return await d.ask(biz.id, text);
+      return await call(d, text);
     } catch (e) {
       // Brauzer bo'sh turib yopilgan — bir marta qayta ochiladi
       if (!(e instanceof Closed)) throw e;
       await open(biz.id, ua);
-      return await d.ask(biz.id, text);
+      return await call(d, text);
     }
   } catch (e) {
     count(biz.id, -1);
