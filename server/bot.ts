@@ -25,7 +25,8 @@ import { DAY_OUTCOME, askOutcome, dropOutcome, takeOutcome, wantsOutcome } from 
 import { recallPatients } from './crm/index';
 import { patientName } from './crm/logic';
 import { fileKeyboard, settleFile, settleSuggestion } from './brain/learn';
-import { businesses, cameras, chatLog, inbox, leads, moneyEntries, outbound, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
+import { businesses, cameras, chatLog, inbox, leads, outbound, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
+import { moneyEntries } from './crm/moneyStore';
 import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';

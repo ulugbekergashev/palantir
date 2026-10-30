@@ -5,7 +5,7 @@
  * Bir marta: muvaffaqiyatdan keyin belgi qoladi — Hub kodi panelda ataylab o'chirilsa, qayta ulanmaydi. Internet yo'q — 10 daqiqadan keyin yana.
  */
 import { hostname } from 'node:os';
-import { settings } from './db';
+import { settings } from './serviceStore';
 import { env } from './env';
 import { setKey } from './keys';
 import { machineId } from './license';

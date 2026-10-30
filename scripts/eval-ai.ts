@@ -82,7 +82,8 @@ console.log(`Taxminiy narx: ~$${guess.toFixed(2)} (ikki baravargacha farq qilish
 if (!a.yes) { console.log("Haqiqiy Claude'ga so'rov ketadi (pul): boshlash uchun --yes qo'shing"); process.exit(0); }
 if (!env.aiEnabled) { console.error("ANTHROPIC_API_KEY yo'q (.env yoki muhitda) — baholab bo'lmaydi"); process.exit(1); }
 
-const { aiUsage, businesses, conversations, inbox, leads } = await import('../server/db');
+const { businesses, conversations, inbox, leads } = await import('../server/db');
+const { aiUsage } = await import('../server/serviceStore');
 const { emptyBusiness } = await import('../server/validate');
 const { updateAbout } = await import('../server/setup/about');
 const { ask } = await import('../server/agent');

@@ -21,7 +21,9 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, type Dirent } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Knowledge, KnowledgeKind, Note } from '../../src/types';
-import { businesses, knowledge as tableKnowledge, newId, notes as tableNotes, type BusinessRow } from '../db';
+import { businesses, newId, type BusinessRow } from '../db';
+import { notes as tableNotes } from './knowledgeStore';
+import { knowledge as tableKnowledge } from './knowledgeStore';
 import { env } from '../env';
 import { inert } from './logic';
 

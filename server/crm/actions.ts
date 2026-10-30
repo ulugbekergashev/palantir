@@ -7,7 +7,8 @@
  */
 import type { MoneyEntry, MoneyStatus } from '../../src/types';
 import { iso } from '../../src/lib/week';
-import { moneyEntries, type BusinessRow, type MoneyRow } from '../db';
+import { type BusinessRow } from '../db';
+import { moneyEntries, type MoneyRow } from './moneyStore';
 import { env } from '../env';
 import { CrmError, isUnknownOutcome, type CrmErrorKind } from './dentacrm';
 import { crmConnected, withCrm } from './index';

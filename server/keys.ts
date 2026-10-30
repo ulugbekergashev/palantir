@@ -6,7 +6,7 @@
  */
 import { KEYS, classifyLine, isKeyName, keyInfo, maskSecret, type KeyName } from '../src/lib/secrets';
 import type { KeyCheck, KeyView } from '../src/types';
-import { settings } from './db';
+import { settings } from './serviceStore';
 import { env } from './env';
 import { open, seal } from './secret';
 import { parseHubCode } from '../src/lib/hubCode';

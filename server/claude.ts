@@ -1,7 +1,8 @@
 /** Claude mijozi (yordamchi ham, mijozlarga javob ham shu orqali): har bir so'rov sanaladi va kunlik chegaraga tekshiriladi */
 import Anthropic from '@anthropic-ai/sdk';
 import { iso } from '../src/lib/week';
-import { aiUsage, type AiUsageRow, type BusinessRow } from './db';
+import { type BusinessRow } from './db';
+import { aiUsage, type AiUsageRow } from './serviceStore';
 import { env } from './env';
 
 let client: Anthropic | null = null;

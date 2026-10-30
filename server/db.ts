@@ -7,10 +7,10 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { randomBytes } from 'node:crypto';
 import type {
-  Artifact, Business, ChatEntry, Doc, InboxMessage, Lead, LeadChannel, LeadStage, Note, Outbound, OutboundStatus,
-  MoneyEntry, MoneyKind, MoneyStatus, ReplyBooking, ReplyDraft, ReplyStatus, Task, TaskStatus, VisitChange,
+  Artifact, Business, ChatEntry, InboxMessage, Lead, LeadChannel, LeadStage, Outbound, OutboundStatus,
+  ReplyBooking, ReplyDraft, ReplyStatus, Task, TaskStatus, VisitChange,
 } from '../src/types';
-import type { Call, CallLine, Camera, CameraSession, CameraZone, Knowledge, KnowledgeKind, ZoneKind } from '../src/types';
+import type { Call, CallLine, Camera, CameraSession, CameraZone, ZoneKind } from '../src/types';
 import { phoneKey } from '../src/lib/phone';
 import { iso } from '../src/lib/week';
 import { env } from './env';
@@ -602,20 +602,6 @@ export const replies = {
   },
 };
 
-// ─── Hujjatlar ────────────────────────────────────────────────────────────────
-
-const toDoc = (r: Raw): Doc => ({ id: String(r.id), title: String(r.title), kind: String(r.kind), markdown: String(r.markdown), createdAt: String(r.created_at) });
-
-export const documents = {
-  create(businessId: string, title: string, kind: string, markdown: string): Doc {
-    const id = newId(10);
-    run('INSERT INTO documents (id, business_id, title, kind, markdown, created_at) VALUES (?, ?, ?, ?, ?, ?)', id, businessId, title, kind, markdown, nowIso());
-    return documents.get(businessId, id)!;
-  },
-  get: (businessId: string, id: string) => one('SELECT * FROM documents WHERE business_id = ? AND id = ?', toDoc, businessId, id),
-  list: (businessId: string, limit = 200) => many('SELECT * FROM documents WHERE business_id = ? ORDER BY created_at DESC LIMIT ?', toDoc, businessId, limit),
-};
-
 // ─── Mijozlarga xabar (follow-up) ─────────────────────────────────────────────
 
 export interface OutboundRow extends Outbound { businessId: string; ownerMessageId: number | null }
@@ -646,60 +632,6 @@ export const outbound = {
     Number(run("UPDATE outbound SET status = ?, sent_count = ? WHERE business_id = ? AND id = ? AND status = 'draft'", status, sentCount, businessId, id).changes) > 0,
   setSentCount: (businessId: string, id: string, n: number) => run('UPDATE outbound SET sent_count = ? WHERE business_id = ? AND id = ?', n, businessId, id),
   setOwnerMessage: (businessId: string, id: string, messageId: number) => run('UPDATE outbound SET owner_message_id = ? WHERE business_id = ? AND id = ?', messageId, businessId, id),
-};
-
-// ─── Pul yozuvlari (DentaCRM) ─────────────────────────────────────────────────
-
-/** payload — CRM'ga yoziladigan ma'lumot (JSON, faqat server yozadi: crm/actions.ts) */
-export type MoneyRow = Omit<MoneyEntry, 'canUndo'> & { businessId: string; payload: string; crmId: string | null; ownerMessageId: number | null; doneAt: string | null };
-
-const lines = (raw: unknown): string[] => {
-  try { const v: unknown = JSON.parse(String(raw)); return Array.isArray(v) ? v.map(String) : []; } catch { return []; }
-};
-const toMoney = (r: Raw): MoneyRow => ({
-  id: String(r.id), businessId: String(r.business_id), kind: String(r.kind) as MoneyKind, payload: String(r.payload), title: String(r.title), details: lines(r.details),
-  status: String(r.status) as MoneyStatus, note: str(r.note), crmId: str(r.crm_id), ownerMessageId: num(r.owner_message_id), createdAt: String(r.created_at), doneAt: str(r.done_at),
-});
-
-export const moneyEntries = {
-  create(businessId: string, kind: MoneyKind, payload: string, title: string, details: string[]): MoneyRow {
-    const id = newId(10);
-    run('INSERT INTO money_entries (id, business_id, kind, payload, title, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', id, businessId, kind, payload, title, JSON.stringify(details), nowIso());
-    return moneyEntries.get(businessId, id)!;
-  },
-  get: (businessId: string, id: string) => one('SELECT * FROM money_entries WHERE business_id = ? AND id = ?', toMoney, businessId, id),
-  /** Holat faqat kutilgan holatdan o'tadi (ikki marta bosilsa — bir marta yoziladi); o'zgargan bo'lsa true. patch'da berilmagan maydon o'zgarmaydi */
-  move(businessId: string, id: string, from: MoneyStatus[], to: MoneyStatus, patch: { note?: string | null; crmId?: string; doneAt?: string } = {}): boolean {
-    const sets = ['status = ?', ...('note' in patch ? ['note = ?'] : []), ...(patch.crmId ? ['crm_id = ?'] : []), ...(patch.doneAt ? ['done_at = ?'] : [])];
-    const values: SQLInputValue[] = [to, ...('note' in patch ? [patch.note ?? null] : []), ...(patch.crmId ? [patch.crmId] : []), ...(patch.doneAt ? [patch.doneAt] : [])];
-    return Number(run(`UPDATE money_entries SET ${sets.join(', ')} WHERE business_id = ? AND id = ? AND status IN (${from.map(() => '?').join(',')})`, ...values, businessId, id, ...from).changes) > 0;
-  },
-  setOwnerMessage: (businessId: string, id: string, messageId: number) => run('UPDATE money_entries SET owner_message_id = ? WHERE business_id = ? AND id = ?', messageId, businessId, id),
-  /** Kunlik chegara uchun: shu vaqtdan beri yozilganlar (ortga qaytarilgani ham), hozir yozilayotgan va natijasi noma'lumlar — soni va jami summasi */
-  usedSince(businessId: string, sinceIso: string): { count: number; sum: number } {
-    const r = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(json_extract(payload, '$.amount')), 0) total FROM money_entries WHERE business_id = ? AND (done_at >= ? OR (status IN ('running', 'unknown') AND created_at >= ?))")
-      .get(businessId, sinceIso, sinceIso) as Raw;
-    return { count: Number(r.n), sum: Number(r.total) };
-  },
-  /** Aynan shunday, hali tasdiqlanmagan taklif (bir xil gap ikki marta aytilsa ikkita karta emas — bitta yozuv) */
-  findDraft: (businessId: string, payload: string, sinceIso: string) =>
-    one("SELECT * FROM money_entries WHERE business_id = ? AND payload = ? AND status = 'draft' AND created_at >= ? ORDER BY created_at DESC LIMIT 1", toMoney, businessId, payload, sinceIso),
-  /** Yozish boshlangan, lekin tugagani qayd etilmaganlar (server o'sha paytda to'xtagan) */
-  running: () => many("SELECT * FROM money_entries WHERE status = 'running'", toMoney),
-};
-
-// ─── Eslab qolingan faktlar ───────────────────────────────────────────────────
-
-const toNote = (r: Raw): Note => ({ id: String(r.id), text: String(r.text), createdAt: String(r.created_at) });
-
-export const notes = {
-  add(businessId: string, text: string): Note {
-    const id = newId(8);
-    run('INSERT INTO notes (id, business_id, text, created_at) VALUES (?, ?, ?, ?)', id, businessId, text, nowIso());
-    return { id, text, createdAt: nowIso() };
-  },
-  list: (businessId: string) => many('SELECT * FROM notes WHERE business_id = ? ORDER BY created_at', toNote, businessId),
-  remove: (businessId: string, id: string) => Number(run('DELETE FROM notes WHERE business_id = ? AND id = ?', businessId, id).changes) > 0,
 };
 
 // ─── Suhbat (Claude bilan) va jurnal ──────────────────────────────────────────
@@ -850,125 +782,6 @@ export const voiceBookings = {
 export const voiceKeys = {
   hash: (businessId: string) => one('SELECT hash FROM voice_keys WHERE business_id = ?', r => String(r.hash), businessId) ?? null,
   set: (businessId: string, hash: string) => run('INSERT INTO voice_keys (business_id, hash, created_at) VALUES (?, ?, ?) ON CONFLICT(business_id) DO UPDATE SET hash = excluded.hash, created_at = excluded.created_at', businessId, hash, nowIso()),
-};
-
-// ─── Ikkinchi miya ───────────────────────────────────────────────────────────
-db.exec(`
-CREATE TABLE IF NOT EXISTS knowledge (
-  id TEXT PRIMARY KEY, business_id TEXT NOT NULL, kind TEXT NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL,
-  status TEXT NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS knowledge_biz ON knowledge (business_id, kind);
-`);
-
-const toKnowledge = (r: Raw): Knowledge => ({
-  id: String(r.id), kind: String(r.kind) as KnowledgeKind, question: String(r.question), answer: String(r.answer), status: r.status === 'suggested' ? 'suggested' : 'active',
-  source: String(r.source), createdAt: String(r.created_at),
-});
-
-/** Savol-javoblar, egasining tuzatishlari va hujjat namunalari (faktlar — notes jadvalida) */
-export const knowledge = {
-  add(businessId: string, k: Omit<Knowledge, 'id' | 'createdAt'>): Knowledge {
-    const id = newId(10), createdAt = nowIso();
-    run('INSERT INTO knowledge (id, business_id, kind, question, answer, status, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', id, businessId, k.kind, k.question, k.answer, k.status, k.source, createdAt);
-    return { id, ...k, createdAt };
-  },
-  get: (businessId: string, id: string) => one('SELECT * FROM knowledge WHERE business_id = ? AND id = ?', toKnowledge, businessId, id) ?? null,
-  list: (businessId: string, kind?: KnowledgeKind) =>
-    many(`SELECT * FROM knowledge WHERE business_id = ?${kind ? ' AND kind = ?' : ''} ORDER BY created_at, rowid`, toKnowledge, ...(kind ? [businessId, kind] : [businessId])),
-  update(businessId: string, id: string, patch: Partial<Pick<Knowledge, 'question' | 'answer' | 'status'>>): Knowledge | null {
-    const old = knowledge.get(businessId, id);
-    if (!old) return null;
-    const next = { ...old, ...patch };
-    run('UPDATE knowledge SET question = ?, answer = ?, status = ? WHERE business_id = ? AND id = ?', next.question, next.answer, next.status, businessId, id);
-    return next;
-  },
-  remove: (businessId: string, id: string) => Number(run('DELETE FROM knowledge WHERE business_id = ? AND id = ?', businessId, id).changes) > 0,
-  /** Egasi javob bermagan eski takliflar o'chadi (kutayotganlar ro'yxati to'lib, o'rganish to'xtab qolmasin) */
-  expireSuggested: (businessId: string, beforeIso: string) => run("DELETE FROM knowledge WHERE business_id = ? AND status = 'suggested' AND created_at < ?", businessId, beforeIso),
-  /** Shu turdagi eng yangi `keep` tasi qoladi, eskilari o'chadi */
-  trim: (businessId: string, kind: KnowledgeKind, keep: number) =>
-    run('DELETE FROM knowledge WHERE business_id = ? AND kind = ? AND id NOT IN (SELECT id FROM knowledge WHERE business_id = ? AND kind = ? ORDER BY created_at DESC, rowid DESC LIMIT ?)', businessId, kind, businessId, kind, keep),
-};
-
-// ─── Egasiga xabarlar navbati ────────────────────────────────────────────────
-db.exec('CREATE TABLE IF NOT EXISTS owner_notices (id INTEGER PRIMARY KEY AUTOINCREMENT, business_id TEXT NOT NULL, html TEXT NOT NULL, created_at TEXT NOT NULL)');
-
-/**
- * Egasiga albatta yetishi kerak bo'lgan xabarlar (to'xtab qolgan pul yozuvi yoki qabul, yetkazilmagan mijoz xabari).
- * Bazada turadi: Telegram javob bermasa yoki server qayta tushsa ham yo'qolmaydi — jadval (scheduler.ts) yuborib, keyin o'chiradi
- */
-export const notices = {
-  add: (businessId: string, html: string) => run('INSERT INTO owner_notices (business_id, html, created_at) VALUES (?, ?, ?)', businessId, html, nowIso()),
-  list: (limit = 20) => many('SELECT * FROM owner_notices ORDER BY id LIMIT ?', r => ({ id: Number(r.id), businessId: String(r.business_id), html: String(r.html), createdAt: String(r.created_at) }), limit),
-  remove: (id: number) => run('DELETE FROM owner_notices WHERE id = ?', id),
-};
-
-// ─── AI xarajati ─────────────────────────────────────────────────────────────
-db.exec(`
-CREATE TABLE IF NOT EXISTS ai_usage (
-  business_id TEXT NOT NULL, day TEXT NOT NULL, kind TEXT NOT NULL, calls INTEGER NOT NULL DEFAULT 0,
-  input INTEGER NOT NULL DEFAULT 0, output INTEGER NOT NULL DEFAULT 0, cache_read INTEGER NOT NULL DEFAULT 0, cache_write INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (business_id, day, kind)
-);
-`);
-
-export interface AiUsageRow { businessId: string; day: string; kind: string; calls: number; input: number; output: number; cacheRead: number; cacheWrite: number }
-/** Kun, biznes va ish turi bo'yicha model so'rovlari soni va tokenlar (chegara va xarajat hisobi uchun) */
-export const aiUsage = {
-  /** So'rov yuborilishidan OLDIN sanaladi: javobsiz qolgan yoki uzilgan so'rov ham chegaraga kiradi */
-  hit: (businessId: string, day: string, kind: string) =>
-    run('INSERT INTO ai_usage (business_id, day, kind, calls) VALUES (?, ?, ?, 1) ON CONFLICT(business_id, day, kind) DO UPDATE SET calls = calls + 1', businessId, day, kind),
-  tokens: (businessId: string, day: string, kind: string, t: { input: number; output: number; cacheRead: number; cacheWrite: number }) =>
-    run('UPDATE ai_usage SET input = input + ?, output = output + ?, cache_read = cache_read + ?, cache_write = cache_write + ? WHERE business_id = ? AND day = ? AND kind = ?', t.input, t.output, t.cacheRead, t.cacheWrite, businessId, day, kind),
-  calls: (businessId: string, day: string, kind: string) => one('SELECT calls FROM ai_usage WHERE business_id = ? AND day = ? AND kind = ?', r => Number(r.calls), businessId, day, kind) ?? 0,
-  since: (day: string): AiUsageRow[] => many('SELECT * FROM ai_usage WHERE day >= ? ORDER BY day DESC, business_id, kind', r => ({
-    businessId: String(r.business_id), day: String(r.day), kind: String(r.kind), calls: Number(r.calls),
-    input: Number(r.input), output: Number(r.output), cacheRead: Number(r.cache_read), cacheWrite: Number(r.cache_write),
-  }), day),
-};
-
-// ─── Server kalitlari (ulash ustasida kiritiladi) ────────────────────────────
-db.exec('CREATE TABLE IF NOT EXISTS settings (name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)');
-
-// Palantir jamoasi kirishi endi egasining roziligi bilan (http.ts, /api/login/support). Avval standart yoqiq edi — egasi o'zi tanlamagan,
-// shuning uchun bir marta hammasi yopiladi (berilgan jamoa kirishlari ham bekor); xohlagan egasi Sozlamalarda qayta yoqadi
-if (!one("SELECT 1 AS x FROM settings WHERE name = 'support.optin'", () => true)) {
-  run('UPDATE businesses SET support_access = 0, support_until = NULL, support_ver = support_ver + 1');
-  run("INSERT INTO settings (name, value, updated_at) VALUES ('support.optin', '1', ?)", nowIso());
-}
-
-/** Server bo'yicha kalitlar: qiymat shifrlangan holda (secret.ts) keladi va shunday saqlanadi */
-export const settings = {
-  all: () => many('SELECT * FROM settings ORDER BY name', r => ({ name: String(r.name), value: String(r.value), updatedAt: String(r.updated_at) })),
-  set: (name: string, sealed: string) => run('INSERT INTO settings (name, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at', name, sealed, nowIso()),
-  remove: (name: string) => run('DELETE FROM settings WHERE name = ?', name),
-};
-
-// ─── Anketalar (o'rnatishdan oldin egasi to'ldiradi) ─────────────────────────
-db.exec(`
-CREATE TABLE IF NOT EXISTS anketa (
-  code TEXT PRIMARY KEY, label TEXT NOT NULL, industry TEXT NOT NULL, data TEXT, status TEXT NOT NULL DEFAULT 'new',
-  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, expires_at TEXT NOT NULL
-);
-`);
-
-export interface AnketaRow { code: string; label: string; industry: string; data: string | null; status: string; createdAt: string; updatedAt: string; expiresAt: string }
-const toAnketa = (r: Raw): AnketaRow => ({
-  code: String(r.code), label: String(r.label), industry: String(r.industry), data: str(r.data), status: String(r.status),
-  createdAt: String(r.created_at), updatedAt: String(r.updated_at), expiresAt: String(r.expires_at),
-});
-export const anketas = {
-  create(code: string, label: string, industry: string, expiresAt: string): AnketaRow {
-    run('INSERT INTO anketa (code, label, industry, created_at, updated_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', code, label, industry, nowIso(), nowIso(), expiresAt);
-    return anketas.get(code)!;
-  },
-  get: (code: string) => one('SELECT * FROM anketa WHERE code = ?', toAnketa, code),
-  list: () => many('SELECT * FROM anketa ORDER BY created_at DESC LIMIT 200', toAnketa),
-  save: (code: string, data: string, status: string) => run('UPDATE anketa SET data = ?, status = ?, updated_at = ? WHERE code = ?', data, status, nowIso(), code),
-  remove: (code: string) => run('DELETE FROM anketa WHERE code = ?', code),
-  /** Muddati o'tganlari o'chadi: anketada manzil, telefon, narxlar bor — keraksiz turmasin */
-  expire: () => run('DELETE FROM anketa WHERE expires_at < ?', nowIso()),
 };
 
 export const closeDb = () => db.close();
