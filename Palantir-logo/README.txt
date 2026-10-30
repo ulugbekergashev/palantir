@@ -1,5 +1,9 @@
-PALANTIR — LOGO TO'PLAMI (Kub)
-================================
+PALANTIR — LOGO TO'PLAMI (Ko'ruvchi tosh)
+==========================================
+
+Belgi — palantír, ko'ruvchi tosh: qora tutunli shisha shar, ichida olovli uyurma,
+chetida shisha aksi. Hamma fayllar bitta skriptdan chiqadi: npx tsx scripts/logo.ts
+(shakl yoki rangni o'sha yerda o'zgartiring — qo'lda tahrir qilmang).
 
 PAPKALAR
   svg/      Vektor fayllar: har qanday o'lchamda sifati buzilmaydi.
@@ -35,10 +39,10 @@ SAYTGA FAVICON QO'YISH
 
 RANGLAR
   Qora (asosiy)    #0B0D10
-  Grafit           #3A4150
-  Yashil (aksent)  #12B886
-  Kumush           #E3E7ED
-  Po'lat           #98A1B0
+  Olov (aksent)    #FF9A3C
+  Cho'g'           #C2410C
+  Yorug' olov      #FFD9A0
+  Kumush           #EEF0F3
   Fon              #EEF0F3
 
 

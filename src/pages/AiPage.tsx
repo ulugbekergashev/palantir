@@ -16,6 +16,7 @@ import { useVoice, type VoiceMode } from '../lib/useVoice';
 import { Attention } from '../components/Attention';
 import { dotClass } from '../components/agent';
 import { TeamDay } from '../components/TeamDay';
+import { PalantirOrb } from '../components/PalantirOrb';
 import type { Notify } from '../components/Artifacts';
 
 const WEEKDAYS = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba'];
@@ -60,7 +61,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
   return (
     <div className="relative min-h-dvh overflow-hidden bg-[#06070a] text-[#f2f0ea] lg:min-h-dvh">
       {/* Fon: sfera atrofidagi juda yumshoq nur */}
-      <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-[38%] h-[720px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(124,127,255,0.16),transparent)]" />
+      <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-[38%] h-[720px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(255,138,52,0.10),transparent)]" />
 
       <header className="relative z-10 flex items-center justify-end px-5 py-4 sm:px-8">
         <span className="tabular-nums text-xs tracking-wider text-[#9ba1ad]">{WEEKDAYS[now.getDay()].toUpperCase()} · {now.getDate()} {MONTHS[now.getMonth()].toUpperCase()}</span>
@@ -75,21 +76,19 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
           onClick={() => { void toggle(); }}
           aria-pressed={active}
           aria-label={active ? 'Suhbatni tugatish' : 'Palantir bilan gaplashish'}
-          className="group relative mt-4 flex h-40 w-40 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[#a9aaff] focus-visible:ring-offset-4 focus-visible:ring-offset-[#06070a] sm:mt-6 sm:h-64 sm:w-64"
+          className="group relative mt-4 flex h-40 w-40 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[#ffb067] focus-visible:ring-offset-4 focus-visible:ring-offset-[#06070a] sm:mt-6 sm:h-64 sm:w-64"
         >
           <div
             ref={orb}
             aria-hidden="true"
             style={{ transform: 'scale(calc(1 + var(--mic, 0) * 0.16 + var(--ai, 0) * 0.08))', filter: 'brightness(calc(1 + var(--ai, 0) * 0.5))' }}
-            className={`absolute inset-0 rounded-full transition-transform duration-100 ${active ? '' : 'opacity-80 group-hover:opacity-100'}`}
+            className={`absolute inset-0 rounded-full transition-[transform,opacity] duration-100 ${active ? '' : 'opacity-90 group-hover:opacity-100'}`}
           >
-            <div className="absolute inset-0 animate-[spin_14s_linear_infinite] motion-reduce:animate-none rounded-full bg-[conic-gradient(from_0deg,#6f73ff,#b38cff,#3fd6c3,#6f73ff)] blur-2xl opacity-60" />
-            <div className="absolute inset-3 animate-[spin_22s_linear_infinite_reverse] motion-reduce:animate-none rounded-full bg-[radial-gradient(circle_at_30%_30%,#c9caff,#6f73ff_45%,#24205a_80%)]" />
-            <div className="absolute inset-3 rounded-full bg-[radial-gradient(circle_at_70%_75%,rgba(63,214,195,0.55),transparent_55%)] mix-blend-screen" />
-            <div className="absolute inset-3 rounded-full ring-1 ring-glass/15" />
+            <PalantirOrb />
           </div>
-          <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-[rgb(0_0_0/0.25)] backdrop-blur-sm">
-            {mode === 'idle' ? <Mic className="h-6 w-6" aria-hidden="true" /> : <Square className="h-5 w-5 fill-current" aria-hidden="true" />}
+          {/* Tugma toshning pastida, olov ustida emas: shisha ichi ko'rinib tursin */}
+          <span className="absolute bottom-[5%] flex h-10 w-10 items-center justify-center rounded-full border border-[#ffc48c]/20 bg-[rgb(10_6_4/0.6)] text-[#ffe2c2] backdrop-blur-sm sm:bottom-[7%] sm:h-12 sm:w-12">
+            {mode === 'idle' ? <Mic className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" /> : <Square className="h-4 w-4 fill-current sm:h-5 sm:w-5" aria-hidden="true" />}
           </span>
         </button>
 

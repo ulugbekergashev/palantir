@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="8.00 8.00 84.00 84.00" width="84" height="84" role="img" aria-label="Palantir"><title>Palantir</title><polygon points="50.000,11.732 18.359,30.000 50.000,48.268 81.641,30.000" fill="#E3E7ED"/><polygon points="16.859,32.598 16.859,69.134 48.500,87.402 48.500,50.866" fill="#98A1B0"/><polygon points="60.050,55.800 74.590,47.400 74.590,64.200 60.050,72.600" fill="#12B886"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="8.00 8.00 84.00 84.00" width="84" height="84" role="img" aria-label="Palantir"><title>Palantir</title><g transform="translate(50 50) scale(0.9318)">
+<defs>
+<radialGradient id="pS" cx="0" cy="7" r="46" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFD9A0"/><stop offset=".14" stop-color="#FF9A3C"/><stop offset=".32" stop-color="#C2410C"/><stop offset=".55" stop-color="#3B160A"/><stop offset=".8" stop-color="#120806"/><stop offset="1" stop-color="#060304"/></radialGradient>
+<radialGradient id="pH" cx="-24" cy="-28" r="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".85"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".05"/></radialGradient>
+</defs>
+<circle r="44" fill="url(#pS)"/>
+<path d="M3 6A3.6 3.6 0 0 1 10.2 6A7.2 7.2 0 0 1 -4.2 6A10.8 10.8 0 0 1 17.4 6A14.4 14.4 0 0 1 -11.4 6" fill="none" stroke="#FFD29A" stroke-opacity=".55" stroke-width="2.8" stroke-linecap="round"/>
+<circle r="43" fill="none" stroke="#FFC48C" stroke-opacity=".3" stroke-width="1.6"/>
+<path d="M-34.8 -12.7A37 37 0 0 1 -6.4 -36.4" fill="none" stroke="url(#pH)" stroke-width="5" stroke-linecap="round"/>
+</g></svg>

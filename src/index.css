@@ -87,6 +87,30 @@
 }
 .animate-rise { animation: rise-in 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 
+/*
+ * Palantir — ko'ruvchi tosh (PalantirOrb.tsx, logotip bilan bir xil): qora tutunli shisha, ichida olov va sekin aylanayotgan uyurma,
+ * chetida shisha aksi. --mic (siz gapiryapsiz) va --ai (Palantir gapiryapti) 0…1 — ichki olov shunga qarab yonadi (useVoice).
+ */
+.palantir { position: relative; border-radius: 9999px; isolation: isolate; }
+.palantir > i { position: absolute; border-radius: 9999px; pointer-events: none; }
+.palantir .halo { inset: -14%; background: radial-gradient(closest-side, rgba(255, 138, 52, 0.30), rgba(255, 92, 28, 0.08) 60%, transparent); filter: blur(12px); opacity: calc(0.35 + var(--mic, 0) * 0.5 + var(--ai, 0) * 0.65); z-index: -1; }
+.palantir .glass { inset: 0; overflow: hidden; background: radial-gradient(circle at 50% 58%, #1f0d06 0%, #0b0504 38%, #040203 70%, #010101 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 196, 140, 0.22), inset 0 -16px 36px -14px rgba(255, 128, 48, 0.45), 0 24px 50px -22px rgba(0, 0, 0, 0.95); }
+.palantir .glass > * { position: absolute; border-radius: 9999px; pointer-events: none; }
+.palantir .core { inset: 0; background: radial-gradient(circle at 52% 57%, #ffe7b8 0%, #ffa347 9%, rgba(255, 104, 24, 0.62) 20%, rgba(194, 65, 12, 0.22) 34%, transparent 50%);
+  filter: blur(3px); opacity: calc(0.62 + var(--mic, 0) * 0.38 + var(--ai, 0) * 0.38); animation: palantir-breathe 6s ease-in-out infinite; }
+.palantir .smoke-a { inset: -15%; background: conic-gradient(from 20deg at 47% 57%, transparent 0deg, rgba(255, 150, 70, 0.12) 50deg, transparent 110deg, rgba(255, 210, 150, 0.06) 190deg, transparent 250deg, rgba(255, 120, 40, 0.10) 310deg, transparent 360deg);
+  filter: blur(10px); mix-blend-mode: screen; animation: palantir-swirl 19s linear infinite; }
+.palantir .smoke-b { inset: -10%; background: conic-gradient(from 160deg at 56% 50%, transparent 0deg, rgba(255, 170, 90, 0.08) 220deg, transparent 290deg);
+  filter: blur(12px); mix-blend-mode: screen; animation: palantir-swirl 31s linear infinite reverse; }
+/* Uyurma — logodagi spiral: o'z markazi atrofida sekin aylanadi, ovozda yorqinlashadi */
+.palantir .swirl { inset: 0; width: 100%; height: 100%; transform-origin: 53% 56%; animation: palantir-swirl 26s linear infinite;
+  opacity: calc(0.42 + var(--mic, 0) * 0.5 + var(--ai, 0) * 0.55); filter: blur(0.4px) drop-shadow(0 0 4px rgba(255, 150, 60, 0.8)); mix-blend-mode: screen; }
+.palantir .depth { inset: 0; background: radial-gradient(circle at 50% 54%, transparent 44%, rgba(0, 0, 0, 0.62) 74%, rgba(0, 0, 0, 0.94) 100%); }
+.palantir .glint { inset: 0; width: 100%; height: 100%; }
+@keyframes palantir-swirl { to { transform: rotate(360deg); } }
+@keyframes palantir-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
 /* Harakatni kamaytirish so'ralgan bo'lsa — o'tishlar va paydo bo'lishlar o'chadi (kutish belgisi aylanaveradi: u holatni bildiradi) */
 @media (prefers-reduced-motion: reduce) {
   *:not(.animate-spin),
