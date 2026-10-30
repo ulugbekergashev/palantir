@@ -8,7 +8,7 @@
  */
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { join, resolve } from 'node:path';
 import { connections, type BusinessRow } from '../db';
@@ -16,7 +16,7 @@ import { open, seal } from '../secret';
 
 import { LINE_MODES, type LineMode, type LineRouting } from './route';
 import { voiceAgentKey } from './serviceEnv';
-import { ZADARMA_HOST, ZADARMA_PORT, zadarmaSetup, type ZadarmaKeys } from './zadarma';
+import { ZADARMA_HOST, ZADARMA_PORT, zadarmaProblem, zadarmaSetup, type ZadarmaKeys } from './zadarma';
 
 export { routeNow, transferNow, type LineMode, type LineRouting } from './route';
 export interface LineTrunk { host: string; port: number; login: string; number: string }
@@ -104,6 +104,38 @@ export async function lineStatus(): Promise<LineView['status']> {
   }
 }
 
+/** Liniya holatidan egasiga aytiladigan muammo (raqam kiritilgan bo'lsa); hammasi joyida — null */
+export function lineProblemOf(s: LineView['status']): string | null {
+  if (!s.asterisk) return "telefon xizmati (Asterisk) javob bermayapti — mijozlar qo'ng'iroqlari qabul qilinmayapti. Kompyuterni qayta yoqing";
+  if (s.trunk === 'failed') return "raqam ulanmadi — internetni tekshiring; davom etsa Sozlamalar → Telefon liniyasi → Qayta ulash";
+  if (s.trunk === 'none') return "raqam telefon xizmatiga o'rnatilmagan — Sozlamalar → Telefon liniyasi → Qayta ulash";
+  return null;
+}
+
+const ZADARMA_CHECK_MS = Number(process.env.ZADARMA_CHECK_MS) || 3_600_000;
+const zadarmaSeen = new Map<string, { at: number; problem: string | null }>();
+
+/**
+ * Kanallar nazorati uchun (server/monitor.ts): liniya va Zadarma hisobi. Faqat raqam kiritilgan klinika kompyuterida tekshiriladi;
+ * Zadarma'ga soatiga bir marta so'raladi (Zadarma javob bermasa — avvalgi holat qoladi, bir lahzalik xato egasini bezovta qilmaydi)
+ */
+export async function lineChecks(bizId: string, now = Date.now()): Promise<{ key: string; label: string; problem: string | null }[]> {
+  const a = connections.get(bizId, KIND)?.account;
+  if (!ENABLED || !a?.host) return [];
+  // Ovozli agent kaliti yangilangan (yoki o'rnatishda .env da yo'q edi) — Asterisk'ka yetkaziladi
+  if (writePalantirConf()) await applyLine().catch(e => console.error('[telefon] kalit Asterisk\'ka yozilmadi:', (e as Error).message));
+  const out = [{ key: 'phone_line', label: 'Telefon liniyasi', problem: lineProblemOf(await lineStatus()) }];
+  const keys = zadarmaKeysOf(bizId);
+  if (a.provider === 'zadarma' && keys && a.number) {
+    const seen = zadarmaSeen.get(bizId);
+    if (!seen || now - seen.at >= ZADARMA_CHECK_MS) {
+      try { zadarmaSeen.set(bizId, { at: now, problem: await zadarmaProblem(keys, a.number, now) }); } catch { /* Zadarma javob bermadi — keyingi soatda */ }
+    }
+    out.push({ key: 'zadarma', label: 'Zadarma hisobi', problem: zadarmaSeen.get(bizId)?.problem ?? null });
+  }
+  return out;
+}
+
 export async function lineView(biz: BusinessRow, withStatus = true): Promise<LineView> {
   const c = connections.get(biz.id, KIND);
   const a = c?.account ?? {};
@@ -174,10 +206,13 @@ const writeAdminConf = (password: string) => ENABLED &&
  * Asterisk «kim javob beradi» deb Palantir'dan so'raydigan manzil va kalit. Kalitni panel o'zi yaratadi (ovoz.env) — .env da bo'lmasa
  * ham Asterisk'ka yetib boradi; aks holda u 401 olib, «avval administrator» rejimini jimgina tashlab, doim AI'ga beradi
  */
-function writePalantirConf(): void {
-  if (!ENABLED) return;
-  writeFileSync(join(DIR, 'extensions_palantir.conf'),
-    `[globals]\nPALANTIR_URL=http://127.0.0.1:${Number(process.env.PORT) || 3200}\nPALANTIR_KEY=${confValue(voiceAgentKey() ?? '')}\n`, { mode: 0o600 });
+function writePalantirConf(): boolean {
+  if (!ENABLED) return false;
+  const file = join(DIR, 'extensions_palantir.conf');
+  const text = `[globals]\nPALANTIR_URL=http://127.0.0.1:${Number(process.env.PORT) || 3200}\nPALANTIR_KEY=${confValue(voiceAgentKey() ?? '')}\n`;
+  if (existsSync(file) && readFileSync(file, 'utf8') === text) return false;
+  writeFileSync(file, text, { mode: 0o600 });
+  return true;
 }
 
 /** Fayllar Asterisk'ka o'rnatiladi (qo'ng'iroqlarni uzmasdan qayta yuklanadi) */

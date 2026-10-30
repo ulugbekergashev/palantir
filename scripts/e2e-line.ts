@@ -4,7 +4,8 @@
  */
 import { createServer } from 'node:http';
 import { routeNow, transferNow, type LineRouting } from '../server/voice/route';
-import { zadarmaSign } from '../server/voice/zadarma';
+import { lineProblemOf } from '../server/voice/line';
+import { accountProblem, zadarmaSign, type ZadarmaNumber } from '../server/voice/zadarma';
 import type { Harness } from './e2e-crm';
 import { json, patient, readBody } from './fakes';
 
@@ -56,6 +57,18 @@ export function lineLogicTests(ok: Harness['ok']): void {
   ok("liniya: ish vaqtida AI administratorga o'tkaza oladi (20 soniya)", transferNow(SOFT, at('2026-10-19', '12:00')) === 20);
   ok("liniya: kechasi va dam olish kuni o'tkazilmaydi", transferNow(SOFT, at('2026-10-19', '21:00')) === null && transferNow(SOFT, at('2026-10-25', '12:00')) === null);
   ok("liniya: boshqa rejimlarda AI o'tkazmaydi", transferNow(DAY, at('2026-10-19', '12:00')) === null && transferNow({ ...DAY, mode: 'ai' }, at('2026-10-19', '12:00')) === null);
+
+  console.log("\n# Telefon liniyasi: nazorat (egasiga xabar)");
+  const st = (asterisk: boolean, trunk: 'none' | 'registered' | 'failed' | 'unknown') => ({ asterisk, trunk, phones: [], note: null });
+  ok('nazorat: hammasi ulangan — muammo yo\'q', lineProblemOf(st(true, 'registered')) === null);
+  ok("nazorat: Asterisk javob bermayapti — «qayta yoqing»", /qayta yoqing/.test(lineProblemOf(st(false, 'unknown')) ?? ''));
+  ok("nazorat: raqam ulanmadi — «internetni tekshiring»", /internetni/.test(lineProblemOf(st(true, 'failed')) ?? ''));
+  const now = Date.parse('2026-10-30T12:00:00Z');
+  const num = (o: Partial<ZadarmaNumber>): ZadarmaNumber => ({ number: '998712001122', status: 'on', monthly_fee: 33, stop_date: '2026-11-03 10:00:00', ...o });
+  ok('zadarma: to\'lovga 4 kun, balans yetadi — jim', accountProblem(num({}), 40, 'USD', now) === null);
+  ok("zadarma: to'lovga 4 kun, balans yetmaydi — ogohlantiradi", /4 kundan keyin.*33 USD.*12\.50 USD/.test(accountProblem(num({}), 12.5, 'USD', now) ?? ''), accountProblem(num({}), 12.5, 'USD', now) ?? '');
+  ok("zadarma: to'lovga hali 20 kun — jim (har oy bezovta qilmaydi)", accountProblem(num({ stop_date: '2026-11-20 10:00:00' }), 1, 'USD', now) === null);
+  ok("zadarma: raqam to'xtatilgan (parking) — darhol aytadi", /to'xtatilgan/.test(accountProblem(num({ status: 'parking' }), 0, 'USD', now) ?? ''));
 }
 
 export async function lineApiTests(h: Harness): Promise<void> {

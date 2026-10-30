@@ -1,6 +1,6 @@
 /**
  * Kanallar nazorati: har daqiqada har bir biznesning ulanishlari tekshiriladi — kompyuter diski, DentaCRM (bitta yengil so'rov bilan), rasmiy Instagram
- * va Palantir Hub, MicroSIP, IP kameralar. Muammo GRACE dan uzoq davom etsa — egasiga bir marta xabar; tiklansa — «yana ishlayapti».
+ * va Palantir Hub, MicroSIP, telefon liniyasi va Zadarma hisobi, IP kameralar. Muammo GRACE dan uzoq davom etsa — egasiga bir marta xabar; tiklansa — «yana ishlayapti».
  * Bir lahzalik uzilish bezovta qilmaydi. Brauzerdagi Instagram va shaxsiy Telegram o'zlari xabar beradi — bu yerda takrorlanmaydi.
  */
 import { iso } from '../src/lib/week';
@@ -11,6 +11,7 @@ import { env } from './env';
 import { notifyOwner } from './inbox/core';
 import { hubProblem } from './inbox/instagramApi';
 import { phoneProblem } from './phone/index';
+import { lineChecks } from './voice/line';
 
 sql.exec(`CREATE TABLE IF NOT EXISTS channel_health (
   business_id TEXT NOT NULL, key TEXT NOT NULL, label TEXT NOT NULL, problem TEXT NOT NULL, since TEXT NOT NULL, notified_at TEXT,
@@ -39,6 +40,8 @@ async function checks(biz: BusinessRow, now: number, disk: string | null): Promi
   const ig = connections.get(biz.id, 'instagram_api');
   if (ig) out.push({ key: 'instagram_api', label: 'Instagram (rasmiy)', problem: hubProblem(now) ?? ig.meta.problem ?? null });
   out.push({ key: 'phone', label: 'Telefon (MicroSIP)', problem: phoneProblem(biz.id) });
+  // Telefon liniyasi (Asterisk + raqam) va Zadarma hisobi: uzilsa yoki to'lov yaqinlashib balans yetmasa
+  out.push(...await lineChecks(biz.id, now).catch(() => []));
   for (const cam of cameras.list(biz.id)) {
     if (!cam.ip) continue;
     const silent = !cam.lastSeenAt || now - Date.parse(cam.lastSeenAt) > CAMERA_SILENT_MS;

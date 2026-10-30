@@ -9,7 +9,10 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 
 export interface ZadarmaKeys { key: string; secret: string }
-export interface ZadarmaNumber { number: string; status: string; country?: string; channels?: number; sip?: string | number | null }
+export interface ZadarmaNumber {
+  number: string; status: string; country?: string; channels?: number; sip?: string | number | null;
+  monthly_fee?: number | string; stop_date?: string;
+}
 export interface ZadarmaSetup { number: string; sipId: string; password: string; balance: number; currency: string; channels: number | null }
 
 /** Zadarma SIP serveri: 5061 — shifrlangan (TLS); oddiy SIP (5060) ba'zi provayderlarda to'silgan */
@@ -60,6 +63,31 @@ export async function zadarmaBalance(keys: ZadarmaKeys): Promise<{ balance: numb
 export async function zadarmaNumbers(keys: ZadarmaKeys): Promise<ZadarmaNumber[]> {
   const r = await call<{ info?: ZadarmaNumber[] }>(keys, 'GET', '/v1/direct_numbers/');
   return (r.info ?? []).map(n => ({ ...n, number: String(n.number).replace(/\D/g, '') }));
+}
+
+/** Raqam to'lovi yaqin, balans yetmasa — shuncha kun oldin ogohlantiriladi */
+const WARN_DAYS = 7;
+const DAY_MS = 86_400_000;
+
+/**
+ * Zadarma hisobidagi muammo (egasiga aytiladi): raqam to'lovsiz to'xtatilgan yoki keyingi oylik to'lovga balans yetmaydi. Muammo yo'q — null
+ */
+export function accountProblem(n: ZadarmaNumber, balance: number, currency: string, now = Date.now()): string | null {
+  if (n.status === 'parking') return `+${n.number} raqami to'xtatilgan — oylik to'lov o'tmagan. Zadarma balansini to'ldiring (7 kun ichida tiklanadi, keyin raqam yo'qoladi)`;
+  if (n.status !== 'on') return null;
+  const fee = Number(n.monthly_fee) || 0;
+  const stop = n.stop_date ? Date.parse(n.stop_date.replace(' ', 'T')) : NaN;
+  if (!fee || Number.isNaN(stop) || stop - now > WARN_DAYS * DAY_MS || balance >= fee) return null;
+  const days = Math.max(0, Math.ceil((stop - now) / DAY_MS));
+  return `${days} kundan keyin raqam uchun ${fee} ${currency} yechiladi, balans ${balance.toFixed(2)} ${currency} — yetmaydi. Zadarma balansini to'ldiring`;
+}
+
+/** Hisob holati: liniya raqami bo'yicha muammo yoki null */
+export async function zadarmaProblem(keys: ZadarmaKeys, number: string, now = Date.now()): Promise<string | null> {
+  const [{ balance, currency }, list] = await Promise.all([zadarmaBalance(keys), zadarmaNumbers(keys)]);
+  const n = list.find(x => x.number === number.replace(/\D/g, ''));
+  if (!n) return `+${number} raqami Zadarma hisobida topilmadi — o'chirilgan bo'lishi mumkin`;
+  return accountProblem(n, balance, currency, now);
 }
 
 /** Parol: harflar va raqamlar (Zadarma maxsus belgilarni hamma joyda qabul qilmaydi), 18 belgi */
