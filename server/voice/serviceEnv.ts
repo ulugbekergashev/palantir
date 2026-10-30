@@ -31,6 +31,9 @@ function agentKey(had: string | undefined): string | null {
   return only ? newVoiceKey(only) : null;
 }
 
+/** Ovoz xizmati (va Asterisk) ishlatadigan kalit: .env dagisi ustun, bo'lmasa — panel ovoz.env ga yozgani */
+export const voiceAgentKey = (): string | null => process.env.VOICE_AGENT_KEY || read().VOICE_AGENT_KEY || null;
+
 /** fresh — panelda hozirgina yaratilgan kalit (adoptVoiceKey): fayldagisi o'rniga shu yoziladi */
 export function syncVoiceEnv(fresh?: string): void {
   const had = read();

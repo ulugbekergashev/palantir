@@ -29,10 +29,15 @@ if [ -f "$HERE/pjsip_admin.conf" ]; then
 elif [ ! -f "$DEST/pjsip_admin.conf" ]; then
   printf '[admin]\ntype=auth\nauth_type=userpass\nusername=admin\npassword=%s\n' "$(head -c 24 /dev/urandom | base64 | tr -d '/+=')" > "$DEST/pjsip_admin.conf"
 fi
-# Kim javob beradi — Asterisk Palantir'dan so'raydi (extensions.conf, [kiruvchi]): manzil va ovozli agent kaliti
-key="$(grep -E '^VOICE_AGENT_KEY=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r"'"'" || true)"
-port="$(grep -E '^PORT=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r"'"'" || true)"
-printf '[globals]\nPALANTIR_URL=http://127.0.0.1:%s\nPALANTIR_KEY=%s\n' "${port:-3200}" "$key" > "$DEST/extensions_palantir.conf"
+# Kim javob beradi — Asterisk Palantir'dan so'raydi (extensions.conf, [kiruvchi]): manzil va ovozli agent kaliti. Panel yozgan fayl
+# ustun (kalitni panel o'zi yaratadi, .env da bo'lmasligi mumkin); u hali yo'q bo'lsa (birinchi o'rnatish) — .env dan
+if [ -f "$HERE/extensions_palantir.conf" ]; then
+  install -m 640 "$HERE/extensions_palantir.conf" "$DEST/extensions_palantir.conf"
+else
+  key="$(grep -E '^VOICE_AGENT_KEY=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r"'"'" || true)"
+  port="$(grep -E '^PORT=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r"'"'" || true)"
+  printf '[globals]\nPALANTIR_URL=http://127.0.0.1:%s\nPALANTIR_KEY=%s\n' "${port:-3200}" "$key" > "$DEST/extensions_palantir.conf"
+fi
 chown asterisk:asterisk "$DEST"/pjsip_*.conf "$DEST/extensions_palantir.conf"
 rm -f "$DEST/extensions_cerebro.conf" # eski nom: endi o'qilmaydi
 

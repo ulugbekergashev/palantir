@@ -16,8 +16,9 @@ import { notifyOwner } from '../inbox/core';
 import { leadForPhone } from '../people';
 import { openRequest } from '../requests/index';
 import { newVoiceKey, voiceKeyOwner } from './agentKey';
-import { applyLine, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk, transferNow } from './line';
+import { applyLine, connectZadarma, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk, transferNow } from './line';
 import { adoptVoiceKey } from './serviceEnv';
+import { ZadarmaError } from './zadarma';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -80,6 +81,13 @@ const TrunkSchema = z.object({
   /** Bo'sh — eski parol qoladi */
   password: SipText.max(128).optional(),
 });
+/** Zadarma kabineti → Sozlamalar → API: Key va Secret (harf-raqam) */
+const ZadarmaSchema = z.object({
+  key: z.string().trim().regex(/^[A-Za-z0-9]{10,64}$/, "Zadarma Key: harf va raqamlar"),
+  secret: z.string().trim().regex(/^[A-Za-z0-9]{10,64}$/, "Zadarma Secret: harf va raqamlar"),
+  /** Bir nechta raqam bo'lsa — qaysi biri; bo'sh — O'zbekiston raqami o'zi tanlanadi */
+  number: z.string().trim().max(20).regex(/^\+?\d*$/, 'raqam: faqat raqamlar').optional(),
+});
 const RoutingSchema = z.object({
   mode: z.enum(['ai', 'ai_transfer', 'day_admin']), ring: z.number().int().min(5).max(60),
   days: z.array(z.number().int().min(1).max(7)).max(7), from: HHMM, to: HHMM,
@@ -121,6 +129,19 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
     const { password, ...trunk } = p.data;
     try { saveTrunk(biz, trunk, password || null); } catch (e) { return res.status(400).json({ error: (e as Error).message }); }
     await applied(res, biz);
+  }));
+  // Zadarma: faqat API kalitlari — raqam, SIP va yo'naltirishni dastur o'zi sozlaydi
+  app.post('/api/phone/line/zadarma', asBiz(async (req, res, biz) => {
+    const p = ZadarmaSchema.safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    try {
+      const z = await connectZadarma(biz, { key: p.data.key, secret: p.data.secret }, p.data.number || null);
+      let warning: string | null = null;
+      try { await applyLine(); } catch (e) { warning = (e as Error).message; }
+      res.json({ line: await lineView(biz), warning, zadarma: { number: z.number, balance: z.balance, currency: z.currency, channels: z.channels } });
+    } catch (e) {
+      res.status(e instanceof ZadarmaError ? 400 : 500).json({ error: (e as Error).message });
+    }
   }));
   app.put('/api/phone/line/routing', asBiz(async (req, res, biz) => {
     const p = RoutingSchema.safeParse(req.body);

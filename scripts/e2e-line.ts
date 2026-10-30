@@ -2,8 +2,42 @@
  * Telefon liniyasi sinovi: kim javob beradi (sof qoida) va panel yo'llari — shahar raqami, ish vaqti, administrator telefoni,
  * Asterisk so'raydigan /api/voice/route. Sinov serverida ASTERISK_WSL=0: haqiqiy Asterisk'ka ham, tgvoice/asterisk/ fayllariga ham tegilmaydi.
  */
+import { createServer } from 'node:http';
 import { routeNow, transferNow, type LineRouting } from '../server/voice/route';
+import { zadarmaSign } from '../server/voice/zadarma';
 import type { Harness } from './e2e-crm';
+import { json, patient, readBody } from './fakes';
+
+/** Soxta Zadarma API: imzoni haqiqiydek tekshiradi, raqam/SIP/yo'naltirish holatini eslab qoladi */
+export const ZADARMA = { key: 'zkey1234567890', secret: 'zsecret1234567890' };
+export const zadarmaState = {
+  numbers: [{ number: '998712001122', status: 'on', country: 'Uzbekistan', channels: 2 }],
+  sips: [{ id: '100100', display_name: 'Asosiy' }] as { id: string; display_name: string }[],
+  created: 0,
+  passwords: {} as Record<string, string>,
+  routed: {} as Record<string, string>,
+};
+export const zadarmaServer = patient(createServer(async (req, res) => {
+  const url = new URL(req.url ?? '/', 'http://zadarma');
+  const raw = (await readBody(req)).toString();
+  const params = Object.fromEntries(new URLSearchParams(req.method === 'GET' ? url.search.slice(1) : raw));
+  const [key, sign] = String(req.headers.authorization ?? '').split(':');
+  if (key !== ZADARMA.key || sign !== zadarmaSign(url.pathname, params, ZADARMA.secret)) return json(res, { status: 'error', message: 'Not authorized' }, 401);
+  const s = zadarmaState, p = url.pathname;
+  if (p === '/v1/info/balance/') return json(res, { status: 'success', balance: 12.5, currency: 'USD' });
+  if (p === '/v1/direct_numbers/') return json(res, { status: 'success', info: s.numbers });
+  if (p === '/v1/sip/') return json(res, { status: 'success', sips: s.sips, left: 2 });
+  if (p === '/v1/sip/create/' && req.method === 'POST') {
+    const id = String(100200 + s.created++);
+    s.sips.push({ id, display_name: params.name });
+    s.passwords[id] = params.password;
+    return json(res, { status: 'success', sip: id });
+  }
+  const pass = p.match(/^\/v1\/sip\/(\d+)\/password\/$/);
+  if (pass && req.method === 'PUT') { s.passwords[pass[1]] = params.value; return json(res, { status: 'success', sip: pass[1] }); }
+  if (p === '/v1/direct_numbers/set_sip_id/' && req.method === 'PUT') { s.routed[params.number] = params.sip_id; return json(res, { status: 'success', number: params.number, sip_id: params.sip_id }); }
+  json(res, { status: 'error', message: `unknown ${req.method} ${p}` }, 404);
+}));
 
 const at = (day: string, hhmm: string) => new Date(`${day}T${hhmm}:00`);
 // 2026-10-19 — dushanba, 2026-10-25 — yakshanba
@@ -59,4 +93,28 @@ export async function lineApiTests(h: Harness): Promise<void> {
   const admin = await api('/api/phone/line/admin', { token, body: {} });
   ok('liniya: administrator telefoni uchun parol yaratildi', admin.status === 200 && typeof admin.json.line?.admin?.password === 'string' && admin.json.line.admin.password.length >= 10 && admin.json.line.admin.login === 'admin');
   ok("liniya: begona biznes boshqa biznesning raqamini ko'rmaydi", (await api('/api/phone/line', { token: otherToken })).json.line?.trunk === null);
+  ok("liniya: qo'lda kiritilgan raqam — «boshqa operator»", again.json.line?.provider === 'manual');
+
+  console.log("\n# Telefon liniyasi: Zadarma (faqat API kalitlari)");
+  const zadarma = (body: Record<string, string>, t = token) => api('/api/phone/line/zadarma', { token: t, body });
+  ok("zadarma: kalit formati noto'g'ri — 400", (await zadarma({ key: 'a b', secret: 'x' })).status === 400);
+  const wrong = await zadarma({ key: ZADARMA.key, secret: 'boshqasecret12345' });
+  ok("zadarma: noto'g'ri secret — tushunarli xato", wrong.status === 400 && /kaliti noto'g'ri/.test(wrong.json.error ?? ''), JSON.stringify(wrong.json));
+  zadarmaState.numbers[0].status = 'checking';
+  const pending = await zadarma(ZADARMA);
+  ok("zadarma: raqam hali tekshiruvda — «faol emas» deydi", pending.status === 400 && /faol emas/.test(pending.json.error ?? ''), JSON.stringify(pending.json));
+  zadarmaState.numbers[0].status = 'on';
+  const z = await zadarma(ZADARMA);
+  const sip = Object.keys(zadarmaState.passwords).find(id => zadarmaState.sips.some(x => x.id === id && x.display_name === 'Palantir AI'));
+  ok("zadarma: ulandi — alohida SIP ochildi, raqam unga yo'naltirildi, TLS 5061",
+    z.status === 200 && z.json.line?.provider === 'zadarma' && z.json.line.trunk?.host === 'sip.zadarma.com' && z.json.line.trunk.port === 5061
+      && !!sip && z.json.line.trunk.login === sip && zadarmaState.routed['998712001122'] === sip && z.json.zadarma?.balance === 12.5,
+    JSON.stringify(z.json).slice(0, 300));
+  ok("zadarma: klinikaning asosiy SIP'iga tegilmadi", !zadarmaState.passwords['100100']);
+  const leaked = JSON.stringify(z.json);
+  ok("zadarma: javobda SIP paroli ham, Secret ham yo'q", !leaked.includes(ZADARMA.secret) && !!sip && !leaked.includes(zadarmaState.passwords[sip]));
+  const firstPass = sip ? zadarmaState.passwords[sip] : '';
+  const z2 = await zadarma(ZADARMA);
+  ok("zadarma: qayta ulash — yangi SIP ochilmaydi, faqat paroli yangilanadi", z2.status === 200 && zadarmaState.created === 1 && z2.json.line?.trunk?.login === sip && !!sip && zadarmaState.passwords[sip] !== firstPass);
+  ok("zadarma: begona biznes ko'rmaydi", (await api('/api/phone/line', { token: otherToken })).json.line?.trunk === null);
 }

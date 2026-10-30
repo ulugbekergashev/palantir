@@ -1,5 +1,5 @@
 /**
- * Sozlamalar → Telefon liniyasi: shahar raqami (Uztelecom SIP), kim javob beradi (har doim AI yoki ish vaqtida avval administrator)
+ * Sozlamalar → Telefon liniyasi: telefon raqami (Zadarma — API kalitlari bilan o'zi sozlanadi, yoki boshqa operator SIP qo'lda), kim javob beradi (har doim AI yoki ish vaqtida avval administrator)
  * va administrator telefoni uchun akkaunt (Zoiper). Kiritilgan ma'lumotdan Asterisk sozlamasi o'zi yoziladi (server/voice/line.ts) —
  * parol chatga yoki faylga qo'lda yozilmaydi.
  */
@@ -32,7 +32,7 @@ function Status({ line }: { line: Line }) {
   const s = line.status;
   const items = [
     { name: 'Telefon xizmati', on: s.asterisk, text: s.asterisk ? 'ishlayapti' : "o'chiq — o'rnatuvchiga ayting" },
-    { name: 'Shahar raqami', on: s.trunk === 'registered', text: s.trunk === 'registered' ? `ulangan${line.trunk?.number ? ` · ${line.trunk.number}` : ''}` : s.trunk === 'failed' ? "ulanmadi — login yoki parolni tekshiring" : line.trunk ? 'tekshirilmoqda' : 'kiritilmagan' },
+    { name: 'Telefon raqami', on: s.trunk === 'registered', text: s.trunk === 'registered' ? `ulangan${line.trunk?.number ? ` · ${line.trunk.number}` : ''}` : s.trunk === 'failed' ? "ulanmadi — kalit yoki parolni tekshiring" : line.trunk ? 'tekshirilmoqda' : 'kiritilmagan' },
     { name: 'Egasi telefoni', on: s.phones.includes('egasi'), text: s.phones.includes('egasi') ? 'ulangan' : 'ulanmagan' },
     { name: 'Administrator telefoni', on: s.phones.includes('admin'), text: s.phones.includes('admin') ? 'ulangan' : 'ulanmagan' },
   ];
@@ -49,7 +49,70 @@ function Status({ line }: { line: Line }) {
   );
 }
 
-function Trunk({ line, onLine, notify }: { line: Line; onLine: (l: Line) => void; notify: Notify }) {
+type Provider = 'zadarma' | 'manual';
+type LineProps = { line: Line; onLine: (l: Line) => void; notify: Notify };
+
+/** Telefon raqami: Zadarma (faqat API kalitlari — qolganini dastur o'zi sozlaydi) yoki boshqa operator (qo'lda) */
+function NumberBlock({ line, onLine, notify }: LineProps) {
+  const [tab, setTab] = useState<Provider>(line.provider === 'manual' ? 'manual' : 'zadarma');
+  const tabBtn = (id: Provider, text: string) => (
+    <button type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+      className={`min-h-10 rounded-xl px-4 text-[13px] font-semibold transition-colors ${tab === id ? 'bg-[#3fd6c3] text-[#07080b]' : 'border border-glass/10 text-[#a3a9b5] hover:bg-glass/5'}`}>{text}</button>
+  );
+  return (
+    <Block icon={<Phone className="h-[18px] w-[18px]" aria-hidden="true" />} title="Telefon raqami" hint="Mijoz shu raqamga qo'ng'iroq qiladi (yoki klinika telefoni shu raqamga yo'naltiradi) — AI qabulxona javob beradi.">
+      <div role="tablist" aria-label="Operator" className="mb-4 flex flex-wrap gap-2">
+        {tabBtn('zadarma', 'Zadarma (tavsiya)')}
+        {tabBtn('manual', 'Boshqa operator (Uztelecom)')}
+      </div>
+      {tab === 'zadarma' ? <ZadarmaForm line={line} onLine={onLine} notify={notify} /> : <Trunk line={line} onLine={onLine} notify={notify} />}
+    </Block>
+  );
+}
+
+function ZadarmaForm({ line, onLine, notify }: LineProps) {
+  const [form, setForm] = useState({ key: '', secret: '', number: '' });
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ number: string; balance: number; currency: string; channels: number | null } | null>(null);
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const connected = line.provider === 'zadarma' && line.trunk;
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const r = await api.connectZadarma({ key: form.key.trim(), secret: form.secret.trim(), ...(form.number.trim() ? { number: form.number.trim() } : {}) });
+      onLine(r.line);
+      setResult(r.zadarma);
+      setForm({ key: '', secret: '', number: '' });
+      notify(r.warning ? `Zadarma sozlandi, lekin telefon xizmatiga o'rnatilmadi: ${r.warning}` : `Ulandi: +${r.zadarma.number} — bir daqiqada qo'ng'iroq qabul qiladi`, !!r.warning);
+    } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
+  };
+  return (
+    <form onSubmit={save} className="grid gap-3">
+      {connected && (
+        <p className="rounded-xl border border-[#3fd6c3]/25 bg-[#3fd6c3]/[0.06] px-3.5 py-2.5 text-[13px] text-[#cdeee9]">
+          Ulangan raqam: <b className="tabular-nums">+{line.trunk!.number}</b>
+          {result && <> · balans {result.balance.toFixed(2)} {result.currency}{result.channels ? ` · ${result.channels} ta liniya` : ''}</>}
+        </p>
+      )}
+      <p className="text-[12.5px] leading-snug text-[#8a909c]">
+        Zadarma kabineti → <b>Настройки → API</b> → «Key» va «Secret» ni shu yerga qo'ying. Raqam, Palantir uchun alohida SIP va
+        qo'ng'iroqlarni yo'naltirishni dastur o'zi sozlaydi.
+      </p>
+      <Label text="Key"><input className={input} value={form.key} onChange={set('key')} autoComplete="off" spellCheck={false} required /></Label>
+      <Label text="Secret"><input className={input} type="password" value={form.secret} onChange={set('secret')} autoComplete="new-password" required /></Label>
+      <Label text="Raqam (bir nechta bo'lsa)"><input className={input} value={form.number} onChange={set('number')} placeholder="Bo'sh — O'zbekiston raqami o'zi tanlanadi" inputMode="tel" /></Label>
+      <div className="flex items-center gap-3">
+        <button type="submit" disabled={busy} className="flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[#3fd6c3] px-5 text-[14px] font-semibold text-[#07080b] disabled:opacity-50">
+          {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}{connected ? 'Qayta ulash' : 'Ulash'}
+        </button>
+        <p className="text-[12px] text-[#7d838f]">Kalitlar shifrlangan holda faqat shu kompyuterda saqlanadi.</p>
+      </div>
+    </form>
+  );
+}
+
+function Trunk({ line, onLine, notify }: LineProps) {
   const t = line.trunk;
   const [form, setForm] = useState({ host: t?.host ?? '', port: String(t?.port ?? 5060), login: t?.login ?? '', number: t?.number ?? '', password: '' });
   const [busy, setBusy] = useState(false);
@@ -65,7 +128,8 @@ function Trunk({ line, onLine, notify }: { line: Line; onLine: (l: Line) => void
     } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
   };
   return (
-    <Block icon={<Phone className="h-[18px] w-[18px]" aria-hidden="true" />} title="Shahar raqami (Uztelecom)" hint="Uztelecom bergan ma'lumotlar: server manzili, login, parol va raqam. Mijoz shu raqamga qo'ng'iroq qiladi — AI qabulxona javob beradi.">
+    <>
+      <p className="mb-3 text-[12.5px] leading-snug text-[#8a909c]">Operator bergan ma'lumotlar: server manzili, login, parol va raqam.</p>
       <form onSubmit={save} className="grid gap-3 sm:grid-cols-[1fr_110px]">
         <Label text="Server manzili"><input className={input} value={form.host} onChange={set('host')} placeholder="sip.uztelecom.uz yoki IP" required /></Label>
         <Label text="Port"><input className={input} value={form.port} onChange={set('port')} inputMode="numeric" /></Label>
@@ -81,7 +145,7 @@ function Trunk({ line, onLine, notify }: { line: Line; onLine: (l: Line) => void
           <p className="text-[12px] text-[#7d838f]">Parol shifrlangan holda saqlanadi, faqat shu kompyuterdagi telefon xizmatiga beriladi.</p>
         </div>
       </form>
-    </Block>
+    </>
   );
 }
 
@@ -188,7 +252,7 @@ export function PhoneLineSettings({ notify }: { notify: Notify }) {
     <div className="flex flex-col gap-5">
       <Status line={line} />
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
-        <Trunk line={line} onLine={setLine} notify={notify} />
+        <NumberBlock line={line} onLine={setLine} notify={notify} />
         <div className="flex flex-col gap-5">
           <Routing key={JSON.stringify(line.routing)} line={line} onLine={setLine} notify={notify} />
           <AdminPhone line={line} onLine={setLine} notify={notify} />

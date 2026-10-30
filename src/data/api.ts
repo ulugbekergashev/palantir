@@ -38,6 +38,8 @@ export interface TeamDay {
 /** Telefon liniyasi (server/voice/line.ts LineView) */
 export interface PhoneLine {
   trunk: { host: string; port: number; login: string; number: string } | null;
+  /** zadarma — API kalitlari bilan o'zi sozlangan; manual — qo'lda (Uztelecom va boshqalar) */
+  provider: 'zadarma' | 'manual' | null;
   routing: { mode: 'ai' | 'ai_transfer' | 'day_admin'; ring: number; days: number[]; from: string; to: string };
   admin: { server: string; login: string; password: string | null };
   status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; note: string | null };
@@ -177,6 +179,7 @@ export const api = {
   // ─── Telefon liniyasi (Asterisk): shahar raqami, kim javob beradi, administrator telefoni ───
   phoneLine: () => call<{ line: PhoneLine }>('/phone/line'),
   savePhoneTrunk: (t: { host: string; port: number; login: string; number: string; password?: string }) => call<{ line: PhoneLine; warning: string | null }>('/phone/line/trunk', { method: 'PUT', body: t }),
+  connectZadarma: (z: { key: string; secret: string; number?: string }) => call<{ line: PhoneLine; warning: string | null; zadarma: { number: string; balance: number; currency: string; channels: number | null } }>('/phone/line/zadarma', { body: z }),
   savePhoneRouting: (r: PhoneLine['routing']) => call<{ line: PhoneLine }>('/phone/line/routing', { method: 'PUT', body: r }),
   newAdminPhone: () => call<{ line: PhoneLine; warning: string | null }>('/phone/line/admin', { body: {} }),
   // ─── Xodimlarga topshiriqlar va jurnal ───

@@ -19,7 +19,7 @@ import { cameraAccuracyTests, cameraApiTests, cameraLogicTests, cameraToolTests,
 import { brainApiTests, brainFlowTests, brainLogicTests, brainVaultTests } from './e2e-brain';
 import { mirrorTests } from './e2e-mirror';
 import { orderApiTests, orderLogicTests } from './e2e-orders';
-import { lineApiTests, lineLogicTests } from './e2e-line';
+import { lineApiTests, lineLogicTests, zadarmaServer } from './e2e-line';
 import { docsApiTests, docsLogicTests } from './e2e-docs';
 import { insightsApiTests, insightsLogicTests } from './e2e-insights';
 import { intakeExtractTests, intakeFlowTests } from './e2e-intake';
@@ -39,6 +39,7 @@ const tgUserPort = await listen(tgUserServer);
 const igPort = await listen(igWebServer);
 const crmPort = await listen(crmServer);
 const speechlabPort = await listen(speechlabServer);
+const zadarmaPort = await listen(zadarmaServer);
 const dataDir = mkdtempSync(join(tmpdir(), 'palantir-e2e-'));
 const PORT = 3290;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
@@ -51,6 +52,7 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
     IG_FAKE_URL: `http://127.0.0.1:${igPort}`, IG_POLL_MS: '700', IG_DAILY_LIMIT: '3', CRM_DAILY_BOOKINGS: '3',
     CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '1', ASTERISK_WSL: '0', DOTENV: '0',
     SPEECHLAB_API_KEY: 'sl_live_test', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', SPEECHLAB_AGENT_ID: '17', SPEECHLAB_URL: `http://127.0.0.1:${speechlabPort}`, CALL_CHECK_MS: '400',
+    ZADARMA_API_URL: `http://127.0.0.1:${zadarmaPort}`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -656,6 +658,7 @@ try {
   tgUserServer.close();
   igWebServer.close();
   crmServer.close();
+  zadarmaServer.close();
   await sleep(300);
   try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* Windows fayl band */ }
 }

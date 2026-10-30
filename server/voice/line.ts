@@ -15,11 +15,16 @@ import { connections, type BusinessRow } from '../db';
 import { open, seal } from '../secret';
 
 import { LINE_MODES, type LineMode, type LineRouting } from './route';
+import { voiceAgentKey } from './serviceEnv';
+import { ZADARMA_HOST, ZADARMA_PORT, zadarmaSetup, type ZadarmaKeys } from './zadarma';
 
 export { routeNow, transferNow, type LineMode, type LineRouting } from './route';
 export interface LineTrunk { host: string; port: number; login: string; number: string }
+/** zadarma — API kalitlari bilan o'zi sozlangan; manual — server/login/parol qo'lda kiritilgan (Uztelecom va boshqalar) */
+export type LineProvider = 'zadarma' | 'manual';
 export interface LineView {
   trunk: LineTrunk | null;
+  provider: LineProvider | null;
   routing: LineRouting;
   /** Administrator telefoni uchun SIP akkaunt (Zoiper): server — shu kompyuterning ichki tarmoqdagi manzili */
   admin: { server: string; login: string; password: string | null };
@@ -34,7 +39,7 @@ const ENABLED = process.platform === 'win32' && process.env.ASTERISK_WSL !== '0'
 const WSL_TIMEOUT_MS = 60_000;
 export const DEFAULT_ROUTING: LineRouting = { mode: 'ai', ring: 20, days: [1, 2, 3, 4, 5, 6], from: '09:00', to: '20:00' };
 
-interface Secrets { password?: string; admin?: string }
+interface Secrets { password?: string; admin?: string; zadarma?: ZadarmaKeys }
 const secretsOf = (bizId: string): Secrets => {
   const c = connections.get(bizId, KIND);
   if (!c?.secret) return {};
@@ -105,6 +110,7 @@ export async function lineView(biz: BusinessRow, withStatus = true): Promise<Lin
   const s = secretsOf(biz.id);
   return {
     trunk: a.host ? { host: a.host, port: Number(a.port) || 5060, login: a.login ?? '', number: a.number ?? '' } : null,
+    provider: a.host ? (a.provider === 'zadarma' ? 'zadarma' : 'manual') : null,
     routing: lineRouting(biz.id),
     admin: { server: lanIp(), login: 'admin', password: s.admin ?? null },
     status: withStatus ? await lineStatus() : { asterisk: false, trunk: 'unknown', phones: [], note: null },
@@ -164,9 +170,20 @@ match=${host}
 const writeAdminConf = (password: string) => ENABLED &&
   writeFileSync(join(DIR, 'pjsip_admin.conf'), `[admin]\ntype=auth\nauth_type=userpass\nusername=admin\npassword=${confValue(password)}\n`, { mode: 0o600 });
 
+/**
+ * Asterisk «kim javob beradi» deb Palantir'dan so'raydigan manzil va kalit. Kalitni panel o'zi yaratadi (ovoz.env) — .env da bo'lmasa
+ * ham Asterisk'ka yetib boradi; aks holda u 401 olib, «avval administrator» rejimini jimgina tashlab, doim AI'ga beradi
+ */
+function writePalantirConf(): void {
+  if (!ENABLED) return;
+  writeFileSync(join(DIR, 'extensions_palantir.conf'),
+    `[globals]\nPALANTIR_URL=http://127.0.0.1:${Number(process.env.PORT) || 3200}\nPALANTIR_KEY=${confValue(voiceAgentKey() ?? '')}\n`, { mode: 0o600 });
+}
+
 /** Fayllar Asterisk'ka o'rnatiladi (qo'ng'iroqlarni uzmasdan qayta yuklanadi) */
 export async function applyLine(): Promise<void> {
   if (!ENABLED || !existsSync(join(DIR, 'install.sh'))) throw new Error("Telefon liniyasi faqat klinika kompyuterida (Windows + WSL) sozlanadi");
+  writePalantirConf();
   await wsl(['bash', wslPath(join(DIR, 'install.sh')), 'reload']);
 }
 
@@ -175,8 +192,30 @@ export function saveTrunk(biz: BusinessRow, t: LineTrunk, password: string | nul
   const s = secretsOf(biz.id);
   const pass = password ?? s.password;
   if (!pass) throw new Error('Parol kerak');
-  connections.save(biz.id, KIND, seal(JSON.stringify({ ...s, password: pass })), { host: t.host, port: String(t.port), login: t.login, number: t.number }, cur?.meta ?? {});
+  // Qo'lda kiritildi — Zadarma kalitlari (bo'lsa) endi bu liniyaga tegishli emas
+  const rest: Secrets = { ...s };
+  delete rest.zadarma;
+  connections.save(biz.id, KIND, seal(JSON.stringify({ ...rest, password: pass })), { host: t.host, port: String(t.port), login: t.login, number: t.number, provider: 'manual' }, cur?.meta ?? {});
   writeTrunkConf(t, pass);
+}
+
+/** Zadarma kalitlari (balansni kuzatish uchun ham kerak) */
+export const zadarmaKeysOf = (bizId: string): ZadarmaKeys | null => secretsOf(bizId).zadarma ?? null;
+
+/**
+ * Zadarma: kalitlar bilan raqam, alohida SIP va yo'naltirish o'zi sozlanadi, keyin Asterisk'ka yoziladi.
+ * Avval ochilgan SIP qayta ishlatiladi (qayta bosilsa Zadarma'da SIP'lar ko'payib ketmaydi)
+ */
+export async function connectZadarma(biz: BusinessRow, keys: ZadarmaKeys, number?: string | null) {
+  const cur = connections.get(biz.id, KIND);
+  const known = cur?.account?.provider === 'zadarma' ? cur.account.login ?? null : null;
+  const z = await zadarmaSetup(keys, { number, knownSip: known });
+  const trunk: LineTrunk = { host: ZADARMA_HOST, port: ZADARMA_PORT, login: z.sipId, number: z.number };
+  const s = secretsOf(biz.id);
+  connections.save(biz.id, KIND, seal(JSON.stringify({ ...s, password: z.password, zadarma: keys })),
+    { host: trunk.host, port: String(trunk.port), login: trunk.login, number: trunk.number, provider: 'zadarma' }, cur?.meta ?? {});
+  writeTrunkConf(trunk, z.password);
+  return z;
 }
 
 export function saveRouting(biz: BusinessRow, r: LineRouting): void {
