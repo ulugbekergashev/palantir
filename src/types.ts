@@ -332,6 +332,8 @@ export interface LiveStatus {
   instagram: { enabled: boolean; available: boolean; account: string | null; waiting: boolean; problem: string | null; relogin: boolean };
   /** Rasmiy Instagram (Meta ilovasi, Palantir Hub orqali): hub — hub kodi kiritilgan; account — «@username»; humanAgent — 7 kungacha javob ruxsati */
   instagramApi: { hub: boolean; account: string | null; problem: string | null; expiresAt: string | null; humanAgent: boolean };
+  /** Marketolog: egasining meta.ai akkaunti (server/marketing/metaAi.ts) */
+  metaAi: { available: boolean; connected: boolean; waiting: boolean; problem: string | null; relogin: boolean; usedToday: number; dailyLimit: number };
   /** Klinikaning DentaCRM'i: account — "Klinika nomi · manzil"; problem — nega ishlamayapti */
   crm: { account: string | null; problem: string | null };
 }
@@ -407,7 +409,7 @@ export interface ChairUse { zoneId: string; name: string; cameraName: string; bu
 export interface WaitStats { count: number; avgMin: number; maxMin: number; longCount: number; alertMin: number; nowWaiting: number; nowLongestMin: number }
 
 // ─── AI xodimlarga topshiriqlar va ularning jurnali ──────────────────────────
-export type OrderMember = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi';
+export type OrderMember = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog';
 /**
  * Kamera qoidasi sharti (odam topuvchi sanagan odamlar bo'yicha): crowd — kamida `people` kishi; linger — kimdir turibdi
  * (uzoq turish); empty — hech kim yo'q; presence — odam ko'rindi (masalan, ish vaqtidan tashqari)

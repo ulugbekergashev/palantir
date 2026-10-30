@@ -9,8 +9,8 @@ import { MEMBERS, TEAM, type Member, type MemberState } from './team';
 
 interface Item { area: Area; label: string; icon: LucideIcon; badge?: number }
 
-/** Telefonning pastki panelida yetti bo'lim sig'ishi uchun qisqa nomlar (kompyuterda — to'liq) */
-const SHORT: Partial<Record<Area, string>> = { qabulxona: 'Qabul', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', sozlamalar: 'Sozlama' };
+/** Telefonning pastki panelida sakkiz bo'lim sig'ishi uchun qisqa nomlar (kompyuterda — to'liq) */
+const SHORT: Partial<Record<Area, string>> = { qabulxona: 'Qabul', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', marketolog: 'SMM', sozlamalar: 'Sozlama' };
 
 const EAR: Record<Wake['phase'], { dot: string; hint: string }> = {
   off: { dot: '', hint: "O'chiq — yoqsangiz, «Palantir» yoki «Jarvis» deb chaqirasiz" },
@@ -51,7 +51,7 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
       <a href={hrefOf('ai')} className="mb-4 hidden justify-center lg:flex" aria-label="Palantir — bosh ekran"><img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-9 w-9" /></a>
       <div className="flex flex-1 gap-0.5 lg:flex-none lg:flex-col lg:gap-1">{items.map(link)}</div>
       <div className="hidden flex-1 lg:block" />
-      <div className="flex w-[calc(100%/7)] gap-0.5 lg:w-auto lg:flex-col lg:gap-1">
+      <div className="flex w-[calc(100%/8)] gap-0.5 lg:w-auto lg:flex-col lg:gap-1">
         <button type="button" onClick={wake.toggle} aria-pressed={wake.enabled} title={`Quloq: ${EAR[wake.phase].hint}`}
           className={`group relative hidden min-h-12 flex-col items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-medium transition-colors lg:flex ${wake.enabled ? 'text-[#c7c8ff]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
           aria-describedby="quloq-holat">

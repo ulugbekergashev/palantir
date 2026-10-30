@@ -81,11 +81,11 @@ export function knowledgeBlocks(b: BusinessRow): string[] {
   ];
 }
 
-/** Egasining doimiy topshiriqlari yordamchi va tahlilchiga (panel: xodim sahifasi → Topshiriqlar) */
+/** Egasining doimiy topshiriqlari yordamchi, tahlilchi va marketologga (panel: xodim sahifasi → Topshiriqlar) */
 function standingOrders(bizId: string): string {
-  const mine = orders.standing(bizId, 'yordamchi'), analyst = orders.standing(bizId, 'tahlilchi');
-  if (!mine.length && !analyst.length) return '';
-  const lines = [...mine, ...analyst.map(t => `(reports and numbers) ${t}`)].map(t => `- ${t}`);
+  const mine = orders.standing(bizId, 'yordamchi'), analyst = orders.standing(bizId, 'tahlilchi'), marketer = orders.standing(bizId, 'marketolog');
+  if (!mine.length && !analyst.length && !marketer.length) return '';
+  const lines = [...mine, ...analyst.map(t => `(reports and numbers) ${t}`), ...marketer.map(t => `(marketing, Meta AI and content) ${t}`)].map(t => `- ${t}`);
   return `<owner_standing_orders>\nStanding orders the owner gave you — follow them in every conversation:\n${lines.join('\n')}\n</owner_standing_orders>`;
 }
 

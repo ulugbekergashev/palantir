@@ -18,6 +18,7 @@ export const HUE: Record<Member, { a: string; b: string; glow: string; text: str
   yordamchi: { a: '#8b8cff', b: '#b38cff', glow: 'rgba(139,140,255,0.18)', text: '#c7c8ff' },
   kuzatuvchi: { a: '#f5b454', b: '#ff7a59', glow: 'rgba(245,180,84,0.15)', text: '#fbd38d' },
   tahlilchi: { a: '#34d399', b: '#3fb6ff', glow: 'rgba(52,211,153,0.15)', text: '#86efc4' },
+  marketolog: { a: '#f472b6', b: '#a78bfa', glow: 'rgba(244,114,182,0.15)', text: '#f9a8d4' },
 };
 
 export function AgentOrb({ member, size = 84, live = false }: { member: Member; size?: number; live?: boolean }) {
@@ -131,7 +132,7 @@ export function Quiet({ children }: { children: ReactNode }) {
 }
 
 /** «Xodimdan so'rang»: savol Palantir yordamchisiga, shu xodim haqida ekani aytiladi; javob shu yerda */
-export function AgentAsk({ member, placeholder, chips = [] }: { member: Member; placeholder: string; /** Tez buyruqlar: bosilsa — darhol yuboriladi */ chips?: string[] }) {
+export function AgentAsk({ member, placeholder, chips = [], onAnswered }: { member: Member; placeholder: string; /** Tez buyruqlar: bosilsa — darhol yuboriladi */ chips?: string[]; /** Javob keldi (xodim sahifasidagi ro'yxatlar yangilansin) */ onAnswered?: () => void }) {
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
@@ -146,6 +147,7 @@ export function AgentAsk({ member, placeholder, chips = [] }: { member: Member; 
       const r = await api.say(`(${TEAM[member].name} haqida) ${text}`);
       setAnswer([...r.entries].reverse().find(x => x.role === 'assistant')?.text ?? '');
       setQ('');
+      onAnswered?.();
     } catch (err) {
       setAnswer((err as Error).message);
     } finally {

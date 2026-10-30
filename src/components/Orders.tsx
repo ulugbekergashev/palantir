@@ -36,6 +36,11 @@ export const TEMPLATES: Record<OrderMember, string[]> = {
     'Har kuni 21:00 da bugungi tushum va qabullarni yubor',
     'Hisobotda doim o‘tgan davr bilan solishtir',
   ],
+  marketolog: [
+    'Har dushanba 10:00 da Instagram’dagi raqobatchilarimiz tahlilini yubor',
+    'Har juma 16:00 da keyingi haftaga 7 kunlik kontent-reja tuz',
+    'Post g‘oyalarida doim bepul konsultatsiyani eslat',
+  ],
 };
 
 const KIND: Record<OrderSpec['kind'], { label: string; icon: typeof Clock }> = {

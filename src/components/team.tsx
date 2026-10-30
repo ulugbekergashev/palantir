@@ -3,20 +3,21 @@
  * shu yerdan. Holat haqiqiy ma'lumotdan (so'rovlar, qo'ng'iroqlar, vazifalar, kameralar, DentaCRM), 30 soniyada yangilanadi.
  */
 import { useEffect, useState } from 'react';
-import { Camera, ChartLine, Headset, UserRound, type LucideIcon } from 'lucide-react';
+import { Camera, ChartLine, Headset, Megaphone, UserRound, type LucideIcon } from 'lucide-react';
 import type { LiveStatus } from '../types';
 import { api } from '../data/api';
 import { iso } from '../lib/week';
 import type { Area } from '../lib/nav';
 import { som } from '../lib/text';
 
-export type Member = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi';
+export type Member = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog';
 
 export const TEAM: Record<Member, { name: string; role: string; about: string; icon: LucideIcon }> = {
   qabulxona: { name: 'Qabulxona', role: 'Telefon · Instagram · Telegram', icon: Headset, about: "Mijozlarga kunu tun javob beradi, qabulga yozadi; o'zi hal qila olmaganini sizga so'rov qilib qoldiradi." },
   yordamchi: { name: 'Yordamchi', role: "Sizning o'ng qo'lingiz", icon: UserRound, about: 'Eslatadi, hujjat tayyorlaydi, savolingizga javob beradi — ovoz bilan yoki yozib.' },
   kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, about: "Kameralarni kuzatadi, siz bergan topshiriqlarni bajaradi va kadrga qarab savolingizga javob beradi; kelganlarni DentaCRM bilan solishtiradi." },
   tahlilchi: { name: 'Tahlilchi', role: 'Raqamlar · DentaCRM', icon: ChartLine, about: "Murojaatlar, qabul va tushum — kunlik va haftalik ko'rinishda." },
+  marketolog: { name: 'Marketolog', role: 'Meta AI · Instagram', icon: Megaphone, about: "Meta AI orqali raqobatchilarni, akkauntingizni va videolarni tahlil qiladi; kontent-reja va post g'oyalarini tayyorlaydi." },
 };
 export const MEMBERS = Object.keys(TEAM) as Member[];
 export const isMember = (a: Area): a is Member => (MEMBERS as string[]).includes(a);
@@ -28,16 +29,17 @@ export interface MemberState { status: string; detail: string; on: boolean; live
 export function useTeam(status: LiveStatus, tick = 0): Record<Member, MemberState> | null {
   const [team, setTeam] = useState<Record<Member, MemberState> | null>(null);
   const crm = !!status.crm?.account;
+  const meta = status.metaAi;
   // Qabulxona navbatchilikda — mijoz yozadigan yoki qo'ng'iroq qiladigan kamida bitta kanal ulangan bo'lsa
   const reachable = !!(status.bot || status.telegramBusiness?.account || status.instagram?.account || status.instagramApi?.account);
   useEffect(() => {
     let stale = false;
     const load = async () => {
       const today = iso(new Date());
-      const [requests, calls, tasks, cameras, day, att] = await Promise.all([
+      const [requests, calls, tasks, cameras, day, att, reports] = await Promise.all([
         api.requests('open').catch(() => null), api.calls().catch(() => null), api.tasks('open').catch(() => null),
         api.cameras().catch(() => null), crm ? api.crmDay().then(r => r.day).catch(() => null) : Promise.resolve(null),
-        api.attention().catch(() => null),
+        api.attention().catch(() => null), api.agentEvents('marketolog').catch(() => null),
       ]);
       if (stale) return;
       const callsToday = calls?.calls.filter(c => c.startedAt.slice(0, 10) === today) ?? [];
@@ -71,11 +73,16 @@ export function useTeam(status: LiveStatus, tick = 0): Record<Member, MemberStat
           status: day ? `Bugun ${day.total} qabul · ${day.came} keldi` : crm ? 'DentaCRM javob bermadi' : 'DentaCRM ulanmagan',
           detail: day ? `Tushum ${som(day.revenue.total)}` : 'Ulasangiz, qabul va tushumni aytadi',
         },
+        marketolog: {
+          on: !!meta?.connected && !meta.problem, live: false, badge: waiting('marketolog'),
+          status: meta?.problem ? 'Meta AI qayta kirishni so‘rayapti' : meta?.connected ? 'Meta AI ulangan' : 'Meta AI ulanmagan',
+          detail: meta?.connected ? `Bugun ${reports?.events.filter(e => iso(new Date(e.at)) === today).length ?? 0} ta tahlil · ${meta.usedToday}/${meta.dailyLimit} savol` : 'Ulash — akkauntingizga bir marta kirasiz',
+        },
       });
     };
     void load();
     const t = setInterval(() => { void load(); }, 30_000);
     return () => { stale = true; clearInterval(t); };
-  }, [crm, reachable, tick]);
+  }, [crm, reachable, meta?.connected, meta?.problem, meta?.usedToday, tick]);
   return team;
 }

@@ -22,7 +22,7 @@ import { watchFrame } from './watch';
 const TICK_MS = Number(process.env.ORDERS_TICK_MS) || 30_000;
 /** Bajarilmagan ish (internet, AI chegarasi) shundan keyin qayta uriniladi — vaqti o'tib ketmagan bo'lsa */
 const RETRY_MS = 5 * 60_000;
-const NAMES: Record<AgentOrder['member'], string> = { qabulxona: 'Qabulxona', yordamchi: 'Yordamchi', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi' };
+const NAMES: Record<AgentOrder['member'], string> = { qabulxona: 'Qabulxona', yordamchi: 'Yordamchi', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog' };
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -33,7 +33,8 @@ export async function runScheduled(bot: BotService, biz: BusinessRow, o: AgentOr
   const reply = await ask(biz.id, 'web', prompt, { display: `⏰ ${NAMES[o.member]}: ${o.text}`, unattended: true });
   if (reply.failed) throw new Error(reply.text);
   orders.ran(o.id, reply.text);
-  events.add(biz.id, { member: o.member, orderId: o.id, level: 'info', title: `Bajarildi: ${o.text.slice(0, 120)}`, body: reply.text, cameraId: null });
+  // Marketolog hisobotini Meta AI javobi kelganda o'zi yozadi (marketing/tools.ts) — bu yerda «so'radim» ikkinchi yozuv bo'lib sanalmasin
+  if (o.member !== 'marketolog') events.add(biz.id, { member: o.member, orderId: o.id, level: 'info', title: `Bajarildi: ${o.text.slice(0, 120)}`, body: reply.text, cameraId: null });
   if (bot.enabled && biz.ownerChatId) await bot.deliverReply(biz, `⏰ ${o.text}\n\n${reply.text}`, reply.artifacts).catch(e => console.error('[topshiriq] Telegram:', (e as Error).message));
   return reply.text;
 }

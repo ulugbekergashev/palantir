@@ -504,6 +504,24 @@ async function sendDirect(biz: BusinessRow, lead: LeadRow, text: string): Promis
   return null;
 }
 
+/**
+ * Shunday Instagram akkaunti bormi (Marketolog: Meta AI aytgan raqobatchilarni tekshirish). Egasining Instagram'i brauzer orqali
+ * ulangan bo'lsa — true/false; ulanmagan, cheklovda yoki javob tushunarsiz bo'lsa — null (tekshirilmadi)
+ */
+export async function instagramUserExists(bizId: string, username: string): Promise<boolean | null> {
+  const c = connections.get(bizId, 'instagram');
+  if (!driver || !c || problemOf(c) || attaching.has(bizId) || !/^[A-Za-z0-9._]{1,30}$/.test(username)) return null;
+  try {
+    const r = await driver.request(bizId, 'GET', `/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`);
+    if (r.status === 404) return false;
+    if (r.status !== 200) return null;
+    const j = JSON.parse(r.body) as { data?: { user?: unknown } };
+    return j.data?.user ? true : j.data && j.data.user === null ? false : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Ulash ────────────────────────────────────────────────────────────────────
 
 /** Ko'rinadigan oyna ochiladi — egasi Instagram'ga o'zi kiradi. Natija panelga holat orqali */

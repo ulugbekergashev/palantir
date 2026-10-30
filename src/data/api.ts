@@ -274,6 +274,9 @@ export const api = {
   igLogin: () => call<{ status: LiveStatus }>('/instagram/login', { body: {} }),
   igCancel: () => call<{ ok: true }>('/instagram/cancel', { body: {} }),
   igDisconnect: () => call<{ status: LiveStatus }>('/instagram', { method: 'DELETE' }),
+  metaAiLogin: () => call<{ status: LiveStatus }>('/meta-ai/login', { body: {} }),
+  metaAiCancel: () => call<{ ok: true }>('/meta-ai/cancel', { body: {} }),
+  metaAiDisconnect: () => call<{ status: LiveStatus }>('/meta-ai', { method: 'DELETE' }),
 
   /** Ulash ustasi: o'rnatish holati, anketani yuklash (kod yoki fayl), egasidan Telegram'da so'rash */
   setup: () => call<{ setup: SetupView }>('/setup'),

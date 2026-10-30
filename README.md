@@ -108,6 +108,7 @@ npm test                           # to'liq oqim: soxta Telegram, Claude va ovoz
 npm run test:resilience            # chidamlilik: internetsiz yonish, uzilishdagi eslatma, ikkinchi nusxa, jurnal, zaxira
 npm run test:ipcam                 # IP kamera zanjiri: ffmpeg → dvigatel → server (ffmpeg kerak; kamera o'rniga sinov tasviri)
 npm run test:computer              # kompyuterda ishlash: haqiqiy Chrome (ko'rinmas) + sinov sayti, ruxsat/rad, yuklab olish, ichki tarmoq, to'xtatish, soxta ekran (Windows'da — haqiqiy yordamchi)
+npm run test:marketolog            # Marketolog: soxta meta.ai va Instagram — ulash, savol, akkauntlar tekshiruvi, chegaralar, jadval (docs/MARKETOLOG.md)
 npm run test:ui                    # brauzerda panel (Chrome yoki Edge o'zi topiladi, boshqa joyda bo'lsa — CHROME=<yo'l>; avval panelni o'zi yig'adi)
 npm run check                      # HAQIQIY kalitlarni tekshiradi (Telegram, Claude — bir necha sent, ovoz); --no-ai bilan Claude'siz
 npm run scenarios                  # 22 ta chuqur ssenariy: haqiqiy server + haqiqiy Obsidian (D:\Obsidian; yo'q bo'lsa — to'g'ridan-to'g'ri fayl), model — taqlid

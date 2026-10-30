@@ -25,6 +25,8 @@ sql.ensureColumns('agent_events', { seen_at: 'TEXT' });
 export const MAX_ORDERS = 30;
 export const EVENTS_PAGE = 60;
 const MAX_RESULT = 4000;
+/** Marketolog hisoboti (Meta AI javobi: kontent-reja, jadval) — uzunroq */
+const MAX_REPORT = 20_000;
 /** Doimiy ko'rsatmalar har mijoz javobiga qo'shiladi — jami shundan oshmaydi */
 const MAX_STANDING_CHARS = 3000;
 /** Kamera hodisasi kadri shuncha kun saqlanadi */
@@ -78,7 +80,7 @@ export const events = {
       try { mkdirSync(FRAMES, { recursive: true }); writeFileSync(join(FRAMES, `${id}.jpg`), image); file = `${id}.jpg`; } catch (err) { console.error('[jurnal] kadr saqlanmadi:', (err as Error).message); }
     }
     sql.run('INSERT INTO agent_events (id, business_id, member, order_id, level, title, body, camera_id, image, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      id, bizId, e.member, e.orderId, e.level, e.title.slice(0, 200), e.body.slice(0, MAX_RESULT), e.cameraId, file, sql.nowIso());
+      id, bizId, e.member, e.orderId, e.level, e.title.slice(0, 200), e.body.slice(0, e.member === 'marketolog' ? MAX_REPORT : MAX_RESULT), e.cameraId, file, sql.nowIso());
     return sql.one('SELECT * FROM agent_events WHERE id = ?', toEvent, id)!;
   },
   list: (bizId: string, member: OrderMember, opts: { cameraId?: string; before?: string } = {}) =>

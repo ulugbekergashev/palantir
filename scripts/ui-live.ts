@@ -91,7 +91,7 @@ try {
   ok('kirdi: bosh ekran — ovozli sfera va yozish qatori', await page.getByRole('button', { name: 'Palantir bilan gaplashish' }).isVisible());
   // Logotip havolasi (rasm, matnsiz) ro'yxatga kirmaydi
   const items = (await rail().getByRole('link').allInnerTexts()).map(t => t.trim().split('\n')[0]).filter(Boolean);
-  ok("menyu: Palantir, to'rt AI xodim, Miya, Sozlamalar", items.join(', ') === 'Palantir, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Miya, Sozlamalar', items.join(' | '));
+  ok("menyu: Palantir, besh AI xodim, Miya, Sozlamalar", items.join(', ') === 'Palantir, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Marketolog, Miya, Sozlamalar',items.join(' | '));
   ok("menyu: «Quloq» tugmasi bor (o'chiq)", await rail().getByRole('button', { name: /Quloq/ }).getAttribute('aria-pressed') === 'false');
   await page.getByLabel("Palantir'ga yozing").fill('Bugun nima qilishim kerak?');
   await page.getByLabel("Palantir'ga yozing").press('Enter');
@@ -268,6 +268,10 @@ try {
   await shot('12a-tahlilchi', true);
   await nav('Kuzatuvchi');
   ok("kuzatuvchi: kamera yo'q — nima qiladi va qanday ulanadi", await visible(page.getByRole('heading', { name: "Kuzatuvchi hali hech narsani ko'rmayapti" })) && await tabOn('Kameralar').isVisible());
+  await nav('Marketolog');
+  ok("marketolog: Meta AI ulanmagan — avval ulash, «Meta AI'ga kirish» tugmasi va varaqlar", await visible(page.getByRole('heading', { name: 'Marketolog' }))
+    && await visible(page.getByRole('button', { name: "Meta AI'ga kirish" })) && await tabOn('Hisobotlar').isVisible() && await tabOn('Topshiriqlar').isVisible());
+  await shot('12b-marketolog', true);
 
   console.log('\n# Qabulxona: yozishma');
   tgUser.incoming(TG_SESSION, '6001', 'Stol narxi qancha?', { name: 'Bobur', username: 'bobur_t' });
@@ -353,7 +357,7 @@ try {
   ok('telefon: pastki paneldan bosh ekranga', await visible(page.getByLabel("Palantir'ga yozing")) && page.url().endsWith('#/ai'));
   await shot('09b-mobile-home', true);
   // Panel Telegram ichida (Mini App) ham ochiladi — sozlamalarning asosiy va Telegram bo'limlari ham telefon enida sig'sin
-  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
+  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/ulash', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
     await go(p);
     await sleep(300);
     const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

@@ -23,6 +23,7 @@ import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index'
 import { INTERVIEW_START, interviewReply, interviewStart, interviewing } from './brain/interview';
 import { approveReply, dismissReply, ownerWrites, replySettings } from './inbox/core';
 import { cancelInstagramLogin, disconnectInstagram, instagramAvailable, instagramStatus, startInstagramLogin } from './inbox/instagram';
+import { cancelMetaAiLogin, disconnectMetaAi, metaAiStatus, startMetaAiLogin } from './marketing/metaAi';
 import { disconnectInstagramApi, instagramApiConnectUrl, instagramApiStatus } from './inbox/instagramApi';
 import { disconnectTelegramUser, loginCode, loginPassword, loginStart, telegramUserAccount, telegramUserAvailable } from './inbox/telegramUser';
 import { AutoReplySchema, BusinessSchema, emptyBusiness } from './validate';
@@ -66,6 +67,7 @@ function status(biz: BusinessRow, bot: BotService, support = false): LiveStatus 
     remote: { url: remoteUrl(), miniApp: !!remoteUrl() && remoteUrl()!.startsWith('https://') && !!username },
     instagram: { enabled: env.igViaBrowser, available: instagramAvailable(), ...instagramStatus(biz.id) },
     instagramApi: instagramApiStatus(biz.id),
+    metaAi: metaAiStatus(biz.id),
     crm: crmStatus(biz.id),
   };
 }
@@ -608,6 +610,20 @@ export function createApp(bot: BotService) {
   }));
   app.delete('/api/instagram', asBiz(async (req, res, biz) => {
     await disconnectInstagram(biz);
+    res.json({ status: statusFor(req, businesses.byId(biz.id)!) });
+  }));
+
+  // ─── Meta AI (Marketolog): shu kompyuterda oyna ochiladi, egasi meta.ai'ga o'zi kiradi ───
+  // Faqat egasi: jamoa kirishi (support) egasining Meta akkauntini ulamaydi va uzmaydi
+  app.post('/api/meta-ai/login', asOwner((req, res, biz) => {
+    try { startMetaAiLogin(biz); res.json({ status: statusFor(req, biz) }); } catch (e) { fail(res, e, 400); }
+  }));
+  app.post('/api/meta-ai/cancel', asOwner((_req, res, biz) => {
+    cancelMetaAiLogin(biz);
+    res.json({ ok: true });
+  }));
+  app.delete('/api/meta-ai', asOwner(async (req, res, biz) => {
+    try { await disconnectMetaAi(biz); } catch (e) { return fail(res, e, 409); }
     res.json({ status: statusFor(req, businesses.byId(biz.id)!) });
   }));
 

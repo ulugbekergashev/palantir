@@ -10,16 +10,16 @@ import { Button } from './components/ui';
 import { useFontsReady, useNow, useToast } from './lib/hooks';
 import { routeFromHash, type Area, type Route } from './lib/nav';
 import { AiPage } from './pages/AiPage';
-import { AnalystArea, AssistantArea, ReceptionArea, SettingsArea, WatchArea } from './pages/TeamPages';
+import { AnalystArea, AssistantArea, MarketingArea, ReceptionArea, SettingsArea, WatchArea } from './pages/TeamPages';
 import { MiyaArea } from './pages/VaultPage';
 
 /**
- * Panel — bitta dastur, AI jamoa atrofida: bosh ekran (Palantir, ovoz bilan), to'rt xodim (Qabulxona, Yordamchi, Kuzatuvchi,
- * Tahlilchi), Miya (Obsidian kabi) va Sozlamalar. Chapda (telefonda — pastda) bir xil ustun. Ko'rinish qorong'i (index.css: .night).
+ * Panel — bitta dastur, AI jamoa atrofida: bosh ekran (Palantir, ovoz bilan), besh xodim (Qabulxona, Yordamchi, Kuzatuvchi,
+ * Tahlilchi, Marketolog), Miya (Obsidian kabi) va Sozlamalar. Chapda (telefonda — pastda) bir xil ustun. Ko'rinish qorong'i (index.css: .night).
  */
 const TITLES: Record<Area, string> = {
   ai: 'Palantir', qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
-  tahlilchi: TEAM.tahlilchi.name, miya: 'Miya', sozlamalar: 'Sozlamalar',
+  tahlilchi: TEAM.tahlilchi.name, marketolog: TEAM.marketolog.name, miya: 'Miya', sozlamalar: 'Sozlamalar',
 };
 
 export default function LiveApp() {
@@ -98,6 +98,7 @@ export default function LiveApp() {
           {area === 'yordamchi' && <AssistantArea {...common} />}
           {area === 'kuzatuvchi' && <WatchArea {...common} />}
           {area === 'tahlilchi' && <AnalystArea {...common} />}
+          {area === 'marketolog' && <MarketingArea {...common} onStatus={setStatus} />}
           {area === 'miya' && <MiyaArea tab={tab} notify={notify} />}
           {area === 'sozlamalar' && (
             <SettingsArea {...common} onStatus={setStatus} onBiz={setBiz} offeringsRev={offeringsRev} onSaved={(b, rev) => { setBiz(b); setOfferingsRev(rev); }} />

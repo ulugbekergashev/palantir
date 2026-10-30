@@ -2,7 +2,7 @@
  * «Bugun jamoa nima qildi» — bosh ekranda har AI xodimning bugungi ishi, haqiqiy yozuvlardan (AI'siz: arzon, tez, har doim bir xil):
  *   Qabulxona — murojaatlar, javoblar, qabulga yozilganlar, qoldirilgan so'rovlar (analytics.ts bilan bir xil hisob);
  *   Yordamchi — ertalabki reja, eslatmalar, bajarilgan ishlar, mijozlarga tayyorlangan xabarlar;
- *   Kuzatuvchi — kameralar va bugungi hodisalar; Tahlilchi — vaqtli topshiriqlar bo'yicha hisobotlar.
+ *   Kuzatuvchi — kameralar va bugungi hodisalar; Tahlilchi — vaqtli topshiriqlar bo'yicha hisobotlar; Marketolog — Meta AI'dan olgan tahlillari.
  * Pastida — bugungi jurnal (hamma xodim yozuvlari), yangisi tepada.
  */
 import type { Express, Request, Response } from 'express';
@@ -10,7 +10,7 @@ import type { AgentEvent, OrderMember } from '../src/types';
 import { periodDays } from '../src/lib/dashboard';
 import { iso } from '../src/lib/week';
 import { dashboard } from './analytics';
-import { cameras, outbound, tasks, type BusinessRow } from './db';
+import { cameras, connections, outbound, tasks, type BusinessRow } from './db';
 import { events } from './orders/store';
 
 type Handler = (req: Request, res: Response) => unknown;
@@ -60,13 +60,20 @@ function analyst(t: Tally): DayMember {
   return { member: 'tahlilchi', summary, facts: [{ label: 'Hisobot', value: done }] };
 }
 
+function marketer(biz: BusinessRow, t: Tally): DayMember {
+  const done = count(t, 'marketolog');
+  const summary = done ? `Bugun Meta AI orqali ${done} ta tahlil tayyorladi.`
+    : connections.get(biz.id, 'meta_ai') ? "Meta AI ulangan — raqobatchilar yoki kontent bo'yicha so'rang yoki jadval bering." : "Meta AI ulanmagan — Marketolog → Ulash.";
+  return { member: 'marketolog', summary, facts: [{ label: 'Tahlil', value: done }] };
+}
+
 export function teamDay(biz: BusinessRow, now = new Date()): TeamDay {
   const today = iso(now);
   const from = new Date(`${today}T00:00:00`).toISOString(), to = new Date(now.getTime() + 1000).toISOString();
   const t = events.tally(biz.id, from);
   return {
     date: today,
-    members: [reception(biz, now), assistant(biz, from, to, today), watcher(biz, t), analyst(t)],
+    members: [reception(biz, now), assistant(biz, from, to, today), watcher(biz, t), analyst(t), marketer(biz, t)],
     timeline: events.since(biz.id, from, TIMELINE),
   };
 }

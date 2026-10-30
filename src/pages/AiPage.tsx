@@ -151,11 +151,13 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
         {/* AI jamoa — har biri o'z ishida */}
         <section aria-label="AI jamoa" className="mt-14 w-full">
           <h2 className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#9ba1ad]">Sizning AI jamoangiz</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {MEMBERS.map(m => {
+          {/* Besh xodim: kompyuterda tepada ikkitasi (asosiy ish), pastda uchtasi; telefonda ikki ustun, oxirgisi to'liq enida */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            {MEMBERS.map((m, i) => {
               const meta = TEAM[m], st = team?.[m];
+              const span = `${i < 2 ? 'lg:col-span-3' : 'lg:col-span-2'} ${i === MEMBERS.length - 1 && MEMBERS.length % 2 ? 'sm:col-span-2 lg:col-span-2' : ''}`;
               return st ? (
-                <a key={m} href={hrefOf(m)} className="group flex flex-col gap-3 rounded-2xl border border-glass/10 bg-glass/[0.03] p-4 text-left no-underline transition-colors hover:border-glass/20 hover:bg-glass/[0.06]">
+                <a key={m} href={hrefOf(m)} className={`${span} group flex flex-col gap-3 rounded-2xl border border-glass/10 bg-glass/[0.03] p-4 text-left no-underline transition-colors hover:border-glass/20 hover:bg-glass/[0.06]`}>
                   <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8b8cff]/15 text-[#c7c8ff]"><meta.icon className="h-5 w-5" aria-hidden="true" /></span>
                     <div className="flex min-w-0 flex-col">
@@ -169,7 +171,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
                   </div>
                   <p className="m-0 text-xs leading-relaxed text-[#9ba1ad]">{st.detail}</p>
                 </a>
-              ) : <div key={m} className="h-[132px] animate-pulse rounded-2xl border border-glass/5 bg-glass/[0.02]" />;
+              ) : <div key={m} className={`${span} h-[132px] animate-pulse rounded-2xl border border-glass/5 bg-glass/[0.02]`} />;
             })}
           </div>
         </section>

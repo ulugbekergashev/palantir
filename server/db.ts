@@ -457,7 +457,7 @@ export const leads = {
 
 /** instagram — brauzer orqali (egasining akkaunti); instagram_api — rasmiy Instagram API (Meta ilovasi, Palantir Hub orqali) */
 /** tg_business — egasining Telegram Business akkaunti, bot chat-bot sifatida (inbox/telegramBusiness.ts) */
-export type ConnectionKind = 'telegram' | 'tg_business' | 'instagram' | 'instagram_api' | 'dentacrm' | 'sip_line';
+export type ConnectionKind = 'telegram' | 'tg_business' | 'instagram' | 'instagram_api' | 'dentacrm' | 'sip_line' | 'meta_ai';
 export interface ConnectionRow { businessId: string; kind: ConnectionKind; secret: string; account: Record<string, string>; meta: Record<string, string>; updatedAt: string }
 
 const toConnection = (r: Raw): ConnectionRow => ({

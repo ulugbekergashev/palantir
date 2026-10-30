@@ -63,7 +63,7 @@ export const countIn = (cam: Camera, zoneId: string | null, people: Box[]): numb
 
 /** Har xodimga qaysi topshiriq turlari */
 export const KINDS: Record<OrderMember, OrderSpec['kind'][]> = {
-  qabulxona: ['standing', 'schedule'], yordamchi: ['standing', 'schedule'], tahlilchi: ['standing', 'schedule'], kuzatuvchi: ['watch', 'look', 'standing'],
+  qabulxona: ['standing', 'schedule'], yordamchi: ['standing', 'schedule'], tahlilchi: ['standing', 'schedule'], kuzatuvchi: ['watch', 'look', 'standing'], marketolog: ['standing', 'schedule'],
 };
 
 export type Parsed = { ok: true; spec: OrderSpec; summary: string } | { ok: false; question: string };

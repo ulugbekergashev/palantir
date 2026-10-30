@@ -105,7 +105,7 @@ export async function orderApiTests(h: Harness): Promise<void> {
   type Day = { members: { member: string; summary: string; facts: { label: string; value: number }[] }[]; timeline: { id: string }[] };
   const fact = (d: Day, m: string, label: string) => d.members.find(x => x.member === m)?.facts.find(f => f.label === label)?.value ?? -1;
   const day = (await api('/api/team/day', { token })).json as Day;
-  ok("bugun jamoa: to'rt xodim, tartibda", day.members?.map(m => m.member).join() === 'qabulxona,yordamchi,kuzatuvchi,tahlilchi', JSON.stringify(day.members?.map(m => m.summary)));
+  ok("bugun jamoa: besh xodim, tartibda", day.members?.map(m => m.member).join() === 'qabulxona,yordamchi,kuzatuvchi,tahlilchi,marketolog',JSON.stringify(day.members?.map(m => m.summary)));
   ok('bugun jamoa: kamera hodisasi jurnalda va Kuzatuvchi sanadi', day.timeline.some(e => e.id === events[0].id) && fact(day, 'kuzatuvchi', 'Yozuv') >= 1 && fact(day, 'kuzatuvchi', 'Kamera') >= 1);
   ok("bugun jamoa: bajarilgan ish Yordamchida sanaldi", fact(day, 'yordamchi', 'Bajarildi') >= 1, day.members.find(m => m.member === 'yordamchi')?.summary);
   const otherDay = (await api('/api/team/day', { token: otherToken })).json as Day;

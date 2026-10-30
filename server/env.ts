@@ -168,6 +168,16 @@ export const env = {
   igFakeUrl: process.env.IG_FAKE_URL || '',
 
   /**
+   * Meta AI — Marketolog egasining o'z meta.ai akkaunti orqali ishlaydi (shu kompyuterdagi Chrome yoki Edge, IG_BROWSER bilan bir xil).
+   * META_AI_SHOW_BROWSER=1 — savollar ko'rinadigan oynada (tekshirish uchun); META_AI_DAILY_LIMIT — kuniga savollar chegarasi
+   */
+  metaAiUrl: (process.env.META_AI_URL || 'https://www.meta.ai').replace(/\/+$/, ''),
+  metaAiShowBrowser: process.env.META_AI_SHOW_BROWSER === '1',
+  metaAiDailyLimit: Number(process.env.META_AI_DAILY_LIMIT) || 30,
+  /** Faqat sinov uchun: brauzer o'rniga soxta Meta AI */
+  metaAiFakeUrl: process.env.META_AI_FAKE_URL || '',
+
+  /**
    * Yordamchi kompyuterda ishlaydi (server/computer): browser — alohida Chrome profilida saytlar; desktop — butun ekran (sichqoncha,
    * klaviatura); all — ikkalasi. Standart o'chiq: bu yo'l bilan AI egasining nomidan harakat qiladi. Har xavfli amal Telegram'da tasdiqlanadi
    */

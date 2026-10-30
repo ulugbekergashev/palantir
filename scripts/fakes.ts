@@ -254,6 +254,8 @@ export const igWeb = {
   typed: [] as { threadIds: string[]; text: string }[],
   approved: [] as string[],
   paths: [] as string[],
+  /** Instagram'da bor akkauntlar (web_profile_info) — Marketolog Meta AI aytganlarini shu bilan tekshiradi */
+  users: new Set<string>(),
   threads: new Map<string, { v2: string; user: IgUserF; items: IgItemF[]; pending: boolean }>(),
   seq: 1000,
   clock: 0,
@@ -311,6 +313,10 @@ export const igWebServer = patient(createServer(async (req, res) => {
         if (t) t.pending = false;
         igWeb.approved.push(approve[1]);
         return reply(200, { status: 'ok' });
+      }
+      if (url.pathname === '/api/v1/users/web_profile_info/') {
+        const u = url.searchParams.get('username') ?? '';
+        return igWeb.users.has(u) ? reply(200, { data: { user: { username: u } }, status: 'ok' }) : reply(404, { message: 'User not found', status: 'fail' });
       }
       return reply(404, { message: 'not found', status: 'fail' });
     }

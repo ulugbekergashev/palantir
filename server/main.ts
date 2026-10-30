@@ -16,6 +16,7 @@ import { closeDb, notices } from './db';
 import { recoverBookings } from './inbox/core';
 import { instagramAvailable, startInstagram, stopInstagram } from './inbox/instagram';
 import { startInstagramApi, stopInstagramApi } from './inbox/instagramApi';
+import { metaAiAvailable, stopMetaAi } from './marketing/metaAi';
 import { refreshTelegramUser, startTelegramUser, stopTelegramUser, telegramUserAvailable } from './inbox/telegramUser';
 import { startScheduler } from './scheduler';
 import { startCallSweeper, startPhone, startRecordingRetention, stopPhone } from './phone/index';
@@ -92,6 +93,7 @@ console.log(`  shaxsiy Telegram: ${telegramUserAvailable() ? 'yoqilgan' : !env.t
 const igBrowser = instagramAvailable() ? 'brauzer orqali' : env.igViaBrowser ? "brauzer: Chrome yoki Edge topilmadi — IG_BROWSER" : '';
 const igOfficial = env.hub ? `rasmiy (hub: ${new URL(env.hub.url).host})` : '';
 console.log(`  Instagram: ${[igOfficial, igBrowser].filter(Boolean).join(' + ') || "o'chiq (Palantir Hub kodi yo'q)"}`);
+console.log(`  Meta AI (Marketolog): ${env.metaAiFakeUrl ? 'soxta (sinov)' : metaAiAvailable() ? 'brauzer orqali, egasi panelda ulaydi' : "o'chiq (Chrome yoki Edge topilmadi — IG_BROWSER)"}`);
 console.log(`  IP kameralar: ${ffmpegAvailable() ? 'yoqilgan (ffmpeg bor)' : "o'chiq (ffmpeg topilmadi — FFMPEG_PATH)"}`);
 console.log(`  baza: ${env.dbFile}`);
 
@@ -114,7 +116,7 @@ const shutdown = () => {
   flushAllWaits();
   stopCameraEngine();
   // Brauzer (Instagram, kompyuterdagi ish) va Telegram seansi yopilishi kutiladi: chala yopilgan brauzer keyingi ishga tushishda profilni band qilib turardi
-  const closed = Promise.race([Promise.allSettled([stopTelegramUser(), stopInstagram(), stopAllJobs()]), new Promise(r => setTimeout(r, CLOSE_WAIT_MS))]);
+  const closed = Promise.race([Promise.allSettled([stopTelegramUser(), stopInstagram(), stopMetaAi(), stopAllJobs()]), new Promise(r => setTimeout(r, CLOSE_WAIT_MS))]);
   server.close(() => {
     void closed.then(() => {
       closeDb();
