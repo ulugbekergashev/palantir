@@ -5,6 +5,7 @@
 import { createServer } from 'node:http';
 import { routeNow, transferNow, type LineRouting } from '../server/voice/route';
 import { lineProblemOf } from '../server/voice/line';
+import { forwardCodes, intlNumber } from '../src/lib/forwarding';
 import { accountProblem, zadarmaSign, type ZadarmaNumber } from '../server/voice/zadarma';
 import type { Harness } from './e2e-crm';
 import { json, patient, readBody } from './fakes';
@@ -69,6 +70,14 @@ export function lineLogicTests(ok: Harness['ok']): void {
   ok("zadarma: to'lovga 4 kun, balans yetmaydi — ogohlantiradi", /4 kundan keyin.*33 USD.*12\.50 USD/.test(accountProblem(num({}), 12.5, 'USD', now) ?? ''), accountProblem(num({}), 12.5, 'USD', now) ?? '');
   ok("zadarma: to'lovga hali 20 kun — jim (har oy bezovta qilmaydi)", accountProblem(num({ stop_date: '2026-11-20 10:00:00' }), 1, 'USD', now) === null);
   ok("zadarma: raqam to'xtatilgan (parking) — darhol aytadi", /to'xtatilgan/.test(accountProblem(num({ status: 'parking' }), 0, 'USD', now) ?? ''));
+
+  console.log("\n# Telefon liniyasi: klinika telefonidan yo'naltirish kodlari");
+  const f = forwardCodes('998712001122', 15);
+  ok("yo'naltirish: ko'tarilmasa 15 s, band, o'chiq — standart GSM kodlari", f?.on.map(c => c.code).join(' ') === '**61*+998712001122**15# **67*+998712001122# **62*+998712001122#', f?.on.map(c => c.code).join(' '));
+  ok("yo'naltirish: o'chirish kodi", f?.off.code === '##004#');
+  ok("yo'naltirish: 9 xonali mahalliy raqamga +998 qo'shiladi", intlNumber('712001122') === '+998712001122' && intlNumber('+998 71 200-11-22') === '+998712001122');
+  ok("yo'naltirish: soniya 5 ga karrali va 5–30 oralig'ida", forwardCodes('998712001122', 42)?.on[0].code.endsWith('**30#') && forwardCodes('998712001122', 12)?.on[0].code.endsWith('**10#'));
+  ok("yo'naltirish: raqam noto'g'ri — kod chiqmaydi", forwardCodes('123') === null);
 }
 
 export async function lineApiTests(h: Harness): Promise<void> {

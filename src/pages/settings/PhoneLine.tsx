@@ -4,8 +4,9 @@
  * parol chatga yoki faylga qo'lda yozilmaydi.
  */
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Eye, EyeOff, Loader2, Phone, RefreshCw, Smartphone, Waypoints } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Phone, PhoneForwarded, RefreshCw, Smartphone, Waypoints } from 'lucide-react';
 import { api, type PhoneLine as Line } from '../../data/api';
+import { forwardCodes, type ForwardCode } from '../../lib/forwarding';
 import type { Notify } from '../../components/Artifacts';
 
 const DAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
@@ -240,6 +241,41 @@ function AdminPhone({ line, onLine, notify }: { line: Line; onLine: (l: Line) =>
   );
 }
 
+/**
+ * Klinika mobil telefonidan AI raqamiga yo'naltirish: administrator kodlarni bir marta teradi — ko'tarmasa, band yoki o'chiq bo'lsa AI oladi.
+ * Raqam o'zgarmaydi, mijozlar eski raqamga qo'ng'iroq qilaveradi
+ */
+function Forwarding({ number, notify }: { number: string; notify: Notify }) {
+  const [ring, setRing] = useState(15);
+  const codes = forwardCodes(number, ring);
+  if (!codes) return null;
+  const copy = (code: string) => {
+    navigator.clipboard.writeText(code).then(() => notify('Nusxalandi'), () => notify(code));
+  };
+  const row = (c: ForwardCode, muted = false) => (
+    <li key={c.code} className="flex items-center justify-between gap-3 border-b border-glass/[0.05] py-3 last:border-0">
+      <span className="min-w-0">
+        <span className={`block text-[14px] font-medium ${muted ? 'text-[#a3a9b5]' : 'text-[#f2f0ea]'}`}>{c.title}</span>
+        <span className="block text-[12.5px] text-[#8a909c]">{c.hint}</span>
+      </span>
+      <button type="button" onClick={() => copy(c.code)} aria-label={`${c.title}: ${c.code} — nusxalash`}
+        className="shrink-0 rounded-xl border border-glass/10 px-3 py-2 font-mono text-[13px] tabular-nums text-[#cdeee9] hover:bg-glass/5">{c.code}</button>
+    </li>
+  );
+  return (
+    <Block icon={<PhoneForwarded className="h-[18px] w-[18px]" aria-hidden="true" />} title="Klinika telefonidan yo'naltirish"
+      hint="Klinikaning mobil telefonida shu kodlarni bir marta tering va qo'ng'iroq tugmasini bosing. Mijozlar eski raqamga qo'ng'iroq qilaveradi: administrator ulgurmasa — AI javob beradi.">
+      <Label text="Administrator necha soniya ichida ko'tarmasa">
+        <select className={input} value={ring} onChange={e => setRing(Number(e.target.value))}>
+          {[10, 15, 20, 25, 30].map(s => <option key={s} value={s}>{s} soniya</option>)}
+        </select>
+      </Label>
+      <ul className="mt-2">{codes.on.map(c => row(c))}{row(codes.off, true)}</ul>
+      <p className="mt-2 text-[12px] leading-snug text-[#7d838f]">Yo'naltirilganda «Kim javob beradi» bo'limida «Har doim AI» ni qoldiring — administrator telefoni allaqachon jiringlagan bo'ladi.</p>
+    </Block>
+  );
+}
+
 export function PhoneLineSettings({ notify }: { notify: Notify }) {
   const [line, setLine] = useState<Line | null>(null);
   useEffect(() => {
@@ -252,7 +288,10 @@ export function PhoneLineSettings({ notify }: { notify: Notify }) {
     <div className="flex flex-col gap-5">
       <Status line={line} />
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
-        <NumberBlock line={line} onLine={setLine} notify={notify} />
+        <div className="flex flex-col gap-5">
+          <NumberBlock line={line} onLine={setLine} notify={notify} />
+          {line.trunk?.number && <Forwarding number={line.trunk.number} notify={notify} />}
+        </div>
         <div className="flex flex-col gap-5">
           <Routing key={JSON.stringify(line.routing)} line={line} onLine={setLine} notify={notify} />
           <AdminPhone line={line} onLine={setLine} notify={notify} />
