@@ -44,6 +44,8 @@ jobs:
       - name: Kamera modeli (SHA256 bilan)
         run: npm run camera:model
       - run: npm run typecheck
+      # Kod xatolari (oxlint: hooks qoidalari, xavfli ?., noto'g'ri taqqoslashlar) — xato bo'lsa CI qizil
+      - run: npm run lint
       - name: AI baholash holatlari (so'rovsiz, faqat to'plam tekshiruvi)
         run: npm run eval:ai
       - run: npm run build

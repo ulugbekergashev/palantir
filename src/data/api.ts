@@ -101,7 +101,7 @@ async function send(path: string, init: RequestInit, admin = false): Promise<Res
   const token = admin ? session.adminToken() : session.token();
   const res = await fetch(`${apiBase}/api${path}`, {
     ...init,
-    headers: { ...(init.headers ?? {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    headers: { ...init.headers, ...(token ? { authorization: `Bearer ${token}` } : {}) },
   }).catch(() => { throw new ApiError("Server bilan aloqa yo'q", 0); });
   if (!res.ok) {
     const json = await res.json().catch(() => ({})) as { error?: string; details?: string[] };

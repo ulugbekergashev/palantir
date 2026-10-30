@@ -19,7 +19,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash, createPublicKey, randomBytes, verify } from 'node:crypto';
 import { appendFileSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
-import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { Unzip, UnzipInflate } from 'fflate';

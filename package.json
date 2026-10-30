@@ -20,6 +20,7 @@
     "check": "node --no-warnings --import tsx scripts/preflight.ts",
     "preview": "vite preview --port 3101 --host localhost",
     "typecheck": "tsc -p tsconfig.json && tsx scripts/check-name.ts",
+    "lint": "oxlint server src hub scripts",
     "test": "tsx scripts/e2e.ts",
     "test:resilience": "tsx scripts/e2e-resilience.ts",
     "test:setup": "tsx scripts/e2e-setup.ts",
@@ -81,6 +82,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "concurrently": "^10.0.5",
+    "oxlint": "^1.90.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.1"

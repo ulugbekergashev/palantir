@@ -267,7 +267,7 @@ try {
   let scheduledPrompt = '';
   ai.owner = messages => {
     const first = messages[0];
-    scheduledPrompt = typeof first?.content === 'string' ? first.content : (first?.content as Block[]).map(b => b.text ?? '').join('');
+    scheduledPrompt = typeof first?.content === 'string' ? first.content : ((first?.content ?? []) as Block[]).map(b => b.text ?? '').join('');
     return { content: [{ type: 'text', text: "Jadval bo'yicha: Meta AI chegarasi tugagan, ertaga yuboraman." }], stop: 'end_turn' };
   };
   mark = sent.length;

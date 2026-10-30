@@ -138,7 +138,7 @@ export async function intakeFlowTests(h: Harness): Promise<void> {
   // Uzun narxnoma: qator o'rtasidan kesilmaydi; jadval to'lsa — taklif joyida qoladi
   const longUp = await upload('Uzun narxnoma.txt', Buffer.from(Array.from({ length: 400 }, (_, i) => `Xizmat ${i + 1} sinov — 1 000 000`).join('\n')));
   const s6 = await waitingOf('Uzun narxnoma');
-  ok("fayl: uzun narxnoma qator o'rtasidan kesilmaydi (oxirgi narx butun) va narxlarning faqat boshi o'qilgani aytiladi", !!s6 && /sinov — 1 000 000$/.test(s6.answer) && s6.answer.length <= 6000 && !!longUp.json.entries?.[1]?.text.includes('narxlarning faqat boshi'), s6?.answer.slice(-60));
+  ok("fayl: uzun narxnoma qator o'rtasidan kesilmaydi (oxirgi narx butun) va narxlarning faqat boshi o'qilgani aytiladi", !!s6 && s6.answer.endsWith('sinov — 1 000 000') && s6.answer.length <= 6000 && !!longUp.json.entries?.[1]?.text.includes('narxlarning faqat boshi'), s6?.answer.slice(-60));
   const longFile = join(root, 'Kutyapti', 'Uzun narxnoma.md');
   writeFileSync(longFile, readFileSync(longFile, 'utf8').replace(/^tur: .*\r?\n/m, ''));
   ok("fayl: egasi Obsidian'da «tur» qatorini o'chirsa ham taklif sahifa bo'lib qoladi (butun matn bitta savolning javobiga aylanmaydi)", (await waitingOf('Uzun narxnoma'))?.kind === 'page');

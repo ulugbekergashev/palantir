@@ -433,7 +433,7 @@ function smartDecision(user: string, lastRaw: string, d: (action: string, reply:
   if (fact && fact.hit >= 0.5) return d('reply', fact.text);
   // 5. Bilmaydi — egasidan so'raydi; umumiy savolni salom-aliksiz qayta yozadi
   const question = lastRaw.replace(/^(assalomu alaykum|salom)[!,. ]*/i, '').replace(/\s+/g, ' ').trim();
-  return d('ask_owner', 'Savolingizni oldim, aniqlab javob beraman.', `Mijoz so'rayapti: ${question.slice(0, 120)}`, { question: /\?$/.test(question) ? question : `${question}?` });
+  return d('ask_owner', 'Savolingizni oldim, aniqlab javob beraman.', `Mijoz so'rayapti: ${question.slice(0, 120)}`, { question: question.endsWith('?') ? question : `${question}?` });
 }
 
 /** Mijozning oxirgi gapiga qarab: javob, egasidan so'rash yoki e'tiborsiz */
@@ -684,7 +684,7 @@ export const aiServer = patient(createServer(async (req, res) => {
   // Chuqur tahlil (insights/deep.ts): 1-javob — «pause_turn» va grafik fayli (uzoq ish davom ettirilishi tekshiriladi), 2-javob — topilmalar JSON
   if (String(body.system).startsWith("You are the business's senior data analyst")) {
     const paused = body.messages.length > 1;
-    ai.deep.push({ files: (body.messages[0]?.content as Block[]).filter(b => b.type === 'container_upload').map(b => String(b.file_id)), container: (body as { container?: string }).container ?? null, tools: body.tools, cache: (body as { cache_control?: unknown }).cache_control ?? null });
+    ai.deep.push({ files: ((body.messages[0]?.content ?? []) as Block[]).filter(b => b.type === 'container_upload').map(b => String(b.file_id)), container: (body as { container?: string }).container ?? null, tools: body.tools, cache: (body as { cache_control?: unknown }).cache_control ?? null });
     const container = { id: 'cont_sinov', expires_at: new Date(Date.now() + 3_600_000).toISOString() };
     // Har tahlilda «Python» grafikni qaytadan yaratadi (oldingisi tahlil oxirida o'chirilgan)
     if (!paused) files.set('file_chart1', { name: 'qaytish.png', bytes: PNG, uploaded: false });

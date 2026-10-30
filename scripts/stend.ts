@@ -182,7 +182,7 @@ function instagramView(): { id: string; username: string; name: string; pending:
 }
 
 /** CRM'ga kim yozgani id boshidan bilinadi: an/m/pn — tarmoq orqali (ya'ni Palantir), st — stenddagi «administrator» */
-const origin = (id: unknown): string => (/^(an|m|pn)\d/.test(String(id)) ? 'palantir' : /^st/.test(String(id)) ? 'stend' : '');
+const origin = (id: unknown): string => (/^(an|m|pn)\d/.test(String(id)) ? 'palantir' : String(id).startsWith('st') ? 'stend' : '');
 function crmView(): Json {
   const today = iso(new Date());
   const row = (r: Json) => ({ ...r, origin: origin(r.id) });
@@ -419,7 +419,7 @@ async function serve(req: IncomingMessage, res: ServerResponse): Promise<void> {
     json(res, await handler(body, req, url));
   } catch (e) {
     const err = e as Error & { status?: number; body?: Json };
-    json(res, { error: err.message, ...(err.body ?? {}) }, err.status && err.status < 600 ? err.status : 500);
+    json(res, { error: err.message, ...err.body }, err.status && err.status < 600 ? err.status : 500);
   }
 }
 /** Kutilmagan xato stendni to'xtatmaydi (ushlanmagan rad etish butun jarayonni — server bilan birga — yiqitardi) */

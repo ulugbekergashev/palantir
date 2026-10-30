@@ -432,13 +432,13 @@ function count(bizId: string, delta: 1 | -1): void {
  * Meta AI'ga savol (yangi suhbatda) — javob matni. Bir necha daqiqa ketishi mumkin: chaqiruvchi uni fonda ishlatadi.
  * Xato bo'lsa MetaAiError (sababi egasiga aytsa bo'ladigan tilda)
  */
-export const askMetaAi = (biz: BusinessRow, prompt: string): Promise<string> => use(biz, prompt, (d, text) => d.ask(biz.id, text));
+export const askMetaAi = (biz: BusinessRow, prompt: string): Promise<string> => withMetaAi(biz, prompt, (d, text) => d.ask(biz.id, text));
 
 /** Meta AI rasm chizadi (post uchun) — rasm baytlari. Kunlik chegara savollar bilan umumiy */
 export const imagineMetaAi = (biz: BusinessRow, description: string): Promise<Buffer> =>
-  use(biz, `Создай одно изображение для поста в Instagram (без текста на картинке): ${description}`, (d, text) => d.image(biz.id, text));
+  withMetaAi(biz, `Создай одно изображение для поста в Instagram (без текста на картинке): ${description}`, (d, text) => d.image(biz.id, text));
 
-async function use<T>(biz: BusinessRow, prompt: string, call: (d: Driver, text: string) => Promise<T>): Promise<T> {
+async function withMetaAi<T>(biz: BusinessRow, prompt: string, call: (d: Driver, text: string) => Promise<T>): Promise<T> {
   assertMetaAiReady(biz);
   const d = need();
   const ua = connections.get(biz.id, KIND)?.meta.ua;

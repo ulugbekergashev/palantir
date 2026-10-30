@@ -38,7 +38,7 @@ const tokenOf = (bizId: string): string | null => {
 
 async function graphCall(url: string, init: RequestInit & { token: string }): Promise<Record<string, unknown>> {
   const { token, ...rest } = init;
-  const r = await fetch(url, { ...rest, headers: { ...(rest.headers ?? {}), authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) });
+  const r = await fetch(url, { ...rest, headers: { ...rest.headers, authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) });
   const j = await r.json().catch(() => ({})) as Record<string, unknown>;
   if (!r.ok) {
     const err = (j.error ?? {}) as { message?: string; code?: number; error_subcode?: number };

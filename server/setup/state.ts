@@ -27,7 +27,7 @@ export function setupOf(biz: BusinessRow): SetupState {
     return {
       conflicts: Array.isArray(s.conflicts) ? s.conflicts.filter(c => typeof c?.name === 'string' && Array.isArray(c.prices)) : [],
       hours: s.hours && typeof s.hours === 'object' ? s.hours : null,
-      has: { ...base.has, ...(s.has ?? {}) },
+      has: { ...base.has, ...s.has },
       anketa: s.anketa ?? null,
     };
   } catch {

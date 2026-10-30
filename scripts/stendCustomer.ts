@@ -110,7 +110,7 @@ function fromKnowledge(talk: Talk, found: { text: string; hit: Known | null }[])
   const leadNote = (found.find(f => f.hit?.note)?.hit?.note ?? '').slice(0, 60);
   if (!open.length) return decision(talk, 'reply', replies.join(' '), { lead_note: leadNote });
   // Umumiy savol bitta bo'lsa — egasining javobi keyin eslab qolinishi mumkin («Eslab qolaymi?»)
-  const question = open.length === 1 ? (/\?$/.test(open[0]) ? open[0] : `${open[0]}?`).slice(0, 300) : '';
+  const question = open.length === 1 ? (open[0].endsWith('?') ? open[0] : `${open[0]}?`).slice(0, 300) : '';
   const reply = [...replies, replies.length ? 'Qolgan savolingizni aniqlab, javob beraman.' : WILL_CHECK].join(' ');
   return decision(talk, 'ask_owner', reply, { note_for_owner: `Mijoz so'rayapti: ${open.join(' / ').slice(0, 300)}`, question, lead_note: leadNote });
 }
