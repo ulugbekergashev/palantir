@@ -18,6 +18,9 @@ export function windowRule(lastInboundAt: string | null, now: number, humanAgent
   return humanAgent && age <= HUMAN_AGENT_MS ? 'human_agent' : 'closed';
 }
 
+/** HUMAN_AGENT tegi faqat odam (egasi) yozgan javobga: AI javobi, eslatma yoki ommaviy xabar bilan bu oyna ochilmaydi */
+export const humanOnly = (rule: ReturnType<typeof windowRule>, by: 'owner' | 'palantir'): boolean => rule === 'human_agent' && by !== 'owner';
+
 /** Matnni Instagram chegarasiga sig'adigan bo'laklarga bo'ladi (imkon bo'lsa so'z o'rtasidan emas) */
 export function splitForInstagram(text: string, max = MAX_BYTES): string[] {
   const bytes = (s: string) => Buffer.byteLength(s, 'utf8');

@@ -123,13 +123,21 @@ async function sendCards(biz: BusinessRow, r: LeadRequest, head = '', silent = f
  * Mijozlar yozishmasi kartasi (javob taklifi, yetkazilgan xabar) — jamoaga: qabulxona xodimlari va egasi (nusxa sozlamasi bo'yicha;
  * xodim yo'q bo'lsa — faqat egasi). Qaytadi: qayerga ketdi. Hech kimga yetmasa — Error (chaqiruvchi navbatga qo'yadi)
  */
-export async function deliverToTeam(biz: BusinessRow, html: string, keyboard?: InlineKeyboardMarkup): Promise<{ chatId: string; messageId: number }[]> {
+/**
+ * Kartani jamoaga (qabulxona xodimlari va egasi) yuboradi. onSent — har karta yuborilishi bilan (hammasini kutmasdan): xodim birinchi
+ * kartaga darhol javob qaytarsa ham, u ro'yxatda bo'ladi
+ */
+export async function deliverToTeam(biz: BusinessRow, html: string, keyboard?: InlineKeyboardMarkup, onSent?: (c: { chatId: string; messageId: number }) => void): Promise<{ chatId: string; messageId: number }[]> {
   const to = recipients(biz);
   if (!outlet || !to.length) return [];
   const out: { chatId: string; messageId: number }[] = [];
   let last: Error | null = null;
   for (const r of to) {
-    try { out.push({ chatId: r.chatId, messageId: await outlet.send(r.chatId, html, keyboard) }); } catch (e) { last = e as Error; }
+    try {
+      const c = { chatId: r.chatId, messageId: await outlet.send(r.chatId, html, keyboard) };
+      out.push(c);
+      onSent?.(c);
+    } catch (e) { last = e as Error; }
   }
   if (!out.length && last) throw last;
   return out;

@@ -242,7 +242,7 @@ try {
   await shot('11-instagram', true);
 
   await go('sozlamalar/telefon');
-  ok("telefon liniyasi: holat, shahar raqami formasi, kim javob beradi, administrator telefoni", await visible(page.getByRole('heading', { name: 'Shahar raqami (Uztelecom)' }))
+  ok("telefon liniyasi: holat, telefon raqami, kim javob beradi, administrator telefoni", await visible(page.getByRole('heading', { name: 'Telefon raqami' }))
     && await page.getByRole('heading', { name: 'Kim javob beradi' }).isVisible() && await page.getByRole('heading', { name: 'Administrator telefoni' }).isVisible());
   await page.getByRole('radio', { name: /Ish vaqtida — administrator/ }).check();
   await page.getByRole('button', { name: 'Saqlash', exact: true }).click();

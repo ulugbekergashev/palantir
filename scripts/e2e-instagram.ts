@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { makeHubCode, parseHubCode } from '../src/lib/hubCode';
-import { splitForInstagram, windowRule } from '../server/inbox/igRules';
+import { humanOnly, splitForInstagram, windowRule } from '../server/inbox/igRules';
 import { OWNER, ai, aiServer, json, listen, press, readBody, say, sent, sleep, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 
 const results: boolean[] = [];
@@ -30,6 +30,7 @@ const now = Date.parse('2026-10-18T12:00:00Z');
 const ago = (h: number) => new Date(now - h * 3_600_000).toISOString();
 ok('24 soat ichida — yozsa bo\'ladi; 30 soat — yo\'q; Human Agent bilan 30 soat — teg bilan; 8 kun — hech qanday', windowRule(ago(23), now, false) === 'open' && windowRule(ago(30), now, false) === 'closed'
   && windowRule(ago(30), now, true) === 'human_agent' && windowRule(ago(24 * 8), now, true) === 'closed' && windowRule(null, now, true) === 'closed');
+ok("Human Agent (24 soatdan keyin) — faqat egasi o'zi yozgan javob; AI javobi, eslatma va ommaviy xabar — yo'q", humanOnly('human_agent', 'palantir') && !humanOnly('human_agent', 'owner') && !humanOnly('open', 'palantir'));
 const long = `${"Assalomu alaykum! Implant narxi 5 000 000 so'mdan boshlanadi. ".repeat(30)}https://example.com/${'x'.repeat(1200)}`;
 const parts = splitForInstagram(long);
 ok("1000 baytdan uzun javob — bo'laklarga, har biri ≤ 1000 bayt, matn yo'qolmaydi", parts.length >= 3 && parts.every(p => Buffer.byteLength(p) <= 1000) && parts.join('').replace(/\s/g, '').length === long.replace(/\s/g, '').length);

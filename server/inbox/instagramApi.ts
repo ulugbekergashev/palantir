@@ -16,7 +16,7 @@ import { forgetInstagram } from '../forget';
 import { handleRelay, type RelayRequest } from '../remote';
 import { open, seal } from '../secret';
 import { isOurEcho, notifyOwner, onIncoming, onOwnerOutgoing, registerSender } from './core';
-import { splitForInstagram, windowRule } from './igRules';
+import { humanOnly, splitForInstagram, windowRule } from './igRules';
 
 const VERSION = 'v25.0';
 const KIND = 'instagram_api';
@@ -47,7 +47,7 @@ async function graphCall(url: string, init: RequestInit & { token: string }): Pr
   return j;
 }
 
-async function sendDirect(biz: BusinessRow, lead: LeadRow, text: string): Promise<string | null> {
+async function sendDirect(biz: BusinessRow, lead: LeadRow, text: string, by: 'owner' | 'palantir'): Promise<string | null> {
   const token = tokenOf(biz.id);
   if (!token || !lead.igThread) throw new IgApiError('Instagram (rasmiy) ulanmagan');
   const rule = windowRule(lead.lastInboundAt, Date.now(), env.igHumanAgent);
@@ -55,6 +55,10 @@ async function sendDirect(biz: BusinessRow, lead: LeadRow, text: string): Promis
     throw new IgApiError(env.igHumanAgent
       ? "Instagram mijozning oxirgi xabaridan 7 kun o'tgach yozishga ruxsat bermaydi — qo'ng'iroq qiling yoki u yozishini kuting"
       : "Instagram mijozning oxirgi xabaridan 24 soat o'tgach yozishga ruxsat bermaydi — qo'ng'iroq qiling yoki u yozishini kuting");
+  }
+  // HUMAN_AGENT — faqat odam yozgan javob uchun (Meta qoidasi): AI javobi, eslatma yoki ommaviy xabar bu teg bilan ketmaydi
+  if (humanOnly(rule, by)) {
+    throw new IgApiError("Instagram mijozning oxirgi xabaridan 24 soat o'tgach faqat siz o'zingiz yozgan javobni qabul qiladi — o'zingiz yozing yoki qo'ng'iroq qiling");
   }
   let last: string | null = null;
   for (const part of splitForInstagram(text)) {

@@ -30,8 +30,11 @@ import { replyCards } from '../requests/store';
 export interface Sender {
   /** Shu mijozga shu kanal orqali yozish mumkinmi */
   can(biz: BusinessRow, lead: LeadRow): boolean;
-  /** Yuboradi; qaytaradi — kanal bergan xabar id'si (qayta kelsa tanib olish uchun) */
-  send(biz: BusinessRow, lead: LeadRow, text: string): Promise<string | null>;
+  /**
+   * Yuboradi; qaytaradi — kanal bergan xabar id'si (qayta kelsa tanib olish uchun). by — kim yozgan: egasi (odam) yoki Palantir
+   * (AI javobi, ommaviy xabar). Instagram 24 soatdan keyin faqat odam yozganiga ruxsat beradi (HUMAN_AGENT)
+   */
+  send(biz: BusinessRow, lead: LeadRow, text: string, by: 'owner' | 'palantir'): Promise<string | null>;
 }
 
 /** Egasiga Telegram orqali xabar (bot) */
@@ -94,7 +97,7 @@ export async function sendToLead(biz: BusinessRow, lead: LeadRow, text: string, 
     if (!s) continue;
     try {
       ours.set(ourKey(biz.id, ch, text), Date.now());
-      const extId = await s.send(biz, lead, text);
+      const extId = await s.send(biz, lead, text, by);
       inbox.add(biz.id, { leadId: lead.id, channel: ch, direction: 'out', by, text, extId });
       if (lead.stage === 'new') leads.update(biz.id, lead.id, { stage: 'contacted' });
       return ch;
@@ -470,21 +473,27 @@ async function card(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], r: R
     '',
     REPLY_HINT,
   ].filter((l, i, a) => l !== '' || a[i - 1] !== '').join('\n');
-  let sentTo: { chatId: string; messageId: number }[];
+  // Har karta yuborilishi bilan ro'yxatga: xodim kartaga darhol «Reply» qilsa yoki bossa — u topiladi
+  const register = (c: { chatId: string; messageId: number }) => {
+    replyCards.add(r.id, c.chatId, c.messageId);
+    relays.add(c.chatId, c.messageId, lead.id);
+    if (c.chatId === biz.ownerChatId) replies.setOwnerMessage(biz.id, r.id, c.messageId);
+  };
   try {
-    sentTo = await deliverToTeam(biz, html, replyKeyboard(r));
+    await deliverToTeam(biz, html, replyKeyboard(r), register);
   } catch (e) {
     // Karta ketmadi: taklif panelda turibdi — egasi buni bilishi uchun qisqa xabar navbatga qo'yiladi
     console.error('[mijozlar] karta ketmadi, navbatga qo\'yildi:', (e as Error).message);
     notices.add(biz.id, [`💬 <b>${who(lead)}</b> · ${CHANNEL_LABEL[lead.channel]}`, quotes(fresh), '', '<i>Javob taklifi tayyor — tasdiqlash: panel → Mijozlar.</i>'].join('\n'));
     return;
   }
-  for (const c of sentTo) {
-    replyCards.add(r.id, c.chatId, c.messageId);
-    relays.add(c.chatId, c.messageId, lead.id);
-    if (c.chatId === biz.ownerChatId) replies.setOwnerMessage(biz.id, r.id, c.messageId);
-  }
+  // Kartalar ketayotgan paytda taklif hal bo'lgan (xodim yubordi yoki o'zi javob berdi) — kechikkan kartalar ham yopilsin
+  const now = replies.get(biz.id, r.id);
+  if (now && now.status !== 'pending' && now.status !== 'scheduled') await settleCard(biz, now, SETTLED[now.status] ?? '↪️ Hal qilindi');
 }
+
+/** Kartalar yuborilayotganda hal bo'lgan taklif: kechikkan kartaga qisqa holat (to'liq matni boshqa kartalarda) */
+const SETTLED: Partial<Record<ReplyRow['status'], string>> = { sent: '✅ Yuborildi', obsolete: '↪️ Eskirdi', dismissed: '✖️ Yuborilmadi' };
 
 /** Karta natijasi bilan yangilanadi (tugmalar olib tashlanadi) */
 async function settleCard(biz: BusinessRow, r: ReplyRow, status: string): Promise<void> {
