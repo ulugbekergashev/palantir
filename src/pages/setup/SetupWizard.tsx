@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, Check, Loader2, LogOut } from 'lucide-react';
-import { adminApi, api, session, type AdminBusiness } from '../../data/api';
+import { adminApi, api, session, type AdminBusiness, type PhoneLine } from '../../data/api';
 import { Logo } from '../../components/Logo';
 import { Button, Field, TextInput } from '../../components/ui';
 import { useFontsReady, useToast } from '../../lib/hooks';
@@ -10,6 +10,7 @@ import { StepClinic } from './StepClinic';
 import { StepCrm, StepInstagram, StepOwner, StepTelegram } from './StepConnections';
 import { StepDone, StepGaps } from './StepFinish';
 import { StepKeys, emptyRouted, type Routed } from './StepKeys';
+import { StepPhone } from './StepPhone';
 import { clock, stepState, visibleSteps, type StepKey, type StepState, type WizardFacts } from './wizard';
 
 const BIZ_KEY = 'palantir_setup_biz', T0_KEY = 'palantir_setup_t0';
@@ -55,6 +56,7 @@ export function SetupWizard() {
   const [status, setStatus] = useState<LiveStatus | null>(null);
   const [setup, setSetup] = useState<SetupView | null>(null);
   const [cameras, setCameras] = useState(0);
+  const [phone, setPhone] = useState<PhoneLine | null>(null);
   const [routed, setRouted] = useState<Routed>(emptyRouted);
   const [t0] = useState(() => Number(read(T0_KEY)) || (write(T0_KEY, String(Date.now())), Date.now()));
   const [now, setNow] = useState(Date.now());
@@ -75,6 +77,8 @@ export function SetupWizard() {
 
   /** Kabinet holati: kanallar, bo'shliqlar, kameralar soni */
   const refresh = useCallback(async () => {
+    // Telefon liniyasi holati (Asterisk) sekinroq bo'lishi mumkin — boshqa qadamlarni kutdirmaydi
+    api.phoneLine().then(r => setPhone(r.line)).catch(() => {});
     const [me, s, cams] = await Promise.all([api.me(), api.setup(), api.cameras()]);
     setStatus(me.status);
     setSetup(s.setup);
@@ -99,7 +103,7 @@ export function SetupWizard() {
 
   if (!authed) return <AdminGate onIn={() => setAuthed(true)} />;
 
-  const facts: WizardFacts = { hasBiz: !!bizId && entered, status, setup, keys, cameras };
+  const facts: WizardFacts = { hasBiz: !!bizId && entered, status, setup, keys, cameras, phone };
   const steps = visibleSteps(status);
   const step = Math.max(0, steps.findIndex(s => s.key === stepKey));
   const current = steps[step];
@@ -152,6 +156,7 @@ export function SetupWizard() {
               : current.key === 'cams' ? <StepCameras setup={setup} routed={routed} onCount={setCameras} notify={notify} />
               : current.key === 'tg' ? <StepTelegram status={status!} setup={setup} routed={routed} refresh={refresh} notify={notify} />
               : current.key === 'ig' ? <StepInstagram status={status!} routed={routed} setup={setup} refresh={refresh} onStatus={setStatus} notify={notify} />
+              : current.key === 'phone' ? <StepPhone line={phone} onLine={setPhone} notify={notify} />
               : current.key === 'gaps' ? <StepGaps setup={setup!} onSetup={setSetup} notify={notify} />
               : <StepDone facts={facts} elapsed={clock(now - t0)} onGo={go} />}
           </div>

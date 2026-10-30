@@ -16,6 +16,7 @@ import { chromium, type Page } from 'playwright-core';
 import { crmServer, CRM_LOGIN } from './fakeCrm';
 import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, tgUserServer, waitFor, type Sent, stopProcess } from './fakes';
 import { chromePath } from './chrome';
+import { ZADARMA, zadarmaServer } from './e2e-line';
 
 const CHROME = chromePath();
 const results: boolean[] = [];
@@ -40,6 +41,7 @@ const rtsp = createTcp(s => s.destroy());
 
 const tgPort = await listen(tgServer), keysPort = await listen(keysServer), crmPort = await listen(crmServer), tgUserPort = await listen(tgUserServer);
 onvifHttpPort = await listen(onvifHttp);
+const zadarmaPort = await listen(zadarmaServer);
 const udpPort = await new Promise<number>(d => onvifUdp.bind(0, '127.0.0.1', () => d(onvifUdp.address().port)));
 const scanPort = await new Promise<number>(d => rtsp.listen(0, '127.0.0.1', () => d((rtsp.address() as { port: number }).port)));
 
@@ -50,7 +52,7 @@ mkdirSync(shots, { recursive: true });
 const PORT = 3292, base = `http://127.0.0.1:${PORT}`;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
-    ...process.env, DOTENV: '0', ASTERISK_WSL: '0', PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '', ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '',
+    ...process.env, DOTENV: '0', ASTERISK_WSL: '0', ZADARMA_API_URL: `http://127.0.0.1:${zadarmaPort}`, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '', ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: '', GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '',
     TG_API_ID: '', TG_API_HASH: '', TG_PERSONAL: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`,
     TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, ANTHROPIC_BASE_URL: `http://127.0.0.1:${keysPort}`, GEMINI_API_ROOT: `http://127.0.0.1:${keysPort}`,
     ADMIN_PASSWORD: 'admin-pass-1', SESSION_SECRET: 'ui-setup-secret', TICK_MS: '700', BACKUP_KEEP: '0',
@@ -175,6 +177,13 @@ try {
   await page.getByRole('button', { name: 'Davom etish' }).click();
   await shot(page, 'usta-instagram');
   await page.getByRole('button', { name: 'Davom etish' }).click();
+  await page.getByLabel('Key').fill(ZADARMA.key);
+  await page.getByLabel('Secret').fill(ZADARMA.secret);
+  await page.getByRole('button', { name: 'Ulash', exact: true }).click();
+  ok('telefon: Zadarma kalitlari bilan raqam ulandi', await page.getByText('Raqam: +998712001122').waitFor({ timeout: 10000 }).then(() => true, () => false));
+  ok("telefon: klinika telefoni uchun yo'naltirish kodlari chiqdi", await page.getByText('**61*+998712001122**15#').isVisible());
+  await shot(page, 'usta-telefon');
+  await page.getByRole('button', { name: 'Davom etish' }).click();
   ok("bo'shliqlar ro'yxati: ikki narx va shanba", await page.getByText(/narxi ikki xil/).isVisible() && await page.getByText(/shanba kuni ish vaqti/).isVisible());
   await shot(page, 'usta-boshliqlar');
   mark = sent.length;
@@ -191,10 +200,14 @@ try {
 
   await page.getByRole('button', { name: 'Yakunlash' }).click();
   await shot(page, 'usta-yakun');
-  ok('yakun: tayyor qadamlar sanaldi', await page.getByText(/\d\/8 tayyor/).isVisible());
+  ok('yakun: tayyor qadamlar sanaldi', await page.getByText(/\d\/9 tayyor/).isVisible());
   await page.getByRole('link', { name: "Kabinetga o'tish" }).click();
   ok("«Kabinetga o'tish» — klinika kabineti ochildi (qayta kirishsiz)", await page.getByLabel("Palantir'ga yozing").waitFor({ timeout: 8000 }).then(() => true, () => false));
   await shot(page, 'kabinet');
+  await page.goto(`${base}/#/sozlamalar/telefon`);
+  ok("sozlamalar: Zadarma raqami va yo'naltirish kodlari ko'rinadi", await page.getByText('Ulangan raqam:').waitFor({ timeout: 10000 }).then(() => true, () => false)
+    && await page.getByRole('button', { name: /\*\*67\*\+998712001122#/ }).isVisible());
+  await shot(page, 'sozlamalar-telefon');
 
   const narrow = await browser.newPage({ viewport: { width: 390, height: 844 } });
   watch(narrow);
@@ -216,7 +229,7 @@ try {
 } finally {
   await browser.close();
   await stopProcess(server);
-  for (const s of [tgServer, keysServer, crmServer, tgUserServer, onvifHttp]) s.close();
+  for (const s of [tgServer, keysServer, crmServer, tgUserServer, onvifHttp, zadarmaServer]) s.close();
   onvifUdp.close();
   rtsp.close();
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 5 });

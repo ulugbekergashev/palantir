@@ -2,9 +2,10 @@
  * Ulash ustasi: qadamlar ro'yxati va har qadamning holati (sof funksiya — yon panel belgilari shundan chiziladi).
  * Holat serverdan keladi (LiveStatus, o'rnatish holati, kalitlar), shuning uchun sahifa yangilansa ham to'g'ri ko'rinadi.
  */
+import type { PhoneLine } from '../../data/api';
 import type { KeyView, LiveStatus, SetupView } from '../../types';
 
-export type StepKey = 'clinic' | 'keys' | 'owner' | 'crm' | 'cams' | 'tg' | 'ig' | 'gaps' | 'done';
+export type StepKey = 'clinic' | 'keys' | 'owner' | 'crm' | 'cams' | 'tg' | 'ig' | 'phone' | 'gaps' | 'done';
 /** ok — tayyor; warn — chala (keyin qaytsa ham bo'ladi); skip — bu klinikaga kerak emas; '' — hali qilinmagan */
 export type StepState = 'ok' | 'warn' | 'skip' | '';
 
@@ -17,6 +18,7 @@ export const STEPS: StepInfo[] = [
   { key: 'cams', title: 'Kameralar', lead: "Palantir klinika tarmog'idagi kameralarni o'zi topadi. Siz login-parolni kiritasiz va kamera qayerda turganini yozasiz." },
   { key: 'tg', title: 'Shaxsiy Telegram', lead: "Klinika raqamidagi Telegram: mijozlar shu yerga yozadi. Palantir javob taklif qiladi, egasi tasdiqlamaguncha hech narsa yuborilmaydi." },
   { key: 'ig', title: 'Instagram', lead: "Instagram Direct'dagi yozishmalar ham shu navbatga tushadi." },
+  { key: 'phone', title: 'Telefon', lead: "Klinika raqamiga kelgan qo'ng'iroqlarga AI javob beradi. Zadarma kabinetidan Key va Secret'ni qo'ying — raqam, liniya va yo'naltirishni Palantir o'zi sozlaydi." },
   { key: 'gaps', title: "Bo'shliqlar", lead: "Palantir hamma ma'lumotni tekshirib, yetishmagan va bir-biriga zid joylarni topdi. Egasiga Telegram'da bittalab so'raydi — egasi tugmani bosib javob beradi." },
   { key: 'done', title: 'Tayyor', lead: "Klinikadan ketishdan oldin oxirgi ko'rinish." },
 ];
@@ -31,6 +33,8 @@ export interface WizardFacts {
   keys: KeyView[] | null;
   /** Shu biznesning IP kameralari soni */
   cameras: number;
+  /** Telefon liniyasi (null — hali olinmagan) */
+  phone: PhoneLine | null;
 }
 
 export function stepState(key: StepKey, f: WizardFacts): StepState {
@@ -54,6 +58,11 @@ export function stepState(key: StepKey, f: WizardFacts): StepState {
       const account = s?.instagramApi.account || s?.instagram.account;
       const problem = s?.instagramApi.account ? s.instagramApi.problem : s?.instagram.problem;
       return account ? (problem ? 'warn' : 'ok') : '';
+    }
+    case 'phone': {
+      const p = f.phone;
+      if (!p?.trunk) return '';
+      return p.status.trunk === 'registered' && p.status.ai !== false ? 'ok' : 'warn';
     }
     case 'gaps': {
       if (!setup) return '';
