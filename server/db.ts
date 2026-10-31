@@ -191,7 +191,7 @@ const toBusiness = (r: Raw): BusinessRow => ({
 });
 
 const BIZ_COLUMNS = {
-  passwordHash: 'password_hash', profile: 'profile', ownerChatId: 'owner_chat_id', linkCode: 'link_code',
+  login: 'login', passwordHash: 'password_hash', profile: 'profile', ownerChatId: 'owner_chat_id', linkCode: 'link_code',
   active: 'active', briefDate: 'brief_date', interview: 'interview', ownerPhone: 'owner_phone',
   setup: 'setup', outcome: 'outcome', eveningDate: 'evening_date', briefSentDate: 'brief_sent_date', supportAccess: 'support_access',
 } as const;

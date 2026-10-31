@@ -10,6 +10,10 @@
  *
  * O'zi ulangan kompyuter «tasdiqlanmagan» (hub/server.ts, 11-band): «Tasdiqlash» — egasi panelidagi kompyuter kodini kiritasiz (kod
  * yozuvnikiga mos kelishi kerak); bir xil kodli bir nechta yozuv bo'lsa ogohlantiriladi. Soxta yozuv — «O'chirish».
+ *
+ * «Yangi klinika»: yozuv tasdiqlangan holda ochiladi va ulanish kodi BIR MARTA ko'rsatiladi (hubda faqat xeshi). Klinika o'rnatish
+ * oxirida shu kodni qo'yadi — kompyuter shu yozuvga ulanadi. Egasiga topshirilmagan klinika (holatda setup) — «Sozlash»: panel
+ * so'ramasdan ochiladi va ulash ustasiga o'tadi (klinika tomoni: server/profile.ts).
  */
 
 export function adminPage(): string {
@@ -35,11 +39,17 @@ li{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 14p
 .dot{width:9px;height:9px;border-radius:50%;background:var(--off);flex:none}.dot.on{background:var(--ok)}
 .pick{display:flex;flex-wrap:wrap;gap:6px;width:100%}
 .pick button,button.second{background:transparent;color:var(--accent);border:1px solid var(--line)}
+#new{margin:0 0 10px}
+.code{display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--accent);border-radius:14px;padding:12px 14px;margin:0 0 10px}
+.code code{display:block;word-break:break-all;font:13px/1.4 ui-monospace,Consolas,monospace;padding:8px 10px;border:1px solid var(--line);border-radius:10px;user-select:all}
+.code small{color:var(--muted)}
 #msg{min-height:1.4em;margin:12px 0;color:var(--muted)}
 </style>
 <main>
 <h1>Palantir klinikalari</h1>
-<p class="lead">Klinika paneliga Palantir jamoasi sifatida kirish — egasining roziligi bilan: doimiy ruxsat bermagan bo'lsa, Telegram'da so'raladi (2 daqiqagacha). Har kirish egasiga aytiladi.</p>
+<p class="lead">Yangi klinika — ulanish kodi oling va klinikaga bering: o'rnatish oxirida shu kodni qo'yadi. Egasiga topshirilguncha «Sozlash» bilan masofadan so'ramasdan kirasiz; topshirilgandan keyin — egasining Telegram'dagi ruxsati bilan. Har kirish egasiga aytiladi.</p>
+<form id="new" hidden><input id="nm" placeholder="Klinika nomi (masalan, Shifo Dent)" maxlength="80" required><button>Yangi klinika</button></form>
+<div id="code" class="code" hidden></div>
 <form id="key" hidden><input id="k" type="password" placeholder="Admin kaliti (HUB_ADMIN_KEY)" autocomplete="off" required><button>Kirish</button></form>
 <div id="msg" role="status"></div>
 <ul id="list"></ul>
@@ -66,12 +76,15 @@ async function load() {
   if (!r) return say("Hub bilan aloqa yo'q");
   if (r.status === 401) {
     store.set(null);
+    $('new').hidden = true;
+    $('code').hidden = true;
     $('list').replaceChildren();
     $('key').hidden = false;
     return say("Admin kaliti noto'g'ri");
   }
   if (!r.ok) return say('Xato: ' + r.status);
   $('key').hidden = true;
+  $('new').hidden = false;
   const { clinics } = await r.json();
   // Bir xil kompyuter kodi bir nechta yozuvda — takror o'rnatish yoki kimdir kodni bilib soxta yozuv ochgan
   const seen = {};
@@ -89,7 +102,8 @@ function row(c, twins) {
   const licText = !lic ? '' : lic.activated ? ' · litsenziya bor' : ' · litsenziyasiz (' + lic.daysLeft + ' kun qoldi)';
   // O'zi ulangan kompyuter: nomi — kompyuter nomi, yonida ulash ustasida yozilgan klinika nomi
   const label = c.status && c.status.label ? ' — ' + c.status.label : '';
-  const fresh = c.approved ? '' : 'tasdiqlanmagan · ';
+  const setup = !!(c.status && c.status.setup);
+  const fresh = (c.approved ? '' : 'tasdiqlanmagan · ') + (setup ? 'sozlanmoqda (egasiga topshirilmagan) · ' : '');
   const twin = twins > 1 ? ' · ⚠ bu kod ' + twins + ' ta yozuvda' : '';
   who.append(el('b', '', c.name + label), el('small', '', fresh + (c.online ? 'aloqada' : 'aloqada emas · ' + ago(c.seenAt)) + (c.status && c.status.version ? ' · v' + c.status.version : '') + licText + (c.machineId ? ' · ' + c.machineId : '') + twin));
   li.append(dot, who);
@@ -101,9 +115,9 @@ function row(c, twins) {
     li.append(ok, del);
     return li;
   }
-  const btn = el('button', '', 'Panelni ochish');
+  const btn = el('button', '', setup ? 'Sozlash' : 'Panelni ochish');
   btn.disabled = !c.online;
-  btn.onclick = () => enter(c, li, btn);
+  btn.onclick = () => enter(c, li, btn, undefined, setup);
   if (lic && !lic.activated) {
     const act = el('button', 'second', 'Aktivlashtirish');
     act.disabled = !c.online;
@@ -163,17 +177,18 @@ async function license(c, btn) {
   }
 }
 
-async function enter(c, li, btn, business) {
+async function enter(c, li, btn, business, setup) {
   // Oyna bosish paytida ochiladi (javobdan keyin ochilsa brauzer to'sib qo'yadi); panel bu sahifaga qaytib murojaat qila olmasin
   const tab = window.open('', '_blank');
   if (tab) tab.opener = null;
   btn.disabled = true;
-  say('«' + c.name + "» egasidan ruxsat so'ralmoqda (Telegram'da, 2 daqiqagacha)…");
+  say(setup ? '«' + c.name + '» paneli ochilmoqda…' : '«' + c.name + "» egasidan ruxsat so'ralmoqda (Telegram'da, 2 daqiqagacha)…");
   try {
     const r = await api('/admin/clinics/' + c.id + '/panel', business ? { business } : {});
     const j = await r.json().catch(() => ({}));
     if (r.ok && j.token) {
-      if (tab) tab.location.href = '/c/' + c.id + '/#kirish=' + encodeURIComponent(j.token);
+      // Sozlanayotgan klinika — to'g'ri ulash ustasiga (src/lib/telegramLaunch.ts: kalitdan keyin #/ulash)
+      if (tab) tab.location.href = '/c/' + c.id + '/#kirish=' + encodeURIComponent(j.token) + (setup ? '&ulash' : '');
       return say('');
     }
     if (tab) tab.close();
@@ -198,6 +213,42 @@ function choose(c, li, btn, list) {
   }
   li.append(box);
   say('Bu kompyuterda bir nechta biznes — qaysi biri?');
+}
+
+// Yangi klinika: kod faqat shu javobda keladi — hubda saqlanmaydi, yo'qolsa yangi yozuv ochiladi
+$('new').onsubmit = async e => {
+  e.preventDefault();
+  const name = $('nm').value.trim();
+  if (!name) return;
+  const b = $('new').querySelector('button');
+  b.disabled = true;
+  try {
+    const r = await api('/admin/clinics', { name });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) return load();
+    if (!r.ok || !j.code) return say(j.error || 'Xato: ' + r.status);
+    $('nm').value = '';
+    showCode(name, j.code);
+    load();
+  } catch {
+    say("Hub bilan aloqa yo'q");
+  } finally {
+    b.disabled = false;
+  }
+};
+
+function showCode(name, code) {
+  const box = $('code');
+  const copy = el('button', '', 'Nusxalash');
+  copy.type = 'button';
+  copy.onclick = () => navigator.clipboard.writeText(code).then(() => { copy.textContent = 'Nusxalandi'; }, () => { copy.textContent = 'Kodni belgilab nusxalang'; });
+  box.replaceChildren(
+    el('b', '', '«' + name + '» ulanish kodi'),
+    el('code', '', code),
+    el('small', '', "Klinikaga bering: Palantir o'rnatilgach ochilgan oynada «Palantir ulanish kodi» maydoniga qo'yadi. Kod faqat hozir ko'rinadi — saqlab qo'ying."),
+    copy,
+  );
+  box.hidden = false;
 }
 
 $('key').onsubmit = e => { e.preventDefault(); store.set($('k').value.trim()); $('k').value = ''; load(); };

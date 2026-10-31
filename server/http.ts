@@ -19,6 +19,7 @@ import { documents } from './docs/store';
 import { moneyEntries } from './crm/moneyStore';
 import { aiUsage } from './serviceStore';
 import { askSupport, notifySupportVisit } from './supportAsk';
+import { createBlocked, handOver, hubVia, inSetup, theProfile } from './profile';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
 import { SilenceError, transcribe } from './stt';
@@ -120,6 +121,10 @@ function readBody(req: Request, max: number): Promise<Buffer | null> {
 const LOOPBACK = /^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|::1|localhost)$/;
 /** Kabinet parolining eng qisqa uzunligi (kabinetda mijozlar, pul va CRM bor) */
 const MIN_PASSWORD = 8;
+/** Sozlash bosqichidagi kirish (shu kompyuterdan): bir kun — o'rnatish kuni yetadi, keyin tugma yana bosiladi */
+const SETUP_SESSION_DAYS = 1;
+/** Shu kompyuterning o'zi (TCP ulanish manzili — Host sarlavhasi emas) */
+const LOCAL_PEER = /^(127\.\d+\.\d+\.\d+|::1|::ffff:127\.\d+\.\d+\.\d+)$/;
 /** Palantir jamoasi kirishi 12 soat: hub sahifasidan istalgan payt qayta ochiladi */
 const SUPPORT_SESSION_DAYS = 0.5;
 /** Sozlamalarda egasiga ko'rsatiladigan oxirgi jamoa kirishlari */
@@ -172,7 +177,7 @@ export function createApp(bot: BotService) {
   const sessionOf = (req: Request) => {
     const s = readToken(token(req));
     const biz = s?.role === 'business' ? businesses.byId(s.sub) : undefined;
-    if (!s || !biz || !biz.active || (s.v ?? 0) !== biz.tokenVer || (s.sup && (!supportOpen(biz) || (s.sv ?? 0) !== biz.supportVer))) return null;
+    if (!s || !biz || !biz.active || (s.v ?? 0) !== biz.tokenVer || (s.sup && ((!supportOpen(biz) && !inSetup()) || (s.sv ?? 0) !== biz.supportVer))) return null;
     return { biz, support: s.sup === true };
   };
   const statusFor = (req: Request, biz: BusinessRow) => status(biz, bot, !!sessionOf(req)?.support);
@@ -180,8 +185,9 @@ export function createApp(bot: BotService) {
   // Admin, ulash ustasi, anketa va ovozli agent (ichki xizmat) — faqat shu kompyuterda.
   // Palantir jamoasi (o'rnatuvchi) ulash ustasi va anketani masofadan ham ochadi; admin va ovozli agent — baribir yopiq.
   // Yo'l kichik harf bilan tekshiriladi: Express yo'llarni harf kattaligiga qaramay moslaydi (/API/admin ham admin yo'li)
-  const REMOTE_CLOSED = /^\/api\/(admin|setup|anketa)(\/|$)|^\/api\/voice\/(?!key$)/;
-  const SUPPORT_OPEN = /^\/api\/(setup|anketa)(\/|$)/;
+  // Klinika kalitlari ham: egasining telefonidan (hub orqali) bot tokeni almashtirilmaydi, jamoa esa masofadan sozlaydi
+  const REMOTE_CLOSED = /^\/api\/(admin|setup|anketa|keys)(\/|$)|^\/api\/voice\/(?!key$)/;
+  const SUPPORT_OPEN = /^\/api\/(setup|anketa|keys)(\/|$)/;
   app.use((req, res, next) => {
     const path = req.path.toLowerCase();
     if (isRemote(req) && REMOTE_CLOSED.test(path) && !(SUPPORT_OPEN.test(path) && sessionOf(req)?.support)) {
@@ -260,6 +266,30 @@ export function createApp(bot: BotService) {
     res.json({ token: issueToken(biz.id, 'business', 30, biz.tokenVer) });
   });
 
+  // ─── Sozlash bosqichi (profile.ts) ──────────────────────────────────────────
+  // Kirish sahifasi shu yerdan biladi: profil hali egasiga topshirilmagan — «Sozlashni davom ettirish» tugmasi chiqadi
+  app.get('/api/profile/phase', (_req, res) => {
+    res.json({ setup: inSetup(), oneProfile: env.oneProfile, name: theProfile()?.profile.name ?? null, hub: hubVia() });
+  });
+  // Shu kompyuterning o'zidan (127.0.0.1) parolsiz. Klinika tarmog'idagi boshqa kompyuterdan va Hub'ning /c/ havolasidan — yo'q;
+  // masofadan o'rnatuvchi Hub'dagi «Panelni ochish» bilan kiradi (/api/login/support)
+  app.post('/api/login/setup', (req, res) => {
+    if (!inSetup()) return res.status(409).json({ error: 'Profil egasiga topshirilgan — login va parol bilan kiring' });
+    const peer = String(req.socket.remoteAddress ?? '');
+    // Shu kompyuterdagi tunnel yoki proksi (cloudflared, nginx) ham 127.0.0.1 dan keladi — u orqali internetdan parolsiz kirilmasin
+    const proxied = !!(req.get('x-forwarded-for') || req.get('forwarded') || req.get('x-real-ip') || req.get('cf-connecting-ip'));
+    if (isRemote(req) || proxied || !LOCAL_PEER.test(peer)) return res.status(403).json({ error: "Sozlash faqat shu kompyuterning o'zidan yoki Palantir Hub orqali" });
+    const biz = theProfile();
+    if (!biz) return res.status(404).json({ error: "Profil yo'q — serverni qayta yoqing" });
+    res.json({ token: issueToken(biz.id, 'business', SETUP_SESSION_DAYS, biz.tokenVer) });
+  });
+  // Egasiga topshirish: login va yangi parol bir marta ko'rsatiladi; shu kirish ham, jamoaniki ham bekor bo'ladi
+  app.post('/api/handover', asBiz((req, res, biz) => {
+    try {
+      res.json(handOver(biz, typeof req.body?.login === 'string' ? req.body.login.slice(0, 40) : undefined));
+    } catch (e) { fail(res, e, 400); }
+  }));
+
   // Egasi o'z parolini almashtiradi: hamma qurilmalardagi kirish bekor, shu qurilmaga yangisi beriladi.
   // Joriy parol noto'g'ri — 403 (401 panelni «sessiya tugadi» deb chiqarib yuborardi)
   app.post('/api/account/password', asOwner((req, res, biz) => {
@@ -297,7 +327,8 @@ export function createApp(bot: BotService) {
       });
     }
     const hours = SUPPORT_SESSION_DAYS * 24;
-    if (!supportOpen(biz)) {
+    // Sozlash bosqichi (profile.ts): egasi hali yo'q — o'rnatuvchi so'ramasdan kiradi
+    if (!supportOpen(biz) && !inSetup()) {
       const answer = await askSupport(biz, hours);
       if (answer !== 'yes') {
         return res.status(403).json({
@@ -723,6 +754,8 @@ export function createApp(bot: BotService) {
     if (typeof name !== 'string' || !name.trim() || name.length > 60) return res.status(400).json({ error: 'Biznes nomini kiriting' });
     if (!/^[a-z0-9._-]{3,32}$/.test(cleanLogin)) return res.status(400).json({ error: 'Login: 3–32 ta lotin harfi yoki raqam' });
     if (typeof password !== 'string' || password.length < MIN_PASSWORD) return res.status(400).json({ error: `Parol kamida ${MIN_PASSWORD} belgi` });
+    const blocked = createBlocked();
+    if (blocked) return res.status(409).json({ error: blocked });
     if (businesses.byLogin(cleanLogin)) return res.status(409).json({ error: 'Bu login band' });
     const b = businesses.create(cleanLogin, hashPassword(password), emptyBusiness(name.trim(), typeof industry === 'string' ? industry.trim().slice(0, 80) : ''));
     res.json({ id: b.id });

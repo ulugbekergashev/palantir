@@ -14,6 +14,7 @@ import { onKeyChange } from './keys';
 import { SCHEMA_VERSION } from './migrate';
 import { openProblems } from './monitor';
 import { APP_VERSION } from './version';
+import { inSetup } from './profile';
 
 const startedAt = new Date().toISOString();
 
@@ -38,6 +39,8 @@ export function heartbeatStatus() {
     lastOffsite: lastOffsite(),
     // Litsenziya (license.ts): sotuvchi Hub ro'yxatida ko'radi va bir bosishda beradi
     license: (({ activated, daysLeft }) => ({ activated, daysLeft }))(licenseStatus()),
+    // Egasiga hali topshirilmagan (profile.ts): sotuvchi «sozlanmoqda» deb ko'radi, panelga so'ramasdan kiradi
+    setup: inSetup(),
   };
 }
 

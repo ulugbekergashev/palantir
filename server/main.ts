@@ -26,6 +26,7 @@ import { startHeartbeat } from './heartbeat';
 import { startHubJoin } from './hubJoin';
 import { startOrders } from './orders/run';
 import { startVoiceEnv } from './voice/serviceEnv';
+import { ensureProfile } from './profile';
 
 /** Bot nomini shuncha kutamiz; Telegram javob bermasa — server baribir ko'tariladi, bot fonda ulanadi */
 const BOT_WAIT_MS = 3_000;
@@ -55,6 +56,8 @@ onKeyChange(async name => {
 // Tarmoqqa chiqilmaydi: egasiga aytiladigan gaplar bazadagi navbatga yoziladi va bot ulangach yuboriladi (internet kech kelsa ham yo'qolmaydi)
 for (const r of recoverMoney()) notices.add(r.businessId, `⚠️ <b>${r.title}</b>\n${r.note ?? ''}`);
 recoverBookings();
+// Bitta kompyuter — bitta ish: yangi o'rnatishda profil shu yerda paydo bo'ladi (o'rnatuvchi admin parolisiz sozlaydi)
+ensureProfile();
 // Port — tarmoqqa bog'liq ishlardan oldin: internet bo'lmasa ham panel ochiladi, port band bo'lsa bot navbatiga tegilmaydi
 const server = await listen(createApp(bot));
 if (env.dryRun) {

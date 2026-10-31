@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { AtSign, CheckCircle2, CircleAlert, CircleHelp, KeyRound, Link2, Loader2, Lock, Phone, Trash2, Video, type LucideIcon } from 'lucide-react';
-import { adminApi, putKey } from '../../data/api';
+import { adminApi, api, putKey } from '../../data/api';
 import { Button, Card } from '../../components/ui';
 import { KEYS, classifyText, maskSecret, type Classified, type KeyName } from '../../lib/secrets';
 import type { KeyView } from '../../types';
@@ -22,9 +22,14 @@ const ASSIGN: { as: KeyName | 'crmPassword' | 'skip'; label: string }[] = [
 
 const SAMPLE_HINT = "7412589630:AAH…        — Telegram bot tokeni\nsk-ant-…               — Claude kaliti\nrtsp://admin:…@192.168.1.64…   — kamera\nhttps://….dentacrm.uz  — DentaCRM";
 
-export function StepKeys({ keys, onKeys, onRouted }: {
-  keys: KeyView[] | null; onKeys: (k: KeyView[]) => void; onRouted: (change: (r: Routed) => Routed) => void;
+/**
+ * profile — bitta kompyuter, bitta profil: kalitlar shu klinikaniki (egasi yoki uni sozlayotgan Palantir xodimi, masofadan ham).
+ * Aks holda (bir nechta biznesli server) — hamma biznes uchun umumiy, admin orqali
+ */
+export function StepKeys({ keys, onKeys, onRouted, profile }: {
+  keys: KeyView[] | null; onKeys: (k: KeyView[]) => void; onRouted: (change: (r: Routed) => Routed) => void; profile: boolean;
 }) {
+  const list = () => (profile ? api.keys() : adminApi.keys());
   const [text, setText] = useState('');
   /** Tekshirilgan qatorlar: maydondan olinib, shu ro'yxatda (kalit — yashirin holda) qoladi */
   const [lines, setLines] = useState<Classified[]>([]);
@@ -35,10 +40,10 @@ export function StepKeys({ keys, onKeys, onRouted }: {
   const saveKey = async (line: string, name: KeyName, force = false) => {
     set(line, { state: 'checking' });
     try {
-      const r = await putKey(name, line, force);
+      const r = await putKey(name, line, force, !profile);
       if (r.ok) {
         set(line, { state: 'ok', text: r.check.ok ? r.check.info : 'Saqlandi', warn: r.check.ok ? r.check.warn : r.check.error });
-        onKeys((await adminApi.keys()).keys);
+        onKeys((await list()).keys);
       } else set(line, { state: 'bad', text: r.error, canForce: r.canForce });
     } catch (e) {
       set(line, { state: 'bad', text: (e as Error).message, canForce: false });
@@ -77,8 +82,8 @@ export function StepKeys({ keys, onKeys, onRouted }: {
   const [removeError, setRemoveError] = useState('');
   const remove = async (name: KeyName) => {
     try {
-      await adminApi.removeKey(name);
-      onKeys((await adminApi.keys()).keys);
+      await (profile ? api.removeKey(name) : adminApi.removeKey(name));
+      onKeys((await list()).keys);
       setRemoveError('');
     } catch (e) { setRemoveError((e as Error).message); }
   };
@@ -101,7 +106,7 @@ export function StepKeys({ keys, onKeys, onRouted }: {
         </label>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button variant="primary" onClick={() => checkAll()} disabled={!text.trim()}>Tekshirish</Button>
-          <p className="flex items-center gap-1.5 text-xs text-slate-500"><Lock className="h-3.5 w-3.5" aria-hidden="true" /> Turi qolip bo'yicha aniqlanadi — kalit AI'ga yuborilmaydi. Saqlanganlari shifrlanib faqat shu kompyuterda turadi.</p>
+          <p className="flex items-center gap-1.5 text-xs text-slate-500"><Lock className="h-3.5 w-3.5" aria-hidden="true" /> Turi qolip bo'yicha aniqlanadi — kalit AI'ga yuborilmaydi. Saqlanganlari shifrlanib faqat klinika kompyuterida turadi.</p>
         </div>
       </Card>
 
@@ -111,7 +116,8 @@ export function StepKeys({ keys, onKeys, onRouted }: {
         </ul>
       )}
 
-      <Card title="Server kalitlari" description="Bitta kompyuter — bitta bot. Kalitni almashtirish uchun yangisini yuqoriga qo'ying: server to'xtamaydi.">
+      <Card title={profile ? 'Klinika kalitlari' : 'Server kalitlari'}
+        description={profile ? "Shu klinikaning boti, AI va ovoz kalitlari. Almashtirish uchun yangisini yuqoriga qo'ying — Palantir to'xtamaydi." : "Bu serverdagi hamma biznes uchun umumiy. Almashtirish uchun yangisini yuqoriga qo'ying — server to'xtamaydi."}>
         {removeError && <p role="alert" className="mb-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700">{removeError}</p>}
         {!keys ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : (
           <>
@@ -131,7 +137,7 @@ export function StepKeys({ keys, onKeys, onRouted }: {
                       <tr key={info.name}>
                         <td className="py-2.5 pr-3"><span className="font-semibold">{info.label}</span><span className="block text-xs text-slate-400">{info.where}</span></td>
                         <td className="pr-3 font-mono text-xs text-slate-600">{k?.masked ?? '—'}</td>
-                        <td className="pr-3">{k?.source === 'panel' ? <Badge tone="ok">panelda</Badge> : k?.source === 'env' ? <Badge tone="info">.env faylida</Badge> : <Badge tone="none">berilmagan</Badge>}</td>
+                        <td className="pr-3">{k?.source === 'panel' ? <Badge tone="ok">panelda</Badge> : k?.source === 'env' ? <Badge tone="info">{profile ? "o'rnatish faylida" : '.env faylida'}</Badge> : <Badge tone="none">berilmagan</Badge>}</td>
                         <td className="text-right">{k?.source === 'panel' && <Button size="sm" variant="danger" onClick={() => remove(info.name)} aria-label={`${info.label}ni o'chirish`}><Trash2 className="h-3.5 w-3.5" /> O'chirish</Button>}</td>
                       </tr>
                     );

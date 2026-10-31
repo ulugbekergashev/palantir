@@ -244,6 +244,15 @@ export const api = {
   clientCard: (leadId: string) => call<{ card: ClientCardView }>(`/leads/${leadId}/card`),
   /** Telegram Mini App: Telegram imzolagan ishga tushirish ma'lumoti bilan parolsiz kirish */
   telegramLogin: (initData: string) => call<{ token: string }>('/login/telegram', { body: { initData } }),
+  /** Bitta kompyuter — bitta profil (server/profile.ts): egasiga topshirilganmi */
+  profilePhase: () => call<ProfilePhase>('/profile/phase'),
+  /** Sozlash bosqichida shu kompyuterdan parolsiz kirish */
+  setupLogin: () => call<{ token: string }>('/login/setup', { body: {} }),
+  /** Egasiga topshirish: login va yangi parol bir marta keladi, shu kirish tugaydi */
+  handover: (login: string) => call<{ login: string; password: string }>('/handover', { body: { login } }),
+  /** Klinika kalitlari (bitta-profil serverida) */
+  keys: () => call<{ keys: KeyView[] }>('/keys'),
+  removeKey: (name: KeyName) => call<{ key: KeyView }>(`/keys/${name}`, { method: 'DELETE' }),
   /** Parolni almashtirish: boshqa qurilmalardagi kirish bekor, shu qurilma uchun yangi kalit qaytadi */
   changePassword: (current: string, next: string) => call<{ token: string }>('/account/password', { body: { current, next } }),
   signOutOthers: () => call<{ token: string }>('/account/sign-out-others', { body: {} }),
@@ -329,15 +338,19 @@ export const adminApi = {
   removeAnketa: (code: string) => call<{ ok: true }>(`/admin/anketa/${code}`, { method: 'DELETE', admin: true }),
 };
 
+/** hub: code — sotuvchi bergan kod bilan ulangan; self — o'zi ro'yxatdan o'tgan (kod hali qo'yilmagan); null — Hub yo'q */
+export interface ProfilePhase { setup: boolean; oneProfile: boolean; name: string | null; hub: 'code' | 'self' | null }
+
 export type KeySave = { ok: true; key: KeyView; check: KeyCheck } | { ok: false; error: string; canForce: boolean };
 /** Kalitni tekshirib saqlaydi. Rad etilsa — sababi va «baribir saqlash» mumkinmi (internet yo'q, hisobda mablag' yo'q) */
-export async function putKey(name: KeyName, value: string, force = false): Promise<KeySave> {
-  const token = session.adminToken();
-  const res = await fetch(`/api/admin/keys/${name}`, {
+export async function putKey(name: KeyName, value: string, force = false, admin = true): Promise<KeySave> {
+  // admin — bir nechta biznesli server (umumiy kalitlar); aks holda — klinika profili (hub orqali ham: apiBase)
+  const token = admin ? session.adminToken() : session.token();
+  const res = await fetch(admin ? `/api/admin/keys/${name}` : `${apiBase}/api/keys/${name}`, {
     method: 'PUT', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ value, force }),
   }).catch(() => { throw new ApiError("Server bilan aloqa yo'q", 0); });
   const json = await res.json().catch(() => ({})) as { key?: KeyView; check?: KeyCheck; error?: string; canForce?: boolean };
-  if (res.status === 401) throw new ApiError('Admin sifatida qayta kiring', 401);
+  if (res.status === 401) throw new ApiError(admin ? 'Admin sifatida qayta kiring' : 'Qayta kiring', 401);
   if (res.ok && json.key && json.check) return { ok: true, key: json.key, check: json.check };
   return { ok: false, error: json.error ?? `Xato (${res.status})`, canForce: !!json.canForce };
 }

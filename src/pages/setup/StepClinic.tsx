@@ -18,13 +18,7 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
   const [form, setForm] = useState(() => ({ name: '', industry: 'stomatologiya', login: '', password: newPassword() }));
   const [created, setCreated] = useState<{ login: string; password: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [code, setCode] = useState('');
-  const [source, setSource] = useState(readSource);
-  const [result, setResult] = useState<AnketaImport | null>(null);
-  const [anketaOpen, setAnketaOpen] = useState(false);
   const showForm = adding || list?.length === 0;
-  // Anketa — ixtiyoriy: odatda yopiq, chunki ma'lumot egasi Telegram'ni ulagach tanishuv suhbatida yig'iladi
-  const showAnketa = anketaOpen || !!result || !!setup?.anketa;
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
@@ -39,24 +33,6 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
     } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
   };
 
-  const load = async (body: { code: string; source: string } | { data: unknown }) => {
-    setBusy(true);
-    try {
-      const r = await api.importAnketa(body);
-      setResult(r.result);
-      onSetup(r.setup);
-      notify('Anketa yuklandi');
-    } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
-  };
-  const byCode = (e: FormEvent) => {
-    e.preventDefault();
-    writeSource(source.trim());
-    void load({ code: cleanCode(code), source: source.trim() });
-  };
-  const byFile = async (file: File | undefined) => {
-    if (!file) return;
-    try { await load({ data: JSON.parse(await file.text()) }); } catch { notify("Bu fayl anketa emas — anketa sahifasidan yuklab olingan .json faylni tanlang", true); }
-  };
   const copy = (text: string) => { void navigator.clipboard?.writeText(text).then(() => notify('Nusxalandi'), () => {}); };
 
   return (
@@ -96,35 +72,65 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
         )}
       </Card>
 
-      {selected && (
-        <Card title="Klinika ma'lumotlari" description="Hech narsa qilish shart emas: egasi Telegram'ni ulagach, bot o'zi tanishishni taklif qiladi — manzil, ish vaqti, narxlar va mijozlar ko'p so'raydigan savollar. Narxlar ro'yxatini fayl qilib botga yuborsa ham bo'ladi.">
-          {!showAnketa ? (
-            <button type="button" onClick={() => setAnketaOpen(true)} className="text-sm font-semibold text-brand-700 hover:text-brand-900">
-              Egasi anketani oldindan to'ldirganmi? Kod bilan yuklash
-            </button>
-          ) : <>
-          <form onSubmit={byCode} className="grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto] sm:items-end">
-            <Field label="Anketa kodi"><TextInput value={code} onChange={e => setCode(e.target.value)} placeholder="K7QM-2XPA" className="font-mono uppercase tracking-widest" required /></Field>
-            <Field label="Anketa serveri" hint="Siz anketa yaratgan Palantir manzili"><TextInput value={source} onChange={e => setSource(e.target.value)} placeholder="https://palantir.sizning-domen.uz" type="url" required /></Field>
-            <Button type="submit" variant="primary" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Yuklash</Button>
-          </form>
-          <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-semibold text-brand-700 hover:text-brand-900">
-            <FileUp className="h-4 w-4" aria-hidden="true" /> Yoki anketa faylini tanlang (.json)
-            <input type="file" accept="application/json,.json" className="sr-only" onChange={e => void byFile(e.target.files?.[0])} />
-          </label>
-          {(result || setup?.anketa) && (
-            <div className="mt-4 rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-700">
-              {result ? (
-                <p><b>Yuklandi:</b> {result.prices.added} ta yangi narx{result.prices.updated ? `, ${result.prices.updated} tasi yangilandi` : ''}, {result.answers} ta savolga javob{result.about ? ', «Biznes haqida» sahifasi' : ''}.
-                  {result.prices.conflicts > 0 && <span className="block text-amber-800">{result.prices.conflicts} ta xizmatga ikki xil narx yozilgan — egasidan so'raladi (Bo'shliqlar qadami).</span>}
-                  {result.prices.unclear > 0 && <span className="block text-slate-500">{result.prices.unclear} ta qatorda narx tushunilmadi — ular jadvalga olinmadi.</span>}
-                </p>
-              ) : <p>Anketa {new Date(setup!.anketa!.importedAt).toLocaleString('uz-UZ')} da yuklangan{setup!.anketa!.code ? ` (${setup!.anketa!.code})` : ''}.</p>}
-            </div>
-          )}
-          </>}
-        </Card>
-      )}
+      {selected && <AnketaCard setup={setup} onSetup={onSetup} notify={notify} />}
     </div>
+  );
+}
+
+/** Egasi oldindan to'ldirgan anketa (ixtiyoriy): kod yoki fayl bilan yuklanadi */
+export function AnketaCard({ setup, onSetup, notify }: { setup: SetupView | null; onSetup: (s: SetupView) => void; notify: (text: string, error?: boolean) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState('');
+  const [source, setSource] = useState(readSource);
+  const [result, setResult] = useState<AnketaImport | null>(null);
+  const [anketaOpen, setAnketaOpen] = useState(false);
+  // Anketa — ixtiyoriy: odatda yopiq, chunki ma'lumot egasi Telegram'ni ulagach tanishuv suhbatida yig'iladi
+  const showAnketa = anketaOpen || !!result || !!setup?.anketa;
+  const load = async (body: { code: string; source: string } | { data: unknown }) => {
+    setBusy(true);
+    try {
+      const r = await api.importAnketa(body);
+      setResult(r.result);
+      onSetup(r.setup);
+      notify('Anketa yuklandi');
+    } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
+  };
+  const byCode = (e: FormEvent) => {
+    e.preventDefault();
+    writeSource(source.trim());
+    void load({ code: cleanCode(code), source: source.trim() });
+  };
+  const byFile = async (file: File | undefined) => {
+    if (!file) return;
+    try { await load({ data: JSON.parse(await file.text()) }); } catch { notify("Bu fayl anketa emas — anketa sahifasidan yuklab olingan .json faylni tanlang", true); }
+  };
+  return (
+      <Card title="Klinika ma'lumotlari" description="Hech narsa qilish shart emas: egasi Telegram'ni ulagach, bot o'zi tanishishni taklif qiladi — manzil, ish vaqti, narxlar va mijozlar ko'p so'raydigan savollar. Narxlar ro'yxatini fayl qilib botga yuborsa ham bo'ladi.">
+        {!showAnketa ? (
+          <button type="button" onClick={() => setAnketaOpen(true)} className="text-sm font-semibold text-brand-700 hover:text-brand-900">
+            Egasi anketani oldindan to'ldirganmi? Kod bilan yuklash
+          </button>
+        ) : <>
+        <form onSubmit={byCode} className="grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto] sm:items-end">
+          <Field label="Anketa kodi"><TextInput value={code} onChange={e => setCode(e.target.value)} placeholder="K7QM-2XPA" className="font-mono uppercase tracking-widest" required /></Field>
+          <Field label="Anketa serveri" hint="Siz anketa yaratgan Palantir manzili"><TextInput value={source} onChange={e => setSource(e.target.value)} placeholder="https://palantir.sizning-domen.uz" type="url" required /></Field>
+          <Button type="submit" variant="primary" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Yuklash</Button>
+        </form>
+        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-semibold text-brand-700 hover:text-brand-900">
+          <FileUp className="h-4 w-4" aria-hidden="true" /> Yoki anketa faylini tanlang (.json)
+          <input type="file" accept="application/json,.json" className="sr-only" onChange={e => void byFile(e.target.files?.[0])} />
+        </label>
+        {(result || setup?.anketa) && (
+          <div className="mt-4 rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-700">
+            {result ? (
+              <p><b>Yuklandi:</b> {result.prices.added} ta yangi narx{result.prices.updated ? `, ${result.prices.updated} tasi yangilandi` : ''}, {result.answers} ta savolga javob{result.about ? ', «Biznes haqida» sahifasi' : ''}.
+                {result.prices.conflicts > 0 && <span className="block text-amber-800">{result.prices.conflicts} ta xizmatga ikki xil narx yozilgan — egasidan so'raladi (Bo'shliqlar qadami).</span>}
+                {result.prices.unclear > 0 && <span className="block text-slate-500">{result.prices.unclear} ta qatorda narx tushunilmadi — ular jadvalga olinmadi.</span>}
+              </p>
+            ) : <p>Anketa {new Date(setup!.anketa!.importedAt).toLocaleString('uz-UZ')} da yuklangan{setup!.anketa!.code ? ` (${setup!.anketa!.code})` : ''}.</p>}
+          </div>
+        )}
+        </>}
+      </Card>
   );
 }

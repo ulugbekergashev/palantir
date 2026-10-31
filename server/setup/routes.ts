@@ -21,6 +21,8 @@ import { anketaData, anketaView, applyAnketa, createAnketa, fetchAnketa, liveAnk
 import { gapsOf } from './gaps';
 import { setupOf } from './state';
 import { sendEvening, sendMorning } from '../scheduler';
+import { env } from '../env';
+import { markHubCode } from '../profile';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -65,10 +67,33 @@ export function mountSetup(app: Express, { asBiz, asAdmin, bad, fail, bot, statu
     if (!p.success) return bad(res, p.error);
     const r = await setKey(name, p.data.value, p.data.force);
     if (!r.ok) return res.status(400).json({ error: r.error, canForce: r.canForce });
+    if (name === 'PALANTIR_HUB') markHubCode();
     res.json({ key: r.key, check: r.check });
   }));
 
   app.delete('/api/admin/keys/:name', asAdmin(async (req, res) => {
+    const name = String(req.params.name);
+    if (!isKeyName(name)) return res.status(404).json({ error: 'Bunday kalit yo\'q' });
+    res.json({ key: await removeKey(name) });
+  }));
+
+  // ─── Klinika kalitlari: profil egasi va uni sozlayotgan Palantir xodimi (bitta kompyuter — bitta profil, kalitlar — shu profilniki).
+  // Masofadan — faqat jamoa (http.ts, REMOTE_CLOSED): egasining telefonidan bot tokeni almashtirilmaydi
+  const asProfile = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => asBiz((req, res, biz) =>
+    // Bir nechta biznesli server (dasturchi nusxasi): kalitlar umumiy — ularni faqat admin o'zgartiradi
+    (env.oneProfile ? fn(req, res, biz) : res.status(403).json({ error: 'Bu serverda kalitlar admin orqali kiritiladi' })));
+  app.get('/api/keys', asProfile((_req, res) => res.json({ keys: keyList() })));
+  app.put('/api/keys/:name', asProfile(async (req, res) => {
+    const name = String(req.params.name);
+    if (!isKeyName(name)) return res.status(404).json({ error: 'Bunday kalit yo\'q' });
+    const p = KeyBody.safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    const r = await setKey(name, p.data.value, p.data.force);
+    if (!r.ok) return res.status(400).json({ error: r.error, canForce: r.canForce });
+    if (name === 'PALANTIR_HUB') markHubCode();
+    res.json({ key: r.key, check: r.check });
+  }));
+  app.delete('/api/keys/:name', asProfile(async (req, res) => {
     const name = String(req.params.name);
     if (!isKeyName(name)) return res.status(404).json({ error: 'Bunday kalit yo\'q' });
     res.json({ key: await removeKey(name) });

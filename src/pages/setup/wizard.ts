@@ -35,6 +35,8 @@ export interface WizardFacts {
   cameras: number;
   /** Telefon liniyasi (null — hali olinmagan) */
   phone: PhoneLine | null;
+  /** Bitta kompyuter — bitta profil (server/profile.ts): klinika tanlanmaydi, kalitlar — profilniki */
+  profile?: boolean;
 }
 
 export function stepState(key: StepKey, f: WizardFacts): StepState {

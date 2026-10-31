@@ -110,8 +110,13 @@ export const env = {
   /** Faqat sinov uchun: soxta ovoz xizmati manzillari */
   geminiSttUrl: process.env.GEMINI_STT_URL || 'https://generativelanguage.googleapis.com/v1beta/interactions',
   groqSttUrl: process.env.GROQ_STT_URL || 'https://api.groq.com/openai/v1/audio/transcriptions',
-  /** Admin panel paroli (bizneslarni qo'shish). Bo'sh — admin kirishi yopiq */
+  /** Admin paroli — faqat favqulodda (egasi parolni unutdi). Bo'sh — admin kirishi yopiq */
   adminPassword: process.env.ADMIN_PASSWORD || '',
+  /**
+   * Bitta kompyuter — bitta ish (profile.ts): profil o'rnatishda o'zi yaratiladi, ikkinchisini ochib bo'lmaydi; egasiga topshirilguncha
+   * o'rnatuvchi parolsiz sozlaydi. O'rnatgich .env ga ONE_PROFILE=1 yozadi; dasturchi nusxasi va sinovlar — bir nechta biznes bilan
+   */
+  oneProfile: process.env.ONE_PROFILE === '1',
   sessionSecret: sessionSecret(),
   /** Jadval tekshiruvi oralig'i (eslatmalar, ertalabki xulosa) */
   tickMs: Number(process.env.TICK_MS) || 30_000,

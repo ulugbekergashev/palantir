@@ -192,6 +192,11 @@ if (-not $fresh) {
     [IO.File]::AppendAllText((Join-Path $Root '.env'), "`r`nFFMPEG_PATH=$ffmpegPath`r`n", (New-Object Text.UTF8Encoding($false)))
     Note 'FFMPEG_PATH .env ga qoshildi'
   }
+  # Bitta kompyuter - bitta ish (server/profile.ts): eski o'rnatishga ham qo'shiladi; bor profil(lar)ga tegilmaydi, yangisi ochilmaydi
+  if (-not (Read-EnvValue 'ONE_PROFILE')) {
+    [IO.File]::AppendAllText((Join-Path $Root '.env'), "`r`n# Bitta kompyuter - bitta ish`r`nONE_PROFILE=1`r`n", (New-Object Text.UTF8Encoding($false)))
+    Note 'ONE_PROFILE=1 .env ga qoshildi (bu kompyuterda ikkinchi profil ochilmaydi)'
+  }
 } else {
   $data = $DefaultData
   if ($Papka) { $data = $Papka }
@@ -201,7 +206,10 @@ if (-not $fresh) {
   $adminPassword = New-Password 16
   $lines = @(
     "# Palantir sozlamalari ($(Get-Date -Format 'yyyy-MM-dd') da o'rnatildi). Hamma imkoniyatlar: .env.example",
+    '# Admin paroli - faqat favqulodda (egasi parolni unutsa). Sozlash uchun kerak emas',
     "ADMIN_PASSWORD=$adminPassword",
+    '# Bitta kompyuter - bitta ish: profil ozi yaratiladi, ikkinchisi ochilmaydi',
+    'ONE_PROFILE=1',
     '# Bot tokeni, Claude, Gemini, Telegram API kalitlari - panelda: http://localhost:3200/#/ulash (shifrlanib bazada turadi).',
     '# Shu yerga yozilsa ham ishlaydi, lekin paneldagisi ustun.',
     "PORT=$DefaultPort",
@@ -311,12 +319,13 @@ Note "Palantir ishlayapti: http://localhost:$port"
 
 Write-Host ''
 Write-Host '== Tayyor. Keyingi qadamlar (docs\ORNATISH.md da batafsil):' -ForegroundColor Green
-Note "Brauzerda ulash ustasi ochiladi: http://localhost:$port/#/ulash - admin paroli bilan kiring va qadamlarni tartib bilan bajaring:"
-Note "   klinika va anketa -> kalitlar -> egasining Telegrami -> DentaCRM -> kameralar -> Instagram -> bo'shliqlar"
+Note "Brauzerda ulash ustasi o'zi ochiladi (parol so'ralmaydi): http://localhost:$port/#/ulash"
+Note "   1-qadamda Palantir'dan olgan ULANISH KODINI qo'ying - shunda Palantir sozlashni masofadan davom ettiradi"
+Note "   keyin: kalitlar -> egasining Telegrami -> DentaCRM -> kameralar -> Instagram -> bo'shliqlar -> Egasiga topshirish"
 if ($adminPassword) {
   Write-Host ''
-  Write-Host "   ADMIN PAROLI: $adminPassword" -ForegroundColor Yellow
-  Note "Uni hozir yozib oling (u .env faylida ham turadi). Bu parol klinikaga berilmaydi - u sizniki."
+  Write-Host "   Favqulodda admin paroli: $adminPassword" -ForegroundColor Yellow
+  Note "Faqat egasi parolini unutsa kerak bo'ladi (u .env faylida ham turadi). Klinikaga berilmaydi."
 }
 if ($checkFailed) { Warn "Eslatma: tekshiruvdagi xatolarni tuzating (install\Tekshirish.cmd)." }
 Note "Telefon liniyasi (AI qabulxona shahar raqamida) - Uztelecom SIP ma'lumotlari kelganda: install\Telefon.cmd"

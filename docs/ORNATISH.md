@@ -3,6 +3,19 @@
 Bu qo'llanma o'rnatuvchi uchun: klinikaga borishdan oldin nima tayyorlash, joyida nima qilish va ketishdan oldin nimani tekshirish.
 Bir klinika — bitta kompyuter — bitta bot. O'rnatish 30–40 daqiqa oladi (internet tezligiga qarab).
 
+**Bitta kompyuter — bitta ish.** O'rnatish shu kompyuterning yagona profilini o'zi yaratadi; ikkinchi klinika yoki boshqa ish shu kompyuterda
+ochilmaydi (litsenziya kompyuterga bog'langan). Tartib:
+
+1. Palantir Hub `/admin` → **«Yangi klinika»** → nomi → **ulanish kodi** (`phub.…`) bir marta ko'rsatiladi — nusxalab klinikaga bering.
+2. Klinika (yoki siz) exe'ni o'rnatadi. Oxirida ulash ustasi **parolsiz** ochiladi — 1-qadamda ulanish kodini qo'yadi.
+3. Kompyuter Hub ro'yxatida «sozlanmoqda» bo'lib chiqadi. **«Sozlash»** — panel egasidan so'ramasdan ochiladi: klinika ma'lumotlari, kalitlar,
+   Instagram, CRM, kameralar — o'z kompyuteringizdan. Klinika kompyuterida ham shu: kirish sahifasidagi «Sozlashni davom ettirish».
+4. Oxirgi qadam — **«Egasiga topshirish»**: egasining logini va yangi paroli bir marta ko'rsatiladi. Sizning kirishingiz (u yerdagisi ham,
+   Hub orqali ham) shu zahoti tugaydi. Keyin Palantir jamoasi faqat egasining Telegram'dagi ruxsati bilan kiradi (Hub → «Panelni ochish»).
+
+Parolsiz kirish faqat shu kompyuterning o'zidan va Hub'dagi «Sozlash»dan: klinika tarmog'idagi boshqa kompyuterdan va Hub'ning oddiy
+`/c/` havolasidan — yo'q. Kalitlar klinika profiliniki: egasi panelda ko'radi, almashtirish — shu kompyuterdan yoki Palantir jamoasi orqali.
+
 ## 1. Borishdan oldin tayyorlang
 
 **Anketa (2–3 kun oldin).** O'zingizning Palantir serveringizda (internetdan ochiladigan, masalan cloudflared orqali): `/#/admin` → «Anketalar» → klinika nomi → «Anketa yaratish». Havola va kod nusxalanadi — egasiga Telegram'da yuboring.
@@ -31,7 +44,7 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
 
 1. **Eng osoni — bitta exe** (DentaLocal kabi): `Palantir-Ornatish-<nashr>.exe` ni fleshkada yoki Telegram'da olib boring va ikki marta bosing →
    «o'rnatilsinmi?» → «Да» → administrator ruxsati → «Да». **Savol berilmaydi**, internet kerak emas: Node.js, ffmpeg, Python va ovoz kutubxonalari,
-   «Quloq» modeli, panel va kamera modeli — hammasi exe ichida. 3–10 daqiqa; oxirida admin paroli chiqadi va ulash ustasi ochiladi.
+   «Quloq» modeli, panel va kamera modeli — hammasi exe ichida. 3–10 daqiqa; oxirida ulash ustasi parolsiz ochiladi.
    Exe dasturni `C:Palantir` ga ochadi (avval o'rnatilgan bo'lsa — o'sha papkaga, `.env` va ma'lumotlar saqlanadi). Exe imzosiz: internetdan
    (Telegram'dan) kelgan bo'lsa Windows «Windows защитил компьютер» deydi — «Подробнее» → «Выполнить в любом случае». Jurnal (oyna yopilsa ham
    qoladi): `%TEMP%palantir-exe.log` va `%TEMP%palantir-ornatish.log`.
@@ -43,7 +56,7 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
 2. Papkadagi **`Ornatish.cmd`** ni ikki marta bosing (`install` papkasiga kirish shart emas; exe buni o'zi qiladi). Savolsiz, 3–15 daqiqa:
    - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'rnatadi (exe ichidagisini, aks holda internetdan);
    - kutubxonalarni yuklaydi va panelni yig'adi (reliz arxivida tayyor);
-   - `.env` faylini yozadi: admin paroli, port, ma'lumotlar papkasi (`C:PalantirData`, boshqasi: `Ornatish.cmd -Papka D:Baza`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
+   - `.env` faylini yozadi: favqulodda admin paroli, `ONE_PROFILE=1` (bitta kompyuter — bitta ish; eski o'rnatishga ham qo'shiladi), port, ma'lumotlar papkasi (`C:PalantirData`, boshqasi: `Ornatish.cmd -Papka D:Baza`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
    - dastur va ma'lumotlar papkasini kompyuterning boshqa Windows foydalanuvchilaridan yopadi;
    - **ovoz xizmatini** tayyorlaydi (panel ovozi va «Quloq»): Python, ovoz kutubxonalari, «Quloq» modeli (≈45 MB).
      Ovozli agent kalitini Palantir o'zi yaratadi (`DATA_DIRovoz.env`), Gemini kaliti — ulash ustasida;
@@ -57,7 +70,8 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
    (administrator huquqi bilan WSL, Ubuntu 24.04 ≈340 MB SHA256 bilan, Asterisk, `.wslconfig` da mirrored tarmoq, brandmauer qoidalari 5060 va
    10000–10100 — faqat ichki tarmoq). WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqib, `Telefon.cmd` ni yana bosing; har qadam qayta bosilganda
    bor narsani o'tkazib yuboradi.
-3. Oxirida ekranda **admin paroli** chiqadi — yozib oling. U sizniki, klinikaga berilmaydi.
+3. Oxirida ekranda **favqulodda admin paroli** chiqadi — yozib oling. Sozlash uchun kerak emas; faqat egasi parolini unutsa
+   (`/#/admin` → klinikaga yangi parol). Klinikaga berilmaydi.
 4. **Litsenziya.** Kalitsiz ham ishlaydi: 14 kun panel burchagida «Aktivlashtirilmagan · N kun qoldi» turadi, keyin panel faqat aktivlashtirish
    oynasini ko'rsatadi (bot, kameralar va qo'ng'iroqlar to'xtamaydi). Kalit shu kompyuterga bog'langan (Windows qayta o'rnatilsa — yangi kalit kerak).
    - Hub orqali, bir bosishda: Hub `/admin` → klinika qatorida «Aktivlashtirish» (Hub kodi kiritilgan va kompyuter aloqada bo'lsa).
@@ -71,9 +85,10 @@ Zaxira nusxani fleshkaga olsangiz: unda baza va uni ochadigan kalit yonma-yon tu
 
 ## 3. Klinikani sozlash — ulash ustasi
 
-Panel: ish stolidagi «Palantir» yorlig'i. Usta: `http://localhost:3200/#/ulash` (admin paroli bilan). Chapda qadamlar va «klinikada o'tgan vaqt», har qadam tayyor bo'lsa yashil belgi oladi; qadamlarni istalgan tartibda bosish mumkin.
+Panel: ish stolidagi «Palantir AI» yorlig'i. Usta: `http://localhost:3200/#/ulash` — egasiga topshirilguncha parolsiz (shu kompyuterdan yoki
+Hub → «Sozlash»), keyin — egasining login-paroli bilan. Chapda qadamlar va «klinikada o'tgan vaqt», har qadam tayyor bo'lsa yashil belgi oladi; qadamlarni istalgan tartibda bosish mumkin.
 
-1. **Klinika**: «Yangi klinika» → nomi (login va parol o'zi yaratiladi — nusxalab egasiga bering). Keyin **anketa kodi** va o'z serveringiz manzili → «Yuklash»: manzil, ish vaqti, narxlar, javoblar shu kompyuterga tushadi. Internet bo'lmasa — anketa sahifasidan yuklab olingan `.json` faylni tanlang.
+1. **Klinika**: **Palantir ulanish kodi** (Hub'dagi «Yangi klinika»dan) → «Ulash». Klinika nomi, egasi, telefon, manzil, ish vaqti. Ixtiyoriy — **anketa kodi** va o'z serveringiz manzili → «Yuklash»: manzil, ish vaqti, narxlar, javoblar shu kompyuterga tushadi. Internet bo'lmasa — anketa sahifasidan yuklab olingan `.json` faylni tanlang.
 2. **Kalitlar**: bot tokeni, Claude va Gemini kalitlari, kamera `rtsp://` manzili, DentaCRM havolasi, Telegram raqami — **hammasini bitta maydonga** qo'ying. Usta har qatorning turini o'zi taniydi (AI'siz, qolip bo'yicha), kalitni haqiqiy xizmatda tekshiradi va shifrlab saqlaydi; qolganini o'z qadamiga o'tkazadi. Tanimagan qatorni (masalan, DentaCRM paroli) bir tugma bilan belgilaysiz. Server to'xtamaydi: bot shu zahoti yangi token bilan ulanadi.
 3. **Egasining Telegram'i**: havolani egasi **o'z telefonida** ochadi va «Start» bosadi — sahifa o'zi yangilanadi.
 4. **DentaCRM**: manzil va parol kalitlar maydonidan o'tgan bo'ladi, loginni yozasiz → «Ulash va tekshirish».
