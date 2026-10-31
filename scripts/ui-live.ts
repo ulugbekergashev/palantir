@@ -98,6 +98,12 @@ try {
   ok("bosh ekran: yozilgan savolga javob shu yerda karta bo'lib chiqadi", await visible(page.getByRole('region', { name: 'Natijalar' }).getByText('Bugun:').first(), 15000));
   ok("bosh ekran: «Bugun jamoa nima qildi» — xodimlarning bugungi ishi; jurnal bo'sh bo'lsa alohida karta chiqmaydi", await visible(page.getByRole('heading', { name: 'Bugun jamoa nima qildi' }))
     && !(await page.getByRole('heading', { name: 'Bugungi jurnal' }).isVisible()) && !(await page.getByText("Bugun hali yozuv yo'q").isVisible()));
+  const teamCards = page.getByRole('region', { name: 'AI jamoa' });
+  const cardOf = (name: string) => teamCards.getByRole('link').filter({ hasText: name });
+  ok("birinchi kun: sozlanmagan xodim kartasida bitta keyingi qadam — to'g'ri ulash sahifasiga",
+    await cardOf('Kuzatuvchi').getByText('Kamerani ulash').isVisible() && (await cardOf('Kuzatuvchi').getAttribute('href'))?.endsWith('#/kuzatuvchi/ulash')
+    && await cardOf('Marketolog').getByText('Meta AI’ga kirish').isVisible() && (await cardOf('Marketolog').getAttribute('href'))?.endsWith('#/marketolog/ulash'));
+  ok("birinchi kun: savdo sohasida Tahlilchi DentaCRM so'ramaydi", !(await cardOf('Tahlilchi').getByText('DentaCRM’ni ulash').count()));
   await shot('02a-home', true);
 
   console.log('\n# Yordamchi: suhbat');

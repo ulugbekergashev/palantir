@@ -6,7 +6,7 @@
  * kutayotganlar (components/Attention.tsx).
  */
 import { useState, type FormEvent } from 'react';
-import { ArrowUp, Mic, Sparkles, Square } from 'lucide-react';
+import { ArrowRight, ArrowUp, Mic, Sparkles, Square } from 'lucide-react';
 import type { Business, LiveStatus } from '../types';
 import { MEMBERS, TEAM, type Member, type MemberState } from '../components/team';
 import { hrefOf } from '../lib/nav';
@@ -156,7 +156,8 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
               const meta = TEAM[m], st = team?.[m];
               const span = `${i < 2 ? 'lg:col-span-3' : 'lg:col-span-2'} ${i === MEMBERS.length - 1 && MEMBERS.length % 2 ? 'sm:col-span-2 lg:col-span-2' : ''}`;
               return st ? (
-                <a key={m} href={hrefOf(m)} className={`${span} group flex flex-col gap-3 rounded-2xl border border-glass/10 bg-glass/[0.03] p-4 text-left no-underline transition-colors hover:border-glass/20 hover:bg-glass/[0.06]`}>
+                // Xodim hali ishlay olmasa — karta to'g'ri ulash sahifasiga olib boradi (birinchi kun)
+                <a key={m} href={st.next?.href ?? hrefOf(m)} className={`${span} group flex flex-col gap-3 rounded-2xl border border-glass/10 bg-glass/[0.03] p-4 text-left no-underline transition-colors hover:border-glass/20 hover:bg-glass/[0.06]`}>
                   <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ff9a3c]/15 text-[#ffd9a0]"><meta.icon className="h-5 w-5" aria-hidden="true" /></span>
                     <div className="flex min-w-0 flex-col">
@@ -169,6 +170,11 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
                     <span className={`h-2 w-2 shrink-0 rounded-full ${dotClass(st)}`} aria-hidden="true" />{st.status}
                   </div>
                   <p className="m-0 text-xs leading-relaxed text-[#9ba1ad]">{st.detail}</p>
+                  {st.next && (
+                    <span className="mt-auto inline-flex w-fit items-center gap-1.5 rounded-lg bg-[#ff9a3c] px-3 py-1.5 text-[13px] font-semibold text-[#1a0f05] transition-colors group-hover:bg-[#ffb062]">
+                      {st.next.label} <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    </span>
+                  )}
                 </a>
               ) : <div key={m} className={`${span} h-[132px] animate-pulse rounded-2xl border border-glass/5 bg-glass/[0.02]`} />;
             })}

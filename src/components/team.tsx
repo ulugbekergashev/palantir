@@ -7,7 +7,7 @@ import { Camera, ChartLine, Headset, Megaphone, UserRound, type LucideIcon } fro
 import type { LiveStatus } from '../types';
 import { api } from '../data/api';
 import { iso } from '../lib/week';
-import type { Area } from '../lib/nav';
+import { hrefOf, type Area } from '../lib/nav';
 import { som } from '../lib/text';
 
 export type Member = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog';
@@ -22,16 +22,20 @@ export const TEAM: Record<Member, { name: string; role: string; about: string; i
 export const MEMBERS = Object.keys(TEAM) as Member[];
 export const isMember = (a: Area): a is Member => (MEMBERS as string[]).includes(a);
 
-/** on — ishlayapti (yashil nuqta); live — hozir faol ish ustida (qo'ng'iroqda, kamera kuzatyapti): nuqta yorqin halqa bilan */
-export interface MemberState { status: string; detail: string; on: boolean; live: boolean; badge: number }
+/**
+ * on — ishlayapti (yashil nuqta); live — hozir faol ish ustida (qo'ng'iroqda, kamera kuzatyapti): nuqta yorqin halqa bilan.
+ * next — birinchi kun: xodim ishlashi uchun egasi qiladigan bitta keyingi qadam (bosh ekrandagi kartada tugma); tayyor bo'lsa — null
+ */
+export interface MemberState { status: string; detail: string; on: boolean; live: boolean; badge: number; next: { label: string; href: string } | null }
 
-/** tick — biror ish bajarilganda (so'rov yopildi, vazifa qo'shildi) darhol yangilash uchun */
-export function useTeam(status: LiveStatus, tick = 0): Record<Member, MemberState> | null {
+/** tick — biror ish bajarilganda (so'rov yopildi, vazifa qo'shildi) darhol yangilash uchun; clinic — DentaCRM bilan ishlaydigan soha */
+export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Member, MemberState> | null {
   const [team, setTeam] = useState<Record<Member, MemberState> | null>(null);
   const crm = !!status.crm?.account;
   const meta = status.metaAi;
   // Qabulxona navbatchilikda — mijoz yozadigan yoki qo'ng'iroq qiladigan kamida bitta kanal ulangan bo'lsa
   const reachable = !!(status.bot || status.telegramBusiness?.account || status.instagram?.account || status.instagramApi?.account);
+  const ownerLinked = !!status.ownerLinked;
   useEffect(() => {
     let stale = false;
     const load = async () => {
@@ -56,26 +60,32 @@ export function useTeam(status: LiveStatus, tick = 0): Record<Member, MemberStat
         qabulxona: {
           on: talking || reachable, live: talking, badge: reception,
           status: talking ? 'Hozir qo‘ng‘iroqda' : reachable ? 'Navbatchilikda' : 'Kanal ulanmagan',
+          next: reachable ? null : { label: 'Telegram yoki Instagram’ni ulash', href: hrefOf('sozlamalar', 'telegram') },
           detail: `Bugun ${callsToday.length} qo‘ng‘iroq${reception ? ` · ${reception} ta ish sizni kutyapti` : requests?.open ? ` · ${requests.open} so‘rov` : ''}`,
         },
         yordamchi: {
           on: true, live: false, badge: waiting('yordamchi'),
           status: late ? `${late} ta kechikkan ish` : todayLeft ? `Bugun ${todayLeft} ish` : 'Bugun ish yo‘q',
           detail: next ? `Keyingisi: ${next.title}` : 'Eslatma qo‘yish uchun ayting',
+          // Eslatma va ertalabki reja egasining Telegram'iga keladi
+          next: ownerLinked ? null : { label: 'Telegram’da ulanish', href: hrefOf('sozlamalar', 'telegram') },
         },
         kuzatuvchi: {
           on: cams > 0, live: cams > 0, badge: waiting('kuzatuvchi'),
           status: cams ? `${cams} kamera kuzatyapti` : 'Kamera ulanmagan',
           detail: cams ? 'Kreslo va kassa — jadval bilan solishtiriladi' : 'Ulash — 2 daqiqa',
+          next: cams ? null : { label: 'Kamerani ulash', href: hrefOf('kuzatuvchi', 'ulash') },
         },
         tahlilchi: {
           on: !!day, live: !!day, badge: waiting('tahlilchi'),
           status: day ? `Bugun ${day.total} qabul · ${day.came} keldi` : crm ? 'DentaCRM javob bermadi' : 'DentaCRM ulanmagan',
           detail: day ? `Tushum ${som(day.revenue.total)}` : 'Ulasangiz, qabul va tushumni aytadi',
+          next: clinic && !crm ? { label: 'DentaCRM’ni ulash', href: hrefOf('sozlamalar', 'dentacrm') } : null,
         },
         marketolog: {
           on: !!meta?.connected && !meta.problem, live: false, badge: waiting('marketolog'),
           status: meta?.problem ? 'Meta AI qayta kirishni so‘rayapti' : meta?.connected ? 'Meta AI ulangan' : 'Meta AI ulanmagan',
+          next: meta?.problem ? { label: 'Meta AI’ga qayta kirish', href: hrefOf('marketolog', 'ulash') } : meta?.connected ? null : { label: 'Meta AI’ga kirish', href: hrefOf('marketolog', 'ulash') },
           detail: meta?.connected ? `Bugun ${reports?.events.filter(e => iso(new Date(e.at)) === today).length ?? 0} ta tahlil · ${meta.usedToday}/${meta.dailyLimit} savol` : 'Ulash — akkauntingizga bir marta kirasiz',
         },
       });
@@ -83,6 +93,6 @@ export function useTeam(status: LiveStatus, tick = 0): Record<Member, MemberStat
     void load();
     const t = setInterval(() => { void load(); }, 30_000);
     return () => { stale = true; clearInterval(t); };
-  }, [crm, reachable, meta?.connected, meta?.problem, meta?.usedToday, meta?.dailyLimit, tick]);
+  }, [crm, clinic, reachable, ownerLinked, meta?.connected, meta?.problem, meta?.usedToday, meta?.dailyLimit, tick]);
   return team;
 }

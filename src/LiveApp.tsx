@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { isMedical } from './lib/compliance';
 import type { Business, LiveStatus } from './types';
 import { api, session } from './data/api';
 import { Rail } from './components/Rail';
@@ -64,7 +65,7 @@ export default function LiveApp() {
   }, [route.area]);
 
   const notify = (text: string, isError = false) => setToast({ text, error: isError });
-  const team = useTeam(status ?? ({ crm: { account: null } } as unknown as LiveStatus), tick);
+  const team = useTeam(status ?? ({ crm: { account: null } } as unknown as LiveStatus), tick, !!biz && isMedical(biz.industry));
   const wake = useWake();
   // «Quloq» ishlay olmasa (model o'rnatilmagan, mikrofon yo'q) — egasi bilsin
   useEffect(() => { if (wake.phase === 'error' && wake.error) setToast({ text: `Quloq: ${wake.error}`, error: true }); }, [wake.phase, wake.error, setToast]);
