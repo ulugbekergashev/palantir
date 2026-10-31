@@ -566,6 +566,15 @@ export interface Gap {
   options?: string[];
 }
 
+/** Jonli tekshiruv: bitta kanal haqiqiy xizmatda sinaldi. off — ulanmagan (sinalmadi) */
+export interface LiveCheck {
+  key: string;
+  label: string;
+  level: 'ok' | 'warn' | 'fail' | 'off';
+  detail: string;
+  ms: number;
+}
+
 /** Tarmoqda topilgan kamera */
 export interface FoundCamera {
   ip: string;

@@ -72,7 +72,7 @@ const proc: ChildProcess = spawn(process.execPath, ['--no-warnings=ExperimentalW
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', SESSION_SECRET: 'mkt-secret', TICK_MS: '500',
     MORNING_HOUR: '99', EVENING_HOUR: '99', REQUEST_HOURS: '0-24', WEB_SEARCH: '0', BACKUP_KEEP: '0',
     GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_API_ID: '', TG_API_HASH: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', PALANTIR_HUB: '',
-    META_AI_FAKE_URL: `http://127.0.0.1:${metaPort}`, META_AI_DAILY_LIMIT: '7',
+    META_AI_FAKE_URL: `http://127.0.0.1:${metaPort}`, META_AI_DAILY_LIMIT: '8',
     IG_VIA_BROWSER: '1', IG_FAKE_URL: `http://127.0.0.1:${igPort}`, IG_POLL_MS: '60000',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -233,6 +233,32 @@ try {
   press(OWNER, gp ?? 'gp|x', Number(metaCard?.id ?? 0));
   ok("egasi Telegram'da «Joylash»ni bosdi → Instagram'ga chiqdi", await until('joylandi', async () => igWeb.posted.length === 3 || undefined) && igWeb.posted[2].caption.includes('Implant'));
 
+  console.log('\n# Jonli tekshiruv (server/live/check.ts)');
+  type Lc = { key: string; level: string; detail: string };
+  const byKey = (list: Lc[], key: string) => list.find(c => c.key === key);
+  igWeb.users.add('mebel_uyi');
+  const probesBefore = ai.liveProbes, askedBefore = meta.asked.length, postedBefore = igWeb.posted.length;
+  mark = sent.length;
+  const qc = (await api('/api/live-check', { token, body: {} })).json.checks as Lc[];
+  ok('egasi panelda tekshirdi: bot egasiga yetadi, AI javob berdi, disk', byKey(qc, 'telegram_bot')?.level === 'ok' && byKey(qc, 'ai')?.level === 'ok' && ai.liveProbes === probesBefore + 1 && byKey(qc, 'disk')?.level === 'ok',
+    JSON.stringify(qc.filter(c => ['telegram_bot', 'ai', 'disk'].includes(c.key))));
+  ok("Instagram seansi tirik (o'z profili so'raldi), post joylashga tayyor — post joylanmadi",
+    byKey(qc, 'instagram')?.level === 'ok' && byKey(qc, 'post')?.level === 'ok' && igWeb.posted.length === postedBefore && igWeb.paths.includes('GET /api/v1/users/web_profile_info/'),
+    JSON.stringify([byKey(qc, 'instagram'), byKey(qc, 'post')]));
+  ok("tezkor tekshiruvda Meta AI'ga savol berilmaydi; ulanmaganlar — «ulanmagan»",
+    byKey(qc, 'meta_ai')?.level === 'ok' && meta.asked.length === askedBefore && byKey(qc, 'crm')?.level === 'off' && byKey(qc, 'hub')?.level === 'off', JSON.stringify([byKey(qc, 'meta_ai'), byKey(qc, 'crm')]));
+  ok("egasiga xabar ketmadi — faqat ko'rinmas «yozmoqda…»",
+    !sent.slice(mark).some(s => ['sendMessage', 'sendPhoto'].includes(s.method)) && sent.slice(mark).some(s => s.method === 'sendChatAction' && Number(s.params.chat_id) === OWNER));
+  const dc = (await api('/api/live-check', { token, body: { deep: true, only: ['meta_ai'] } })).json.checks as Lc[];
+  ok("chuqur tekshiruv: faqat tanlangan kanal, Meta AI'ga bitta savol berildi", dc.length === 1 && dc[0].key === 'meta_ai' && dc[0].level === 'ok' && meta.asked.length === askedBefore + 1, JSON.stringify(dc));
+  const adminToken = (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token;
+  const viaAdmin = await api('/api/admin/live-check', { token: adminToken, body: { only: ['telegram'] } });
+  ok("o'rnatuvchi (npm run live) administrator kirishi bilan bizneslarni tekshiradi",
+    viaAdmin.status === 200 && viaAdmin.json.businesses?.[0]?.name === 'Shifo Dent' && (viaAdmin.json.businesses[0].checks as Lc[]).every(c => c.key.startsWith('telegram')), JSON.stringify(viaAdmin.json).slice(0, 200));
+  const wrong = await api('/api/live-check', { token, body: { only: ['nimadir'] } });
+  const noAuth = await api('/api/admin/live-check', { token, body: {} });
+  ok("noto'g'ri kanal — 400; egasining kirishi bilan admin yo'li yopiq", wrong.status === 400 && noAuth.status === 401, `${wrong.status} ${noAuth.status}`);
+
   console.log('\n# Chegaralar');
   meta.delay = 3000;
   const before = meta.asked.length;
@@ -254,7 +280,7 @@ try {
   await api('/api/chat', { token, body: { text: "Yana so'ra" } });
   await reportCount(token, 10);
   const used = (await status(token)).metaAi;
-  ok(`kunlik chegara: ${used.usedToday}/${used.dailyLimit} — oshgach meta.ai'ga bormaydi`, used.usedToday === 7 && await (async () => {
+  ok(`kunlik chegara: ${used.usedToday}/${used.dailyLimit} — oshgach meta.ai'ga bormaydi`, used.usedToday === 8 && await (async () => {
     const n = meta.asked.length;
     ownerAsks('Limitdan keyingi savol', 'boshqa');
     await api('/api/chat', { token, body: { text: "Yana so'ra" } });

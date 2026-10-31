@@ -1,5 +1,5 @@
 /**
- * Sozlamalar — jamoa qayerda ishlashi. Tepada har ulanishning holati (plitka: ulangan / ulanmagan / muammo), bosilgani pastda ochiladi:
+ * Sozlamalar — jamoa qayerda ishlashi. Tepada har ulanishning holati (plitka: ulangan / ulanmagan / muammo) va jonli tekshiruv, bosilgan plitka pastda ochiladi:
  * Asosiy (ism, til, javob rejimi, mijozlar havolasi), Telegram, Instagram, DentaCRM, Telefon liniyasi; Kameralar — Kuzatuvchi'da.
  * Manzil: #/sozlamalar/<bo'lim>.
  */
@@ -12,6 +12,7 @@ import { isMedical } from '../../lib/compliance';
 import { hrefOf } from '../../lib/nav';
 import { DentaCrm } from '../DentaCrmSection';
 import { AccountCard } from './AccountCard';
+import { LiveCheckCard } from './LiveCheck';
 import { ClientLink, Instagram, InstagramOfficial, OwnerBot, RemoteAccess, ReplyModeCard, SettingsCard, TelegramBusiness, TelegramLogin } from '../TelegramPage';
 import { PhoneLineSettings } from './PhoneLine';
 import { SupportAccess } from './SupportAccess';
@@ -75,6 +76,8 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
           </a>
         ))}
       </nav>
+
+      <LiveCheckCard notify={notify} />
 
       {active === 'asosiy' && (
         <div className="agent-body grid grid-cols-1 items-start gap-5 xl:grid-cols-2">

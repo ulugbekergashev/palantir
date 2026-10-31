@@ -373,6 +373,8 @@ export const ai = {
   /** Ssenariy sinovlarida: mijozga javob bilimdan chiqariladi (smartDecision) */
   smart: false,
   calls: 0,
+  /** Jonli tekshiruvning «AI ishlayaptimi» so'rovlari */
+  liveProbes: 0,
   requests: [] as { system: string; messages: Msg[]; tools: Block[]; beta: string; thinking: unknown; effort?: string }[],
   violations: [] as string[],
   /** Mijozga javob so'rovlari (Palantir biznes nomidan yozadi) */
@@ -642,6 +644,12 @@ export const aiServer = patient(createServer(async (req, res) => {
     const text = !hasImage ? 'Rasm kelmadi' : ai.vision ? ai.vision(String(blocks.find(b => b.type === 'text')?.text ?? '')) : canned;
     wire.log?.('Model', 'rasmni tasvirlash', { javob: text });
     return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 10 } });
+  }
+
+  // Jonli tekshiruv (server/live/check.ts): AI ishlayaptimi — bitta so'z
+  if (String(body.system).startsWith('You check that the AI service works')) {
+    ai.liveProbes++;
+    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: 'OK' }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 1 } });
   }
 
   // Marketolog: Instagram post matni (marketing/posts.ts writeCaption) — mavzudan oddiy matn

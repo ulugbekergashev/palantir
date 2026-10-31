@@ -111,6 +111,8 @@ npm run test:computer              # kompyuterda ishlash: haqiqiy Chrome (ko'rin
 npm run test:marketolog            # Marketolog: soxta meta.ai va Instagram — ulash, savol, akkauntlar tekshiruvi, chegaralar, jadval (docs/MARKETOLOG.md)
 npm run test:ui                    # brauzerda panel (Chrome yoki Edge o'zi topiladi, boshqa joyda bo'lsa — CHROME=<yo'l>; avval panelni o'zi yig'adi)
 npm run check                      # HAQIQIY kalitlarni tekshiradi (Telegram, Claude — bir necha sent, ovoz); --no-ai bilan Claude'siz
+npm run live                       # ishlab turgan Palantir'ning HAR ULANGAN KANALI haqiqiy xizmatda (panel: Sozlamalar → «Jonli tekshiruv»);
+                                   # npm run live -- instagram meta_ai — faqat shular; --deep — Meta AI'ga ham savol
 npm run scenarios                  # 22 ta chuqur ssenariy: haqiqiy server + haqiqiy Obsidian (D:\Obsidian; yo'q bo'lsa — to'g'ridan-to'g'ri fayl), model — taqlid
 npm run eval:ai                    # AI sifati va narxi: ~60 holat HAQIQIY Claude bilan (avval taxminiy narxni aytadi; --yes — boshlash)
 ```
@@ -205,6 +207,7 @@ scripts/
   e2e-resilience.ts e2e-ipcam.ts  chidamlilik va IP kamera sinovlari
   supervise.mjs                nazoratchi: serverni yoqadi, to'xtasa qayta yoqadi (npm run serve / stop / status)
   preflight.ts                 o'rnatishdan keyingi tekshiruv — haqiqiy xizmatlarda (npm run check)
+  live.ts                      jonli tekshiruv: ishlayotgan serverning ulangan kanallari (npm run live, server/live/)
   eval-ai.ts eval/cases.ts      AI sifati va narxini baholash — haqiqiy Claude bilan (npm run eval:ai)
 install/                       Windows o'rnatgich ichi (kirish — ildizdagi Ornatish.cmd), ishga tushirish / to'xtatish / tekshirish yorliqlari
 docs/ORNATISH.md               klinikaga o'rnatish qo'llanmasi

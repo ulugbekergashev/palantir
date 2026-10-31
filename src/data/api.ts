@@ -2,7 +2,7 @@ import type { BrainView, Call, Camera, CameraAccuracy, CameraSummary, CameraTimi
 import type { PriceLine } from '../lib/prices';
 import type { AnketaData } from '../lib/anketa';
 import type { KeyName } from '../lib/secrets';
-import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, SetupView } from '../types';
+import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveCheck, SetupView } from '../types';
 import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffMember } from '../types';
@@ -274,6 +274,8 @@ export const api = {
   igLogin: () => call<{ status: LiveStatus }>('/instagram/login', { body: {} }),
   igCancel: () => call<{ ok: true }>('/instagram/cancel', { body: {} }),
   igDisconnect: () => call<{ status: LiveStatus }>('/instagram', { method: 'DELETE' }),
+  /** Jonli tekshiruv: har ulangan kanal haqiqiy xizmatda (deep — Meta AI'ga savol bilan; bir-ikki daqiqa) */
+  liveCheck: (deep = false) => call<{ checks: LiveCheck[] }>('/live-check', { body: { deep } }),
   metaAiLogin: () => call<{ status: LiveStatus }>('/meta-ai/login', { body: {} }),
   metaAiCancel: () => call<{ ok: true }>('/meta-ai/cancel', { body: {} }),
   metaAiDisconnect: () => call<{ status: LiveStatus }>('/meta-ai', { method: 'DELETE' }),

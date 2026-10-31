@@ -212,6 +212,11 @@ try {
   await nav('Sozlamalar');
   ok("sozlamalar: ulanishlar plitkalari (holati bilan)", await visible(page.getByRole('navigation', { name: 'Ulanishlar' }).getByRole('link', { name: /Telefon liniyasi/ })));
   ok("sozlamalar: savdo sohasida DentaCRM plitkasi yo'q", await page.getByRole('navigation', { name: 'Ulanishlar' }).getByRole('link', { name: /DentaCRM/ }).count() === 0);
+  const live = page.getByRole('region', { name: 'Jonli tekshiruv' });
+  await live.getByRole('button', { name: 'Tekshirish', exact: true }).click();
+  await live.getByText(/Ulangan kanallarning hammasi ishlayapti|ta kanal ishlamayapti/).waitFor({ timeout: 20000 });
+  ok('jonli tekshiruv: bir bosishda har kanal holati (bot, AI, ulanmaganlar)',
+    await live.getByText('Telegram bot').isVisible() && await live.getByText('Claude (AI)').isVisible() && await live.getByText('Ulanmagan:').isVisible());
   await page.getByLabel('Egasi (yordamchi shunday murojaat qiladi)').fill('Aziz');
   await page.getByRole('button', { name: 'Saqlash', exact: true }).first().click();
   await page.getByText('Saqlandi').first().waitFor({ timeout: 10000 });
