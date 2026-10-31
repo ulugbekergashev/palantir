@@ -106,7 +106,7 @@ export function SetupWizard() {
       // Holatni olib bo'lmasa (tarmoq) ham klinika tanlovi qoladi — qadamlar qayta urinadi
       await refresh().catch(e => notify((e as Error).message, true));
       if (!stale) setEnteredBiz(bizId);
-    }).catch(e => { if (!stale) { write(BIZ_KEY, null); setBizId(null); adminFail(e); } });
+    }).catch(e => { if (!stale) { write(BIZ_KEY, null); setBizId(null); setEnteredBiz(null); adminFail(e); } });
     return () => { stale = true; };
   }, [authed, bizId, refresh, adminFail, notify]);
 

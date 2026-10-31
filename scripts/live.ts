@@ -33,13 +33,15 @@ function ask(question: string): Promise<string> {
   return new Promise(res => rl.question(question, a => { rl.close(); process.stdout.write('\n'); res(a.trim()); }));
 }
 
+/** Chuqur tekshiruvda har biznesning Meta AI savoli 4 daqiqagacha ketadi */
+const WAIT_MS = (deep ? 30 : 10) * 60_000;
 const base = (process.env.LIVE_URL || `http://127.0.0.1:${Number(process.env.PORT) || 3200}`).replace(/\/$/, '');
 const password = process.env.ADMIN_PASSWORD || await ask('Administrator paroli: ');
 
 async function post<T>(path: string, body: unknown, token?: string): Promise<T> {
   const r = await fetch(`${base}${path}`, {
     method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify(body), signal: AbortSignal.timeout(10 * 60_000),
+    body: JSON.stringify(body), signal: AbortSignal.timeout(WAIT_MS),
   }).catch(() => null);
   if (!r) throw new Error(`Palantir serveri javob bermadi (${base}) — server ishlayaptimi?`);
   const j = await r.json().catch(() => ({})) as T & { error?: string };
@@ -53,12 +55,13 @@ const MARK: Record<LiveCheck['level'], string> = { ok: '[ OK ]', warn: '[  ! ]',
 try {
   const { token } = await post<{ token: string }>('/api/admin/login', { password });
   console.log(`Tekshirilyapti${deep ? ' (chuqur)' : ''}: ${only.length ? only.join(', ') : 'hamma kanallar'}…`);
-  const { businesses } = await post<{ businesses: { id: string; name: string; checks: LiveCheck[] }[] }>(
+  const { businesses } = await post<{ businesses: { id: string; name: string; checks: LiveCheck[]; error?: string }[] }>(
     '/api/admin/live-check', { deep, only: only as LiveChannel[], ...(business ? { business } : {}) }, token);
   if (!businesses.length) console.log(business ? `«${business}» biznesi topilmadi` : 'Faol biznes yo\'q');
   let failed = 0;
   for (const b of businesses) {
     console.log(`\n${b.name}`);
+    if (b.error) { failed++; console.log(`[XATO] ${b.error}`); }
     for (const c of b.checks) {
       if (c.level === 'fail') failed++;
       console.log(`${MARK[c.level]} ${c.label} — ${c.detail}${c.ms >= 1000 ? ` (${(c.ms / 1000).toFixed(1)} s)` : ''}`);

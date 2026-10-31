@@ -249,6 +249,8 @@ try {
     byKey(qc, 'meta_ai')?.level === 'ok' && meta.asked.length === askedBefore && byKey(qc, 'crm')?.level === 'off' && byKey(qc, 'hub')?.level === 'off', JSON.stringify([byKey(qc, 'meta_ai'), byKey(qc, 'crm')]));
   ok("egasiga xabar ketmadi — faqat ko'rinmas «yozmoqda…»",
     !sent.slice(mark).some(s => ['sendMessage', 'sendPhoto'].includes(s.method)) && sent.slice(mark).some(s => s.method === 'sendChatAction' && Number(s.params.chat_id) === OWNER));
+  const aiAgain = (await api('/api/live-check', { token, body: { only: ['ai'] } })).json.checks as Lc[];
+  ok("qayta bosilsa Claude'ga yana so'rov ketmaydi (bir daqiqa eslab qolinadi — kunlik chegara yeyilmaydi)", byKey(aiAgain, 'ai')?.level === 'ok' && ai.liveProbes === probesBefore + 1, String(ai.liveProbes - probesBefore));
   const dc = (await api('/api/live-check', { token, body: { deep: true, only: ['meta_ai'] } })).json.checks as Lc[];
   ok("chuqur tekshiruv: faqat tanlangan kanal, Meta AI'ga bitta savol berildi", dc.length === 1 && dc[0].key === 'meta_ai' && dc[0].level === 'ok' && meta.asked.length === askedBefore + 1, JSON.stringify(dc));
   const adminToken = (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token;
@@ -286,6 +288,9 @@ try {
     await api('/api/chat', { token, body: { text: "Yana so'ra" } });
     return meta.asked.length === n && seenResults.at(-1)?.includes('ertagacha');
   })(), JSON.stringify(used));
+  const askedAtLimit = meta.asked.length;
+  const atLimit = (await api('/api/live-check', { token, body: { deep: true, only: ['meta_ai'] } })).json.checks as Lc[];
+  ok("chegara tugaganda chuqur tekshiruv savol bermaydi va kanalni «ishlamayapti» demaydi", atLimit[0]?.level === 'warn' && meta.asked.length === askedAtLimit, JSON.stringify(atLimit));
 
   console.log('\n# Jadval: Marketologga topshiriq');
   const created = await api('/api/orders', { token, body: { member: 'marketolog', text: "Har dushanba 10:00 da Instagram'dagi raqobatchilarimiz tahlilini yubor", spec: { kind: 'schedule', at: '10:00', days: [1] }, summary: "Har dushanba 10:00 da raqobatchilar tahlilini Telegram'ga yuboraman." } });

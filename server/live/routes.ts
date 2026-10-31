@@ -37,8 +37,14 @@ export function mountLive(app: Express, { asBiz, asAdmin, bad }: Deps): void {
     const list = businesses.all().filter(b => b.active && (!p.data.business || b.id === p.data.business || b.login === p.data.business));
     try {
       const out = [];
-      // Bizneslar ketma-ket: bitta kompyuterdagi brauzer va CRM bir vaqtda ko'p so'rov bilan zo'riqmasin
-      for (const b of list) out.push({ id: b.id, name: b.profile.name, checks: await liveCheck(b, p.data) });
+      // Bizneslar ketma-ket: bitta kompyuterdagi brauzer va CRM bir vaqtda ko'p so'rov bilan zo'riqmasin.
+      // Bittasi band bo'lsa (egasi shu payt panelda tekshiryapti) — qolganlarining natijasi yo'qolmaydi
+      for (const b of list) {
+        try { out.push({ id: b.id, name: b.profile.name, checks: await liveCheck(b, p.data) }); } catch (e) {
+          if (!(e instanceof LiveBusy)) throw e;
+          out.push({ id: b.id, name: b.profile.name, checks: [], error: e.message });
+        }
+      }
       res.json({ businesses: out });
     } catch (e) { failed(res, e); }
   }));

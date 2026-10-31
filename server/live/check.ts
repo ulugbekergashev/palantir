@@ -18,7 +18,7 @@ import { instagramStatus, instagramUserExists } from '../inbox/instagram';
 import { instagramApiStatus } from '../inbox/instagramApi';
 import { telegramBusinessStatus } from '../inbox/telegramBusiness';
 import { telegramUserAccount, telegramUserAvailable } from '../inbox/telegramUser';
-import { askMetaAi, metaAiStatus } from '../marketing/metaAi';
+import { MetaAiError, askMetaAi, metaAiStatus } from '../marketing/metaAi';
 import { phoneProblem, phoneStatus } from '../phone/index';
 import { lineChecks } from '../voice/line';
 
@@ -27,6 +27,8 @@ const PROBE_MS = 30_000;
 const META_AI_MS = 4 * 60_000;
 /** IP kameradan shuncha vaqt kadr kelmasa — uzilgan (monitor.ts bilan bir xil) */
 const CAMERA_SILENT_MS = 5 * 60_000;
+/** Claude javobi shuncha vaqt eslab qolinadi: tugmani qayta-qayta bosish egasining kunlik AI chegarasini yemasin */
+const AI_CACHE_MS = 60_000;
 
 type Outcome = Omit<LiveCheck, 'key' | 'label' | 'ms'>;
 const ok = (detail: string): Outcome => ({ level: 'ok', detail });
@@ -37,6 +39,8 @@ const off = (detail = 'ulanmagan'): Outcome => ({ level: 'off', detail });
 interface Probe { key: string; label: string; run: () => Promise<Outcome | Outcome[]>; timeoutMs?: number }
 
 class Timeout extends Error {}
+/** Egasiga ko'rsatiladigan sabab (tozalangan matn); boshqa xato — umumiy matn, tafsiloti jurnalga */
+class ProbeError extends Error {}
 
 async function measured(p: Probe): Promise<LiveCheck[]> {
   const t0 = Date.now();
@@ -47,7 +51,9 @@ async function measured(p: Probe): Promise<LiveCheck[]> {
     const list = Array.isArray(out) ? out : [out];
     return list.map((o, i) => ({ key: list.length > 1 ? `${p.key}:${i}` : p.key, label: p.label, ...o, ms: Date.now() - t0 }));
   } catch (e) {
-    const detail = e instanceof Timeout ? `${Math.round((p.timeoutMs ?? PROBE_MS) / 1000)} soniyada javob kelmadi` : (e as Error).message || 'kutilmagan xato';
+    if (!(e instanceof Timeout) && !(e instanceof ProbeError)) console.error(`[tekshiruv] ${p.key}:`, e);
+    const detail = e instanceof Timeout ? `${Math.round((p.timeoutMs ?? PROBE_MS) / 1000)} soniyada javob kelmadi`
+      : e instanceof ProbeError ? e.message : 'kutilmagan xato — jurnalga yozildi';
     return [{ key: p.key, label: p.label, level: 'fail', detail, ms: Date.now() - t0 }];
   } finally {
     clearTimeout(timer);
@@ -71,10 +77,10 @@ async function telegramBot(biz: BusinessRow): Promise<Outcome> {
     const r = await fetch(`${root}/bot${env.botToken}/${method}`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(PROBE_MS),
     }).catch(() => null);
-    if (!r) throw new Error("Telegram'ga ulanib bo'lmadi — internetni tekshiring");
+    if (!r) throw new ProbeError("Telegram'ga ulanib bo'lmadi — internetni tekshiring");
     const j = await r.json().catch(() => ({})) as { ok?: boolean; result?: { username?: string }; description?: string };
     // Token so'rov manzilida — xato matniga faqat Telegram javobi tushadi
-    if (!j.ok) throw new Error(r.status === 401 ? "bot tokeni noto'g'ri yoki bekor qilingan" : `Telegram: ${String(j.description ?? r.status).slice(0, 120)}`);
+    if (!j.ok) throw new ProbeError(r.status === 401 ? "bot tokeni noto'g'ri yoki bekor qilingan" : `Telegram: ${String(j.description ?? r.status).slice(0, 120)}`);
     return j.result;
   };
   const me = await call('getMe');
@@ -88,8 +94,18 @@ async function telegramBot(biz: BusinessRow): Promise<Outcome> {
   return ok(`${name}, egasining chatiga yetadi`);
 }
 
+const aiSeen = new Map<string, { at: number; outcome: Outcome }>();
+
 async function claudeAi(biz: BusinessRow): Promise<Outcome> {
   if (!env.aiEnabled) return fail("ANTHROPIC_API_KEY kiritilmagan — Palantir javob bera olmaydi");
+  const seen = aiSeen.get(biz.id);
+  if (seen && Date.now() - seen.at < AI_CACHE_MS) return seen.outcome;
+  const outcome = await pingAi(biz);
+  aiSeen.set(biz.id, { at: Date.now(), outcome });
+  return outcome;
+}
+
+async function pingAi(biz: BusinessRow): Promise<Outcome> {
   try {
     const r = await think(biz.id, 'owner', {
       model: env.aiModel, max_tokens: 16,
@@ -122,7 +138,8 @@ async function instagramWeb(biz: BusinessRow): Promise<Outcome> {
   if (s.waiting) return warn(`${s.account} — kirish oynasi ochiq, egasi hali kirmagan`);
   if (s.problem) return fail(`${s.account}: ${s.problem}`);
   const alive = await instagramUserExists(biz.id, s.account.replace(/^@/, ''));
-  if (alive === null) return fail(`${s.account}: Instagram javob bermadi — seans tugagan bo'lishi mumkin, qayta kiring`);
+  // Seans tugagani s.problem da bo'ladi; bu yerda — vaqtinchalik (cheklov, tarmoq): qayta kirishga undalmaydi
+  if (alive === null) return warn(`${s.account}: Instagram hozir javob bermadi — birozdan keyin qayta tekshiring`);
   return alive ? ok(`${s.account}, seans tirik`) : warn(`${s.account}: Instagram bu akkauntni topmadi (nomi o'zgarganmi?)`);
 }
 
@@ -134,6 +151,8 @@ function instagramOfficial(biz: BusinessRow): Outcome {
   return ok(String(s.account));
 }
 
+const metaAiAsking = new Set<string>();
+
 async function metaAi(biz: BusinessRow, deep: boolean): Promise<Outcome> {
   const s = metaAiStatus(biz.id);
   if (!s.connected) return off();
@@ -142,8 +161,19 @@ async function metaAi(biz: BusinessRow, deep: boolean): Promise<Outcome> {
   if (s.problem) return fail(s.problem);
   const left = `bugun ${s.usedToday}/${s.dailyLimit} savol`;
   if (!deep) return ok(`ulangan, ${left} (savol berib ko'rish — chuqur tekshiruvda)`);
-  const answer = await askMetaAi(biz, "Bitta so'z bilan javob ber: salom");
-  return answer.trim() ? ok(`savolga javob berdi («${answer.trim().slice(0, 40)}»)`) : warn("javob bo'sh keldi");
+  // Oxirgi savol Marketologning o'ziga qoladi: tekshiruv kunlik chegarani tugatib qo'ymasin
+  if (s.usedToday >= s.dailyLimit - 1) return warn(`ulangan, ${left} — chegara tugayapti, savol berilmadi`);
+  if (metaAiAsking.has(biz.id)) return warn('oldingi tekshiruv savoli hali javob kutyapti');
+  metaAiAsking.add(biz.id);
+  // Vaqt chegarasi o'tsa ham brauzerdagi savol tugaguncha belgi turadi — ikkinchi savol ustma-ust ketmaydi
+  const asked = askMetaAi(biz, "Bitta so'z bilan javob ber: salom").finally(() => metaAiAsking.delete(biz.id));
+  try {
+    const answer = await asked;
+    return answer.trim() ? ok(`savolga javob berdi («${answer.trim().slice(0, 40)}»)`) : warn("javob bo'sh keldi");
+  } catch (e) {
+    if (e instanceof MetaAiError) return fail(e.message);
+    throw e;
+  }
 }
 
 /** Post joylash: haqiqiy post joylanmaydi — kerakli narsalar bormi (Instagram seansi, rasm uchun ffmpeg) */

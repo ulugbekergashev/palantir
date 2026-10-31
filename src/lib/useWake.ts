@@ -143,7 +143,7 @@ export function useWake() {
     enabled, phase, word, you, ai, cards, error, shown, orb: orbRef,
     toggle: () => {
       if (enabled) { setPhase('off'); setError(''); }
-      setEnabled(!enabled);
+      setEnabled(v => !v);
     },
     /** Suhbatni tugatish (quloq yoqilgan bo'lsa — yana tinglashga qaytadi) */
     hangUp: () => voice.current?.stop(),
