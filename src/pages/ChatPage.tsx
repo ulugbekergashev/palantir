@@ -10,7 +10,8 @@ import { api } from '../data/api';
 import { ArtifactView, type Notify } from '../components/Artifacts';
 import { Markdown } from '../components/Markdown';
 import { MemoryPanel } from '../components/MemoryPanel';
-import { AgentOrb, HUE } from '../components/agent';
+import { AgentOrb, HUE, stoneTone } from '../components/agent';
+import { PalantirOrb } from '../components/PalantirOrb';
 import { takeAsk } from '../lib/ask';
 import { sectionFor } from '../lib/commands';
 import { startRecording, type Recording } from '../lib/recorder';
@@ -274,7 +275,9 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
         {(live.active || live.error) && (
           <div className="relative mx-4 mb-3 flex items-center gap-4 rounded-2xl border border-[#8b8cff]/25 bg-[#8b8cff]/[0.06] px-4 py-3 sm:mx-6" aria-live="polite">
             <div ref={liveOrb} aria-hidden="true" className="h-10 w-10 shrink-0 rounded-full transition-transform duration-100"
-              style={{ background: `radial-gradient(circle at 30% 28%, #ffffffcc, ${h.a} 38%, ${h.b} 72%, #15123a 100%)`, transform: 'scale(calc(1 + var(--mic, 0) * 0.25 + var(--ai, 0) * 0.15))' }} />
+              style={{ transform: 'scale(calc(1 + var(--mic, 0) * 0.25 + var(--ai, 0) * 0.15))' }}>
+              <PalantirOrb tone={stoneTone('yordamchi')} live={live.active} className="small" />
+            </div>
             <div className="min-w-0 flex-1 text-[14px]">
               {live.error ? <p role="alert" className="text-rose-700">{live.error}</p> : (
                 <>

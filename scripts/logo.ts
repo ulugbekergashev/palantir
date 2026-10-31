@@ -1,50 +1,20 @@
 /**
- * Palantir logo to'plami (Palantir-logo/ va public/favicon.svg) — bitta joydan: belgi — ko'ruvchi tosh (palantír): qora tutunli
- * shisha shar, ichida olov va uyurma, chetida shisha aksi. Yozuv («palantir», Manrope 800, konturga aylantirilgan) eski to'plamdan olinadi.
+ * Palantir logo to'plami (Palantir-logo/, public/favicon.svg) va ilova ichidagi tosh qatlamlari (src/assets/palantir) — bitta joydan.
+ * Belgi — ko'ruvchi tosh (palantír, rasmi: scripts/stone-art.ts): qora shisha shar, ichida tutun va cho'g', ikonkada tagkursi bilan.
+ * Yozuv («palantir», Manrope 800, konturga aylantirilgan) eski to'plamdan olinadi.
  * Ishga tushirish: npx tsx scripts/logo.ts — SVG'lar yoziladi, PNG'lar ko'rinmas brauzerda chiziladi, favicon.ico (16/32/48/256).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { installedBrowser } from '../server/browserPath';
+import { appAssets, stone, stoneMono } from './stone-art';
 
 const ROOT = join(process.cwd(), 'Palantir-logo');
 const INK = '#0B0D10', SILVER = '#EEF0F3', WHITE = '#FFFFFF';
 /** Eski to'plamdagi yozuv konturi (belgidan o'ngda, viewBox 16.91 10.55 481.43 109.50) */
 const WORD = /<path fill="#[0-9A-Fa-f]{6}" d="([^"]+)"/.exec(readFileSync(join(ROOT, 'svg', 'palantir-logo.svg'), 'utf8'))?.[1];
 if (!WORD) throw new Error("Yozuv konturi topilmadi (Palantir-logo/svg/palantir-logo.svg)");
-
-/** Ichidagi uyurma (spiral, yarim doiralardan) va chetdagi yupqa aks (o'roq) — yuzga o'xshamasin: ko'z yoki og'iz yo'q */
-const SWIRL = "M3 6A3.6 3.6 0 0 1 10.2 6A7.2 7.2 0 0 1 -4.2 6A10.8 10.8 0 0 1 17.4 6A14.4 14.4 0 0 1 -11.4 6";
-const GLINT = "M-34.8 -12.7A37 37 0 0 1 -6.4 -36.4";
-
-/** Rangli belgi: markazi (cx, cy), radiusi r. id — bir faylda gradient nomlari to'qnashmasin */
-function stone(cx: number, cy: number, r: number, id = 'p'): string {
-  const k = r / 44;
-  return `<g transform="translate(${cx} ${cy}) scale(${k.toFixed(4)})">
-<defs>
-<radialGradient id="${id}S" cx="0" cy="7" r="46" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFD9A0"/><stop offset=".14" stop-color="#FF9A3C"/><stop offset=".32" stop-color="#C2410C"/><stop offset=".55" stop-color="#3B160A"/><stop offset=".8" stop-color="#120806"/><stop offset="1" stop-color="#060304"/></radialGradient>
-<radialGradient id="${id}H" cx="-24" cy="-28" r="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".85"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".05"/></radialGradient>
-</defs>
-<circle r="44" fill="url(#${id}S)"/>
-<path d="${SWIRL}" fill="none" stroke="#FFD29A" stroke-opacity=".55" stroke-width="2.8" stroke-linecap="round"/>
-<circle r="43" fill="none" stroke="#FFC48C" stroke-opacity=".3" stroke-width="1.6"/>
-<path d="${GLINT}" fill="none" stroke="url(#${id}H)" stroke-width="5" stroke-linecap="round"/>
-</g>`;
-}
-
-/** Bir rangli belgi (muhr, blanka): shar, chetdagi aks va ichidagi uyurma kesib olingan */
-function stoneMono(cx: number, cy: number, r: number, color: string, id = 'p'): string {
-  const k = r / 44;
-  return `<g transform="translate(${cx} ${cy}) scale(${k.toFixed(4)})">
-<defs><mask id="${id}M" maskUnits="userSpaceOnUse" x="-45" y="-45" width="90" height="90">
-<circle r="44" fill="#fff"/>
-<path d="${GLINT}" fill="none" stroke="#000" stroke-width="5" stroke-linecap="round"/>
-<path d="${SWIRL}" fill="none" stroke="#000" stroke-width="3.6" stroke-linecap="round"/>
-</mask></defs>
-<circle r="44" fill="${color}" mask="url(#${id}M)"/>
-</g>`;
-}
 
 const svg = (viewBox: string, w: number, h: number, body: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${w}" height="${h}" role="img" aria-label="Palantir"><title>Palantir</title>${body}</svg>\n`;
@@ -56,12 +26,12 @@ const FILES: Record<string, string> = {
   'palantir-logo-qora-fon': svg(LOGO_BOX, 481, 110, stone(61, 61, 44) + word(SILVER)),
   'palantir-logo-mono-qora': svg(LOGO_BOX, 481, 110, stoneMono(61, 61, 44, INK) + word(INK)),
   'palantir-logo-mono-oq': svg(LOGO_BOX, 481, 110, stoneMono(61, 61, 44, WHITE) + word(WHITE)),
-  'palantir-belgi': svg('8.00 8.00 84.00 84.00', 84, 84, stone(50, 50, 41)),
-  'palantir-belgi-qora-fon': svg('8.00 8.00 84.00 84.00', 84, 84, stone(50, 50, 41)),
-  'palantir-ikonka': svg('0.00 0.00 100.00 100.00', 100, 100, `<rect width="100" height="100" rx="23.6" fill="${INK}"/>${stone(50, 50, 31)}`),
-  'palantir-ikonka-kvadrat': svg('0.00 0.00 100.00 100.00', 100, 100, `<rect width="100" height="100" fill="${INK}"/>${stone(50, 50, 30)}`),
+  'palantir-belgi': svg('8.00 8.00 84.00 84.00', 84, 84, stone(50, 41, 32, 'p', true)),
+  'palantir-belgi-qora-fon': svg('8.00 8.00 84.00 84.00', 84, 84, stone(50, 41, 32, 'p', true)),
+  'palantir-ikonka': svg('0.00 0.00 100.00 100.00', 100, 100, `<rect width="100" height="100" rx="23.6" fill="${INK}"/>${stone(50, 41, 30, 'p', true)}`),
+  'palantir-ikonka-kvadrat': svg('0.00 0.00 100.00 100.00', 100, 100, `<rect width="100" height="100" fill="${INK}"/>${stone(50, 41, 30, 'p', true)}`),
   // Doira shaklida kesilganda ham to'liq ko'rinadi
-  'palantir-avatar': svg('0.00 0.00 100.00 100.00', 100, 100, `<rect width="100" height="100" fill="${INK}"/>${stone(50, 50, 27)}`),
+  'palantir-avatar': svg('0.00 0.00 100.00 100.00', 100, 100, `<rect width="100" height="100" fill="${INK}"/>${stone(50, 40, 25, 'p', true)}`),
 };
 
 /** PNG'lar: nom → [svg, eni, bo'yi, fon] (fon berilmasa — shaffof) */
@@ -102,6 +72,9 @@ for (const dir of ['svg', 'png', 'favicon']) mkdirSync(join(ROOT, dir), { recurs
 for (const [name, text] of Object.entries(FILES)) writeFileSync(join(ROOT, 'svg', `${name}.svg`), text);
 writeFileSync(join(ROOT, 'favicon', 'favicon.svg'), FILES['palantir-ikonka']);
 writeFileSync(join(process.cwd(), 'public', 'favicon.svg'), FILES['palantir-ikonka']);
+const ASSETS = join(process.cwd(), 'src', 'assets', 'palantir');
+mkdirSync(ASSETS, { recursive: true });
+for (const [name, text] of Object.entries(appAssets())) writeFileSync(join(ASSETS, name), text);
 
 const exe = installedBrowser();
 if (!exe) throw new Error('Chrome yoki Edge topilmadi — PNG chizilmadi');

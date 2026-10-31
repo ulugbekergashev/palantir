@@ -1,8 +1,8 @@
 PALANTIR — LOGO TO'PLAMI (Ko'ruvchi tosh)
 ==========================================
 
-Belgi — palantír, ko'ruvchi tosh: qora tutunli shisha shar, ichida olovli uyurma,
-chetida shisha aksi. Hamma fayllar bitta skriptdan chiqadi: npx tsx scripts/logo.ts
+Belgi — palantír, ko'ruvchi tosh: qora shisha shar, ichida tutun va cho'g', tagkursida;
+ilova ichidagi sferalar ham shu rasmdan. Hamma fayllar bitta skriptdan chiqadi: npx tsx scripts/logo.ts
 (shakl yoki rangni o'sha yerda o'zgartiring — qo'lda tahrir qilmang).
 
 PAPKALAR

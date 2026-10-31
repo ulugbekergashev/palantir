@@ -7,28 +7,32 @@ import { ArrowUp, Loader2 } from 'lucide-react';
 import { api } from '../data/api';
 import { hrefOf, type Area } from '../lib/nav';
 import { Markdown } from './Markdown';
+import { PalantirOrb, type StoneTone } from './PalantirOrb';
 import { TEAM, type Member, type MemberState } from './team';
 
-/** Har xodimning rangi: sfera, nur va urg'u */
 /** Holat nuqtasi: faol ish — yorqin halqa, ishlayapti — yashil, ulanmagan — kulrang */
 export const dotClass = (s: MemberState) => (s.live ? 'bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.15)]' : s.on ? 'bg-emerald-400' : 'bg-glass/30');
 
-export const HUE: Record<Member, { a: string; b: string; glow: string; text: string }> = {
-  qabulxona: { a: '#3fd6c3', b: '#6f73ff', glow: 'rgba(63,214,195,0.16)', text: '#8ff0e2' },
-  yordamchi: { a: '#8b8cff', b: '#b38cff', glow: 'rgba(139,140,255,0.18)', text: '#c7c8ff' },
-  kuzatuvchi: { a: '#f5b454', b: '#ff7a59', glow: 'rgba(245,180,84,0.15)', text: '#fbd38d' },
-  tahlilchi: { a: '#34d399', b: '#3fb6ff', glow: 'rgba(52,211,153,0.15)', text: '#86efc4' },
-  marketolog: { a: '#f472b6', b: '#a78bfa', glow: 'rgba(244,114,182,0.15)', text: '#f9a8d4' },
+/** Har xodimning rangi: tosh, nur va urg'u */
+export const HUE: Record<Member, { a: string; b: string; glow: string; text: string; /** Tosh ichidagi tutunning to'q cheti */ deep: string }> = {
+  qabulxona: { a: '#3fd6c3', b: '#6f73ff', glow: 'rgba(63,214,195,0.16)', text: '#8ff0e2', deep: '#0f5c63' },
+  yordamchi: { a: '#8b8cff', b: '#b38cff', glow: 'rgba(139,140,255,0.18)', text: '#c7c8ff', deep: '#3a2a8a' },
+  kuzatuvchi: { a: '#f5b454', b: '#ff7a59', glow: 'rgba(245,180,84,0.15)', text: '#fbd38d', deep: '#8a3a0c' },
+  tahlilchi: { a: '#34d399', b: '#3fb6ff', glow: 'rgba(52,211,153,0.15)', text: '#86efc4', deep: '#0d5a47' },
+  marketolog: { a: '#f472b6', b: '#a78bfa', glow: 'rgba(244,114,182,0.15)', text: '#f9a8d4', deep: '#6b1f5a' },
 };
 
+/** Xodimning tosh tusi: ichidagi cho'g' va tutun xodim rangida, shishasi bir xil */
+export const stoneTone = (member: Member): StoneTone => ({ hot: HUE[member].text, warm: HUE[member].a, deep: HUE[member].deep });
+
+/** Bundan kichik toshda nur o'chadi (index.css .palantir.small) */
+const SMALL_STONE = 56;
+
+/** Xodim toshi — bosh ekrandagi palantir bilan bir xil shisha, ichidagi olov xodim rangida */
 export function AgentOrb({ member, size = 84, live = false }: { member: Member; size?: number; live?: boolean }) {
-  const h = HUE[member];
   return (
-    <span aria-hidden="true" className="relative inline-block shrink-0 rounded-full" style={{ width: size, height: size }}>
-      <span className={`absolute inset-0 rounded-full opacity-70 blur-xl ${live ? 'animate-[spin_10s_linear_infinite]' : 'animate-[spin_24s_linear_infinite]'} motion-reduce:animate-none`}
-        style={{ background: `conic-gradient(from 0deg, ${h.a}, ${h.b}, ${h.a})` }} />
-      <span className="absolute inset-[6%] rounded-full" style={{ background: `radial-gradient(circle at 30% 28%, #ffffffcc, ${h.a} 38%, ${h.b} 72%, #15123a 100%)` }} />
-      <span className="absolute inset-[6%] rounded-full ring-1 ring-glass/20" />
+    <span aria-hidden="true" className="relative inline-block shrink-0" style={{ width: size, height: size }}>
+      <PalantirOrb tone={stoneTone(member)} live={live} className={size < SMALL_STONE ? 'small' : ''} />
     </span>
   );
 }

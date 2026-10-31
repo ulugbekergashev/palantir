@@ -1,10 +1,11 @@
 /**
- * Ixcham ovoz paneli (xodim sahifasida): xodim rangidagi sfera — bosing va gapiring; jonli matn va natija kartalari.
+ * Ixcham ovoz paneli (xodim sahifasida): xodim rangidagi tosh — bosing va gapiring; jonli matn va natija kartalari.
  * kind: owner — egasining yordamchisi; customer — qabulxonani mijoz bo'lib sinash (jadvalga yozilmaydi, so'rov ochilmaydi).
  */
 import { Mic, Square } from 'lucide-react';
 import { Markdown } from './Markdown';
-import { HUE } from './agent';
+import { HUE, stoneTone } from './agent';
+import { PalantirOrb } from './PalantirOrb';
 import type { Member } from './team';
 import { useVoice, type VoiceMode } from '../lib/useVoice';
 
@@ -21,10 +22,9 @@ export function VoicePanel({ kind, member, title, hint, labels }: {
         <button type="button" onClick={() => { void v.toggle(); }} aria-pressed={v.active} aria-label={v.active ? labels.stop : labels.start}
           className="group relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-glass/60">
           <div ref={orbRef} aria-hidden="true" style={{ transform: 'scale(calc(1 + var(--mic, 0) * 0.18 + var(--ai, 0) * 0.1))', filter: 'brightness(calc(1 + var(--ai, 0) * 0.5))' }} className="absolute inset-0 transition-transform duration-100">
-            <span className="absolute inset-0 animate-[spin_12s_linear_infinite] rounded-full opacity-70 blur-xl motion-reduce:animate-none" style={{ background: `conic-gradient(from 0deg, ${h.a}, ${h.b}, ${h.a})` }} />
-            <span className="absolute inset-[7%] rounded-full" style={{ background: `radial-gradient(circle at 30% 28%, #ffffffcc, ${h.a} 38%, ${h.b} 72%, #15123a 100%)` }} />
+            <PalantirOrb tone={stoneTone(member)} live={v.active} />
           </div>
-          <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-[rgb(0_0_0/0.30)] text-[#f8f8f6] backdrop-blur-sm">
+          <span className="absolute bottom-[2%] left-1/2 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-glass/15 bg-[rgb(0_0_0/0.55)] text-[#f8f8f6] backdrop-blur-sm">
             {v.active ? <Square className="h-4 w-4 fill-current" aria-hidden="true" /> : <Mic className="h-5 w-5" aria-hidden="true" />}
           </span>
         </button>
