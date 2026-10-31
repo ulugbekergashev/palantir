@@ -51,7 +51,9 @@ export function SetupWizard() {
   const [stepKey, setStepKey] = useState<StepKey>('clinic');
   const [list, setList] = useState<AdminBusiness[] | null>(null);
   const [bizId, setBizId] = useState<string | null>(() => read(BIZ_KEY));
-  const [entered, setEntered] = useState(false);
+  /** Qaysi klinika kabinetiga kirilgan: boshqasi tanlansa, kirish tugaguncha «kirilmagan» */
+  const [enteredBiz, setEnteredBiz] = useState<string | null>(null);
+  const entered = !!bizId && enteredBiz === bizId;
   const [keys, setKeys] = useState<KeyView[] | null>(null);
   const [status, setStatus] = useState<LiveStatus | null>(null);
   const [setup, setSetup] = useState<SetupView | null>(null);
@@ -59,7 +61,7 @@ export function SetupWizard() {
   const [phone, setPhone] = useState<PhoneLine | null>(null);
   const [routed, setRouted] = useState<Routed>(emptyRouted);
   const [t0] = useState(() => Number(read(T0_KEY)) || (write(T0_KEY, String(Date.now())), Date.now()));
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(Date.now);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
 
   const adminFail = useCallback((e: unknown) => {
@@ -73,7 +75,15 @@ export function SetupWizard() {
       setKeys(k.keys);
     } catch (e) { adminFail(e); }
   }, [adminFail]);
-  useEffect(() => { if (authed) void loadAdmin(); }, [authed, loadAdmin]);
+  // Kirgach ro'yxat yuklanadi (javob kelgach holat yoziladi — effekt ichida darhol emas)
+  useEffect(() => {
+    if (!authed) return;
+    let gone = false;
+    Promise.all([adminApi.businesses(), adminApi.keys()])
+      .then(([b, k]) => { if (!gone) { setList(b.businesses); setKeys(k.keys); } })
+      .catch(e => { if (!gone) adminFail(e); });
+    return () => { gone = true; };
+  }, [authed, adminFail]);
 
   /** Kabinet holati: kanallar, bo'shliqlar, kameralar soni */
   const refresh = useCallback(async () => {
@@ -89,14 +99,13 @@ export function SetupWizard() {
   useEffect(() => {
     if (!authed || !bizId) return;
     let stale = false;
-    setEntered(false);
     adminApi.enter(bizId).then(async r => {
       if (stale) return;
       session.set(r.token);
       write(BIZ_KEY, bizId);
       // Holatni olib bo'lmasa (tarmoq) ham klinika tanlovi qoladi — qadamlar qayta urinadi
       await refresh().catch(e => notify((e as Error).message, true));
-      if (!stale) setEntered(true);
+      if (!stale) setEnteredBiz(bizId);
     }).catch(e => { if (!stale) { write(BIZ_KEY, null); setBizId(null); adminFail(e); } });
     return () => { stale = true; };
   }, [authed, bizId, refresh, adminFail, notify]);

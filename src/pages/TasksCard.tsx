@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from 'react';
 import { Check, Loader2, Plus, X } from 'lucide-react';
 import type { Task } from '../types';
 import { api } from '../data/api';
@@ -56,12 +56,13 @@ export function TasksCard({ now, notify, onChanged }: { now: Date; notify: Notif
 
   /** Mahalliy o'zgarishlar hisobi: so'rov yo'lda ekan egasi vazifa qo'shgan yoki belgilagan bo'lsa, eski javob uni bosib ketmaydi */
   const edits = useRef(0);
+  const tell = useEffectEvent((e: unknown) => notify((e as Error).message, true));
   useEffect(() => {
     let told = false;
     const load = () => {
       const at = edits.current;
       return api.tasks('all').then(r => { if (edits.current === at) setList(r.tasks); })
-        .catch(e => { if (!told) { told = true; notify((e as Error).message, true); } });
+        .catch(e => { if (!told) { told = true; tell(e); } });
     };
     void load();
     // Vazifa Telegram'da ham paydo bo'ladi (yordamchiga aytilganda) va o'chadi — ro'yxat o'zi yangilanib turadi

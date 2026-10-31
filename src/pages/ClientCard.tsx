@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { CalendarDays, Loader2, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Play, Send, Stethoscope, Trash2 } from 'lucide-react';
 import type { Call, ClientCardView, LeadRequest } from '../types';
 import { api } from '../data/api';
@@ -80,11 +80,13 @@ function Forget({ leadId, name, notify, onDone }: { leadId: string; name: string
 }
 
 export function ClientCard({ leadId, notify, onForgotten }: { leadId: string; notify: Notify; /** Karta o'chirildi — ro'yxat yangilansin, suhbat yopilsin */ onForgotten: () => void }) {
-  const [card, setCard] = useState<ClientCardView | null>(null);
+  // Boshqa mijoz ochilganda eski karta ko'rinmaydi: karta qaysi mijozniki ekani bilan saqlanadi
+  const [loaded, setLoaded] = useState<{ leadId: string; card: ClientCardView } | null>(null);
+  const card = loaded?.leadId === leadId ? loaded.card : null;
+  const tell = useEffectEvent((e: unknown) => notify((e as Error).message, true));
   useEffect(() => {
     let gone = false;
-    setCard(null);
-    api.clientCard(leadId).then(r => { if (!gone) setCard(r.card); }).catch(e => { if (!gone) notify((e as Error).message, true); });
+    api.clientCard(leadId).then(r => { if (!gone) setLoaded({ leadId, card: r.card }); }).catch(e => { if (!gone) tell(e); });
     return () => { gone = true; };
   }, [leadId]);
   if (!card) return <div className="flex h-40 items-center justify-center text-slate-400"><Loader2 className="h-6 w-6 animate-spin" aria-label="Yuklanmoqda" /></div>;

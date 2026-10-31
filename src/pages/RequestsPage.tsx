@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { Copy, Inbox, Loader2, Phone, Trash2, UserPlus } from 'lucide-react';
 import type { RequestKind, RequestSource } from '../types';
 import { api, type RequestView, type TeamView } from '../data/api';
@@ -28,7 +28,8 @@ export function RequestsPage({ notify, onChanged }: { notify: Notify; onChanged:
   const [adding, setAdding] = useState(false);
   const fail = (e: unknown) => notify((e as Error).message, true);
   const load = () => api.requests(which).then(r => { setList(r.requests); setOpen(r.open); }).catch(fail);
-  useEffect(() => { setList(null); void load(); const t = setInterval(() => { void load(); }, 10_000); return () => clearInterval(t); }, [which]);
+  const refresh = useEffectEvent(load);
+  useEffect(() => { void refresh(); const t = setInterval(() => { void refresh(); }, 10_000); return () => clearInterval(t); }, [which]);
 
   const act = (id: string, verb: 'done' | 'cancel' | 'no-answer' | 'note', text?: string) =>
     api.requestAction(id, verb, text).then(() => { void load(); onChanged(); }).catch(fail);
@@ -46,7 +47,7 @@ export function RequestsPage({ notify, onChanged }: { notify: Notify; onChanged:
 
       <div role="tablist" aria-label="So'rovlar" className="flex gap-1">
         {(['open', 'closed'] as const).map(w => (
-          <button key={w} type="button" role="tab" aria-selected={which === w} onClick={() => setWhich(w)}
+          <button key={w} type="button" role="tab" aria-selected={which === w} onClick={() => { if (w !== which) { setWhich(w); setList(null); } }}
             className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors ${which === w ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-200/70'}`}>
             {w === 'open' ? `Ochiq${open ? ` (${open})` : ''}` : 'Yopilgan'}
           </button>
@@ -147,7 +148,8 @@ function TeamCard({ notify }: { notify: Notify }) {
   const [team, setTeam] = useState<TeamView | null>(null);
   const [name, setName] = useState('');
   const fail = (e: unknown) => notify((e as Error).message, true);
-  useEffect(() => { api.staff().then(setTeam).catch(fail); const t = setInterval(() => { api.staff().then(setTeam).catch(() => {}); }, 15_000); return () => clearInterval(t); }, []);
+  const onFail = useEffectEvent(fail);
+  useEffect(() => { api.staff().then(setTeam).catch(onFail); const t = setInterval(() => { api.staff().then(setTeam).catch(() => {}); }, 15_000); return () => clearInterval(t); }, []);
   const add = () => { if (name.trim()) api.addStaff(name.trim()).then(t => { setTeam(t); setName(''); }).catch(fail); };
   const copy = (link: string) => navigator.clipboard.writeText(link).then(() => notify('Havola nusxalandi — xodimga yuboring')).catch(() => notify(link));
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CheckCircle2, Download, Loader2, ShieldAlert } from 'lucide-react';
 import { anketaApi } from '../data/api';
 import { packFor } from '../data/industries';
@@ -59,7 +59,7 @@ export function AnketaPage() {
   };
   // Sahifa yopilsa yoki boshqasiga o'tilsa: kutayotgan saqlash darhol yuboriladi (oxirgi yozgani yo'qolmasin)
   const latest = useRef<AnketaData | null>(null);
-  latest.current = data;
+  useLayoutEffect(() => { latest.current = data; }, [data]);
   useEffect(() => {
     const flush = () => {
       if (!timer.current || !latest.current || strings(latest.current).some(containsSecret)) return;

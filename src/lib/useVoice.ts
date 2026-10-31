@@ -3,7 +3,7 @@
  * kind: owner — egasi o'z yordamchisi bilan; customer — egasi qabulxonani mijoz bo'lib sinaydi (jadvalga yozilmaydi, so'rov ochilmaydi).
  * Holat: kim nima dedi (jonli matn), asbob natijalari (karta), sfera uchun ovoz balandligi (orb ref'ga CSS o'zgaruvchilari).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { session } from '../data/api';
 import { startVoice, type VoiceEvent, type VoiceSession } from './liveVoice';
 
@@ -44,7 +44,8 @@ export function useVoice(kind: 'owner' | 'customer' = 'owner') {
   const [cards, setCards] = useState<VoiceCard[]>([]);
   const [error, setError] = useState('');
   const voice = useRef<VoiceSession | null>(null);
-  const orb = useRef<HTMLDivElement>(null);
+  const orb = useRef<HTMLDivElement | null>(null);
+  const orbRef = useCallback((node: HTMLDivElement | null) => { orb.current = node; }, []);
   const cardId = useRef(0);
   const working = useRef(0);
 
@@ -98,5 +99,5 @@ export function useVoice(kind: 'owner' | 'customer' = 'owner') {
     }
   };
 
-  return { mode, active: mode !== 'idle', you, ai, cards, error, toggle, orb, push, setYou, setAi, setError, nextId: () => ++cardId.current };
+  return { mode, active: mode !== 'idle', you, ai, cards, error, toggle, orb: orbRef, push, setYou, setAi, setError, nextId: () => ++cardId.current };
 }

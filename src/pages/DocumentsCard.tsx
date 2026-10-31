@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import type { Doc } from '../types';
 import { api } from '../data/api';
 import { DocCard, type Notify } from '../components/Artifacts';
@@ -8,7 +8,8 @@ import { shortDate } from '../lib/week';
 /** Yordamchi tayyorlagan hujjatlar — Ikkinchi miya ichida. Word fayli shu yerdan yuklanadi; matni papkaning «Hujjatlar» bo'limida ham turadi */
 export function DocumentsCard({ notify }: { notify: Notify }) {
   const [list, setList] = useState<Doc[] | null>(null);
-  useEffect(() => { api.documents().then(r => setList(r.documents)).catch(e => notify((e as Error).message, true)); }, []);
+  const tell = useEffectEvent((e: unknown) => notify((e as Error).message, true));
+  useEffect(() => { api.documents().then(r => setList(r.documents)).catch(tell); }, []);
   if (!list) return null;
   return (
     <Card title={`Hujjatlar${list.length ? ` (${list.length})` : ''}`} description="Yordamchi tayyorlagan shartnoma, taklif, hisob va xatlar. Word faylini yuklab oling; matni papkaning «Hujjatlar» bo'limida ham turadi.">

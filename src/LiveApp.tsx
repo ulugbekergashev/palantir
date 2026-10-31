@@ -67,7 +67,7 @@ export default function LiveApp() {
   const team = useTeam(status ?? ({ crm: { account: null } } as unknown as LiveStatus), tick);
   const wake = useWake();
   // «Quloq» ishlay olmasa (model o'rnatilmagan, mikrofon yo'q) — egasi bilsin
-  useEffect(() => { if (wake.phase === 'error' && wake.error) setToast({ text: `Quloq: ${wake.error}`, error: true }); }, [wake.phase, wake.error]);
+  useEffect(() => { if (wake.phase === 'error' && wake.error) setToast({ text: `Quloq: ${wake.error}`, error: true }); }, [wake.phase, wake.error, setToast]);
   const changed = () => setTick(t => t + 1);
   const logout = () => { session.set(null); window.location.hash = ''; window.location.reload(); };
 

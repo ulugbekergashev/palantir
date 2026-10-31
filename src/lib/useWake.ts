@@ -4,7 +4,7 @@
  * Panelda boshqa jonli suhbat ochiq bo'lsa (sfera, chat, qabulxona sinovi) — quloq to'xtab turadi. Bir nechta oyna ochiq bo'lsa, faqat bittasi
  * tinglaydi (navigator.locks) — «Palantir» ikki marta javob bermasin. Yoqilgani shu brauzerda eslab qolinadi.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { session } from '../data/api';
 import { startVoice, type VoiceEvent, type VoiceSession } from './liveVoice';
 import { cardOf, liveVoices, type VoiceCard } from './useVoice';
@@ -40,12 +40,14 @@ export function useWake() {
   const [error, setError] = useState('');
   const [shown, setShown] = useState(false);
   const voice = useRef<VoiceSession | null>(null);
-  const orb = useRef<HTMLDivElement>(null);
+  const orb = useRef<HTMLDivElement | null>(null);
+  const orbRef = useCallback((node: HTMLDivElement | null) => { orb.current = node; }, []);
   const live = useRef(false);
   const cardId = useRef(0);
   const timer = useRef<number | undefined>(undefined);
   const want = useRef(enabled);
-  want.current = enabled;
+  // Kutilayotgan ulanishlar eng so'nggi holatni ko'rsin (yoqish effektidan oldin yangilanadi)
+  useLayoutEffect(() => { want.current = enabled; }, [enabled]);
   /** Har ishga tushirish urinishining raqami: kutilayotgan ulanish eskirgan bo'lsa (o'chirildi, boshqasi boshlandi) — darhol yopiladi */
   const attempt = useRef(0);
   const unlock = useRef<(() => void) | null>(null);
@@ -110,7 +112,7 @@ export function useWake() {
   useEffect(() => {
     save(enabled);
     fatal.current = false;
-    if (enabled) void start(); else { stop(); setPhase('off'); setError(''); }
+    if (enabled) void start(); else stop();
   }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Boshqa jonli suhbat ochildi — tinglash to'xtaydi (suhbatdagi quloqning o'zi emas), yopildi — qaytadi
@@ -138,8 +140,11 @@ export function useWake() {
   }, []);
 
   return {
-    enabled, phase, word, you, ai, cards, error, shown, orb,
-    toggle: () => setEnabled(v => !v),
+    enabled, phase, word, you, ai, cards, error, shown, orb: orbRef,
+    toggle: () => {
+      if (enabled) { setPhase('off'); setError(''); }
+      setEnabled(!enabled);
+    },
     /** Suhbatni tugatish (quloq yoqilgan bo'lsa — yana tinglashga qaytadi) */
     hangUp: () => voice.current?.stop(),
     hide: () => setShown(false),

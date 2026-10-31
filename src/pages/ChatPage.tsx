@@ -3,7 +3,7 @@
  * Chapda — suhbat (kun bo'yicha; ovozli suhbat — alohida karta, telefondan va Telegram'dan kelgani belgisi bilan), pastda — yozish,
  * fayl, ovozli xabar va jonli suhbat (sfera). O'ngda — Xotira: Palantir nimani doim eslab turadi (MemoryPanel).
  */
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent } from 'react';
 import { AudioLines, ChevronDown, Loader2, Mic, Paperclip, Phone, RotateCcw, Send, Square } from 'lucide-react';
 import type { Artifact, ChatEntry, LiveStatus } from '../types';
 import { api } from '../data/api';
@@ -104,7 +104,7 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
   const [rec, setRec] = useState<Recording | null>(null);
   /** Xotira qayta o'qilsin (yangi fakt «eslab qol» bilan qo'shilgan bo'lishi mumkin) */
   const [memoryTick, setMemoryTick] = useState(0);
-  const live = useVoice('owner');
+  const { orb: liveOrb, ...live } = useVoice('owner');
   const bottom = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -112,12 +112,6 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
   const empty = entries !== null && !entries.length && !pending;
 
   const load = () => api.chat().then(r => { setEntries(r.entries); setInterview(r.interview); }).catch(e => notify((e as Error).message, true));
-  // Boshqa sahifada yozilgan savol bo'lsa — suhbat yuklangach o'zi yuboriladi
-  useEffect(() => {
-    let gone = false;
-    void load().then(() => { const asked = gone ? null : takeAsk(); if (asked) void submit(asked); });
-    return () => { gone = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (busy) return;
     const t = setInterval(() => { if (document.visibilityState === 'visible') void load(); }, POLL_MS);
@@ -154,6 +148,14 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
       input.current?.focus();
     }
   };
+
+  // Boshqa sahifada yozilgan savol bo'lsa — suhbat yuklangach o'zi yuboriladi (submit e'lon qilingandan keyin)
+  const openChat = useEffectEvent((isGone: () => boolean) => load().then(() => { const asked = isGone() ? null : takeAsk(); if (asked) void submit(asked); }));
+  useEffect(() => {
+    let gone = false;
+    void openChat(() => gone);
+    return () => { gone = true; };
+  }, []);
 
   /** Birinchi kun suhbati: savolni o'tkazib yuborish yoki suhbatni to'xtatish */
   const interviewAct = async (action: 'skip' | 'stop') => {
@@ -271,7 +273,7 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
 
         {(live.active || live.error) && (
           <div className="relative mx-4 mb-3 flex items-center gap-4 rounded-2xl border border-[#8b8cff]/25 bg-[#8b8cff]/[0.06] px-4 py-3 sm:mx-6" aria-live="polite">
-            <div ref={live.orb} aria-hidden="true" className="h-10 w-10 shrink-0 rounded-full transition-transform duration-100"
+            <div ref={liveOrb} aria-hidden="true" className="h-10 w-10 shrink-0 rounded-full transition-transform duration-100"
               style={{ background: `radial-gradient(circle at 30% 28%, #ffffffcc, ${h.a} 38%, ${h.b} 72%, #15123a 100%)`, transform: 'scale(calc(1 + var(--mic, 0) * 0.25 + var(--ai, 0) * 0.15))' }} />
             <div className="min-w-0 flex-1 text-[14px]">
               {live.error ? <p role="alert" className="text-rose-700">{live.error}</p> : (

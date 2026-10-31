@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useEffectEvent, useState, type FormEvent } from 'react';
 import { Copy, Loader2, Plus, Trash2 } from 'lucide-react';
 import { adminApi } from '../data/api';
 import { Button, Card, Field, TextInput } from '../components/ui';
@@ -16,7 +16,8 @@ export function AnketaAdmin({ onError, onInfo }: { onError: (e: unknown) => void
   const [form, setForm] = useState({ label: '', industry: 'stomatologiya' });
   const [busy, setBusy] = useState(false);
   const load = () => adminApi.anketas().then(r => setList(r.anketas)).catch(onError);
-  useEffect(() => { void load(); }, []);
+  const firstLoad = useEffectEvent(load);
+  useEffect(() => { void firstLoad(); }, []);
 
   const link = (code: string) => `${window.location.origin}/#/anketa/${code}`;
   const copy = (a: AnketaView) => {

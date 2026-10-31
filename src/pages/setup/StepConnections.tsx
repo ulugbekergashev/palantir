@@ -57,7 +57,12 @@ export function StepOwner({ status, refresh, notify }: { status: LiveStatus; ref
 export function StepCrm({ status, setup, routed, onStatus, notify }: { status: LiveStatus; setup: SetupView | null; routed: Routed; onStatus: (s: LiveStatus) => void; notify: Notify }) {
   const [form, setForm] = useState({ url: routed.crmUrl, username: '', password: routed.crmPassword });
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setForm(f => ({ ...f, url: f.url || routed.crmUrl, password: f.password || routed.crmPassword })); }, [routed.crmUrl, routed.crmPassword]);
+  // Kalitlar qadamida kiritilgan CRM manzili/paroli kelsa — bo'sh maydonlarga qo'yiladi (render paytida, effektsiz)
+  const [seen, setSeen] = useState(routed);
+  if (routed.crmUrl !== seen.crmUrl || routed.crmPassword !== seen.crmPassword) {
+    setSeen(routed);
+    setForm(f => ({ ...f, url: f.url || routed.crmUrl, password: f.password || routed.crmPassword }));
+  }
   const connect = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);

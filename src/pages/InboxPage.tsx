@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from 'react';
 import { ClientCard } from './ClientCard';
 import { ArrowLeft, Bot, Check, Loader2, Phone, Send, Users, X } from 'lucide-react';
 import type { AutoReply, InboxMessage, InboxThread, Lead, LeadChannel, LeadStage, Outbound, ReplyDraft } from '../types';
@@ -110,7 +110,8 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
   const [tab, setTab] = useState<'chat' | 'card'>('chat');
   const bottom = useRef<HTMLDivElement>(null);
   const load = () => api.thread(leadId).then(setData).catch(e => notify((e as Error).message, true));
-  useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 10_000); return () => clearInterval(t); }, [leadId]);
+  const refresh = useEffectEvent(load);
+  useEffect(() => { void refresh(); const t = setInterval(() => { void refresh(); }, 10_000); return () => clearInterval(t); }, [leadId]);
   useEffect(() => { scrollToEnd(bottom.current); }, [data?.messages.length]);
 
   const act = async (key: string, fn: () => Promise<unknown>, ok?: string) => {
@@ -214,7 +215,8 @@ export function InboxPage({ notify, onChanged }: { notify: Notify; /** Javob tas
     api.followups().then(r => setDrafts(r.followups.filter(f => f.status === 'draft'))).catch(() => {});
     return api.inbox().then(r => { setThreads(r.threads); setSettings(r.settings); }).catch(e => notify((e as Error).message, true));
   };
-  useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 15_000); return () => clearInterval(t); }, []);
+  const refresh = useEffectEvent(load);
+  useEffect(() => { void refresh(); const t = setInterval(() => { void refresh(); }, 15_000); return () => clearInterval(t); }, []);
 
   const shown = (threads ?? []).filter(t => stage === 'all' || t.lead.stage === stage);
   const count = (s: LeadStage) => (threads ?? []).filter(t => t.lead.stage === s).length;

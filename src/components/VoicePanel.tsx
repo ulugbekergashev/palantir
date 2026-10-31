@@ -11,7 +11,7 @@ import { useVoice, type VoiceMode } from '../lib/useVoice';
 export function VoicePanel({ kind, member, title, hint, labels }: {
   kind: 'owner' | 'customer'; member: Member; title: string; hint: string; labels: { start: string; stop: string; speaking: string };
 }) {
-  const v = useVoice(kind);
+  const { orb: orbRef, ...v } = useVoice(kind);
   const h = HUE[member];
   const state: Record<VoiceMode, string> = { idle: hint, connecting: 'Ulanmoqda…', listening: 'Eshityapti — gapiring', thinking: 'Bajaryapti…', speaking: labels.speaking };
   return (
@@ -20,7 +20,7 @@ export function VoicePanel({ kind, member, title, hint, labels }: {
       <div className="relative flex items-center gap-5">
         <button type="button" onClick={() => { void v.toggle(); }} aria-pressed={v.active} aria-label={v.active ? labels.stop : labels.start}
           className="group relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-glass/60">
-          <div ref={v.orb} aria-hidden="true" style={{ transform: 'scale(calc(1 + var(--mic, 0) * 0.18 + var(--ai, 0) * 0.1))', filter: 'brightness(calc(1 + var(--ai, 0) * 0.5))' }} className="absolute inset-0 transition-transform duration-100">
+          <div ref={orbRef} aria-hidden="true" style={{ transform: 'scale(calc(1 + var(--mic, 0) * 0.18 + var(--ai, 0) * 0.1))', filter: 'brightness(calc(1 + var(--ai, 0) * 0.5))' }} className="absolute inset-0 transition-transform duration-100">
             <span className="absolute inset-0 animate-[spin_12s_linear_infinite] rounded-full opacity-70 blur-xl motion-reduce:animate-none" style={{ background: `conic-gradient(from 0deg, ${h.a}, ${h.b}, ${h.a})` }} />
             <span className="absolute inset-[7%] rounded-full" style={{ background: `radial-gradient(circle at 30% 28%, #ffffffcc, ${h.a} 38%, ${h.b} 72%, #15123a 100%)` }} />
           </div>

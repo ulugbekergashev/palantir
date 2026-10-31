@@ -3,13 +3,13 @@
  * nima to'xtatdi, qachon murojaat ko'p (soat va kun) va egasi shu hafta nima qilsin (bir bosishda topshiriq).
  * Tahlil bazada saqlanadi: sahifa ochilganda oxirgisi ko'rinadi (bepul), «Qayta tahlil» — model bilan yangisi (~1 daqiqa).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { CircleHelp, Lightbulb, Loader2, Plus, RefreshCw, ThumbsDown } from 'lucide-react';
 import { api, type DemandGroup, type Insights } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { Panel, Quiet } from '../../components/agent';
 import { hrefOf } from '../../lib/nav';
-import { addDays, iso } from '../../lib/week';
+import { tomorrowAt } from '../../lib/week';
 import { when } from '../../lib/text';
 
 const DAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
@@ -84,20 +84,22 @@ function Peaks({ hours, days }: { hours: number[]; days: number[] }) {
 
 export function DemandBody({ notify }: { notify: Notify }) {
   const [days, setDays] = useState(7);
-  const [data, setData] = useState<Insights | null | undefined>(undefined);
+  // Natija qaysi davrniki ekani bilan saqlanadi: davr almashganda eskisi ko'rinmaydi (undefined — yuklanmoqda)
+  const [loaded, setLoaded] = useState<{ days: number; data: Insights | null } | null>(null);
+  const data = loaded?.days === days ? loaded.data : undefined;
   const [busy, setBusy] = useState(false);
+  const tell = useEffectEvent((e: unknown) => notify((e as Error).message, true));
   useEffect(() => {
     let stale = false;
-    setData(undefined);
-    api.insights(days).then(r => { if (!stale) { setData(r.insights); setBusy(r.running); } }).catch(e => notify((e as Error).message, true));
+    api.insights(days).then(r => { if (!stale) { setLoaded({ days, data: r.insights }); setBusy(r.running); } }).catch(tell);
     return () => { stale = true; };
-  }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [days]);
   const run = async () => {
     setBusy(true);
-    try { setData((await api.runInsights(days)).insights); notify('Tahlil tayyor'); } catch (e) { notify((e as Error).message, true); } finally { setBusy(false); }
+    try { setLoaded({ days, data: (await api.runInsights(days)).insights }); notify('Tahlil tayyor'); } catch (e) { notify((e as Error).message, true); } finally { setBusy(false); }
   };
   const task = async (title: string, why: string) => {
-    try { await api.addTask({ title: title.slice(0, 200), dueAt: `${iso(addDays(new Date(), 1))}T10:00`, notes: why }); notify('Topshiriq qo‘shildi — ertaga 10:00'); } catch (e) { notify((e as Error).message, true); }
+    try { await api.addTask({ title: title.slice(0, 200), dueAt: tomorrowAt('10:00'), notes: why }); notify('Topshiriq qo‘shildi — ertaga 10:00'); } catch (e) { notify((e as Error).message, true); }
   };
 
   const head = (

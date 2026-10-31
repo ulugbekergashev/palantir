@@ -2,7 +2,7 @@
  * Tahlilchi: davr (bugun / kecha / hafta / oy) bo'yicha raqamlar, kanallar grafigi, murojaatdan to'lovgacha voronka va jamoa —
  * hammasi bitta qorong'i sahifada. Ma'lumot — /api/dashboard va /api/dashboard/funnel (DentaCRM bilan — keldi va to'ladi ham).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { api } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { AgentAsk, HUE, Panel, Quiet, type Stat } from '../../components/agent';
@@ -13,16 +13,17 @@ export interface AnalystData { dashboard: DashboardView | null; funnel: FunnelVi
 type Period = Exclude<PeriodKey, 'custom'>;
 
 export function useAnalystData(period: Period, notify: Notify): AnalystData | null {
-  const [data, setData] = useState<AnalystData | null>(null);
+  // Davr almashganda eski davr raqamlari ko'rinmaydi: natija qaysi davrniki ekani bilan saqlanadi
+  const [loaded, setLoaded] = useState<{ period: Period; data: AnalystData } | null>(null);
+  const tell = useEffectEvent((e: unknown) => notify((e as Error).message, true));
   useEffect(() => {
     let stale = false;
-    setData(null);
     Promise.all([api.dashboard(period).then(r => r.dashboard).catch(() => null), api.funnel(period).then(r => r.funnel).catch(() => null)])
-      .then(([dashboard, funnel]) => { if (!stale) setData({ dashboard, funnel }); })
-      .catch(e => notify((e as Error).message, true));
+      .then(([dashboard, funnel]) => { if (!stale) setLoaded({ period, data: { dashboard, funnel } }); })
+      .catch(tell);
     return () => { stale = true; };
-  }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
-  return data;
+  }, [period]);
+  return loaded?.period === period ? loaded.data : null;
 }
 
 const delta = (v: number, prev: number) => (prev ? `${v >= prev ? '+' : ''}${Math.round(((v - prev) / prev) * 100)}% oldingi davrga` : v ? 'oldingi davrda yo‘q edi' : undefined);

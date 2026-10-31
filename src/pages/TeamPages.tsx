@@ -36,10 +36,10 @@ import { SettingsHub } from './settings/SettingsHub';
 interface Common { biz: Business; status: LiveStatus; now: Date; notify: Notify; onChanged: () => void; tab: string | null; state: MemberState | null; tick: number }
 const pick = (tab: string | null, ids: string[]) => (tab && ids.includes(tab) ? tab : ids[0]);
 
-export function ReceptionArea({ tab, notify, onChanged, state, status, tick }: Common) {
+export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now }: Common) {
   const active = pick(tab, ['bugun', 'sorovlar', 'qongiroqlar', 'yozishmalar', 'topshiriqlar']);
   const [data, reload] = useReceptionData(notify, tick);
-  const today = iso(new Date());
+  const today = iso(now);
   const k = data?.dashboard?.kpi;
   const stats = [
     { label: 'Javob berildi', value: k?.answered.value ?? '—', hint: k?.answered.responseMin != null ? `o'rtacha ${k.answered.responseMin} daqiqada` : undefined },

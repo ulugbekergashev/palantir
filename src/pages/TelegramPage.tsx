@@ -1,5 +1,5 @@
 /** Sozlamalar bo'limlarining qismlari (settings/SettingsHub.tsx yig'adi): Telegram, Instagram, javob rejimi, asosiy sozlamalar, mijozlar havolasi */
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useEffectEvent, useState, type FormEvent } from 'react';
 import { Copy, ExternalLink, Loader2, Unlink } from 'lucide-react';
 import type { AutoReply, Business, LiveStatus, ReplyMode } from '../types';
 import { api } from '../data/api';
@@ -79,13 +79,16 @@ export function TelegramLogin({ status, onStatus, notify }: { status: LiveStatus
 export function InstagramOfficial({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
   const ig = status.instagramApi;
   const [waiting, setWaiting] = useState(false);
+  // Kutish paytida kelgan holat — har safar eng so'nggi notify/onStatus bilan (kuzatuv qayta boshlanmaydi)
+  const tell = useEffectEvent(notify);
+  const update = useEffectEvent(onStatus);
   useEffect(() => {
     if (!waiting) return;
     const t = setInterval(async () => {
       try {
         const s = (await api.me()).status;
-        if (s.instagramApi.account) { setWaiting(false); notify(`Instagram ${s.instagramApi.account} ulandi`); }
-        onStatus(s);
+        if (s.instagramApi.account) { setWaiting(false); tell(`Instagram ${s.instagramApi.account} ulandi`); }
+        update(s);
       } catch { /* keyingi safar */ }
     }, 2500);
     const stop = setTimeout(() => setWaiting(false), 10 * 60_000);
@@ -119,16 +122,18 @@ export function Instagram({ status, onStatus, notify }: { status: LiveStatus; on
   const [busy, setBusy] = useState(false);
 
   // Egasi oynada kirguncha holat kuzatiladi
+  const tell = useEffectEvent(notify);
+  const update = useEffectEvent(onStatus);
   useEffect(() => {
     if (!ig.waiting) return;
     const t = setInterval(async () => {
       try {
         const s = (await api.me()).status;
         if (!s.instagram.waiting) {
-          if (s.instagram.problem) notify(`Instagram ulanmadi: ${s.instagram.problem}`, true);
-          else if (s.instagram.account) notify('Instagram ulandi');
+          if (s.instagram.problem) tell(`Instagram ulanmadi: ${s.instagram.problem}`, true);
+          else if (s.instagram.account) tell('Instagram ulandi');
         }
-        onStatus(s);
+        update(s);
       } catch { /* keyingi safar */ }
     }, 2000);
     return () => clearInterval(t);

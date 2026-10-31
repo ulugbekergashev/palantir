@@ -3,7 +3,7 @@
  * Yozishma: xabarlar (mijoz / AI / siz), AI tayyorlagan va tasdiqingizni kutayotgan javob (yuborish, tahrirlash, kerak emas),
  * o'zingiz yozish (suhbatni qo'lga olish). Qo'ng'iroq: natija, AI xulosasi, suhbat matni va yozuvni tinglash.
  */
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type FormEvent } from 'react';
 import { ArrowUp, MessageCircle, Pause, Phone, PhoneMissed, Play, Send } from 'lucide-react';
 import type { Call, InboxMessage, InboxThread, Lead, ReplyDraft } from '../../types';
 import { api } from '../../data/api';
@@ -31,7 +31,9 @@ function ChatThread({ thread, notify, onChanged }: { thread: InboxThread; notify
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const load = () => api.thread(thread.lead.id).then(r => setData({ messages: r.messages, replies: r.replies })).catch(e => notify((e as Error).message, true));
-  useEffect(() => { setData(null); setText(''); setEditing(null); void load(); }, [thread.lead.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Boshqa suhbat ochilganda komponent yangidan quriladi (key) — holatni bu yerda tozalash shart emas
+  const firstLoad = useEffectEvent(load);
+  useEffect(() => { void firstLoad(); }, []);
   useEffect(() => { scrollToEnd(end.current); }, [data]);
   const pending = data?.replies.filter(r => r.status === 'pending') ?? [];
   const run = async (work: () => Promise<unknown>, done: string) => {
@@ -96,7 +98,6 @@ function CallThread({ call }: { call: Call }) {
   const [url, setUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
-  useEffect(() => { setUrl(null); setPlaying(false); }, [call.id]);
   const toggle = async () => {
     if (playing) { audio.current?.pause(); return; }
     const src = url ?? URL.createObjectURL(await api.callAudio(call.id));
@@ -218,8 +219,8 @@ export function Conversations({ notify, onChanged, tick }: { notify: Notify; onC
       </div>
       <div className="min-h-[420px] min-w-0 flex-1">
         {current ? (current.kind === 'chat'
-          ? <ChatThread thread={current.thread} notify={notify} onChanged={() => { setN(x => x + 1); onChanged(); }} />
-          : <CallThread call={current.call} />)
+          ? <ChatThread key={current.thread.lead.id} thread={current.thread} notify={notify} onChanged={() => { setN(x => x + 1); onChanged(); }} />
+          : <CallThread key={current.call.id} call={current.call} />)
           : <div className="flex h-full items-center justify-center p-8 text-center text-[14px] leading-relaxed text-[#7d838f]">Suhbatni tanlang — mijoz nima dedi, AI nima javob berdi va nima bilan tugadi, shu yerda.</div>}
       </div>
     </section>

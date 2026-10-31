@@ -22,6 +22,9 @@ export const fromIso = (key: string): Date => new Date(`${key}T12:00:00`);
 
 export const addDays = (d: Date, n: number): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, 12);
 
+/** Ertaga shu soatda: "YYYY-MM-DDTHH:MM" (vazifa muddati) */
+export const tomorrowAt = (time: string, from = new Date()): string => `${iso(addDays(from, 1))}T${time}`;
+
 /** Hafta kuni: 0 — dushanba … 6 — yakshanba */
 export const weekday = (d: Date): number => (d.getDay() + 6) % 7;
 

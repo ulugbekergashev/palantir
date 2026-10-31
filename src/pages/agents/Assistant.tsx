@@ -9,7 +9,8 @@ import { api } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { AgentAsk, Panel, Quiet } from '../../components/agent';
 import { VoicePanel } from '../../components/VoicePanel';
-import { addDays, iso } from '../../lib/week';
+import { addDays, iso, tomorrowAt } from '../../lib/week';
+import { useNow } from '../../lib/hooks';
 import { hrefOf } from '../../lib/nav';
 
 export interface AssistantData { tasks: Task[]; docs: Doc[]; requests: number; drafts: number }
@@ -72,6 +73,7 @@ function Brief({ data, owner }: { data: AssistantData; owner: string }) {
 
 /** Kun rejasi: guruhlar va har ishda — bajarildi, bir soatga surish, ertaga 9:00 */
 function Agenda({ data, reload, notify, onChanged }: { data: AssistantData; reload: () => void; notify: Notify; onChanged: () => void }) {
+  const now = useNow();
   const [busy, setBusy] = useState<string | null>(null);
   const act = async (t: Task, patch: Partial<Pick<Task, 'status' | 'dueAt'>>, done: string) => {
     setBusy(t.id);
@@ -81,7 +83,7 @@ function Agenda({ data, reload, notify, onChanged }: { data: AssistantData; relo
     const base = t.dueAt && t.dueAt > stampOf(new Date()) ? new Date(t.dueAt) : new Date();
     return stampOf(new Date(base.getTime() + 3_600_000));
   };
-  const tomorrow9 = `${iso(addDays(new Date(), 1))}T09:00`;
+  const tomorrow9 = tomorrowAt('09:00', now);
   const groups = [
     { id: 'late', title: 'Kechikkan', tone: 'text-[#f5b454]' }, { id: 'today', title: 'Bugun', tone: 'text-[#c7c8ff]' },
     { id: 'later', title: 'Keyinroq', tone: 'text-[#a3a9b5]' }, { id: 'none', title: 'Muddatsiz', tone: 'text-[#a3a9b5]' },

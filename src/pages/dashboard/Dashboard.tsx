@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState, type ComponentType, type ReactNode } from 'react';
 import {
   ArrowDownRight, ArrowUpRight, BellRing, CalendarCheck, Camera, CircleAlert, Loader2, MessageCircle, MessageSquareReply, PhoneCall, PhoneIncoming, PhoneMissed,
   PhoneOutgoing, Send, Sparkles, Stethoscope, UserPlus, Users,
@@ -8,6 +8,7 @@ import { api, type PhoneStatus } from '../../data/api';
 import { PERIOD_LABEL, changePct, type DashboardView, type FunnelView, type Kpi, type PeriodKey, type RecentItem } from '../../lib/dashboard';
 import { prettyPhone } from '../../lib/phone';
 import { iso } from '../../lib/week';
+import { useNow } from '../../lib/hooks';
 import { LineChart, Sparkline } from './Charts';
 import { Funnel } from './Funnel';
 import { dateShort } from '../../lib/text';
@@ -48,6 +49,7 @@ const versus = (key: PeriodKey) => ({ today: 'kechagiga nisbatan', yesterday: 'o
 
 function PeriodPicker({ value, range, onChange }: { value: PeriodKey; range: { from: string; to: string }; onChange: (k: PeriodKey, r?: { from: string; to: string }) => void }) {
   const [from, setFrom] = useState(range.from), [to, setTo] = useState(range.to);
+  const today = useNow();
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div role="tablist" aria-label="Davr" className="flex rounded-xl bg-slate-200/70 p-1">
@@ -62,7 +64,7 @@ function PeriodPicker({ value, range, onChange }: { value: PeriodKey; range: { f
         <form className="flex items-center gap-1.5" onSubmit={e => { e.preventDefault(); if (from && to && from <= to) onChange('custom', { from, to }); }}>
           <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} aria-label="Boshlanishi" className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm" />
           <span className="text-slate-400">—</span>
-          <input type="date" value={to} min={from} max={iso(new Date())} onChange={e => setTo(e.target.value)} aria-label="Oxiri" className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm" />
+          <input type="date" value={to} min={from} max={iso(today)} onChange={e => setTo(e.target.value)} aria-label="Oxiri" className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm" />
           <button type="submit" className="h-9 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800">Ko'rsatish</button>
         </form>
       )}
@@ -139,7 +141,8 @@ function ChannelRow({ icon: Icon, name, dot, state, count }: { icon: Icon; name:
 function Channels({ status, phone, cameras, d, clinic }: { status: LiveStatus; phone: PhoneStatus | null; cameras: CameraRow[]; d: DashboardView; clinic: boolean }) {
   const ig = status.instagramApi.account ? { dot: (status.instagramApi.problem ? 'warn' : 'ok') as Dot, state: `${status.instagramApi.account} · rasmiy` }
     : status.instagram.account ? { dot: (status.instagram.problem ? 'warn' : 'ok') as Dot, state: `${status.instagram.account} · brauzer` } : { dot: 'off' as Dot, state: 'ulanmagan' };
-  const live = cameras.filter(c => c.lastSeenAt && Date.now() - Date.parse(c.lastSeenAt) < 3 * 60_000).length;
+  const now = useNow();
+  const live = cameras.filter(c => c.lastSeenAt && now.getTime() - Date.parse(c.lastSeenAt) < 3 * 60_000).length;
   const k = d.kpi.inquiries;
   return (
     <Rail title="Kanallar" action={<a href="#/telegram" className="text-xs font-semibold text-brand-700 hover:underline">Ulanishlar</a>}>
@@ -239,28 +242,36 @@ function Recent({ items }: { items: RecentItem[] }) {
  */
 export function Dashboard({ status, clinic, notify }: { status: LiveStatus; clinic: boolean; notify: (t: string, e?: boolean) => void }) {
   const [period, setPeriod] = useState<PeriodKey>(readPeriod);
-  const [range, setRange] = useState({ from: iso(new Date(Date.now() - 6 * 86_400_000)), to: iso(new Date()) });
+  const [range, setRange] = useState(() => ({ from: iso(new Date(Date.now() - 6 * 86_400_000)), to: iso(new Date()) }));
   const [d, setD] = useState<DashboardView | null>(null);
   const [f, setF] = useState<FunnelView | null>(null);
   const [phone, setPhone] = useState<PhoneStatus | null>(null);
   const [cameras, setCameras] = useState<CameraRow[]>([]);
+  const tell = useEffectEvent((e: unknown) => notify((e as Error).message, true));
+  const { from, to } = range;
   useEffect(() => {
     let gone = false;
-    const load = () => api.dashboard(period, period === 'custom' ? range : undefined).then(r => { if (!gone) setD(r.dashboard); }).catch(e => { if (!gone) notify((e as Error).message, true); });
+    const custom = period === 'custom' ? { from, to } : undefined;
+    const load = () => api.dashboard(period, custom).then(r => { if (!gone) setD(r.dashboard); }).catch(e => { if (!gone) tell(e); });
     // Voronka DentaCRM'dan kunma-kun yig'iladi — sekinroq, alohida va siyrakroq
-    const loadFunnel = () => api.funnel(period, period === 'custom' ? range : undefined).then(r => { if (!gone) setF(r.funnel); }).catch(() => {});
-    setF(null);
+    const loadFunnel = () => api.funnel(period, custom).then(r => { if (!gone) setF(r.funnel); }).catch(() => {});
     void load();
     void loadFunnel();
     const t = setInterval(load, REFRESH_MS);
     const tf = setInterval(loadFunnel, REFRESH_MS * 4);
     return () => { gone = true; clearInterval(t); clearInterval(tf); };
-  }, [period, range.from, range.to]);
+  }, [period, from, to]);
   useEffect(() => {
     api.phone().then(r => setPhone(r.phone)).catch(() => {});
     api.cameras().then(r => setCameras(r.cameras)).catch(() => {});
   }, []);
-  const change = (k: PeriodKey, r?: { from: string; to: string }) => { setPeriod(k); if (r) setRange(r); if (k !== 'custom') savePeriod(k); };
+  const change = (k: PeriodKey, r?: { from: string; to: string }) => {
+    // Davr almashsa eski voronka ko'rinmaydi (yangisi kelguncha) — bosilgan joyda tozalanadi
+    if (k !== period || (r && (r.from !== from || r.to !== to))) setF(null);
+    setPeriod(k);
+    if (r) setRange(r);
+    if (k !== 'custom') savePeriod(k);
+  };
   const k = d?.kpi;
   const compare = versus(period);
   const dayLabel = (l: string) => (l.length === 10 ? `${l.slice(8)}.${l.slice(5, 7)}` : l);

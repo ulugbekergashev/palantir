@@ -83,6 +83,6 @@ export function useTeam(status: LiveStatus, tick = 0): Record<Member, MemberStat
     void load();
     const t = setInterval(() => { void load(); }, 30_000);
     return () => { stale = true; clearInterval(t); };
-  }, [crm, reachable, meta?.connected, meta?.problem, meta?.usedToday, tick]);
+  }, [crm, reachable, meta?.connected, meta?.problem, meta?.usedToday, meta?.dailyLimit, tick]);
   return team;
 }

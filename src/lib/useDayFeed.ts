@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import type { Notify } from '../components/Artifacts';
 import { api } from '../data/api';
 import type { BrainView, Call, CameraSummary, InboxThread } from '../types';
@@ -21,9 +21,10 @@ const NOTHING: Sources = { calls: [], summary: null, threads: [], brain: null, f
  */
 export function useDayFeed(notify: Notify): DayFeed | null {
   const [feed, setFeed] = useState<DayFeed | null>(null);
+  const tell = useEffectEvent((e: unknown) => notify((e as Error).message, true));
   useEffect(() => {
     let shown = false, gone = false, loading = false, last = NOTHING;
-    const part = <T,>(p: Promise<T>) => p.catch(e => { if (!shown && !gone) { shown = true; notify((e as Error).message, true); } return null; });
+    const part = <T,>(p: Promise<T>) => p.catch(e => { if (!shown && !gone) { shown = true; tell(e); } return null; });
     const load = async () => {
       // Oldingi so'rov hali yo'lda bo'lsa yangisi boshlanmaydi: kechikkan eski javob yangisini bosib ketmasin
       if (loading) return;

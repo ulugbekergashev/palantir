@@ -61,7 +61,7 @@ export function DiscoveriesBody({ notify }: { notify: Notify }) {
   const [running, setRunning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(Date.now);
   useEffect(() => {
     let stale = false;
     const load = () => api.deepInsights().then(r => { if (!stale) { setData(r.result); setRunning(r.running); setError(r.error); setNotice(r.notice); } }).catch(e => notify((e as Error).message, true));

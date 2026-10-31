@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Check, Loader2, Plus, Trash2 } from 'lucide-react';
 import { api } from '../data/api';
 import type { Notify } from '../components/Artifacts';
@@ -20,9 +20,10 @@ export function BrainPage({ notify }: { notify: Notify }) {
     saves.current += 1;
     return work.then(r => { saves.current += 1; setBrain(r.brain); if (saved) notify(saved); return r; }).catch(e => { fail(e); return null; });
   };
+  const onFail = useEffectEvent((e: unknown) => fail(e));
   useEffect(() => {
     // Davriy so'rov yo'lda ekan egasi nimadir saqlagan bo'lsa, eski javob yangi holatni bosib ketmaydi
-    const load = () => { const at = saves.current; return api.brain().then(r => { if (saves.current === at) setBrain(r.brain); }).catch(fail); };
+    const load = () => { const at = saves.current; return api.brain().then(r => { if (saves.current === at) setBrain(r.brain); }).catch(onFail); };
     void load();
     // Taklif Telegram'dan ham keladi (egasi mijozga javob berganda) — sahifa o'zi yangilanib turadi
     const t = setInterval(() => { void load(); }, 15_000);
@@ -226,7 +227,9 @@ function Prices({ brain, save, notify }: { brain: BrainView; save: Save; notify:
 
 function Style({ value, save }: { value: string; save: Save }) {
   const [text, setText] = useState(value);
-  useEffect(() => { setText(value); }, [value]);
+  // Uslub boshqa joyda (Telegram) o'zgarsa — maydon yangisini oladi (render paytida, effektsiz)
+  const [seen, setSeen] = useState(value);
+  if (value !== seen) { setSeen(value); setText(value); }
   return (
     <Card title="Mijozlarga qanday yozay" description="O'z so'zingiz bilan: murojaat, uzunlik, nimani aytmaslik kerak.">
       <textarea className={inputClass} rows={2} value={text} onChange={e => setText(e.target.value)} aria-label="Yozish uslubi" maxLength={600} placeholder="Masalan: qisqa yoz, «siz»lab, emoji ishlatma. Narxni aytgach, qabulga taklif qil." />
