@@ -45,7 +45,7 @@ export function StepOwner({ status, refresh, notify }: { status: LiveStatus; ref
       <div className="flex flex-wrap items-center gap-2">
         <code className="min-w-0 flex-1 break-all rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-mono text-sm">{status.linkUrl}</code>
         <Button onClick={copy}><Copy className="h-4 w-4" /> Nusxalash</Button>
-        {status.linkUrl && <a href={status.linkUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"><ExternalLink className="h-4 w-4" /> Ochish</a>}
+        {status.linkUrl && <a href={status.linkUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-brand-700 hover:bg-brand-50"><ExternalLink className="h-4 w-4" /> Ochish</a>}
       </div>
       <p className="mt-3 flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Egasi «Start» bosishini kutyapman…</p>
     </Card>

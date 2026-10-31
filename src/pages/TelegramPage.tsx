@@ -203,7 +203,7 @@ export function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b
       <div role="radiogroup" aria-label="Javob rejimi" className="grid gap-2 sm:grid-cols-3">
         {MODES.map(m => (
           <button key={m.value} type="button" role="radio" aria-checked={v.mode === m.value} onClick={() => void save({ mode: m.value })}
-            className={`flex flex-col items-start justify-start rounded-xl border p-3 text-left transition ${v.mode === m.value ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500/20' : 'border-slate-200 hover:border-slate-300'}`}>
+            className={`flex flex-col items-start justify-start rounded-xl border p-3 text-left transition ${v.mode === m.value ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-500/20' : 'border-slate-200 hover:border-slate-300'}`}>
             <div className="text-sm font-bold">{m.title}</div>
             <div className="mt-0.5 text-xs text-slate-500">{m.text}</div>
           </button>
@@ -219,7 +219,7 @@ export function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b
           </label>
         )}
         <label className="flex items-center gap-2 text-slate-700">
-          <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={v.contacts} onChange={e => void save({ contacts: e.target.checked })} />
+          <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={v.contacts} onChange={e => void save({ contacts: e.target.checked })} />
           Tanishlarimga ham javob bersin (Telegram kontaktlarim, Instagram'da kuzatadiganlarim)
         </label>
       </div>
@@ -252,7 +252,7 @@ export function SettingsCard({ biz, offeringsRev, onSaved, notify }: { biz: Busi
         </Field>
       </div>
       <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={draft.morningBrief} onChange={e => setDraft({ ...draft, morningBrief: e.target.checked })} />
+        <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={draft.morningBrief} onChange={e => setDraft({ ...draft, morningBrief: e.target.checked })} />
         Har kuni ertalab Telegram'ga qisqa xulosa yuborsin
       </label>
       <Button className="mt-3" variant="primary" disabled={!dirty || !draft.name.trim()} onClick={() => { void save(); }}>Saqlash</Button>
@@ -266,7 +266,7 @@ export function OwnerBot({ status }: { status: LiveStatus }) {
   return (
     <div className="space-y-3">
       {status.ownerLinked
-        ? <p className="text-sm text-slate-600">Ulangan. Bot: <a className="font-semibold text-indigo-700" href={`https://t.me/${status.bot}`} target="_blank" rel="noreferrer">@{status.bot}</a> — yozing yoki ovozli xabar yuboring.</p>
+        ? <p className="text-sm text-slate-600">Ulangan. Bot: <a className="font-semibold text-brand-700" href={`https://t.me/${status.bot}`} target="_blank" rel="noreferrer">@{status.bot}</a> — yozing yoki ovozli xabar yuboring.</p>
         : <p className="text-sm text-slate-600">Tugmani bosing — Telegram ochiladi, «Start» ni bosing. Eslatmalar, xulosa va mijozlarga javob takliflari shu yerga keladi.</p>}
       {status.linkUrl && (
         <ButtonLink href={status.linkUrl} target="_blank" rel="noreferrer" variant="primary">

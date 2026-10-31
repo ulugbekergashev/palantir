@@ -144,7 +144,7 @@ export function DemandBody({ notify }: { notify: Notify }) {
       )}
       <div className="grid items-start gap-5 lg:grid-cols-2">
         {!!data.unanswered.length && (
-          <Panel className="min-w-0" title="Javob topilmagan savollar" action={<a href={hrefOf('miya', 'savollar')} className="text-[12.5px] text-[#8b8cff] no-underline">Miya'ga javob qo'shish →</a>}>
+          <Panel className="min-w-0" title="Javob topilmagan savollar" action={<a href={hrefOf('miya', 'savollar')} className="text-[12.5px] text-[#ff9a3c] no-underline">Miya'ga javob qo'shish →</a>}>
             <Rows list={data.unanswered} icon={CircleHelp} tone="#f5b454" />
           </Panel>
         )}

@@ -18,7 +18,7 @@ function inline(text: string, key = 0): ReactNode[] {
     else if (t.startsWith('`')) out.push(<code key={k} className="rounded bg-slate-100 px-1 text-[0.9em]">{t.slice(1, -1)}</code>);
     else if (t.startsWith('[')) {
       const [, label, href] = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(t)!;
-      out.push(<a key={k} href={href} target="_blank" rel="noreferrer noopener" className="font-semibold text-indigo-700 underline">{label}</a>);
+      out.push(<a key={k} href={href} target="_blank" rel="noreferrer noopener" className="font-semibold text-brand-700 underline">{label}</a>);
     } else out.push(<em key={k}>{t.slice(1, -1)}</em>);
     last = m.index + t.length;
   }

@@ -46,7 +46,7 @@ export function MemoryPanel({ notify, tick = 0 }: { notify: Notify; tick?: numbe
   return (
     <section aria-labelledby="xotira" className="flex flex-col gap-4 rounded-[22px] border border-glass/[0.07] bg-[#0b0c10] p-5">
       <header className="flex items-center gap-2.5">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#8b8cff]/15 text-[#c7c8ff]"><Brain className="h-[18px] w-[18px]" aria-hidden="true" /></span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ff9a3c]/15 text-[#ffd9a0]"><Brain className="h-[18px] w-[18px]" aria-hidden="true" /></span>
         <h2 id="xotira" className="text-[16px] font-semibold text-[#f2f0ea]">Xotira</h2>
         {facts && <span className="ml-auto text-[12px] tabular-nums text-[#7d838f]">{facts.length} ta fakt</span>}
       </header>
@@ -71,7 +71,7 @@ export function MemoryPanel({ notify, tick = 0 }: { notify: Notify; tick?: numbe
       <form onSubmit={add} className="flex items-center gap-2 rounded-xl border border-glass/10 bg-glass/[0.03] p-1 pl-3 focus-within:border-glass/25">
         <label htmlFor="new-fact" className="sr-only">Eslab qolsin</label>
         <input id="new-fact" value={text} maxLength={MAX_FACT} onChange={e => setText(e.target.value)} placeholder="Eslab qolsin…" className="h-9 min-w-0 flex-1 bg-transparent text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f]" />
-        <button type="submit" disabled={!text.trim() || busy === 'add'} aria-label="Xotiraga qo'shish" className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#8b8cff] text-[#07080b] disabled:opacity-40">
+        <button type="submit" disabled={!text.trim() || busy === 'add'} aria-label="Xotiraga qo'shish" className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#ff9a3c] text-[#07080b] disabled:opacity-40">
           {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
         </button>
       </form>

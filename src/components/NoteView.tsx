@@ -21,14 +21,14 @@ function inline(text: string, onLink: OnLink, key = 'i'): ReactNode[] {
     if (t.startsWith('[[')) {
       const [target, alias] = t.slice(2, -2).split('|');
       const page = target.split('#')[0].trim();
-      out.push(<button key={k} type="button" onClick={() => onLink(page)} className="cursor-pointer rounded font-medium text-[#a9aaff] underline decoration-[#a9aaff]/40 underline-offset-2 hover:decoration-[#a9aaff]">{(alias ?? target).trim()}</button>);
+      out.push(<button key={k} type="button" onClick={() => onLink(page)} className="cursor-pointer rounded font-medium text-[#ffbd7a] underline decoration-[#ffbd7a]/40 underline-offset-2 hover:decoration-[#ffbd7a]">{(alias ?? target).trim()}</button>);
     } else if (t.startsWith('**')) out.push(<strong key={k} className="font-semibold text-[#f2f0ea]">{t.slice(2, -2)}</strong>);
     else if (t.startsWith('==')) out.push(<mark key={k} className="rounded bg-[#f5b454]/25 px-0.5 text-[#fde2b0]">{t.slice(2, -2)}</mark>);
     else if (t.startsWith('`')) out.push(<code key={k} className="rounded bg-glass/[0.07] px-1.5 py-0.5 font-mono text-[0.88em] text-[#e4e3de]">{t.slice(1, -1)}</code>);
     else if (t.startsWith('[')) {
       const [, label, href] = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(t)!;
-      out.push(<a key={k} href={href} target="_blank" rel="noreferrer noopener" className="text-[#a9aaff] underline underline-offset-2">{label}</a>);
-    } else if (t.startsWith('#')) out.push(<span key={k} className="rounded-full bg-[#8b8cff]/15 px-2 py-0.5 text-[0.85em] text-[#c7c8ff]">{t}</span>);
+      out.push(<a key={k} href={href} target="_blank" rel="noreferrer noopener" className="text-[#ffbd7a] underline underline-offset-2">{label}</a>);
+    } else if (t.startsWith('#')) out.push(<span key={k} className="rounded-full bg-[#ff9a3c]/15 px-2 py-0.5 text-[0.85em] text-[#ffd9a0]">{t}</span>);
     else out.push(<em key={k}>{t.slice(1, -1)}</em>);
     last = m.index + t.length;
   }
@@ -101,7 +101,7 @@ export function NoteView({ text, onLink }: { text: string; onLink: OnLink }) {
       const callout = /^\[!(\w+)\][+-]?\s*(.*)$/.exec(quote[0] ?? '');
       const kind = callout?.[1].toLowerCase() ?? '';
       blocks.push(
-        <div key={blocks.length} className={`rounded-xl border-l-2 px-4 py-3 ${callout ? CALLOUT[kind] ?? 'border-[#8b8cff]/50 bg-[#8b8cff]/[0.07]' : 'border-glass/20 text-[#c9cbd2]'}`}>
+        <div key={blocks.length} className={`rounded-xl border-l-2 px-4 py-3 ${callout ? CALLOUT[kind] ?? 'border-[#ff9a3c]/50 bg-[#ff9a3c]/[0.07]' : 'border-glass/20 text-[#c9cbd2]'}`}>
           {callout && <p className="mb-1 font-semibold capitalize text-[#f2f0ea]">{callout[2] || callout[1]}</p>}
           {(callout ? quote.slice(1) : quote).filter(Boolean).map((q, k) => <p key={k} className="leading-relaxed">{inline(q, onLink, `q${i}${k}`)}</p>)}
         </div>,
@@ -116,7 +116,7 @@ export function NoteView({ text, onLink }: { text: string; onLink: OnLink }) {
       blocks.push(
         <div key={blocks.length} className="flex items-baseline gap-2.5 leading-[1.7]" style={{ paddingLeft: `${depth * 1.4}rem` }}>
           {task
-            ? <span aria-hidden="true" className={`relative top-[3px] inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${task[1] === ' ' ? 'border-glass/30' : 'border-[#8b8cff] bg-[#8b8cff] text-[#07080b]'} text-[11px] font-bold`}>{task[1] === ' ' ? '' : task[1] === '-' ? '–' : '✓'}</span>
+            ? <span aria-hidden="true" className={`relative top-[3px] inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${task[1] === ' ' ? 'border-glass/30' : 'border-[#ff9a3c] bg-[#ff9a3c] text-[#07080b]'} text-[11px] font-bold`}>{task[1] === ' ' ? '' : task[1] === '-' ? '–' : '✓'}</span>
             : <span aria-hidden="true" className="relative top-[-2px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#8a909c]" />}
           <span className={task && task[1] !== ' ' ? 'text-[#8a909c] line-through' : ''}>{inline(task ? task[2] : item[2], onLink, `l${i}`)}</span>
         </div>,

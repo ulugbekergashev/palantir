@@ -4,7 +4,7 @@ import { ArrowRight, type LucideIcon } from 'lucide-react';
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-indigo-600 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_1px_2px_rgb(49_46_129/0.35)] hover:bg-indigo-700 active:bg-indigo-800',
+  primary: 'bg-brand-600 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_1px_2px_rgb(124_45_18/0.35)] hover:bg-brand-700 active:bg-brand-800',
   secondary: 'border border-slate-300 bg-white text-slate-800 shadow-[0_1px_0_rgb(19_22_29/0.04)] hover:border-slate-400 hover:bg-slate-50 active:bg-slate-100',
   ghost: 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 active:bg-slate-200',
   danger: 'text-rose-700 hover:bg-rose-50 active:bg-rose-100',
@@ -39,7 +39,7 @@ export function ButtonLink({ variant = 'secondary', size = 'md', className = '',
 /** Karta burchagidagi kichik havola: batafsili qaysi bo'limda */
 export function MoreLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a href={href} className="group inline-flex shrink-0 items-center gap-1 rounded text-xs font-semibold text-indigo-700 hover:text-indigo-900">
+    <a href={href} className="group inline-flex shrink-0 items-center gap-1 rounded text-xs font-semibold text-brand-700 hover:text-brand-900">
       {children} <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
     </a>
   );
@@ -123,7 +123,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 
 /** Kengligi o'zi belgilanadigan maydon (sana, saralash) */
 export const controlClass =
-  'h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-50 disabled:text-slate-500';
+  'h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:bg-slate-50 disabled:text-slate-500';
 
 export const inputClass = `w-full ${controlClass}`;
 

@@ -11,7 +11,7 @@ import { scrollToEnd } from '../lib/scroll';
 const CHANNEL: Record<LeadChannel, { label: string; cls: string }> = {
   telegram: { label: 'Telegram', cls: 'bg-sky-100 text-sky-800' },
   instagram: { label: 'Instagram', cls: 'bg-gradient-to-r from-fuchsia-100 to-orange-100 text-fuchsia-800' },
-  bot: { label: 'Bot', cls: 'bg-indigo-100 text-indigo-800' },
+  bot: { label: 'Bot', cls: 'bg-brand-100 text-brand-800' },
   manual: { label: "Qo'lda", cls: 'bg-slate-100 text-slate-600' },
 };
 
@@ -66,11 +66,11 @@ function LeadFacts({ lead, notify, onSaved }: { lead: Lead; notify: Notify; onSa
         placeholder="Izoh: nima so'radi, nimaga kelishildi…"
         aria-label="Mijoz haqida izoh"
         maxLength={500}
-        className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none"
+        className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-brand-400 focus:outline-none"
       />
       <select aria-label="Mijoz holati" value={stage}
         onChange={e => { const next = e.target.value as LeadStage; setPicked(next); void save({ stage: next }, 'Holat saqlandi').finally(() => setPicked(null)); }}
-        className={`shrink-0 rounded-lg px-2 py-1 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${STAGES[stage].cls}`}>
+        className={`shrink-0 rounded-lg px-2 py-1 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${STAGES[stage].cls}`}>
         {STAGE_IDS.map(s => <option key={s} value={s}>{STAGES[s].label}</option>)}
       </select>
     </div>
@@ -94,9 +94,9 @@ function NextStep({ lead, save }: { lead: Lead; save: (patch: Parameters<typeof 
     <div className="mt-1.5 flex flex-wrap items-center gap-2">
       <input value={step ?? lead.nextStep ?? ''} onChange={e => setStep(e.target.value)} onBlur={() => void commit()} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
         placeholder="Keyingi qadam: taklif yuborish, qayta qo'ng'iroq…" aria-label="Keyingi qadam" maxLength={200}
-        className="min-w-0 flex-1 basis-48 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none" />
+        className="min-w-0 flex-1 basis-48 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-brand-400 focus:outline-none" />
       <input type="datetime-local" value={at ?? lead.nextAt ?? ''} onChange={e => setAt(e.target.value)} onBlur={() => void commit()} aria-label="Keyingi qadam vaqti"
-        className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:border-indigo-400 focus:outline-none" />
+        className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:border-brand-400 focus:outline-none" />
     </div>
   );
 }
@@ -137,7 +137,7 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
             <div className="flex items-center gap-2"><span className="truncate font-bold">{nameOf(lead)}</span><ChannelBadge channel={lead.channel} /></div>
             <div className="flex flex-wrap gap-x-3 text-xs text-slate-500">
               {lead.username && <span>@{lead.username}</span>}
-              {lead.phone && <a href={`tel:${lead.phone.replace(/[^\d+]/g, '')}`} className="inline-flex items-center gap-1 hover:text-indigo-700"><Phone className="h-3 w-3" />{lead.phone}</a>}
+              {lead.phone && <a href={`tel:${lead.phone.replace(/[^\d+]/g, '')}`} className="inline-flex items-center gap-1 hover:text-brand-700"><Phone className="h-3 w-3" />{lead.phone}</a>}
               <span>{lead.source ? `${lead.source} · ` : ''}{shortDate(lead.createdAt)}</span>
             </div>
           </div>
@@ -155,7 +155,7 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
         {!messages.length && <p className="py-6 text-center text-sm text-slate-400">Bu mijoz bilan hali yozishma yo'q.</p>}
         {messages.map(m => (
           <div key={m.id} className={`flex ${m.direction === 'in' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${m.direction === 'in' ? 'rounded-bl-md bg-slate-100' : m.by === 'palantir' ? 'rounded-br-md bg-indigo-600 text-white' : 'rounded-br-md bg-emerald-600 text-white'}`}>
+            <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${m.direction === 'in' ? 'rounded-bl-md bg-slate-100' : m.by === 'palantir' ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-br-md bg-emerald-600 text-white'}`}>
               <p className="whitespace-pre-line break-words">{m.text}</p>
               <div className={`mt-0.5 flex items-center gap-1 text-[10px] ${m.direction === 'in' ? 'text-slate-400' : 'text-white/70'}`}>
                 {m.by === 'palantir' && <Bot className="h-3 w-3" />}{m.by === 'palantir' ? 'Palantir' : m.by === 'owner' ? 'Siz' : ''} {when(m.createdAt)}
@@ -164,8 +164,8 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
           </div>
         ))}
         {scheduled.map(r => (
-          <div key={r.id} className="ml-auto max-w-[80%] rounded-2xl border border-dashed border-indigo-300 bg-indigo-50 p-3 text-sm">
-            <div className="mb-1 text-[11px] font-bold text-indigo-700">⏳ Palantir {r.dueAt ? time(r.dueAt) : ''} da yuboradi (siz yozmasangiz)</div>
+          <div key={r.id} className="ml-auto max-w-[80%] rounded-2xl border border-dashed border-brand-300 bg-brand-50 p-3 text-sm">
+            <div className="mb-1 text-[11px] font-bold text-brand-700">⏳ Palantir {r.dueAt ? time(r.dueAt) : ''} da yuboradi (siz yozmasangiz)</div>
             <p className="whitespace-pre-line">{r.text}</p>
             <Button size="sm" variant="ghost" className="mt-2" disabled={!!busy} onClick={() => act(r.id, () => api.dismissReply(r.id), 'Bekor qilindi')}><X className="h-3.5 w-3.5" /> Yubormasin</Button>
           </div>
@@ -191,9 +191,9 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
       <form onSubmit={send} className="flex items-end gap-2 border-t border-slate-100 pt-3">
         <textarea value={text} onChange={e => setText(e.target.value)} rows={Math.min(5, Math.max(1, text.split('\n').length))}
           placeholder={lead.reachable ? `${nameOf(lead)}ga yozish…` : "Bu mijozga hozir yozib bo'lmaydi"} aria-label="Mijozga xabar" disabled={!lead.reachable}
-          className="max-h-32 min-h-10 flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 disabled:bg-slate-50" />
+          className="max-h-32 min-h-10 flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-400 disabled:bg-slate-50" />
         <button type="submit" aria-label="Mijozga yuborish" disabled={!text.trim() || !!busy || !lead.reachable}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40">
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40">
           {busy === 'send' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </button>
       </form>
@@ -248,7 +248,7 @@ export function InboxPage({ notify, onChanged }: { notify: Notify; /** Javob tas
             {shown.map(t => (
               <li key={t.lead.id}>
                 <button type="button" onClick={() => setOpen(t.lead.id)} aria-current={open === t.lead.id}
-                  className={`flex w-full gap-3 border-b border-slate-50 px-4 py-3 text-left transition ${open === t.lead.id ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
+                  className={`flex w-full gap-3 border-b border-slate-50 px-4 py-3 text-left transition ${open === t.lead.id ? 'bg-brand-50' : 'hover:bg-slate-50'}`}>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-bold">{nameOf(t.lead)}</span>

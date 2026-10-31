@@ -20,7 +20,7 @@ const EAR: Record<Wake['phase'], { dot: string; hint: string }> = {
   off: { dot: '', hint: "O'chiq — yoqsangiz, «Palantir» yoki «Jarvis» deb chaqirasiz" },
   starting: { dot: 'bg-glass/40', hint: 'Ulanmoqda…' },
   listening: { dot: 'bg-emerald-400 animate-pulse', hint: "Tinglayapti — «Palantir, …» deb ayting (ovoz shu kompyuterdan chiqmaydi)" },
-  live: { dot: 'bg-[#8b8cff]', hint: 'Suhbat ketyapti' },
+  live: { dot: 'bg-[#ff9a3c]', hint: 'Suhbat ketyapti' },
   paused: { dot: 'bg-glass/40', hint: 'Boshqa ovozli suhbat yoki boshqa oyna tinglayapti — bo‘shagach shu yerda tinglaydi' },
   error: { dot: 'bg-[#f5b454]', hint: 'Ulanmadi — qayta urinadi' },
 };
@@ -55,7 +55,7 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
         aria-label={it.label}
         className={`group relative ${desktopOnly} min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[11px] font-medium no-underline transition-colors lg:flex-none lg:py-2 ${active ? 'text-[#f2f0ea]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
       >
-        <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${active ? 'bg-[#8b8cff]/18 text-[#c7c8ff]' : 'group-hover:bg-glass/5'}`}>
+        <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${active ? 'bg-[#ff9a3c]/18 text-[#ffd9a0]' : 'group-hover:bg-glass/5'}`}>
           <it.icon className="h-[19px] w-[19px]" aria-hidden="true" />
         </span>
         <span className="max-w-full truncate lg:hidden" aria-hidden="true">{SHORT[it.area] ?? it.label}</span>
@@ -72,7 +72,7 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
       <div ref={sheet} className="relative flex w-[calc(100%/7)] lg:hidden">
         <button type="button" onClick={() => setMore(v => !v)} aria-expanded={more} aria-controls="koproq" aria-label="Ko'proq"
           className={`group flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[11px] font-medium transition-colors ${more || MORE.includes(area) ? 'text-[#f2f0ea]' : 'text-[#8a909c]'}`}>
-          <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${more || MORE.includes(area) ? 'bg-[#8b8cff]/18 text-[#c7c8ff]' : ''}`}>
+          <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${more || MORE.includes(area) ? 'bg-[#ff9a3c]/18 text-[#ffd9a0]' : ''}`}>
             <Ellipsis className="h-[19px] w-[19px]" aria-hidden="true" />
           </span>
           <span aria-hidden="true">Ko'proq</span>
@@ -82,7 +82,7 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
           <div id="koproq" role="menu" aria-label="Ko'proq" className="absolute bottom-[calc(100%+8px)] right-1 w-56 rounded-2xl border border-glass/[0.08] bg-[#0b0c10] p-1.5 shadow-2xl">
             {[{ area: 'miya' as Area, label: 'Miya', icon: Brain }, { area: 'sozlamalar' as Area, label: 'Sozlamalar', icon: Settings }].map(it => (
               <a key={it.area} role="menuitem" href={hrefOf(it.area)} onClick={() => setMore(false)} aria-current={area === it.area ? 'page' : undefined}
-                className={`flex items-center gap-3 rounded-xl px-3 py-3 text-[14px] no-underline ${area === it.area ? 'bg-[#8b8cff]/12 text-[#f2f0ea]' : 'text-[#d9dbe1] active:bg-glass/5'}`}>
+                className={`flex items-center gap-3 rounded-xl px-3 py-3 text-[14px] no-underline ${area === it.area ? 'bg-[#ff9a3c]/12 text-[#f2f0ea]' : 'text-[#d9dbe1] active:bg-glass/5'}`}>
                 <it.icon className="h-[18px] w-[18px]" aria-hidden="true" />{it.label}
               </a>
             ))}
@@ -100,9 +100,9 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
       </div>
       <div className="hidden lg:flex lg:w-auto lg:flex-col lg:gap-1">
         <button type="button" onClick={wake.toggle} aria-pressed={wake.enabled} title={`Quloq: ${EAR[wake.phase].hint}`}
-          className={`group relative hidden min-h-12 flex-col items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-medium transition-colors lg:flex ${wake.enabled ? 'text-[#c7c8ff]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
+          className={`group relative hidden min-h-12 flex-col items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-medium transition-colors lg:flex ${wake.enabled ? 'text-[#ffd9a0]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
           aria-describedby="quloq-holat">
-          <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${wake.enabled ? 'bg-[#8b8cff]/18' : 'group-hover:bg-glass/5'}`}>
+          <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${wake.enabled ? 'bg-[#ff9a3c]/18' : 'group-hover:bg-glass/5'}`}>
             {wake.enabled ? <Ear className="h-[19px] w-[19px]" aria-hidden="true" /> : <EarOff className="h-[19px] w-[19px]" aria-hidden="true" />}
           </span>
           Quloq

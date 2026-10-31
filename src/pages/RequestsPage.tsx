@@ -87,7 +87,7 @@ function RequestRow({ r, onAct }: { r: RequestView; onAct: (id: string, verb: 'd
       </div>
       <p className="mt-1.5 text-[15px]">
         <span className="font-semibold">{who}</span>
-        {phone && <> · <a href={`tel:${phone}`} className="font-semibold text-indigo-700 underline-offset-2 hover:underline">{prettyPhone(phone)}</a></>}
+        {phone && <> · <a href={`tel:${phone}`} className="font-semibold text-brand-700 underline-offset-2 hover:underline">{prettyPhone(phone)}</a></>}
         {r.lead?.patientId && <span className="ml-2 rounded-md bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-800">DentaCRM bemori</span>}
       </p>
       {(r.whenText || r.dueAt) && <p className="mt-1 text-sm text-slate-700">🕕 {r.whenText ?? ''}{r.dueAt ? <span className="text-slate-500"> ({r.dueAt.replace('T', ' ')})</span> : null}</p>}

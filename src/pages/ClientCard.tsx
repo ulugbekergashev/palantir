@@ -40,7 +40,7 @@ function CallRow({ c, notify }: { c: Call; notify: Notify }) {
       {(c.analysis?.summary || c.outcome) && <p className="mt-0.5 pl-6 text-xs text-slate-600">{c.analysis?.summary || c.outcome}</p>}
       {c.hasRecording && (src ? <audio controls src={src} className="mt-1.5 w-full pl-6" /> : (
         <button type="button" onClick={() => api.callAudio(c.id).then(b => setSrc(URL.createObjectURL(b))).catch(e => notify((e as Error).message, true))}
-          className="mt-1 inline-flex items-center gap-1 pl-6 text-xs font-semibold text-indigo-700 hover:underline"><Play className="h-3 w-3" aria-hidden="true" /> Yozuvni tinglash</button>
+          className="mt-1 inline-flex items-center gap-1 pl-6 text-xs font-semibold text-brand-700 hover:underline"><Play className="h-3 w-3" aria-hidden="true" /> Yozuvni tinglash</button>
       ))}
     </li>
   );

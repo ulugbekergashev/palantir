@@ -92,7 +92,7 @@ function CallDetail({ call, notify }: { call: Call; notify: Notify }) {
       )}
       <div className="space-y-2">
         {call.source !== 'microsip' && call.transcript.map((l, i) => (
-          <div key={i} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${l.who === 'ai' ? 'ml-auto bg-indigo-50' : 'bg-slate-100'}`}>
+          <div key={i} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${l.who === 'ai' ? 'ml-auto bg-brand-50' : 'bg-slate-100'}`}>
             <div className="text-[11px] font-bold text-slate-500">{l.who === 'ai' ? 'Agent' : 'Mijoz'}</div>{l.text}
           </div>
         ))}
@@ -198,7 +198,7 @@ function StationsCard({ notify }: { notify: Notify }) {
           </ul>
         )}
         {made && (
-          <div role="status" className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">
+          <div role="status" className="rounded-xl bg-brand-50 p-3 text-sm text-brand-900">
             <p className="font-semibold">«{made.name}» kompyuterida (MicroSIP ishlatadigan foydalanuvchi nomidan) Palantir papkasida ishga tushiring:</p>
             <code className="mt-2 block break-all rounded-lg bg-white px-2 py-1.5 text-xs">install\Stansiya.cmd -Server {server ?? '<server manzili>'} -Code {made.code}</code>
             <p className="mt-1 text-xs">Kod bir marta ishlaydi, {new Date(made.until).toLocaleTimeString('uz', { hour: '2-digit', minute: '2-digit' })} gacha.

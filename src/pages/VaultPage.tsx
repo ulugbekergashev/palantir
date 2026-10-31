@@ -49,7 +49,7 @@ function TreeView({ nodes, open, toggle, selected, onPick, filter }: {
       ) : (
         <li key={n.path}>
           <button type="button" onClick={() => onPick(n.path)} aria-current={selected === n.path ? 'page' : undefined}
-            className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-2 pl-[26px] text-left text-[14px] ${selected === n.path ? 'bg-[#8b8cff]/15 text-[#f2f0ea]' : 'text-[#a3a9b5] hover:bg-glass/[0.04] hover:text-[#e4e3de]'}`}>
+            className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-2 pl-[26px] text-left text-[14px] ${selected === n.path ? 'bg-[#ff9a3c]/15 text-[#f2f0ea]' : 'text-[#a3a9b5] hover:bg-glass/[0.04] hover:text-[#e4e3de]'}`}>
             <span className="truncate">{n.name}</span>
           </button>
         </li>
@@ -162,8 +162,8 @@ function Vault({ notify }: { notify: Notify }) {
         {newName !== null && (
           <form onSubmit={e => { e.preventDefault(); void create(); }} className="mx-3 mb-2 flex gap-1">
             <label htmlFor="new-note" className="sr-only">Yangi sahifa nomi</label>
-            <input id="new-note" autoFocus value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setNewName(null); }} placeholder="Sahifa nomi" className="h-9 min-w-0 flex-1 rounded-lg border border-glass/10 bg-[#07080b] px-2.5 text-[14px] text-[#f2f0ea] outline-none focus:border-[#8b8cff]/60" />
-            <button type="submit" className="h-9 rounded-lg bg-[#8b8cff] px-3 text-[13px] font-semibold text-[#07080b]">Yaratish</button>
+            <input id="new-note" autoFocus value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setNewName(null); }} placeholder="Sahifa nomi" className="h-9 min-w-0 flex-1 rounded-lg border border-glass/10 bg-[#07080b] px-2.5 text-[14px] text-[#f2f0ea] outline-none focus:border-[#ff9a3c]/60" />
+            <button type="submit" className="h-9 rounded-lg bg-[#ff9a3c] px-3 text-[13px] font-semibold text-[#07080b]">Yaratish</button>
           </form>
         )}
         <div className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-glass/[0.08] bg-[#07080b] px-2.5">
@@ -187,7 +187,7 @@ function Vault({ notify }: { notify: Notify }) {
               {editing ? (
                 <>
                   <button type="button" onClick={() => { setDraft(note.content); setEditing(false); }} className="min-h-9 rounded-lg px-3 text-[13px] text-[#a3a9b5] hover:bg-glass/5">Bekor</button>
-                  <button type="button" onClick={() => { void save(); }} disabled={!dirty || saving} className="min-h-9 rounded-lg bg-[#8b8cff] px-3.5 text-[13px] font-semibold text-[#07080b] disabled:opacity-40">{saving ? 'Saqlanmoqda…' : 'Saqlash'}</button>
+                  <button type="button" onClick={() => { void save(); }} disabled={!dirty || saving} className="min-h-9 rounded-lg bg-[#ff9a3c] px-3.5 text-[13px] font-semibold text-[#07080b] disabled:opacity-40">{saving ? 'Saqlanmoqda…' : 'Saqlash'}</button>
                 </>
               ) : (
                 <button type="button" onClick={() => { setEditing(true); setTimeout(() => editor.current?.focus(), 30); }} className="flex min-h-9 items-center gap-1.5 rounded-lg border border-glass/10 px-3 text-[13px] text-[#d9dbe1] hover:bg-glass/5">
@@ -202,7 +202,7 @@ function Vault({ notify }: { notify: Notify }) {
                   <>
                     <label htmlFor="note-editor" className="sr-only">Sahifa matni</label>
                     <textarea id="note-editor" ref={editor} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={onKey} spellCheck={false}
-                      className="min-h-[60vh] w-full resize-none rounded-xl border border-glass/[0.08] bg-transparent p-4 tabular-nums text-[14px] leading-[1.7] text-[#e4e3de] outline-none focus:border-[#8b8cff]/50" />
+                      className="min-h-[60vh] w-full resize-none rounded-xl border border-glass/[0.08] bg-transparent p-4 tabular-nums text-[14px] leading-[1.7] text-[#e4e3de] outline-none focus:border-[#ff9a3c]/50" />
                     <p className="mt-2 text-[12px] text-[#8a909c]">Ctrl+S — saqlash · [[Sahifa nomi]] — havola · - [ ] — vazifa</p>
                   </>
                 ) : <NoteView text={note.content} onLink={follow} />}
@@ -231,7 +231,7 @@ function Vault({ notify }: { notify: Notify }) {
           </ul>
           <h2 className="mt-6 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#8a909c]"><FileText className="h-3.5 w-3.5" aria-hidden="true" />Bu sahifadagi havolalar · {links.length}</h2>
           <ul className="mt-2 flex flex-wrap gap-1.5">
-            {links.map(l => <li key={l}><button type="button" onClick={() => follow(l)} className="rounded-full bg-[#8b8cff]/12 px-2.5 py-1 text-[12px] text-[#c7c8ff] hover:bg-[#8b8cff]/20" title={l}>{l.split("/").pop()}</button></li>)}
+            {links.map(l => <li key={l}><button type="button" onClick={() => follow(l)} className="rounded-full bg-[#ff9a3c]/12 px-2.5 py-1 text-[12px] text-[#ffd9a0] hover:bg-[#ff9a3c]/20" title={l}>{l.split("/").pop()}</button></li>)}
             {!links.length && <li className="text-[13px] text-[#8a909c]">Havola yo'q</li>}
           </ul>
           <p className="mt-6 text-[12px] text-[#8a909c]">O'zgargan: {when(note.modified)}</p>
@@ -248,7 +248,7 @@ export function MiyaArea({ tab, notify }: { tab: string | null; notify: Notify }
     <div className="space-y-6">
       <header className="flex flex-col gap-5 border-b border-glass/[0.06] pb-6">
         <div className="flex flex-wrap items-center gap-4">
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#8b8cff]/15 text-[#c7c8ff]"><Brain className="h-7 w-7" aria-hidden="true" /></span>
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#ff9a3c]/15 text-[#ffd9a0]"><Brain className="h-7 w-7" aria-hidden="true" /></span>
           <div className="min-w-0 flex-1">
             <h1 className="text-[28px] font-bold leading-tight tracking-tight text-[#f2f0ea]">Miya</h1>
             <p className="mt-0.5 text-sm text-[#a3a9b5]">Palantir bilgan hamma narsa — oddiy sahifalar. Bu yerda yoki Obsidian'da yozing: jamoa shundan javob beradi.</p>

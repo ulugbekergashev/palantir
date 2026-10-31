@@ -64,7 +64,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
       <nav aria-label="Ulanishlar" className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map(t => (
           <a key={t.id} href={t.href ?? hrefOf('sozlamalar', t.id)} aria-current={t.id === active ? 'page' : undefined}
-            className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 no-underline transition-colors ${t.id === active ? 'border-[#8b8cff]/40 bg-[#8b8cff]/[0.08]' : 'border-glass/[0.07] bg-[#0b0c10] hover:bg-glass/[0.03]'}`}>
+            className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 no-underline transition-colors ${t.id === active ? 'border-[#ff9a3c]/40 bg-[#ff9a3c]/[0.08]' : 'border-glass/[0.07] bg-[#0b0c10] hover:bg-glass/[0.03]'}`}>
             <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-glass/[0.05] text-[#d9dbe1]">
               <t.icon className="h-[19px] w-[19px]" aria-hidden="true" />
               <span className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-[#0b0c10] ${DOT[t.tone]}`} aria-hidden="true" />

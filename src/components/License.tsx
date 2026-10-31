@@ -86,7 +86,7 @@ export function ActivationPanel({ license, onActivated, onClose }: { license: Li
         <div>
           <label htmlFor="license-key" className="text-sm">2. Jamoa yuborgan kalitni shu yerga qo'ying:</label>
           <textarea id="license-key" value={key} onChange={e => setKey(e.target.value)} rows={3} spellCheck={false} autoComplete="off" placeholder="PAL1-…"
-            className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-xs text-slate-900 outline-none focus:border-indigo-400" />
+            className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-xs text-slate-900 outline-none focus:border-brand-400" />
         </div>
         {problem && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{problem}</p>}
         <Button type="submit" variant="primary" disabled={busy || !key.trim()} className="w-full justify-center">

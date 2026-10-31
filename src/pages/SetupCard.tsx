@@ -26,7 +26,7 @@ export function SetupCard({ steps }: { steps: SetupStep[] }) {
       <ol className="divide-y divide-slate-100">
         {steps.map((s, i) => (
           <li key={s.key} className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4 sm:px-6">
-            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold tabular-nums ${s.done ? 'bg-emerald-100 text-emerald-700' : s.key === next ? 'bg-indigo-600 text-white' : 'border-2 border-slate-200 text-slate-500'}`}>
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold tabular-nums ${s.done ? 'bg-emerald-100 text-emerald-700' : s.key === next ? 'bg-brand-600 text-white' : 'border-2 border-slate-200 text-slate-500'}`}>
               {s.done ? <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" /> : i + 1}
             </span>
             <div className="min-w-0 flex-1 basis-56">

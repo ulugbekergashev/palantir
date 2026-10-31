@@ -106,7 +106,7 @@ function KpiCard({ icon: Icon, label, kpi, color, good, sub, href, compare, tone
     </>
   );
   const cls = `block rounded-2xl border bg-white p-4 shadow-sheet transition ${tone === 'alert' && kpi.value > 0 ? 'border-rose-200' : 'border-slate-200'}`;
-  return href ? <a href={href} className={`${cls} hover:-translate-y-0.5 hover:shadow-lift focus-visible:outline-indigo-500`}>{body}</a> : <div className={cls}>{body}</div>;
+  return href ? <a href={href} className={`${cls} hover:-translate-y-0.5 hover:shadow-lift focus-visible:outline-brand-500`}>{body}</a> : <div className={cls}>{body}</div>;
 }
 
 // ─── O'ng ustun: kanallar va jamoa ───────────────────────────────────────────
@@ -142,7 +142,7 @@ function Channels({ status, phone, cameras, d, clinic }: { status: LiveStatus; p
   const live = cameras.filter(c => c.lastSeenAt && Date.now() - Date.parse(c.lastSeenAt) < 3 * 60_000).length;
   const k = d.kpi.inquiries;
   return (
-    <Rail title="Kanallar" action={<a href="#/telegram" className="text-xs font-semibold text-indigo-700 hover:underline">Ulanishlar</a>}>
+    <Rail title="Kanallar" action={<a href="#/telegram" className="text-xs font-semibold text-brand-700 hover:underline">Ulanishlar</a>}>
       <ul className="space-y-2">
         <ChannelRow icon={Instagram} name="Instagram Direct" dot={ig.dot} state={ig.state} count={k.instagram} />
         <ChannelRow icon={Send} name="Telegram" dot={status.bot ? (status.ownerLinked ? 'ok' : 'warn') : 'off'} state={status.bot ? `@${status.bot}${status.telegramUser.account || status.telegramBusiness.account ? ' + shaxsiy' : ''}` : 'bot ulanmagan'} count={k.telegram} />
@@ -157,7 +157,7 @@ function Channels({ status, phone, cameras, d, clinic }: { status: LiveStatus; p
 
 function Team({ d }: { d: DashboardView }) {
   return (
-    <Rail title={`Jamoa · ${d.team.length}`} action={<a href="#/requests" className="text-xs font-semibold text-indigo-700 hover:underline">Xodim qo'shish</a>}>
+    <Rail title={`Jamoa · ${d.team.length}`} action={<a href="#/requests" className="text-xs font-semibold text-brand-700 hover:underline">Xodim qo'shish</a>}>
       <ul className="space-y-2">
         {d.team.map(m => (
           <li key={m.id ?? 'owner'} className="flex items-center gap-3 rounded-xl bg-slate-50/70 px-3 py-2">
@@ -200,7 +200,7 @@ const hrefOf = (r: RecentItem) => (r.kind === 'call' ? '#/calls' : r.kind === 'r
 function Recent({ items }: { items: RecentItem[] }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white shadow-sheet">
-      <header className="flex items-center justify-between gap-2 px-5 pb-2 pt-4"><h2 className="text-base font-bold text-slate-900">So'nggi murojaatlar</h2><a href="#/inbox" className="text-sm font-semibold text-indigo-700 hover:underline">Hammasi →</a></header>
+      <header className="flex items-center justify-between gap-2 px-5 pb-2 pt-4"><h2 className="text-base font-bold text-slate-900">So'nggi murojaatlar</h2><a href="#/inbox" className="text-sm font-semibold text-brand-700 hover:underline">Hammasi →</a></header>
       {!items.length ? <p className="px-5 pb-5 text-sm text-slate-500">Hali murojaat yo'q — mijozlar yozsa yoki qo'ng'iroq qilsa, shu yerda ko'rinadi.</p> : (
         <ul className="divide-y divide-slate-100">
           {items.map((r, i) => {

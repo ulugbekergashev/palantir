@@ -96,7 +96,7 @@ export function StepKeys({ keys, onKeys, onRouted }: {
             spellCheck={false}
             rows={7}
             placeholder={SAMPLE_HINT}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-mono text-[13px] leading-relaxed text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-mono text-[13px] leading-relaxed text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
           />
         </label>
         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -152,14 +152,14 @@ const shown = (c: Classified): string => (c.kind === 'unknown' ? '•'.repeat(Ma
 const KIND_ICON: Record<Classified['kind'], LucideIcon> = { key: KeyRound, rtsp: Video, crm: Link2, phone: Phone, instagram: AtSign, unknown: KeyRound };
 
 function Badge({ tone, children }: { tone: 'ok' | 'info' | 'none'; children: string }) {
-  const cls = tone === 'ok' ? 'bg-emerald-50 text-emerald-800' : tone === 'info' ? 'bg-indigo-50 text-indigo-800' : 'bg-slate-100 text-slate-500';
+  const cls = tone === 'ok' ? 'bg-emerald-50 text-emerald-800' : tone === 'info' ? 'bg-brand-50 text-brand-800' : 'bg-slate-100 text-slate-500';
   return <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-bold ${cls}`}>{children}</span>;
 }
 
 function LineRow({ c, r, onForce, onAssign }: { c: Classified; r: LineResult | undefined; onForce: () => void; onAssign: (as: KeyName | 'crmPassword' | 'skip') => void }) {
   const unknown = c.kind === 'unknown' && !r;
   const bad = r?.state === 'bad';
-  const tone = bad ? 'bg-rose-50 text-rose-700' : unknown ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700';
+  const tone = bad ? 'bg-rose-50 text-rose-700' : unknown ? 'bg-amber-50 text-amber-700' : 'bg-brand-50 text-brand-700';
   const Icon = bad ? CircleAlert : unknown ? CircleHelp : KIND_ICON[c.kind];
   return (
     <li className="animate-rise grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-start gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 py-3 shadow-sheet">
@@ -190,6 +190,6 @@ function Status({ r, unknown }: { r: LineResult | undefined; unknown: boolean })
   if (r.state === 'checking') return <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600"><Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> Tekshirilmoqda</span>;
   if (r.state === 'ok') return <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-800">Ishlayapti</span>;
   if (r.state === 'bad') return <span className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-700">Xato</span>;
-  if (r.state === 'routed') return <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-800">O'tkazildi</span>;
+  if (r.state === 'routed') return <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-800">O'tkazildi</span>;
   return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">O'tkazildi</span>;
 }

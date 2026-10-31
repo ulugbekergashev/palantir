@@ -124,7 +124,7 @@ export function SetupWizard() {
               <li key={s.key} className="shrink-0">
                 <button type="button" onClick={() => go(i)} aria-current={cur ? 'step' : undefined}
                   className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm transition-colors ${cur ? 'bg-ink-800 font-bold text-white' : 'hover:bg-ink-900'}`}>
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] text-[11px] font-extrabold tabular-nums ${DOT[state]} ${cur && !state ? 'border-indigo-400 text-white' : ''}`} aria-hidden="true">
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] text-[11px] font-extrabold tabular-nums ${DOT[state]} ${cur && !state ? 'border-brand-400 text-white' : ''}`} aria-hidden="true">
                     {state === 'ok' ? <Check className="h-3.5 w-3.5" /> : state === 'warn' ? '!' : state === 'skip' ? '–' : i + 1}
                   </span>
                   <span className={cur ? '' : 'hidden lg:inline'}>{s.title}</span>

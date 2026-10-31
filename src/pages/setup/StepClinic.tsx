@@ -78,10 +78,10 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
             {list.filter(b => b.active).map(b => (
               <li key={b.id}>
                 <button type="button" onClick={() => onSelect(b.id)} aria-pressed={selected === b.id}
-                  className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors ${selected === b.id ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500/20' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                  <Building2 className={`h-5 w-5 shrink-0 ${selected === b.id ? 'text-indigo-600' : 'text-slate-400'}`} aria-hidden="true" />
+                  className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors ${selected === b.id ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-500/20' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                  <Building2 className={`h-5 w-5 shrink-0 ${selected === b.id ? 'text-brand-600' : 'text-slate-400'}`} aria-hidden="true" />
                   <span className="min-w-0"><span className="block truncate font-bold">{b.name}</span><span className="block text-xs text-slate-500">{b.login}{b.industry ? ` · ${b.industry}` : ''}</span></span>
-                  {selected === b.id && <CheckCircle2 className="ml-auto h-5 w-5 text-indigo-600" aria-label="tanlangan" />}
+                  {selected === b.id && <CheckCircle2 className="ml-auto h-5 w-5 text-brand-600" aria-label="tanlangan" />}
                 </button>
               </li>
             ))}
@@ -99,7 +99,7 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
       {selected && (
         <Card title="Klinika ma'lumotlari" description="Hech narsa qilish shart emas: egasi Telegram'ni ulagach, bot o'zi tanishishni taklif qiladi — manzil, ish vaqti, narxlar va mijozlar ko'p so'raydigan savollar. Narxlar ro'yxatini fayl qilib botga yuborsa ham bo'ladi.">
           {!showAnketa ? (
-            <button type="button" onClick={() => setAnketaOpen(true)} className="text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+            <button type="button" onClick={() => setAnketaOpen(true)} className="text-sm font-semibold text-brand-700 hover:text-brand-900">
               Egasi anketani oldindan to'ldirganmi? Kod bilan yuklash
             </button>
           ) : <>
@@ -108,7 +108,7 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
             <Field label="Anketa serveri" hint="Siz anketa yaratgan Palantir manzili"><TextInput value={source} onChange={e => setSource(e.target.value)} placeholder="https://palantir.sizning-domen.uz" type="url" required /></Field>
             <Button type="submit" variant="primary" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Yuklash</Button>
           </form>
-          <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+          <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg text-sm font-semibold text-brand-700 hover:text-brand-900">
             <FileUp className="h-4 w-4" aria-hidden="true" /> Yoki anketa faylini tanlang (.json)
             <input type="file" accept="application/json,.json" className="sr-only" onChange={e => void byFile(e.target.files?.[0])} />
           </label>

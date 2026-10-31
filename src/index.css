@@ -4,7 +4,7 @@
 /*
  * Ko'rinish: klinika qabulxonasidagi daftar — to'q siyoh yon panel va iliq qog'oz rangli ish yuzasi.
  * Rang faqat ma'no uchun: yashil (emerald) — keldi / to'landi / joyida, sariq (amber) — egasini kutyapti,
- * qizil (rose) — muammo / kelmadi, indigo — brend va asosiy amal.
+ * qizil (rose) — muammo / kelmadi, brand (olovrang) — brend va asosiy amal.
  */
 @theme {
   --font-sans: "Manrope Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
@@ -14,6 +14,21 @@
 
   /* Ish yuzasi (sahifa foni) */
   --color-paper: #f6f4ef;
+
+  /*
+   * Brend — palantir cho'g'i (logo: #FF9A3C, #C2410C, #FFD9A0). Och fonda 600 dan boshlab ustidagi oq yozuv 4.5:1 dan past tushmaydi;
+   * qorong'i panel (.night) o'z shkalasini oladi.
+   */
+  --color-brand-50: #fff7ed;
+  --color-brand-100: #ffedd5;
+  --color-brand-200: #fed7aa;
+  --color-brand-300: #fdba74;
+  --color-brand-400: #fb923c;
+  --color-brand-500: #ea580c;
+  --color-brand-600: #c2410c;
+  --color-brand-700: #9a3412;
+  --color-brand-800: #7c2d12;
+  --color-brand-900: #431407;
 
   /* Siyoh: yon panel. 950 — logodagi rangning o'zi */
   --color-ink-950: #0b0d10;
@@ -65,12 +80,12 @@
 
   /* Klaviatura bilan yurganda diqqat qayerdaligi doim ko'rinadi (o'z halqasi bor maydonlar outline-none bilan buni o'chiradi) */
   :focus-visible {
-    outline: 2px solid var(--color-indigo-500);
+    outline: 2px solid var(--color-brand-500);
     outline-offset: 2px;
   }
 
   ::selection {
-    background: color-mix(in srgb, var(--color-indigo-500) 22%, transparent);
+    background: color-mix(in srgb, var(--color-brand-500) 22%, transparent);
   }
 }
 
@@ -145,16 +160,16 @@
   --color-slate-900: #f2f0ea;
   --color-slate-950: #ffffff;
 
-  --color-indigo-50: #171936;
-  --color-indigo-100: #1f2250;
-  --color-indigo-200: #2c2f6e;
-  --color-indigo-300: #5b5fd0;
-  --color-indigo-400: #a9aaff;
-  --color-indigo-500: #9a9bff;
-  --color-indigo-600: #8b8cff;
-  --color-indigo-700: #b4b5ff;
-  --color-indigo-800: #c9caff;
-  --color-indigo-900: #e2e2ff;
+  --color-brand-50: #1c1309;
+  --color-brand-100: #2a1b0b;
+  --color-brand-200: #3d260e;
+  --color-brand-300: #a2561c;
+  --color-brand-400: #ffb062;
+  --color-brand-500: #ffa24d;
+  --color-brand-600: #ff9a3c;
+  --color-brand-700: #ffbd7a;
+  --color-brand-800: #ffd2a3;
+  --color-brand-900: #ffe6cc;
 
   --color-emerald-50: #0c1d17;
   --color-emerald-100: #0f2a20;

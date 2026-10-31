@@ -115,7 +115,7 @@ export function AnketaPage() {
               <div key={k} className="grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-2">
                 <span className="text-sm font-semibold">{name}</span>
                 <TextInput aria-label={`${name} ish vaqti`} value={off ? '' : data.hours[k]} disabled={off} onChange={e => setDay(k, e.target.value)} placeholder={off ? 'dam olish' : '09:00–19:00'} maxLength={40} />
-                <label className="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" checked={off} onChange={e => setDay(k, e.target.checked ? CLOSED : '')} className="h-4 w-4 accent-indigo-600" /> dam</label>
+                <label className="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" checked={off} onChange={e => setDay(k, e.target.checked ? CLOSED : '')} className="h-4 w-4 accent-brand-600" /> dam</label>
               </div>
             );
           })}
