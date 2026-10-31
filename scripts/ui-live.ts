@@ -212,6 +212,12 @@ try {
   await nav('Sozlamalar');
   ok("sozlamalar: ulanishlar plitkalari (holati bilan)", await visible(page.getByRole('navigation', { name: 'Ulanishlar' }).getByRole('link', { name: /Telefon liniyasi/ })));
   ok("sozlamalar: savdo sohasida DentaCRM plitkasi yo'q", await page.getByRole('navigation', { name: 'Ulanishlar' }).getByRole('link', { name: /DentaCRM/ }).count() === 0);
+  const banner = page.getByRole('button', { name: /Aktivlashtirilmagan · \d+ kun qoldi/ });
+  const hadBanner = await banner.isVisible();
+  await page.getByRole('button', { name: 'Eslatmani bugunga yopish' }).click();
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('navigation', { name: 'Ulanishlar' }).waitFor();
+  ok("litsenziya eslatmasi bugunga yopiladi (qayta ochilganda ham chiqmaydi)", hadBanner && await banner.count() === 0);
   const live = page.getByRole('region', { name: 'Jonli tekshiruv' });
   await live.getByRole('button', { name: 'Tekshirish', exact: true }).click();
   await live.getByText(/Ulangan kanallarning hammasi ishlayapti|ta kanal ishlamayapti/).waitFor({ timeout: 20000 });
@@ -361,6 +367,15 @@ try {
   await nav('Palantir');
   ok('telefon: pastki paneldan bosh ekranga', await visible(page.getByLabel("Palantir'ga yozing")) && page.url().endsWith('#/ai'));
   await shot('09b-mobile-home', true);
+  const bar = await rail().evaluate(n => [...n.querySelectorAll('a, button')].filter(e => (e as HTMLElement).offsetParent !== null).map(e => e.getAttribute('aria-label') ?? e.textContent?.trim()));
+  ok("telefon: pastda yettita tugma — Palantir, beshta xodim va «Ko'proq»", bar.length === 7 && bar.at(-1) === "Ko'proq" && !bar.includes('Miya'), JSON.stringify(bar));
+  await rail().getByRole('button', { name: "Ko'proq" }).click();
+  const menu = page.getByRole('menu', { name: "Ko'proq" });
+  ok("«Ko'proq»: Miya, Sozlamalar, Quloq va Chiqish", await visible(menu.getByRole('menuitem', { name: 'Sozlamalar' })) && await menu.getByRole('menuitem', { name: 'Miya' }).isVisible()
+    && await menu.getByRole('menuitemcheckbox', { name: /Quloq/ }).isVisible() && await menu.getByRole('menuitem', { name: /Chiqish/ }).isVisible());
+  await shot('09c-mobile-koproq');
+  await menu.getByRole('menuitem', { name: 'Sozlamalar' }).click();
+  ok("«Ko'proq» → Sozlamalar ochildi, menyu yopildi", await visible(page.getByRole('navigation', { name: 'Ulanishlar' })) && page.url().endsWith('#/sozlamalar') && await menu.count() === 0);
   // Panel Telegram ichida (Mini App) ham ochiladi — sozlamalarning asosiy va Telegram bo'limlari ham telefon enida sig'sin
   for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/ulash', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
     await go(p);

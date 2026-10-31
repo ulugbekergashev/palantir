@@ -1,6 +1,7 @@
 /**
  * Litsenziya (server/license.ts): kalitsiz muddatda — sahifa tepasida ingichka eslatma («Kalitni kiritish» — oyna ochiladi): suzib
  * turadigan tugma telefonda bo'limlar panelini, kompyuterda so'rov tugmalari va yozish maydonini yopib qo'yardi;
+ * eslatmani yopsa bo'ladi — ertasi kuni yana chiqadi, oxirgi kunlarda (URGENT_DAYS) yopilmaydi;
  * muddat tugagach — butun ekran aktivlashtirish oynasi. Kompyuter kodini egasi Palantir jamoasiga yuboradi va kalitni qo'yadi
  * (klinika Hub'ga ulangan bo'lsa, jamoa Hub'dan o'zi aktivlashtiradi — kod almashish shart emas).
  */
@@ -9,13 +10,32 @@ import { Copy, KeyRound, Loader2, X } from 'lucide-react';
 import { api, type LicenseView } from '../data/api';
 import { Button } from './ui';
 
+/** Shuncha kun qolganda eslatma yopilmaydi */
+const URGENT_DAYS = 3;
+const HIDDEN_KEY = 'palantir_license_hidden';
+const today = () => new Date().toLocaleDateString('sv-SE');
+const hiddenToday = () => { try { return localStorage.getItem(HIDDEN_KEY) === today(); } catch { return false; } };
+
 export function LicenseReminder({ license, onOpen }: { license: LicenseView; onOpen: () => void }) {
+  const urgent = license.daysLeft <= URGENT_DAYS;
+  const [hidden, setHidden] = useState(hiddenToday);
+  if (hidden && !urgent) return null;
+  const hide = () => {
+    try { localStorage.setItem(HIDDEN_KEY, today()); } catch { /* yopiq xotira — shu ochilishda yashiriladi */ }
+    setHidden(true);
+  };
   return (
-    <button type="button" onClick={onOpen}
-      className="flex w-full items-center justify-center gap-2 border-b border-amber-300/40 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 lg:pl-[92px]">
-      <KeyRound className="h-4 w-4" aria-hidden="true" />
-      Aktivlashtirilmagan · {license.daysLeft} kun qoldi · Kalitni kiritish
-    </button>
+    <div className={`flex w-full items-center border-b text-xs font-semibold lg:pl-[92px] ${urgent ? 'border-[#ff7a6b]/30 bg-[#2a110d] text-[#ffc2b8]' : 'border-[#ff9a3c]/25 bg-[#1c1309] text-[#ffd9a0]'}`}>
+      <button type="button" onClick={onOpen} className="flex flex-1 items-center justify-center gap-2 px-3.5 py-2 hover:text-[#fff3e0]">
+        <KeyRound className="h-4 w-4" aria-hidden="true" />
+        Aktivlashtirilmagan · {license.daysLeft} kun qoldi · <span className="underline underline-offset-2">Kalitni kiritish</span>
+      </button>
+      {!urgent && (
+        <button type="button" onClick={hide} aria-label="Eslatmani bugunga yopish" title="Bugunga yopish (ertaga yana eslatadi)" className="mr-1.5 rounded-lg p-1.5 opacity-70 hover:bg-glass/5 hover:opacity-100">
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
+    </div>
   );
 }
 

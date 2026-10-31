@@ -1,7 +1,9 @@
 /**
  * Chap ustun (telefonda — pastki panel): Palantir (ovoz), AI jamoa, Miya, Sozlamalar. Hamma bo'limda bir xil — dastur bitta.
+ * Telefonda pastda — Palantir va jamoa (yetti tugma, barmoq sig'adi); Miya, Sozlamalar, Quloq va Chiqish — «Ko'proq» ichida.
  */
-import { Brain, Ear, EarOff, LogOut, Settings, Sparkles, type LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Brain, Ear, EarOff, Ellipsis, LogOut, Settings, Sparkles, type LucideIcon } from 'lucide-react';
 import type { Wake } from '../lib/useWake';
 import type { Area } from '../lib/nav';
 import { hrefOf } from '../lib/nav';
@@ -9,8 +11,10 @@ import { MEMBERS, TEAM, type Member, type MemberState } from './team';
 
 interface Item { area: Area; label: string; icon: LucideIcon; badge?: number }
 
-/** Telefonning pastki panelida sakkiz bo'lim sig'ishi uchun qisqa nomlar (kompyuterda — to'liq) */
-const SHORT: Partial<Record<Area, string>> = { qabulxona: 'Qabul', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', marketolog: 'SMM', sozlamalar: 'Sozlama' };
+/** Telefonning pastki panelida yetti tugma sig'ishi uchun qisqa nomlar (kompyuterda — to'liq) */
+const SHORT: Partial<Record<Area, string>> = { qabulxona: 'Qabul', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', marketolog: 'SMM' };
+/** Telefonda «Ko'proq» ichida turadigan bo'limlar */
+const MORE: Area[] = ['miya', 'sozlamalar'];
 
 const EAR: Record<Wake['phase'], { dot: string; hint: string }> = {
   off: { dot: '', hint: "O'chiq — yoqsangiz, «Palantir» yoki «Jarvis» deb chaqirasiz" },
@@ -27,15 +31,29 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
     ...MEMBERS.map(m => ({ area: m as Area, label: TEAM[m].name, icon: TEAM[m].icon, badge: team?.[m].badge })),
     { area: 'miya', label: 'Miya', icon: Brain },
   ];
+  const [more, setMore] = useState(false);
+  const sheet = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!more) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !sheet.current?.contains(e.target as Node)) setMore(false);
+    };
+    document.addEventListener('keydown', close);
+    document.addEventListener('pointerdown', close);
+    return () => { document.removeEventListener('keydown', close); document.removeEventListener('pointerdown', close); };
+  }, [more]);
+
   const link = (it: Item) => {
     const active = area === it.area;
+    // Miya va Sozlamalar telefonda pastki panelda emas — «Ko'proq» ichida
+    const desktopOnly = MORE.includes(it.area) ? 'hidden lg:flex' : 'flex';
     return (
       <a
         key={it.area}
         href={hrefOf(it.area)}
         aria-current={active ? 'page' : undefined}
         aria-label={it.label}
-        className={`group relative flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[11px] font-medium no-underline transition-colors lg:flex-none lg:py-2 ${active ? 'text-[#f2f0ea]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
+        className={`group relative ${desktopOnly} min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[11px] font-medium no-underline transition-colors lg:flex-none lg:py-2 ${active ? 'text-[#f2f0ea]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
       >
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${active ? 'bg-[#8b8cff]/18 text-[#c7c8ff]' : 'group-hover:bg-glass/5'}`}>
           <it.icon className="h-[19px] w-[19px]" aria-hidden="true" />
@@ -51,7 +69,36 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
       <a href={hrefOf('ai')} className="mb-4 hidden justify-center lg:flex" aria-label="Palantir — bosh ekran"><img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-9 w-9" /></a>
       <div className="flex flex-1 gap-0.5 lg:flex-none lg:flex-col lg:gap-1">{items.map(link)}</div>
       <div className="hidden flex-1 lg:block" />
-      <div className="flex w-[calc(100%/8)] gap-0.5 lg:w-auto lg:flex-col lg:gap-1">
+      <div ref={sheet} className="relative flex w-[calc(100%/7)] lg:hidden">
+        <button type="button" onClick={() => setMore(v => !v)} aria-expanded={more} aria-controls="koproq" aria-label="Ko'proq"
+          className={`group flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[11px] font-medium transition-colors ${more || MORE.includes(area) ? 'text-[#f2f0ea]' : 'text-[#8a909c]'}`}>
+          <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${more || MORE.includes(area) ? 'bg-[#8b8cff]/18 text-[#c7c8ff]' : ''}`}>
+            <Ellipsis className="h-[19px] w-[19px]" aria-hidden="true" />
+          </span>
+          <span aria-hidden="true">Ko'proq</span>
+          {wake.enabled && EAR[wake.phase].dot && <span className={`absolute right-3 top-2 h-2 w-2 rounded-full ${EAR[wake.phase].dot}`} aria-hidden="true" />}
+        </button>
+        {more && (
+          <div id="koproq" role="menu" aria-label="Ko'proq" className="absolute bottom-[calc(100%+8px)] right-1 w-56 rounded-2xl border border-glass/[0.08] bg-[#0b0c10] p-1.5 shadow-2xl">
+            {[{ area: 'miya' as Area, label: 'Miya', icon: Brain }, { area: 'sozlamalar' as Area, label: 'Sozlamalar', icon: Settings }].map(it => (
+              <a key={it.area} role="menuitem" href={hrefOf(it.area)} onClick={() => setMore(false)} aria-current={area === it.area ? 'page' : undefined}
+                className={`flex items-center gap-3 rounded-xl px-3 py-3 text-[14px] no-underline ${area === it.area ? 'bg-[#8b8cff]/12 text-[#f2f0ea]' : 'text-[#d9dbe1] active:bg-glass/5'}`}>
+                <it.icon className="h-[18px] w-[18px]" aria-hidden="true" />{it.label}
+              </a>
+            ))}
+            <button type="button" role="menuitemcheckbox" aria-checked={wake.enabled} onClick={wake.toggle}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] text-[#d9dbe1] active:bg-glass/5">
+              {wake.enabled ? <Ear className="h-[18px] w-[18px]" aria-hidden="true" /> : <EarOff className="h-[18px] w-[18px]" aria-hidden="true" />}
+              <span className="min-w-0 flex-1">Quloq<span className="block text-[12px] text-[#8a909c]">{wake.enabled ? EAR[wake.phase].hint : "o'chiq"}</span></span>
+            </button>
+            <button type="button" role="menuitem" onClick={() => { setMore(false); onLogout(); }}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] text-[#d9dbe1] active:bg-glass/5">
+              <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />Chiqish<span className="ml-auto truncate text-[12px] text-[#8a909c]">{ownerName}</span>
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="hidden lg:flex lg:w-auto lg:flex-col lg:gap-1">
         <button type="button" onClick={wake.toggle} aria-pressed={wake.enabled} title={`Quloq: ${EAR[wake.phase].hint}`}
           className={`group relative hidden min-h-12 flex-col items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-medium transition-colors lg:flex ${wake.enabled ? 'text-[#c7c8ff]' : 'text-[#8a909c] hover:text-[#d9dbe1]'}`}
           aria-describedby="quloq-holat">
