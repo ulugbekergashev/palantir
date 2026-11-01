@@ -3,18 +3,19 @@
  * Telefonda pastda — Palantir va jamoa (yetti tugma, barmoq sig'adi); Miya, Sozlamalar, Quloq va Chiqish — «Ko'proq» ichida.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Brain, Ear, EarOff, Ellipsis, LogOut, Settings, Sparkles, type LucideIcon } from 'lucide-react';
+import { Brain, Ear, EarOff, Ellipsis, Lock, LogOut, Settings, Sparkles, type LucideIcon } from 'lucide-react';
+import { DEPARTMENTS } from '../pages/ComingSoon';
 import type { Wake } from '../lib/useWake';
 import type { Area } from '../lib/nav';
 import { hrefOf } from '../lib/nav';
 import { DEPARTMENT_LABEL, DEPARTMENT_OF, MEMBERS, RAIL_MEMBERS, TEAM, type Member, type MemberState } from './team';
 
-interface Item { area: Area; label: string; icon: LucideIcon; badge?: number }
+interface Item { area: Area; label: string; icon: LucideIcon; badge?: number; /** Bo'lim hali ishlamaydi — tez kunda */ locked?: boolean }
 
 /** Telefonning pastki panelida yetti tugma sig'ishi uchun qisqa nomlar (kompyuterda — to'liq) */
 const SHORT: Partial<Record<Area, string>> = { qabulxona: 'Qabul', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', marketolog: 'SMM' };
 /** Telefonda «Ko'proq» ichida turadigan bo'limlar */
-const MORE: Area[] = ['miya', 'sozlamalar'];
+const MORE: Area[] = ['hr', 'miya', 'sozlamalar'];
 
 const EAR: Record<Wake['phase'], { dot: string; hint: string }> = {
   off: { dot: '', hint: "O'chiq — yoqsangiz, «Palantir» yoki «Jarvis» deb chaqirasiz" },
@@ -32,6 +33,7 @@ export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area:
     { area: 'ai' as Area, label: 'Palantir', icon: Sparkles },
     // Bo'lim tugmasidagi nishon — ichidagi xodimlarniki bilan birga (Marketing: Marketolog + Kontent-meyker)
     ...RAIL_MEMBERS.map(m => ({ area: m as Area, label: DEPARTMENT_LABEL[m] ?? TEAM[m].name, icon: TEAM[m].icon, badge: team ? MEMBERS.filter(x => x === m || DEPARTMENT_OF[x]?.area === m).reduce((n, x) => n + team[x].badge, 0) : undefined })),
+    { area: 'hr' as Area, label: DEPARTMENTS.hr.name, icon: DEPARTMENTS.hr.icon, locked: true },
     { area: 'miya' as Area, label: 'Miya', icon: Brain },
   ].filter(it => open(it.area));
   const [more, setMore] = useState(false);
@@ -60,6 +62,7 @@ export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area:
       >
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${active ? 'bg-[#ff9a3c]/18 text-[#ffd9a0]' : 'group-hover:bg-glass/5'}`}>
           <it.icon className="h-[19px] w-[19px]" aria-hidden="true" />
+          {it.locked && <Lock className="absolute ml-5 mt-5 h-3 w-3 rounded-full bg-[#07080b] p-[1px] text-[#c9cbd2]" aria-hidden="true" />}
         </span>
         <span className="max-w-full truncate lg:hidden" aria-hidden="true">{SHORT[it.area] ?? it.label}</span>
         <span className="hidden max-w-full truncate lg:inline" aria-hidden="true">{it.label}</span>
@@ -68,7 +71,7 @@ export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area:
     );
   };
   return (
-    <nav aria-label="Bo'limlar" className="fixed inset-x-0 bottom-0 z-40 flex border-t border-glass/[0.06] bg-[#07080b]/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:inset-x-auto lg:inset-y-0 lg:left-0 lg:w-[92px] lg:flex-col lg:border-r lg:border-t-0 lg:px-2 lg:py-4">
+    <nav aria-label="Bo'limlar" className="fixed inset-x-0 bottom-0 z-40 flex border-t border-glass/[0.06] bg-[#07080b]/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:inset-x-auto lg:inset-y-0 lg:left-0 lg:w-[92px] lg:flex-col lg:overflow-y-auto lg:border-r lg:border-t-0 lg:px-2 lg:py-4 lg:[scrollbar-width:none]">
       <a href={hrefOf('ai')} className="mb-4 hidden justify-center lg:flex" aria-label="Palantir — bosh ekran"><img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-9 w-9" /></a>
       <div className="flex flex-1 gap-0.5 lg:flex-none lg:flex-col lg:gap-1">{items.map(link)}</div>
       <div className="hidden flex-1 lg:block" />
@@ -83,7 +86,7 @@ export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area:
         </button>
         {more && (
           <div id="koproq" role="menu" aria-label="Ko'proq" className="absolute bottom-[calc(100%+8px)] right-1 w-56 rounded-2xl border border-glass/[0.08] bg-[#0b0c10] p-1.5 shadow-2xl">
-            {[{ area: 'miya' as Area, label: 'Miya', icon: Brain }, { area: 'sozlamalar' as Area, label: 'Sozlamalar', icon: Settings }].filter(it => open(it.area)).map(it => (
+            {[{ area: 'hr' as Area, label: `${DEPARTMENTS.hr.name} · tez kunda`, icon: DEPARTMENTS.hr.icon }, { area: 'miya' as Area, label: 'Miya', icon: Brain }, { area: 'sozlamalar' as Area, label: 'Sozlamalar', icon: Settings }].filter(it => open(it.area)).map(it => (
               <a key={it.area} role="menuitem" href={hrefOf(it.area)} onClick={() => setMore(false)} aria-current={area === it.area ? 'page' : undefined}
                 className={`flex items-center gap-3 rounded-xl px-3 py-3 text-[14px] no-underline ${area === it.area ? 'bg-[#ff9a3c]/12 text-[#f2f0ea]' : 'text-[#d9dbe1] active:bg-glass/5'}`}>
                 <it.icon className="h-[18px] w-[18px]" aria-hidden="true" />{it.label}

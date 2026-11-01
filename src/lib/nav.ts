@@ -4,12 +4,12 @@
  * (#/inbox/<mijoz>), u buzilmaydi: manzil qayta yozilmaydi.
  */
 
-export type Area = 'ai' | 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'miya' | 'sozlamalar';
+export type Area = 'ai' | 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'hr' | 'miya' | 'sozlamalar';
 /** Eski bo'lim nomlari: jurnal yozuvlari va ovozli buyruqlar hali shular bilan ishlaydi, OLD ularni xodim varag'iga o'giradi */
 export type Page = 'home' | 'chat' | 'journal' | 'inbox' | 'requests' | 'calls' | 'cameras' | 'brain' | 'telegram';
 export interface Route { area: Area; tab: string | null }
 
-export const AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'miya', 'sozlamalar'];
+export const AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'hr', 'miya', 'sozlamalar'];
 
 /** Eski bo'limlar — qaysi xodimning qaysi varag'i */
 const OLD: Record<string, Route> = {

@@ -13,6 +13,7 @@ import { hrefOf, routeFromHash, type Area, type Route } from './lib/nav';
 import { AiPage } from './pages/AiPage';
 import { AnalystArea, AssistantArea, MarketingArea, ReceptionArea, SettingsArea, WatchArea } from './pages/TeamPages';
 import { MiyaArea } from './pages/VaultPage';
+import { ComingSoonArea } from './pages/ComingSoon';
 
 /**
  * Panel — bitta dastur, AI jamoa atrofida: bosh ekran (Palantir, ovoz bilan), besh xodim (Qabulxona, Yordamchi, Kuzatuvchi,
@@ -20,10 +21,10 @@ import { MiyaArea } from './pages/VaultPage';
  */
 const TITLES: Record<Area, string> = {
   ai: 'Palantir', qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
-  tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', miya: 'Miya', sozlamalar: 'Sozlamalar',
+  tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', hr: 'HR', miya: 'Miya', sozlamalar: 'Sozlamalar',
 };
 
-const ALL_AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'miya', 'sozlamalar'];
+const ALL_AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'hr', 'miya', 'sozlamalar'];
 const areasFor = (who: Who | null): Area[] =>
   who?.kind !== 'staff' ? ALL_AREAS : who.access === 'manager' ? ALL_AREAS.filter(a => a !== 'sozlamalar') : ['qabulxona'];
 
@@ -112,6 +113,7 @@ export default function LiveApp() {
           {area === 'kuzatuvchi' && <WatchArea {...common} />}
           {area === 'tahlilchi' && <AnalystArea {...common} />}
           {area === 'marketolog' && <MarketingArea {...common} onStatus={setStatus} kontent={team?.kontent ?? null} target={team?.target ?? null} />}
+          {area === 'hr' && <ComingSoonArea department="hr" />}
           {area === 'miya' && <MiyaArea tab={tab} notify={notify} />}
           {area === 'sozlamalar' && (
             <SettingsArea {...common} onStatus={setStatus} onBiz={setBiz} offeringsRev={offeringsRev} onSaved={(b, rev) => { setBiz(b); setOfferingsRev(rev); }} />

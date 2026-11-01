@@ -15,6 +15,7 @@ import { useVoice, type VoiceMode } from '../lib/useVoice';
 import { Attention } from '../components/Attention';
 import { dotClass } from '../components/agent';
 import { TeamDay } from '../components/TeamDay';
+import { UPCOMING, UpcomingCard } from './ComingSoon';
 import { PalantirOrb } from '../components/PalantirOrb';
 import type { Notify } from '../components/Artifacts';
 
@@ -180,6 +181,12 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
               ) : <div key={m} className={`${span} h-[132px] animate-pulse rounded-2xl border border-glass/5 bg-glass/[0.02]`} />;
             })}
           </div>
+        </section>
+
+        {/* Tez kunda: jamoa qayerga qarab o'sayotgani (qulf bilan, bosilmaydi) */}
+        <section aria-label="Tez kunda" className="mt-8 w-full">
+          <h2 className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#7d838f]">🔒 Tez kunda</h2>
+          <div className="grid gap-3 sm:grid-cols-2">{UPCOMING.map(u => <UpcomingCard key={u.id} u={u} compact />)}</div>
         </section>
 
         {/* Har xodimning bugungi ishi va bugungi jurnal */}
