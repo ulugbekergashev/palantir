@@ -16,6 +16,7 @@ import { env } from './env';
 import { businesses, type BusinessRow } from './db';
 import { settings } from './serviceStore';
 import { hashPassword } from './auth';
+import { staff } from './requests/store';
 import { emptyBusiness } from './validate';
 
 /** Profilni o'rnatish o'zi yaratgan (shu belgi bo'lmasa — eski o'rnatish, egasi bor) */
@@ -74,7 +75,7 @@ export function handOver(biz: BusinessRow, wantedLogin: string | undefined): { l
   const login = (wantedLogin ?? '').trim().toLowerCase() || biz.login;
   if (!LOGIN_RE.test(login)) throw new Error("Login: 3–32 ta lotin harfi, raqam, nuqta yoki chiziqcha");
   const taken = businesses.byLogin(login);
-  if (taken && taken.id !== biz.id) throw new Error('Bu login band');
+  if ((taken && taken.id !== biz.id) || staff.byLogin(login)) throw new Error('Bu login band');
   const password = newOwnerPassword();
   businesses.update(biz.id, { login, passwordHash: hashPassword(password) });
   businesses.revokeSessions(biz.id);

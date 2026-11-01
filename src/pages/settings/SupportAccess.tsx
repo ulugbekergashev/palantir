@@ -55,7 +55,7 @@ export function SupportAccess({ notify }: { notify: Notify }) {
       {view.visits.length > 0 && (
         <ul className="space-y-1 text-xs text-slate-500">
           {view.visits.slice(0, VISITS_SHOWN).map(v => (
-            <li key={v.at}>Kirgan: {when(v.at)} ({ago(v.at)})</li>
+            <li key={v.at}>{v.who ? `${v.who} kirgan` : 'Kirgan'}: {when(v.at)} ({ago(v.at)})</li>
           ))}
         </ul>
       )}

@@ -34,14 +34,19 @@ export interface Session {
   sup?: true;
   /** Jamoa kirishlari avlodi (businesses.support_ver): egasi o'chirib qayta yoqsa ham eski jamoa kirishi qaytmaydi */
   sv?: number;
+  /** Klinika xodimi (staff.id; teamAccess.ts) — egasi emas: huquqi server/access.ts bo'yicha */
+  st?: string;
+  /** Xodim kirishlari avlodi (staff.token_ver): parol almashsa yoki kirish yopilsa — bekor */
+  stv?: number;
 }
 
 const sign = (body: string) => createHmac('sha256', env.sessionSecret).update(body).digest('base64url');
 
-/** supportVer berilsa — Palantir jamoasi kirishi (shu avlod bilan) */
-export function issueToken(sub: string, role: Session['role'], days = 30, v = 0, supportVer: number | null = null): string {
+/** supportVer berilsa — Palantir jamoasi kirishi (shu avlod bilan); staff — klinika xodimining kirishi */
+export function issueToken(sub: string, role: Session['role'], days = 30, v = 0, supportVer: number | null = null, staff: { id: string; ver: number } | null = null): string {
   const support = supportVer === null ? {} : { sup: true as const, sv: supportVer };
-  const body = Buffer.from(JSON.stringify({ sub, role, exp: Date.now() + days * 86_400_000, v, ...support } satisfies Session)).toString('base64url');
+  const member = staff ? { st: staff.id, stv: staff.ver } : {};
+  const body = Buffer.from(JSON.stringify({ sub, role, exp: Date.now() + days * 86_400_000, v, ...support, ...member } satisfies Session)).toString('base64url');
   return `${body}.${sign(body)}`;
 }
 

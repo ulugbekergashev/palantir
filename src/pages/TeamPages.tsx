@@ -36,8 +36,9 @@ import { SettingsHub } from './settings/SettingsHub';
 interface Common { biz: Business; status: LiveStatus; now: Date; notify: Notify; onChanged: () => void; tab: string | null; state: MemberState | null; tick: number }
 const pick = (tab: string | null, ids: string[]) => (tab && ids.includes(tab) ? tab : ids[0]);
 
-export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now }: Common) {
-  const active = pick(tab, ['bugun', 'sorovlar', 'qongiroqlar', 'yozishmalar', 'topshiriqlar']);
+/** limited — qabulxona xodimi (server/access.ts): AI xodimlarga topshiriq bera olmaydi */
+export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now, limited = false }: Common & { limited?: boolean }) {
+  const active = pick(tab, ['bugun', 'sorovlar', 'qongiroqlar', 'yozishmalar', ...(limited ? [] : ['topshiriqlar'])]);
   const [data, reload] = useReceptionData(notify, tick);
   const today = iso(now);
   const k = data?.dashboard?.kpi;
@@ -51,7 +52,7 @@ export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now
   return (
     <div className="space-y-6">
       <AgentHero member="qabulxona" state={state} stats={stats}>
-        <AgentTabs area="qabulxona" active={active} tabs={[{ id: 'bugun', label: 'Bugun' }, { id: 'sorovlar', label: "So'rovlar", count: data?.requests.length }, { id: 'qongiroqlar', label: "Qo'ng'iroqlar" }, { id: 'yozishmalar', label: 'Yozishmalar' }, { id: 'topshiriqlar', label: 'Topshiriqlar' }]} />
+        <AgentTabs area="qabulxona" active={active} tabs={[{ id: 'bugun', label: 'Bugun' }, { id: 'sorovlar', label: "So'rovlar", count: data?.requests.length }, { id: 'qongiroqlar', label: "Qo'ng'iroqlar" }, { id: 'yozishmalar', label: 'Yozishmalar' }, ...(limited ? [] : [{ id: 'topshiriqlar', label: 'Topshiriqlar' }])]} />
       </AgentHero>
       {active === 'bugun' && <ReceptionToday data={data} reload={reload} notify={notify} status={status} onChanged={onChanged} tick={tick} />}
       {active === 'topshiriqlar' && <OrdersPanel member="qabulxona" notify={notify} />}

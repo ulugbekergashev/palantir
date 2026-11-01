@@ -38,6 +38,9 @@
  *      egasi panelidagi kompyuter kodi bilan solishtiriladi) bunday kompyuter karantinda: /c/ orqali hech narsa bermaydi (klinika panellari
  *      va ularning kirish kalitlari shu manzilda turadi — begona sahifa ular yonida ochilmasin), jamoa kirishi, litsenziya, zaxira va
  *      Instagram yopiq. Faqat holat, diagnostika va navbat. Soxta yozuv — POST /admin/clinics/<klinika>/delete.
+ *  12. Jamoa (team.ts): /admin ga har kishi o'z logini bilan (POST /admin/login → 12 soatlik kalit); asoschi — hammasi, o'rnatuvchi —
+ *      ro'yxat, «Yangi klinika», panel, diagnostika. HUB_ADMIN_KEY — asosiy kalit (asoschi). Hisoblar: /admin/team (asoschi), jurnal:
+ *      /admin/audit. Panelga kirishda kimligi klinikaga beriladi (who) — egasi Telegram'da va Sozlamalarda ko'radi.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -58,6 +61,7 @@ import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { adminPage } from './admin.ts';
 import { issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
+import { createTeam, TeamError, type HubRole, type Member } from './team.ts';
 import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
 
 /** Admin kaliti hamma klinikaning paneli, zaxirasi va diagnostikasini ochadi: qisqasi qabul qilinmaydi (hub:deploy 32 belgili yaratadi) */
@@ -138,6 +142,9 @@ const stateSecret = ((): string => {
   db.prepare("INSERT INTO meta (name, value) VALUES ('state_secret', ?)").run(v);
   return v;
 })();
+
+/** Jamoa hisoblari va jurnal (team.ts): asosiy kalit (HUB_ADMIN_KEY) — asoschi sifatida */
+const team = createTeam(db, stateSecret, () => cfg.adminKey);
 
 const now = () => new Date().toISOString();
 /** Klinika ulanish kodi — ko'rinishi src/lib/hubCode.ts dagi bilan bir xil (hub alohida joylanadi, shuning uchun nusxa) */
@@ -274,6 +281,17 @@ function readRaw(req: IncomingMessage, max = MAX_BODY): Promise<Buffer | null> {
   });
 }
 const bearer = (req: IncomingMessage) => (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
+/** Kim so'rayapti (team.ts): kirmagan yoki huquqi yetmasa — javob shu yerda yuboriladi */
+function memberOf(req: IncomingMessage, res: ServerResponse, need: HubRole = 'installer'): Member | null {
+  const who = team.who(bearer(req));
+  if (!who) { send(res, 401, { error: "Kiring — login va parol (yoki asosiy kalit)" }); return null; }
+  if (need === 'founder' && who.role !== 'founder') { send(res, 403, { error: 'Buni faqat asoschi qiladi' }); return null; }
+  return who;
+}
+const teamFail = (res: ServerResponse, e: unknown) => { if (e instanceof TeamError) return send(res, e.code, { error: e.message }); throw e; };
+const readJson = async (req: IncomingMessage): Promise<Record<string, unknown> | null> => {
+  try { const v = JSON.parse((await readRaw(req))?.toString() || '{}') as unknown; return v && typeof v === 'object' ? v as Record<string, unknown> : null; } catch { return null; }
+};
 /** «klinika.maxfiy» → klinika id (kalit to'g'ri bo'lsa) */
 function clinicOf(req: IncomingMessage): string | null {
   const [id, secret] = bearer(req).split('.');
@@ -428,12 +446,52 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl, id, secret) });
   }
 
+  // Jamoa (team.ts): shaxsiy kirish, o'z paroli, hisoblar (asoschi) va jurnal (asoschi)
+  if (p === '/admin/login' && req.method === 'POST') {
+    const body = await readJson(req);
+    if (!body) return send(res, 400, { error: 'json' });
+    try { return send(res, 200, team.login(body.login, body.password, clientIp(req))); } catch (e) { return teamFail(res, e); }
+  }
+  if (p === '/admin/me' && req.method === 'GET') {
+    const who = memberOf(req, res); if (!who) return;
+    return send(res, 200, { member: who });
+  }
+  if (p === '/admin/me/password' && req.method === 'POST') {
+    const who = memberOf(req, res); if (!who) return;
+    const body = await readJson(req);
+    if (!body) return send(res, 400, { error: 'json' });
+    try { return send(res, 200, team.changePassword(who, body.current, body.next)); } catch (e) { return teamFail(res, e); }
+  }
+  if (p === '/admin/team' && req.method === 'GET') {
+    const who = memberOf(req, res, 'founder'); if (!who) return;
+    return send(res, 200, { team: team.list() });
+  }
+  if (p === '/admin/team' && req.method === 'POST') {
+    const who = memberOf(req, res, 'founder'); if (!who) return;
+    const body = await readJson(req);
+    if (!body) return send(res, 400, { error: 'json' });
+    try { return send(res, 200, team.add(who, body)); } catch (e) { return teamFail(res, e); }
+  }
+  const teamOp = /^\/admin\/team\/([0-9a-f]{10})\/(reset|on|off)$/.exec(p);
+  if (teamOp && req.method === 'POST') {
+    const who = memberOf(req, res, 'founder'); if (!who) return;
+    try {
+      return send(res, 200, teamOp[2] === 'reset' ? team.reset(who, teamOp[1]) : { member: team.setActive(who, teamOp[1], teamOp[2] === 'on') });
+    } catch (e) { return teamFail(res, e); }
+  }
+  if (p === '/admin/audit' && req.method === 'GET') {
+    const who = memberOf(req, res, 'founder'); if (!who) return;
+    const clinic = url.searchParams.get('clinic') ?? '';
+    return send(res, 200, { audit: team.recent(200, /^[0-9a-f]{10}$/.test(clinic) ? clinic : undefined) });
+  }
+
   // Admin: yangi klinika — ulanish kodi bir marta ko'rsatiladi (bazada faqat xeshi)
   if (p === '/admin/clinics' && req.method === 'POST') {
-    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const who = memberOf(req, res); if (!who) return;
     const body = JSON.parse((await readRaw(req))?.toString() || '{}') as { name?: string };
     const id = newId(), secret = randomBytes(24).toString('base64url');
     db.prepare('INSERT INTO clinics (id, name, key_hash, created_at, approved) VALUES (?, ?, ?, ?, 1)').run(id, String(body.name ?? 'Klinika').slice(0, 80), sha(secret), now());
+    team.log(who, 'klinika.yaratildi', id, String(body.name ?? 'Klinika').slice(0, 80));
     return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl || `http://127.0.0.1:${cfg.port}`, id, secret) });
   }
 
@@ -450,16 +508,18 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   // Admin: Palantir jamoasi sifatida klinika paneliga — klinika parolsiz kirish kalitini beradi (egasi ruxsatni o'chirmagan bo'lsa)
   const support = /^\/admin\/clinics\/([0-9a-f]{10})\/panel$/.exec(p);
   if (support && req.method === 'POST') {
-    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const who = memberOf(req, res); if (!who) return;
     const clinic = db.prepare('SELECT seen_at FROM clinics WHERE id = ?').get(support[1]) as { seen_at: string | null } | undefined;
     if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
     if (!approved(support[1])) return send(res, 409, { error: QUARANTINE });
     if (!clinicOnline(support[1], clinic.seen_at)) return send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
     const body = JSON.parse((await readRaw(req))?.toString() || '{}') as { business?: unknown };
-    const ask = typeof body.business === 'string' ? { business: body.business.slice(0, 40) } : {};
+    // Kim kirmoqchi — klinikaga aytiladi: egasining Telegram'ida va Sozlamalaridagi kirishlar ro'yxatida ko'rinadi
+    const ask = { ...(typeof body.business === 'string' ? { business: body.business.slice(0, 40) } : {}), who: who.name };
     const answer = await dispatch(support[1], {
       method: 'POST', path: '/api/login/support', headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify(ask)).toString('base64'), ip: clientIp(req), support: true,
     });
+    team.log(who, answer ? (answer.status === 200 ? 'panel.ochildi' : 'panel.rad') : 'panel.javobsiz', support[1], answer && answer.status !== 200 ? `javob ${answer.status}` : null);
     if (!answer) return send(res, 504, { error: 'Klinika kompyuteri javob bermadi' });
     res.statusCode = answer.status;
     res.setHeader('content-type', 'application/json; charset=utf-8');
@@ -469,7 +529,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   // Admin: litsenziyani bir bosishda berish — klinikadan kompyuter kodi so'raladi, hub imzolaydi va kalitni klinikaga yuboradi
   const licensing = /^\/admin\/clinics\/([0-9a-f]{10})\/license$/.exec(p);
   if (licensing && req.method === 'POST') {
-    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const who = memberOf(req, res, 'founder'); if (!who) return;
     if (!cfg.licenseKey) return send(res, 409, { error: "Hub'da litsenziya kaliti yo'q — npm run hub:deploy (~/.palantir/litsenziya.pem)" });
     const id = licensing[1];
     const clinic = db.prepare('SELECT seen_at, status, machine_id, approved FROM clinics WHERE id = ?').get(id) as { seen_at: string | null; status: string | null; machine_id: string | null; approved: number | null } | undefined;
@@ -490,6 +550,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     // Ro'yxat keyingi holat xabarini (5 daqiqa) kutmasin
     const status = clinic.status ? JSON.parse(clinic.status) as Record<string, unknown> : {};
     db.prepare('UPDATE clinics SET status = ? WHERE id = ?').run(JSON.stringify({ ...status, license: { activated: true, daysLeft: 0 } }), id);
+    team.log(who, 'litsenziya.berildi', id, machine);
     return send(res, 200, { license: done?.license ?? null });
   }
 
@@ -497,7 +558,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   // lekin uni faqat o'sha kompyuter oldida o'tirgan egasi aytadi: begona yozuv kim bilandir gaplashmasdan tasdiqlanib qolmaydi
   const approving = /^\/admin\/clinics\/([0-9a-f]{10})\/approve$/.exec(p);
   if (approving && req.method === 'POST') {
-    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const who = memberOf(req, res, 'founder'); if (!who) return;
     const clinic = db.prepare('SELECT machine_id, approved FROM clinics WHERE id = ?').get(approving[1]) as { machine_id: string | null; approved: number | null } | undefined;
     if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
     if (clinic.approved === 1) return send(res, 200, { approved: true });
@@ -509,13 +570,14 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const twin = db.prepare('SELECT name FROM clinics WHERE machine_id = ? AND approved = 1 AND id <> ?').get(machine, approving[1]) as { name: string } | undefined;
     if (twin) return send(res, 409, { error: `Bu kompyuter kodi tasdiqlangan «${twin.name}» yozuvida bor — bu takror yoki soxta yozuv, uni o'chiring` });
     db.prepare('UPDATE clinics SET approved = 1 WHERE id = ?').run(approving[1]);
+    team.log(who, 'klinika.tasdiqlandi', approving[1], machine);
     return send(res, 200, { approved: true });
   }
 
   // Admin: tasdiqlanmagan (soxta yoki takror) yozuvni o'chirish — tasdiqlangan klinika bu yo'l bilan o'chmaydi
   const removing = /^\/admin\/clinics\/([0-9a-f]{10})\/delete$/.exec(p);
   if (removing && req.method === 'POST') {
-    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const who = memberOf(req, res, 'founder'); if (!who) return;
     const id = removing[1];
     const clinic = db.prepare('SELECT approved FROM clinics WHERE id = ?').get(id) as { approved: number | null } | undefined;
     if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
@@ -525,12 +587,13 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     db.prepare('DELETE FROM clinics WHERE id = ?').run(id);
     relayQueue.delete(id);
     for (const dir of [join(cfg.backupDir, id), join(cfg.diagDir, id)]) rmSync(dir, { recursive: true, force: true });
+    team.log(who, 'klinika.ochirildi', id);
     return send(res, 200, { deleted: true });
   }
 
   // Admin: klinikalar — oxirgi ko'ringan payti va holati
   if (p === '/admin/clinics' && req.method === 'GET') {
-    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const who = memberOf(req, res); if (!who) return;
     const rows = db.prepare('SELECT id, name, created_at, seen_at, status, machine_id, self, approved FROM clinics ORDER BY created_at DESC').all() as
       { id: string; name: string; created_at: string; seen_at: string | null; status: string | null; machine_id: string | null; self: number | null; approved: number | null }[];
     return send(res, 200, {
@@ -570,7 +633,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
 
   // Admin: tashqi zaxiralar ro'yxati va yuklab olish (shifrlangan holida)
   if (p === '/admin/backups' && req.method === 'GET') {
-    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const who = memberOf(req, res, 'founder'); if (!who) return;
     const list = existsSync(cfg.backupDir) ? readdirSync(cfg.backupDir).filter(c => /^[0-9a-f]{10}$/.test(c)).flatMap(clinic =>
       readdirSync(join(cfg.backupDir, clinic)).filter(n => /^\d{4}-\d{2}-\d{2}\.pzb$/.test(n)).map(name => {
         const st = statSync(join(cfg.backupDir, clinic, name));
@@ -580,11 +643,12 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
   const download = /^\/admin\/backups\/([0-9a-f]{10})\/(\d{4}-\d{2}-\d{2}\.pzb)$/.exec(p);
   if (download && req.method === 'GET') {
-    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const who = memberOf(req, res, 'founder'); if (!who) return;
     const file = join(cfg.backupDir, download[1], download[2]);
     if (!existsSync(file)) return send(res, 404, { error: 'topilmadi' });
     res.setHeader('content-type', 'application/octet-stream');
     res.setHeader('content-disposition', `attachment; filename="${download[1]}-${download[2]}"`);
+    team.log(who, 'zaxira.yuklandi', download[1], download[2]);
     await pipeline(createReadStream(file), res);
     return;
   }
@@ -603,16 +667,17 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     return send(res, 200, { ok: true, file });
   }
   if (p === '/admin/diag' && req.method === 'GET') {
-    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const who = memberOf(req, res); if (!who) return;
     const list = existsSync(cfg.diagDir) ? readdirSync(cfg.diagDir).filter(c => /^[0-9a-f]{10}$/.test(c)).flatMap(clinic =>
       readdirSync(join(cfg.diagDir, clinic)).filter(n => n.endsWith('.txt')).map(file => ({ clinicId: clinic, file, size: statSync(join(cfg.diagDir, clinic, file)).size }))) : [];
     return send(res, 200, { diagnostics: list });
   }
   const diag = /^\/admin\/diag\/([0-9a-f]{10})\/([\w-]+\.txt)$/.exec(p);
   if (diag && req.method === 'GET') {
-    if (!cfg.adminKey || !sameText(bearer(req), cfg.adminKey)) return send(res, 401, { error: 'admin kaliti noto\'g\'ri' });
+    const who = memberOf(req, res); if (!who) return;
     const file = join(cfg.diagDir, diag[1], diag[2]);
     if (!existsSync(file)) return send(res, 404, { error: 'topilmadi' });
+    team.log(who, 'diagnostika.oqildi', diag[1], diag[2]);
     return send(res, 200, readFileSync(file, 'utf8'), 'text/plain');
   }
 

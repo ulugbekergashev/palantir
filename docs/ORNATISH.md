@@ -16,6 +16,16 @@ ochilmaydi (litsenziya kompyuterga bog'langan). Tartib:
 Parolsiz kirish faqat shu kompyuterning o'zidan va Hub'dagi «Sozlash»dan: klinika tarmog'idagi boshqa kompyuterdan va Hub'ning oddiy
 `/c/` havolasidan — yo'q. Kalitlar klinika profiliniki: egasi panelda ko'radi, almashtirish — shu kompyuterdan yoki Palantir jamoasi orqali.
 
+**Har kim o'z hisobi bilan.** Hub `/admin` ga har kishi o'z logini va paroli bilan kiradi (asoschi — hammasi; o'rnatuvchi — klinikalar,
+«Yangi klinika», «Sozlash»/«Panelni ochish», diagnostika; litsenziya, tasdiqlash, o'chirish va zaxiralar — faqat asoschi). Hisoblarni asoschi
+«Jamoa»da ochadi (parol bir marta ko'rinadi; «Yangi parol», «Yopish» — ochiq kirishi darhol tugaydi). Asosiy kalit (`HUB_ADMIN_KEY`, login
+bo'sh qoldiriladi) — faqat birinchi asoschini ochish va favqulodda. «Jurnal»: kim, qachon, qaysi klinikaga nima qildi. Klinika egasi ham
+Telegram'dagi so'rovda va Sozlamalardagi ro'yxatda **kim** kirmoqchi/kirganini ko'radi («Palantir jamoasidan Sardor»).
+
+**Klinika xodimlari.** Egasi Sozlamalar → **Xodimlar**: xodimni qo'shadi va kirish beradi — **Qabulxona** (so'rovlar, yozishmalar,
+qo'ng'iroqlar, mijozlar) yoki **Boshqaruvchi** (hamma bo'lim, Sozlamalar va kalitlarsiz). Login va parol bir marta ko'rsatiladi. Pul
+yozuvlarini tasdiqlash, kalitlar, xodimlar va kirish sozlamalari — faqat egasida.
+
 ## 1. Borishdan oldin tayyorlang
 
 **Anketa (2–3 kun oldin).** O'zingizning Palantir serveringizda (internetdan ochiladigan, masalan cloudflared orqali): `/#/admin` → «Anketalar» → klinika nomi → «Anketa yaratish». Havola va kod nusxalanadi — egasiga Telegram'da yuboring.

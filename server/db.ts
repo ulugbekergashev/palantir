@@ -97,6 +97,7 @@ function ensureColumns(table: string, columns: Record<string, string>): void {
 }
 ensureColumns('replies', { booking: 'TEXT', booked_at: 'TEXT', question: 'TEXT', visit_change: 'TEXT', changed_at: 'TEXT' });
 ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT', token_ver: 'INTEGER NOT NULL DEFAULT 0', support_access: 'INTEGER NOT NULL DEFAULT 0', support_ver: 'INTEGER NOT NULL DEFAULT 0', support_until: 'TEXT' });
+ensureColumns('support_visits', { who: 'TEXT' });
 ensureColumns('tasks', { call_to: 'TEXT', spoken: 'INTEGER NOT NULL DEFAULT 0', lead_id: 'TEXT' });
 ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT', next_step: 'TEXT', next_at: 'TEXT', phone_key: 'TEXT', patient_id: 'TEXT', phone_proof: 'TEXT' });
 db.exec(`UPDATE leads SET channel = 'bot', bot_started = 1 WHERE tg_user_id IS NOT NULL AND channel = 'manual' AND ig_user_id IS NULL AND tg_access_hash IS NULL`);
@@ -240,12 +241,13 @@ export const supportOpen = (b: BusinessRow, now = Date.now()): boolean => b.supp
 /** Palantir jamoasi kirishlari: egasi Sozlamalarda ko'radi */
 const SUPPORT_VISITS_KEEP = 50;
 export const supportVisits = {
-  add(businessId: string, ip: string | null): void {
-    run('INSERT INTO support_visits (business_id, at, ip) VALUES (?, ?, ?)', businessId, nowIso(), ip);
+  /** who — Palantir jamoasidan kim (Hub'dagi shaxsiy hisob nomi; hub/team.ts) */
+  add(businessId: string, ip: string | null, who: string | null = null): void {
+    run('INSERT INTO support_visits (business_id, at, ip, who) VALUES (?, ?, ?, ?)', businessId, nowIso(), ip, who);
     run('DELETE FROM support_visits WHERE business_id = ? AND at NOT IN (SELECT at FROM support_visits WHERE business_id = ? ORDER BY at DESC LIMIT ?)', businessId, businessId, SUPPORT_VISITS_KEEP);
   },
   recent: (businessId: string, limit: number) =>
-    many('SELECT at, ip FROM support_visits WHERE business_id = ? ORDER BY at DESC LIMIT ?', r => ({ at: String(r.at), ip: str(r.ip) }), businessId, limit),
+    many('SELECT at, ip, who FROM support_visits WHERE business_id = ? ORDER BY at DESC LIMIT ?', r => ({ at: String(r.at), ip: str(r.ip), who: str(r.who) }), businessId, limit),
 };
 
 // ─── Vazifalar ────────────────────────────────────────────────────────────────

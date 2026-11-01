@@ -4,7 +4,7 @@
  * Manzil: #/sozlamalar/<bo'lim>.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Camera as CameraIcon, MessageCircleHeart, Phone, Send, Settings, Sparkles, Stethoscope, type LucideIcon } from 'lucide-react';
+import { Camera as CameraIcon, MessageCircleHeart, Phone, Send, Settings, Sparkles, Stethoscope, Users, type LucideIcon } from 'lucide-react';
 import type { Business, LiveStatus } from '../../types';
 import { api, type PhoneLine } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
@@ -15,6 +15,7 @@ import { AccountCard } from './AccountCard';
 import { LiveCheckCard } from './LiveCheck';
 import { ClientLink, Instagram, InstagramOfficial, OwnerBot, RemoteAccess, ReplyModeCard, SettingsCard, TelegramBusiness, TelegramLogin } from '../TelegramPage';
 import { PhoneLineSettings } from './PhoneLine';
+import { StaffLogins } from './StaffLogins';
 import { SupportAccess } from './SupportAccess';
 
 type Tone = 'on' | 'off' | 'warn';
@@ -54,6 +55,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
     { id: 'instagram', name: 'Instagram', icon: MessageCircleHeart, tone: ig ? (igProblem ? 'warn' : 'on') : 'off', state: ig ? (igProblem ? 'muammo bor' : 'ulangan') : 'ulanmagan' },
     ...(clinic ? [{ id: 'dentacrm', name: 'DentaCRM', icon: Stethoscope, tone: (status.crm.account ? (status.crm.problem ? 'warn' : 'on') : 'off') as Tone, state: status.crm.account ? (status.crm.problem ? 'muammo bor' : 'ulangan') : 'ulanmagan' }] : []),
     { id: 'telefon', name: 'Telefon liniyasi', icon: Phone, tone: line?.status.trunk === 'registered' ? 'on' : line?.status.trunk === 'failed' ? 'warn' : 'off', state: line ? (line.status.trunk === 'registered' ? 'raqam ulangan' : line.status.trunk === 'failed' ? 'raqam ulanmadi' : line.status.asterisk ? 'raqam kiritilmagan' : 'telefon xizmati o‘chiq') : '…' },
+    { id: 'xodimlar', name: 'Xodimlar', icon: Users, tone: 'on', state: 'panelga kirish va huquqlar' },
     { id: 'kameralar', name: 'Kameralar', icon: CameraIcon, tone: cameras ? 'on' : 'off', state: cameras == null ? '…' : cameras ? `${cameras} ta kamera` : "kamera yo'q", href: hrefOf('kuzatuvchi', 'ulash') },
     { id: 'ai', name: 'AI va ovoz', icon: Sparkles, tone: status.ai ? (status.voice ? 'on' : 'warn') : 'warn', state: status.ai ? (status.voice ? 'ishlayapti' : 'ovozli xabar o‘chiq') : 'AI kaliti yo‘q', href: '#/ulash' },
   ];
@@ -115,6 +117,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
         </Part>
       )}
       {active === 'telefon' && <PhoneLineSettings notify={notify} />}
+      {active === 'xodimlar' && <div className="max-w-3xl"><StaffLogins notify={notify} /></div>}
       {!status.voice && <p className="text-[12px] text-[#7d838f]">Ovozli xabarlar hozircha o'chiq: ovozni matnga aylantirish kaliti kiritilmagan (ulash ustasi → kalitlar).</p>}
     </div>
   );

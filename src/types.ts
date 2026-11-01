@@ -180,7 +180,13 @@ export interface ClientCardView {
 }
 
 /** Klinika xodimi (qabulxona): so'rovlarni Telegram'da oladi va yopadi */
-export interface StaffMember { id: string; name: string; role: 'reception'; linked: boolean; createdAt: string }
+/** Xodimning panelga kirish huquqi: reception — faqat Qabulxona; manager — hammasi, Sozlamalar va egasining kirish/kalitlaridan tashqari */
+export type StaffAccess = 'reception' | 'manager';
+export interface StaffMember {
+  id: string; name: string; role: 'reception'; linked: boolean; createdAt: string;
+  /** Panelga kirish (bo'lmasa — null): login, huquq va oxirgi kirgan payti */
+  login?: string | null; access?: StaffAccess | null; seenAt?: string | null;
+}
 
 export interface Doc {
   id: string;

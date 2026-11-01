@@ -5,7 +5,11 @@
  */
 import { Markup } from 'telegraf';
 import { newId, type BusinessRow } from './db';
+import { esc } from './botKit';
 import { notifyOwner } from './inbox/core';
+
+/** «Palantir jamoasi» yoki «Palantir jamoasidan Ulug'bek» (Hub'dagi shaxsiy hisob nomi) */
+const teamName = (who: string | null) => (who ? `Palantir jamoasidan ${esc(who)}` : 'Palantir jamoasi');
 
 const ASK_MS = 100_000;
 const pending = new Map<string, { bizId: string; resolve: (yes: boolean) => void }>();
@@ -13,7 +17,7 @@ const pending = new Map<string, { bizId: string; resolve: (yes: boolean) => void
 export type SupportAnswer = 'yes' | 'no' | 'timeout' | 'unreachable';
 
 /** Egasidan so'raydi. unreachable — Telegram'ga ulanmagan yoki xabar ketmadi */
-export async function askSupport(biz: BusinessRow, hours: number): Promise<SupportAnswer> {
+export async function askSupport(biz: BusinessRow, hours: number, who: string | null = null): Promise<SupportAnswer> {
   if (!biz.ownerChatId) return 'unreachable';
   const id = newId(8);
   const answer = new Promise<boolean | null>(resolve => {
@@ -21,7 +25,7 @@ export async function askSupport(biz: BusinessRow, hours: number): Promise<Suppo
     pending.set(id, { bizId: biz.id, resolve: yes => { clearTimeout(timer); pending.delete(id); resolve(yes); } });
   });
   const keyboard = Markup.inlineKeyboard([[Markup.button.callback(`✅ Ruxsat (${hours} soat)`, `ja|${id}`), Markup.button.callback("✖️ Yo'q", `jx|${id}`)]]).reply_markup;
-  const sent = await notifyOwner(biz, `👥 <b>Palantir jamoasi panelingizga kirmoqchi</b>\nSozlash yoki muammoni tekshirish uchun. Ruxsat bersangiz — ${hours} soatgacha; xohlagan payt yopasiz.`, keyboard).catch(() => null);
+  const sent = await notifyOwner(biz, `👥 <b>${teamName(who)} panelingizga kirmoqchi</b>\nSozlash yoki muammoni tekshirish uchun. Ruxsat bersangiz — ${hours} soatgacha; xohlagan payt yopasiz.`, keyboard).catch(() => null);
   if (sent === null) {
     pending.get(id)?.resolve(false);
     return 'unreachable';
@@ -39,7 +43,7 @@ export function answerSupport(bizId: string, id: string, yes: boolean): string |
 }
 
 /** Jamoa kirdi — egasiga xabar va yopish tugmasi */
-export async function notifySupportVisit(biz: BusinessRow, hours: number): Promise<void> {
+export async function notifySupportVisit(biz: BusinessRow, hours: number, who: string | null = null): Promise<void> {
   const keyboard = Markup.inlineKeyboard([[Markup.button.callback('🚫 Kirishni yopish', `jy|${biz.id}`)]]).reply_markup;
-  await notifyOwner(biz, `👥 <b>Palantir jamoasi panelingizga kirdi</b>\n${hours} soatgacha. Kirishlar ro'yxati — panel → Sozlamalar.`, keyboard).catch(() => null);
+  await notifyOwner(biz, `👥 <b>${teamName(who)} panelingizga kirdi</b>\n${hours} soatgacha. Kirishlar ro'yxati — panel → Sozlamalar.`, keyboard).catch(() => null);
 }

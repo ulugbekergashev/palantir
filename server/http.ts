@@ -41,6 +41,9 @@ import { mountBrain } from './brain/routes';
 import { mountCamera } from './camera/routes';
 import { mountVoice } from './voice/routes';
 import { mountRequests } from './requests/routes';
+import { staff as staffStore, type StaffRow } from './requests/store';
+import { staffMay } from './access';
+import { mountTeamAccess } from './teamAccess';
 import { mountPhone } from './phone/routes';
 import { dashboard } from './analytics';
 import { funnel } from './funnel';
@@ -125,6 +128,10 @@ const MIN_PASSWORD = 8;
 const SETUP_SESSION_DAYS = 1;
 /** Shu kompyuterning o'zi (TCP ulanish manzili — Host sarlavhasi emas) */
 const LOCAL_PEER = /^(127\.\d+\.\d+\.\d+|::1|::ffff:127\.\d+\.\d+\.\d+)$/;
+/** Login topilmaganda ham parol tekshiriladi — javob vaqtidan login borligi bilinmasin */
+const DUMMY_HASH = hashPassword('palantir-yoq-login');
+/** Klinika xodimining kirishi: bir hafta (egasi kirishini yopsa yoki parolini almashtirsa — darhol tugaydi) */
+const STAFF_SESSION_DAYS = 7;
 /** Palantir jamoasi kirishi 12 soat: hub sahifasidan istalgan payt qayta ochiladi */
 const SUPPORT_SESSION_DAYS = 0.5;
 /** Sozlamalarda egasiga ko'rsatiladigan oxirgi jamoa kirishlari */
@@ -173,12 +180,17 @@ export function createApp(bot: BotService) {
   const isSupportRelay = (req: Request) => isRemote(req) && req.get(SUPPORT_HEADER) === RELAY_SECRET;
 
   const token = (req: Request) => req.get('authorization')?.replace(/^Bearer\s+/i, '');
-  /** Amaldagi biznes kirishi: parol almashgan, «boshqa qurilmalardan chiqish» bosilgan yoki egasi jamoa kirishini o'chirgan bo'lsa — yo'q */
-  const sessionOf = (req: Request) => {
+  /**
+   * Amaldagi biznes kirishi: parol almashgan, «boshqa qurilmalardan chiqish» bosilgan yoki egasi jamoa kirishini o'chirgan bo'lsa — yo'q.
+   * Xodim kirishi (st): xodim o'chirilgan, kirishi yopilgan yoki paroli almashgan bo'lsa — yo'q
+   */
+  const sessionOf = (req: Request): { biz: BusinessRow; support: boolean; staff: StaffRow | null } | null => {
     const s = readToken(token(req));
     const biz = s?.role === 'business' ? businesses.byId(s.sub) : undefined;
     if (!s || !biz || !biz.active || (s.v ?? 0) !== biz.tokenVer || (s.sup && ((!supportOpen(biz) && !inSetup()) || (s.sv ?? 0) !== biz.supportVer))) return null;
-    return { biz, support: s.sup === true };
+    const member = s.st ? staffStore.byId(biz.id, s.st) : null;
+    if (s.st && (!member?.access || member.tokenVer !== s.stv)) return null;
+    return { biz, support: s.sup === true, staff: member ?? null };
   };
   const statusFor = (req: Request, biz: BusinessRow) => status(biz, bot, !!sessionOf(req)?.support);
 
@@ -195,6 +207,15 @@ export function createApp(bot: BotService) {
     }
     next();
   });
+  // Klinika xodimi: faqat huquqi yetadigan bo'limlar (access.ts)
+  app.use((req, res, next) => {
+    if (!req.path.toLowerCase().startsWith('/api/')) return next();
+    const member = sessionOf(req)?.staff;
+    if (member?.access && !staffMay(member.access, req.method, req.path.toLowerCase())) {
+      return res.status(403).json({ error: "Bu bo'lim sizga ochilmagan — klinika egasidan so'rang", code: 'XODIM' });
+    }
+    next();
+  });
 
   const asBiz = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => (req, res) => {
     const s = sessionOf(req);
@@ -203,9 +224,11 @@ export function createApp(bot: BotService) {
     if (licenseStatus().blocked) return res.status(403).json({ error: 'Palantir aktivlashtirilmagan — kalitni kiriting', code: 'LITSENZIYA' });
     return fn(req, res, s.biz);
   };
-  /** Faqat egasining o'zi (jamoa kirishi bilan emas): kirish va ruxsat sozlamalari */
-  const asOwner = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => asBiz((req, res, biz) =>
-    (sessionOf(req)?.support ? res.status(403).json({ error: 'Buni faqat klinika egasi o\'zgartiradi' }) : fn(req, res, biz)));
+  /** Faqat egasining o'zi (jamoa kirishi yoki xodim bilan emas): kirish va ruxsat sozlamalari */
+  const asOwner = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => asBiz((req, res, biz) => {
+    const s = sessionOf(req);
+    return s?.support || s?.staff ? res.status(403).json({ error: 'Buni faqat klinika egasi o\'zgartiradi' }) : fn(req, res, biz);
+  });
   const asAdmin = (fn: Handler): Handler => (req, res) => {
     if (readToken(token(req))?.role !== 'admin' || !env.adminPassword) return res.status(401).json({ error: 'Admin sifatida kiring' });
     return fn(req, res);
@@ -223,15 +246,24 @@ export function createApp(bot: BotService) {
     // Masofadan: manzil almashtirib urinishga qarshi — bitta login bo'yicha ham (klinikadagi kirishga tegmaydi)
     const perLogin = isRemote(req) && typeof login === 'string' ? `rl:${login.trim().toLowerCase().slice(0, 64)}` : null;
     if (loginBlocked(key) || (perLogin && loginBlocked(perLogin))) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
-    const biz = typeof login === 'string' ? businesses.byLogin(login.trim().toLowerCase()) : undefined;
-    if (!biz || typeof password !== 'string' || !checkPassword(password, biz.passwordHash) || !biz.active) {
+    const name = typeof login === 'string' ? login.trim().toLowerCase() : '';
+    const biz = name ? businesses.byLogin(name) : undefined;
+    // Egasi bo'lmasa — klinika xodimi (teamAccess.ts): o'z logini, huquqi bilan
+    const member = !biz && name ? staffStore.byLogin(name) : undefined;
+    const memberBiz = member?.access && member.passwordHash ? businesses.byId(member.businessId) : undefined;
+    const ownerOk = !!biz && typeof password === 'string' && checkPassword(password, biz.passwordHash) && biz.active;
+    const memberOk = !!member && !!memberBiz?.active && typeof password === 'string' && checkPassword(password, member.passwordHash!);
+    if (!biz && !memberBiz && typeof password === 'string') checkPassword(password, DUMMY_HASH);
+    if (!ownerOk && !memberOk) {
       loginFailed(key);
       if (perLogin) loginFailed(perLogin);
       return res.status(401).json({ error: "Login yoki parol noto'g'ri" });
     }
     loginOk(key);
     if (perLogin) loginOk(perLogin);
-    res.json({ token: issueToken(biz.id, 'business', 30, biz.tokenVer) });
+    if (ownerOk) return res.json({ token: issueToken(biz!.id, 'business', 30, biz!.tokenVer) });
+    staffStore.touch(member!.id);
+    res.json({ token: issueToken(memberBiz!.id, 'business', STAFF_SESSION_DAYS, memberBiz!.tokenVer, null, { id: member!.id, ver: member!.tokenVer }) });
   });
 
   // ─── Litsenziya ────────────────────────────────────────────────────────────
@@ -327,9 +359,11 @@ export function createApp(bot: BotService) {
       });
     }
     const hours = SUPPORT_SESSION_DAYS * 24;
+    // Kim — Hub'dagi shaxsiy hisob nomi (hub belgilagan so'rov: oddiy /c/ so'rovi bu yo'lga kira olmaydi)
+    const who = typeof req.body?.who === 'string' ? req.body.who.replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60) || null : null;
     // Sozlash bosqichi (profile.ts): egasi hali yo'q — o'rnatuvchi so'ramasdan kiradi
     if (!supportOpen(biz) && !inSetup()) {
-      const answer = await askSupport(biz, hours);
+      const answer = await askSupport(biz, hours, who);
       if (answer !== 'yes') {
         return res.status(403).json({
           error: answer === 'no' ? 'Klinika egasi rad etdi'
@@ -340,8 +374,8 @@ export function createApp(bot: BotService) {
       businesses.grantSupport(biz.id, new Date(Date.now() + SUPPORT_SESSION_DAYS * 86_400_000).toISOString());
     }
     const now = businesses.byId(biz.id) ?? biz;
-    supportVisits.add(biz.id, req.get(CLIENT_HEADER) ?? null);
-    void notifySupportVisit(now, hours);
+    supportVisits.add(biz.id, req.get(CLIENT_HEADER) ?? null, who);
+    void notifySupportVisit(now, hours, who);
     res.json({ token: issueToken(biz.id, 'business', SUPPORT_SESSION_DAYS, now.tokenVer, now.supportVer) });
   });
 
@@ -378,7 +412,13 @@ export function createApp(bot: BotService) {
     res.json({ funnel: await funnel(biz, p) });
   }));
 
-  app.get('/api/me', asBiz((req, res, biz) => res.json({ business: biz.profile, status: statusFor(req, biz), offeringsRev: offeringsRev(biz.profile.offerings) })));
+  /** Kim kirgan: egasi, Palantir jamoasi yoki xodim (panel shunga qarab bo'limlarni ko'rsatadi) */
+  const whoOf = (req: Request, biz: BusinessRow) => {
+    const s = sessionOf(req);
+    if (s?.staff) return { kind: 'staff' as const, name: s.staff.name, access: s.staff.access };
+    return { kind: s?.support ? 'support' as const : 'owner' as const, name: biz.profile.ownerName || biz.profile.name, access: null };
+  };
+  app.get('/api/me', asBiz((req, res, biz) => res.json({ business: biz.profile, status: statusFor(req, biz), offeringsRev: offeringsRev(biz.profile.offerings), who: whoOf(req, biz) })));
 
   app.put('/api/business', asBiz((req, res, biz) => {
     const parsed = BusinessSchema.safeParse(req.body);
@@ -669,6 +709,7 @@ export function createApp(bot: BotService) {
   mountCamera(app, { asBiz, bad });
   mountVoice(app, { asBiz, bad });
   mountRequests(app, { asBiz, bad, bot });
+  mountTeamAccess(app, { asOwner, bad });
   mountPhone(app, { asBiz, asOwner, bad, fail, clientKey });
   mountBrain(app, { asBiz, bad, fail });
   mountOrders(app, { asBiz, bad, fail, bot });

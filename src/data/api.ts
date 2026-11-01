@@ -5,7 +5,7 @@ import type { KeyName } from '../lib/secrets';
 import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveCheck, SetupView } from '../types';
 import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
-import type { ClientCardView, LeadRequest, RequestKind, StaffMember } from '../types';
+import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
 import type { AgentEvent, AgentOrder, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
 import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 
@@ -59,6 +59,9 @@ export interface PhoneStation { id: string; name: string; staffId: string | null
 /** Kompyuter ulanishi mumkin bo'lgan manzillar: klinika tarmog'i va Palantir Hub */
 export interface StationServers { lan: string[]; hub: string | null }
 /** Qabulxona: xodimlar (ulanmaganida — Telegram havolasi), so'rovlar nusxasi egasiga keladimi, bot ulanganmi */
+/** Kim kirgan (server/http.ts whoOf): egasi, Palantir jamoasi yoki klinika xodimi (huquqi bilan) */
+export interface Who { kind: 'owner' | 'support' | 'staff'; name: string; access: StaffAccess | null }
+export interface AccessMember { id: string; name: string; linked: boolean; login: string | null; access: StaffAccess | null; seenAt: string | null }
 export interface TeamView { staff: (StaffMember & { link: string | null })[]; copyToOwner: boolean; bot: boolean }
 
 /** Hub orqali masofadan ochilganda panel /c/<klinika>/ ostida turadi — API ham shu yo'l bilan (oddiy holatda — bo'sh) */
@@ -69,7 +72,7 @@ export interface LicenseView { activated: boolean; machineId: string; issuedAt: 
 
 /** Palantir jamoasi kirishi: egasi ruxsat berganmi, hozirgi kirish jamoanikimi (mine), oxirgi kirishlar */
 /** allowed — doimiy ruxsat (so'ramasdan); until — egasi Telegram'da bergan bir martalik ruxsat shu paytgacha ochiq */
-export interface SupportAccessView { allowed: boolean; until: string | null; hub: boolean; mine: boolean; visits: { at: string; ip: string | null }[] }
+export interface SupportAccessView { allowed: boolean; until: string | null; hub: boolean; mine: boolean; visits: { at: string; ip: string | null; who: string | null }[] }
 
 /**
  * Server bilan ishlash. Token — shu brauzerda; hub orqali — har klinikaniki alohida (hammasi bitta hub manzilida turadi:
@@ -127,7 +130,7 @@ async function call<T>(path: string, opts: { method?: string; body?: unknown; ad
 
 export const api = {
   login: (login: string, password: string) => call<{ token: string }>('/login', { body: { login, password } }),
-  me: () => call<{ business: Business; status: LiveStatus; offeringsRev: string }>('/me'),
+  me: () => call<{ business: Business; status: LiveStatus; offeringsRev: string; who: Who }>('/me'),
   /** offeringsRev — xizmatlar ro'yxatining panel yuklagan nusxasi: shu orada boshqa joyda o'zgargan bo'lsa server rad etadi */
   saveBusiness: (b: Business, offeringsRev?: string) => call<{ business: Business; offeringsRev: string }>('/business', { method: 'PUT', body: { ...b, offeringsRev } }),
 
@@ -198,6 +201,11 @@ export const api = {
   staff: () => call<TeamView>('/staff'),
   addStaff: (name: string) => call<TeamView>('/staff', { body: { name } }),
   removeStaff: (id: string) => call<TeamView>(`/staff/${id}`, { method: 'DELETE' }),
+  /** Xodimlarning panelga kirishi (faqat egasi): login va parol bir marta qaytadi */
+  teamAccess: () => call<{ members: AccessMember[] }>('/team-access'),
+  grantAccess: (id: string, access: StaffAccess, login?: string) => call<{ member: AccessMember; password?: string }>(`/team-access/${id}`, { body: { access, login } }),
+  resetAccess: (id: string) => call<{ member: AccessMember; password: string }>(`/team-access/${id}/reset`, { body: {} }),
+  revokeAccess: (id: string) => call<{ member: AccessMember }>(`/team-access/${id}`, { method: 'DELETE' }),
   staffCopy: (copyToOwner: boolean) => call<TeamView>('/staff/copy', { method: 'PUT', body: { copyToOwner } }),
   phone: () => call<{ phone: PhoneStatus }>('/phone'),
   connectPhone: (overwrite = false) => call<{ phone: PhoneStatus }>('/phone/connect', { body: { overwrite } }),

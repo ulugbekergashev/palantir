@@ -15,7 +15,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const HUB_DIR = resolve('hub');
-const FILES = ['server.ts', 'admin.ts', 'legal.ts', 'licenseKey.ts', 'package.json', 'setup-server.sh'];
+const FILES = ['server.ts', 'admin.ts', 'team.ts', 'legal.ts', 'licenseKey.ts', 'package.json', 'setup-server.sh'];
 /** Litsenziya imzolovchi kalit (npm run kalit ham shuni ishlatadi): bo'lsa — Hub'ga ham beriladi (bir bosishda aktivlashtirish) */
 const LICENSE_KEY_FILE = join(homedir(), '.palantir', 'litsenziya.pem');
 const SECRETS = join(homedir(), '.palantir', 'hub.env');

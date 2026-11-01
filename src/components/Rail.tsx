@@ -25,12 +25,14 @@ const EAR: Record<Wake['phase'], { dot: string; hint: string }> = {
   error: { dot: 'bg-[#f5b454]', hint: 'Ulanmadi — qayta urinadi' },
 };
 
-export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; team: Record<Member, MemberState> | null; ownerName: string; onLogout: () => void; wake: Wake }) {
+/** allowed — shu kirishga ochiq bo'limlar (klinika xodimi: server/access.ts); berilmasa — hammasi */
+export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area: Area; team: Record<Member, MemberState> | null; ownerName: string; onLogout: () => void; wake: Wake; allowed?: Area[] }) {
+  const open = (a: Area) => !allowed || allowed.includes(a);
   const items: Item[] = [
-    { area: 'ai', label: 'Palantir', icon: Sparkles },
+    { area: 'ai' as Area, label: 'Palantir', icon: Sparkles },
     ...MEMBERS.map(m => ({ area: m as Area, label: TEAM[m].name, icon: TEAM[m].icon, badge: team?.[m].badge })),
-    { area: 'miya', label: 'Miya', icon: Brain },
-  ];
+    { area: 'miya' as Area, label: 'Miya', icon: Brain },
+  ].filter(it => open(it.area));
   const [more, setMore] = useState(false);
   const sheet = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -80,7 +82,7 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
         </button>
         {more && (
           <div id="koproq" role="menu" aria-label="Ko'proq" className="absolute bottom-[calc(100%+8px)] right-1 w-56 rounded-2xl border border-glass/[0.08] bg-[#0b0c10] p-1.5 shadow-2xl">
-            {[{ area: 'miya' as Area, label: 'Miya', icon: Brain }, { area: 'sozlamalar' as Area, label: 'Sozlamalar', icon: Settings }].map(it => (
+            {[{ area: 'miya' as Area, label: 'Miya', icon: Brain }, { area: 'sozlamalar' as Area, label: 'Sozlamalar', icon: Settings }].filter(it => open(it.area)).map(it => (
               <a key={it.area} role="menuitem" href={hrefOf(it.area)} onClick={() => setMore(false)} aria-current={area === it.area ? 'page' : undefined}
                 className={`flex items-center gap-3 rounded-xl px-3 py-3 text-[14px] no-underline ${area === it.area ? 'bg-[#ff9a3c]/12 text-[#f2f0ea]' : 'text-[#d9dbe1] active:bg-glass/5'}`}>
                 <it.icon className="h-[18px] w-[18px]" aria-hidden="true" />{it.label}
@@ -109,7 +111,7 @@ export function Rail({ area, team, ownerName, onLogout, wake }: { area: Area; te
           <span id="quloq-holat" className="sr-only">{wake.phase === 'error' && wake.error ? wake.error : EAR[wake.phase].hint}</span>
           {wake.enabled && EAR[wake.phase].dot && <span className={`absolute right-4 top-2 h-2 w-2 rounded-full ${EAR[wake.phase].dot}`} aria-hidden="true" />}
         </button>
-        {link({ area: 'sozlamalar', label: 'Sozlamalar', icon: Settings })}
+        {open('sozlamalar') && link({ area: 'sozlamalar', label: 'Sozlamalar', icon: Settings })}
         <button type="button" onClick={onLogout} title={`Chiqish (${ownerName})`} className="hidden min-h-12 flex-col items-center justify-center gap-1 rounded-xl py-2 text-[11px] text-[#8a909c] transition-colors hover:text-[#d9dbe1] lg:flex">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-glass/5"><LogOut className="h-[18px] w-[18px]" aria-hidden="true" /></span>
           Chiqish

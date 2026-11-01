@@ -2,7 +2,7 @@
  * So'rovlar (mijoz xodimdan nimadir kutyapti: qo'ng'iroq, qabul, surish, shikoyat), ularning Telegram kartalari va xodimlar.
  * Har bir so'rov biznes id'si bilan cheklangan.
  */
-import type { LeadRequest, RequestKind, RequestSource, RequestStatus, StaffMember } from '../../src/types';
+import type { LeadRequest, RequestKind, RequestSource, RequestStatus, StaffAccess, StaffMember } from '../../src/types';
 import { newId, sql, type Row } from '../db';
 
 sql.exec(`
@@ -25,6 +25,10 @@ CREATE TABLE IF NOT EXISTS staff (
 `);
 // Qo'ng'iroq mijoz kartasiga bog'lanadi (kartalar qo'shilganda ko'chadi)
 sql.ensureColumns('calls', { lead_id: 'TEXT' });
+// Xodimning panelga kirishi (server/teamAccess.ts): login, parol xeshi, huquqi (reception | manager; null — kirishi yo'q),
+// kirishlar avlodi (parol almashsa yoki kirish yopilsa — ochiq kirishlari bekor) va oxirgi kirgan payti
+sql.ensureColumns('staff', { login: 'TEXT', password_hash: 'TEXT', access: 'TEXT', token_ver: 'INTEGER NOT NULL DEFAULT 0', seen_at: 'TEXT' });
+sql.exec('CREATE UNIQUE INDEX IF NOT EXISTS staff_login ON staff (login) WHERE login IS NOT NULL');
 
 const toRequest = (r: Row): LeadRequest => ({
   id: String(r.id), leadId: sql.str(r.lead_id), kind: String(r.kind) as RequestKind, status: String(r.status) as RequestStatus,
@@ -120,10 +124,12 @@ export const replyCards = {
     sql.one('SELECT reply_id FROM reply_cards WHERE chat_id = ? AND message_id = ?', r => String(r.reply_id), chatId, messageId) ?? null,
 };
 
-export interface StaffRow extends StaffMember { businessId: string; chatId: string | null; linkCode: string }
+export interface StaffRow extends StaffMember { businessId: string; chatId: string | null; linkCode: string; passwordHash: string | null; tokenVer: number }
+const toAccess = (v: unknown): StaffAccess | null => (v === 'reception' || v === 'manager' ? v : null);
 const toStaff = (r: Row): StaffRow => ({
   id: String(r.id), businessId: String(r.business_id), name: String(r.name), role: 'reception', chatId: sql.str(r.chat_id),
   linkCode: String(r.link_code), linked: r.chat_id != null, createdAt: String(r.created_at),
+  login: sql.str(r.login), access: toAccess(r.access), seenAt: sql.str(r.seen_at), passwordHash: sql.str(r.password_hash), tokenVer: Number(r.token_ver ?? 0),
 });
 
 export const staff = {
@@ -145,4 +151,20 @@ export const staff = {
     });
   },
   remove: (businessId: string, id: string) => sql.run('DELETE FROM staff WHERE business_id = ? AND id = ?', businessId, id),
+  byId: (businessId: string, id: string) => sql.one('SELECT * FROM staff WHERE business_id = ? AND id = ?', toStaff, businessId, id),
+  /** Panelga kirish uchun (login hamma bizneslar bo'yicha yagona) */
+  byLogin: (login: string) => sql.one('SELECT * FROM staff WHERE login = ?', toStaff, login),
+  /** Kirish berish yoki parolni yangilash: avvalgi kirishlar bekor */
+  grant(businessId: string, id: string, login: string, passwordHash: string, access: StaffAccess): void {
+    sql.run('UPDATE staff SET login = ?, password_hash = ?, access = ?, token_ver = token_ver + 1 WHERE business_id = ? AND id = ?', login, passwordHash, access, businessId, id);
+  },
+  /** Huquqni almashtirish (parol o'sha) — ochiq kirishlar ham bekor: yangi huquq darhol amal qilsin */
+  setAccess(businessId: string, id: string, access: StaffAccess): void {
+    sql.run('UPDATE staff SET access = ?, token_ver = token_ver + 1 WHERE business_id = ? AND id = ? AND login IS NOT NULL', access, businessId, id);
+  },
+  /** Panelga kirishni yopish: login bo'shaydi, ochiq kirishlar bekor (Telegram'dagi kartalar ishlayveradi) */
+  revoke(businessId: string, id: string): void {
+    sql.run('UPDATE staff SET login = NULL, password_hash = NULL, access = NULL, token_ver = token_ver + 1 WHERE business_id = ? AND id = ?', businessId, id);
+  },
+  touch: (id: string) => sql.run('UPDATE staff SET seen_at = ? WHERE id = ?', sql.nowIso(), id),
 };
