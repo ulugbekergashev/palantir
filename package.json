@@ -38,6 +38,8 @@
     "live:subscription": "tsx scripts/live-subscription.ts",
     "test:content": "tsx scripts/check-content.ts",
     "live:content": "tsx scripts/live-content.ts",
+    "test:ads": "tsx scripts/check-ads.ts",
+    "live:ads-plan": "tsx scripts/live-ads-plan.ts",
     "test:dashboard": "vite build && tsx scripts/e2e-dashboard.ts",
     "hub": "tsx hub/server.ts",
     "hub:deploy": "tsx scripts/deploy-hub.ts",

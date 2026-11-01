@@ -14,7 +14,7 @@ const MAX_CAPTION = 2200;
 const MAX_SIDE = 2048;
 
 /** Telefondagi katta suratni yuborishdan oldin kichraytiradi (JPEG) */
-async function shrink(file: File): Promise<string> {
+export async function shrink(file: File): Promise<string> {
   const bmp = await createImageBitmap(file);
   const k = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
   const canvas = document.createElement('canvas');

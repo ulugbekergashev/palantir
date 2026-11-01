@@ -25,8 +25,11 @@ import { pollInstagram } from './inbox/instagram';
 import { syncTasks } from './brain/mirror';
 import { tgCall, tgCallEnabled } from './tgcall';
 import { ContentError, factoryDue, runFactory } from './content/factory';
+import { watchAll as watchAds } from './ads/campaigns';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Reklama sarfi va limitlar tekshiruvi oralig'i */
+const ADS_WATCH_MS = 10 * 60_000;
 
 /**
  * Ertalabki ish rejasi (plan.ts): vazifalar, mijozlarning keyingi qadamlari, unutilgan mijozlar, tasdiq kutayotganlar,
@@ -340,5 +343,14 @@ export function startScheduler(bot: BotService): () => void {
   };
   const timer = setInterval(() => { void tick(); }, env.tickMs);
   void tick();
-  return () => { clearInterval(timer); stopInbox(); };
+  // Targetolog: reklama sarfi va limitlar — alohida taymer, botdan va umumiy jadvaldan mustaqil (pul nazorati to'xtamasin)
+  let adsBusy = false;
+  const adsTick = async () => {
+    if (adsBusy) return;
+    adsBusy = true;
+    try { await watchAds(id => businesses.byId(id)); } catch (e) { console.error("[jadval] targetolog:", (e as Error).message); } finally { adsBusy = false; }
+  };
+  const adsTimer = setInterval(() => { void adsTick(); }, ADS_WATCH_MS);
+  void adsTick();
+  return () => { clearInterval(timer); clearInterval(adsTimer); stopInbox(); };
 }

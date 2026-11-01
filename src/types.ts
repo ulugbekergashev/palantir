@@ -467,6 +467,30 @@ export interface ContentDraft {
   status: 'draft' | 'publishing' | 'published' | 'failed' | 'cancelled'; messageId: number | null; error: string | null;
   createdAt: string; publishedAt: string | null;
 }
+/**
+ * Targetolog kampaniyasi: proposed — reja (egasi tasdiqlashi kerak); launching — Meta'da yaratilmoqda; active — ishlayapti;
+ * paused — to'xtatilgan (egasi yoki limit); finished — muddati yoki byudjeti tugadi; failed — yaratilmadi; cancelled — bekor
+ */
+export interface AdCampaign {
+  id: string; task: string; plan: AdPlan; status: 'proposed' | 'launching' | 'active' | 'paused' | 'finished' | 'failed' | 'cancelled';
+  currency: string; spent: number; results: number; clicks: number; impressions: number;
+  metaCampaignId: string | null; error: string | null; stopReason: string | null;
+  createdAt: string; launchedAt: string | null; endsAt: string | null; checkedAt: string | null;
+}
+export interface AdPlan {
+  name: string; destination: 'instagram' | 'whatsapp' | 'messenger' | 'website'; link?: string | null; budget: number | null; days: number;
+  countries: string[]; cities: { name: string; key?: string | null; radiusKm?: number }[]; ageMin: number; ageMax: number; genders: (1 | 2)[];
+  autoAudience: boolean; welcome?: string | null; ads: { text: string; headline?: string | null; image: string }[]; notes: string[];
+}
+export interface AdsView {
+  account: { adAccountId: string; accountName: string; pageId: string; pageName: string; igActorId: string | null; currency: string; tokenSet: boolean } | null;
+  limits: { perCampaign: number; daily: number; monthly: number };
+  spend: { today: number; month: number; committed: number } | null;
+  campaigns: (AdCampaign & { problems: string[]; summary: string[] })[];
+  /** Reklamaga tanlasa bo'ladigan rasmlar: Marketolog postlari va yuklanganlar */
+  images: { ref: string; label: string }[];
+}
+
 /** Kuzatiladigan ochiq Telegram kanali (t.me/s/<handle>): lastPost — oxirgi olingan post raqami */
 export interface ContentSource { id: string; handle: string; title: string | null; lastPost: number; createdAt: string }
 export interface ContentSettings {

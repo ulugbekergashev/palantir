@@ -37,6 +37,7 @@ import { crmStatus } from './crm/index';
 import { mountCrm } from './crm/routes';
 import { mountMarketing } from './marketing/routes';
 import { mountContent } from './content/routes';
+import { mountAds } from './ads/routes';
 import { mountLive } from './live/routes';
 import { mountBrain } from './brain/routes';
 import { mountCamera } from './camera/routes';
@@ -706,6 +707,7 @@ export function createApp(bot: BotService) {
 
   mountMarketing(app, { asBiz, asOwner, bad });
   mountContent(app, { asBiz, asOwner, bad });
+  mountAds(app, { asBiz, asOwner, bad });
   mountLive(app, { asBiz, asAdmin, bad });
   mountCrm(app, { asBiz, bad, fail, statusOf: (bizId, req) => statusFor(req, businesses.byId(bizId)!) });
   mountCamera(app, { asBiz, bad });

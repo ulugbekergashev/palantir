@@ -6,7 +6,7 @@ import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveChec
 import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
-import type { AgentEvent, AgentOrder, ContentDraft, ContentSettings, ContentSource, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
+import type { AdPlan, AdsView, AgentEvent, AgentOrder, ContentDraft, ContentSettings, ContentSource, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
 
 export interface ContentView { settings: ContentSettings; sources: ContentSource[]; drafts: ContentDraft[]; running: boolean }
 import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
@@ -318,6 +318,19 @@ export const api = {
   contentEdit: (id: string, text: string) => call<ContentView>(`/content/drafts/${id}`, { method: 'PATCH', body: { text } }),
   contentPublish: (id: string) => call<ContentView>(`/content/drafts/${id}/publish`, { body: {} }),
   contentCancel: (id: string) => call<ContentView>(`/content/drafts/${id}`, { method: 'DELETE' }),
+  // Targetolog (Meta reklama)
+  ads: () => call<AdsView>('/ads'),
+  adsConnect: (v: { token: string; adAccountId: string; pageId: string; igActorId: string | null }) => call<AdsView>('/ads/connect', { body: v }),
+  adsDisconnect: () => call<AdsView>('/ads/connect', { method: 'DELETE' }),
+  adsLimits: (l: { perCampaign: number; daily: number; monthly: number }) => call<AdsView>('/ads/limits', { method: 'PUT', body: l }),
+  adsPlan: (task: string) => call<AdsView>('/ads/plan', { body: { task } }),
+  adsEdit: (id: string, patch: Partial<AdPlan>) => call<AdsView>(`/ads/campaigns/${id}`, { method: 'PATCH', body: patch }),
+  adsLaunch: (id: string) => call<AdsView>(`/ads/campaigns/${id}/launch`, { body: {} }),
+  adsPause: (id: string) => call<AdsView>(`/ads/campaigns/${id}/pause`, { body: {} }),
+  adsResume: (id: string) => call<AdsView>(`/ads/campaigns/${id}/resume`, { body: {} }),
+  adsCancel: (id: string) => call<AdsView>(`/ads/campaigns/${id}`, { method: 'DELETE' }),
+  adsUpload: (image: string) => call<AdsView & { ref: string }>('/ads/images', { body: { image } }),
+  adsImage: async (ref: string) => (await send(`/ads/image?ref=${encodeURIComponent(ref)}`, { method: 'GET' })).blob(),
 
   /** Ulash ustasi: o'rnatish holati, anketani yuklash (kod yoki fayl), egasidan Telegram'da so'rash */
   setup: () => call<{ setup: SetupView }>('/setup'),

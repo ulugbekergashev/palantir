@@ -3,14 +3,15 @@
  * shu yerdan. Holat haqiqiy ma'lumotdan (so'rovlar, qo'ng'iroqlar, vazifalar, kameralar, DentaCRM), 30 soniyada yangilanadi.
  */
 import { useEffect, useState } from 'react';
-import { Camera, ChartLine, Headset, Megaphone, PenLine, UserRound, type LucideIcon } from 'lucide-react';
+import { Camera, ChartLine, Headset, Megaphone, PenLine, Target, UserRound, type LucideIcon } from 'lucide-react';
 import type { LiveStatus } from '../types';
 import { api, type ContentView } from '../data/api';
+import type { AdsView } from '../types';
 import { iso } from '../lib/week';
 import { hrefOf, type Area } from '../lib/nav';
 import { som } from '../lib/text';
 
-export type Member = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'kontent';
+export type Member = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'kontent' | 'target';
 
 export const TEAM: Record<Member, { name: string; role: string; about: string; icon: LucideIcon }> = {
   qabulxona: { name: 'Qabulxona', role: 'Telefon · Instagram · Telegram', icon: Headset, about: "Mijozlarga kunu tun javob beradi, yozilish va savollarni hal qiladi; o'zi hal qila olmaganini sizga so'rov qilib qoldiradi." },
@@ -18,6 +19,7 @@ export const TEAM: Record<Member, { name: string; role: string; about: string; i
   kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, about: "Kameralarni kuzatadi, siz bergan topshiriqlarni bajaradi va kadrga qarab savolingizga javob beradi; kelganlarni jadval bilan solishtiradi." },
   tahlilchi: { name: 'Tahlilchi', role: 'Raqamlar', icon: ChartLine, about: "Murojaatlar, so'rovlar va natija (CRM ulangan bo'lsa — qabul va tushum ham) — kunlik va haftalik ko'rinishda." },
   marketolog: { name: 'Marketolog', role: 'Meta AI · Instagram', icon: Megaphone, about: "Meta AI orqali raqobatchilarni, akkauntingizni va videolarni tahlil qiladi; kontent-reja va post g'oyalarini tayyorlaydi." },
+  target: { name: 'Targetolog', role: 'Meta reklama · Facebook va Instagram', icon: Target, about: "Topshirig'ingizdan reklama kampaniyasini tuzadi, siz tasdiqlasangiz — Meta'da ishga tushiradi; sarfni kuzatadi va limitga yetsa o'zi to'xtatadi." },
   kontent: { name: 'Kontent-meyker', role: 'Telegram kanal · kontent-zavod', icon: PenLine, about: "Siz kuzatadigan kanallardagi yangiliklardan kanalingiz uchun post yozadi; siz «Joylash»ni bossangiz — kanalga chiqaradi." },
 };
 export const MEMBERS = Object.keys(TEAM) as Member[];
@@ -26,13 +28,13 @@ export const MEMBERS = Object.keys(TEAM) as Member[];
  * Bo'limlar: pastki panelda (telefonda 7 tugma sig'adi) bo'lim bitta tugma, ichida xodimlari. Marketing — Marketolog va Kontent-meyker.
  * DEPARTMENT_OF — bo'lim ichidagi xodim (o'z tugmasi yo'q) qaysi bo'limda va qaysi varaqdan ochiladi
  */
-export const DEPARTMENT_OF: Partial<Record<Member, { area: Area; tab: string }>> = { kontent: { area: 'marketolog', tab: 'qoralamalar' } };
+export const DEPARTMENT_OF: Partial<Record<Member, { area: Area; tab: string }>> = { kontent: { area: 'marketolog', tab: 'qoralamalar' }, target: { area: 'marketolog', tab: 'kampaniyalar' } };
 export const RAIL_MEMBERS = MEMBERS.filter(m => !DEPARTMENT_OF[m]);
 /** Bo'lim tugmasining nomi (ichida bir nechta xodim) */
 export const DEPARTMENT_LABEL: Partial<Record<Member, string>> = { marketolog: 'Marketing' };
 export const memberHref = (m: Member): string => { const d = DEPARTMENT_OF[m]; return d ? hrefOf(d.area, d.tab) : hrefOf(m as Area); };
 /** Pastki paneldagi xodim (o'z bo'limi bor) */
-export type RailMember = Exclude<Member, 'kontent'>;
+export type RailMember = Exclude<Member, 'kontent' | 'target'>;
 export const isMember = (a: Area): a is RailMember => (RAIL_MEMBERS as string[]).includes(a);
 
 /**
@@ -42,6 +44,23 @@ export const isMember = (a: Area): a is RailMember => (RAIL_MEMBERS as string[])
 export interface MemberState { status: string; detail: string; on: boolean; live: boolean; badge: number; next: { label: string; href: string } | null;
   /** Bu biznesda ishlatilmaydi (kamerasi yo'q, klinika emas): bosh ekranda ko'rsatilmaydi va «ulang» deb bezovta qilmaydi */
   hidden?: boolean }
+
+/** Targetolog: kabinet ulanganmi, limitlar bormi, nechta reja tasdiq kutyapti (nishon), nechtasi ishlayapti */
+function adsState(v: AdsView | null): MemberState {
+  const waiting = v?.campaigns.filter(c => c.status === 'proposed').length ?? 0;
+  const active = v?.campaigns.filter(c => c.status === 'active').length ?? 0;
+  const limits = !!v && v.limits.perCampaign > 0 && v.limits.daily > 0 && v.limits.monthly > 0;
+  const tab = (t: string) => hrefOf('marketolog', t);
+  const cur = v?.account?.currency ?? '';
+  return {
+    on: !!v?.account && limits, live: active > 0, badge: waiting,
+    // Ishlatilmayotgan biznesda bosh ekranda ko'rinmaydi — Marketing bo'limida bor
+    hidden: !!v && !v.account && !v.campaigns.length,
+    status: active ? `${active} ta kampaniya ishlayapti` : waiting ? `${waiting} ta reja tasdiq kutyapti` : v?.account ? 'Kabinet ulangan' : 'Reklama kabineti ulanmagan',
+    detail: v?.spend && v.account ? `Bugun ${v.spend.today} ${cur} · oy ${v.spend.month} ${cur}` : 'Ulash — bir marta, token bilan',
+    next: !v?.account ? { label: 'Reklama kabinetini ulash', href: tab('kabinet') } : !limits ? { label: 'Limitlarni belgilash', href: tab('kabinet') } : null,
+  };
+}
 
 /** Kontent-meyker: kanal ulanganmi, nechta manba, nechta qoralama tasdiq kutyapti (nishon) */
 function contentState(c: ContentView | null): MemberState {
@@ -72,12 +91,14 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
       const today = iso(new Date());
       // Kontent-meyker holati boshqalari bilan parallel
       const contentP = api.content().catch(() => null);
+      const adsP = api.ads().catch(() => null);
       const [requests, calls, tasks, cameras, day, att, reports] = await Promise.all([
         api.requests('open').catch(() => null), api.calls().catch(() => null), api.tasks('open').catch(() => null),
         api.cameras().catch(() => null), crm ? api.crmDay().then(r => r.day).catch(() => null) : Promise.resolve(null),
         api.attention().catch(() => null), api.agentEvents('marketolog').catch(() => null),
       ]);
       const content = await contentP;
+      const ads = await adsP;
       if (stale) return;
       const callsToday = calls?.calls.filter(c => c.startedAt.slice(0, 10) === today) ?? [];
       const talking = calls?.calls.some(c => c.status === 'talking' || c.status === 'ringing') ?? false;
@@ -123,6 +144,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
           detail: meta?.connected ? `Bugun ${reports?.events.filter(e => iso(new Date(e.at)) === today).length ?? 0} ta tahlil · ${meta.usedToday}/${meta.dailyLimit} savol` : 'Ulash — akkauntingizga bir marta kirasiz',
         },
         kontent: contentState(content),
+        target: adsState(ads),
       });
     };
     void load();

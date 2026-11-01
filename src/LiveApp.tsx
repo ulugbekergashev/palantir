@@ -111,7 +111,7 @@ export default function LiveApp() {
           {area === 'yordamchi' && <AssistantArea {...common} />}
           {area === 'kuzatuvchi' && <WatchArea {...common} />}
           {area === 'tahlilchi' && <AnalystArea {...common} />}
-          {area === 'marketolog' && <MarketingArea {...common} onStatus={setStatus} kontent={team?.kontent ?? null} />}
+          {area === 'marketolog' && <MarketingArea {...common} onStatus={setStatus} kontent={team?.kontent ?? null} target={team?.target ?? null} />}
           {area === 'miya' && <MiyaArea tab={tab} notify={notify} />}
           {area === 'sozlamalar' && (
             <SettingsArea {...common} onStatus={setStatus} onBiz={setBiz} offeringsRev={offeringsRev} onSaved={(b, rev) => { setBiz(b); setOfferingsRev(rev); }} />

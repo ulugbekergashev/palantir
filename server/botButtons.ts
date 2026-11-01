@@ -16,6 +16,7 @@ import { businesses, leads, outbound, tasks, type BusinessRow } from './db';
 import { approveReply, dismissReply, notifyOwner } from './inbox/core';
 import { cancelPost, posts, publishPost } from './marketing/posts';
 import { ContentError, cancelDraft, publishDraft } from './content/factory';
+import { TargetError, cancel as cancelCampaign, launch as launchCampaign, pause as pauseCampaign } from './ads/campaigns';
 import { askOutcome, DAY_OUTCOME, dropOutcome, wantsOutcome } from './outcome';
 import { actorOf } from './requests/index';
 import { requestButton } from './requests/telegram';
@@ -103,6 +104,30 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
       }
       await ctx.editMessageReplyMarkup(undefined).catch(() => {});
       return toast(ctx, code === 'zx' ? 'Bekor qilindi' : 'Kanalga joylandi ✅');
+    }
+
+    // Targetolog: reklamani ishga tushirish (pul ketadi — faqat egasi; fonda, Meta bir necha so'rov), bekor qilish, to'xtatish
+    if (code === 'tl' || code === 'tx' || code === 'tp') {
+      if (code === 'tx' || code === 'tp') {
+        try {
+          if (code === 'tx') cancelCampaign(biz, id);
+          else await pauseCampaign(biz, id);
+        } catch (e) {
+          if (!(e instanceof TargetError)) console.error('[targetolog] tugma:', e);
+          return toast(ctx, e instanceof TargetError ? e.message : 'Ichki xato', { show_alert: true });
+        }
+        await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+        return toast(ctx, code === 'tx' ? 'Bekor qilindi' : "To'xtatildi ⏸");
+      }
+      await toast(ctx, 'Meta’da yaratilmoqda…');
+      await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      detach('reklama kampaniyasi', async () => {
+        try { await launchCampaign(biz, id, { mark: data.split('|')[2] }); } catch (e) {
+          if (!(e instanceof TargetError)) console.error('[targetolog] ishga tushirish:', e);
+          await tg.sendMessage(biz.ownerChatId!, `⚠️ Reklama ishga tushmadi: ${e instanceof TargetError ? e.message : 'ichki xato'}`).catch(() => {});
+        }
+      });
+      return;
     }
 
     // Postlar olib tashlangan: eski xabarlardagi «Kanalga joylash» va «O'chirish» tugmalari

@@ -20,6 +20,7 @@ import { AssistantDesk, dueGroup, useAssistantData } from './agents/Assistant';
 import { MarketingDesk, MarketingReports, MetaAiConnect, marketingStats, useMarketingReports } from './agents/Marketing';
 import { MarketingPosts } from './agents/Posts';
 import { ContentChannel, ContentDrafts, ContentSources, contentStats, useContent } from './agents/Content';
+import { AdsCabinet, AdsCampaigns, adsStats, useAds } from './agents/Ads';
 import { HUE } from '../components/agent';
 import { TEAM, type Member } from '../components/team';
 import { hrefOf } from '../lib/nav';
@@ -174,18 +175,35 @@ function DepartmentSwitch({ title, members, active }: { title: string; members: 
 }
 
 const KONTENT_TABS = ['qoralamalar', 'manbalar', 'kanal'];
+const TARGET_TABS = ['kampaniyalar', 'kabinet'];
 
-/** Marketing bo'limi: Marketolog (Meta AI, Instagram postlari) va Kontent-meyker (Telegram kanal uchun kontent-zavod) */
-export function MarketingArea(props: Common & { onStatus: (s: LiveStatus) => void; kontent: MemberState | null }) {
+/** Marketing bo'limi: Marketolog (Meta AI, Instagram postlari), Targetolog (Meta reklama) va Kontent-meyker (Telegram kanal uchun kontent-zavod) */
+export function MarketingArea(props: Common & { onStatus: (s: LiveStatus) => void; kontent: MemberState | null; target: MemberState | null }) {
   const kontent = !!props.tab && KONTENT_TABS.includes(props.tab);
+  const target = !!props.tab && TARGET_TABS.includes(props.tab);
   const members = [
     { member: 'marketolog' as const, href: hrefOf('marketolog'), badge: props.state?.badge },
+    { member: 'target' as const, href: hrefOf('marketolog', 'kampaniyalar'), badge: props.target?.badge },
     { member: 'kontent' as const, href: hrefOf('marketolog', 'qoralamalar'), badge: props.kontent?.badge },
   ];
   return (
     <div className="space-y-4">
-      <DepartmentSwitch title="Marketing" members={members} active={kontent ? 'kontent' : 'marketolog'} />
-      {kontent ? <ContentArea {...props} /> : <MarketologArea {...props} />}
+      <DepartmentSwitch title="Marketing" members={members} active={kontent ? 'kontent' : target ? 'target' : 'marketolog'} />
+      {kontent ? <ContentArea {...props} /> : target ? <TargetArea {...props} /> : <MarketologArea {...props} />}
+    </div>
+  );
+}
+
+function TargetArea({ tab, notify, target, tick }: Common & { target: MemberState | null }) {
+  const active = pick(tab, TARGET_TABS);
+  const [view, setView] = useAds(notify, tick);
+  return (
+    <div className="space-y-6">
+      <AgentHero member="target" state={target} stats={adsStats(view)}>
+        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'kampaniyalar', label: 'Kampaniyalar', count: target?.badge }, { id: 'kabinet', label: 'Kabinet va limitlar' }]} />
+      </AgentHero>
+      {active === 'kampaniyalar' && <AdsCampaigns view={view} setView={setView} notify={notify} />}
+      {active === 'kabinet' && <AdsCabinet view={view} setView={setView} notify={notify} />}
     </div>
   );
 }
