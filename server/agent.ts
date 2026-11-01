@@ -25,6 +25,8 @@ import { crmClinicName, crmConnected } from './crm/index';
 import { COMMON_RULES, industryOf } from '../src/data/industries';
 import { runTool, toolDefinitions, type ToolCtx } from './tools';
 import { orders } from './orders/store';
+import { SubscriptionError, subscriptionOn, type SubscriptionReason } from './subscription/engine';
+import { ownerTurn } from './subscription/owner';
 
 type Msg = Anthropic.Beta.BetaMessageParam;
 type Block = Anthropic.Beta.BetaContentBlockParam;
@@ -170,8 +172,17 @@ const fresh = (conv: ReturnType<typeof conversations.get>, toolsKey: string) =>
 const textOf = (content: Anthropic.Beta.BetaContentBlock[]) =>
   content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text').map(b => b.text).join('').trim();
 
+const SUBSCRIPTION_REASONS: Record<SubscriptionReason, string> = {
+  auth: "Claude obunasiga kirilmagan: shu kompyuterda terminalda `claude` ni ochib /login qiling (yoki CLAUDE_CODE_OAUTH_TOKEN qo'ying).",
+  limit: 'Claude obunasining limiti tugadi — limit yangilangach davom etamiz.',
+  unsupported: "Bu ish obunada ishlamaydi — buning uchun API kalit (ANTHROPIC_API_KEY) kerak.",
+  timeout: "Obuna javobi juda uzoq kutildi — ish chala qolgan bo'lishi mumkin. Qisqaroq qilib qayta yozing.",
+  failed: "Obuna orqali javob olinmadi. Birozdan keyin qayta yozing.",
+};
+
 /** Egasiga tushunarli sabab. Hisob va kalit muammolari «band» deb yashirilmaydi: ularni kutish tuzatmaydi */
 export function friendlyError(e: unknown): string {
+  if (e instanceof SubscriptionError) return SUBSCRIPTION_REASONS[e.reason];
   if (e instanceof AiLimitError) return `Bugungi AI chegarasi tugadi (kuniga ${e.limit} ta so'rov). Ertaga davom etamiz; chegarani administrator oshirishi mumkin.`;
   if (e instanceof Anthropic.APIConnectionError) return "AI bilan aloqa yo'q (internetni tekshiring). Birozdan keyin qayta yozing.";
   if (e instanceof Anthropic.APIError) {
@@ -207,6 +218,7 @@ export function ask(bizId: string, channel: ChatEntry['channel'], text: string, 
 
     const userText = `${nowLabel(channel)}${opts.phone ? PHONE_NOTE : opts.voice ? ' (voice message, transcribed)' : ''}\n${text}`;
     const attempt = async (restart: boolean) => {
+      if (subscriptionOn()) return viaSubscription(biz, userText, opts);
       const prev = conversations.get(biz.id);
       const set = toolsetFor(biz.id);
       const keep = !restart && fresh(prev, set.key);
@@ -231,6 +243,18 @@ export function ask(bizId: string, channel: ChatEntry['channel'], text: string, 
       return finish(partial?.artifacts.length ? `Ish qisman bajarildi. ${reason}` : reason, partial?.artifacts ?? [], !partial?.artifacts.length);
     }
   });
+}
+
+/** Obuna orqali (subscription/owner.ts): xato bo'lsa — shu gapda tayyorlangan narsalar egasiga baribir ko'rsatiladi */
+async function viaSubscription(biz: BusinessRow, userText: string, opts: { photo?: boolean; phone?: boolean; unattended?: boolean }) {
+  const crm = crmConnected(biz.id);
+  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto: !!opts.photo, unattended: !!opts.unattended };
+  try {
+    const text = await ownerTurn({ biz, setKey: toolsetFor(biz.id).key, crm, userText, phone: !!opts.phone, idleMs: IDLE_MS, ctx, buildSystem });
+    return { text, artifacts: ctx.artifacts };
+  } catch (e) {
+    throw ctx.artifacts.length ? new PartialError(e, ctx.artifacts) : e;
+  }
 }
 
 class RestartableError extends Error {}

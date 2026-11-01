@@ -34,6 +34,8 @@
     "test:stations": "tsx scripts/e2e-stations.ts",
     "test:instagram": "tsx scripts/e2e-instagram.ts",
     "test:marketolog": "tsx scripts/e2e-marketolog.ts",
+    "test:subscription": "tsx scripts/check-subscription.ts",
+    "live:subscription": "tsx scripts/live-subscription.ts",
     "test:dashboard": "vite build && tsx scripts/e2e-dashboard.ts",
     "hub": "tsx hub/server.ts",
     "hub:deploy": "tsx scripts/deploy-hub.ts",
@@ -58,8 +60,10 @@
     "kalit": "tsx scripts/kalit.ts"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.316",
     "@anthropic-ai/sdk": "^0.129.0",
     "@fontsource-variable/manrope": "^5.3.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@tensorflow-models/coco-ssd": "^2.2.3",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-wasm": "^4.22.0",

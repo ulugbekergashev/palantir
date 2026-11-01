@@ -4,6 +4,7 @@ import { iso } from '../src/lib/week';
 import { type BusinessRow } from './db';
 import { aiUsage, type AiUsageRow } from './serviceStore';
 import { env } from './env';
+import { SubscriptionError, apiKeyPresent, subscriptionMessage, subscriptionOn, textRequest, type TokenUsage } from './subscription/engine';
 
 let client: Anthropic | null = null;
 export const claude = () => (client ??= new Anthropic({ maxRetries: 2, timeout: 600_000 }));
@@ -24,8 +25,17 @@ export class AiLimitError extends Error {
 
 type Params = Omit<Anthropic.Beta.MessageCreateParamsNonStreaming, 'betas' | 'fallbacks'>;
 
-/** Modelga so'rov. Kunlik chegaradan oshsa — AiLimitError; aks holda so'rov va tokenlari biznes hisobiga yoziladi. betas — qo'shimcha beta sarlavhalar */
+/**
+ * Modelga so'rov. Kunlik chegaradan oshsa — AiLimitError; aks holda so'rov va tokenlari biznes hisobiga yoziladi. betas — qo'shimcha beta sarlavhalar.
+ * Obuna rejimida (AI_ENGINE=subscription) egasining asbobsiz matnli ishi obuna orqali ketadi; qolgani — API kalit bo'lsa API'da,
+ * bo'lmasa egasiga tushunarli SubscriptionError
+ */
 export async function think(bizId: string, kind: AiKind, params: Params, betas: Anthropic.Beta.AnthropicBeta[] = []): Promise<Anthropic.Beta.BetaMessage> {
+  if (subscriptionOn()) {
+    const req = kind === 'owner' ? textRequest(params) : null;
+    if (req) return ask(bizId, kind, () => subscriptionMessage(req));
+    if (!apiKeyPresent()) throw new SubscriptionError('unsupported', `Obunada ishlamaydigan so'rov (${kind}) — API kalit yo'q`);
+  }
   return ask(bizId, kind, () => claude().beta.messages.create({ ...params, ...FALLBACK, betas: [...FALLBACK.betas, ...betas] }));
 }
 
@@ -34,18 +44,22 @@ export async function think(bizId: string, kind: AiKind, params: Params, betas: 
  * Hisob va chegara — think bilan bir xil
  */
 export async function thinkStream(bizId: string, kind: AiKind, params: Params): Promise<Anthropic.Beta.BetaMessage> {
+  if (subscriptionOn() && !apiKeyPresent()) throw new SubscriptionError('unsupported', `Chuqur tahlil obunada ishlamaydi (${kind}) — API kalit yo'q`);
   return ask(bizId, kind, () => claude().beta.messages.stream({ ...params, ...FALLBACK }).finalMessage());
 }
 
-async function ask(bizId: string, kind: AiKind, send: () => Promise<Anthropic.Beta.BetaMessage>): Promise<Anthropic.Beta.BetaMessage> {
+const ask = (bizId: string, kind: AiKind, send: () => Promise<Anthropic.Beta.BetaMessage>): Promise<Anthropic.Beta.BetaMessage> =>
+  metered(bizId, kind, send, ({ usage: u }) => ({ input: u.input_tokens, output: u.output_tokens, cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0 }));
+
+/** Kunlik chegara va hisob: chegaradan oshsa — AiLimitError (so'rov yuborilmaydi); javobdan keyin tokenlar biznes hisobiga yoziladi */
+export async function metered<T>(bizId: string, kind: AiKind, send: () => Promise<T>, usageOf: (res: T) => TokenUsage): Promise<T> {
   const day = iso(new Date()), limit = DAILY[kind]();
   if (aiUsage.calls(bizId, day, kind) >= limit) throw new AiLimitError(kind, limit);
   aiUsage.hit(bizId, day, kind);
   const res = await send();
-  const u = res.usage;
   // Hisob yozilmasa ham (disk to'lgan) pulli javob yo'qolmasin
   try {
-    aiUsage.tokens(bizId, day, kind, { input: u.input_tokens, output: u.output_tokens, cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0 });
+    aiUsage.tokens(bizId, day, kind, usageOf(res));
   } catch (e) {
     console.error('[ai] xarajat hisobi yozilmadi:', (e as Error).message);
   }

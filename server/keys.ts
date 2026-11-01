@@ -34,7 +34,7 @@ function apply(name: KeyName): void {
   else delete process.env[name];
   switch (name) {
     case 'BOT_TOKEN': env.botToken = v; break;
-    case 'ANTHROPIC_API_KEY': env.aiEnabled = !!(v || process.env.ANTHROPIC_AUTH_TOKEN) && process.env.AI_DISABLED !== '1'; break;
+    case 'ANTHROPIC_API_KEY': env.aiEnabled = !!(v || process.env.ANTHROPIC_AUTH_TOKEN || env.aiEngine === 'subscription') && process.env.AI_DISABLED !== '1'; break;
     case 'GEMINI_API_KEY': env.geminiKey = v; break;
     case 'GROQ_API_KEY': env.groqKey = v; break;
     case 'VOICELAB_API_KEY': env.voicelabKey = v; break;

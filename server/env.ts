@@ -86,8 +86,14 @@ export const env = {
   botToken: process.env.BOT_TOKEN || '',
   /** Faqat sinov uchun: soxta Telegram API manzili */
   telegramApiRoot: process.env.TELEGRAM_API_ROOT || undefined,
-  /** Claude kaliti — yordamchining "miyasi" */
-  aiEnabled: !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) && process.env.AI_DISABLED !== '1',
+  /**
+   * AI qayerdan ishlaydi: api — ANTHROPIC_API_KEY (klinikalar); subscription — egasining o'z Claude obunasi Claude Agent SDK orqali
+   * (faqat o'z kompyuterida, o'zi uchun: kompyuterda `claude` ga kirilgan yoki CLAUDE_CODE_OAUTH_TOKEN). Obunada egasi bilan suhbat va
+   * asbobsiz matnli ishlar ketadi; rasm, kamera va mijozga javob — API kalit bilan (subscription/engine.ts)
+   */
+  aiEngine: (process.env.AI_ENGINE === 'subscription' ? 'subscription' : 'api') as 'api' | 'subscription',
+  /** Claude kaliti (yoki obuna) — yordamchining "miyasi" */
+  aiEnabled: !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.AI_ENGINE === 'subscription') && process.env.AI_DISABLED !== '1',
   aiModel: process.env.AI_MODEL || 'claude-opus-5-5',
   /** Qanchalik chuqur o'ylaydi: egasining yordamchisi va mijozga javob. O'zgartirishdan oldin baholang: npm run eval:ai */
   aiEffortOwner: effort(process.env.AI_EFFORT_OWNER, 'medium'),

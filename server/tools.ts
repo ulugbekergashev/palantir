@@ -397,9 +397,13 @@ const schemaOf = (s: z.ZodType) => {
 const isCrmTool = (name: string) => Object.hasOwn(CRM_DEFS, name);
 
 /** Claude'ga beriladigan asboblar ro'yxati (suhbat davomida o'zgarmaydi). crm — DentaCRM ulangan biznes uchun klinika asboblari bilan */
+/** Egasining yordamchisi ko'radigan asboblar (API ham, obuna ham — subscription/tools.ts — shu ro'yxatni oladi) */
+export function ownerToolDefs(crm: boolean): [string, ToolDef<z.ZodType>][] {
+  return Object.entries({ ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...(computerEnabled() ? COMPUTER_DEFS : {}), ...(marketingEnabled() ? MARKETING_DEFS : {}), ...(crm ? CRM_DEFS : {}) }) as [string, ToolDef<z.ZodType>][];
+}
+
 export function toolDefinitions(webSearch: boolean, crm = false): Anthropic.Beta.BetaToolUnion[] {
-  const defs = Object.entries({ ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...(computerEnabled() ? COMPUTER_DEFS : {}), ...(marketingEnabled() ? MARKETING_DEFS : {}), ...(crm ? CRM_DEFS : {}) }) as [string, ToolDef<z.ZodType>][];
-  const custom: Anthropic.Beta.BetaToolUnion[] = defs.map(([name, d]) => ({
+  const custom: Anthropic.Beta.BetaToolUnion[] = ownerToolDefs(crm).map(([name, d]) => ({
     name, description: d.description, input_schema: schemaOf(d.input),
   }));
   return webSearch ? [...custom, { type: 'web_search_20260209', name: 'web_search', max_uses: 3 }] : custom;
