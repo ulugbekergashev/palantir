@@ -75,9 +75,14 @@ try {
     ADMIN_PASSWORD: '', SESSION_SECRET: 'jamoa-secret', MORNING_HOUR: '99', EVENING_HOUR: '99', BACKUP_KEEP: '0', HEARTBEAT_MS: '400',
   });
   ok('Palantir ishga tushdi', await up(`${base}/api/health`));
+  const other = await json<{ password: string }>(fetch(`${HUB}/admin/team`, post({ name: 'Jasur', login: 'jasur', role: 'installer' }, ADMIN_KEY)));
+  const jasur = (await json<{ token: string }>(fetch(`${HUB}/admin/login`, post({ login: 'jasur', password: other.password })))).token;
   const online = await until('klinika aloqada', async () => ((await json<{ clinics: { id: string; online: boolean }[] }>(get(`${HUB}/admin/clinics`, installer.token))).clinics.find(c => c.id === clinic.clinicId)?.online ? true : undefined), 20_000);
   ok('klinika Hub\'ga ulandi', !!online);
 
+  ok("boshqa o'rnatuvchi bu klinikani ko'rmaydi va ochmaydi (404); asoschi ko'radi", (await json<{ clinics: unknown[] }>(get(`${HUB}/admin/clinics`, jasur))).clinics.length === 0
+    && (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/panel`, post({}, jasur))).status === 404
+    && (await json<{ clinics: { id: string }[] }>(get(`${HUB}/admin/clinics`, founder.token))).clinics.some(c => c.id === clinic.clinicId));
   console.log("\n# Kim kirgani — klinikada ham");
   const R = `${HUB}/c/${clinic.clinicId}`;
   const opened = await json<{ token?: string; error?: string }>(fetch(`${HUB}/admin/clinics/${clinic.clinicId}/panel`, post({}, installer.token)));

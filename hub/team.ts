@@ -2,7 +2,7 @@
  * Palantir jamoasi Hub'da — har kishining o'z hisobi va jurnali (hub/server.ts, 12-band).
  *
  *   Rollar: asoschi (founder) — hammasi: jamoa hisoblari, litsenziya, tasdiqlash, o'chirish, zaxiralar, jurnal;
- *           o'rnatuvchi (installer) — klinikalar ro'yxati, «Yangi klinika», «Sozlash» / «Panelni ochish», diagnostika.
+ *           o'rnatuvchi (installer) — faqat o'zi ochgan klinikalar: ro'yxat, «Sozlash» / «Panelni ochish», diagnostika; «Yangi klinika».
  *   HUB_ADMIN_KEY — asosiy kalit: birinchi asoschini ochish va favqulodda kirish uchun (u ham asoschi, jurnalda «Asosiy kalit»).
  *   Kirish: login va parol → 12 soatlik kalit (Hub siri bilan imzolangan). Parol almashsa yoki hisob o'chirilsa — eski kalitlar
  *   darhol bekor (ver). Har muhim amal jurnalga yoziladi: kim, qachon, qaysi klinika — klinika egasiga ham kim kirgani aytiladi.

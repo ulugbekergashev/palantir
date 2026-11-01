@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS deletions (code TEXT PRIMARY KEY, ig_user_id TEXT NOT
   const have = new Set((db.prepare('PRAGMA table_info(clinics)').all() as { name: string }[]).map(c => c.name));
   // machine_id va self — o'zi ulangan kompyuter (POST /api/register): kompyuter kodi (litsenziya bilan bir xil) va belgisi
   // approved — sotuvchi tasdiqlagan (o'zi ulanganlar karantinda — 11-band)
-  for (const [name, type] of [['status', 'TEXT'], ['alerted_at', 'TEXT'], ['machine_id', 'TEXT'], ['self', 'INTEGER'], ['approved', 'INTEGER']]) if (!have.has(name)) db.exec(`ALTER TABLE clinics ADD COLUMN ${name} ${type}`);
+  for (const [name, type] of [['status', 'TEXT'], ['alerted_at', 'TEXT'], ['machine_id', 'TEXT'], ['self', 'INTEGER'], ['approved', 'INTEGER'], ['created_by', 'TEXT']]) if (!have.has(name)) db.exec(`ALTER TABLE clinics ADD COLUMN ${name} ${type}`);
   // Ustun paydo bo'lishidan oldingilar: sotuvchi yaratgan va litsenziyasini bergan (demak ko'rib chiqqan) o'zi ulangan — tasdiqlangan
   db.exec("UPDATE clinics SET approved = CASE WHEN COALESCE(self, 0) = 0 OR json_extract(status, '$.license.activated') = 1 THEN 1 ELSE 0 END WHERE approved IS NULL");
 }
@@ -288,6 +288,9 @@ function memberOf(req: IncomingMessage, res: ServerResponse, need: HubRole = 'in
   if (need === 'founder' && who.role !== 'founder') { send(res, 403, { error: 'Buni faqat asoschi qiladi' }); return null; }
   return who;
 }
+/** O'rnatuvchi faqat o'zi ochgan klinikani ko'radi va ochadi (12-band); asoschi — hammasini */
+const mine = (who: Member, clinicId: string) => who.role === 'founder'
+  || (db.prepare('SELECT created_by FROM clinics WHERE id = ?').get(clinicId) as { created_by: string | null } | undefined)?.created_by === who.id;
 const teamFail = (res: ServerResponse, e: unknown) => { if (e instanceof TeamError) return send(res, e.code, { error: e.message }); throw e; };
 const readJson = async (req: IncomingMessage): Promise<Record<string, unknown> | null> => {
   try { const v = JSON.parse((await readRaw(req))?.toString() || '{}') as unknown; return v && typeof v === 'object' ? v as Record<string, unknown> : null; } catch { return null; }
@@ -490,7 +493,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const who = memberOf(req, res); if (!who) return;
     const body = JSON.parse((await readRaw(req))?.toString() || '{}') as { name?: string };
     const id = newId(), secret = randomBytes(24).toString('base64url');
-    db.prepare('INSERT INTO clinics (id, name, key_hash, created_at, approved) VALUES (?, ?, ?, ?, 1)').run(id, String(body.name ?? 'Klinika').slice(0, 80), sha(secret), now());
+    db.prepare('INSERT INTO clinics (id, name, key_hash, created_at, approved, created_by) VALUES (?, ?, ?, ?, 1, ?)').run(id, String(body.name ?? 'Klinika').slice(0, 80), sha(secret), now(), who.id);
     team.log(who, 'klinika.yaratildi', id, String(body.name ?? 'Klinika').slice(0, 80));
     return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl || `http://127.0.0.1:${cfg.port}`, id, secret) });
   }
@@ -510,7 +513,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (support && req.method === 'POST') {
     const who = memberOf(req, res); if (!who) return;
     const clinic = db.prepare('SELECT seen_at FROM clinics WHERE id = ?').get(support[1]) as { seen_at: string | null } | undefined;
-    if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
+    if (!clinic || !mine(who, support[1])) return send(res, 404, { error: "Bunday klinika yo'q" });
     if (!approved(support[1])) return send(res, 409, { error: QUARANTINE });
     if (!clinicOnline(support[1], clinic.seen_at)) return send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
     const body = JSON.parse((await readRaw(req))?.toString() || '{}') as { business?: unknown };
@@ -594,8 +597,9 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   // Admin: klinikalar — oxirgi ko'ringan payti va holati
   if (p === '/admin/clinics' && req.method === 'GET') {
     const who = memberOf(req, res); if (!who) return;
-    const rows = db.prepare('SELECT id, name, created_at, seen_at, status, machine_id, self, approved FROM clinics ORDER BY created_at DESC').all() as
-      { id: string; name: string; created_at: string; seen_at: string | null; status: string | null; machine_id: string | null; self: number | null; approved: number | null }[];
+    const rows = (db.prepare('SELECT id, name, created_at, seen_at, status, machine_id, self, approved, created_by FROM clinics ORDER BY created_at DESC').all() as
+      { id: string; name: string; created_at: string; seen_at: string | null; status: string | null; machine_id: string | null; self: number | null; approved: number | null; created_by: string | null }[])
+      .filter(r => who.role === 'founder' || r.created_by === who.id);
     return send(res, 200, {
       clinics: rows.map(r => ({
         id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at, machineId: r.machine_id, self: r.self === 1, approved: r.approved === 1,
@@ -668,7 +672,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
   if (p === '/admin/diag' && req.method === 'GET') {
     const who = memberOf(req, res); if (!who) return;
-    const list = existsSync(cfg.diagDir) ? readdirSync(cfg.diagDir).filter(c => /^[0-9a-f]{10}$/.test(c)).flatMap(clinic =>
+    const list = existsSync(cfg.diagDir) ? readdirSync(cfg.diagDir).filter(c => /^[0-9a-f]{10}$/.test(c) && mine(who, c)).flatMap(clinic =>
       readdirSync(join(cfg.diagDir, clinic)).filter(n => n.endsWith('.txt')).map(file => ({ clinicId: clinic, file, size: statSync(join(cfg.diagDir, clinic, file)).size }))) : [];
     return send(res, 200, { diagnostics: list });
   }
@@ -676,7 +680,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (diag && req.method === 'GET') {
     const who = memberOf(req, res); if (!who) return;
     const file = join(cfg.diagDir, diag[1], diag[2]);
-    if (!existsSync(file)) return send(res, 404, { error: 'topilmadi' });
+    if (!mine(who, diag[1]) || !existsSync(file)) return send(res, 404, { error: 'topilmadi' });
     team.log(who, 'diagnostika.oqildi', diag[1], diag[2]);
     return send(res, 200, readFileSync(file, 'utf8'), 'text/plain');
   }
