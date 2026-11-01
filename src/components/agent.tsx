@@ -20,6 +20,7 @@ export const HUE: Record<Member, { a: string; b: string; glow: string; text: str
   kuzatuvchi: { a: '#f5b454', b: '#ff7a59', glow: 'rgba(245,180,84,0.15)', text: '#fbd38d', deep: '#8a3a0c' },
   tahlilchi: { a: '#34d399', b: '#3fb6ff', glow: 'rgba(52,211,153,0.15)', text: '#86efc4', deep: '#0d5a47' },
   marketolog: { a: '#f472b6', b: '#a78bfa', glow: 'rgba(244,114,182,0.15)', text: '#f9a8d4', deep: '#6b1f5a' },
+  kontent: { a: '#ffb86b', b: '#f472b6', glow: 'rgba(255,184,107,0.15)', text: '#ffd6a8', deep: '#7a3512' },
 };
 
 /** Xodimning tosh tusi: ichidagi cho'g' va tutun xodim rangida, shishasi bir xil */

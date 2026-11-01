@@ -15,6 +15,7 @@ import { patientName } from './crm/logic';
 import { businesses, leads, outbound, tasks, type BusinessRow } from './db';
 import { approveReply, dismissReply, notifyOwner } from './inbox/core';
 import { cancelPost, posts, publishPost } from './marketing/posts';
+import { ContentError, cancelDraft, publishDraft } from './content/factory';
 import { askOutcome, DAY_OUTCOME, dropOutcome, wantsOutcome } from './outcome';
 import { actorOf } from './requests/index';
 import { requestButton } from './requests/telegram';
@@ -89,6 +90,19 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
         }
       });
       return;
+    }
+
+    // Kontent-meyker qoralamasi: egasining kanaliga joylash yoki bekor qilish (karta matnga bog'langan)
+    if (code === 'zp' || code === 'zx') {
+      try {
+        if (code === 'zx') cancelDraft(biz, id);
+        else await publishDraft(biz, id, { mark: data.split('|')[2] });
+      } catch (e) {
+        if (!(e instanceof ContentError)) console.error('[kontent] tugma:', e);
+        return toast(ctx, e instanceof ContentError ? e.message : 'Ichki xato', { show_alert: true });
+      }
+      await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      return toast(ctx, code === 'zx' ? 'Bekor qilindi' : 'Kanalga joylandi ✅');
     }
 
     // Postlar olib tashlangan: eski xabarlardagi «Kanalga joylash» va «O'chirish» tugmalari

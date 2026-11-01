@@ -20,7 +20,7 @@ import { MiyaArea } from './pages/VaultPage';
  */
 const TITLES: Record<Area, string> = {
   ai: 'Palantir', qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
-  tahlilchi: TEAM.tahlilchi.name, marketolog: TEAM.marketolog.name, miya: 'Miya', sozlamalar: 'Sozlamalar',
+  tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', miya: 'Miya', sozlamalar: 'Sozlamalar',
 };
 
 const ALL_AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'miya', 'sozlamalar'];
@@ -111,7 +111,7 @@ export default function LiveApp() {
           {area === 'yordamchi' && <AssistantArea {...common} />}
           {area === 'kuzatuvchi' && <WatchArea {...common} />}
           {area === 'tahlilchi' && <AnalystArea {...common} />}
-          {area === 'marketolog' && <MarketingArea {...common} onStatus={setStatus} />}
+          {area === 'marketolog' && <MarketingArea {...common} onStatus={setStatus} kontent={team?.kontent ?? null} />}
           {area === 'miya' && <MiyaArea tab={tab} notify={notify} />}
           {area === 'sozlamalar' && (
             <SettingsArea {...common} onStatus={setStatus} onBiz={setBiz} offeringsRev={offeringsRev} onSaved={(b, rev) => { setBiz(b); setOfferingsRev(rev); }} />

@@ -91,7 +91,7 @@ try {
   ok('kirdi: bosh ekran — ovozli sfera va yozish qatori', await page.getByRole('button', { name: 'Palantir bilan gaplashish' }).isVisible());
   // Logotip havolasi (rasm, matnsiz) ro'yxatga kirmaydi
   const items = (await rail().getByRole('link').allInnerTexts()).map(t => t.trim().split('\n')[0]).filter(Boolean);
-  ok("menyu: Palantir, besh AI xodim, Miya, Sozlamalar", items.join(', ') === 'Palantir, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Marketolog, Miya, Sozlamalar',items.join(' | '));
+  ok("menyu: Palantir, AI xodimlar va Marketing bo'limi, Miya, Sozlamalar", items.join(', ') === 'Palantir, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Marketing, Miya, Sozlamalar',items.join(' | '));
   ok("menyu: «Quloq» tugmasi bor (o'chiq)", await rail().getByRole('button', { name: /Quloq/ }).getAttribute('aria-pressed') === 'false');
   await page.getByLabel("Palantir'ga yozing").fill('Bugun nima qilishim kerak?');
   await page.getByLabel("Palantir'ga yozing").press('Enter');
@@ -102,6 +102,7 @@ try {
   const cardOf = (name: string) => teamCards.getByRole('link').filter({ hasText: name });
   ok("birinchi kun: sozlanmagan xodim kartasida bitta keyingi qadam — to'g'ri ulash sahifasiga",
     await cardOf('Marketolog').getByText('Meta AI’ga kirish').isVisible() && (await cardOf('Marketolog').getAttribute('href'))?.endsWith('#/marketolog/ulash'));
+  ok("Kontent-meyker ishlatilmayapti (kanal ham, manba ham yo'q) — bosh ekranda kartasi yo'q, Marketing bo'limida bor", await cardOf('Kontent-meyker').count() === 0);
   ok("kamerasiz savdo biznesida Kuzatuvchi bosh ekranda yo'q («Kamerani ulash» deb bezovta qilmaydi), menyuda bor",
     !(await cardOf('Kuzatuvchi').count()) && items.includes('Kuzatuvchi'));
   ok("birinchi kun: savdo sohasida Tahlilchi DentaCRM so'ramaydi", !(await cardOf('Tahlilchi').getByText('DentaCRM’ni ulash').count()));
@@ -286,10 +287,14 @@ try {
   await shot('12a-tahlilchi', true);
   await nav('Kuzatuvchi');
   ok("kuzatuvchi: kamera yo'q — nima qiladi va qanday ulanadi", await visible(page.getByRole('heading', { name: "Kuzatuvchi hali hech narsani ko'rmayapti" })) && await tabOn('Kameralar').isVisible());
-  await nav('Marketolog');
+  await nav('Marketing');
   ok("marketolog: Meta AI ulanmagan — avval ulash, «Meta AI'ga kirish» tugmasi va varaqlar", await visible(page.getByRole('heading', { name: 'Marketolog' }))
     && await visible(page.getByRole('button', { name: "Meta AI'ga kirish" })) && await tabOn('Hisobotlar').isVisible() && await tabOn('Topshiriqlar').isVisible());
   await shot('12b-marketolog', true);
+  await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Kontent-meyker' }).click();
+  ok("Marketing → Kontent-meyker: o'z sarlavhasi, varaqlari va «manba qo'shing» yo'llanmasi", await visible(page.getByRole('heading', { name: 'Kontent-meyker' }))
+    && await tabOn('Qoralamalar').isVisible() && await tabOn('Kanal').isVisible() && await visible(page.getByRole('button', { name: 'Yangi qoralamalar' })) && page.url().endsWith('#/marketolog/qoralamalar'));
+  await shot('12c-kontent', true);
 
   console.log('\n# Qabulxona: yozishma');
   tgUser.incoming(TG_SESSION, '6001', 'Stol narxi qancha?', { name: 'Bobur', username: 'bobur_t' });
@@ -384,7 +389,7 @@ try {
   await menu.getByRole('menuitem', { name: 'Sozlamalar' }).click();
   ok("«Ko'proq» → Sozlamalar ochildi, menyu yopildi", await visible(page.getByRole('navigation', { name: 'Ulanishlar' })) && page.url().endsWith('#/sozlamalar') && await menu.count() === 0);
   // Panel Telegram ichida (Mini App) ham ochiladi — sozlamalarning asosiy va Telegram bo'limlari ham telefon enida sig'sin
-  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/ulash', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
+  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
     await go(p);
     await sleep(300);
     const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

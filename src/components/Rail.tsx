@@ -7,7 +7,7 @@ import { Brain, Ear, EarOff, Ellipsis, LogOut, Settings, Sparkles, type LucideIc
 import type { Wake } from '../lib/useWake';
 import type { Area } from '../lib/nav';
 import { hrefOf } from '../lib/nav';
-import { MEMBERS, TEAM, type Member, type MemberState } from './team';
+import { DEPARTMENT_LABEL, DEPARTMENT_OF, MEMBERS, RAIL_MEMBERS, TEAM, type Member, type MemberState } from './team';
 
 interface Item { area: Area; label: string; icon: LucideIcon; badge?: number }
 
@@ -30,7 +30,8 @@ export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area:
   const open = (a: Area) => !allowed || allowed.includes(a);
   const items: Item[] = [
     { area: 'ai' as Area, label: 'Palantir', icon: Sparkles },
-    ...MEMBERS.map(m => ({ area: m as Area, label: TEAM[m].name, icon: TEAM[m].icon, badge: team?.[m].badge })),
+    // Bo'lim tugmasidagi nishon — ichidagi xodimlarniki bilan birga (Marketing: Marketolog + Kontent-meyker)
+    ...RAIL_MEMBERS.map(m => ({ area: m as Area, label: DEPARTMENT_LABEL[m] ?? TEAM[m].name, icon: TEAM[m].icon, badge: team ? MEMBERS.filter(x => x === m || DEPARTMENT_OF[x]?.area === m).reduce((n, x) => n + team[x].badge, 0) : undefined })),
     { area: 'miya' as Area, label: 'Miya', icon: Brain },
   ].filter(it => open(it.area));
   const [more, setMore] = useState(false);

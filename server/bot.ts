@@ -43,6 +43,7 @@ import { ComputerError, openLoginWindow, runningJob, stopJob } from './computer/
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
 import { clearBotOutlets, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 import { registerButtons } from './botButtons';
+import { ContentError, setChannelOutlet } from './content/factory';
 import { RETRY_MAX_MS, RETRY_MIN_MS, b, chunks, cut, detach, esc, followupKeyboard, followupText, helpFor, ignoreUnchanged, kb, langOf, moneyKeyboard, moneyText, personName, reminderKeyboard, reminderText, tgHtml, type Btn } from './botKit';
 
 export interface BotService {
@@ -73,6 +74,7 @@ export function createBot(): BotService {
     // Token olib tashlangan bo'lsa — oldingi botning yuborish yo'llari ham yopiladi
     clearBotOutlets();
     setTeamOutlet(null);
+    setChannelOutlet(null);
     const off = () => Promise.reject(new Error("Telegram bot ulanmagan (BOT_TOKEN yo'q)"));
     return {
       enabled: false, username: () => null, start: async () => {}, stop: () => {},
@@ -692,6 +694,23 @@ export function createBot(): BotService {
     async sendPhoto(biz, path, html, keyboard) {
       if (!biz.ownerChatId) return null;
       const m = await tg.sendPhoto(biz.ownerChatId, { source: path }, { caption: html, parse_mode: 'HTML', reply_markup: keyboard });
+      return m.message_id;
+    },
+  });
+  // Kontent-meyker: egasining kanali (bot kanalda admin, «Xabar joylash» huquqi bilan)
+  setChannelOutlet({
+    async resolve(target) {
+      const chat = await tg.getChat(target).catch(() => null);
+      if (!chat) throw new ContentError(`${target} topilmadi — kanal nomini tekshiring (yopiq kanal bo'lsa, botni admin qilib, kanal ID'sini yozing)`);
+      if (chat.type !== 'channel') throw new ContentError('Bu kanal emas — Telegram kanal havolasini yozing');
+      const me = await tg.getMe();
+      const member = await tg.getChatMember(chat.id, me.id).catch(() => null);
+      const canPost = member?.status === 'administrator' && member.can_post_messages === true;
+      if (!canPost) throw new ContentError(`Botni (@${me.username}) kanalga admin qiling va «Xabar joylash» huquqini bering, keyin qayta ulang`);
+      return { id: String(chat.id), title: chat.title };
+    },
+    async post(chatId, text) {
+      const m = await tg.sendMessage(chatId, text, { link_preview_options: { is_disabled: true } });
       return m.message_id;
     },
   });

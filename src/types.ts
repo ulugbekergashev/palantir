@@ -458,6 +458,27 @@ export interface MarketingPost {
 /** Panelda: post, reklama filtri ogohlantirishlari (klinika) va rasmi bormi */
 export interface PostView extends MarketingPost { warnings: string[]; hasImage: boolean }
 
+/**
+ * Kontent-meyker (kontent-zavod): egasining Telegram kanali uchun qoralama. Manbadagi post asosida AI yozadi, egasi tasdiqlasa —
+ * kanalga chiqadi. failed — Telegram rad etdi (qayta joylash mumkin)
+ */
+export interface ContentDraft {
+  id: string; text: string; sourceUrl: string | null; topic: string | null;
+  status: 'draft' | 'publishing' | 'published' | 'failed' | 'cancelled'; messageId: number | null; error: string | null;
+  createdAt: string; publishedAt: string | null;
+}
+/** Kuzatiladigan ochiq Telegram kanali (t.me/s/<handle>): lastPost — oxirgi olingan post raqami */
+export interface ContentSource { id: string; handle: string; title: string | null; lastPost: number; createdAt: string }
+export interface ContentSettings {
+  channelId: string | null; channelTitle: string | null;
+  /** Egasining uslubi va talablari (AI har safar o'qiydi) */
+  style: string; lang: 'uz' | 'ru';
+  /** Bir ishga tushishda nechta qoralama */
+  perRun: number;
+  /** Har kuni ertalab o'zi tayyorlasin */
+  auto: boolean; lastRun: string | null;
+}
+
 export interface CallLine { who: 'ai' | 'caller'; text: string }
 /**
  * Qo'ng'iroq: ovozli agent qabul qilgani (source 'voice') yoki MicroSIP orqali bo'lgan haqiqiy qo'ng'iroq (source 'microsip').

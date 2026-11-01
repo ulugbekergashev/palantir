@@ -31,6 +31,7 @@ import { REQUEST_DEFS } from './requests/tools';
 import { CAMERA_DEFS } from './camera/tools';
 import { COMPUTER_DEFS, computerEnabled } from './computer/tools';
 import { MARKETING_DEFS, marketingEnabled } from './marketing/tools';
+import { CONTENT_DEFS } from './content/tools';
 import { ToolError, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
 import { DOC_KINDS } from './docs/playbooks';
 import { writeDocument } from './docs/writer';
@@ -400,7 +401,7 @@ const isCrmTool = (name: string) => Object.hasOwn(CRM_DEFS, name);
 /** Claude'ga beriladigan asboblar ro'yxati (suhbat davomida o'zgarmaydi). crm — DentaCRM ulangan biznes uchun klinika asboblari bilan */
 /** Egasining yordamchisi ko'radigan asboblar (API ham, obuna ham — subscription/tools.ts — shu ro'yxatni oladi) */
 export function ownerToolDefs(crm: boolean): [string, ToolDef<z.ZodType>][] {
-  return Object.entries({ ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...(computerEnabled() ? COMPUTER_DEFS : {}), ...(marketingEnabled() ? MARKETING_DEFS : {}), ...(crm ? CRM_DEFS : {}) }) as [string, ToolDef<z.ZodType>][];
+  return Object.entries({ ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...CONTENT_DEFS, ...(computerEnabled() ? COMPUTER_DEFS : {}), ...(marketingEnabled() ? MARKETING_DEFS : {}), ...(crm ? CRM_DEFS : {}) }) as [string, ToolDef<z.ZodType>][];
 }
 
 export function toolDefinitions(webSearch: boolean, crm = false): Anthropic.Beta.BetaToolUnion[] {
@@ -415,7 +416,7 @@ export interface ToolOutcome { content: string; isError: boolean }
 export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promise<ToolOutcome> {
   // Klinika asboblari faqat DentaCRM ulangan biznesda ishlaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin)
   if (isCrmTool(name) && !crmConnected(ctx.biz.id)) return { content: "DentaCRM ulanmagan — egasi panel → Ulanishlar'da ulashi kerak", isError: true };
-  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...COMPUTER_DEFS, ...MARKETING_DEFS, ...CRM_DEFS };
+  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...CONTENT_DEFS, ...COMPUTER_DEFS, ...MARKETING_DEFS, ...CRM_DEFS };
   const d = Object.hasOwn(all, name) ? all[name] : undefined;
   if (!d) return { content: `Noma'lum asbob: ${name}`, isError: true };
   const parsed = d.input.safeParse(input);

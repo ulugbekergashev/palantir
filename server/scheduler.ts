@@ -24,6 +24,7 @@ import { flushDue } from './inbox/core';
 import { pollInstagram } from './inbox/instagram';
 import { syncTasks } from './brain/mirror';
 import { tgCall, tgCallEnabled } from './tgcall';
+import { ContentError, factoryDue, runFactory } from './content/factory';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -234,6 +235,8 @@ export function startScheduler(bot: BotService): () => void {
   const stopInbox = startInbox();
   let running = false;
   let briefRetryAt = 0;
+  /** Kontent-zavod xatosi egasiga qaysi kuni aytilgan (kuniga bir marta) */
+  const contentWarned = new Map<string, string>();
   // Internet yo'q paytda har tekshiruvda emas, siyrakroq uriniladi (jurnal bir xil xato bilan to'lmasin)
   let remindRetryAt = 0;
   const remindRetryMs = Math.min(60_000, env.tickMs * 2);
@@ -279,6 +282,22 @@ export function startScheduler(bot: BotService): () => void {
           continue;
         }
         notices.remove(n.id);
+      }
+      // 4) Kontent-zavod (avtomatik rejim): har kuni ertalab qoralamalar — fonda (AI yozishi bir necha o'n soniya, jadval kutmaydi).
+      // Egasi Telegram'dagi kartani tasdiqlamaguncha kanalga hech narsa chiqmaydi
+      const contentHour = now.getHours(), contentDay = iso(now);
+      if (env.aiEnabled && Date.now() >= remindRetryAt && contentHour >= env.morningHour + 1 && contentHour < env.morningHour + 8) {
+        for (const biz of businesses.all()) {
+          if (!biz.active || !biz.ownerChatId || !factoryDue(biz.id, now)) continue;
+          void runFactory(biz).catch(async e => {
+            const why = e instanceof ContentError ? e.message : 'ichki xato';
+            console.error(`[jadval] kontent-zavod (${biz.profile.name}):`, (e as Error).message);
+            // Bir soatdan keyin yana urinadi; egasiga kuniga bir marta aytiladi
+            if (contentWarned.get(biz.id) === contentDay) return;
+            contentWarned.set(biz.id, contentDay);
+            await bot.sendText(biz.ownerChatId!, `⚠️ <b>Kontent-meyker</b>: bugungi qoralamalar tayyorlanmadi — ${esc(why)}. Bir soatdan keyin yana urinaman.`).catch(() => {});
+          });
+        }
       }
       // 3) Kechki savol: kun qanday o'tdi — egasining javobidan yordamchi mijoz va vazifalarni yangilaydi
       const eveningHour = now.getHours(), day = iso(now);

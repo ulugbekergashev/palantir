@@ -19,6 +19,10 @@ import { DiscoveriesBody } from './agents/Discoveries';
 import { AssistantDesk, dueGroup, useAssistantData } from './agents/Assistant';
 import { MarketingDesk, MarketingReports, MetaAiConnect, marketingStats, useMarketingReports } from './agents/Marketing';
 import { MarketingPosts } from './agents/Posts';
+import { ContentChannel, ContentDrafts, ContentSources, contentStats, useContent } from './agents/Content';
+import { HUE } from '../components/agent';
+import { TEAM, type Member } from '../components/team';
+import { hrefOf } from '../lib/nav';
 import { ReceptionToday, useReceptionData } from './agents/Reception';
 import { WatchCameras, WatchNow, useWatchData } from './agents/Watch';
 import { OrdersPanel } from '../components/Orders';
@@ -149,7 +153,59 @@ export function AnalystArea({ tab, biz, status, notify, state }: Common) {
   );
 }
 
-export function MarketingArea({ tab, status, notify, onStatus, state, tick }: Common & { onStatus: (s: LiveStatus) => void }) {
+/** Bo'lim ichidagi xodimlar almashtirgichi (Marketing: Marketolog · Kontent-meyker) */
+function DepartmentSwitch({ title, members, active }: { title: string; members: { member: Member; href: string; badge?: number }[]; active: Member }) {
+  return (
+    <nav aria-label={`${title} bo'limi`} className="flex flex-wrap items-center gap-2">
+      <span className="mr-1 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#7d838f]">{title}</span>
+      {members.map(m => {
+        const Icon = TEAM[m.member].icon, on = m.member === active;
+        return (
+          <a key={m.member} href={m.href} aria-current={on ? 'page' : undefined}
+            className={`flex min-h-10 items-center gap-2 rounded-full border px-3.5 text-[13.5px] font-semibold no-underline transition-colors ${on ? 'border-transparent text-[#07080b]' : 'border-glass/10 text-[#c9cbd2] hover:bg-glass/5'}`}
+            style={on ? { background: HUE[m.member].a } : undefined}>
+            <Icon className="h-4 w-4" aria-hidden="true" />{TEAM[m.member].name}
+            {!!m.badge && <span className={`rounded-full px-1.5 text-[11px] font-bold ${on ? 'bg-[#07080b]/15' : 'bg-[#f5b454] text-[#07080b]'}`}>{m.badge}</span>}
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
+const KONTENT_TABS = ['qoralamalar', 'manbalar', 'kanal'];
+
+/** Marketing bo'limi: Marketolog (Meta AI, Instagram postlari) va Kontent-meyker (Telegram kanal uchun kontent-zavod) */
+export function MarketingArea(props: Common & { onStatus: (s: LiveStatus) => void; kontent: MemberState | null }) {
+  const kontent = !!props.tab && KONTENT_TABS.includes(props.tab);
+  const members = [
+    { member: 'marketolog' as const, href: hrefOf('marketolog'), badge: props.state?.badge },
+    { member: 'kontent' as const, href: hrefOf('marketolog', 'qoralamalar'), badge: props.kontent?.badge },
+  ];
+  return (
+    <div className="space-y-4">
+      <DepartmentSwitch title="Marketing" members={members} active={kontent ? 'kontent' : 'marketolog'} />
+      {kontent ? <ContentArea {...props} /> : <MarketologArea {...props} />}
+    </div>
+  );
+}
+
+function ContentArea({ tab, status, notify, kontent, tick }: Common & { kontent: MemberState | null }) {
+  const active = pick(tab, KONTENT_TABS);
+  const [view, setView] = useContent(notify, tick);
+  return (
+    <div className="space-y-6">
+      <AgentHero member="kontent" state={kontent} stats={contentStats(view)}>
+        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'qoralamalar', label: 'Qoralamalar', count: kontent?.badge }, { id: 'manbalar', label: 'Manbalar' }, { id: 'kanal', label: 'Kanal' }]} />
+      </AgentHero>
+      {active === 'qoralamalar' && <ContentDrafts view={view} setView={setView} notify={notify} />}
+      {active === 'manbalar' && <ContentSources view={view} setView={setView} notify={notify} />}
+      {active === 'kanal' && <ContentChannel view={view} setView={setView} notify={notify} status={status} />}
+    </div>
+  );
+}
+
+function MarketologArea({ tab, status, notify, onStatus, state, tick }: Common & { onStatus: (s: LiveStatus) => void }) {
   const active = pick(tab, ['sorash', 'postlar', 'hisobotlar', 'topshiriqlar', 'ulash']);
   const [asked, setAsked] = useState(0);
   const reports = useMarketingReports(notify, tick + asked);

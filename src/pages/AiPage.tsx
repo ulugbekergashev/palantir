@@ -8,8 +8,7 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, ArrowUp, Mic, Sparkles, Square } from 'lucide-react';
 import type { Business, LiveStatus } from '../types';
-import { MEMBERS, TEAM, type Member, type MemberState } from '../components/team';
-import { hrefOf } from '../lib/nav';
+import { MEMBERS, TEAM, memberHref, type Member, type MemberState } from '../components/team';
 import { api } from '../data/api';
 import { Markdown } from '../components/Markdown';
 import { useVoice, type VoiceMode } from '../lib/useVoice';
@@ -159,7 +158,7 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
               const span = `${i < 2 ? 'lg:col-span-3' : 'lg:col-span-2'} ${i === shown.length - 1 && shown.length % 2 ? 'sm:col-span-2 lg:col-span-2' : ''}`;
               return st ? (
                 // Xodim hali ishlay olmasa — karta to'g'ri ulash sahifasiga olib boradi (birinchi kun)
-                <a key={m} href={st.next?.href ?? hrefOf(m)} className={`${span} group flex flex-col gap-3 rounded-2xl border border-glass/10 bg-glass/[0.03] p-4 text-left no-underline transition-colors hover:border-glass/20 hover:bg-glass/[0.06]`}>
+                <a key={m} href={st.next?.href ?? memberHref(m)} className={`${span} group flex flex-col gap-3 rounded-2xl border border-glass/10 bg-glass/[0.03] p-4 text-left no-underline transition-colors hover:border-glass/20 hover:bg-glass/[0.06]`}>
                   <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ff9a3c]/15 text-[#ffd9a0]"><meta.icon className="h-5 w-5" aria-hidden="true" /></span>
                     <div className="flex min-w-0 flex-col">

@@ -6,7 +6,9 @@ import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveChec
 import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
-import type { AgentEvent, AgentOrder, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
+import type { AgentEvent, AgentOrder, ContentDraft, ContentSettings, ContentSource, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
+
+export interface ContentView { settings: ContentSettings; sources: ContentSource[]; drafts: ContentDraft[]; running: boolean }
 import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 
 export type RequestView = LeadRequest & { lead: Lead | null };
@@ -304,6 +306,18 @@ export const api = {
   postEdit: (id: string, caption: string) => call<{ posts: PostView[] }>(`/posts/${id}`, { method: 'PATCH', body: { caption } }),
   postPublish: (id: string, confirm = false) => call<{ posts: PostView[] }>(`/posts/${id}/publish`, { body: { confirm } }),
   postCancel: (id: string) => call<{ posts: PostView[] }>(`/posts/${id}`, { method: 'DELETE' }),
+  // Kontent-meyker (kontent-zavod)
+  content: () => call<ContentView>('/content'),
+  contentSettings: (s: Partial<Pick<ContentSettings, 'style' | 'lang' | 'perRun' | 'auto'>>) => call<ContentView>('/content/settings', { method: 'PUT', body: s }),
+  contentChannel: (channel: string) => call<ContentView>('/content/channel', { body: { channel } }),
+  contentChannelOff: () => call<ContentView>('/content/channel', { method: 'DELETE' }),
+  contentSourceAdd: (handle: string) => call<ContentView>('/content/sources', { body: { handle } }),
+  contentSourceRemove: (id: string) => call<ContentView>(`/content/sources/${id}`, { method: 'DELETE' }),
+  contentRun: () => call<ContentView & { note: string }>('/content/run', { body: {} }),
+  contentTopic: (topic: string) => call<ContentView>('/content/topic', { body: { topic } }),
+  contentEdit: (id: string, text: string) => call<ContentView>(`/content/drafts/${id}`, { method: 'PATCH', body: { text } }),
+  contentPublish: (id: string) => call<ContentView>(`/content/drafts/${id}/publish`, { body: {} }),
+  contentCancel: (id: string) => call<ContentView>(`/content/drafts/${id}`, { method: 'DELETE' }),
 
   /** Ulash ustasi: o'rnatish holati, anketani yuklash (kod yoki fayl), egasidan Telegram'da so'rash */
   setup: () => call<{ setup: SetupView }>('/setup'),
