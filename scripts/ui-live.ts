@@ -91,7 +91,7 @@ try {
   ok('kirdi: bosh ekran — ovozli sfera va yozish qatori', await page.getByRole('button', { name: 'Palantir bilan gaplashish' }).isVisible());
   // Logotip havolasi (rasm, matnsiz) ro'yxatga kirmaydi
   const items = (await rail().getByRole('link').allInnerTexts()).map(t => t.trim().split('\n')[0]).filter(Boolean);
-  ok("menyu: Palantir, AI xodimlar, Marketing va HR bo'limlari, Miya, Sozlamalar", items.join(', ') === 'Palantir, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Marketing, HR, Miya, Sozlamalar',items.join(' | '));
+  ok("menyu: Palantir, AI xodimlar, Marketing bo'limi, «Tez kunda», Miya, Sozlamalar", items.join(', ') === 'Palantir, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Marketing, Tez kunda, Miya, Sozlamalar',items.join(' | '));
   ok("menyu: «Quloq» tugmasi bor (o'chiq)", await rail().getByRole('button', { name: /Quloq/ }).getAttribute('aria-pressed') === 'false');
   await page.getByLabel("Palantir'ga yozing").fill('Bugun nima qilishim kerak?');
   await page.getByLabel("Palantir'ga yozing").press('Enter');
@@ -300,9 +300,11 @@ try {
     && await tabOn('Kampaniyalar').isVisible() && await tabOn('Kabinet va limitlar').isVisible() && await visible(page.getByRole('button', { name: 'Reja tuzsin' })) && await page.getByText('Meta reklama kabinetini ulang').isVisible() && page.url().endsWith('#/marketolog/kampaniyalar'));
   await shot('12d-targetolog', true);
   await go('hr');
-  ok("HR bo'limi: tez kunda — Rekruter va Xodimlar tahlilchisi qulf bilan", await visible(page.getByRole('heading', { name: "HR bo'limi" }))
-    && await page.getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible() && await page.getByRole('article', { name: 'Xodimlar tahlilchisi — tez kunda' }).isVisible());
-  await shot('12e-hr', true);
+  ok("«Tez kunda»: bo'lim-bo'lim qulfli xodimlar (eski #/hr manzili ham shu yerga)", await visible(page.getByRole('heading', { name: 'Tez kunda', exact: true }))
+    && await page.getByRole('region', { name: 'HR — tez kunda' }).getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible()
+    && await page.getByRole('region', { name: 'Moliya — tez kunda' }).getByRole('article', { name: 'Buxgalter — tez kunda' }).isVisible()
+    && await page.getByRole('article').count() >= 15);
+  await shot('12e-tezkunda', true);
 
   console.log('\n# Qabulxona: yozishma');
   tgUser.incoming(TG_SESSION, '6001', 'Stol narxi qancha?', { name: 'Bobur', username: 'bobur_t' });
@@ -397,7 +399,7 @@ try {
   await menu.getByRole('menuitem', { name: 'Sozlamalar' }).click();
   ok("«Ko'proq» → Sozlamalar ochildi, menyu yopildi", await visible(page.getByRole('navigation', { name: 'Ulanishlar' })) && page.url().endsWith('#/sozlamalar') && await menu.count() === 0);
   // Panel Telegram ichida (Mini App) ham ochiladi — sozlamalarning asosiy va Telegram bo'limlari ham telefon enida sig'sin
-  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'marketolog/kampaniyalar', 'marketolog/kabinet', 'hr', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
+  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'marketolog/kampaniyalar', 'marketolog/kabinet', 'tezkunda', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
     await go(p);
     await sleep(300);
     const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

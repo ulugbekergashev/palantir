@@ -16,6 +16,7 @@ import { Attention } from '../components/Attention';
 import { dotClass } from '../components/agent';
 import { TeamDay } from '../components/TeamDay';
 import { UPCOMING, UpcomingCard } from './ComingSoon';
+import { hrefOf } from '../lib/nav';
 import { PalantirOrb } from '../components/PalantirOrb';
 import type { Notify } from '../components/Artifacts';
 
@@ -185,8 +186,9 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
 
         {/* Tez kunda: jamoa qayerga qarab o'sayotgani (qulf bilan, bosilmaydi) */}
         <section aria-label="Tez kunda" className="mt-8 w-full">
-          <h2 className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#7d838f]">🔒 Tez kunda</h2>
-          <div className="grid gap-3 sm:grid-cols-2">{UPCOMING.map(u => <UpcomingCard key={u.id} u={u} compact />)}</div>
+          <h2 className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#7d838f]">🔒 Tez kunda · {UPCOMING.length} ta yangi xodim</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{UPCOMING.slice(0, 6).map(u => <UpcomingCard key={u.id} u={u} compact />)}</div>
+          <a href={hrefOf('tezkunda')} className="mt-3 flex justify-center text-[13px] font-semibold text-[#a3a9b5] no-underline hover:text-[#f2f0ea]">Hammasi — {UPCOMING.length} ta →</a>
         </section>
 
         {/* Har xodimning bugungi ishi va bugungi jurnal */}

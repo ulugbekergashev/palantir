@@ -21,10 +21,10 @@ import { ComingSoonArea } from './pages/ComingSoon';
  */
 const TITLES: Record<Area, string> = {
   ai: 'Palantir', qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
-  tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', hr: 'HR', miya: 'Miya', sozlamalar: 'Sozlamalar',
+  tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', tezkunda: 'Tez kunda', miya: 'Miya', sozlamalar: 'Sozlamalar',
 };
 
-const ALL_AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'hr', 'miya', 'sozlamalar'];
+const ALL_AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'tezkunda', 'miya', 'sozlamalar'];
 const areasFor = (who: Who | null): Area[] =>
   who?.kind !== 'staff' ? ALL_AREAS : who.access === 'manager' ? ALL_AREAS.filter(a => a !== 'sozlamalar') : ['qabulxona'];
 
@@ -113,7 +113,7 @@ export default function LiveApp() {
           {area === 'kuzatuvchi' && <WatchArea {...common} />}
           {area === 'tahlilchi' && <AnalystArea {...common} />}
           {area === 'marketolog' && <MarketingArea {...common} onStatus={setStatus} kontent={team?.kontent ?? null} target={team?.target ?? null} />}
-          {area === 'hr' && <ComingSoonArea department="hr" />}
+          {area === 'tezkunda' && <ComingSoonArea />}
           {area === 'miya' && <MiyaArea tab={tab} notify={notify} />}
           {area === 'sozlamalar' && (
             <SettingsArea {...common} onStatus={setStatus} onBiz={setBiz} offeringsRev={offeringsRev} onSaved={(b, rev) => { setBiz(b); setOfferingsRev(rev); }} />

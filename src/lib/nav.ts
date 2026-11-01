@@ -4,12 +4,12 @@
  * (#/inbox/<mijoz>), u buzilmaydi: manzil qayta yozilmaydi.
  */
 
-export type Area = 'ai' | 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'hr' | 'miya' | 'sozlamalar';
+export type Area = 'ai' | 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'tezkunda' | 'miya' | 'sozlamalar';
 /** Eski bo'lim nomlari: jurnal yozuvlari va ovozli buyruqlar hali shular bilan ishlaydi, OLD ularni xodim varag'iga o'giradi */
 export type Page = 'home' | 'chat' | 'journal' | 'inbox' | 'requests' | 'calls' | 'cameras' | 'brain' | 'telegram';
 export interface Route { area: Area; tab: string | null }
 
-export const AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'hr', 'miya', 'sozlamalar'];
+export const AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'tezkunda', 'miya', 'sozlamalar'];
 
 /** Eski bo'limlar — qaysi xodimning qaysi varag'i */
 const OLD: Record<string, Route> = {
@@ -27,6 +27,8 @@ const OLD: Record<string, Route> = {
   documents: { area: 'miya', tab: null },
   telegram: { area: 'sozlamalar', tab: 'telegram' },
   business: { area: 'sozlamalar', tab: null },
+  // Avval faqat HR edi — endi hamma tez kunda keladigan xodimlar bir joyda
+  hr: { area: 'tezkunda', tab: null },
 };
 
 export function routeFromHash(hash = window.location.hash): Route {
