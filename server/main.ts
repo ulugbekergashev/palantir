@@ -14,7 +14,7 @@ import { flushAllWaits } from './camera/waiting';
 import { recoverMoney } from './crm/actions';
 import { closeDb } from './db';
 import { notices } from './serviceStore';
-import { recoverBookings } from './inbox/core';
+import { recoverBookings, resumeUnanswered } from './inbox/core';
 import { instagramAvailable, startInstagram, stopInstagram } from './inbox/instagram';
 import { startInstagramApi, stopInstagramApi } from './inbox/instagramApi';
 import { metaAiAvailable, stopMetaAi } from './marketing/metaAi';
@@ -56,6 +56,10 @@ onKeyChange(async name => {
 // Tarmoqqa chiqilmaydi: egasiga aytiladigan gaplar bazadagi navbatga yoziladi va bot ulangach yuboriladi (internet kech kelsa ham yo'qolmaydi)
 for (const r of recoverMoney()) notices.add(r.businessId, `⚠️ <b>${r.title}</b>\n${r.note ?? ''}`);
 recoverBookings();
+{
+  const resumed = resumeUnanswered();
+  if (resumed) console.log(`[mijozlar] javobsiz qolgan ${resumed} ta suhbat qaytadan navbatga qo'yildi`);
+}
 // Bitta kompyuter — bitta ish: yangi o'rnatishda profil shu yerda paydo bo'ladi (o'rnatuvchi admin parolisiz sozlaydi)
 ensureProfile();
 // Port — tarmoqqa bog'liq ishlardan oldin: internet bo'lmasa ham panel ochiladi, port band bo'lsa bot navbatiga tegilmaydi

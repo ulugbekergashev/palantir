@@ -127,7 +127,7 @@ export function StepInstagram({ status, routed, setup, refresh, onStatus, notify
   // Asosiy yo'l — rasmiy (Meta, Palantir Hub orqali); brauzer orqali faqat serverda yoqilgan bo'lsa (IG_VIA_BROWSER)
   if (!ig.enabled) return <Card title={handle ? `@${handle}` : "Klinikaning Instagram'i"}><InstagramOfficial status={status} onStatus={onStatus} notify={notify} /></Card>;
   if (!ig.available) return <Note>Bu kompyuterda Chrome yoki Edge topilmadi — Instagram uchun bittasini o'rnating.</Note>;
-  if (ig.account && !ig.problem) return <Done title={`Ulandi: @${ig.account}`}>Direct'dagi yozishmalar «Mijozlar» bo'limiga tushadi. Birinchi hafta — faqat egasining tasdig'i bilan.</Done>;
+  if (ig.account && !ig.problem) return <Done title={`Ulandi: ${ig.account.startsWith('@') ? '' : '@'}${ig.account}`}>Direct'dagi yozishmalar «Mijozlar» bo'limiga tushadi. Birinchi hafta — faqat egasining tasdig'i bilan.</Done>;
   const login = async () => {
     setBusy(true);
     try { onStatus((await api.igLogin()).status); } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }

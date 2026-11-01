@@ -60,6 +60,9 @@ try {
   ok('klinikani tanlash/qo\'shish yo\'q (profil bitta)', !(await page.getByRole('button', { name: /Yangi klinika/ }).count()));
   await page.locator('#p-name').fill('Shifo Dent');
   await page.locator('#p-address').fill('Toshkent, Chilonzor 7');
+  // Yangi profil sohasiz: soha yozilmaguncha saqlanmaydi (AI shunga qarab gapiradi)
+  ok("yangi profil klinika emas: soha bo'sh va majburiy", await page.locator('#p-industry').inputValue() === '' && await page.locator('#p-industry').evaluate(el => (el as HTMLInputElement).required));
+  await page.locator('#p-industry').fill('stomatologiya');
   await page.getByRole('button', { name: 'Saqlash' }).click();
   await page.getByRole('status').filter({ hasText: 'Saqlandi' }).waitFor({ timeout: 10_000 });
   ok('klinika nomi saqlandi va yon panelda ko\'rinadi', await page.locator('aside').getByText('Shifo Dent').isVisible());

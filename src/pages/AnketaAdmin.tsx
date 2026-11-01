@@ -13,7 +13,7 @@ const STATUS: Record<AnketaView['status'], { text: string; cls: string }> = {
 /** Admin: o'rnatishdan oldin egasiga yuboriladigan anketalar (havola + kod). Klinika kompyuterida kod bilan yuklanadi */
 export function AnketaAdmin({ onError, onInfo }: { onError: (e: unknown) => void; onInfo: (text: string) => void }) {
   const [list, setList] = useState<AnketaView[] | null>(null);
-  const [form, setForm] = useState({ label: '', industry: 'stomatologiya' });
+  const [form, setForm] = useState({ label: '', industry: '' });
   const [busy, setBusy] = useState(false);
   const load = () => adminApi.anketas().then(r => setList(r.anketas)).catch(onError);
   const firstLoad = useEffectEvent(load);

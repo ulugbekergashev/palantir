@@ -36,7 +36,7 @@ interface Deps {
 }
 
 const KeyBody = z.object({ value: z.string().max(400), force: z.boolean().optional() });
-const NewAnketa = z.object({ label: z.string().trim().min(1).max(60), industry: z.string().trim().max(80).default('stomatologiya') });
+const NewAnketa = z.object({ label: z.string().trim().min(1).max(60), industry: z.string().trim().max(80).default('') });
 const SaveAnketa = z.object({ data: z.unknown(), submit: z.boolean().optional() });
 const ImportAnketa = z.union([
   z.object({ code: z.string().trim().min(8).max(12), source: z.string().trim().min(8).max(300) }),

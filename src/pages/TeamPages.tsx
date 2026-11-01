@@ -9,7 +9,7 @@ import type { Business, LiveStatus } from '../types';
 import type { Notify } from '../components/Artifacts';
 import { AgentHero, AgentTabs } from '../components/agent';
 import type { MemberState } from '../components/team';
-import { isMedical } from '../lib/compliance';
+import { isClinic } from '../data/industries';
 import { setupSteps } from '../lib/setup';
 import { useDayFeed } from '../lib/useDayFeed';
 import { iso } from '../lib/week';
@@ -143,7 +143,7 @@ export function AnalystArea({ tab, biz, status, notify, state }: Common) {
       {active === 'raqamlar' && <AnalystBody data={data} />}
       {active === 'kashfiyotlar' && <DiscoveriesBody notify={notify} />}
       {active === 'talab' && <DemandBody notify={notify} />}
-      {active === 'hisobot' && <Dashboard status={status} clinic={isMedical(biz.industry)} notify={notify} />}
+      {active === 'hisobot' && <Dashboard status={status} clinic={isClinic(biz.industry, !!status.crm.account)} notify={notify} />}
       {active === 'topshiriqlar' && <OrdersPanel member="tahlilchi" notify={notify} />}
     </div>
   );
@@ -171,7 +171,7 @@ export function SettingsArea({ tab, biz, status, notify, onStatus, onBiz, offeri
   onStatus: (s: LiveStatus) => void; onBiz: (b: Business) => void; offeringsRev: string; onSaved: (b: Business, rev: string) => void;
 }) {
   const feed = useDayFeed(notify);
-  const steps = feed ? setupSteps(status, isMedical(biz.industry), feed.brain) : [];
+  const steps = feed ? setupSteps(status, isClinic(biz.industry, !!status.crm.account), feed.brain) : [];
   return (
     <div className="space-y-7">
       <header className="flex flex-wrap items-center gap-4 border-b border-glass/[0.06] pb-6">

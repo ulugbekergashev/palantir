@@ -109,7 +109,7 @@ export async function orderApiTests(h: Harness): Promise<void> {
   ok('bugun jamoa: kamera hodisasi jurnalda va Kuzatuvchi sanadi', day.timeline.some(e => e.id === events[0].id) && fact(day, 'kuzatuvchi', 'Yozuv') >= 1 && fact(day, 'kuzatuvchi', 'Kamera') >= 1);
   ok("bugun jamoa: bajarilgan ish Yordamchida sanaldi", fact(day, 'yordamchi', 'Bajarildi') >= 1, day.members.find(m => m.member === 'yordamchi')?.summary);
   const otherDay = (await api('/api/team/day', { token: otherToken })).json as Day;
-  ok("bugun jamoa: begona biznes jurnal va kamerani ko'rmaydi", !otherDay.timeline.some(e => e.id === events[0].id) && fact(otherDay, 'kuzatuvchi', 'Kamera') === 0);
+  ok("bugun jamoa: begona biznes jurnal va kamerani ko'rmaydi (kamerasiz — Kuzatuvchi ro'yxatda yo'q)", !otherDay.timeline.some(e => e.id === events[0].id) && fact(otherDay, 'kuzatuvchi', 'Kamera') <= 0);
   ok("topshiriq: begona biznes tavsifni o'zgartira olmaydi", (await api(`/api/cameras/${cam.id}/profile`, { method: 'PUT', token: otherToken, body: { profile: 'x' } })).status === 404);
   ok("topshiriq: begona biznes kameraga savol bera olmaydi", (await api('/api/cameras/ask', { token: otherToken, body: { question: 'Kim bor?', cameraId: cam.id } })).status === 404);
   ok("topshiriq: begona biznes kamera sonini ko'rmaydi", !(await api('/api/cameras/live', { token: otherToken })).json.live?.[cam.id]);

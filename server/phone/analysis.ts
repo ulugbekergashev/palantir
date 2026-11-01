@@ -5,7 +5,7 @@
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CallAnalysis, RequestKind } from '../../src/types';
-import { isMedical } from '../../src/lib/compliance';
+import { isClinic } from '../../src/data/industries';
 import { stamp } from '../../src/lib/week';
 import { profileText, think } from '../claude';
 import type { BusinessRow } from '../db';
@@ -70,7 +70,7 @@ export async function analyseTranscript(biz: BusinessRow, text: string, speakers
   const res = await think(biz.id, 'owner', {
     model: env.aiModel,
     max_tokens: 6000,
-    system: CALL_SYSTEM + (isMedical(biz.profile.industry) ? MEDICAL_NOTE : ''),
+    system: CALL_SYSTEM + (isClinic(biz.profile.industry) ? MEDICAL_NOTE : ''),
     messages: [{ role: 'user', content: `<business_profile>\n${profileText(biz)}\n</business_profile>\n\n${head}\n\n<call_transcript>\n${transcript.replace(/<\/?call_transcript>/gi, '')}\n</call_transcript>` }],
     thinking: { type: 'adaptive', display: 'omitted' },
     output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },

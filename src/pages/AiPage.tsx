@@ -36,6 +36,8 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
   const { mode, active, you, ai, cards, error, toggle, orb, push, setYou, setAi, setError, nextId } = useVoice('owner');
   const [typed, setTyped] = useState('');
   const [busyText, setBusyText] = useState(false);
+  // Ishlatilmaydigan xodim (masalan, kamerasiz biznesda Kuzatuvchi) bosh ekranda ko'rsatilmaydi
+  const shown = MEMBERS.filter(m => !team?.[m].hidden);
 
   const ask = async (text: string) => {
     const q = text.trim();
@@ -152,9 +154,9 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
           <h2 className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#9ba1ad]">Sizning AI jamoangiz</h2>
           {/* Besh xodim: kompyuterda tepada ikkitasi (asosiy ish), pastda uchtasi; telefonda ikki ustun, oxirgisi to'liq enida */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-            {MEMBERS.map((m, i) => {
+            {shown.map((m, i) => {
               const meta = TEAM[m], st = team?.[m];
-              const span = `${i < 2 ? 'lg:col-span-3' : 'lg:col-span-2'} ${i === MEMBERS.length - 1 && MEMBERS.length % 2 ? 'sm:col-span-2 lg:col-span-2' : ''}`;
+              const span = `${i < 2 ? 'lg:col-span-3' : 'lg:col-span-2'} ${i === shown.length - 1 && shown.length % 2 ? 'sm:col-span-2 lg:col-span-2' : ''}`;
               return st ? (
                 // Xodim hali ishlay olmasa — karta to'g'ri ulash sahifasiga olib boradi (birinchi kun)
                 <a key={m} href={st.next?.href ?? hrefOf(m)} className={`${span} group flex flex-col gap-3 rounded-2xl border border-glass/10 bg-glass/[0.03] p-4 text-left no-underline transition-colors hover:border-glass/20 hover:bg-glass/[0.06]`}>

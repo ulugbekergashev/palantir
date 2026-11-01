@@ -6,7 +6,6 @@
  */
 import { remindRequests } from './requests/index';
 import type { Task } from '../src/types';
-import { isMedical } from '../src/lib/compliance';
 import { upcomingOccasions } from '../src/lib/occasions';
 import { dayLong, fromIso, iso, stamp } from '../src/lib/week';
 import type { BotService } from './bot';
@@ -17,7 +16,7 @@ import { notices, settings } from './serviceStore';
 import { licenseStatus } from './license';
 import { env } from './env';
 import { crmBriefLines, crmConnected, crmWeekLine, recallPatients } from './crm/index';
-import { industryOf } from '../src/data/industries';
+import { industryOf, isClinic } from '../src/data/industries';
 import { planText, type Plan } from './plan';
 import { periodRange } from './crm/report';
 import { DAY_OUTCOME, askDay } from './outcome';
@@ -90,7 +89,7 @@ export async function morningPlan(biz: BusinessRow, now = new Date(), opts: { we
     monday ? crmWeekLine(biz.id, today) : Promise.resolve(null),
     monday && clinic ? recallPatients(biz.id, today) : Promise.resolve([]),
   ]);
-  const holidays = upcomingOccasions(now, 3, isMedical(biz.profile.industry)).map(h =>
+  const holidays = upcomingOccasions(now, 3, isClinic(biz.profile.industry)).map(h =>
     `🎉 ${dayLong('uz', fromIso(h.date))} — ${esc(h.title.uz)}. Mijozlarga tabrik yuborish kerak bo'lsa, «bayram tabrigini tayyorla» deb yozing.`);
   return planText({
     now, ownerName: biz.profile.ownerName, profile,

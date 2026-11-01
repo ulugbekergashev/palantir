@@ -5,7 +5,7 @@
 import { Markup } from 'telegraf';
 import type { InlineKeyboardMarkup } from 'telegraf/types';
 import type { Lang, MoneyEntry, MoneyStatus, Outbound, Task } from '../src/types';
-import { isMedical } from '../src/lib/compliance';
+import { isClinic } from '../src/data/industries';
 import { crmConnected } from './crm/index';
 import { cameras, leads, type BusinessRow, type LeadRow } from './db';
 import { voiceEnabled } from './env';
@@ -105,7 +105,7 @@ export const RETRY_MIN_MS = 5_000, RETRY_MAX_MS = 60_000;
 
 /** Yordam matni: misollar biznesga mos (klinika — qabul va to'lov, qolganlar — mijoz va savdo); ovoz — faqat ovoz xizmati sozlangan bo'lsa */
 export function helpFor(biz: BusinessRow): string {
-  const clinic = isMedical(biz.profile.industry) || crmConnected(biz.id);
+  const clinic = isClinic(biz.profile.industry, crmConnected(biz.id));
   const examples = clinic
     ? [
       '• «Bugun nechta bemor yozilgan, tushum qancha?»',

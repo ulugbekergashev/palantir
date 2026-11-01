@@ -13,10 +13,10 @@ import { som } from '../lib/text';
 export type Member = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog';
 
 export const TEAM: Record<Member, { name: string; role: string; about: string; icon: LucideIcon }> = {
-  qabulxona: { name: 'Qabulxona', role: 'Telefon · Instagram · Telegram', icon: Headset, about: "Mijozlarga kunu tun javob beradi, qabulga yozadi; o'zi hal qila olmaganini sizga so'rov qilib qoldiradi." },
+  qabulxona: { name: 'Qabulxona', role: 'Telefon · Instagram · Telegram', icon: Headset, about: "Mijozlarga kunu tun javob beradi, yozilish va savollarni hal qiladi; o'zi hal qila olmaganini sizga so'rov qilib qoldiradi." },
   yordamchi: { name: 'Yordamchi', role: "Sizning o'ng qo'lingiz", icon: UserRound, about: 'Eslatadi, hujjat tayyorlaydi, savolingizga javob beradi — ovoz bilan yoki yozib.' },
-  kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, about: "Kameralarni kuzatadi, siz bergan topshiriqlarni bajaradi va kadrga qarab savolingizga javob beradi; kelganlarni DentaCRM bilan solishtiradi." },
-  tahlilchi: { name: 'Tahlilchi', role: 'Raqamlar · DentaCRM', icon: ChartLine, about: "Murojaatlar, qabul va tushum — kunlik va haftalik ko'rinishda." },
+  kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, about: "Kameralarni kuzatadi, siz bergan topshiriqlarni bajaradi va kadrga qarab savolingizga javob beradi; kelganlarni jadval bilan solishtiradi." },
+  tahlilchi: { name: 'Tahlilchi', role: 'Raqamlar', icon: ChartLine, about: "Murojaatlar, so'rovlar va natija (CRM ulangan bo'lsa — qabul va tushum ham) — kunlik va haftalik ko'rinishda." },
   marketolog: { name: 'Marketolog', role: 'Meta AI · Instagram', icon: Megaphone, about: "Meta AI orqali raqobatchilarni, akkauntingizni va videolarni tahlil qiladi; kontent-reja va post g'oyalarini tayyorlaydi." },
 };
 export const MEMBERS = Object.keys(TEAM) as Member[];
@@ -26,7 +26,9 @@ export const isMember = (a: Area): a is Member => (MEMBERS as string[]).includes
  * on — ishlayapti (yashil nuqta); live — hozir faol ish ustida (qo'ng'iroqda, kamera kuzatyapti): nuqta yorqin halqa bilan.
  * next — birinchi kun: xodim ishlashi uchun egasi qiladigan bitta keyingi qadam (bosh ekrandagi kartada tugma); tayyor bo'lsa — null
  */
-export interface MemberState { status: string; detail: string; on: boolean; live: boolean; badge: number; next: { label: string; href: string } | null }
+export interface MemberState { status: string; detail: string; on: boolean; live: boolean; badge: number; next: { label: string; href: string } | null;
+  /** Bu biznesda ishlatilmaydi (kamerasi yo'q, klinika emas): bosh ekranda ko'rsatilmaydi va «ulang» deb bezovta qilmaydi */
+  hidden?: boolean }
 
 /** tick — biror ish bajarilganda (so'rov yopildi, vazifa qo'shildi) darhol yangilash uchun; clinic — DentaCRM bilan ishlaydigan soha */
 export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Member, MemberState> | null {
@@ -71,15 +73,16 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
           next: ownerLinked ? null : { label: 'Telegram’da ulanish', href: hrefOf('sozlamalar', 'telegram') },
         },
         kuzatuvchi: {
-          on: cams > 0, live: cams > 0, badge: waiting('kuzatuvchi'),
+          on: cams > 0, live: cams > 0, badge: waiting('kuzatuvchi'), hidden: !cams && !clinic,
           status: cams ? `${cams} kamera kuzatyapti` : 'Kamera ulanmagan',
           detail: cams ? 'Kreslo va kassa — jadval bilan solishtiriladi' : 'Ulash — 2 daqiqa',
           next: cams ? null : { label: 'Kamerani ulash', href: hrefOf('kuzatuvchi', 'ulash') },
         },
         tahlilchi: {
-          on: !!day, live: !!day, badge: waiting('tahlilchi'),
-          status: day ? `Bugun ${day.total} qabul · ${day.came} keldi` : crm ? 'DentaCRM javob bermadi' : 'DentaCRM ulanmagan',
-          detail: day ? `Tushum ${som(day.revenue.total)}` : 'Ulasangiz, qabul va tushumni aytadi',
+          // CRM bo'lmasa ham murojaat va so'rovlar hisoblanadi — ishlayapti
+          on: crm ? !!day : true, live: !!day, badge: waiting('tahlilchi'),
+          status: day ? `Bugun ${day.total} qabul · ${day.came} keldi` : crm ? 'DentaCRM javob bermadi' : `Ochiq so‘rovlar: ${requests?.open ?? 0}`,
+          detail: day ? `Tushum ${som(day.revenue.total)}` : crm ? 'Birozdan keyin qayta urinadi' : 'Murojaat va so‘rovlarni hisoblaydi',
           next: clinic && !crm ? { label: 'DentaCRM’ni ulash', href: hrefOf('sozlamalar', 'dentacrm') } : null,
         },
         marketolog: {

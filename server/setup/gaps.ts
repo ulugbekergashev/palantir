@@ -32,11 +32,11 @@ export function gapsOf(biz: BusinessRow): Gap[] {
   const out: Gap[] = s.conflicts.map(c => ({
     id: `${GAP_PREFIX}p${short(priceKey(c.name))}`,
     question: `«${c.name}» narxi ikki xil yozilgan: ${c.prices.map(money).join(' va ')}. Mijozga qaysi birini aytay?`,
-    hint: `Variantlar: ${c.prices.map(money).join(' yoki ')} (Telegram'da — tugma). To'g'ri narxni yozsangiz ham bo'ladi; ikkalasi ham to'g'ri bo'lsa — farqini yozing (masalan: oddiy 250 000, ultratovush 300 000)`,
+    hint: `Variantlar: ${c.prices.map(money).join(' yoki ')} (Telegram'da — tugma). To'g'ri narxni yozsangiz ham bo'ladi; ikkalasi ham to'g'ri bo'lsa — farqini yozing (masalan: oddiy 250 000, tezkor 300 000)`,
     options: c.prices.map(money),
   }));
   if (!biz.profile.offerings.length && !s.conflicts.length) {
-    out.push({ id: `${GAP_PREFIX}prices`, question: 'Narxlar hali kiritilmagan. Asosiy xizmatlaringiz va narxini yozing — har qatorda bittadan.', hint: "Masalan:\nKonsultatsiya — bepul\nPlomba — 350 000\nTish olish — 200 000" });
+    out.push({ id: `${GAP_PREFIX}prices`, question: 'Narxlar hali kiritilmagan. Asosiy xizmatlaringiz va narxini yozing — har qatorda bittadan.', hint: "Masalan:\nKonsultatsiya — bepul\nAsosiy xizmat — 350 000\nQo'shimcha xizmat — 200 000" });
   }
   if (!has('address')) out.push({ id: `${GAP_PREFIX}address`, question: "Manzilingiz qayer? Mo'ljal bilan yozing.", hint: "Masalan: Chilonzor 9-kvartal, 14-uy (Chilonzor metrosi yonida)" });
   if (!has('phone')) out.push({ id: `${GAP_PREFIX}phone`, question: 'Mijozlar qaysi raqamga qo\'ng\'iroq qilsin?', hint: 'Masalan: +998 71 200 45 67' });

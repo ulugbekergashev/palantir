@@ -10,7 +10,8 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import type { LeadStage, Task } from '../src/types';
-import { check, isMedical } from '../src/lib/compliance';
+import { check } from '../src/lib/compliance';
+import { isClinic } from '../src/data/industries';
 import { upcomingOccasions } from '../src/lib/occasions';
 import { iso, stamp } from '../src/lib/week';
 import { MAX_OFFERINGS, mergeOfferings } from '../src/lib/prices';
@@ -382,7 +383,7 @@ It takes a minute or two. Afterwards tell the owner in one or two sentences what
         waiting_for_owner: {
           followup_drafts: outbound.list(ctx.biz.id, 50).filter(o => o.status === 'draft').length,
         },
-        upcoming_holidays: upcomingOccasions(now, 14, isMedical(ctx.biz.profile.industry)).map(o => ({ date: o.date, title: o.title.uz, solemn: o.solemn })),
+        upcoming_holidays: upcomingOccasions(now, 14, isClinic(ctx.biz.profile.industry)).map(o => ({ date: o.date, title: o.title.uz, solemn: o.solemn })),
       };
     },
   }),

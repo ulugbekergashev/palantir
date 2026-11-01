@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import type { BrowserContext, Page } from 'playwright-core';
 import { iso, stamp } from '../../src/lib/week';
 import { installedBrowser } from '../browserPath';
-import { businesses, connections, leads, type BusinessRow, type ConnectionRow, type LeadRow } from '../db';
+import { businesses, connections, inbox, leads, type BusinessRow, type ConnectionRow, type LeadRow } from '../db';
 import { env } from '../env';
 import { notifyOwner, onIncoming, onOwnerOutgoing, registerSender, replySettings } from './core';
 
@@ -34,6 +34,8 @@ const PAUSE_MS = 12 * 3600_000;
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 /** Odamdek: har safar boshqacha kechikish */
 const pause = (min: number, max: number) => sleep(min + Math.random() * (max - min));
+/** Instagram cheklov oynasining matni (inglizcha, ruscha, o'zbekcha) */
+const BLOCKED = /try again later|we restrict certain|action blocked|попробуйте (еще|ещё) раз позже|мы ограничиваем|действие заблокировано|keyinroq qayta urinib|cheklaymiz|cheklab qo'y/i;
 
 /** Instagram qayta kirishni so'radi (login) yoki cheklov qo'ydi (limit) — ishlash to'xtatiladi */
 export class IgStop extends Error {
@@ -241,6 +243,9 @@ function playwright(executablePath: string): Driver {
       // Yuborilgach yozish maydoni bo'shaydi
       const sent = await page.waitForFunction(el => !(el as HTMLElement).innerText.trim(), await box.elementHandle(), { timeout: 15_000 })
         .then(() => true, () => false);
+      await pause(600, 1200);
+      const blocked = await page.getByRole('dialog').filter({ hasText: BLOCKED }).first().isVisible().catch(() => false);
+      if (blocked) throw new IgStop("Instagram xabar yuborishni vaqtincha cheklab qo'ydi", 'limit');
       if (!sent) {
         await box.press('ControlOrMeta+A').catch(() => {});
         await box.press('Backspace').catch(() => {});
@@ -380,7 +385,8 @@ export function instagramStatus(bizId: string): { account: string | null; waitin
   const l = logins.get(bizId);
   if (l?.running) return { account: c ? `@${c.account.username}` : null, waiting: true, problem: null, relogin: false };
   const p = c ? problemOf(c) : null;
-  return { account: c ? `@${c.account.username}` : null, waiting: false, problem: l?.error ?? p?.text ?? null, relogin: !!l?.error || !!p?.relogin };
+  const failing = c?.meta.failing ? `Instagram'dan xabarlar olinmayapti: ${c.meta.failing}` : null;
+  return { account: c ? `@${c.account.username}` : null, waiting: false, problem: l?.error ?? p?.text ?? failing, relogin: !!l?.error || !!p?.relogin };
 }
 
 /** Instagram to'xtatdi yoki brauzer yopildi */
@@ -404,6 +410,22 @@ async function trouble(bizId: string, e: unknown): Promise<void> {
     return;
   }
   console.warn('[instagram]', (e as Error).message);
+  const n = (failures.get(bizId) ?? 0) + 1;
+  failures.set(bizId, n);
+  if (n !== FAIL_ALERT) return;
+  connections.patchMeta(bizId, 'instagram', { failing: (e as Error).message.slice(0, 200) });
+  if (biz) await notifyOwner(biz, `⚠️ Instagram'dan xabarlar olinmayapti (${FAIL_ALERT} marta ketma-ket): ${(e as Error).message.slice(0, 200)}. Palantir brauzerni qayta ochib ko'radi; tuzalmasa — panel → Ulanishlar → Instagram'ni qayta ulang.`).catch(() => {});
+  await need().detach(bizId, false).catch(() => {});
+  await reattach(bizId);
+}
+
+/** Ketma-ket xatolar (oddiy, cheklov yoki kirish emas) */
+const failures = new Map<string, number>();
+const FAIL_ALERT = 5;
+function pollOk(bizId: string): void {
+  if (!failures.get(bizId)) return;
+  failures.delete(bizId);
+  if (connections.get(bizId, 'instagram')?.meta.failing) connections.patchMeta(bizId, 'instagram', { failing: '' });
 }
 
 async function reattach(bizId: string): Promise<void> {
@@ -430,6 +452,7 @@ export async function pollInstagram(): Promise<void> {
     nextPoll.set(bizId, Date.now() + env.igPollMs * (0.7 + Math.random() * 0.6));
     try {
       await pollOne(c);
+      pollOk(bizId);
     } catch (e) {
       await trouble(bizId, e);
     }
@@ -465,6 +488,12 @@ async function pollOne(c: ConnectionRow): Promise<void> {
   if (newest > since) connections.patchMeta(bizId, 'instagram', { cursor: String(newest) });
 }
 
+/** Instagram bergan vaqt — aqlga sig'sa (oxirgi 30 kun ichida), aks holda yo'q (saqlash vaqti olinadi) */
+const realTime = (t: string | number): string | undefined => {
+  const ms = toMs(t);
+  return ms > Date.now() - 30 * 86_400_000 && ms < Date.now() + 5 * 60_000 ? new Date(ms).toISOString() : undefined;
+};
+
 function onItem(bizId: string, t: IgThread, user: IgUser, it: IgItem, text: string, viewer: string, isRequest: boolean): void {
   const biz = businesses.byId(bizId);
   const userId = String(user.pk ?? user.pk_id ?? '');
@@ -480,7 +509,7 @@ function onItem(bizId: string, t: IgThread, user: IgUser, it: IgItem, text: stri
   onIncoming(biz, {
     channel: 'instagram',
     person: { igUserId: userId, igThread: threadKey(t), name: user.full_name?.trim() || null, username: user.username || null },
-    text, extId: it.item_id, source: isRequest ? "Instagram (so'rov)" : 'Instagram',
+    text, extId: it.item_id, source: isRequest ? "Instagram (so'rov)" : 'Instagram', at: realTime(it.timestamp),
   });
 }
 
@@ -506,7 +535,17 @@ async function sendDirect(biz: BusinessRow, lead: LeadRow, text: string): Promis
   if (problem) throw new Error(problem.text);
   const today = iso(new Date());
   const sentToday = () => { const m = connections.get(biz.id, 'instagram')?.meta; return m?.day === today ? Number(m.sent ?? 0) : 0; };
+  // Faqat yaqinda yozgan odamga: 24 soatdan beri yozmagan odamga yozish — «birinchi bo'lib yozish», akkaunt uchun xavfli
+  const lastIn = inbox.thread(biz.id, lead.id, 30).filter(m => m.direction === 'in' && m.channel === 'instagram').at(-1);
+  if (!lastIn || Date.now() - Date.parse(lastIn.createdAt) > 86_400_000) {
+    throw new Error("Bu odam Instagram'da 24 soatdan beri yozmagan — akkaunt xavfsizligi uchun Palantir birinchi bo'lib yozmaydi. Kerak bo'lsa o'zingiz yozing");
+  }
+  const hour = new Date().toISOString().slice(0, 13);
+  const sentHour = () => { const m = connections.get(biz.id, 'instagram')?.meta; return m?.hour === hour ? Number(m.hourSent ?? 0) : 0; };
   const chunks = parts(text);
+  if (sentHour() + chunks.length > env.igHourlyLimit) {
+    throw new Error(`Shu soatda Instagram'da ${sentHour()} ta xabar yuborildi — akkaunt xavfsizligi uchun biroz kutiladi. Keyinroq qayta yuboring`);
+  }
   if (sentToday() + chunks.length > env.igDailyLimit) {
     throw new Error(`Bugun Instagram'da ${sentToday()} ta xabar yuborildi — akkaunt xavfsizligi uchun ertagacha shu yetarli. O'zingiz javob bering`);
   }
@@ -520,7 +559,7 @@ async function sendDirect(biz: BusinessRow, lead: LeadRow, text: string): Promis
     for (const p of chunks) {
       ours.set(oursKey(biz.id, v1, p), Date.now());
       await d.type(biz.id, list, p);
-      connections.patchMeta(biz.id, 'instagram', { day: today, sent: String(sentToday() + 1) });
+      connections.patchMeta(biz.id, 'instagram', { day: today, sent: String(sentToday() + 1), hour, hourSent: String(sentHour() + 1) });
     }
   } catch (e) {
     if (e instanceof IgStop || e instanceof Detached) void trouble(biz.id, e);

@@ -5,7 +5,7 @@
  * Yozuv matni begona odamning gapi: modelga ma'lumot sifatida beriladi, ko'rsatma sifatida emas.
  */
 import type Anthropic from '@anthropic-ai/sdk';
-import { isMedical } from '../src/lib/compliance';
+import { isClinic } from '../src/data/industries';
 import { profileText, think } from './claude';
 import type { BusinessRow } from './db';
 import { env } from './env';
@@ -39,7 +39,7 @@ export async function reviewCall(biz: BusinessRow, audio: Buffer, mime: string):
   const res = await think(biz.id, 'owner', {
     model: env.aiModel,
     max_tokens: 4000,
-    system: SYSTEM + (isMedical(biz.profile.industry) ? MEDICAL_NOTE : ''),
+    system: SYSTEM + (isClinic(biz.profile.industry) ? MEDICAL_NOTE : ''),
     messages: [{ role: 'user', content: `<business_profile>\n${profileText(biz)}\n</business_profile>\n\n<call_transcript>\n${transcript.replace(/<\/?call_transcript>/gi, '')}\n</call_transcript>` }],
     thinking: { type: 'adaptive', display: 'omitted' },
     output_config: { effort: 'low' },

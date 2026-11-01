@@ -18,6 +18,7 @@ import { phoneKey, prettyPhone } from '../src/lib/phone';
 import { iso, stamp } from '../src/lib/week';
 import { namesFit, patientFor, patientHasPhone, phoneVerified, proofFor, samePerson } from '../server/personRules';
 import { cleanDue, daytime, firstRemind } from '../server/requests/timing';
+import { unsupportedOffer } from '../server/inbox/offerGuard';
 import { CUSTOMER, OWNER, ai, aiServer, igWeb, igWebServer, listen, press, say, sent, shareContact, sleep, tgNames, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 
@@ -46,6 +47,15 @@ ok("tasdiq boshqa akkauntga yoki boshqa raqamga o'tmaydi; tasdiqsiz — yo'q",
   !phoneVerified(V({ tgUserId: '6', phone: '+998944445566', phoneProof: proofFor('5', '998944445566') }))
   && !phoneVerified(V({ tgUserId: '5', phone: '+998901112233', phoneProof: proofFor('5', '998944445566') })) && !phoneVerified(V({ tgUserId: '5', phone: '+998944445566' })));
 ok('tasdiqlangan raqam bemorniki: asosiy yoki qo\'shimcha raqami', patientHasPhone(pts[0], '94 444 55 66') && patientHasPhone(pts[2], '975556677') && !patientHasPhone(pts[2], '944445566'));
+
+console.log('\n# Javobdagi narx va chegirma (sof)');
+{
+  const k = "Plomba — 350 000 so'm. Konsultatsiya bepul. Tel +998 90 123 45 67";
+  ok("ma'lumotdagi narx, «bepul», telefon, soat — o'tadi", !unsupportedOffer("Plomba 350 000 so'm turadi", k) && !unsupportedOffer('Konsultatsiya bepul', k)
+    && !unsupportedOffer("+998 90 123 45 67 ga qo'ng'iroq qiling", k) && !unsupportedOffer('Soat 10:00 da ochiqmiz', k));
+  ok("ma'lumotda yo'q narx, foiz, chegirma — egasiga", unsupportedOffer('Narxi 400 ming', k) && unsupportedOffer('Sizga 20% chegirma', k)
+    && unsupportedOffer('Скидка 10%', k) && unsupportedOffer("1 200 000 so'm", k));
+}
 
 console.log('\n# Eslatma vaqti (sof)');
 const H = { from: 8, to: 21 };

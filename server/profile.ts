@@ -23,7 +23,7 @@ import { emptyBusiness } from './validate';
 const AUTO = 'profile.auto';
 /** Egasiga topshirilgan payt (ISO) */
 const HANDED = 'profile.handover';
-export const DEFAULT_NAME = 'Yangi klinika';
+export const DEFAULT_NAME = 'Yangi biznes';
 const DEFAULT_LOGIN = 'klinika';
 
 const has = (name: string) => settings.all().some(r => r.name === name);
@@ -46,7 +46,7 @@ export function ensureProfile(): BusinessRow | null {
   if (!env.oneProfile) return null;
   const existing = businesses.all();
   if (existing.length) return existing[existing.length - 1];
-  const b = businesses.create(DEFAULT_LOGIN, hashPassword(newOwnerPassword(24)), emptyBusiness(DEFAULT_NAME, 'stomatologiya'));
+  const b = businesses.create(DEFAULT_LOGIN, hashPassword(newOwnerPassword(24)), emptyBusiness(DEFAULT_NAME, ''));
   settings.set(AUTO, new Date().toISOString());
   console.log("[profil] bu kompyuterning profili yaratildi — egasiga topshirilguncha sozlash bosqichi");
   return b;

@@ -23,7 +23,7 @@ import { clock, stepState, visibleSteps, type StepKey, type StepState, type Wiza
 
 const BIZ_KEY = 'palantir_setup_biz', T0_KEY = 'palantir_setup_t0';
 /** O'rnatish o'zi yaratgan profilning nomi (server/profile.ts DEFAULT_NAME): o'zgartirilmagan bo'lsa «Klinika» qadami tayyor emas */
-const DEFAULT_NAME = 'Yangi klinika';
+const DEFAULT_NAME = 'Yangi biznes';
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k: string, v: string | null) => { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch { /* yopiq xotira */ } };
 

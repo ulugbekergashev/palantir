@@ -11,6 +11,8 @@ import { periodDays } from '../src/lib/dashboard';
 import { iso } from '../src/lib/week';
 import { dashboard } from './analytics';
 import { cameras, connections, outbound, tasks, type BusinessRow } from './db';
+import { isClinic } from '../src/data/industries';
+import { crmConnected } from './crm/index';
 import { events } from './orders/store';
 
 type Handler = (req: Request, res: Response) => unknown;
@@ -25,11 +27,12 @@ const TIMELINE = 12;
 function reception(biz: BusinessRow, now: Date): DayMember {
   const k = dashboard(biz, periodDays('today', now), now).kpi;
   const inq = k.inquiries.value, ans = k.answered.value, booked = k.booked.value, left = k.unanswered.value;
+  const clinic = isClinic(biz.profile.industry, crmConnected(biz.id));
   const summary = !inq ? "Bugun hali murojaat bo'lmadi — navbatchilikda."
     : `${inq} murojaatdan ${ans} tasiga javob berdi${k.answered.responseMin != null ? ` (o'rtacha ${k.answered.responseMin} daqiqada)` : ''}`
-      + `${booked ? `, ${booked} kishini qabulga yozdi` : ''}.${left ? ` ${left} tasi hali javobsiz.` : ''}`;
+      + `${booked ? (clinic ? `, ${booked} kishini qabulga yozdi` : `, ${booked} ta kelishuv`) : ''}.${left ? ` ${left} tasi hali javobsiz.` : ''}`;
   return { member: 'qabulxona', summary, facts: [
-    { label: 'Murojaat', value: inq }, { label: 'Javob berdi', value: ans }, { label: 'Qabulga yozdi', value: booked }, { label: "So'rov qoldirdi", value: k.requests.value },
+    { label: 'Murojaat', value: inq }, { label: 'Javob berdi', value: ans }, { label: clinic ? 'Qabulga yozdi' : 'Kelishildi', value: booked }, { label: "So'rov qoldirdi", value: k.requests.value },
   ] };
 }
 
@@ -67,13 +70,16 @@ function marketer(biz: BusinessRow, t: Tally): DayMember {
   return { member: 'marketolog', summary, facts: [{ label: 'Tahlil', value: done }] };
 }
 
+const usesCameras = (biz: BusinessRow) => cameras.list(biz.id).length > 0 || isClinic(biz.profile.industry, crmConnected(biz.id));
+
 export function teamDay(biz: BusinessRow, now = new Date()): TeamDay {
   const today = iso(now);
   const from = new Date(`${today}T00:00:00`).toISOString(), to = new Date(now.getTime() + 1000).toISOString();
   const t = events.tally(biz.id, from);
   return {
     date: today,
-    members: [reception(biz, now), assistant(biz, from, to, today), watcher(biz, t), analyst(t), marketer(biz, t)],
+    // Kamerasi yo'q, klinika emas — Kuzatuvchi ro'yxatda yo'q (bo'sh «Kamera 0» ko'rsatilmaydi)
+    members: [reception(biz, now), assistant(biz, from, to, today), ...(usesCameras(biz) ? [watcher(biz, t)] : []), analyst(t), marketer(biz, t)],
     timeline: events.since(biz.id, from, TIMELINE),
   };
 }

@@ -115,6 +115,7 @@ try {
   // Kirish va klinika yaratish — scrypt (ataylab og'ir): yuklangan CI kompyuterida bir necha soniya olishi mumkin
   await page.getByLabel('Klinika nomi').waitFor({ timeout: 20000 });
   await page.getByLabel('Klinika nomi').fill('Shifo Dent');
+  await page.getByLabel('Soha').fill('stomatologiya');
   await shot(page, 'usta-klinika-yangi');
   await page.getByRole('button', { name: "Klinikani qo'shish" }).click();
   ok("klinika qo'shildi, login-parol ko'rsatildi", await page.getByText("Klinika qo'shildi").waitFor({ timeout: 15000 }).then(() => true, () => false));

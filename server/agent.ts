@@ -13,7 +13,6 @@
 import { createHash } from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import type { Artifact, ChatEntry } from '../src/types';
-import { isMedical } from '../src/lib/compliance';
 import { upcomingOccasions } from '../src/lib/occasions';
 import { DAYS, iso, stamp, weekday } from '../src/lib/week';
 import { LIMITS as BRAIN_LIMITS, fitPages, plain } from './brain/logic';
@@ -22,7 +21,7 @@ import { businesses, chatLog, conversations, type BusinessRow } from './db';
 import { env } from './env';
 import { AiLimitError, profileText, think } from './claude';
 import { crmClinicName, crmConnected } from './crm/index';
-import { COMMON_RULES, industryOf } from '../src/data/industries';
+import { COMMON_RULES, industryOf, isClinic } from '../src/data/industries';
 import { runTool, toolDefinitions, type ToolCtx } from './tools';
 import { orders } from './orders/store';
 import { SubscriptionError, subscriptionOn, type SubscriptionReason } from './subscription/engine';
@@ -93,7 +92,7 @@ function standingOrders(bizId: string): string {
 
 function buildSystem(b: BusinessRow): string {
   const now = new Date();
-  const holidays = upcomingOccasions(now, 21, isMedical(b.profile.industry));
+  const holidays = upcomingOccasions(now, 21, isClinic(b.profile.industry, crmConnected(b.id)));
   // Fayl tashlanganidagi yozuvlar (📎 …) kiritilmaydi: ularda fayl nomi va matnining boshi bor — bu begona matn, egasi hali tasdiqlamagan
   const recent = chatLog.recent(b.id, 10).filter(e => !e.text.startsWith('📎'));
   const samples = knowledge.list(b.id).filter(k => k.kind === 'sample' && k.status === 'active');

@@ -3,8 +3,8 @@
  * Yozilish yo'llari: egasi o'zi yozadi (panel, tayyor savollar), mijozga bergan javobini «eslab qol» deydi (taklif → tasdiq),
  * tayyor javobni tuzatib yuboradi (tuzatish), yoki papkadagi faylni Obsidian'da o'zgartiradi. Hammasi fayllarda turadi (vault.ts).
  */
-import { packFor } from '../../src/data/industries';
-import { check, isMedical } from '../../src/lib/compliance';
+import { isClinic, packFor } from '../../src/data/industries';
+import { check } from '../../src/lib/compliance';
 import { mergeOfferings, parsePrices, type PriceLine } from '../../src/lib/prices';
 import type { BrainView, Knowledge } from '../../src/types';
 import { crmConnected } from '../crm/index';
@@ -56,7 +56,7 @@ export const packOf = (biz: BusinessRow) => packFor(biz.profile.industry, crmCon
  * Reklama filtri sozlamasi. Mijozga ketadigan javob (inbox/core.ts), paneldagi ogohlantirish va ovozli agent bilimi — hammasi shuni
  * ishlatadi, shunda uchalasi bir-biridan ajralib ketmaydi. DentaCRM ulangan biznes — sohasi qanday yozilgan bo'lishidan qat'i nazar klinika.
  */
-export const filterOptions = (biz: BusinessRow): { medical: boolean } => ({ medical: isMedical(biz.profile.industry) || crmConnected(biz.id) });
+export const filterOptions = (biz: BusinessRow): { medical: boolean } => ({ medical: isClinic(biz.profile.industry, crmConnected(biz.id)) });
 
 /**
  * Bilimdagi matnda reklama filtri ushlaydigan so'z bo'lsa («kafolat», «og'riqsiz»…), egasi buni bilishi kerak. Filtr bilimni emas,

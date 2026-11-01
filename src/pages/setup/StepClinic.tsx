@@ -15,7 +15,7 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
   setup: SetupView | null; onSetup: (s: SetupView) => void; notify: (text: string, error?: boolean) => void;
 }) {
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState(() => ({ name: '', industry: 'stomatologiya', login: '', password: newPassword() }));
+  const [form, setForm] = useState(() => ({ name: '', industry: '', login: '', password: newPassword() }));
   const [created, setCreated] = useState<{ login: string; password: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const showForm = adding || list?.length === 0;
@@ -41,7 +41,7 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
         {!list ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : showForm ? (
           <form onSubmit={create} className="grid gap-3 sm:grid-cols-2">
             <Field label="Klinika nomi"><TextInput value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Shifo Dent" required autoFocus /></Field>
-            <Field label="Soha"><TextInput value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} /></Field>
+            <Field label="Soha"><TextInput value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} required maxLength={80} placeholder="stomatologiya, o'quv markaz, IT xizmatlar…" /></Field>
             <Field label="Kabinet logini" hint="Egasi panelga shu bilan kiradi"><TextInput value={form.login} onChange={e => setForm({ ...form, login: e.target.value })} placeholder={loginFrom(form.name) || 'shifodent'} /></Field>
             <Field label="Parol" hint="O'zi yaratildi — o'zgartirsangiz ham bo'ladi (kamida 8 belgi)"><TextInput value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength={8} required className="font-mono" /></Field>
             <div className="flex gap-2 sm:col-span-2">

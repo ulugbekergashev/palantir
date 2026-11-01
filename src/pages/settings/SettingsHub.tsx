@@ -8,7 +8,7 @@ import { Camera as CameraIcon, MessageCircleHeart, Phone, Send, Settings, Sparkl
 import type { Business, LiveStatus } from '../../types';
 import { api, type PhoneLine } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
-import { isMedical } from '../../lib/compliance';
+import { isClinic } from '../../data/industries';
 import { hrefOf } from '../../lib/nav';
 import { DentaCrm } from '../DentaCrmSection';
 import { AccountCard } from './AccountCard';
@@ -46,7 +46,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
     return () => { stale = true; };
   }, [tab]);
 
-  const clinic = isMedical(biz.industry) || !!status.crm.account;
+  const clinic = isClinic(biz.industry, !!status.crm.account);
   const ig = status.instagramApi.account ?? status.instagram.account;
   const igProblem = status.instagramApi.problem ?? status.instagram.problem;
   const tiles: Tile[] = [

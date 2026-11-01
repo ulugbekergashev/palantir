@@ -137,7 +137,7 @@ export function createBot(): BotService {
   async function handleOwner(ctx: Context, biz: BusinessRow, text: string, voice = false, extra: { display?: string; photo?: boolean } = {}) {
     // Ovozdan o'girilgan matn yoki rasm izohida ham kalit bo'lishi mumkin: modelga, jurnalga va bilimga ketmaydi
     if (containsSecret(text)) {
-      await ctx.reply("🔒 Bu xabarda maxfiy kalit (token, parol bilan manzil) bor — uni hech qayerga saqlamadim va yordamchiga bermadim. Kalitlarni klinika kompyuteridagi panelga, «Ulash» sahifasiga kiriting.");
+      await ctx.reply("🔒 Bu xabarda maxfiy kalit (token, parol bilan manzil) bor — uni hech qayerga saqlamadim va yordamchiga bermadim. Kalitlarni Palantir o'rnatilgan kompyuterdagi panelga, «Ulash» sahifasiga kiriting.");
       return;
     }
     // Birinchi kun suhbati ochiq bo'lsa (yoki egasi «savollar» desa) — gap javob deb olinadi va yordamchiga ketmaydi. Rasm tavsifi javob emas
@@ -310,7 +310,7 @@ export function createBot(): BotService {
   bot.command('panel', async ctx => {
     if (!ownerOf(ctx)) return;
     const url = remoteUrl();
-    if (!url?.startsWith('https://')) return ctx.reply("Masofadan kirish sozlanmagan: klinika kompyuterida Palantir Hub kodi kerak. Hozircha panel faqat klinika kompyuterida ochiladi.");
+    if (!url?.startsWith('https://')) return ctx.reply("Masofadan kirish sozlanmagan: Palantir o'rnatilgan kompyuterda Hub kodi kerak. Hozircha panel faqat o'sha kompyuterda ochiladi.");
     return ctx.reply("Panel — shu yerda, telefoningizda:", Markup.inlineKeyboard([Markup.button.webApp('📊 Panelni ochish', url)]));
   });
 
@@ -475,7 +475,7 @@ export function createBot(): BotService {
     if (biz && containsSecret(text)) {
       // Egasi token yoki kalitni botga yozib yubordi: xabar chatdan o'chiriladi, modelga, jurnalga va bilimga tushmaydi
       await ctx.deleteMessage().catch(() => {});
-      return ctx.reply("🔒 Xabaringizda maxfiy kalit (token, parol bilan manzil) bor edi — uni chatdan o'chirdim va hech qayerga saqlamadim. Kalitlarni Telegram'ga yozmang: ularni klinika kompyuteridagi panelga, «Ulash» sahifasiga kiriting.");
+      return ctx.reply("🔒 Xabaringizda maxfiy kalit (token, parol bilan manzil) bor edi — uni chatdan o'chirdim va hech qayerga saqlamadim. Kalitlarni Telegram'ga yozmang: ularni Palantir o'rnatilgan kompyuterdagi panelga, «Ulash» sahifasiga kiriting.");
     }
     if (biz) {
       // Mijoz xabariga "Reply" — javob mijozga ketadi

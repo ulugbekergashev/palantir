@@ -101,8 +101,9 @@ try {
   const teamCards = page.getByRole('region', { name: 'AI jamoa' });
   const cardOf = (name: string) => teamCards.getByRole('link').filter({ hasText: name });
   ok("birinchi kun: sozlanmagan xodim kartasida bitta keyingi qadam — to'g'ri ulash sahifasiga",
-    await cardOf('Kuzatuvchi').getByText('Kamerani ulash').isVisible() && (await cardOf('Kuzatuvchi').getAttribute('href'))?.endsWith('#/kuzatuvchi/ulash')
-    && await cardOf('Marketolog').getByText('Meta AI’ga kirish').isVisible() && (await cardOf('Marketolog').getAttribute('href'))?.endsWith('#/marketolog/ulash'));
+    await cardOf('Marketolog').getByText('Meta AI’ga kirish').isVisible() && (await cardOf('Marketolog').getAttribute('href'))?.endsWith('#/marketolog/ulash'));
+  ok("kamerasiz savdo biznesida Kuzatuvchi bosh ekranda yo'q («Kamerani ulash» deb bezovta qilmaydi), menyuda bor",
+    !(await cardOf('Kuzatuvchi').count()) && items.includes('Kuzatuvchi'));
   ok("birinchi kun: savdo sohasida Tahlilchi DentaCRM so'ramaydi", !(await cardOf('Tahlilchi').getByText('DentaCRM’ni ulash').count()));
   await shot('02a-home', true);
 

@@ -175,6 +175,8 @@ export const env = {
   igPollMs: Number(process.env.IG_POLL_MS) || 90_000,
   /** Akkaunt xavfsizligi: bir kunda Instagram'da yuboriladigan xabarlar chegarasi */
   igDailyLimit: Number(process.env.IG_DAILY_LIMIT) || 120,
+  /** Bir soatda Instagram'ga yuboriladigan xabarlar: birdaniga ko'p xabar — spam belgisi */
+  igHourlyLimit: Number(process.env.IG_HOURLY_LIMIT) || 20,
   /** Faqat sinov uchun: brauzer o'rniga soxta Instagram */
   igFakeUrl: process.env.IG_FAKE_URL || '',
 
@@ -212,6 +214,8 @@ export const env = {
   inboxDebounceMs: Number(process.env.INBOX_DEBOUNCE_MS) || 8_000,
   /** "O'zi javob bersin" rejimidagi kutish daqiqasining uzunligi (sinovda qisqartiriladi) */
   minuteMs: Number(process.env.MINUTE_MS) || 60_000,
+  /** Egasi suhbatga o'zi yozgandan keyin shuncha daqiqa AI javobni o'zi yubormaydi — faqat taklif qiladi */
+  humanPauseMin: Number(process.env.HUMAN_PAUSE_MIN) || 120,
 
   /**
    * DentaCRM manzili ichki tarmoqda bo'lishi mumkinmi (klinikadagi kompyuter — odatiy holat).

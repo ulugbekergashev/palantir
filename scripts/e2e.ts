@@ -428,6 +428,11 @@ try {
   await sleep(2500);
   ok("egasi kutish vaqtida o'zi yozsa — Palantir yozmaydi", !tgUser.sent.some(m => m.to.userId === '6003'));
   mark = sent.length;
+  tgUser.incoming(TG_SESSION, '6003', 'Ish vaqtingiz qanday?', { name: 'Kamola' });
+  ok("egasi shu suhbatda gaplashyapti — keyingi javob faqat taklif (egasiga karta)", await waitFor('karta', () => after(mark, OWNER, s => has('Kamola')(s) && buttons(s).length > 0)));
+  await sleep(2500);
+  ok("...va o'zicha yubormaydi (egasi gaplashayotgan joyga aralashmaydi)", !tgUser.sent.some(m => m.to.userId === '6003'));
+  mark = sent.length;
   tgUser.incoming(TG_SESSION, '6004', 'Chegirma bormi?', { name: 'Jamshid' });
   ok("o'zi rejimida ham bilmagan narsasini egasidan so'raydi", await waitFor('karta', () => after(mark, OWNER, s => has('Jamshid')(s) && buttons(s).length === 2)));
   await sleep(2000);

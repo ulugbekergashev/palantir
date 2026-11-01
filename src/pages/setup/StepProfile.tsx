@@ -97,11 +97,11 @@ function ClinicCard({ notify, onSaved }: { notify: Notify; onSaved: () => Promis
   });
 
   return (
-    <Card title="Klinika" description="Mijozlar va egasi ko'radigan asosiy ma'lumot. Qolganini (narxlar, ko'p so'raladigan savollar) egasi Telegram'ni ulagach bot o'zi so'raydi.">
+    <Card title="Biznes" description="Mijozlar va egasi ko'radigan asosiy ma'lumot. Qolganini (narxlar, ko'p so'raladigan savollar) egasi Telegram'ni ulagach bot o'zi so'raydi.">
       {!biz ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : (
         <form onSubmit={save} className="grid gap-3 sm:grid-cols-2">
-          <Field label="Klinika nomi"><TextInput id="p-name" {...field('name')} required maxLength={60} /></Field>
-          <Field label="Soha"><TextInput id="p-industry" {...field('industry')} placeholder="stomatologiya" /></Field>
+          <Field label="Nomi"><TextInput id="p-name" {...field('name')} required maxLength={60} /></Field>
+          <Field label="Soha" hint="AI shunga qarab gapiradi: klinika, o'quv markaz, IT xizmat, do'kon…"><TextInput id="p-industry" {...field('industry')} required maxLength={80} placeholder="stomatologiya, o'quv markaz, IT xizmatlar…" /></Field>
           <Field label="Egasining ismi"><TextInput id="p-owner" {...field('ownerName')} /></Field>
           <Field label="Telefon"><TextInput id="p-phone" {...field('phone')} placeholder="+998 90 123 45 67" /></Field>
           <Field label="Manzil"><TextInput id="p-address" {...field('address')} /></Field>

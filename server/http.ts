@@ -677,14 +677,14 @@ export function createApp(bot: BotService) {
     res.json({ status: statusFor(req, businesses.byId(biz.id)!) });
   }));
 
-  app.post('/api/instagram/login', asBiz((req, res, biz) => {
+  app.post('/api/instagram/login', asOwner((req, res, biz) => {
     try { startInstagramLogin(biz); res.json({ status: statusFor(req, biz) }); } catch (e) { fail(res, e, 400); }
   }));
   app.post('/api/instagram/cancel', asBiz((_req, res, biz) => {
     cancelInstagramLogin(biz);
     res.json({ ok: true });
   }));
-  app.delete('/api/instagram', asBiz(async (req, res, biz) => {
+  app.delete('/api/instagram', asOwner(async (req, res, biz) => {
     await disconnectInstagram(biz);
     res.json({ status: statusFor(req, businesses.byId(biz.id)!) });
   }));

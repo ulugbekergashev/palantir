@@ -59,7 +59,7 @@ try {
 
   console.log('\n# Bitta kompyuter — bitta profil');
   const p0 = await phase();
-  ok("profil o'zi yaratildi, sozlash bosqichida, Hub hali yo'q", p0.oneProfile && p0.setup && p0.name === 'Yangi klinika' && p0.hub === null, JSON.stringify(p0));
+  ok("profil o'zi yaratildi, sozlash bosqichida, Hub hali yo'q", p0.oneProfile && p0.setup && p0.name === 'Yangi biznes' && p0.hub === null, JSON.stringify(p0));
   const adminToken = (await (await fetch(`${base}/api/admin/login`, post({ password: 'admin-pass-1' }))).json() as { token: string }).token;
   const second = await fetch(`${base}/api/admin/businesses`, post({ name: 'Boshqa ish', login: 'boshqa', password: 'secret12' }, adminToken));
   ok('admin ikkinchi profil ocha olmaydi — 409', second.status === 409, ((await second.json()) as { error: string }).error);

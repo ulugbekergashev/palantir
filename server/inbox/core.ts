@@ -16,7 +16,7 @@ import type { AutoReply, InboxMessage, LeadChannel, ReplyBooking } from '../../s
 import { check } from '../../src/lib/compliance';
 import { iso } from '../../src/lib/week';
 import { businesses, inbox, leads, relays, replies, type BusinessRow, type ChannelPerson, type LeadRow, type ReplyRow } from '../db';
-import { notices } from '../serviceStore';
+import { notices, settings as store } from '../serviceStore';
 import { cleanName, normPhone } from '../crm/logic';
 import { filterOptions, recordFix } from '../brain/index';
 import { ownerAnswered } from '../brain/learn';
@@ -120,9 +120,13 @@ export interface Incoming {
   /** Kanaldagi xabar id'si — bir xabar ikki marta kelsa (qayta tekshiruvda) bir marta ishlanadi */
   extId: string;
   source: string;
+  /** Kanaldagi asl vaqti (ISO), bilinsa — eski xabarlarni ajratish uchun */
+  at?: string;
 }
 
 const timers = new Map<string, NodeJS.Timeout>();
+/** Shundan eski mijoz xabariga AI javobni o'zi yubormaydi */
+const STALE_MS = 12 * 3_600_000;
 
 /** Bitta suhbat uchun bir kunda tayyorlanadigan javoblar soni */
 const MAX_AI_PER_LEAD_DAY = 40;
@@ -139,7 +143,7 @@ function leadAiAllowed(leadId: string): boolean {
 
 export function onIncoming(biz: BusinessRow, m: Incoming): LeadRow {
   const { lead } = leads.fromChannel(biz.id, m.channel, m.person, m.source);
-  const saved = inbox.add(biz.id, { leadId: lead.id, channel: m.channel, direction: 'in', by: 'customer', text: m.text, extId: m.extId });
+  const saved = inbox.add(biz.id, { leadId: lead.id, channel: m.channel, direction: 'in', by: 'customer', text: m.text, extId: m.extId, at: m.at });
   if (saved) schedule(biz.id, lead.id);
   return lead;
 }
@@ -155,13 +159,44 @@ export function onOwnerOutgoing(biz: BusinessRow, channel: 'telegram' | 'instagr
   void supersede(biz, lead, "O'zingiz javob berdingiz").catch(e => console.error('[mijozlar] karta:', (e as Error).message));
 }
 
+/**
+ * Ishlanishi kutilayotgan suhbatlar bazada ham turadi: taymer xotirada, dastur shu orada qayta ishga tushsa (yangilanish, o'chib-yonish)
+ * mijozning xabari javobsiz yo'qolmasin — resumeUnanswered qaytadan ishlaydi
+ */
+const PENDING = 'inbox:pending';
+const pendingKeys = (): string[] => {
+  try { return JSON.parse(store.all().find(r => r.name === PENDING)?.value ?? '[]') as string[]; } catch { return []; }
+};
+function markPending(key: string, on: boolean): void {
+  const all = new Set(pendingKeys());
+  if (on === all.has(key)) return;
+  if (on) all.add(key); else all.delete(key);
+  store.set(PENDING, JSON.stringify([...all].slice(-500)));
+}
+
 function schedule(bizId: string, leadId: string): void {
   const key = `${bizId}:${leadId}`;
   clearTimeout(timers.get(key));
+  markPending(key, true);
   timers.set(key, setTimeout(() => {
     timers.delete(key);
-    handle(bizId, leadId).catch(e => console.error('[mijozlar]', (e as Error).message));
+    handle(bizId, leadId)
+      .catch(e => console.error('[mijozlar]', (e as Error).message))
+      // Ishlov paytida yana xabar kelgan bo'lsa — yangi taymer bor, belgi qoladi
+      .finally(() => { if (!timers.has(key)) markPending(key, false); });
   }, env.inboxDebounceMs));
+}
+
+/** Dastur ishga tushganda: oldingi safar ishlanmay qolgan suhbatlar qaytadan navbatga (6 soatdan eski xabarga AI endi javob bermaydi) */
+export function resumeUnanswered(maxAgeMs = 6 * 3_600_000): number {
+  let n = 0;
+  for (const key of pendingKeys()) {
+    const [bizId, leadId] = key.split(':');
+    const last = bizId && leadId ? inbox.last(bizId, leadId) : undefined;
+    const fresh = last?.direction === 'in' && Date.now() - Date.parse(last.createdAt) < maxAgeMs && !replies.open(bizId, leadId).length;
+    if (fresh) { schedule(bizId, leadId); n++; } else markPending(key, false);
+  }
+  return n;
 }
 
 /** Oxirgi javobimizdan keyingi mijoz xabarlari */
@@ -179,6 +214,11 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   if (!last || last.direction !== 'in') return;
   const fresh = unanswered(thread);
   const settings = replySettings(biz);
+  // Egasi shu suhbatga yaqinda o'zi yozgan — u gaplashayotgan joyga AI aralashmaydi: javob faqat taklif bo'lib egasiga boradi
+  const ownerTalking = thread.some(m => m.by === 'owner' && Date.now() - Date.parse(m.createdAt) < env.humanPauseMin * env.minuteMs);
+  // Eski xabar (kompyuter o'chiq turgan, Instagram keyin berdi): vaziyat o'zgargan bo'lishi mumkin — javob ham faqat taklif
+  const stale = Date.now() - Date.parse(last.createdAt) > STALE_MS;
+  const mode = settings.mode === 'auto' && (ownerTalking || stale) ? 'draft' : settings.mode;
   // Qabul taklifi (klinika) hozircha qoladi: bemor shunchaki «rahmat» desa, egasidagi karta bekor bo'lmasin
   await supersede(biz, lead, 'Yangi xabar keldi — pastda yangi taklif', true);
 
@@ -213,7 +253,7 @@ async function handle(bizId: string, leadId: string): Promise<void> {
 
   if (d.action === 'book' && d.booking) {
     try {
-      return await receive(biz, lead, fresh, d, settings.mode);
+      return await receive(biz, lead, fresh, d, mode);
     } catch (e) {
       // Kutilmagan xato (masalan, Telegram kartani qabul qilmadi): bemorning xabari javobsiz yo'qolmasin
       console.error('[mijozlar] qabul:', (e as Error).message);
@@ -222,7 +262,7 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   }
   if ((d.action === 'reschedule' || d.action === 'cancel_visit') && d.change) {
     try {
-      return await changeFlow(biz, lead, fresh, d, settings.mode);
+      return await changeFlow(biz, lead, fresh, d, mode);
     } catch (e) {
       console.error("[mijozlar] qabulni o'zgartirish:", (e as Error).message);
       return forward(biz, lead, fresh, "Palantir qabulni o'zgartira olmadi — CRM'ni tekshirib, o'zingiz javob bering");
@@ -235,7 +275,7 @@ async function handle(bizId: string, leadId: string): Promise<void> {
     return;
   }
   const clean = isClean(biz, d.reply);
-  if (settings.mode === 'auto' && d.action === 'reply' && clean) {
+  if (mode === 'auto' && d.action === 'reply' && clean) {
     // Botda egasi suhbatda yo'q — darhol; shaxsiy chatda egasiga o'zi javob berishga vaqt
     const delay = lead.channel === 'bot' ? 0 : settings.delayMin * env.minuteMs;
     const r = replies.create(bizId, { leadId, channel: lead.channel, text: d.reply, status: 'scheduled', note: null, dueAt: new Date(Date.now() + delay).toISOString() });

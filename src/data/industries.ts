@@ -107,6 +107,12 @@ export function industryOf(industry: string, clinic = false): IndustryProfile {
   return { kind, ...PROFILES[kind] };
 }
 
+/**
+ * Biznes klinikami — dasturdagi YAGONA tekshiruv (tibbiy qoidalar, DentaCRM eslatmalari, bayramlar, misollar).
+ * «Klinikalar uchun AI» kabi klinikaga sotuvchi — klinika emas; DentaCRM ulangan bo'lsa — klinika.
+ */
+export const isClinic = (industry: string, crm = false): boolean => industryOf(industry, crm).kind === 'clinic';
+
 export const COMMON_RULES = COMMON_PLAYBOOK;
 /** Biznesning tayyor savollari: klinika (tibbiyot yoki DentaCRM ulangan), o'quv markazi, xizmat, ishlab chiqarish, savdo */
 export const packFor = (industry: string, clinic: boolean): PackQuestion[] => industryOf(industry, clinic).pack;
