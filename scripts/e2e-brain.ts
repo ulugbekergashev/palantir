@@ -313,6 +313,24 @@ export async function brainVaultTests(h: Harness): Promise<void> {
   ok("papka: Faktlar.md ga qo'lda qo'shilgan qator ham fakt", facts.some(f => f.text === 'Naqd va karta qabul qilamiz') && !!manual, text('Bilim/Faktlar.md'));
   ok("papka: fakt o'chirilsa qatori ketadi, boshqasi qoladi", (await api(`/api/notes/${manual?.id}`, { method: 'DELETE', token })).status === 200 && !text('Bilim/Faktlar.md').includes('Dushanba') && text('Bilim/Faktlar.md').includes('Naqd va karta'));
 
+  // ─── Tuzilmali xotira: tur, teglar, kim, eskirgan ───
+  const decision = (await api('/api/notes', { token, body: { text: 'Reklama limiti oyiga $500', kind: 'qaror', tags: ['#Meta', 'reklama'] } })).json.note;
+  ok("xotira: qaror teglar bilan saqlandi, «Siz» va bugungi sana bilan", decision?.kind === 'qaror' && decision.tags.join() === 'meta,reklama' && decision.by === 'Siz' && /^\d{4}-\d{2}-\d{2}$/.test(decision.createdAt), JSON.stringify(decision));
+  ok("xotira: Faktlar.md da Obsidian o'qiydigan qator", text('Bilim/Faktlar.md').includes(`- Reklama limiti oyiga $500 #meta #reklama [tur:: qaror] [sana:: ${decision?.createdAt}] [kim:: Siz] [manba:: panel] ^${decision?.id}`), text('Bilim/Faktlar.md'));
+  ok("xotira: noma'lum tur — 400", (await api('/api/notes', { token, body: { text: 'X', kind: 'boshqa' } })).status === 400);
+  const staled = (await api(`/api/notes/${decision?.id}`, { method: 'PATCH', token, body: { stale: true } })).json.note;
+  const liveIds = ((await api('/api/notes', { token })).json.notes as { id: string }[]).map(n => n.id);
+  const allNotes = (await api('/api/notes?all=1', { token })).json.notes as { id: string; staleAt: string | null }[];
+  ok("xotira: eskirgan — AI ko'radigan ro'yxatda yo'q, «hammasi»da sanasi bilan bor, qatori o'z belgisi bilan qoldi",
+    !!staled?.staleAt && !liveIds.includes(decision?.id) && !(await brain()).facts.some(f => f.id === decision?.id) && allNotes.some(n => n.id === decision?.id && !!n.staleAt)
+    && text('Bilim/Faktlar.md').includes('[eskirgan::') && text('Bilim/Faktlar.md').includes(`^${decision?.id}`), JSON.stringify(allNotes));
+  const revived = (await api(`/api/notes/${decision?.id}`, { method: 'PATCH', token, body: { stale: false, kind: 'qoida', tags: ['limit'] } })).json.note;
+  ok("xotira: qaytarildi, turi va teglari o'zgardi (belgi o'sha)", revived?.id === decision?.id && !revived.staleAt && revived.kind === 'qoida' && revived.tags.join() === 'limit'
+    && ((await api('/api/notes', { token })).json.notes as { id: string }[]).some(n => n.id === decision?.id), JSON.stringify(revived));
+  appendFileSync(file('Bilim/Faktlar.md'), '- Bosh shifokor bilan kelishuv #hamkor [tur:: kontakt] [kim:: Obsidian]\n');
+  ok("xotira: Obsidian'da qo'lda yozilgan maydonli qator ham tushunildi", (await api('/api/notes?all=1', { token })).json.notes.some((n: { text: string; kind: string; tags: string[]; by: string }) => n.text === 'Bosh shifokor bilan kelishuv' && n.kind === 'kontakt' && n.tags.join() === 'hamkor' && n.by === 'Obsidian'));
+  ok("xotira: yo'q yozuvni o'zgartirish — 404", (await api('/api/notes/yoq', { method: 'PATCH', token, body: { stale: true } })).status === 404);
+
   rmSync(file(qa));
   ok("papka: fayl o'chirilsa bilimdan ketadi", !(await brain()).qa.some(k => k.question === 'Yetkazib berasizmi?'));
 

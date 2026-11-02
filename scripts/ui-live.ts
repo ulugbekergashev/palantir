@@ -372,6 +372,28 @@ try {
   ok("miya: sahifalar (Obsidian kabi) — «Biznes haqida» ro'yxatda", await visible(page.getByText('Biznes haqida').first(), 10000));
   await shot('14b-miya-sahifalar');
 
+  console.log('\n# Xotira: qaror, teg, eskirgan');
+  await go('miya/xotira');
+  const records = page.getByRole('region', { name: 'Yozuvlar' });
+  await page.getByRole('button', { name: 'Yangi yozuv' }).click();
+  await page.locator('label').filter({ hasText: /^Qaror$/ }).click();
+  await page.getByLabel('Yozuv matni').fill('Reklama limiti oyiga 500$ — oktabr natijasiga qarab');
+  await page.getByLabel('Teglar').fill('reklama, limit');
+  await page.getByRole('button', { name: 'Saqlash', exact: true }).click();
+  const card = records.getByRole('listitem').filter({ hasText: 'Reklama limiti oyiga 500$' });
+  ok('xotira: qaror teglari bilan chiqdi (tur belgisi, «Siz», #reklama)', await visible(card) && await card.getByText('qaror', { exact: true }).isVisible()
+    && await card.getByText(/Siz/).isVisible() && await card.getByRole('button', { name: '#reklama' }).isVisible());
+  await page.getByRole('complementary', { name: 'Xotira turlari' }).getByRole('button', { name: /Qarorlar/ }).click();
+  ok("xotira: «Qarorlar» filtri — faqat qarorlar", await card.isVisible() && (await records.getByRole('listitem').count()) === 1);
+  await page.getByRole('complementary', { name: 'Xotira turlari' }).getByRole('button', { name: /Hammasi/ }).click();
+  await shot('14c-xotira');
+  await card.hover();
+  await card.getByRole('button', { name: /Eskirgan deb belgilash/ }).click();
+  ok("xotira: eskirgan — ro'yxatdan yashirindi", await card.waitFor({ state: 'detached', timeout: 8000 }).then(() => true, () => false));
+  await page.getByText('Eskirganlar ham').click();
+  ok("xotira: «Eskirganlar ham» — chizilgan holda ko'rinadi", await visible(card) && await card.getByText(/eskirgan/).first().isVisible());
+  await shot('14d-xotira-eskirgan');
+
   console.log('\n# Birinchi kun suhbati');
   await go('miya/savollar');
   await page.getByRole('button', { name: "Suhbatda so'rab chiq" }).click();

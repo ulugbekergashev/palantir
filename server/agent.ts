@@ -78,7 +78,8 @@ export function knowledgeBlocks(b: BusinessRow): string[] {
   return [
     `<business_profile>\n${profileText(b)}\n</business_profile>`,
     pages.length ? `<business_pages>\nPages of the business's second brain: the address, hours, contacts and whatever else the owner keeps there. "[id] title" lists every page; the text of those that fit follows.\n${pages.slice(0, 50).map(p => `- [${p.id}] ${plain(p.question, BRAIN_LIMITS.title)}`).join('\n')}\n\n${fitted.map(l => `- ${l}`).join('\n')}\n</business_pages>` : '',
-    `<saved_notes>\n${saved.length ? saved.map(n => `- [${n.id}] ${n.text}`).join('\n') : '(none yet)'}\n</saved_notes>`,
+    // Turi (qaror, qoida…) oddiy faktdan boshqacha bo'lsa ko'rsatiladi: qaror va qoidaga AI boshqacha og'irlik beradi
+    `<saved_notes>\n${saved.length ? saved.map(n => `- [${n.id}]${n.kind && n.kind !== 'fakt' ? ` (${n.kind})` : ''} ${n.text}`).join('\n') : '(none yet)'}\n</saved_notes>`,
   ];
 }
 

@@ -3,7 +3,7 @@ import type { PriceLine } from '../lib/prices';
 import type { AnketaData } from '../lib/anketa';
 import type { KeyName } from '../lib/secrets';
 import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveCheck, SetupView } from '../types';
-import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
+import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
 import type { AdPlan, AdsView, AgentEvent, AgentOrder, ContentDraft, ContentSettings, ContentSource, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
@@ -247,7 +247,10 @@ export const api = {
   sampleFromFile: (id: string) => call<{ brain: BrainView }>(`/brain/${id}/sample`, { body: {} }),
   importPrices: (items: PriceLine[]) => call<{ brain: BrainView; added: number; updated: number; dropped: number; free: number }>('/brain/prices', { body: { items } }),
 
-  addNote: (text: string) => call<{ note: Note }>('/notes', { body: { text } }),
+  addNote: (text: string, meta: { kind?: MemoryKind; tags?: string[] } = {}) => call<{ note: Note }>('/notes', { body: { text, ...meta } }),
+  /** Xotira: eskirganlari bilan (sahifa uchun) */
+  memory: () => call<{ notes: Note[] }>('/notes?all=1'),
+  updateNote: (id: string, patch: { text?: string; kind?: MemoryKind; tags?: string[]; stale?: boolean }) => call<{ note: Note }>(`/notes/${id}`, { method: 'PATCH', body: patch }),
   deleteNote: (id: string) => call<{ ok: true }>(`/notes/${id}`, { method: 'DELETE' }),
 
   inbox: () => call<{ threads: InboxThread[]; settings: AutoReply }>('/inbox'),

@@ -210,10 +210,22 @@ export interface Outbound {
   createdAt: string;
 }
 
+/** Xotira yozuvining turi: qaror (kim, nima, nega), qoida (har doim shunday), fakt, afzallik (egasi nimani yoqtiradi), odat, kontakt */
+export type MemoryKind = 'qaror' | 'qoida' | 'fakt' | 'afzallik' | 'odat' | 'kontakt';
+
+/** Xotira yozuvi (Bilim/Faktlar.md dagi bitta qator). createdAt — yozilgan sana (eski qatorlarda bo'sh) */
 export interface Note {
   id: string;
   text: string;
   createdAt: string;
+  kind?: MemoryKind;
+  tags?: string[];
+  /** Kim yozdi yoki tasdiqladi: «Siz», «Siz (suhbatda)», «Narxlar ro'yxati» */
+  by?: string;
+  /** Qayerdan: panel, suhbat, narxlar, … */
+  source?: string;
+  /** Eskirgan sana — AI'ga berilmaydi, tarixda qoladi */
+  staleAt?: string | null;
 }
 
 /** Mijoz bilan yozishma (bot, shaxsiy Telegram, Instagram) */

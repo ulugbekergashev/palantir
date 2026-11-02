@@ -3,7 +3,8 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import type { Artifact, InboxThread, LiveStatus } from '../src/types';
+import type { Artifact, InboxThread, LiveStatus, MemoryKind } from '../src/types';
+import { cleanTags, isMemoryKind } from '../src/lib/memory';
 import { iso } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
 import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword, verifyInitData } from './auth';
@@ -109,6 +110,14 @@ const LeadPatch = LeadCreate.omit({ source: true }).extend({
   nextStep: z.string().trim().max(200).nullable().optional(),
   nextAt: localTime.nullable().optional(),
 });
+/** Xotira yozuvining turi va teglari (so'rovdan): berilmagani — o'zgarmaydi; noto'g'ri tur — xato */
+function memoryInput(body: unknown): { kind?: MemoryKind; tags?: string[] } | { error: string } {
+  const b = (body ?? {}) as { kind?: unknown; tags?: unknown };
+  if (b.kind !== undefined && !isMemoryKind(b.kind)) return { error: "Noma'lum tur" };
+  if (b.tags !== undefined && !(Array.isArray(b.tags) && b.tags.length <= 20 && b.tags.every(t => typeof t === 'string'))) return { error: "Teglar ro'yxati noto'g'ri" };
+  return { ...(b.kind !== undefined ? { kind: b.kind as MemoryKind } : {}), ...(b.tags !== undefined ? { tags: cleanTags(b.tags as string[]) } : {}) };
+}
+
 const orNull = (s: string | null | undefined) => (s === undefined ? undefined : s?.trim() ? s.trim() : null);
 
 /** So'rov tanasini o'qiydi (JSON bo'lmagan yuklama uchun). Chegaradan oshsa — null: ortig'i xotiraga olinmaydi, lekin javob yuborish uchun oxirigacha kutiladi */
@@ -637,12 +646,27 @@ export function createApp(bot: BotService) {
   }));
 
   // ─── Eslab qolingan faktlar ────────────────────────────────────────────────
-  app.get('/api/notes', asBiz((_req, res, biz) => { res.json({ notes: notes.list(biz.id) }); }));
+  // ?all=1 — eskirganlari bilan (Xotira sahifasi); aks holda — faqat jonlilari (AI ko'radigani)
+  app.get('/api/notes', asBiz((req, res, biz) => { res.json({ notes: req.query.all === '1' ? notes.all(biz.id) : notes.list(biz.id) }); }));
 
   app.post('/api/notes', asBiz((req, res, biz) => {
     const text = typeof req.body?.text === 'string' ? req.body.text.trim().slice(0, 500) : '';
     if (!text) return res.status(400).json({ error: "Matn bo'sh" });
-    const n = notes.add(biz.id, text);
+    const meta = memoryInput(req.body);
+    if ('error' in meta) return res.status(400).json({ error: meta.error });
+    const n = notes.add(biz.id, text, { ...meta, by: 'Siz', source: 'panel' });
+    resetConversation(biz.id);
+    res.json({ note: n });
+  }));
+
+  app.patch('/api/notes/:id', asBiz((req, res, biz) => {
+    const meta = memoryInput(req.body);
+    if ('error' in meta) return res.status(400).json({ error: meta.error });
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim().slice(0, 500) : undefined;
+    if (text === '') return res.status(400).json({ error: "Matn bo'sh" });
+    const stale = typeof req.body?.stale === 'boolean' ? req.body.stale : undefined;
+    const n = notes.update(biz.id, String(req.params.id), { ...meta, text, stale });
+    if (!n) return res.status(404).json({ error: 'Topilmadi' });
     resetConversation(biz.id);
     res.json({ note: n });
   }));

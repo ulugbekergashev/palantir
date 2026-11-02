@@ -11,6 +11,7 @@ import type { Notify } from '../components/Artifacts';
 import { NoteView } from '../components/NoteView';
 import { hrefOf } from '../lib/nav';
 import { BrainPage } from './BrainPage';
+import { MemoryPage } from './MemoryPage';
 
 interface TreeNode { name: string; path: string; kind: 'dir' | 'file'; children?: TreeNode[] }
 interface Note { path: string; content: string; modified: string; backlinks: { path: string; line: string }[] }
@@ -243,7 +244,7 @@ function Vault({ notify }: { notify: Notify }) {
 
 export function MiyaArea({ tab, notify }: { tab: string | null; notify: Notify }) {
   // Standart — savollar va narxlar (egasi ko'proq shuni to'ldiradi); papka ko'rinishi (Obsidian kabi) — ikkinchi varaqda
-  const active = tab === 'sahifalar' ? 'sahifalar' : 'savollar';
+  const active = tab === 'sahifalar' || tab === 'xotira' ? tab : 'savollar';
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-5 border-b border-glass/[0.06] pb-6">
@@ -255,13 +256,13 @@ export function MiyaArea({ tab, notify }: { tab: string | null; notify: Notify }
           </div>
         </div>
         <nav aria-label="Varaqlar" className="flex flex-wrap gap-1.5">
-          {[{ id: 'savollar', label: 'Savollar va narxlar' }, { id: 'sahifalar', label: 'Sahifalar' }].map(t => (
+          {[{ id: 'savollar', label: 'Savollar va narxlar' }, { id: 'xotira', label: 'Xotira' }, { id: 'sahifalar', label: 'Sahifalar' }].map(t => (
             <a key={t.id} href={hrefOf('miya', t.id)} aria-current={t.id === active ? 'page' : undefined}
               className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium no-underline transition-colors ${t.id === active ? 'bg-[#f2f0ea] text-[#07080b]' : 'text-[#a3a9b5] hover:bg-glass/5 hover:text-[#f2f0ea]'}`}>{t.label}</a>
           ))}
         </nav>
       </header>
-      {active === 'sahifalar' ? <Vault notify={notify} /> : <div className="agent-body"><BrainPage notify={notify} /></div>}
+      {active === 'sahifalar' ? <Vault notify={notify} /> : active === 'xotira' ? <MemoryPage notify={notify} /> : <div className="agent-body"><BrainPage notify={notify} /></div>}
     </div>
   );
 }

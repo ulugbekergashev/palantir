@@ -6,6 +6,7 @@ import { Button, Card, PageHeader, TextInput, inputClass } from '../components/u
 import { MAX_OFFERINGS, MIN_FILE_PRICES, parsePrices } from '../lib/prices';
 import type { BrainView, Knowledge } from '../types';
 import { DocumentsCard } from './DocumentsCard';
+import { hrefOf } from '../lib/nav';
 
 /** So'rovni bajaradi va sahifani javobdagi holat bilan yangilaydi. Xato bo'lsa — null (xabar ko'rsatilgan) */
 type Save = <T extends { brain: BrainView }>(work: Promise<T>, saved?: string) => Promise<T | null>;
@@ -169,7 +170,8 @@ function Facts({ brain, reload, fail }: { brain: BrainView; reload: () => unknow
     if (text.trim()) api.addNote(text.trim()).then(() => { setText(''); return reload(); }).catch(fail);
   };
   return (
-    <Card title="Faktlar" description="Doimiy narsalar: yetkazib berish shartlari, rekvizitlar, ish tartibi. Yordamchiga «eslab qol: …» deb aytsangiz ham shu yerga tushadi.">
+    <Card title="Faktlar" description="Doimiy narsalar: yetkazib berish shartlari, rekvizitlar, ish tartibi. Yordamchiga «eslab qol: …» deb aytsangiz ham shu yerga tushadi."
+      action={<a href={hrefOf('miya', 'xotira')} className="text-sm font-medium text-[#ffd9a0] no-underline hover:underline">Xotira: qarorlar, qoidalar, teglar →</a>}>
       <ul className="mb-3 space-y-1.5">
         {brain.facts.map(n => <Row key={n.id} label={n.text} onRemove={() => { api.deleteNote(n.id).then(reload).catch(fail); }}>{n.text}</Row>)}
         {!brain.facts.length && <li className="text-sm text-slate-400">Hali yo'q.</li>}

@@ -281,12 +281,12 @@ It takes a minute or two. Afterwards tell the owner in one or two sentences what
   }),
 
   remember: def({
-    description: 'Save a lasting fact about the business or the owner\'s preferences (e.g. "Yetkazib berish bepul 200 000 so\'mdan", "Hujjatlarda direktor: A. Karimov"). Use it when the owner says to remember something or states a stable fact worth keeping. Not for one-off tasks.',
-    input: z.object({ fact: short(500) }),
+    description: 'Save a lasting record in the business memory (e.g. "Yetkazib berish bepul 200 000 so\'mdan", "Hujjatlarda direktor: A. Karimov"). Use it when the owner says to remember something or states a stable fact worth keeping. Not for one-off tasks. kind: "qaror" — a decision the owner made (what and why), "qoida" — a rule that always applies, "fakt" — terms, requisites, how things work, "afzallik" — how the owner likes things done, "odat" — a recurring routine, "kontakt" — a partner, supplier or useful person. tags: 1–3 short lowercase topic words (e.g. "narx", "yetkazish").',
+    input: z.object({ fact: short(500), kind: z.enum(['qaror', 'qoida', 'fakt', 'afzallik', 'odat', 'kontakt']).optional(), tags: z.array(short(30)).max(6).optional() }),
     run: (i, ctx) => {
       // Saqlangan fakt har bir keyingi suhbatga kiradi — begona matn (rasmdagi yozuv, mijozning xabari) shu yo'l bilan doimiy ko'rsatmaga aylanmasin
       assertOwnWords(ctx);
-      return { saved: notes.add(ctx.biz.id, i.fact) };
+      return { saved: notes.add(ctx.biz.id, i.fact, { kind: i.kind, tags: i.tags, by: 'Siz (suhbatda)', source: 'suhbat' }) };
     },
   }),
 

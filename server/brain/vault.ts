@@ -20,12 +20,14 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, type Dirent } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { Knowledge, KnowledgeKind, Note } from '../../src/types';
+import type { Knowledge, KnowledgeKind, MemoryKind, Note } from '../../src/types';
+import { cleanTags, cleanText, formatMemory, parseMemory, type MemoryFields } from '../../src/lib/memory';
 import { businesses, newId, type BusinessRow } from '../db';
 import { notes as tableNotes } from './knowledgeStore';
 import { knowledge as tableKnowledge } from './knowledgeStore';
 import { env } from '../env';
 import { inert } from './logic';
+import { iso } from '../../src/lib/week';
 
 const ACTIVE = 'Bilim', WAITING = 'Kutyapti', DOCS = 'Hujjatlar', SOURCES = 'Manbalar';
 /** Bazadagi yozuvlarning ko'rinishi (mirror.ts yozadi): vazifalar ro'yxati va telefon suhbatlari — bilim emas, modelga mijoz javobi uchun berilmaydi */
@@ -338,7 +340,7 @@ function factLinesIn(root: string, forWrite = false): string[] {
   if (text === null && forWrite) throw new Error("Faktlar.md ni o'qib bo'lmadi — faylni tekshiring");
   return text ? text.split(/\r?\n/) : [];
 }
-interface FactRow { id: string; text: string; line: number }
+interface FactRow extends MemoryFields { id: string; line: number }
 function factRows(lines: string[]): FactRow[] {
   // Fayl boshidagi xossalar bloki (teglar ro'yxati ham «- » bilan boshlanadi) fakt emas
   const start = lines[0]?.trim() === '---' ? lines.findIndex((l, i) => i > 0 && l.trim() === '---') + 1 : 0;
@@ -350,27 +352,64 @@ function factRows(lines: string[]): FactRow[] {
     // Nusxasi ko'chirilgan qator (belgisi yoki matni bir xil): ikkinchisi o'rnidan belgi oladi — bittasi o'chirilganda ikkalasi ketmaydi
     const id = seen.has(own) ? factId(`${m[1]}#${line}`) : own;
     seen.add(id);
-    return [{ id, text: m[1].slice(0, MAX_FACT), line }];
+    const fields = parseMemory(m[1]);
+    // Faqat maydon yoki tegdan iborat qator (matnsiz) — fakt emas
+    return fields.text ? [{ ...fields, text: fields.text.slice(0, MAX_FACT), id, line }] : [];
   });
 }
 const factCount = (root: string): number => factRows(factLinesIn(root)).length;
 
-/** Faktlar — Bilim/Faktlar.md dagi ro'yxat qatorlari. Egasi Obsidian'da qo'shgan qator ham fakt (belgisi matnidan hisoblanadi) */
+/** Xotira yozuvi (sahifa va AI uchun ko'rinish): sana bo'lmasa — createdAt bo'sh */
+const toNote = (r: FactRow): Note => ({
+  id: r.id, text: r.text, createdAt: r.date, kind: r.kind, tags: r.tags, by: r.by, source: r.source, staleAt: r.stale || null,
+});
+/** Mahalliy (Toshkent) sana: UTC'da kech soatda kun bir kun orqada qolmasin */
+const today = (): string => iso(new Date());
+
+/** Yozuvga beriladigan qo'shimcha ma'lumot: turi, teglari, kim va qayerdan */
+export interface FactMeta { kind?: MemoryKind; tags?: string[]; by?: string; source?: string }
+export interface FactPatch { text?: string; kind?: MemoryKind; tags?: string[]; stale?: boolean }
+
+/**
+ * Xotira — Bilim/Faktlar.md dagi ro'yxat qatorlari (har qator — bitta yozuv: qaror, qoida, fakt…). Egasi Obsidian'da qo'shgan
+ * qator ham yozuv (belgisi matnidan hisoblanadi). list — faqat jonlilari (AI shuni oladi), all — eskirganlari bilan (sahifa uchun)
+ */
 export const facts = {
   list(bizId: string): Note[] {
-    const root = vaultDir(bizId);
-    const at = new Date().toISOString();
-    return factRows(factLinesIn(root)).map(r => ({ id: r.id, text: r.text, createdAt: at }));
+    return factRows(factLinesIn(vaultDir(bizId))).filter(r => !r.stale).map(toNote);
   },
-  add(bizId: string, text: string): Note {
-    const note = { id: newId(8), text: text.replace(/\s+/g, ' ').trim(), createdAt: new Date().toISOString() };
+  all(bizId: string): Note[] {
+    return factRows(factLinesIn(vaultDir(bizId))).map(toNote);
+  },
+  add(bizId: string, text: string, meta: FactMeta = {}): Note {
+    const row: FactRow = {
+      id: newId(8), line: -1, text: cleanText(text), kind: meta.kind ?? 'fakt', tags: cleanTags(meta.tags ?? []), date: today(),
+      by: meta.by ?? '', source: meta.source ?? '', stale: '',
+    };
     const lines = factLinesIn(vaultDir(bizId), true);
-    const head = lines.length ? lines : ['# Faktlar', '', 'Har qator — bitta fakt. Palantir ularni hujjat va javoblarda ishlatadi.', ''];
+    const head = lines.length ? lines : ['# Faktlar', '', 'Har qator — bitta yozuv (qaror, qoida, fakt…). Palantir ularni hujjat va javoblarda ishlatadi; [eskirgan:: …] belgilisi ishlatilmaydi.', ''];
     const before = head.join('\n').trimEnd();
     // Ro'yxatning birinchi qatori sarlavha matnidan bo'sh qator bilan ajraladi
-    put(vaultDir(bizId), FACTS, `${before}${FACT_LINE.test(before.split('\n').at(-1) ?? '') ? '\n' : '\n\n'}- ${note.text} ^${note.id}\n`);
+    put(vaultDir(bizId), FACTS, `${before}${FACT_LINE.test(before.split('\n').at(-1) ?? '') ? '\n' : '\n\n'}- ${formatMemory(row)} ^${row.id}\n`);
     refresh(bizId);
-    return note;
+    return toNote(row);
+  },
+  /** Yozuvni o'zgartiradi (turi, teglari, matni, eskirgan/qaytarilgan). Belgisi (^id) saqlanadi — havolalar uzilmaydi */
+  update(bizId: string, id: string, patch: FactPatch): Note | null {
+    const lines = factLinesIn(vaultDir(bizId), true);
+    const hit = factRows(lines).find(r => r.id === id);
+    if (!hit) return null;
+    const next: FactRow = {
+      ...hit,
+      ...(patch.text !== undefined && cleanText(patch.text) ? { text: cleanText(patch.text) } : {}),
+      ...(patch.kind ? { kind: patch.kind } : {}),
+      ...(patch.tags ? { tags: cleanTags(patch.tags) } : {}),
+      ...(patch.stale === undefined ? {} : { stale: patch.stale ? (hit.stale || today()) : '' }),
+    };
+    const indent = /^\s*/.exec(lines[hit.line])?.[0] ?? '';
+    put(vaultDir(bizId), FACTS, lines.map((l, n) => (n === hit.line ? `${indent}- ${formatMemory(next)} ^${hit.id}` : l)).join('\n'));
+    refresh(bizId);
+    return toNote(next);
   },
   remove(bizId: string, id: string): boolean {
     const lines = factLinesIn(vaultDir(bizId), true);

@@ -46,7 +46,7 @@ export function importPrices(biz: BusinessRow, items: PriceLine[]): PriceImport 
   refresh(biz.id);
   const known = new Set(notes.list(biz.id).map(n => n.text));
   const free = [...new Set(items.filter(i => i.price === 0).map(i => `${i.name} — bepul`))].filter(t => !known.has(t));
-  for (const fact of free) notes.add(biz.id, fact);
+  for (const fact of free) notes.add(biz.id, fact, { kind: 'fakt', tags: ['narx'], by: "Narxlar ro'yxati", source: 'narxlar' });
   return { added: merged.added, updated: merged.updated, dropped: merged.dropped, free: free.length };
 }
 
