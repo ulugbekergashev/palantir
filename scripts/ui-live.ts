@@ -416,6 +416,11 @@ try {
   await page.getByRole('link', { name: 'Qarorlar jurnali' }).click();
   ok("direktor: jurnalda «ishda» va tekshirish sanasi bilan", await visible(page.getByRole('listitem').filter({ hasText: 'Har yangi murojaatga darhol javob ber' }).getByText('ishda')) && await page.getByText(/tekshiriladi/).first().isVisible());
   await shot('14f-direktor-jurnal');
+  await go('ai');
+  const homeMove = page.getByRole('listitem').filter({ hasText: 'Direktor: sizga taklif' });
+  ok("bosh ekran «Sizni kutyapti»: Direktorning qolgan taklifi «Vazifamga qo'sh» bilan", await visible(homeMove, 10000) && await homeMove.getByRole('button', { name: "Vazifamga qo'sh" }).isVisible());
+  await homeMove.getByRole('button', { name: 'Kerak emas' }).click();
+  ok('bosh ekran: «Kerak emas» — taklif ro\'yxatdan tushdi', await homeMove.waitFor({ state: 'detached', timeout: 8000 }).then(() => true, () => false));
   ai.directorPlan = null;
 
   console.log('\n# Xotira: qaror, teg, eskirgan');

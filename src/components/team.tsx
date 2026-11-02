@@ -48,6 +48,7 @@ export interface MemberState { status: string; detail: string; on: boolean; live
 
 /** Direktor: nechta taklif tasdiq kutyapti (nishon), nechta qaror ishda, oxirgi tahlil qachon */
 function directorState(v: DirectorView | null): MemberState {
+  // Nishon «Sizni kutyapti»dagi Direktor bandlari bilan bir xil (server/attention.ts — tasdiq kutayotgan takliflar)
   const waiting = v?.waiting.length ?? 0;
   const inWork = v?.journal.filter(m => m.status === 'topshirildi').length ?? 0;
   return {

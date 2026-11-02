@@ -4,21 +4,22 @@
  * ro'yxatdan darhol tushadi; ro'yxat har 30 soniyada yangilanadi. Bo'sh bo'lsa — «hammasi joyida».
  */
 import { useEffect, useState } from 'react';
-import { Camera, Check, CircleCheck, Clock, ExternalLink, Headset, Loader2, Phone, Send, Sparkles, X, type LucideIcon } from 'lucide-react';
+import { Camera, Check, Compass, CircleCheck, Clock, ExternalLink, Headset, Loader2, Phone, Send, Sparkles, X, type LucideIcon } from 'lucide-react';
 import { api, type AttentionItem } from '../data/api';
 import { iso, addDays } from '../lib/week';
-import { hrefOf } from '../lib/nav';
+import { hrefOf, type Area } from '../lib/nav';
 import { HUE, ago } from './agent';
 import type { Notify } from './Artifacts';
 
 const POLL_MS = 30_000;
-const ICON: Record<AttentionItem['kind'], LucideIcon> = { camera: Camera, request: Headset, reply: Send, task: Clock, order: Sparkles };
+const ICON: Record<AttentionItem['kind'], LucideIcon> = { director: Compass, camera: Camera, request: Headset, reply: Send, task: Clock, order: Sparkles };
 const WHERE: Record<AttentionItem['kind'], (i: AttentionItem) => string> = {
+  director: () => hrefOf('direktor'),
   camera: () => hrefOf('kuzatuvchi', 'jurnal'),
   request: () => hrefOf('qabulxona', 'sorovlar'),
   reply: () => hrefOf('qabulxona'),
   task: () => hrefOf('yordamchi', 'jurnal'),
-  order: i => hrefOf(i.member, 'topshiriqlar'),
+  order: i => hrefOf(i.member as Area, 'topshiriqlar'),
 };
 const tomorrow9 = () => `${iso(addDays(new Date(), 1))}T09:00`;
 
@@ -49,6 +50,10 @@ function Item({ it, onDone, notify }: { it: AttentionItem; onDone: (key: string)
         </div>
       </div>
       <div className="flex flex-wrap gap-2 pl-12">
+        {it.kind === 'director' && [
+          button('approve', it.title.includes('sizga') ? "Vazifamga qo'sh" : 'Topshirish', Check, () => api.directorDecide(it.refId, 'approve'), 'Topshirildi', true),
+          button('decline', 'Kerak emas', X, () => api.directorDecide(it.refId, 'decline'), 'Yopildi'),
+        ]}
         {it.kind === 'reply' && [
           button('send', 'Yuborish', Send, () => api.sendReply(it.refId), 'Yuborildi', true),
           button('dismiss', 'Kerak emas', X, () => api.dismissReply(it.refId), 'Olib tashlandi'),

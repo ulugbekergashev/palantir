@@ -14,7 +14,7 @@ import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 export type RequestView = LeadRequest & { lead: Lead | null };
 /** «Sizni kutyapti» qatori (server/attention.ts) */
 export interface AttentionItem {
-  key: string; kind: 'camera' | 'request' | 'reply' | 'task' | 'order'; member: OrderMember; refId: string;
+  key: string; kind: 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order'; member: OrderMember | 'direktor'; refId: string;
   title: string; body: string; at: string; phone: string | null; urgent: boolean;
 }
 /** Talab tahlili (server/insights/analyze.ts): sonlar bandlardan kodda sanalgan */

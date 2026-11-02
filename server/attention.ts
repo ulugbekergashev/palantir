@@ -3,6 +3,7 @@
  *   Qabulxona — tasdiq kutayotgan AI javoblari va ochiq so'rovlar (qayta qo'ng'iroq, yozilish, shikoyat);
  *   Kuzatuvchi — egasi hali ko'rmagan kamera hodisalari (oxirgi sutka);
  *   Yordamchi — muddati o'tgan ishlar; har xodim — bajarilmay qolgan topshiriqlar.
+ *   Direktor — tasdiq kutayotgan takliflar.
  * Har biri o'z joyidagi tugma bilan hal qilinadi (javob yuborish, so'rovni yopish, «ko'rdim», ishni surish).
  */
 import type { Express, Request, Response } from 'express';
@@ -12,14 +13,16 @@ import { leads, replies, tasks, type BusinessRow } from './db';
 import { requests } from './requests/store';
 import { events, orders } from './orders/store';
 import { requestKind } from '../src/lib/requests';
+import { directorMoves } from './director/store';
+import { MEMBER_NAME } from './director/logic';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps { asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler }
 
-export type AttentionKind = 'camera' | 'request' | 'reply' | 'task' | 'order';
+export type AttentionKind = 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order';
 export interface AttentionItem {
   /** Ro'yxat kaliti: tur va manba id */
-  key: string; kind: AttentionKind; member: OrderMember;
+  key: string; kind: AttentionKind; member: OrderMember | 'direktor';
   /** Manbaning o'z id'si (javob, so'rov, hodisa, vazifa, topshiriq) — tugmalar shu bilan ishlaydi */
   refId: string; title: string; body: string; at: string; phone: string | null;
   /** Hodisa darajasi (kamera) yoki kechikkan — tepaga */
@@ -28,11 +31,15 @@ export interface AttentionItem {
 
 const DAY_MS = 86_400_000;
 const LIMIT = 30;
-const ORDER: AttentionKind[] = ['camera', 'request', 'reply', 'task', 'order'];
+const ORDER: AttentionKind[] = ['director', 'camera', 'request', 'reply', 'task', 'order'];
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
   const items: AttentionItem[] = [];
+  // Direktor takliflari: «Topshirish» — xodimga topshiriq va Xotira'ga qaror (director/index.ts)
+  for (const m of directorMoves.waiting(biz.id)) {
+    items.push({ key: `director:${m.id}`, kind: 'director', member: 'direktor', refId: m.id, title: `Direktor: ${m.member === 'egasi' ? 'sizga' : `${MEMBER_NAME[m.member]}ga`} taklif`, body: cut(`${m.task}${m.why ? ` — ${m.why}` : ''}`, 280), at: m.createdAt, phone: null, urgent: false });
+  }
   for (const e of events.unseen(biz.id, new Date(now.getTime() - DAY_MS).toISOString())) {
     items.push({ key: `camera:${e.id}`, kind: 'camera', member: e.member, refId: e.id, title: e.title, body: e.body, at: e.at, phone: null, urgent: e.level === 'crit' });
   }
