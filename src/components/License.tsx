@@ -25,7 +25,7 @@ export function LicenseReminder({ license, onOpen }: { license: LicenseView; onO
     setHidden(true);
   };
   return (
-    <div className={`flex w-full items-center border-b text-xs font-semibold lg:pl-[92px] ${urgent ? 'border-[#ff7a6b]/30 bg-[#2a110d] text-[#ffc2b8]' : 'border-[#ff9a3c]/25 bg-[#1c1309] text-[#ffd9a0]'}`}>
+    <div className={`flex w-full items-center border-b text-xs font-semibold lg:pl-[var(--rail,224px)] ${urgent ? 'border-[#ff7a6b]/30 bg-[#2a110d] text-[#ffc2b8]' : 'border-[#ff9a3c]/25 bg-[#1c1309] text-[#ffd9a0]'}`}>
       <button type="button" onClick={onOpen} className="flex flex-1 items-center justify-center gap-2 px-3.5 py-2 hover:text-[#fff3e0]">
         <KeyRound className="h-4 w-4" aria-hidden="true" />
         Aktivlashtirilmagan · {license.daysLeft} kun qoldi · <span className="underline underline-offset-2">Kalitni kiritish</span>

@@ -13,7 +13,7 @@ export function WakeOverlay({ wake: { orb: orbRef, ...wake } }: { wake: Wake }) 
   const live = wake.phase === 'live';
   return (
     <section role="dialog" aria-label="Palantir bilan ovozli suhbat" aria-live="polite"
-      className="fixed inset-x-4 bottom-20 z-50 mx-auto max-w-[560px] animate-rise overflow-hidden rounded-[26px] border border-[#ff9a3c]/25 bg-[#0b0c12]/95 p-5 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)] backdrop-blur lg:bottom-8 lg:left-[92px]">
+      className="fixed inset-x-4 bottom-20 z-50 mx-auto max-w-[560px] animate-rise overflow-hidden rounded-[26px] border border-[#ff9a3c]/25 bg-[#0b0c12]/95 p-5 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)] backdrop-blur lg:bottom-8 lg:left-[var(--rail,224px)]">
       <div aria-hidden="true" className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full" style={{ background: 'radial-gradient(closest-side, rgba(255,138,52,0.16), transparent)' }} />
       <div className="relative flex items-center gap-4">
         <div ref={orbRef} aria-hidden="true" className="relative h-14 w-14 shrink-0 transition-transform duration-100"

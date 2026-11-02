@@ -182,6 +182,22 @@ try {
   ok("qabulxona bugun: murojaat yo'q — nima bo'lishi va qanday sinash", await visible(page.getByRole('heading', { name: "Hali murojaat yo'q" })) && await page.getByRole('button', { name: "Qabulxonaga qo'ng'iroq qilish" }).isVisible());
   await shot('06a-qabulxona', true);
 
+  console.log('\n# Chap menyu: ixcham, yig\'iladi');
+  const railWidth = async () => (await rail().boundingBox())?.width ?? 0;
+  const lastItem = rail().getByRole('link', { name: 'Sozlamalar', exact: true });
+  const fits = async () => { const b = await lastItem.boundingBox(); return !!b && b.y + b.height <= 900; };
+  ok('menyu: hamma bo\'lim (Sozlamalargacha) bitta ekranga sig\'adi, kenglik 224', await railWidth() === 224 && await fits(), String(await railWidth()));
+  await rail().getByRole('button', { name: "Menyuni yig'ish" }).click();
+  ok("yig'ilgan: faqat belgilar (68px), sahifa chapga suriladi, bo'limlar baribir nomi bilan topiladi", await railWidth() === 68
+    && await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--rail').trim()) === '68px'
+    && await rail().getByRole('link', { name: 'Qabulxona', exact: true }).isVisible());
+  await shot('06b-menyu-yigilgan');
+  await page.reload();
+  await rail().waitFor();
+  ok("yig'ilgani eslab qolinadi (qayta ochilganda ham)", await railWidth() === 68);
+  await rail().getByRole('button', { name: 'Menyuni yoyish' }).click();
+  ok('yoyildi', await railWidth() === 224);
+
   console.log('\n# Mijozlar (Qabulxona → Yozishmalar)');
   const leadsNow = async () => (await (await fetch(`${base}/api/leads`, { headers: auth })).json() as { leads: { name: string | null; phone: string | null; stage: string; note: string | null }[] }).leads;
   const until = async (met: () => Promise<boolean>, ms = 10_000): Promise<boolean> => {

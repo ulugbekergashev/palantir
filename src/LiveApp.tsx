@@ -99,7 +99,7 @@ export default function LiveApp() {
   const common = { biz, status, now, notify, onChanged: changed, tab, tick, state: isMember(area) ? team?.[area] ?? null : null };
 
   return (
-    <div className="night min-h-dvh pb-20 lg:pb-0 lg:pl-[92px]">
+    <div className="night min-h-dvh pb-20 lg:pb-0 lg:pl-[var(--rail,224px)]">
       <Rail area={area} team={team} ownerName={who?.kind === 'staff' ? who.name : biz.ownerName} onLogout={logout} wake={wake} allowed={allowed} />
       <WakeOverlay wake={wake} />
       {area === 'ai' ? (
@@ -121,7 +121,7 @@ export default function LiveApp() {
         </main>
       )}
       {toast && (
-        <div role="status" className={`animate-pop fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lift lg:bottom-5 lg:left-[calc(50%+46px)] ${toast.error ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>
+        <div role="status" className={`animate-pop fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lift lg:bottom-5 lg:left-[calc(50%+var(--rail,224px)/2)] ${toast.error ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`}>
           {toast.text}
         </div>
       )}
