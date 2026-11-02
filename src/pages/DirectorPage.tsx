@@ -8,6 +8,7 @@ import { api } from '../data/api';
 import { iso } from '../lib/week';
 import type { Notify } from '../components/Artifacts';
 import { AgentHero, AgentTabs, Panel, Quiet } from '../components/agent';
+import { GoalsPanel } from '../components/Goals';
 import type { MemberState } from '../components/team';
 import type { DirectorMoveView, DirectorNumber, DirectorView } from '../types';
 
@@ -59,12 +60,12 @@ export function DirectorArea({ notify, state, tab, tick, onChanged }: Props) {
         </div>
       </AgentHero>
       {!view ? <Loader2 className="mx-auto h-5 w-5 animate-spin text-[#8a909c]" aria-label="Yuklanmoqda" />
-        : active === 'bugun' ? <Today view={view} busy={busy} onDecide={decide} /> : <Journal view={view} />}
+        : active === 'bugun' ? <Today view={view} busy={busy} onDecide={decide} notify={notify} /> : <Journal view={view} />}
     </div>
   );
 }
 
-function Today({ view, busy, onDecide }: { view: DirectorView; busy: string | null; onDecide: (id: string, d: 'approve' | 'decline') => void }) {
+function Today({ view, busy, onDecide, notify }: { view: DirectorView; busy: string | null; onDecide: (id: string, d: 'approve' | 'decline') => void; notify: Notify }) {
   const { run } = view;
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -110,6 +111,8 @@ function Today({ view, busy, onDecide }: { view: DirectorView; busy: string | nu
           )}
         </Panel>
       </div>
+      <div className="space-y-5">
+      <GoalsPanel notify={notify} numbers={view.numbers} />
       <Panel title="Raqamlar · oxirgi 7 kun">
         {!view.numbers.length ? <Quiet>Hali raqam yo'q.</Quiet> : (
           <ul className="divide-y divide-glass/[0.06]">
@@ -117,6 +120,7 @@ function Today({ view, busy, onDecide }: { view: DirectorView; busy: string | nu
           </ul>
         )}
       </Panel>
+      </div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import type { PriceLine } from '../lib/prices';
 import type { AnketaData } from '../lib/anketa';
 import type { KeyName } from '../lib/secrets';
 import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveCheck, SetupView } from '../types';
-import type { AutoReply, Business, ChatEntry, DirectorView, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
+import type { AutoReply, Business, ChatEntry, DirectorView, Doc, GoalView, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
 import type { AdPlan, AdsView, AgentEvent, AgentOrder, ContentDraft, ContentSettings, ContentSource, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
@@ -252,6 +252,10 @@ export const api = {
   director: () => call<DirectorView>('/director'),
   directorRun: () => call<DirectorView>('/director/run', { body: {} }),
   directorDecide: (id: string, decision: 'approve' | 'decline') => call<DirectorView & { message: string }>(`/director/moves/${id}`, { body: { decision } }),
+  /** Maqsadlar: Direktor ko'rsatkichlariga (joriy — oxirgi 7 kun) */
+  goals: () => call<{ goals: GoalView[] }>('/goals'),
+  setGoal: (metric: string, target: number) => call<{ goals: GoalView[] }>('/goals', { body: { metric, target } }),
+  deleteGoal: (id: string) => call<{ ok: true }>(`/goals/${id}`, { method: 'DELETE' }),
   /** Xotira: eskirganlari bilan (sahifa uchun) */
   memory: () => call<{ notes: Note[] }>('/notes?all=1'),
   updateNote: (id: string, patch: { text?: string; kind?: MemoryKind; tags?: string[]; stale?: boolean }) => call<{ note: Note }>(`/notes/${id}`, { method: 'PATCH', body: patch }),

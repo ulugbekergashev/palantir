@@ -22,6 +22,7 @@ import {
   type CheckedMove, type DirectorPlan, type MetricKey, type Numbers, type ReportMove,
 } from './logic';
 import { directorMoves, directorRuns, type DirectorMove, type DirectorRun } from './store';
+import { goals, goalsText, progress } from './goals';
 
 export { directorMoves, directorRuns } from './store';
 
@@ -71,6 +72,7 @@ Team (member → what a task for them does):
 
 Rules
 - Use only the numbers given. Never invent numbers, percentages, customers or facts. Quote the numbers you rely on in "evidence".
+- If the owner set goals (<goals>), the main problem is usually the metric furthest behind its goal; say how far behind it is.
 - Pick one main problem: the metric that got clearly worse or is clearly weak. If everything is fine or the numbers are too few, say so in "summary", set problem to null and moves to [].
 - Each move: one member, one concrete task they can actually do (written as an instruction to them, in Uzbek), why (one short sentence with the number), the metric key from the list that should improve, and check_days (3–14) — when it is fair to measure.
 - Never propose giving a discount, changing prices, spending money or contacting customers who did not write first — those are the owner's decisions (member "egasi", phrased as a question for the owner to decide).
@@ -102,10 +104,12 @@ const SCHEMA = {
 
 /** Modelga: biznes, raqamlar, ishdagi qarorlar va egasining qaror/qoidalari (Xotira) */
 function userPrompt(biz: BusinessRow, numbers: Numbers, inWork: DirectorMove[]): string {
+  const targets = goals.list(biz.id).map(g => progress(g, numbers));
   const memory = notes.list(biz.id).filter(n => n.kind === 'qaror' || n.kind === 'qoida').slice(-MAX_RULES);
   return [
     `Business: ${biz.profile.name} (${biz.profile.industry || 'industry not set'})`,
     `<numbers>\n${numbersText(numbers)}\n</numbers>`,
+    `<goals>\n${targets.length ? goalsText(targets) : '(none set)'}\n</goals>`,
     `<in_work>\n${inWork.length ? inWork.map(m => `- ${m.member}: ${m.task} (metric ${m.metric}, check ${m.checkAt})`).join('\n') : '(none)'}\n</in_work>`,
     `<memory>\n${memory.length ? memory.map(n => `- (${n.kind}) ${n.text}`).join('\n') : '(none)'}\n</memory>`,
     'Find the biggest problem and propose the moves.',

@@ -255,9 +255,16 @@ try {
         { member: 'egasi', task: 'Kechki navbatchi kerakmi — hal qiling', why: 'kechqurun javobsiz qolyapti', metric: 'unanswered', check_days: 7 },
       ],
     });
+    const goal = await api('/api/goals', { token, body: { metric: 'answered_pct', target: 90 } });
+    const g0 = goal.json.goals?.[0];
+    ok("maqsad: javob ulushi 90% — joriy 25%, bajarilishi 28%", goal.status === 200 && g0?.now === 25 && g0.pct === 28 && !g0.reached, JSON.stringify(goal.json));
+    ok("maqsad: foiz 100 dan oshmaydi, noma'lum ko'rsatkich — 400", (await api('/api/goals', { token, body: { metric: 'answered_pct', target: 150 } })).status === 400
+      && (await api('/api/goals', { token, body: { metric: 'nomalum', target: 5 } })).status === 400);
+    ok("maqsad: shu ko'rsatkichga qayta qo'yilsa — yangilanadi (ikkita bo'lmaydi)", ((await api('/api/goals', { token, body: { metric: 'answered_pct', target: 80 } })).json.goals as unknown[]).length === 1);
     const run = await api('/api/director/run', { token, body: {} });
     const seen = ai.director.at(-1) ?? '';
     ok("direktor: modelga oxirgi 7 kun raqamlari bordi (javob ulushi 25 vs 100), egasining qarorlari bilan", seen.includes('answered_pct') && seen.includes('last 7 days 25, previous 7 days 100') && seen.includes('<memory>'), seen.slice(0, 400));
+    ok('direktor: modelga maqsad va undan qanchalik ortda ekani bordi', seen.includes('- answered_pct: target 80%, now 25 (31% of target)'), seen.split('<goals>')[1]?.slice(0, 200));
     const waiting = (run.json.waiting ?? []) as { id: string; member: string; status: string; baseline: number }[];
     ok('direktor: muammo va 2 ta taklif tasdiq kutyapti (boshlang\'ich qiymat yozildi)', run.status === 200 && run.json.run?.problem?.includes('javobsiz') && waiting.length === 2 && waiting[0].baseline === 25, JSON.stringify(run.json).slice(0, 400));
     const toReception = waiting.find(m => m.member === 'qabulxona')!, toOwner = waiting.find(m => m.member === 'egasi')!;

@@ -13,6 +13,7 @@ import { api } from '../data/api';
 import { Markdown } from '../components/Markdown';
 import { useVoice, type VoiceMode } from '../lib/useVoice';
 import { Attention } from '../components/Attention';
+import { GoalsStrip } from '../components/Goals';
 import { dotClass } from '../components/agent';
 import { TeamDay } from '../components/TeamDay';
 import { UPCOMING, UpcomingCard } from './ComingSoon';
@@ -149,6 +150,9 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
 
         {/* Hamma xodimdan sizning qaroringizni kutayotganlar — bitta joyda */}
         <Attention notify={notify} tick={tick} onChanged={onChanged} />
+
+        {/* Maqsadlar — Direktorda qo'yilgan bo'lsa (bo'lmasa ko'rinmaydi) */}
+        <div className="mt-8 w-full max-w-3xl"><GoalsStrip tick={tick} /></div>
 
         {/* AI jamoa — har biri o'z ishida */}
         <section aria-label="AI jamoa" className="mt-14 w-full">

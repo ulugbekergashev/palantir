@@ -3,6 +3,7 @@
  * Ishga tushirish: npx tsx scripts/check-direktor.ts
  */
 import { cleanPlan, moveButtons, reportHtml, verdict, type Numbers } from '../server/director/logic';
+import { goalsText, progress } from '../server/director/logic';
 
 let failed = 0;
 function ok(name: string, cond: boolean, info = ''): void {
@@ -44,6 +45,14 @@ ok('xabar: raqamlar, natija, muammo, taklif va tekshirish sanasi; begona matn HT
   && html.includes('<b>Qabulxona</b>: Narxga &lt;javob&gt;') && html.includes('tekshiraman 6-noyabr'), html);
 const kb = moveButtons([{ n: 1, id: 'm1' }, { n: 2, id: 'm2' }]);
 ok('tugmalar: har taklifga topshirish va kerak emas', kb.length === 2 && kb[0][0].data === 'dv|m1' && kb[1][1].data === 'dn|m2');
+
+const g = (metric: Parameters<typeof progress>[0]['metric'], target: number) => ({ id: 'g', metric, target, createdAt: '' });
+const nums: Numbers = { answered_pct: { now: 72, prev: 60 }, response_min: { now: 30, prev: 40 }, booked: { now: 25, prev: 10 }, came: null };
+ok("maqsad «ko'paysa yaxshi»: 72 / 90 → 80%", progress(g('answered_pct', 90), nums).pct === 80 && !progress(g('answered_pct', 90), nums).reached);
+ok("maqsad «kamaysa yaxshi»: javob vaqti 30 daq, maqsad 15 → 50%; 30 dan past maqsad — bajarilgan", progress(g('response_min', 15), nums).pct === 50 && progress(g('response_min', 45), nums).reached);
+ok('maqsaddan oshib ketdi — 100%, bajarildi', progress(g('booked', 20), nums).pct === 100 && progress(g('booked', 20), nums).reached);
+ok("ma'lumot yo'q (CRM ulanmagan) — foiz yo'q", progress(g('came', 50), nums).pct === null && progress(g('came', 50), nums).now === null);
+ok('modelga: maqsad, joriy va foiz', goalsText([progress(g('answered_pct', 90), nums)]) === '- answered_pct: target 90%, now 72 (80% of target)', goalsText([progress(g('answered_pct', 90), nums)]));
 
 if (failed) {
   console.error(`\n${failed} ta sinov yiqildi`);

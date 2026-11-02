@@ -410,6 +410,11 @@ try {
   const proposal = page.getByRole('listitem').filter({ hasText: 'Har yangi murojaatga darhol javob ber' });
   ok("direktor: muammo va takliflar chiqdi («Topshirish», «Kerak emas»)", await visible(page.getByText('Javob berilgan ulush keskin tushdi'), 15000) && await visible(proposal)
     && await proposal.getByRole('button', { name: 'Topshirish' }).isVisible() && await page.getByRole('button', { name: "Vazifamga qo'sh" }).isVisible());
+  await page.getByLabel("Ko'rsatkich").selectOption({ label: 'Javob berilgan ulush' });
+  await page.getByLabel('Maqsad').fill('90');
+  await page.getByRole('button', { name: "Qo'yish" }).click();
+  const goalRow = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Maqsadlar', exact: true }) }).getByRole('listitem').filter({ hasText: 'Javob berilgan ulush' });
+  ok("maqsad: Direktor sahifasida qo'yildi — joriy / maqsad va foiz", await visible(goalRow) && await goalRow.getByText('/ 90%').isVisible());
   await shot('14e-direktor', true);
   await proposal.getByRole('button', { name: 'Topshirish' }).click();
   ok("direktor: «Topshirish» — taklif ro'yxatdan ketdi", await proposal.waitFor({ state: 'detached', timeout: 8000 }).then(() => true, () => false));
@@ -418,6 +423,9 @@ try {
   await shot('14f-direktor-jurnal');
   await go('ai');
   const homeMove = page.getByRole('listitem').filter({ hasText: 'Direktor: sizga taklif' });
+  ok("bosh ekran: maqsadlar chizig'i (1 ta maqsad)", await visible(page.getByRole('region', { name: 'Maqsadlar' })) && await page.getByRole('region', { name: 'Maqsadlar' }).getByText('Javob berilgan ulush').isVisible());
+  await page.getByRole('region', { name: 'Maqsadlar' }).scrollIntoViewIfNeeded();
+  await shot('14g-bosh-maqsadlar');
   ok("bosh ekran «Sizni kutyapti»: Direktorning qolgan taklifi «Vazifamga qo'sh» bilan", await visible(homeMove, 10000) && await homeMove.getByRole('button', { name: "Vazifamga qo'sh" }).isVisible());
   await homeMove.getByRole('button', { name: 'Kerak emas' }).click();
   ok('bosh ekran: «Kerak emas» — taklif ro\'yxatdan tushdi', await homeMove.waitFor({ state: 'detached', timeout: 8000 }).then(() => true, () => false));

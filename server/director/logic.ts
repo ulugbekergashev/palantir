@@ -114,3 +114,31 @@ export function reportHtml(input: { numbers: Numbers; plan: DirectorPlan | null;
   }
   return out.join('\n');
 }
+
+// ─── Maqsadlar (saqlash — goals.ts) ─────────────────────────────────────────
+
+export interface Goal { id: string; metric: MetricKey; target: number; createdAt: string }
+export interface GoalProgress extends Goal {
+  label: string; unit: string; good: 'up' | 'down';
+  /** Joriy qiymat (oxirgi 7 kun) — ma'lumot yo'q bo'lsa null (masalan CRM ulanmagan) */
+  now: number | null;
+  /** Bajarilish, 0–100; ma'lumot yo'q — null */
+  pct: number | null;
+  reached: boolean;
+}
+
+/** Bajarilish: «ko'paysa yaxshi» — joriy / maqsad; «kamaysa yaxshi» — maqsad / joriy (maqsaddan past bo'lsa — 100%) */
+export function progress(g: Goal, numbers: Numbers): GoalProgress {
+  const m = METRICS[g.metric];
+  const now = numbers[g.metric]?.now ?? null;
+  const base = { ...g, label: m.label, unit: m.unit, good: m.good };
+  if (now === null) return { ...base, now: null, pct: null, reached: false };
+  const reached = m.good === 'up' ? now >= g.target : now <= g.target;
+  const raw = m.good === 'up' ? (g.target ? now / g.target : 1) : (now ? g.target / now : 1);
+  return { ...base, now, pct: reached ? 100 : Math.max(0, Math.min(99, Math.round(raw * 100))), reached };
+}
+
+/** Modelga: maqsadlar va joriy holat */
+export function goalsText(list: GoalProgress[]): string {
+  return list.map(g => `- ${g.metric}: target ${g.target}${g.unit.trim()}, now ${g.now === null ? 'unknown' : Math.round(g.now)}${g.reached ? ' (reached)' : g.pct === null ? '' : ` (${g.pct}% of target)`}`).join('\n');
+}

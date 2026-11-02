@@ -695,3 +695,8 @@ export interface DirectorView {
   waiting: DirectorMoveView[];
   journal: DirectorMoveView[];
 }
+/** Maqsad (server/director/goals.ts): Direktor ko'rsatkichiga egasi qo'ygan maqsad va joriy bajarilishi (oxirgi 7 kun) */
+export interface GoalView {
+  id: string; metric: string; target: number; createdAt: string; label: string; unit: string; good: 'up' | 'down';
+  now: number | null; pct: number | null; reached: boolean;
+}
