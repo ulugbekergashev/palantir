@@ -7,6 +7,7 @@ import { ArrowUp, Loader2 } from 'lucide-react';
 import { api } from '../data/api';
 import { hrefOf, type Area } from '../lib/nav';
 import { Markdown } from './Markdown';
+import { Nazorat } from './nazorat';
 import { PalantirOrb, type StoneTone } from './PalantirOrb';
 import { TEAM, type Member, type MemberState } from './team';
 
@@ -86,6 +87,7 @@ export function AgentHero({ member, state, stats, children, compact = false }: {
           ))}
         </dl>
       )}
+      <Nazorat member={member} />
       {children && <div className="relative mt-4 sm:mt-7">{children}</div>}
     </header>
   );

@@ -92,12 +92,16 @@ export function planText(p: PlanInput): Plan | null {
   const taskLine = (t: Task) => `• ${esc(t.title)}${t.dueAt ? ` — <i>${dueLabel('uz', t.dueAt, p.now)}</i>` : ''}`;
   section(`Bugun (${todays.length})`, todays.slice(0, 10).map(taskLine));
   section(`🔴 Kechikkan (${overdue.length})`, overdue.slice(0, MAX_LINES).map(taskLine));
-  const prep = p.autoPrep ? [...due, ...forgotten].slice(0, MAX_PREP).map(l => l.id) : [];
+  // AI o'zi tayyorlaydigan xabar — faqat bizga o'zi yozgan mijozga: hech qachon yozmagan odamga birinchi bo'lib AI yozmaydi
+  // (egasi o'zi so'rasa — boshqa gap, u «Yuborish»ni o'zi bosadi)
+  const prep = p.autoPrep ? [...due, ...forgotten].filter(l => !!l.lastInboundAt).slice(0, MAX_PREP).map(l => l.id) : [];
   if (forgotten.length) {
     section(`💤 Unutilgan ${many} (${forgotten.length})`, forgotten.slice(0, MAX_LINES).map(l => `• ${esc(nameOf(l))} — ${idleDays(l, p.now)} kundan beri${l.note ? ` · <i>${esc(cut(l.note, 60))}</i>` : ''}`));
-    if (!p.autoPrep) {
+    // AI o'zi tayyorlamaganlar (AI o'chiq yoki mijoz bizga hech yozmagan) — egasi tugma bilan o'zi tanlaydi
+    const byButton = forgotten.filter(l => !prep.includes(l.id));
+    if (byButton.length) {
       out.push('Keyingi qadam qo\'yilmagan. Tugmani bossangiz — qayta yozish uchun xabar tayyorlayman.');
-      for (const l of forgotten.slice(0, MAX_FOLLOW_BUTTONS)) buttons.push([{ text: `✍️ ${cut(nameOf(l), 28)}`, data: `fu|${l.id}` }]);
+      for (const l of byButton.slice(0, MAX_FOLLOW_BUTTONS)) buttons.push([{ text: `✍️ ${cut(nameOf(l), 28)}`, data: `fu|${l.id}` }]);
     }
   }
   // Sondan keyin birlik: «4 ta bemorga» (o'zbekchada «4 ta bemorlarga» emas)

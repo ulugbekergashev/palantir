@@ -71,6 +71,9 @@ const clinicPlan = planText({ ...base, profile: industryOf('stomatologiya'), lea
 ok("klinika: bemorlar deb ataladi, 1 kun jim — unutilgan; qaytarish ro'yxati tugmasi", clinicPlan.html.includes('Unutilgan bemorlar (1)') && clinicPlan.html.includes('34 ta bemor') && clinicPlan.buttons.some(r => r[0].data === 'rc|list'));
 ok("klinika: CRM qatorlari qadamlardan oldin", clinicPlan.html.indexOf('12 ta qabul') < clinicPlan.html.indexOf('Unutilgan'));
 ok("dushanba: hafta bo'sh bo'lsa — yakun bloki yo'q (va faqat shu bilan reja yuborilmaydi)", planText({ ...base, week: { leadsAdded: 0, tasksDone: 0, crmLine: null } }) === null);
+const wrote = iso(12);
+const prepPlan = planText({ ...base, autoPrep: true, leads: [lead('w', 'Yozgan', { updatedAt: iso(9), lastInboundAt: wrote }), lead('n', 'Yozmagan', { updatedAt: iso(9) })] })!;
+ok("AI o'zi faqat bizga yozgan mijozga xabar tayyorlaydi; yozmaganiga — egasi tugma bilan", prepPlan.prep.join() === 'w' && prepPlan.buttons.length === 1 && prepPlan.buttons[0][0].data === 'fu|n');
 ok("matndagi begona belgilar HTML'ni buzmaydi", planText({ ...base, leads: [lead('x', '<b>Ali</b> & Co', { updatedAt: iso(9) })] })!.html.includes('&lt;b&gt;Ali&lt;/b&gt; &amp; Co'));
 
 console.log('\n# Natijasi so\'raladigan vazifalar');
@@ -121,6 +124,8 @@ try {
   const db = new DatabaseSync(join(dataDir, 'palantir.db'));
   db.exec('PRAGMA busy_timeout = 5000');
   db.prepare('UPDATE leads SET updated_at = ? WHERE id = ?').run(new Date(Date.now() - 5 * 86_400_000).toISOString(), b.id);
+  // Ikkalasi ham avval bizga yozgan (AI faqat shundaylarga o'zi xabar tayyorlaydi — plan.ts)
+  db.prepare('UPDATE leads SET last_inbound_at = ? WHERE id IN (?, ?)').run(new Date(Date.now() - 6 * 86_400_000).toISOString(), a.id, b.id);
   db.close();
 
   console.log('\n# Ertalabki reja Telegram\'da — yordamchi xabarlarni o\'zi tayyorlaydi');
