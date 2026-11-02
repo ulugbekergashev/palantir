@@ -8,6 +8,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import type { CameraFeed } from '../../src/types';
 import { cameras } from '../db';
+import { entryArgs } from '../entry';
 import { env } from '../env';
 import { open } from '../secret';
 import { ENGINE_FLAG, ffmpegInput, maskUrl, sourceKind, type Box, type FromEngine, type Look, type ToEngine } from './wire';
@@ -183,7 +184,7 @@ function list(): ToEngine {
 function launch(): void {
   restart = null;
   if (halted || engine) return;
-  const child = spawn(process.execPath, ['--no-warnings', '--import', 'tsx', 'server/camera/engine.ts'], { stdio: ['ignore', 'inherit', 'inherit', 'ipc'], env: { ...process.env, [ENGINE_FLAG]: '1' }, windowsHide: true });
+  const child = spawn(process.execPath, entryArgs('camera-engine', 'server/camera/engine.ts'), { stdio: ['ignore', 'inherit', 'inherit', 'ipc'], env: { ...process.env, [ENGINE_FLAG]: '1' }, windowsHide: true });
   engine = child;
   child.on('message', (m: FromEngine) => {
     if (m.type === 'seen') {

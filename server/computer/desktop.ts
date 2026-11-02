@@ -10,14 +10,14 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { assetPath } from '../entry';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { MemberResult } from './browser';
 import { pngSize, solidPng } from './png';
 
 export const DESKTOP_MAX = { width: 1280, height: 800 };
 const MAX_WAIT_S = 60, MAX_HOLD_S = 10;
-const HELPER_DIR = join(fileURLToPath(new URL('.', import.meta.url)), 'helper');
+const HELPER_DIR = assetPath('server', 'computer', 'helper');
 
 /** Kompyuter a'zolari: zoom yoqilgan (mayda yozuvlar uchun); boshqalari — standart */
 export const COMPUTER_TOOLSET: Anthropic.Beta.BetaComputerToolset20260801 = { type: 'computer_toolset_20260801' };

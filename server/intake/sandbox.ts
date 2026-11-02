@@ -5,6 +5,7 @@
  * Bir vaqtda bitta fayl o'qiladi — navbat bilan.
  */
 import { Worker } from 'node:worker_threads';
+import { workerUrl } from '../entry';
 import { FileError, type Extracted } from './extract';
 
 const TIME_LIMIT_MS = 20_000;
@@ -19,7 +20,7 @@ let queue: Promise<unknown> = Promise.resolve();
 
 function run(name: string, bytes: Buffer, limitMs: number): Promise<Extracted> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('./extractWorker.ts', import.meta.url), { workerData: { name, bytes } });
+    const worker = new Worker(workerUrl('extract-worker', 'server/intake/extractWorker.ts'), { workerData: { name, bytes } });
     const baseline = process.memoryUsage.rss();
     let settled = false;
     const finish = (settle: () => void) => {

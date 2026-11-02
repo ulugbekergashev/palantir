@@ -50,3 +50,7 @@ tgvoice/asterisk/extensions_palantir.conf
 
 # Ildizdagi qo'l arxivlar (masalan node_modules.zip zaxirasi) — git va sinov manbasiga kirmasin
 /*.zip
+
+# Yig'ilgan server (scripts/bundle.ts) — faqat reliz uchun
+/app/
+/xarita/

@@ -197,6 +197,9 @@ Kamera sozlamalari (`.env`): kechki kamera hisoboti soati — `CAMERA_REPORT_HOU
 | Masofadan yordam kerak | Egasi botga **/diagnostika** yozadi (yoki admin paneli → «Diagnostika»): holat, kanallardagi muammolar va jurnallar oxiri (kalitlarsiz) hubga boradi — sotuvchi `GET /admin/diag` dan o'qiydi. Hub kodi bo'lmasa — fayl keladi, egasi uni sotuvchiga uzatadi |
 | Instagram javob bermay qoldi | Panel → Sozlamalar → Instagram: muammo matnini o'qing (token, Hub aloqasi). Kerak bo'lsa rasmiy ulanishni qayta ulang. Mijozning oxirgi xabaridan 24 soat o'tgan bo'lsa — Instagram javobga ruxsat bermaydi |
 | Kamera: «ffmpeg eski» | HTTP kamera faqat yangi ffmpeg bilan ulanadi: `winget upgrade Gyan.FFmpeg`, keyin Palantir'ni qayta ishga tushiring (yoki kameraning `rtsp://` manzilini bering) |
+| Diagnostikadagi xato «app/server.mjs:1:48213» kabi | Klinikada yig'ilgan nashr (manba kod yo'q). Xarita fayllari bizda: `xarita/xarita-<nashr>/*.map` (exe yig'ilganda — `reliz/xarita-<nashr>`); bo'lmasa shu nashr tegidan `npx tsx scripts/bundle.ts` bilan qayta yig'ing. Ular hech qachon klinikaga yoki relizga yuborilmaydi |
+
+**Klinikaga boradigan kod.** exe va avto-yangilanish manba kodsiz, yig'ilgan nashr bilan boradi (`scripts/bundle.ts`): server, kamera dvigateli va «Tekshirish» `app/*.mjs` da — siqilgan, izohsiz. `server/index.ts` — faqat ko'prik (eski yangilovchi uni ishga tushiradi). Manbali nashr kerak bo'lsa (nosozlik qidirish): `npm run setup-exe -- --manba`.
 
 ## 7. Chegaralar — klinikaga oldindan ayting
 

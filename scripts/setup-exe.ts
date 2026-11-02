@@ -7,7 +7,7 @@
  *   tgvoice\models\…ru-0.22  «Quloq» modeli
  * Klinikada: exe → «o'rnatilsinmi?» → administrator ruxsati → C:\Palantir ga ochadi → install\ornatish.ps1 (savolsiz) → ulash ustasi.
  * Imzosiz exe: internetdan kelgan bo'lsa Windows «noma'lum dastur» deb to'xtatadi — «Подробнее» → «Выполнить в любом случае».
- *   npm run setup-exe -- [--out reliz] [--modules <papka>] [--yengil]
+ *   npm run setup-exe -- [--out reliz] [--modules <papka>] [--yengil] [--manba]  (standart — yig'ilgan, manbasiz nashr: scripts/bundle.ts)
  * Kutubxonalar: --modules berilmasa — ishlash uchun keraklilari alohida papkaga o'rnatiladi (npm ci --omit=dev, internet kerak),
  * o'zingizdagi node_modules'ga tegilmaydi. --yengil — runtime\siz (kichik exe; o'rnatishda Node, ffmpeg, Python internetdan).
  * Yuklanganlar <out>\kesh da saqlanadi (SHA256 qotirilgan — keyingi yig'ishda qayta yuklanmaydi).
@@ -112,7 +112,7 @@ if (!existsSync(join(modules, 'tsx'))) fail(`${modules} da kutubxonalar yo'q (ts
 const extra = light ? [] : [{ dir: join(work, 'runtime'), name: 'runtime' }, { dir: WAKE_MODEL, name: WAKE_MODEL }];
 if (!light) await stageRuntime(join(work, 'runtime'));
 
-const zip = await writeArchive(join(work, 'app.zip'), { version, modules, skip: OUT, extra });
+const zip = await writeArchive(join(work, 'app.zip'), { version, modules, skip: OUT, extra, compiled: !args.includes('--manba'), mapsDir: OUT });
 console.log(`arxiv: ${zip.files} fayl, ${mb(zip.size)}`);
 copyFileSync(join('install', 'exe-ornatish.ps1'), join(work, 'exe-ornatish.ps1'));
 writeFileSync(join(work, 'ornatish.bat'), '@echo off\r\ntitle Palantir\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0exe-ornatish.ps1"\r\n');

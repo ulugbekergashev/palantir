@@ -1,6 +1,6 @@
 /**
  * Reliz: imzolangan arxiv va manifest — klinikadagi yangilovchi (scripts/update.mjs) shularni oladi.
- *   npm run release -- [--out reliz] [--with-node-modules]
+ *   npm run release -- [--out reliz] [--with-node-modules] [--manba]  (--manba — yig'ilmagan, manba kod bilan; faqat nosozlik qidirishda)
  * Talab: git (kuzatiladigan fayllar ro'yxati), yig'ilgan panel (npm run build), imzo kaliti — RELEASE_SIGNING_KEY (PEM matni)
  * yoki RELEASE_SIGNING_KEY_FILE. Arxiv tarkibi — scripts/archive.ts; --with-node-modules bilan node_modules ham kiradi
  * (Windows'da yig'ilgani kerak: esbuild kabi qismlar platformaga bog'liq).
@@ -28,7 +28,7 @@ const signedText = (m: { version: string; schema: number; file: string; size: nu
 
 const file = `palantir-${version}.zip`;
 mkdirSync(OUT, { recursive: true });
-const { files, size, sha256 } = await writeArchive(join(OUT, file), { version, modules: withModules ? 'node_modules' : undefined, skip: OUT });
+const { files, size, sha256 } = await writeArchive(join(OUT, file), { version, modules: withModules ? 'node_modules' : undefined, skip: OUT, compiled: !args.includes('--manba'), mapsDir: 'xarita' });
 
 const manifest = { version, schema: SCHEMA_VERSION, file, size, sha256 };
 const signature = sign(null, Buffer.from(signedText(manifest)), createPrivateKey(keyPem)).toString('base64');

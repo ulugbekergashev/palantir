@@ -2,6 +2,8 @@
  * Yangilovchi sinovi:  npm run test:update
  * Haqiqiy reliz (scripts/release.ts), nazoratchi va server — vaqtinchalik papkada, reliz arxividan «o'rnatilgan» nusxa; reliz manbai —
  * shu sinovning HTTP serveri:
+ *   0) birinchi nashr manba kod bilan (hozir klinikalardagi kabi), keyingilari — yig'ilgan (scripts/bundle.ts): eski yangilovchi
+ *      uni ko'prik (server/index.ts) orqali ko'taradi, manba kod o'chadi;
  *   1) yangi nashr → sinov → almashtirish → yangi nashr ishlayapti; ish fayllari, .env va ma'lumotlar joyida, olib tashlangan fayl yo'q;
  *   2) boshqa kalit bilan imzolangan reliz — rad etiladi, hech narsa o'zgarmaydi;
  *   3) sinovda ko'tarilmaydigan nashr — yangilash bekor, ishlab turgan nashr to'xtamaydi;
@@ -44,14 +46,14 @@ const schema = () => { const d = new DatabaseSync(join(DATA, 'palantir.db'), { r
 const holat = () => JSON.parse(readFileSync(join(DATA, 'yangilash', 'holat.json'), 'utf8')) as { result: string; to: string; reason?: string };
 
 /** Manba papkasida nashrni o'zgartirib, reliz yig'adi (kanal — manifest va arxiv turadigan papka) */
-function release(channel: string, version: string, change: () => void = () => {}, key = PRIVATE): void {
+function release(channel: string, version: string, change: () => void = () => {}, key = PRIVATE, source = false): void {
   const pkg = JSON.parse(readFileSync(join(SRC, 'package.json'), 'utf8')) as { version: string };
   pkg.version = version;
   writeFileSync(join(SRC, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`);
   change();
   git('add', '-A');
   git('commit', '-q', '-m', version);
-  execFileSync(process.execPath, ['--no-warnings', '--import', 'tsx', 'scripts/release.ts', '--out', join(RELEASES, channel)], { cwd: SRC, env: { ...process.env, RELEASE_SIGNING_KEY: key }, stdio: 'pipe' });
+  execFileSync(process.execPath, ['--no-warnings', '--import', 'tsx', 'scripts/release.ts', '--out', join(RELEASES, channel), ...(source ? ['--manba'] : [])], { cwd: SRC, env: { ...process.env, RELEASE_SIGNING_KEY: key }, stdio: 'pipe' });
 }
 
 /** Klinikadagi yangilovchi (o'rnatilgan nusxada). Asinxron: u ishlayotgan paytda sinov serverni kuzatib turadi */
@@ -83,7 +85,7 @@ try {
   cpSync(join(REPO, 'dist'), join(SRC, 'dist'), { recursive: true });
   symlinkSync(join(REPO, 'node_modules'), join(SRC, 'node_modules'), 'junction');
   git('init', '-q');
-  release('v0', '9.0.0');
+  release('v0', '9.0.0', () => {}, PRIVATE, true);
   mkdirSync(APP, { recursive: true });
   const zip = unzipSync(readFileSync(join(RELEASES, 'v0', 'palantir-9.0.0.zip')));
   for (const [name, data] of Object.entries(zip)) {
@@ -106,13 +108,18 @@ try {
 
   console.log('\n# 1. Yangi nashr');
   release('v1', '9.0.1', () => {
-    writeFileSync(join(SRC, 'server', 'yangi-modul.ts'), 'export const YANGI = 1;\n');
+    writeFileSync(join(SRC, 'install', 'yangi-fayl.txt'), 'yangi\n');
     rmSync(join(SRC, 'Palantir-logo', 'README.txt'));
   });
   const first = await update('v1');
   ok('yangilovchi: 0 kodi bilan tugadi', first.code === 0, first.out.split('\n').slice(-3).join(' | '));
   ok('yangi nashr ishlayapti: 9.0.1, holat — ok', (await appHealth())?.version === '9.0.1' && holat().result === 'ok');
-  ok("relizdagi yangi fayl keldi, olib tashlangani yo'q", existsSync(join(APP, 'server', 'yangi-modul.ts')) && !existsSync(join(APP, 'Palantir-logo', 'README.txt')));
+  ok("relizdagi yangi fayl keldi, olib tashlangani yo'q", existsSync(join(APP, 'install', 'yangi-fayl.txt')) && !existsSync(join(APP, 'Palantir-logo', 'README.txt')));
+  ok("manbali nusxadan yig'ilgan nashrga o'tdi: server — app/server.mjs, manba kod o'chdi (server/*.ts, src, hub), xarita klinikaga bormadi",
+    existsSync(join(APP, 'app', 'server.mjs')) && !existsSync(join(APP, 'server', 'main.ts')) && !existsSync(join(APP, 'src', 'App.tsx'))
+    && !existsSync(join(APP, 'hub', 'server.ts')) && !existsSync(join(APP, 'app', 'server.mjs.map')));
+  ok("o'rnatilgan nusxada «Tekshirish» yig'ilgan faylga qaraydi",
+    (JSON.parse(readFileSync(join(APP, 'package.json'), 'utf8')) as { scripts: Record<string, string> }).scripts.check.includes('app/check.mjs'));
   ok('ish fayllari saqlandi: tgvoice/.venv, shahar raqami sozlamasi', readFileSync(join(APP, 'tgvoice', '.venv', 'belgi.txt'), 'utf8') === 'venv'
     && existsSync(join(APP, 'tgvoice', 'asterisk', 'pjsip_shahar.conf')));
   ok('.env va baza joyida (biznes saqlangan)', readFileSync(join(APP, '.env'), 'utf8') === envText

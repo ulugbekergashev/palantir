@@ -6,9 +6,9 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { assetPath } from '../entry';
 
-const SOURCE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'hook', 'PalantirCall.cs');
+const SOURCE = assetPath('server', 'phone', 'hook', 'PalantirCall.cs');
 const COMPILE_TIMEOUT_MS = 60_000;
 
 const compilers = (): string[] => {

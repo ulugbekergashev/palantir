@@ -30,10 +30,13 @@ jobs:
         run: npm run camera:model
       - run: npm run build
       # Klinikaga faqat ishlash uchun kerakli kutubxonalar (Windows'da yig'ilgani — esbuild kabi qismlar platformaga bog'liq)
+      # Server yig'iladi (esbuild — dasturchi kutubxonasi, prune'dan oldin); xaritalar relizga chiqmaydi (xarita/ — yuklanmaydi)
+      - run: node --no-warnings --import tsx scripts/bundle.ts
       - run: npm prune --omit=dev
       - name: Arxiv va imzo
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          PALANTIR_BUNDLED: "1"
         run: node --no-warnings --import tsx scripts/release.ts --out reliz --with-node-modules
       - name: GitHub Release
         env:
