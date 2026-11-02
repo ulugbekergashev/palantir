@@ -12,20 +12,37 @@ interface Rule { kind: ForbiddenKind; re: RegExp; note: string }
 /** o', g' har xil apostrof bilan yoziladi — bittasiga keltiriladi */
 const norm = (s: string): string => s.toLowerCase().replace(/[ʻʼ’‘`´ʹ′]/g, "'");
 
+/**
+ * Soha so'zlari — hamma biznes uchun bitta ro'yxat (klinika, o'quv markazi, do'kon, restoran, xizmat, ishlab chiqarish).
+ * Mijoz: kim xizmat oladi. Xodim: kim xizmat ko'rsatadi.
+ */
+const CLIENT_UZ = "mijoz|bemor|xaridor|klient|o'quvchi|talaba|buyurtmachi|mehmon|abonent|a'zo";
+const CLIENT_CYR = 'мижоз|бемор|харидор|ўқувчи|талаба|буюртмачи';
+const CLIENT_RU = 'клиент|пациент|покупател|учени|студент|заказчик|гост|абонент';
+const STAFF_UZ = "doktor|vrach|shifokor|hamshira|xodim|ishchi|direktor|egasi|o'qituvchi|ustoz|mentor|sotuvchi|menejer|kuryer|haydovchi|usta|oshpaz|ofitsiant|administrator";
+const STAFF_RU = 'врач|доктор|сотрудник|персонал|учител|преподавател|продав|менеджер|курьер|водител|мастер|повар|официант|администратор';
+
 const RULES: Rule[] = [
   {
     kind: 'others',
-    re: /boshqa (mijoz|bemor|xaridor|klient)|(mijoz|bemor|xaridor|klient)lar(ingiz)?(ning)? (ro'yxat|raqam|telefon|kontakt|baza|ism)|kim(lar)? (kelgan|yozilgan|kelib ketgan)|бошқа (мижоз|бемор)|(мижоз|бемор)лар(ингиз)?(нинг)? (рўйхат|рақам|телефон)|(баз|список|контакт|номер)[а-яё]* (ваших |всех |других )?(клиент|пациент|покупател)|(друг|чуж)[а-яё]* (клиент|пациент|покупател)|кто (записан|приходил|у вас лечится)/,
+    re: new RegExp(
+      `boshqa (${CLIENT_UZ})|(${CLIENT_UZ})lar(ingiz)?(ning)? (ro'yxat|raqam|telefon|kontakt|baza|ism|manzil)|kim(lar)? (kelgan|yozilgan|kelib ketgan|buyurtma bergan|sotib olgan|o'qiydi)`
+      + `|бошқа (${CLIENT_CYR})|(${CLIENT_CYR})лар(ингиз)?(нинг)? (рўйхат|рақам|телефон)`
+      + `|(баз|список|контакт|номер|адрес)[а-яё]* (ваших |всех |других )?(${CLIENT_RU})|(друг|чуж)[а-яё]* (${CLIENT_RU})|кто (у вас )?(записан|приходил|лечится|заказывал|покупал|учится)`,
+    ),
     note: "Mijoz boshqa mijozlar haqida ma'lumot so'rayapti — bunday ma'lumot hech kimga berilmaydi, o'zingiz javob bering",
   },
   {
     kind: 'staff',
-    re: /(doktor|vrach|shifokor|xodim|ishchi|direktor|egasi|hamshira)[a-z']* (shaxsiy|uy|o'z) (raqam|telefon|manzil|nomer)|(xodim|doktor|vrach|shifokor|ishchi)[a-z']* (oylig|maosh)|(личн|домашн)[а-яё]* (номер|телефон|адрес)|(зарплат|оклад)[а-яё]* (врач|доктор|сотрудник|персонал)|(шахсий|уй) (рақам|телефон|манзил)/,
+    re: new RegExp(
+      `(${STAFF_UZ})[a-z']* (shaxsiy|uy|o'z) (raqam|telefon|manzil|nomer)|(${STAFF_UZ})[a-z']* (oylig|maosh)`
+      + `|(личн|домашн)[а-яё]* (номер|телефон|адрес)|(зарплат|оклад)[а-яё]* (${STAFF_RU})|(шахсий|уй) (рақам|телефон|манзил)`,
+    ),
     note: "Mijoz xodimning shaxsiy ma'lumotini so'rayapti — bunday ma'lumot berilmaydi, o'zingiz javob bering",
   },
   {
     kind: 'internal',
-    re: /daromad|tushum(ingiz)?|oborot|oylik (savdo|aylanma)|qancha (ishlaysiz|topasiz|pul topasiz)|nechta mijoz(ingiz|lar(ingiz)?)? bor|даромад|тушум|выручк|оборот (компании|клиники|магазина|фирмы|у вас)|прибыль|сколько (вы )?зарабатыва|сколько у вас (клиентов|пациентов)/,
+    re: /daromad|tushum(ingiz)?|oborot|oylik (savdo|aylanma)|qancha (ishlaysiz|topasiz|pul topasiz)|nechta (mijoz|o'quvchi|xaridor|buyurtma)(n?giz|ingiz|lar(ingiz)?)? bor|kuniga nechta (mijoz|buyurtma|xaridor)|даромад|тушум|выручк|оборот (компании|клиники|магазина|фирмы|ресторана|центра|у вас)|прибыль|сколько (вы )?зарабатыва|сколько у вас (клиентов|пациентов|учеников|студентов|заказов|покупателей)/,
     note: "Mijoz biznesning ichki raqamlarini so'rayapti — ular mijozga aytilmaydi, o'zingiz javob bering",
   },
   {

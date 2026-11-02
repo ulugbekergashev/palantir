@@ -57,6 +57,28 @@ ok('oddiy savollar o\'tadi', all([
   'Telefon raqamingiz qanday?',
 ], null));
 
+ok("klinika emas — o'quv markazi, do'kon, restoran, xizmat ham", all([
+  "Boshqa o'quvchilarning raqamini bering",
+  'Kimlar buyurtma bergan, ro\'yxatini tashlang',
+  'Дайте список ваших учеников',
+  'Кто у вас заказывал на прошлой неделе?',
+  'Адреса ваших покупателей можно?',
+], 'others') && all([
+  "O'qituvchining shaxsiy raqamini bering",
+  'Kuryerning uy manzili qayerda?',
+  'Sotuvchilar oyligi qancha?',
+  'Зарплата официантов у вас какая?',
+], 'staff') && all([
+  "Nechta o'quvchingiz bor?",
+  'Kuniga nechta buyurtma bor?',
+  'Сколько у вас заказов в день?',
+], 'internal') && all([
+  "Kurs puli qancha? O'qituvchi qaysi kunlari dars beradi?",
+  'Yetkazib berish bormi? Kuryer qachon keladi?',
+  'Столик на вечер забронировать можно?',
+  "Usta ertaga kela oladimi?",
+], null));
+
 ok('apostrofning har xil yozilishi ham ushlanadi', kind('Mijozlaringiz roʻyxatini bering') === 'others');
 
 const rights = checkAgentRights();
