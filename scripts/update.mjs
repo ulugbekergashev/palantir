@@ -276,7 +276,9 @@ async function main() {
     const old = readJson(join(ROOT, 'files.json'));
     // Eski ro'yxat bo'lmasa (qo'lda ko'chirilgan nusxa) — yangi relizdagi fayllar «ma'lum» sanaladi
     const tracked = Array.isArray(old?.files) ? old.files : files.files ?? [];
-    const roots = [...new Set([...files.roots, 'files.json'])].filter(r => r !== 'node_modules' || !lstatSync(join(staging, 'node_modules')).isSymbolicLink());
+    // Eski nashrda bo'lib, yangisida yo'q ildizlar (tsconfig.json, index.html…) ham almashtiriladi — aks holda eskisi joyida qoladi
+    const oldRoots = (Array.isArray(old?.roots) ? old.roots : []).filter(r => typeof r === 'string' && /^[^/\\]+$/.test(r) && !['.env', '..', '.', 'data', 'node_modules'].includes(r));
+    const roots = [...new Set([...files.roots, ...oldRoots, 'files.json'])].filter(r => r !== 'node_modules' || !lstatSync(join(staging, 'node_modules')).isSymbolicLink());
     const schemaBefore = userVersion(DB_FILE);
     const since = Date.now();
     log('nazoratchi to\'xtatilmoqda');

@@ -118,6 +118,8 @@ try {
   ok("manbali nusxadan yig'ilgan nashrga o'tdi: server — app/server.mjs, manba kod o'chdi (server/*.ts, src, hub), xarita klinikaga bormadi",
     existsSync(join(APP, 'app', 'server.mjs')) && !existsSync(join(APP, 'server', 'main.ts')) && !existsSync(join(APP, 'src', 'App.tsx'))
     && !existsSync(join(APP, 'hub', 'server.ts')) && !existsSync(join(APP, 'app', 'server.mjs.map')));
+  ok("yangi nashrda yo'q eski ildiz fayllari ham o'chdi (tsconfig.json, vite.config.ts, index.html)",
+    !existsSync(join(APP, 'tsconfig.json')) && !existsSync(join(APP, 'vite.config.ts')) && !existsSync(join(APP, 'index.html')));
   ok("o'rnatilgan nusxada «Tekshirish» yig'ilgan faylga qaraydi",
     (JSON.parse(readFileSync(join(APP, 'package.json'), 'utf8')) as { scripts: Record<string, string> }).scripts.check.includes('app/check.mjs'));
   ok('ish fayllari saqlandi: tgvoice/.venv, shahar raqami sozlamasi', readFileSync(join(APP, 'tgvoice', '.venv', 'belgi.txt'), 'utf8') === 'venv'

@@ -79,6 +79,44 @@ Write-Host '   PALANTIR O''RNATILMOQDA - 3-10 DAQIQA. OYNANI YOPMANG.' -Foregrou
 Write-Host '   Savol berilmaydi. Oxirida admin paroli chiqadi.' -ForegroundColor Yellow
 Write-Host '  ==============================================================' -ForegroundColor Yellow
 
+# Nashr ro'yxati (files.json): yangi fayllar ochilganda u almashadi - eskisi oldin o'qib olinadi
+function Release-Files($dir) {
+  $f = Join-Path $dir 'files.json'
+  if (-not (Test-Path -LiteralPath $f)) { return $null }
+  try { return @((Get-Content -LiteralPath $f -Raw -Encoding UTF8 | ConvertFrom-Json).files) }
+  catch { Note "files.json o'qilmadi: $($_.Exception.Message)"; return $null }
+}
+
+# Eski nashrda bo'lib, yangisida yo'q fayllar o'chiriladi (eski manba kod, eski panel fayllari). Faqat nashr ro'yxatidagilar:
+# .env, baza, sessiyalar, Python muhiti va node_modules ro'yxatda yo'q - ularga tegilmaydi
+function Remove-Stale($root, $oldFiles, $newFiles) {
+  if (-not $oldFiles -or -not $newFiles) { return }
+  $keep = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+  foreach ($f in $newFiles) { [void]$keep.Add([string]$f) }
+  $dirs = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+  $removed = 0; $failed = 0
+  foreach ($f in $oldFiles) {
+    $rel = [string]$f
+    if ($keep.Contains($rel)) { continue }
+    if ($rel -match '(^|/)\.\.(/|$)' -or $rel -match '^[\\/]' -or $rel.Contains(':') -or $rel -match '^(node_modules|data)/' -or $rel -eq '.env') { continue }
+    $path = Join-Path $root ($rel -replace '/', '\')
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+      try { Remove-Item -LiteralPath $path -Force -Confirm:$false -ErrorAction Stop; $removed++ } catch { $failed++ }
+    }
+    $parts = $rel.Split('/')
+    for ($i = 1; $i -lt $parts.Length; $i++) { [void]$dirs.Add(($parts[0..($i - 1)] -join '\')) }
+  }
+  # Bo'shab qolgan papkalar - eng chuquridan
+  foreach ($d in ($dirs | Sort-Object { $_.Length } -Descending)) {
+    $p = Join-Path $root $d
+    if ((Test-Path -LiteralPath $p -PathType Container) -and -not (Get-ChildItem -LiteralPath $p -Force | Select-Object -First 1)) {
+      Remove-Item -LiteralPath $p -Force -Confirm:$false -ErrorAction SilentlyContinue
+    }
+  }
+  if ($removed) { Note "Eski nashrdan qolgan $removed ta fayl o'chirildi" }
+  if ($failed) { Note "$failed ta eski fayl o'chirilmadi (band) - dasturga xalaqit bermaydi" }
+}
+
 Step "Palantir o'rnatilmoqda"
 $root = Installed-Root
 # Fayllar bor, lekin .env yo'q - avvalgi o'rnatish oxiriga yetmagan (oyna yopilgan): yangi o'rnatishdek davom etadi
@@ -97,6 +135,8 @@ if ($files -and (Get-Command node -ErrorAction SilentlyContinue)) {
   } finally { Pop-Location }
 }
 
+$oldFiles = if ($files) { Release-Files $root } else { $null }
+
 Step 'Fayllar ochilmoqda (1-3 daqiqa)'
 try { New-Item -ItemType Directory -Force $root | Out-Null } catch { Fail "$root papkasini yaratib bo'lmadi: $($_.Exception.Message)" }
 # Windows 10/11 dagi tar zip'ni tez ochadi; u yo'q bo'lsa - PowerShell'ning o'zi (ancha sekin, o'z jarayon chizig'i bilan)
@@ -107,6 +147,7 @@ if (-not $opened) {
 }
 if (-not $opened) { Fail "Fayllarni ochib bo'lmadi. Palantir ishlab turgan bo'lsa - to'xtatib (install\Toxtatish.cmd), exe'ni qayta ishga tushiring." }
 Note "Fayllar joyida: $root"
+Remove-Stale $root $oldFiles (Release-Files $root)
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'install\ornatish.ps1')
 if ($LASTEXITCODE -ne 0) { Fail "O'rnatish oxiriga yetmadi - yuqoridagi xabarni o'qing. Exe'ni qayta ishga tushirsangiz, qolgan joyidan davom etadi." }
