@@ -3,17 +3,18 @@
  * shu yerdan. Holat haqiqiy ma'lumotdan (so'rovlar, qo'ng'iroqlar, vazifalar, kameralar, DentaCRM), 30 soniyada yangilanadi.
  */
 import { useEffect, useState } from 'react';
-import { Camera, ChartLine, Headset, Megaphone, PenLine, Target, UserRound, type LucideIcon } from 'lucide-react';
+import { Camera, ChartLine, Compass, Headset, Megaphone, PenLine, Target, UserRound, type LucideIcon } from 'lucide-react';
 import type { LiveStatus } from '../types';
 import { api, type ContentView } from '../data/api';
-import type { AdsView } from '../types';
+import type { AdsView, DirectorView } from '../types';
 import { iso } from '../lib/week';
 import { hrefOf, type Area } from '../lib/nav';
 import { som } from '../lib/text';
 
-export type Member = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'kontent' | 'target';
+export type Member = 'direktor' | 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'kontent' | 'target';
 
 export const TEAM: Record<Member, { name: string; role: string; about: string; icon: LucideIcon }> = {
+  direktor: { name: 'Direktor', role: 'Raqamlar · qarorlar · jamoa', icon: Compass, about: "Har tong raqamlarni o'qiydi, eng katta muammoni topadi va xodimlarga topshiriq taklif qiladi; siz tasdiqlasangiz — topshiradi va natijasini o'lchaydi." },
   qabulxona: { name: 'Qabulxona', role: 'Telefon · Instagram · Telegram', icon: Headset, about: "Mijozlarga kunu tun javob beradi, yozilish va savollarni hal qiladi; o'zi hal qila olmaganini sizga so'rov qilib qoldiradi." },
   yordamchi: { name: 'Yordamchi', role: "Sizning o'ng qo'lingiz", icon: UserRound, about: 'Eslatadi, hujjat tayyorlaydi, savolingizga javob beradi — ovoz bilan yoki yozib.' },
   kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, about: "Kameralarni kuzatadi, siz bergan topshiriqlarni bajaradi va kadrga qarab savolingizga javob beradi; kelganlarni jadval bilan solishtiradi." },
@@ -44,6 +45,17 @@ export const isMember = (a: Area): a is RailMember => (RAIL_MEMBERS as string[])
 export interface MemberState { status: string; detail: string; on: boolean; live: boolean; badge: number; next: { label: string; href: string } | null;
   /** Bu biznesda ishlatilmaydi (kamerasi yo'q, klinika emas): bosh ekranda ko'rsatilmaydi va «ulang» deb bezovta qilmaydi */
   hidden?: boolean }
+
+/** Direktor: nechta taklif tasdiq kutyapti (nishon), nechta qaror ishda, oxirgi tahlil qachon */
+function directorState(v: DirectorView | null): MemberState {
+  const waiting = v?.waiting.length ?? 0;
+  const inWork = v?.journal.filter(m => m.status === 'topshirildi').length ?? 0;
+  return {
+    on: !!v?.run, live: false, badge: waiting, next: null,
+    status: waiting ? `${waiting} ta taklif sizni kutyapti` : v?.run ? 'Bugungi tahlil tayyor' : 'Ertalab raqamlarni o‘qiydi',
+    detail: v?.run?.problem ? `Muammo: ${v.run.problem}` : inWork ? `${inWork} ta qaror ishda — natijasi o‘lchanadi` : 'Muammo topsa — xodimlarga topshiriq taklif qiladi',
+  };
+}
 
 /** Targetolog: kabinet ulanganmi, limitlar bormi, nechta reja tasdiq kutyapti (nishon), nechtasi ishlayapti */
 function adsState(v: AdsView | null): MemberState {
@@ -92,6 +104,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
       // Kontent-meyker holati boshqalari bilan parallel
       const contentP = api.content().catch(() => null);
       const adsP = api.ads().catch(() => null);
+      const directorP = api.director().catch(() => null);
       const [requests, calls, tasks, cameras, day, att, reports] = await Promise.all([
         api.requests('open').catch(() => null), api.calls().catch(() => null), api.tasks('open').catch(() => null),
         api.cameras().catch(() => null), crm ? api.crmDay().then(r => r.day).catch(() => null) : Promise.resolve(null),
@@ -99,6 +112,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
       ]);
       const content = await contentP;
       const ads = await adsP;
+      const director = await directorP;
       if (stale) return;
       const callsToday = calls?.calls.filter(c => c.startedAt.slice(0, 10) === today) ?? [];
       const talking = calls?.calls.some(c => c.status === 'talking' || c.status === 'ringing') ?? false;
@@ -111,6 +125,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
       const waiting = (m: Member) => att?.items.filter(i => i.member === m).length ?? 0;
       const reception = waiting('qabulxona');
       setTeam({
+        direktor: directorState(director),
         qabulxona: {
           on: talking || reachable, live: talking, badge: reception,
           status: talking ? 'Hozir qo‘ng‘iroqda' : reachable ? 'Navbatchilikda' : 'Kanal ulanmagan',

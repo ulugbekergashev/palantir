@@ -680,3 +680,18 @@ export interface CameraAccuracy {
   /** Kamera ko'rgan, lekin DentaCRM javob bermagan kunlar */
   skipped: string[];
 }
+
+/** AI Direktor (server/director): taklif va qarorlar jurnali yozuvi */
+export type DirectorMoveStatus = 'taklif' | 'topshirildi' | 'rad' | 'tekshirildi';
+export interface DirectorMoveView {
+  id: string; runId: string; member: 'qabulxona' | 'yordamchi' | 'tahlilchi' | 'marketolog' | 'egasi'; task: string; why: string;
+  metric: string; baseline: number; checkDays: number; status: DirectorMoveStatus; createdAt: string; decidedAt: string | null; checkAt: string | null;
+  after: number | null; verdict: 'yaxshi' | 'yomon' | 'ozgarmadi' | null; checkedAt: string | null;
+}
+export interface DirectorNumber { key: string; label: string; good: 'up' | 'down'; unit: string; now: number; prev: number }
+export interface DirectorView {
+  run: { day: string; summary: string; problem: string | null; evidence: string | null; createdAt: string } | null;
+  numbers: DirectorNumber[];
+  waiting: DirectorMoveView[];
+  journal: DirectorMoveView[];
+}

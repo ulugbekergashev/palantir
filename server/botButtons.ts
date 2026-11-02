@@ -21,6 +21,7 @@ import { askOutcome, DAY_OUTCOME, dropOutcome, wantsOutcome } from './outcome';
 import { actorOf } from './requests/index';
 import { requestButton } from './requests/telegram';
 import { answerSupport } from './supportAsk';
+import { directorButton } from './director/telegram';
 
 export interface ButtonDeps {
   handleOwner(ctx: Context, biz: BusinessRow, text: string, voice?: boolean, extra?: { display?: string; photo?: boolean }): Promise<void>;
@@ -94,6 +95,12 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
     }
 
     // Kontent-meyker qoralamasi: egasining kanaliga joylash yoki bekor qilish (karta matnga bog'langan)
+    // Direktor taklifi: topshirish (xodimga doimiy topshiriq + Xotira'ga qaror) yoki kerak emas
+    if (code === 'dv' || code === 'dn') {
+      const r = directorButton(biz, code, id);
+      await ctx.editMessageReplyMarkup({ inline_keyboard: r.keyboard.map(row => row.map(k => ({ text: k.text, callback_data: k.data }))) }).catch(() => {});
+      return toast(ctx, r.toast, r.alert ? { show_alert: true } : undefined);
+    }
     if (code === 'zp' || code === 'zx') {
       try {
         if (code === 'zx') cancelDraft(biz, id);

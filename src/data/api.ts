@@ -3,7 +3,7 @@ import type { PriceLine } from '../lib/prices';
 import type { AnketaData } from '../lib/anketa';
 import type { KeyName } from '../lib/secrets';
 import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveCheck, SetupView } from '../types';
-import type { AutoReply, Business, ChatEntry, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
+import type { AutoReply, Business, ChatEntry, DirectorView, Doc, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
 import type { AdPlan, AdsView, AgentEvent, AgentOrder, ContentDraft, ContentSettings, ContentSource, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
@@ -248,6 +248,10 @@ export const api = {
   importPrices: (items: PriceLine[]) => call<{ brain: BrainView; added: number; updated: number; dropped: number; free: number }>('/brain/prices', { body: { items } }),
 
   addNote: (text: string, meta: { kind?: MemoryKind; tags?: string[] } = {}) => call<{ note: Note }>('/notes', { body: { text, ...meta } }),
+  /** AI Direktor: oxirgi tahlil, takliflar va qarorlar jurnali */
+  director: () => call<DirectorView>('/director'),
+  directorRun: () => call<DirectorView>('/director/run', { body: {} }),
+  directorDecide: (id: string, decision: 'approve' | 'decline') => call<DirectorView & { message: string }>(`/director/moves/${id}`, { body: { decision } }),
   /** Xotira: eskirganlari bilan (sahifa uchun) */
   memory: () => call<{ notes: Note[] }>('/notes?all=1'),
   updateNote: (id: string, patch: { text?: string; kind?: MemoryKind; tags?: string[]; stale?: boolean }) => call<{ note: Note }>(`/notes/${id}`, { method: 'PATCH', body: patch }),

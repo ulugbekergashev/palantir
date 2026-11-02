@@ -9,10 +9,11 @@ import { useWake } from './lib/useWake';
 import { TEAM, isMember, useTeam } from './components/team';
 import { Button } from './components/ui';
 import { useFontsReady, useNow, useToast } from './lib/hooks';
-import { hrefOf, routeFromHash, type Area, type Route } from './lib/nav';
+import { AREAS, hrefOf, routeFromHash, type Area, type Route } from './lib/nav';
 import { AiPage } from './pages/AiPage';
 import { AnalystArea, AssistantArea, MarketingArea, ReceptionArea, SettingsArea, WatchArea } from './pages/TeamPages';
 import { MiyaArea } from './pages/VaultPage';
+import { DirectorArea } from './pages/DirectorPage';
 import { ComingSoonArea } from './pages/ComingSoon';
 
 /**
@@ -20,11 +21,12 @@ import { ComingSoonArea } from './pages/ComingSoon';
  * Tahlilchi, Marketolog), Miya (Obsidian kabi) va Sozlamalar. Chapda (telefonda — pastda) bir xil ustun. Ko'rinish qorong'i (index.css: .night).
  */
 const TITLES: Record<Area, string> = {
-  ai: 'Palantir', qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
+  ai: 'Palantir', direktor: TEAM.direktor.name, qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
   tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', tezkunda: 'Tez kunda', miya: 'Miya', sozlamalar: 'Sozlamalar',
 };
 
-const ALL_AREAS: Area[] = ['ai', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'tezkunda', 'miya', 'sozlamalar'];
+/** Hamma bo'lim — nav.ts dagi yagona ro'yxat (yangi bo'lim qo'shilsa, bu yerda alohida yozish shart emas) */
+const ALL_AREAS: Area[] = AREAS;
 const areasFor = (who: Who | null): Area[] =>
   who?.kind !== 'staff' ? ALL_AREAS : who.access === 'manager' ? ALL_AREAS.filter(a => a !== 'sozlamalar') : ['qabulxona'];
 
@@ -108,6 +110,7 @@ export default function LiveApp() {
         </main>
       ) : (
         <main key={area} ref={main} tabIndex={-1} className={`animate-rise mx-auto w-full px-4 py-5 outline-none sm:px-6 sm:py-7 lg:px-10 lg:py-9 ${area === 'miya' ? 'max-w-[1500px]' : 'max-w-6xl'}`}>
+          {area === 'direktor' && <DirectorArea {...common} />}
           {area === 'qabulxona' && <ReceptionArea {...common} limited={who?.kind === 'staff' && who.access === 'reception'} />}
           {area === 'yordamchi' && <AssistantArea {...common} />}
           {area === 'kuzatuvchi' && <WatchArea {...common} />}

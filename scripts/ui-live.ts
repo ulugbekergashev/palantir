@@ -11,8 +11,9 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 import { xlsxFile } from './e2e-intake';
-import { CUSTOMER, TG_SESSION, aiServer, igWeb, igWebServer, listen, say, sent, shareContact, sleep, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, stopProcess } from './fakes';
+import { CUSTOMER, TG_SESSION, ai, aiServer, igWeb, igWebServer, listen, say, sent, shareContact, sleep, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, stopProcess } from './fakes';
 import { chromePath } from './chrome';
+import { DatabaseSync } from 'node:sqlite';
 
 const CHROME = chromePath();
 const OUT = process.argv[2] || join(tmpdir(), 'palantir-ui');
@@ -32,7 +33,7 @@ const PORT = 3291;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
     ...process.env, PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, EVENING_HOUR: '99', BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
-    ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700',
+    ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', TICK_MS: '700', DIRECTOR_RUN_GAP_MS: '0',
     VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', GEMINI_API_KEY: 'g-test', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, SESSION_SECRET: 'ui-secret', MORNING_HOUR: '0',
     ASTERISK_WSL: '0', DOTENV: '0', INBOX_DEBOUNCE_MS: '300', TG_PERSONAL: '1', IG_VIA_BROWSER: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_POLL_MS: '700', IG_FAKE_URL: `http://127.0.0.1:${igPort}`,
   },
@@ -91,7 +92,7 @@ try {
   ok('kirdi: bosh ekran — ovozli sfera va yozish qatori', await page.getByRole('button', { name: 'Palantir bilan gaplashish' }).isVisible());
   // Logotip havolasi (rasm, matnsiz) ro'yxatga kirmaydi
   const items = (await rail().getByRole('link').allInnerTexts()).map(t => t.trim().split('\n')[0]).filter(Boolean);
-  ok("menyu: Palantir, AI xodimlar, Marketing bo'limi, «Tez kunda», Miya, Sozlamalar", items.join(', ') === 'Palantir, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Marketing, Tez kunda, Miya, Sozlamalar',items.join(' | '));
+  ok("menyu: Palantir, AI xodimlar, Marketing bo'limi, «Tez kunda», Miya, Sozlamalar", items.join(', ') === 'Palantir, Direktor, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Marketing, Tez kunda, Miya, Sozlamalar',items.join(' | '));
   ok("menyu: «Quloq» tugmasi bor (o'chiq)", await rail().getByRole('button', { name: /Quloq/ }).getAttribute('aria-pressed') === 'false');
   await page.getByLabel("Palantir'ga yozing").fill('Bugun nima qilishim kerak?');
   await page.getByLabel("Palantir'ga yozing").press('Enter');
@@ -372,6 +373,51 @@ try {
   ok("miya: sahifalar (Obsidian kabi) — «Biznes haqida» ro'yxatda", await visible(page.getByText('Biznes haqida').first(), 10000));
   await shot('14b-miya-sahifalar');
 
+  console.log('\n# Direktor sahifasi');
+  await go('direktor');
+  ok('direktor: sarlavha, nazorat, «Hozir tahlil qil»', await visible(page.getByRole('heading', { name: 'Direktor', level: 1 })) && await page.locator('summary').filter({ hasText: 'Nazorat' }).isVisible()
+    && await page.getByRole('button', { name: 'Hozir tahlil qil' }).isVisible());
+  await page.getByRole('button', { name: 'Hozir tahlil qil' }).click();
+  ok("direktor: tahlil — raqam kam bo'lsa aytadi, raqamlar paneli bor", await visible(page.getByText(/Raqamlar hali kam|Tahlil tayyor/).first(), 15000) && await page.getByText('Raqamlar · oxirgi 7 kun').isVisible());
+  await page.getByRole('link', { name: 'Qarorlar jurnali' }).click();
+  ok("direktor: qarorlar jurnali bo'sh holati tushuntiriladi", await visible(page.getByText(/Hali qaror yo'q/)));
+  {
+    // O'tgan hafta 6 murojaat (hammasiga javob), bu hafta 4 (bittasiga) — Direktor muammo topadi va taklif beradi
+    const ddb = new DatabaseSync(join(dataDir, 'palantir.db'));
+    ddb.exec('PRAGMA busy_timeout = 5000');
+    const bizId = String((ddb.prepare('SELECT id FROM businesses LIMIT 1').get() as { id: string }).id);
+    const ago = (d: number, h = 11) => { const t = new Date(Date.now() - d * 86_400_000); t.setHours(h, 0, 0, 0); return t.toISOString(); };
+    let seq = 0;
+    const add = (d: number, answered: boolean) => {
+      const lid = `uidl${++seq}`;
+      ddb.prepare("INSERT INTO leads (id, business_id, name, channel, stage, source, created_at, updated_at, last_inbound_at) VALUES (?, ?, ?, 'instagram', 'new', 'Instagram', ?, ?, ?)").run(lid, bizId, `Direktor mijoz ${seq}`, ago(d), ago(d), ago(d));
+      ddb.prepare("INSERT INTO inbox (id, business_id, lead_id, channel, direction, author, text, created_at) VALUES (?, ?, ?, 'instagram', 'in', 'customer', 'Narxi?', ?)").run(`uidm${++seq}`, bizId, lid, ago(d));
+      if (answered) ddb.prepare("INSERT INTO inbox (id, business_id, lead_id, channel, direction, author, text, created_at) VALUES (?, ?, ?, 'instagram', 'out', 'palantir', 'Javob', ?)").run(`uidm${++seq}`, bizId, lid, ago(d, 12));
+    };
+    for (let i = 0; i < 6; i++) add(9 + (i % 4), true);
+    [2, 3, 4, 5].forEach((d, i) => add(d, i === 0));
+    ddb.close();
+  }
+  ai.directorPlan = () => ({
+    summary: "Bu hafta murojaatlarning ko'pi javobsiz qoldi.", problem: { title: 'Javob berilgan ulush keskin tushdi', evidence: "O'tgan hafta 100%, bu hafta — kamroq" },
+    moves: [
+      { member: 'qabulxona', task: 'Har yangi murojaatga darhol javob ber va qabulga taklif qil', why: 'ulush tushgan', metric: 'answered_pct', check_days: 3 },
+      { member: 'egasi', task: 'Kechki navbatchi kerakmi — hal qiling', why: 'kechqurun javobsiz qolyapti', metric: 'unanswered', check_days: 7 },
+    ],
+  });
+  await page.getByRole('link', { name: 'Bugun' }).click();
+  await page.getByRole('button', { name: 'Hozir tahlil qil' }).click();
+  const proposal = page.getByRole('listitem').filter({ hasText: 'Har yangi murojaatga darhol javob ber' });
+  ok("direktor: muammo va takliflar chiqdi («Topshirish», «Kerak emas»)", await visible(page.getByText('Javob berilgan ulush keskin tushdi'), 15000) && await visible(proposal)
+    && await proposal.getByRole('button', { name: 'Topshirish' }).isVisible() && await page.getByRole('button', { name: "Vazifamga qo'sh" }).isVisible());
+  await shot('14e-direktor', true);
+  await proposal.getByRole('button', { name: 'Topshirish' }).click();
+  ok("direktor: «Topshirish» — taklif ro'yxatdan ketdi", await proposal.waitFor({ state: 'detached', timeout: 8000 }).then(() => true, () => false));
+  await page.getByRole('link', { name: 'Qarorlar jurnali' }).click();
+  ok("direktor: jurnalda «ishda» va tekshirish sanasi bilan", await visible(page.getByRole('listitem').filter({ hasText: 'Har yangi murojaatga darhol javob ber' }).getByText('ishda')) && await page.getByText(/tekshiriladi/).first().isVisible());
+  await shot('14f-direktor-jurnal');
+  ai.directorPlan = null;
+
   console.log('\n# Xotira: qaror, teg, eskirgan');
   await go('miya/xotira');
   const records = page.getByRole('region', { name: 'Yozuvlar' });
@@ -384,7 +430,9 @@ try {
   ok('xotira: qaror teglari bilan chiqdi (tur belgisi, «Siz», #reklama)', await visible(card) && await card.getByText('qaror', { exact: true }).isVisible()
     && await card.getByText(/Siz/).isVisible() && await card.getByRole('button', { name: '#reklama' }).isVisible());
   await page.getByRole('complementary', { name: 'Xotira turlari' }).getByRole('button', { name: /Qarorlar/ }).click();
-  ok("xotira: «Qarorlar» filtri — faqat qarorlar", await card.isVisible() && (await records.getByRole('listitem').count()) === 1);
+  // Direktor taklifi tasdiqlangani ham qaror — ro'yxatdagi hamma yozuv qaror bo'lishi kerak
+  const listed = await records.getByRole('listitem').count();
+  ok("xotira: «Qarorlar» filtri — faqat qarorlar (Direktor qarori ham)", await card.isVisible() && listed >= 2 && (await records.getByRole('listitem').filter({ has: page.getByText('qaror', { exact: true }) }).count()) === listed, String(listed));
   await page.getByRole('complementary', { name: 'Xotira turlari' }).getByRole('button', { name: /Hammasi/ }).click();
   await shot('14c-xotira');
   await card.hover();

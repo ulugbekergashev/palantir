@@ -56,6 +56,7 @@ import { phoneChanged } from './people';
 import { forgetLead } from './forget';
 import { telegramBusinessStatus } from './inbox/telegramBusiness';
 import { mountOrders } from './orders/routes';
+import { mountDirector } from './director/routes';
 import { mountAttention } from './attention';
 import { mountTeamDay } from './teamDay';
 import { mountInsights } from './insights/routes';
@@ -741,6 +742,7 @@ export function createApp(bot: BotService) {
   mountPhone(app, { asBiz, asOwner, bad, fail, clientKey });
   mountBrain(app, { asBiz, bad, fail });
   mountOrders(app, { asBiz, bad, fail, bot });
+  mountDirector(app, { asBiz, fail });
   mountAttention(app, { asBiz });
   mountTeamDay(app, { asBiz });
   mountInsights(app, { asBiz });

@@ -22,6 +22,12 @@ export const COMMON_NEVER = [
 ];
 
 export const RIGHTS: Record<Member, AgentRights> = {
+  direktor: {
+    // server/director: o'zi hech narsani bajarmaydi — faqat taklif; har topshiriq dv|dn tugmasi yoki paneldagi tugma bilan
+    free: ["Raqamlarni o'qish va o'tgan hafta bilan solishtirish", 'Eng katta muammoni topish va taklif tuzish', "Qarorning natijasini o'lchash"],
+    button: ['Xodimga doimiy topshiriq berish — «Topshirish»', "Sizning vazifalaringizga qo'shish"],
+    never: ["O'zi biror ishni bajarish yoki mijozga yozish", "Narx, chegirma va pul bo'yicha qaror", "Raqamni o'ylab topish"],
+  },
   qabulxona: {
     // inbox/core.ts: rejim «avto» bo'lsa — faqat «reply» va tekshiruvdan o'tgan matn o'zi ketadi
     free: ["Narx, manzil, ish vaqti kabi saqlangan ma'lumotdan javob berish («avto» rejimida)", "Suhbatdan mijoz kartasini to'ldirish", "Qo'ng'iroq, yozilish va shikoyatni so'rov qilib xodimga berish"],

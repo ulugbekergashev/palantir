@@ -5,7 +5,7 @@
  * Telefonda pastda — Palantir va jamoa (yetti tugma, barmoq sig'adi); Miya, Sozlamalar, Quloq va Chiqish — «Ko'proq» ichida.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Brain, Ear, EarOff, Ellipsis, Hourglass, Lock, LogOut, PanelLeftClose, PanelLeftOpen, Settings, Sparkles, type LucideIcon } from 'lucide-react';
+import { Brain, Compass, Ear, EarOff, Ellipsis, Hourglass, Lock, LogOut, PanelLeftClose, PanelLeftOpen, Settings, Sparkles, type LucideIcon } from 'lucide-react';
 import { UPCOMING } from '../pages/ComingSoon';
 import type { Wake } from '../lib/useWake';
 import type { Area } from '../lib/nav';
@@ -17,7 +17,7 @@ interface Item { area: Area; label: string; icon: LucideIcon; badge?: number; /*
 /** Telefonning pastki panelida yetti tugma sig'ishi uchun qisqa nomlar (kompyuterda — to'liq) */
 const SHORT: Partial<Record<Area, string>> = { qabulxona: 'Qabul', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', marketolog: 'SMM' };
 /** Telefonda «Ko'proq» ichida turadigan bo'limlar */
-const MORE: Area[] = ['tezkunda', 'miya', 'sozlamalar'];
+const MORE: Area[] = ['direktor', 'tezkunda', 'miya', 'sozlamalar'];
 /** Kompyuterdagi kenglik: to'liq va yig'ilgan (px) — sahifa shu qadar o'ngga suriladi */
 const WIDE = 224, NARROW = 68;
 const FOLD_KEY = 'palantir:rail-yigilgan';
@@ -133,7 +133,7 @@ export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area:
         </button>
         {more && (
           <div id="koproq" role="menu" aria-label="Ko'proq" className="absolute bottom-[calc(100%+8px)] right-1 w-56 rounded-2xl border border-glass/[0.08] bg-[#0b0c10] p-1.5 shadow-2xl">
-            {[{ area: 'tezkunda' as Area, label: `Tez kunda · ${UPCOMING.length} ta xodim`, icon: Hourglass }, { area: 'miya' as Area, label: 'Miya', icon: Brain }, { area: 'sozlamalar' as Area, label: 'Sozlamalar', icon: Settings }].filter(it => open(it.area)).map(it => (
+            {[{ area: 'direktor' as Area, label: 'Direktor', icon: Compass }, { area: 'tezkunda' as Area, label: `Tez kunda · ${UPCOMING.length} ta xodim`, icon: Hourglass }, { area: 'miya' as Area, label: 'Miya', icon: Brain }, { area: 'sozlamalar' as Area, label: 'Sozlamalar', icon: Settings }].filter(it => open(it.area)).map(it => (
               <a key={it.area} role="menuitem" href={hrefOf(it.area)} onClick={() => setMore(false)} aria-current={area === it.area ? 'page' : undefined}
                 className={`flex items-center gap-3 rounded-xl px-3 py-3 text-[14px] no-underline ${area === it.area ? 'bg-[#ff9a3c]/12 text-[#f2f0ea]' : 'text-[#d9dbe1] active:bg-glass/5'}`}>
                 <it.icon className="h-[18px] w-[18px]" aria-hidden="true" />{it.label}

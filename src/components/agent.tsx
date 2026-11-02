@@ -16,6 +16,7 @@ export const dotClass = (s: MemberState) => (s.live ? 'bg-emerald-400 shadow-[0_
 
 /** Har xodimning rangi: tosh, nur va urg'u */
 export const HUE: Record<Member, { a: string; b: string; glow: string; text: string; /** Tosh ichidagi tutunning to'q cheti */ deep: string }> = {
+  direktor: { a: '#e8c37a', b: '#8f7bff', glow: 'rgba(232,195,122,0.16)', text: '#f3dca8', deep: '#5a3d12' },
   qabulxona: { a: '#3fd6c3', b: '#6f73ff', glow: 'rgba(63,214,195,0.16)', text: '#8ff0e2', deep: '#0f5c63' },
   yordamchi: { a: '#8b8cff', b: '#b38cff', glow: 'rgba(139,140,255,0.18)', text: '#c7c8ff', deep: '#3a2a8a' },
   kuzatuvchi: { a: '#f5b454', b: '#ff7a59', glow: 'rgba(245,180,84,0.15)', text: '#fbd38d', deep: '#8a3a0c' },

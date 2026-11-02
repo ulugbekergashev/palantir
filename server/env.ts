@@ -216,6 +216,8 @@ export const env = {
   minuteMs: Number(process.env.MINUTE_MS) || 60_000,
   /** Egasi suhbatga o'zi yozgandan keyin shuncha daqiqa AI javobni o'zi yubormaydi — faqat taklif qiladi */
   humanPauseMin: Number(process.env.HUMAN_PAUSE_MIN) || 120,
+  /** Direktor: panelda «Hozir tahlil qil» shundan tez-tez emas (ms; har biri — AI so'rovi). Sinovda 0 */
+  directorRunGapMs: process.env.DIRECTOR_RUN_GAP_MS !== undefined ? Number(process.env.DIRECTOR_RUN_GAP_MS) : 120_000,
 
   /**
    * DentaCRM manzili ichki tarmoqda bo'lishi mumkinmi (klinikadagi kompyuter — odatiy holat).

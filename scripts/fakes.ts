@@ -391,6 +391,9 @@ export const ai = {
   cameraAnswer: null as ((text: string) => string) | null,
   /** Hujjat yozuvchi va tekshiruvchiga (docs/writer.ts) borgan so'rovlar */
   docs: [] as { stage: 'write' | 'review'; system: string; user: string; effort?: string }[],
+  /** AI Direktorga (director/index.ts) borgan matnlar va javobi (berilmasa — muammosiz, taklifsiz) */
+  director: [] as string[],
+  directorPlan: null as ((user: string) => Record<string, unknown>) | null,
   /** Talab tahliliga (insights/analyze.ts) borgan bandlar matni */
   insights: [] as string[],
   /** Chuqur tahlil so'rovlari: yuklangan fayllar, konteyner (davom ettirilganda), asboblar */
@@ -767,6 +770,13 @@ export const aiServer = patient(createServer(async (req, res) => {
       next_step: "Ertalab eslatma yuborish", request_kind: 'none', request_summary: '', request_due: '', score: 8, staff_note: "Narxni aniq aytdi, vaqt taklif qildi",
     };
     return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: JSON.stringify(result) }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 20 } });
+  }
+
+  if (String(body.system).startsWith('You are the AI director')) {
+    const user = String(body.messages[0]?.content ?? '');
+    ai.director.push(user);
+    const plan = ai.directorPlan ? ai.directorPlan(user) : { summary: 'Hammasi joyida', problem: null, moves: [] };
+    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: JSON.stringify(plan) }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 20 } });
   }
 
   if (String(body.system).startsWith('You answer customer messages')) {

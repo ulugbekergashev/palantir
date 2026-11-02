@@ -88,7 +88,7 @@ const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--
   env: {
     ...process.env, DOTENV: '0', ASTERISK_WSL: '0', PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
     ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', SESSION_SECRET: 'work-secret', TICK_MS: '500',
-    MORNING_HOUR: String(new Date().getHours()), EVENING_HOUR: String(new Date().getHours()), WEB_SEARCH: '0', BACKUP_KEEP: '0', GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '',
+    MORNING_HOUR: String(new Date().getHours()), EVENING_HOUR: String(new Date().getHours()), WEB_SEARCH: '0', DIRECTOR_RUN_GAP_MS: '0', BACKUP_KEEP: '0', GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '',
     TG_API_ID: '', TG_API_HASH: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -228,6 +228,68 @@ try {
   console.log('\n# Yutildi — keyingi qadam qolmaydi');
   const won = await api(`/api/leads/${a.id}`, { method: 'PATCH', token, body: { stage: 'won' } });
   ok("«kelishildi» — keyingi qadam o'chdi (rejada chiqmaydi)", won.json.lead?.stage === 'won' && won.json.lead?.nextStep === null && won.json.lead?.nextAt === null);
+
+  console.log('\n# AI Direktor: raqamlar → muammo → taklif → tugma → topshiriq → tekshiruv');
+  {
+    const ddb = new DatabaseSync(join(dataDir, 'palantir.db'));
+    ddb.exec('PRAGMA busy_timeout = 5000');
+    const bizId = String((ddb.prepare("SELECT id FROM businesses WHERE login = 'sotuv'").get() as { id: string }).id);
+    const ago = (days: number, h = 11) => { const d = new Date(Date.now() - days * 86_400_000); d.setHours(h, 0, 0, 0); return d.toISOString(); };
+    let seq = 0;
+    const lead = (when: string) => {
+      const lid = `dlead${++seq}`;
+      ddb.prepare("INSERT INTO leads (id, business_id, name, channel, stage, source, created_at, updated_at, last_inbound_at) VALUES (?, ?, ?, 'instagram', 'new', 'Instagram', ?, ?, ?)").run(lid, bizId, `Mijoz ${seq}`, when, when, when);
+      return lid;
+    };
+    const msg = (lid: string, dir: 'in' | 'out', when: string) =>
+      ddb.prepare("INSERT INTO inbox (id, business_id, lead_id, channel, direction, author, text, created_at) VALUES (?, ?, ?, 'instagram', ?, ?, ?, ?)").run(`dmsg${++seq}`, bizId, lid, dir, dir === 'in' ? 'customer' : 'palantir', dir === 'in' ? 'Narxi qancha?' : 'Javob', when);
+    // O'tgan hafta: 6 murojaat, hammasiga javob; bu hafta: 4 murojaat, bittasiga javob
+    for (let i = 0; i < 6; i++) { const l = lead(ago(9 + (i % 4))); msg(l, 'in', ago(9 + (i % 4))); msg(l, 'out', ago(9 + (i % 4), 12)); }
+    const thisWeek = [2, 3, 4, 5].map(d => { const l = lead(ago(d)); msg(l, 'in', ago(d)); return { l, d }; });
+    msg(thisWeek[0].l, 'out', ago(thisWeek[0].d, 12));
+
+    ai.directorPlan = () => ({
+      summary: 'Javob ulushi keskin tushdi', problem: { title: 'Murojaatlarning ko\'pi javobsiz qolyapti', evidence: 'Javob berilgan ulush 100% → 25%' },
+      moves: [
+        { member: 'qabulxona', task: 'Har yangi murojaatga darhol javob ber, narxni aytib, qabulga taklif qil', why: 'ulush 25%', metric: 'answered_pct', check_days: 3 },
+        { member: 'egasi', task: 'Kechki navbatchi kerakmi — hal qiling', why: 'kechqurun javobsiz qolyapti', metric: 'unanswered', check_days: 7 },
+      ],
+    });
+    const run = await api('/api/director/run', { token, body: {} });
+    const seen = ai.director.at(-1) ?? '';
+    ok("direktor: modelga oxirgi 7 kun raqamlari bordi (javob ulushi 25 vs 100), egasining qarorlari bilan", seen.includes('answered_pct') && seen.includes('last 7 days 25, previous 7 days 100') && seen.includes('<memory>'), seen.slice(0, 400));
+    const waiting = (run.json.waiting ?? []) as { id: string; member: string; status: string; baseline: number }[];
+    ok('direktor: muammo va 2 ta taklif tasdiq kutyapti (boshlang\'ich qiymat yozildi)', run.status === 200 && run.json.run?.problem?.includes('javobsiz') && waiting.length === 2 && waiting[0].baseline === 25, JSON.stringify(run.json).slice(0, 400));
+    const toReception = waiting.find(m => m.member === 'qabulxona')!, toOwner = waiting.find(m => m.member === 'egasi')!;
+
+    const approved = await api(`/api/director/moves/${toReception.id}`, { token, body: { decision: 'approve' } });
+    const order = ((await api('/api/orders?member=qabulxona', { token })).json.orders as { text: string; spec: { kind: string }; active: boolean }[]).find(o => o.text.startsWith('Har yangi murojaatga'));
+    const memo = ((await api('/api/notes', { token })).json.notes as { text: string; kind: string; tags: string[]; by: string }[]).find(n => n.tags.includes('direktor'));
+    ok("tasdiq: Qabulxonaga doimiy topshiriq bo'ldi", approved.status === 200 && approved.json.message.startsWith('Qabulxonaga topshirildi') && order?.spec.kind === 'standing' && order.active, JSON.stringify(approved.json.message));
+    ok("tasdiq: Xotira'ga qaror yozildi (sabab, tekshirish sanasi, boshlang'ich qiymat)", memo?.kind === 'qaror' && memo.by === 'Siz (Direktor taklifi)' && memo.text.includes('Sabab: ulush 25%') && memo.text.includes('javob berilgan ulush 25%'), JSON.stringify(memo));
+    ok('ikkinchi bosish ikkinchi topshiriq yaratmaydi', (await api(`/api/director/moves/${toReception.id}`, { token, body: { decision: 'approve' } })).json.message === 'Allaqachon topshirilgan'
+      && ((await api('/api/orders?member=qabulxona', { token })).json.orders as { text: string }[]).filter(o => o.text.startsWith('Har yangi murojaatga')).length === 1);
+
+    const cb = press(OWNER, `dn|${toOwner.id}`, 1);
+    let declined: { id: string; status: string } | undefined;
+    for (let i = 0; i < 60 && !declined; i++) {
+      await sleep(250);
+      declined = ((await api('/api/director', { token })).json.journal as { id: string; status: string }[]).find(m => m.id === toOwner.id && m.status === 'rad');
+    }
+    ok("Telegram tugmasi «✖️ kerak emas» — taklif yopildi, egasiga vazifa yaratilmadi", !!declined && !!cb && !((await api('/api/tasks', { token })).json.tasks as { title: string }[]).some(t => t.title.startsWith('Kechki navbatchi')));
+
+    // 3 kun o'tdi: javoblar yozildi, tekshirish kuni keldi
+    for (const { l, d } of thisWeek.slice(1)) msg(l, 'out', ago(d, 12));
+    ddb.prepare("UPDATE director_moves SET check_at = ? WHERE id = ?").run(stamp(new Date(Date.now() - 86_400_000)).slice(0, 10), toReception.id);
+    ai.directorPlan = () => ({ summary: 'Javoblar tiklandi', problem: null, moves: [] });
+    const again = await api('/api/director/run', { token, body: {} });
+    const checked = (again.json.journal as { id: string; status: string; after: number; verdict: string }[]).find(m => m.id === toReception.id);
+    const memo2 = ((await api('/api/notes', { token })).json.notes as { id: string; text: string; tags: string[] }[]).find(n => n.tags.includes('direktor'));
+    ok("tekshiruv: muddati kelgan qaror qayta o'lchandi — 25% → 100%, yaxshilandi", checked?.status === 'tekshirildi' && checked.after === 100 && checked.verdict === 'yaxshi', JSON.stringify(checked));
+    ok("tekshiruv: natija Xotira'dagi qaror yozuviga qo'shildi", !!memo2?.text.includes('→ Natija') && memo2.text.includes('25% → 100%, yaxshilandi'), memo2?.text);
+    ddb.close();
+    ai.directorPlan = null;
+  }
 
   ok("serverda kutilmagan xato yo'q", !/\[http\]|TypeError|ReferenceError/.test(log), log.split('\n').filter(l => /\[http\]|Error/.test(l)).slice(0, 3).join(' | '));
 } finally {

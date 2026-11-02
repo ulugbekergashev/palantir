@@ -26,6 +26,7 @@ import { syncTasks } from './brain/mirror';
 import { tgCall, tgCallEnabled } from './tgcall';
 import { ContentError, factoryDue, runFactory } from './content/factory';
 import { watchAll as watchAds } from './ads/campaigns';
+import { directorMorning } from './director/telegram';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 /** Reklama sarfi va limitlar tekshiruvi oralig'i */
@@ -325,6 +326,8 @@ export function startScheduler(bot: BotService): () => void {
           if (!biz.active || !biz.ownerChatId || biz.briefDate === today || biz.profile.morningBrief === false) continue;
           try {
             if (await sendMorning(bot, biz, now)) businesses.update(biz.id, { briefSentDate: today });
+            // Direktor — rejadan keyin, fonda (AI o'ylaydi, jadval kutmaydi); kuniga bir marta (director_runs)
+            void directorMorning(bot, biz, now).catch(e => console.error(`[direktor] (${biz.profile.name}):`, (e as Error).message));
           } catch (e) {
             console.error(`[jadval] xulosa (${biz.profile.name}):`, (e as Error).message);
             // Internet yo'q — «yuborildi» deb belgilanmaydi: besh daqiqadan keyin yana uriniladi (ertalabki oraliq ichida)
