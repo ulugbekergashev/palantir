@@ -378,7 +378,7 @@ export const ai = {
   requests: [] as { system: string; messages: Msg[]; tools: Block[]; beta: string; thinking: unknown; effort?: string }[],
   violations: [] as string[],
   /** Mijozga javob so'rovlari (Palantir biznes nomidan yozadi) */
-  replier: [] as { user: string; format: unknown }[],
+  replier: [] as { user: string; format: unknown; cached: boolean }[],
   /** Stend: taqlid miya (scripts/stendBrain.ts). Berilsa — pastdagi kalit so'zli qoidalar o'rniga shu javob beradi */
   owner: null as ((messages: Msg[], tools: Block[], system: string) => { content: Block[]; stop: string }) | null,
   customer: null as ((user: string) => Record<string, unknown>) | null,
@@ -770,8 +770,12 @@ export const aiServer = patient(createServer(async (req, res) => {
   }
 
   if (String(body.system).startsWith('You answer customer messages')) {
-    const user = String(body.messages[0]?.content ?? '');
-    ai.replier.push({ user, format: (body as { output_config?: { format?: unknown } }).output_config?.format });
+    // Xabar ikki blokda keladi (biznes ma'lumoti — keshlanadi, suhbat — keyin): ikkalasi bitta matn bo'lib tekshiriladi
+    const first = body.messages[0]?.content;
+    const user = Array.isArray(first) ? first.map(b => String(b.text ?? '')).join('\n\n') : String(first ?? '');
+    // cached: biznes ma'lumoti bloki keshga belgilanganmi (oxirgi blok — suhbat — belgilanmaydi)
+    const cached = Array.isArray(first) && !!first[0]?.cache_control && !first.at(-1)?.cache_control && !String(first[0]?.text ?? '').includes('<conversation>');
+    ai.replier.push({ user, format: (body as { output_config?: { format?: unknown } }).output_config?.format, cached });
     const decision = (ai.customer ? ai.customer(user) : customerDecision(user)) as { action?: unknown };
     wire.log?.('Model', `mijozga javob: ${String(decision.action)}`, { modelga_berilgan: user, qaror: decision });
     const text = JSON.stringify(decision);

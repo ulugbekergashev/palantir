@@ -274,6 +274,7 @@ try {
   ok("modelga bemorning qabullari bordi (appointment_id bilan)", ai.replier.at(-1)?.user.includes('appointment_id up1') && ai.replier.at(-1)?.user.includes('<customer_appointments>'), (ai.replier.at(-1)?.user ?? '').split('</saved_facts>').at(-1)!.slice(0, 900));
   ok("karta: «🔁 Qabulni ko'chiradi: Rustamov: ertaga 11:00 → 15:00», tugma «Ko'chirish va yuborish»", textOf(moveCard).includes(`${tomorrow} 11:00 → ${tomorrow} 15:00`) && buttons(moveCard).some(b => b.text.includes("Ko'chirish")), textOf(moveCard));
   ok("tasdiqsiz CRM'ga tegilmadi", !crm.callResults.length);
+  ok("biznes ma'lumoti keshga belgilangan, suhbat — keshdan tashqarida (tejash)", ai.replier.length > 0 && ai.replier.every(r => r.cached));
   mark = sent.length;
   press(STAFF, buttons(moveCard).find(b => b.callback_data?.startsWith('ra|'))!.callback_data!, moveCard!.id!);
   ok("bosildi → DentaCRM'da ko'chirildi (qabulxona natijasi «rescheduled»), bemorga tasdiq", await waitFor('ko\'chdi', () => crm.callResults.some(c => c.id === 'up1' && c.result === 'rescheduled' && c.time === '15:00'))

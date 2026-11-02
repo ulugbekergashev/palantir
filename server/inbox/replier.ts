@@ -203,11 +203,15 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
   const brain = replierBrain(biz);
   // Javobdagi narx va va'dalar shu matndan tekshiriladi (unsupportedOffer): profil, saqlangan faktlar, egasining bilimi, mijozning o'z gaplari
   const known = [profileText(biz), ...saved.map(n => n.text), brain ?? '', ...thread.map(m => m.text)].join('\n');
-  const user = [
+  // Ikki qism: biznesning o'zgarmaydigan ma'lumoti (profil, faktlar, bilim) — keshlanadi; shu biznesning keyingi xabarlarida
+  // ko'rsatma bilan birga ~10% narxda o'qiladi. O'zgaradigani (vaqt, jadval, suhbat) — keyin, keshdan tashqarida
+  const business = [
     `<business_profile>\n${profileText(biz)}\n</business_profile>`,
     `<saved_facts>\n${saved.length ? saved.map(n => `- ${n.text}`).join('\n') : '(none)'}\n</saved_facts>`,
-    `Now: ${stamp(now).replace('T', ' ')} (${DAYS.uz[weekday(now)]}). Channel: ${CHANNEL_NAME[lead.channel]}. Customer: ${who}.`,
     brain ? `<owner_knowledge>\n${brain}\n</owner_knowledge>` : '',
+  ].filter(Boolean).join('\n\n');
+  const user = [
+    `Now: ${stamp(now).replace('T', ' ')} (${DAYS.uz[weekday(now)]}). Channel: ${CHANNEL_NAME[lead.channel]}. Customer: ${who}.`,
     schedule ? `<clinic_schedule>\n${schedule}\n</clinic_schedule>` : '',
     visits.length ? `<customer_appointments>\n${visitsText(visits)}\n</customer_appointments>` : '',
     `<conversation>\n${transcript(thread)}\n</conversation>`,
@@ -221,7 +225,7 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
     // O'ylash ham shu hisobdan: kichik chegarada javob JSON'i yarmida uzilib qolardi
     max_tokens: 8000,
     system: REPLIER_SYSTEM + (medical ? MEDICAL_RULES : '') + (schedule ? clinicRules(visits.length > 0, verify) : ''),
-    messages: [{ role: 'user', content: user }],
+    messages: [{ role: 'user', content: [{ type: 'text', text: business, cache_control: { type: 'ephemeral' } }, { type: 'text', text: user }] }],
     thinking: { type: 'adaptive', display: 'omitted' },
     output_config: { effort: env.aiEffortCustomer, format: { type: 'json_schema', schema: visits.length ? CHANGE_SCHEMA : schedule ? CLINIC_SCHEMA : SCHEMA } },
   });
