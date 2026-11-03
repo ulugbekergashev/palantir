@@ -196,6 +196,14 @@ if (-not $fresh) {
     [IO.File]::AppendAllText((Join-Path $Root '.env'), "`r`n# Bitta kompyuter - bitta ish`r`nONE_PROFILE=1`r`n", (New-Object Text.UTF8Encoding($false)))
     Note 'ONE_PROFILE=1 .env ga qoshildi (bu kompyuterda ikkinchi profil ochilmaydi)'
   }
+  # Klinikada admin yo'q (server/http.ts, ONE_PROFILE): eski o'rnatishdagi admin paroli endi hech narsaga kirmaydi - chalg'itmasin deb olib tashlanadi
+  $envFile = Join-Path $Root '.env'
+  $envLines = [IO.File]::ReadAllLines($envFile)
+  $kept = @($envLines | Where-Object { $_ -notmatch '^\s*ADMIN_PASSWORD\s*=' -and $_ -notmatch '^\s*#\s*Admin paroli' })
+  if ($kept.Count -ne $envLines.Count) {
+    [IO.File]::WriteAllLines($envFile, [string[]]$kept, (New-Object Text.UTF8Encoding($false)))
+    Note "Ishlatilmaydigan admin paroli .env dan olib tashlandi (klinikada admin sahifasi yo'q)"
+  }
 } else {
   $data = $DefaultData
   if ($Papka) { $data = $Papka }
