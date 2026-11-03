@@ -515,6 +515,61 @@ export interface ContentSettings {
   auto: boolean; lastRun: string | null;
 }
 
+/** Brend-buk anketasi: egasi o'z so'zi bilan (bo'sh qolsa — AI biznes profilidan oladi) */
+export interface BrandAnswers {
+  /** Kim haqida brend: kompaniya yoki egasining shaxsiy brendi */
+  whose: 'company' | 'personal';
+  /** Nima qiladi — bir-ikki gap */
+  what: string;
+  /** Kimga gapiradi */
+  audience: string;
+  /** Qadriyatlar, nimaga ishonadi */
+  values: string;
+  /** Qanday ovozda gapiradi (qisqa, hazilli, jiddiy…) */
+  tone: string;
+  /** Nima qilmaslik kerak, yoqmaydigan uslublar */
+  avoid: string;
+  /** Rang yoki uslub istagi (ixtiyoriy) */
+  look: string;
+}
+/** Brend-buk ranglari: video va postlar shu tokenlardan chiziladi */
+export interface BrandColors { bg: string; deep: string; surface: string; ink: string; accent: string; muted: string }
+export interface BrandPillar { name: string; share: number; about: string }
+/** AI yaratgan brend-buk (egasi tahrirlaydi yoki qayta yaratadi) */
+export interface BrandBook {
+  name: string;
+  /** Bir gapli pozitsiya: «… uchun … qilaman» */
+  positioning: string;
+  /** Videoning imzosidagi qisqa satr */
+  tagline: string;
+  values: string[];
+  voice: string[];
+  /** Ishlatilmaydigan so'zlar */
+  banned: string[];
+  colors: BrandColors;
+  /** Ko'rinish g'oyasi (motiv): nima, nega shu */
+  motif: string;
+  /** Sarlavha shrifti: panel bilan birga keladiganlardan */
+  font: 'Unbounded' | 'Manrope';
+  pillars: BrandPillar[];
+  dont: string[];
+}
+export interface ContentBrand { answers: BrandAnswers; book: BrandBook | null; updatedAt: string }
+
+/** Kontent rejasidagi mavzu: post yozilgach draftId, video tayyorlangach videoId */
+export interface PlanItem { id: string; n: number; pillar: string; title: string; angle: string; draftId: string | null; videoId: string | null; createdAt: string }
+
+/** Video sahnasi: ekrandagi qisqa yozuv va diktor gapi. kind — sahna turi (andoza shunga qarab chizadi) */
+export interface VideoScene { kind: 'hook' | 'point' | 'claim' | 'sign'; text: string; voice: string }
+/**
+ * Video: AI ssenariy yozadi → ElevenLabs ovoz beradi (so'z vaqtlari bilan) → video panelda (brauzerda) chiziladi va yozib olinadi.
+ * starts — har sahna ovozda boshlanadigan soniya; duration — ovoz uzunligi
+ */
+export interface ContentVideo {
+  id: string; topic: string; scenes: VideoScene[]; status: 'script' | 'voiced' | 'failed'; error: string | null;
+  starts: number[]; duration: number; createdAt: string;
+}
+
 export interface CallLine { who: 'ai' | 'caller'; text: string }
 /**
  * Qo'ng'iroq: ovozli agent qabul qilgani (source 'voice') yoki MicroSIP orqali bo'lgan haqiqiy qo'ng'iroq (source 'microsip').

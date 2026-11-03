@@ -12,11 +12,11 @@ import { HUE, Panel, Quiet } from '../../components/agent';
 import { hrefOf } from '../../lib/nav';
 
 const MAX_DRAFT = 4000;
-const ACCENT = HUE.kontent.a;
-const field = 'w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3.5 py-2.5 text-[14.5px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f] focus:border-glass/25';
-const button = 'inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 text-[13.5px] font-semibold transition-opacity disabled:opacity-40';
-const ghost = `${button} border border-glass/10 text-[#c9cbd2] hover:bg-glass/5`;
-const spin = <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />;
+export const ACCENT = HUE.kontent.a;
+export const field = 'w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3.5 py-2.5 text-[14.5px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f] focus:border-glass/25';
+export const button = 'inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 text-[13.5px] font-semibold transition-opacity disabled:opacity-40';
+export const ghost = `${button} border border-glass/10 text-[#c9cbd2] hover:bg-glass/5`;
+export const spin = <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />;
 
 const STATUS: Record<ContentDraft['status'], { label: string; cls: string }> = {
   draft: { label: 'Tasdiqingizni kutyapti', cls: 'bg-[#f5b454]/15 text-[#fde2b0]' },
@@ -38,8 +38,8 @@ export function useContent(notify: Notify, tick: number): [ContentView | null, (
 }
 
 /** true — bajarildi (xato bo'lsa sababi ko'rsatiladi va false) */
-type Run = (what: string, fn: () => Promise<ContentView>, done?: string) => Promise<boolean>;
-function useRun(notify: Notify, setView: (v: ContentView) => void): [string | null, Run] {
+export type Run = (what: string, fn: () => Promise<ContentView>, done?: string) => Promise<boolean>;
+export function useRun(notify: Notify, setView: (v: ContentView) => void): [string | null, Run] {
   const [busy, setBusy] = useState<string | null>(null);
   const run: Run = async (what, fn, done) => {
     setBusy(what);

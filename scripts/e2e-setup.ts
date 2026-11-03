@@ -234,7 +234,7 @@ try {
   ok('kalitlar ro\'yxati — faqat admin', (await api('/api/admin/keys')).status === 401);
   const admin = (await api('/api/admin/login', { body: { password: 'admin-pass-1' } })).json.token as string;
   const keys0 = (await api('/api/admin/keys', { token: admin })).json.keys as { name: string; source: string | null }[];
-  ok("ro'yxat: 9 ta kalit (Palantir Hub kodi bilan), hammasi berilmagan", keys0.length === 9 && keys0.every(k => k.source === null));
+  ok("ro'yxat: 10 ta kalit (Palantir Hub kodi va ElevenLabs bilan), hammasi berilmagan", keys0.length === 10 && keys0.every(k => k.source === null));
   const put = (name: string, value: string, force = false) => api(`/api/admin/keys/${name}`, { method: 'PUT', token: admin, body: { value, force } });
   const wrongShape = await put('BOT_TOKEN', CLAUDE);
   ok("bot tokeni o'rniga Claude kaliti — rad, sababi bilan", wrongShape.status === 400 && /claude/i.test(wrongShape.json.error), wrongShape.json.error);

@@ -9,6 +9,7 @@ import type { BusinessRow } from '../db';
 import { notifyOwner } from '../inbox/core';
 import { ContentError, MAX_DRAFT, contentStore } from './store';
 import { fetchChannel, normalizeHandle, type SourcePost } from './telegram';
+import { brandNotes, brandStore } from './brand';
 import { writeDrafts, writeTopicDraft, type DraftText } from './writer';
 
 export { ContentError } from './store';
@@ -23,9 +24,15 @@ export const setChannelOutlet = (o: ChannelOutlet | null): void => { outlet = o;
 
 export interface FactoryDeps {
   fetch: (handle: string) => Promise<SourcePost[] | { title: string | null; posts: SourcePost[] }>;
-  write: (biz: BusinessRow, s: ContentSettings, items: SourcePost[], count: number) => Promise<DraftText[]>;
+  write: (biz: BusinessRow, s: ContentSettings & { brand?: string }, items: SourcePost[], count: number) => Promise<DraftText[]>;
 }
 const LIVE: FactoryDeps = { fetch: fetchChannel, write: writeDrafts };
+
+/** Yozuvchiga: sozlamalar va brend-buk qoidalari (kitob bo'lsa) */
+const withBrand = (bizId: string, s: ContentSettings): ContentSettings & { brand?: string } => {
+  const book = brandStore.book(bizId);
+  return book ? { ...s, brand: brandNotes(book) } : s;
+};
 
 /** Birinchi marta qo'shilgan manbadan nechta oxirgi post olinadi (eski arxiv emas — yangiliklar) */
 const FIRST_TAKE = 8;
@@ -100,7 +107,7 @@ export async function runFactory(biz: BusinessRow, deps: FactoryDeps = LIVE, opt
       done();
       return { made: 0, note: problems.length ? problems.join('; ') : "Manbalarda yangi post yo'q" };
     }
-    const drafts = await deps.write(biz, s, items, Math.max(1, Math.min(5, s.perRun)));
+    const drafts = await deps.write(biz, withBrand(biz.id, s), items, Math.max(1, Math.min(5, s.perRun)));
     // Yozilgandan keyin belgilanadi: AI xato bersa, shu postlar keyingi safar yana olinadi
     done();
     const saved = drafts.filter(d => d.text.trim()).map(d => contentStore.addDraft(biz.id, { text: d.text, sourceUrl: d.sourceUrl, topic: null }));
@@ -117,7 +124,7 @@ export const factoryRunning = (bizId: string): boolean => running.has(bizId);
 /** Egasi bergan mavzu bo'yicha bitta qoralama */
 export async function topicDraft(biz: BusinessRow, topic: string, write = writeTopicDraft): Promise<ContentDraft> {
   const s = contentStore.settings(biz.id);
-  const d = await write(biz, s, topic);
+  const d = await write(biz, withBrand(biz.id, s), topic);
   const saved = contentStore.addDraft(biz.id, { text: d.text, sourceUrl: null, topic: topic.slice(0, 300) });
   await card(biz, saved, s);
   return saved;

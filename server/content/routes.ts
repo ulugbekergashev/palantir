@@ -8,6 +8,10 @@ import type { BusinessRow } from '../db';
 import { ContentError, MAX_DRAFT, contentStore } from './store';
 import { cancelDraft, connectChannel, disconnectChannel, editDraft, factoryRunning, publishDraft, runFactory, topicDraft } from './factory';
 import { normalizeHandle } from './telegram';
+import { brandStore, makeBrandBook } from './brand';
+import { PLAN_MAX, PLAN_MIN, makePlan, planDraft, planStore } from './plan';
+import { editScenes, makeVideo, videoAudio, videoStore, voiceVideo } from './video';
+import { env } from '../env';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -23,6 +27,19 @@ const Settings = z.object({
   auto: z.boolean().optional(),
 });
 const Id = (req: Request) => String(req.params.id).slice(0, 20);
+const Answers = z.object({
+  whose: z.enum(['company', 'personal']), what: z.string().max(600), audience: z.string().max(600), values: z.string().max(600),
+  tone: z.string().max(600), avoid: z.string().max(600), look: z.string().max(600),
+}).partial();
+const Scenes = z.array(z.object({ kind: z.enum(['hook', 'point', 'claim', 'sign']), text: z.string().max(200), voice: z.string().max(400) })).min(1).max(10);
+
+/** AI ishi (brend-buk, reja, video) bir biznesda bittadan: ikki marta bosilsa ikki marta pul ketmasin */
+const aiBusy = new Set<string>();
+async function once<T>(bizId: string, fn: () => Promise<T>): Promise<T> {
+  if (aiBusy.has(bizId)) throw new ContentError('Kontent-meyker hozir boshqa ishni yozyapti — tugashini kuting');
+  aiBusy.add(bizId);
+  try { return await fn(); } finally { aiBusy.delete(bizId); }
+}
 
 function failed(res: Response, e: unknown): void {
   if (e instanceof ContentError) { res.status(409).json({ error: e.message }); return; }
@@ -33,6 +50,7 @@ function failed(res: Response, e: unknown): void {
 export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void {
   const view = (biz: BusinessRow) => ({
     settings: contentStore.settings(biz.id), sources: contentStore.sources(biz.id), drafts: contentStore.drafts(biz.id), running: factoryRunning(biz.id),
+    brand: brandStore.get(biz.id), plan: planStore.list(biz.id), videos: videoStore.list(biz.id), voice: !!env.elevenKey, busy: aiBusy.has(biz.id),
   });
 
   app.get('/api/content', asBiz((_req, res, biz) => { res.json(view(biz)); }));
@@ -82,6 +100,61 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
   app.post('/api/content/drafts/:id/publish', asOwner(async (req, res, biz) => {
     try { await publishDraft(biz, Id(req)); res.json(view(biz)); } catch (e) { failed(res, e); }
   }));
+
+  // ─── Brend-buk, reja, video ───
+  app.put('/api/content/brand', asOwner(async (req, res, biz) => {
+    const p = Answers.safeParse(req.body?.answers ?? {});
+    if (!p.success) return bad(res, p.error);
+    try { await once(biz.id, () => makeBrandBook(biz, p.data, contentStore.settings(biz.id).lang)); res.json(view(biz)); } catch (e) { failed(res, e); }
+  }));
+
+  app.post('/api/content/plan', asBiz(async (req, res, biz) => {
+    const p = z.object({ count: z.number().int().min(PLAN_MIN).max(PLAN_MAX), wish: z.string().max(600).optional() }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    try { await once(biz.id, () => makePlan(biz, p.data.count, p.data.wish ?? '')); res.json(view(biz)); } catch (e) { failed(res, e); }
+  }));
+
+  app.post('/api/content/plan/:id/draft', asBiz(async (req, res, biz) => {
+    try { await once(biz.id, () => planDraft(biz, Id(req))); res.json(view(biz)); } catch (e) { failed(res, e); }
+  }));
+
+  app.post('/api/content/plan/:id/video', asBiz(async (req, res, biz) => {
+    const item = planStore.get(biz.id, Id(req));
+    if (!item) return res.status(404).json({ error: 'Mavzu topilmadi' });
+    try {
+      const v = await once(biz.id, () => makeVideo(biz, item.angle ? `${item.title}\n\n${item.angle}` : item.title));
+      planStore.link(biz.id, item.id, 'video_id', v.id);
+      res.json(view(biz));
+    } catch (e) { failed(res, e); }
+  }));
+
+  app.delete('/api/content/plan/:id', asBiz((req, res, biz) => { planStore.remove(biz.id, Id(req)); res.json(view(biz)); }));
+
+  app.post('/api/content/videos', asBiz(async (req, res, biz) => {
+    const p = z.object({ topic: z.string().trim().min(5).max(600) }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    try { await once(biz.id, () => makeVideo(biz, p.data.topic)); res.json(view(biz)); } catch (e) { failed(res, e); }
+  }));
+
+  app.patch('/api/content/videos/:id', asOwner((req, res, biz) => {
+    const p = z.object({ scenes: Scenes }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    try { editScenes(biz.id, Id(req), p.data.scenes); res.json(view(biz)); } catch (e) { failed(res, e); }
+  }));
+
+  app.post('/api/content/videos/:id/voice', asBiz(async (req, res, biz) => {
+    try { await once(biz.id, () => voiceVideo(biz, Id(req))); res.json(view(biz)); } catch (e) { failed(res, e); }
+  }));
+
+  app.get('/api/content/videos/:id/audio', asBiz((req, res, biz) => {
+    const mp3 = videoAudio(biz.id, Id(req));
+    if (!mp3) return res.status(404).json({ error: "Ovoz hali yo'q" });
+    res.setHeader('content-type', 'audio/mpeg');
+    res.setHeader('cache-control', 'private, max-age=600');
+    res.end(mp3);
+  }));
+
+  app.delete('/api/content/videos/:id', asBiz((req, res, biz) => { videoStore.remove(biz.id, Id(req)); res.json(view(biz)); }));
 
   app.delete('/api/content/drafts/:id', asBiz((req, res, biz) => {
     try { cancelDraft(biz, Id(req)); res.json(view(biz)); } catch (e) { failed(res, e); }

@@ -20,6 +20,7 @@ import { AssistantDesk, dueGroup, useAssistantData } from './agents/Assistant';
 import { MarketingDesk, MarketingReports, MetaAiConnect, marketingStats, useMarketingReports } from './agents/Marketing';
 import { MarketingPosts } from './agents/Posts';
 import { ContentChannel, ContentDrafts, ContentSources, contentStats, useContent } from './agents/Content';
+import { ContentBrandTab, ContentPlanTab, ContentVideoTab } from './agents/ContentStudio';
 import { AdsCabinet, AdsCampaigns, adsStats, useAds } from './agents/Ads';
 import { HUE } from '../components/agent';
 import { TEAM, type Member } from '../components/team';
@@ -174,7 +175,7 @@ function DepartmentSwitch({ title, members, active }: { title: string; members: 
   );
 }
 
-const KONTENT_TABS = ['qoralamalar', 'manbalar', 'kanal'];
+const KONTENT_TABS = ['qoralamalar', 'reja', 'video', 'brend', 'manbalar', 'kanal'];
 const TARGET_TABS = ['kampaniyalar', 'kabinet'];
 
 /** Marketing bo'limi: Marketolog (Meta AI, Instagram postlari), Targetolog (Meta reklama) va Kontent-meyker (Telegram kanal uchun kontent-zavod) */
@@ -214,9 +215,12 @@ function ContentArea({ tab, status, notify, kontent, tick }: Common & { kontent:
   return (
     <div className="space-y-6">
       <AgentHero member="kontent" state={kontent} stats={contentStats(view)}>
-        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'qoralamalar', label: 'Qoralamalar', count: kontent?.badge }, { id: 'manbalar', label: 'Manbalar' }, { id: 'kanal', label: 'Kanal' }]} />
+        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'qoralamalar', label: 'Qoralamalar', count: kontent?.badge }, { id: 'reja', label: 'Reja' }, { id: 'video', label: 'Video' }, { id: 'brend', label: 'Brend-buk' }, { id: 'manbalar', label: 'Manbalar' }, { id: 'kanal', label: 'Kanal' }]} />
       </AgentHero>
       {active === 'qoralamalar' && <ContentDrafts view={view} setView={setView} notify={notify} />}
+      {active === 'reja' && <ContentPlanTab view={view} setView={setView} notify={notify} />}
+      {active === 'video' && <ContentVideoTab view={view} setView={setView} notify={notify} />}
+      {active === 'brend' && <ContentBrandTab view={view} setView={setView} notify={notify} />}
       {active === 'manbalar' && <ContentSources view={view} setView={setView} notify={notify} />}
       {active === 'kanal' && <ContentChannel view={view} setView={setView} notify={notify} status={status} />}
     </div>

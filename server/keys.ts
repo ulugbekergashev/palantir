@@ -39,6 +39,7 @@ function apply(name: KeyName): void {
     case 'GROQ_API_KEY': env.groqKey = v; break;
     case 'VOICELAB_API_KEY': env.voicelabKey = v; break;
     case 'SPEECHLAB_API_KEY': env.speechlabKey = v; break;
+    case 'ELEVENLABS_API_KEY': env.elevenKey = v; break;
     case 'TG_API_ID': env.tgApiId = Number(v) || 0; break;
     case 'TG_API_HASH': env.tgApiHash = v; break;
     case 'PALANTIR_HUB': env.hub = v ? parseHubCode(v) : null; break;
@@ -126,6 +127,16 @@ async function checkGet(url: string, headers: Record<string, string>, info: stri
   return { ok: false, canForce: true, error: `Xizmat javob bermadi (${r.status})` };
 }
 
+/** Faqat «Text to Speech» ruxsatli kalit /v1/user ga 401 (missing_permissions) qaytaradi — bunday kalit video uchun yetarli */
+async function checkEleven(key: string): Promise<KeyCheck> {
+  const r = await call(`${env.elevenUrl}/v1/user`, { headers: { 'xi-api-key': key } });
+  if (r.ok) return { ok: true, info: 'Ishlayapti: videoga diktor ovozi' };
+  const why = await errorText(r);
+  if (r.status === 401 && /permission/i.test(why)) return { ok: true, info: 'Saqlandi', warn: "Kalitda hisobni o'qish ruxsati yo'q — ovoz birinchi videoda tekshiriladi" };
+  if (r.status === 401 || r.status === 403) return { ok: false, canForce: false, error: `Kalit ishlamadi: ${why}` };
+  return { ok: false, canForce: true, error: `ElevenLabs javob bermadi (${r.status})` };
+}
+
 export async function checkKey(name: KeyName, value: string): Promise<KeyCheck> {
   try {
     switch (name) {
@@ -135,6 +146,7 @@ export async function checkKey(name: KeyName, value: string): Promise<KeyCheck> 
       case 'GROQ_API_KEY': return await checkGet(`${env.groqApiRoot}/openai/v1/models`, { authorization: `Bearer ${value}` }, "Ishlayapti: zaxira ovoz o'giruvchi");
       case 'VOICELAB_API_KEY': return await checkGet(`${env.voicelabUrl}/v1/stt/transcriptions`, { authorization: `Bearer ${value}` }, "Ishlayapti: o'zbek ovozi");
       case 'SPEECHLAB_API_KEY': return await checkGet(`${env.speechlabUrl}/agents`, { authorization: `Bearer ${value}` }, "Ishlayapti: qo'ng'iroq qilib eslatadi");
+      case 'ELEVENLABS_API_KEY': return await checkEleven(value);
       case 'TG_API_ID':
       case 'TG_API_HASH': return { ok: true, info: 'Saqlandi: egasining raqami bilan ulanganda tekshiriladi' };
       case 'PALANTIR_HUB': {

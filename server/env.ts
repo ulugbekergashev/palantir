@@ -273,6 +273,15 @@ export const env = {
   speechlabAgentId: Number(process.env.SPEECHLAB_AGENT_ID) || 0,
   /** Faqat sinov uchun: soxta SpeechLab manzili */
   speechlabUrl: (process.env.SPEECHLAB_URL || 'https://speechlab.uz/api/v1').replace(/\/$/, ''),
+  /**
+   * Kontent-meyker videosi uchun diktor ovozi — ElevenLabs (elevenlabs.io → Developers → API keys, «Text to Speech» ruxsati).
+   * Ovoz va model almashtirilsa bo'ladi: eleven_v4 o'zbekchani biladi (multilingual_v2 va flash bilmaydi)
+   */
+  elevenKey: process.env.ELEVENLABS_API_KEY || '',
+  elevenVoice: process.env.ELEVENLABS_VOICE || 'rwtcHtZgYU6HN2zLNBlf',
+  elevenModel: process.env.ELEVENLABS_MODEL || 'eleven_v4',
+  /** Faqat sinov uchun: soxta ElevenLabs manzili */
+  elevenUrl: (process.env.ELEVENLABS_URL || 'https://api.elevenlabs.io').replace(/\/$/, ''),
   /** Qo'ng'iroqdan keyin natija shuncha vaqtdan so'ng tekshiriladi (ko'tarmagan bo'lsa — Telegram'da aytiladi) */
   callCheckMs: Number(process.env.CALL_CHECK_MS) || 180_000,
   /**

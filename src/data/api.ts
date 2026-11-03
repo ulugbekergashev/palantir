@@ -6,9 +6,16 @@ import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveChec
 import type { AutoReply, Business, ChatEntry, DirectorView, Doc, GoalView, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
-import type { AdPlan, AdsView, AgentEvent, AgentOrder, ContentDraft, ContentSettings, ContentSource, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
+import type { AdPlan, AdsView, AgentEvent, AgentOrder, BrandAnswers, ContentBrand, ContentDraft, ContentSettings, ContentSource, ContentVideo, PlanItem, VideoScene, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
 
-export interface ContentView { settings: ContentSettings; sources: ContentSource[]; drafts: ContentDraft[]; running: boolean }
+export interface ContentView {
+  settings: ContentSettings; sources: ContentSource[]; drafts: ContentDraft[]; running: boolean;
+  brand: ContentBrand | null; plan: PlanItem[]; videos: ContentVideo[];
+  /** ElevenLabs kaliti bormi (video ovozi) */
+  voice: boolean;
+  /** Brend-buk, reja yoki video yozilyapti */
+  busy: boolean;
+}
 import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 
 export type RequestView = LeadRequest & { lead: Lead | null };
@@ -329,6 +336,16 @@ export const api = {
   contentEdit: (id: string, text: string) => call<ContentView>(`/content/drafts/${id}`, { method: 'PATCH', body: { text } }),
   contentPublish: (id: string) => call<ContentView>(`/content/drafts/${id}/publish`, { body: {} }),
   contentCancel: (id: string) => call<ContentView>(`/content/drafts/${id}`, { method: 'DELETE' }),
+  contentBrand: (answers: Partial<BrandAnswers>) => call<ContentView>('/content/brand', { method: 'PUT', body: { answers } }),
+  contentPlan: (count: number, wish: string) => call<ContentView>('/content/plan', { body: { count, wish } }),
+  contentPlanDraft: (id: string) => call<ContentView>(`/content/plan/${id}/draft`, { body: {} }),
+  contentPlanVideo: (id: string) => call<ContentView>(`/content/plan/${id}/video`, { body: {} }),
+  contentPlanRemove: (id: string) => call<ContentView>(`/content/plan/${id}`, { method: 'DELETE' }),
+  contentVideo: (topic: string) => call<ContentView>('/content/videos', { body: { topic } }),
+  contentVideoEdit: (id: string, scenes: VideoScene[]) => call<ContentView>(`/content/videos/${id}`, { method: 'PATCH', body: { scenes } }),
+  contentVideoVoice: (id: string) => call<ContentView>(`/content/videos/${id}/voice`, { body: {} }),
+  contentVideoRemove: (id: string) => call<ContentView>(`/content/videos/${id}`, { method: 'DELETE' }),
+  contentVideoAudio: async (id: string) => (await send(`/content/videos/${id}/audio`, {})).arrayBuffer(),
   // Targetolog (Meta reklama)
   ads: () => call<AdsView>('/ads'),
   adsConnect: (v: { token: string; adAccountId: string; pageId: string; igActorId: string | null }) => call<AdsView>('/ads/connect', { body: v }),
