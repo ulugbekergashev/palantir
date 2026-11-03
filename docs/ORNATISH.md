@@ -86,8 +86,9 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
    «Kompyuter kodi» va kalit maydoni. Kalit shu kompyuterga bog'langan (Windows qayta o'rnatilsa — yangi kalit kerak). Litsenziyadan oldin
    ishlab turgan klinikaga yangilanish kelsa — 30 kun kalitsiz (keyin faqat panel yopiladi, bot va qo'ng'iroqlar ishlayveradi).
    `litsenziya.json` ni o'chirib muddatni qaytadan boshlab bo'lmaydi — nusxasi bazada.
-   - Telefondan (asosiy yo'l): `npm run kalit-sahifa` bir marta parol bilan `Kalit-DentaCRM-Palantir.html` yasaydi (DentaCRM va Palantir kalitlari bitta
-     sahifada; kodni o'zi taniydi). Faylni telefonga yuborib, brauzerda ochasiz: parol → kompyuter kodi → kalit → nusxalash.
+   - Telefondan (asosiy yo'l): `npm run kalit-sahifa` bir marta parol bilan ish stolida ikkita alohida sahifa yasaydi: `palantir-kalit.html`
+     va `dentacrm-kalit.html` (har birida faqat o'z dasturining maxfiy qismi; `-- palantir` / `-- dentacrm` — bittasini, `-- birga` — ikkalasi
+     bitta sahifada). Faylni telefonga yuborib, brauzerda ochasiz: parol → kompyuter kodi → kalit → nusxalash.
    - Hub orqali, bir bosishda: Hub `/admin` → klinika qatorida «Aktivlashtirish» (Hub kodi kiritilgan va kompyuter aloqada bo'lsa).
    - Qo'lda: panelda «Kalitni kiritish» → kompyuter kodini (`XXXX-XXXX-XXXX-XXXX`) sotuvchiga yuborish; sotuvchi o'z kompyuterida
      `npm run kalit -- XXXX-XXXX-XXXX-XXXX` (yoki `~/.palantir/Kalit-yaratish.cmd`) — chiqqan `PAL1-…` kalitni klinikaga yuboradi, u o'sha oynaga qo'yadi.

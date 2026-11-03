@@ -1,7 +1,10 @@
 /**
- * Sotuvchi: telefon uchun bitta kalit sahifasi — DentaCRM (aktivatsiya va parolni tiklash) va Palantir (aktivatsiya).
- *   npm run kalit-sahifa                      → ish stolida Kalit-DentaCRM-Palantir.html (parolni so'raydi)
- *   npm run kalit-sahifa -- chiqish.html      (sinov: KEY_PAGE_PASSWORD=... bilan so'ramaydi)
+ * Sotuvchi: telefon uchun kalit sahifalari — har dasturga alohida fayl.
+ *   npm run kalit-sahifa                         → ish stolida palantir-kalit.html va dentacrm-kalit.html (parol bir marta so'raladi)
+ *   npm run kalit-sahifa -- palantir [fayl.html] → faqat Palantir sahifasi
+ *   npm run kalit-sahifa -- dentacrm [fayl.html] → faqat DentaCRM sahifasi (aktivatsiya va parolni tiklash)
+ *   npm run kalit-sahifa -- birga [fayl.html]    → ikkalasi bitta sahifada (dastur tanlovi bilan)
+ *   (sinov: KEY_PAGE_PASSWORD=... bilan parol so'ralmaydi)
  * Maxfiy qismlar sahifaga siz tanlagan parol bilan shifrlanib joylanadi (PBKDF2, DentaLocal key-page bilan bir xil sxema):
  *   DentaCRM so'zlari — DENTALOCAL_DIR (standart D:\Projects\dentalocal) / backend/licenseService.ts; topilmasa — faqat Palantir;
  *   Palantir imzo kaliti — ~/.palantir/litsenziya.pem (yoki LICENSE_SIGNING_KEY_FILE).
@@ -19,7 +22,21 @@ const ITERATIONS = 300_000;
 // Sahifada Palantir imzo kaliti ham bor (qaytarib olib bo'lmaydi): fayl chiqib ketsa, qisqa parolni GPU tez topadi
 const MIN_LENGTH = 12;
 const HERE = join(import.meta.dirname, 'kalit-sahifa');
-const outFile = process.argv[2] ? resolve(process.argv[2]) : join(homedir(), 'Desktop', 'Kalit-DentaCRM-Palantir.html');
+type Kind = 'palantir' | 'dentacrm' | 'birga';
+const KINDS: readonly Kind[] = ['palantir', 'dentacrm', 'birga'];
+const desktop = (name: string) => join(homedir(), 'Desktop', name);
+const DEFAULT_FILE: Record<Kind, string> = { palantir: 'palantir-kalit.html', dentacrm: 'dentacrm-kalit.html', birga: 'Kalit-DentaCRM-Palantir.html' };
+/** Sahifa sarlavhasi va rangi (Palantir — to'q sariq, DentaCRM — ko'k) */
+const TITLE: Record<Kind, string> = { palantir: 'Palantir kalit', dentacrm: 'DentaCRM kalit', birga: 'Kalit — DentaCRM · Palantir' };
+const BRAND: Record<Kind, string> = { palantir: 'palantir', dentacrm: 'denta', birga: 'denta' };
+const kindArg = KINDS.find(k => k === process.argv[2]?.toLowerCase());
+if (process.argv[2] && !kindArg) {
+  console.error(`Noma'lum tur: ${process.argv[2]} (palantir, dentacrm yoki birga)`);
+  process.exit(1);
+}
+const jobs: { kind: Kind; out: string }[] = kindArg
+  ? [{ kind: kindArg, out: process.argv[3] ? resolve(process.argv[3]) : desktop(DEFAULT_FILE[kindArg]) }]
+  : [{ kind: 'palantir', out: desktop(DEFAULT_FILE.palantir) }, { kind: 'dentacrm', out: desktop(DEFAULT_FILE.dentacrm) }];
 const dentaDir = process.env.DENTALOCAL_DIR || 'D:\\Projects\\dentalocal';
 const pemFile = process.env.LICENSE_SIGNING_KEY_FILE || join(homedir(), '.palantir', 'litsenziya.pem');
 const publicKey = process.env.LICENSE_PUBLIC_KEY || LICENSE_PUBLIC_KEY;
@@ -96,7 +113,7 @@ function selfCheck(cryptoJs: string, s: Secrets): void {
 }
 
 console.log('\n======================================================');
-console.log('   Kalit sahifasi — DentaCRM va Palantir (telefon uchun)');
+console.log('   Kalit sahifalari — Palantir va DentaCRM (telefon uchun)');
 console.log('======================================================');
 const denta = dentaSalts(), seed = palantirSeed();
 if (!denta && !seed) {
@@ -105,10 +122,21 @@ if (!denta && !seed) {
 }
 console.log(`  DentaCRM: ${denta ? 'bor' : `yo'q (${dentaDir} topilmadi)`}`);
 console.log(`  Palantir: ${seed ? 'bor' : `yo'q (${pemFile} topilmadi)`}`);
-const secrets: Secrets = { ...denta, ...(seed && { p: seed }) };
+/** Har sahifaga faqat o'z dasturining maxfiy qismi: Palantir faylida DentaCRM so'zlari yo'q va aksincha */
+function secretsFor(kind: Kind): Secrets | null {
+  if (kind === 'palantir') return seed ? { p: seed } : null;
+  if (kind === 'dentacrm') return denta ? { ...denta } : null;
+  return { ...denta, ...(seed && { p: seed }) };
+}
+const ready = jobs.filter(j => {
+  if (secretsFor(j.kind)) return true;
+  console.log(`  ${j.kind === 'palantir' ? 'Palantir' : 'DentaCRM'} sahifasi yasalmaydi — maxfiy qismi topilmadi`);
+  return false;
+});
+if (!ready.length) process.exit(1);
 
 const cryptoJs = readFileSync(join(HERE, 'crypto.js'), 'utf8');
-selfCheck(cryptoJs, secrets);
+selfCheck(cryptoJs, { ...denta, ...(seed && { p: seed }) });
 
 let password = process.env.KEY_PAGE_PASSWORD || '';
 if (password) {
@@ -119,15 +147,20 @@ if (password) {
 }
 
 const template = readFileSync(join(HERE, 'template.html'), 'utf8');
-const marks = ['/*__CRYPTO__*/', '/*__PAYLOAD__*/null'];
+const marks = ['/*__CRYPTO__*/', '/*__PAYLOAD__*/null', '__SARLAVHA__', '__BREND__'];
 for (const m of marks) if (!template.includes(m)) throw new Error(`template.html ichida ${m} belgisi yo'q`);
-// Almashtirish funksiya bilan: matndagi «$» belgilari almashtirish naqshi bo'lib qolmasin
-const page = template
-  .replace(marks[0], () => cryptoJs)
-  .replace(marks[1], () => JSON.stringify(encrypt(password, JSON.stringify(secrets))));
-mkdirSync(dirname(outFile), { recursive: true });
-writeFileSync(outFile, page, 'utf8');
 
-console.log(`\nTayyor: ${outFile}`);
-console.log("Faylni telefoningizga yuboring (Telegram «Saqlangan xabarlar») va brauzerda oching.");
+console.log('');
+for (const { kind, out } of ready) {
+  // Almashtirish funksiya bilan: matndagi «$» belgilari almashtirish naqshi bo'lib qolmasin. Har faylga o'z tuzi (encrypt ichida)
+  const page = template
+    .replace(marks[0], () => cryptoJs)
+    .replace(marks[1], () => JSON.stringify(encrypt(password, JSON.stringify(secretsFor(kind)))))
+    .replaceAll(marks[2], () => TITLE[kind])
+    .replaceAll(marks[3], () => BRAND[kind]);
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, page, 'utf8');
+  console.log(`Tayyor: ${out}`);
+}
+console.log("\nFayllarni telefoningizga yuboring (Telegram «Saqlangan xabarlar») va brauzerda oching.");
 console.log("Faylni boshqalarga bermang: parol himoya qiladi, lekin maxfiy qism baribir uning ichida.\n");

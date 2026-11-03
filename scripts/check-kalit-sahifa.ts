@@ -8,7 +8,7 @@
  */
 import { createHash, generateKeyPairSync, randomBytes, sign } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -61,17 +61,24 @@ const denta = join(work, 'dentalocal');
 mkdirSync(join(denta, 'backend'), { recursive: true });
 writeFileSync(join(denta, 'backend', 'licenseService.ts'), `const SECRET_SALT = '${salt}';\nconst RECOVERY_SALT = 'r_tuz';\n`);
 const PASSWORD = 'Sinov-2026-kalit';
-const build = (out: string, extra: Record<string, string> = {}) => execFileSync(process.execPath,
-  ['--no-warnings', '--import', pathToFileURL(resolve('node_modules/tsx/dist/loader.mjs')).href, 'scripts/kalit-sahifa.ts', out],
+const build = (args: string[], extra: Record<string, string> = {}) => execFileSync(process.execPath,
+  ['--no-warnings', '--import', pathToFileURL(resolve('node_modules/tsx/dist/loader.mjs')).href, 'scripts/kalit-sahifa.ts', ...args],
   { env: { ...process.env, KEY_PAGE_PASSWORD: PASSWORD, LICENSE_SIGNING_KEY_FILE: pem, LICENSE_PUBLIC_KEY: pub, DENTALOCAL_DIR: denta, ...extra }, encoding: 'utf8', stdio: 'pipe' });
 const full = join(work, 'kalit.html'), onlyPal = join(work, 'faqat-palantir.html');
-const log = build(full);
+const log = build(['birga', full]);
 ok('yasaldi: DentaCRM va Palantir bor', log.includes('DentaCRM: bor') && log.includes('Palantir: bor'));
 const html = readFileSync(full, 'utf8');
 ok("sahifada maxfiy qismlar ochiq ko'rinmaydi", !html.includes(salt) && !html.includes('r_tuz') && !html.includes(seedOf(pair).toString('hex')) && !html.includes('/*__PAYLOAD__*/null'));
-build(onlyPal, { DENTALOCAL_DIR: join(work, 'yoq') });
+build(['birga', onlyPal], { DENTALOCAL_DIR: join(work, 'yoq') });
+// Standart: ish stolida ikkita alohida fayl (ish stoli — vaqtinchalik papkada: USERPROFILE/HOME almashtiriladi)
+const home = join(work, 'uy');
+build([], { USERPROFILE: home, HOME: home });
+const palFile = join(home, 'Desktop', 'palantir-kalit.html'), dentaFile = join(home, 'Desktop', 'dentacrm-kalit.html');
+ok('standart: ish stolida palantir-kalit.html va dentacrm-kalit.html', existsSync(palFile) && existsSync(dentaFile));
+ok('alohida sahifalar — o\'z sarlavhasi va rangi', readFileSync(palFile, 'utf8').includes('<h1>Palantir kalit</h1>') && readFileSync(palFile, 'utf8').includes('data-product="palantir"')
+  && readFileSync(dentaFile, 'utf8').includes('<h1>DentaCRM kalit</h1>') && !readFileSync(dentaFile, 'utf8').includes('__SARLAVHA__'));
 let wrongKey = '';
-try { build(join(work, 'x.html'), { LICENSE_PUBLIC_KEY: pairs[1].publicKey.export({ format: 'der', type: 'spki' }).toString('base64') }); } catch (e) { wrongKey = String((e as { stdout?: string; stderr?: string }).stderr ?? e); }
+try { build(['palantir', join(work, 'x.html')], { LICENSE_PUBLIC_KEY: pairs[1].publicKey.export({ format: 'der', type: 'spki' }).toString('base64') }); } catch (e) { wrongKey = String((e as { stdout?: string; stderr?: string }).stderr ?? e); }
 ok('boshqa maxfiy kalit (dasturdagi ochiq kalitga mos emas) — sahifa yasalmaydi', wrongKey.includes('mos emas'));
 
 console.log("\n# Telefondagi kabi: fayl brauzerda");
@@ -112,6 +119,29 @@ try {
   await page.waitForSelector('#mainView', { state: 'visible', timeout: 60_000 });
   await page.fill('#code', id);
   ok("dentalocal yo'q kompyuterda yasalgan sahifa — faqat Palantir, tanlov yashirin", await page.isHidden('#products') && checkLicense((await page.textContent('#key'))!.trim(), id, pub) !== null);
+
+  // palantir-kalit.html: faqat Palantir — DentaCRM kodi joylansa ham DentaCRM kaliti chiqmaydi (uning maxfiy qismi bu faylda yo'q)
+  await page.goto(pathToFileURL(palFile).href);
+  await page.fill('#pin', PASSWORD);
+  await page.click('#unlockBtn');
+  await page.waitForSelector('#mainView', { state: 'visible', timeout: 60_000 });
+  await page.fill('#code', id);
+  const onlyPalKey = (await page.textContent('#key'))!.trim();
+  ok('palantir-kalit.html — Palantir kaliti to\'g\'ri, tanlov yashirin', await page.isHidden('#products') && checkLicense(onlyPalKey, id, pub) !== null);
+  await page.fill('#code', hwid);
+  ok('palantir-kalit.html — DentaCRM kaliti bermaydi', !(await page.textContent('#key'))!.includes(dentaWant(salt, 24)) && await page.isDisabled('#copyBtn'));
+
+  // dentacrm-kalit.html: faqat DentaCRM — aktivatsiya va parolni tiklash
+  await page.goto(pathToFileURL(dentaFile).href);
+  await page.fill('#pin', PASSWORD);
+  await page.click('#unlockBtn');
+  await page.waitForSelector('#mainView', { state: 'visible', timeout: 60_000 });
+  await page.fill('#code', hwid);
+  ok('dentacrm-kalit.html — aktivatsiya kaliti to\'g\'ri, tanlov yashirin', await page.isHidden('#products') && (await page.textContent('#key'))!.trim() === dentaWant(salt, 24));
+  await page.click('#modes button[data-mode=recovery]');
+  ok('dentacrm-kalit.html — parolni tiklash kaliti', (await page.textContent('#key'))!.trim() === dentaWant('r_tuz', 20));
+  await page.fill('#code', id);
+  ok('dentacrm-kalit.html — Palantir kaliti bermaydi', await page.isDisabled('#copyBtn'));
   ok('sahifada JS xatosi yo\'q', errors.length === 0, errors.join('; '));
 } finally {
   await browser.close();
