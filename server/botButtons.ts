@@ -21,6 +21,7 @@ import { askOutcome, DAY_OUTCOME, dropOutcome, wantsOutcome } from './outcome';
 import { actorOf } from './requests/index';
 import { requestButton } from './requests/telegram';
 import { answerSupport } from './supportAsk';
+import { answerPasswordReset } from './passwordReset';
 import { directorButton } from './director/telegram';
 
 export interface ButtonDeps {
@@ -61,6 +62,14 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
       const said = answerSupport(biz.id, id, code === 'ja');
       if (said) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
       return toast(ctx, said ?? "Bu so'rov eskirgan");
+    }
+    // Egasi parolni unutdi (passwordReset.ts): «Ha» — yangi parol shu chatga, «Yo'q» — parol o'zgarmaydi
+    if (code === 'pa' || code === 'px') {
+      const said = answerPasswordReset(biz.id, id, code === 'pa');
+      if (!said) return toast(ctx, "Bu so'rov eskirgan — kirish sahifasida qaytadan bosing", { show_alert: true });
+      await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      await sendHtml(String(ctx.chat!.id), said).catch(() => {});
+      return toast(ctx, code === 'pa' ? 'Yangi parol yuborildi' : "Parol o'zgarmadi");
     }
     if (code === 'jy') {
       if (id !== biz.id) return toast(ctx, 'Bu tugma eskirgan');

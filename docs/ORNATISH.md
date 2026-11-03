@@ -66,7 +66,7 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
 2. Papkadagi **`Ornatish.cmd`** ni ikki marta bosing (`install` papkasiga kirish shart emas; exe buni o'zi qiladi). Savolsiz, 3–15 daqiqa:
    - Node.js va (IP kameralar uchun) ffmpeg'ni tekshiradi, yo'q bo'lsa o'rnatadi (exe ichidagisini, aks holda internetdan);
    - kutubxonalarni yuklaydi va panelni yig'adi (reliz arxivida tayyor);
-   - `.env` faylini yozadi: favqulodda admin paroli, `ONE_PROFILE=1` (bitta kompyuter — bitta ish; eski o'rnatishga ham qo'shiladi), port, ma'lumotlar papkasi (`C:PalantirData`, boshqasi: `Ornatish.cmd -Papka D:Baza`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
+   - `.env` faylini yozadi: `ONE_PROFILE=1` (bitta kompyuter — bitta ish; eski o'rnatishga ham qo'shiladi), port, ma'lumotlar papkasi (`C:PalantirData`, boshqasi: `Ornatish.cmd -Papka D:Baza`). **Kalitlar bu yerda so'ralmaydi** — ular ulash ustasida kiritiladi;
    - dastur va ma'lumotlar papkasini kompyuterning boshqa Windows foydalanuvchilaridan yopadi;
    - **ovoz xizmatini** tayyorlaydi (panel ovozi va «Quloq»): Python, ovoz kutubxonalari, «Quloq» modeli (≈45 MB).
      Ovozli agent kalitini Palantir o'zi yaratadi (`DATA_DIRovoz.env`), Gemini kaliti — ulash ustasida;
@@ -80,8 +80,9 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
    (administrator huquqi bilan WSL, Ubuntu 24.04 ≈340 MB SHA256 bilan, Asterisk, `.wslconfig` da mirrored tarmoq, brandmauer qoidalari 5060 va
    10000–10100 — faqat ichki tarmoq). WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqib, `Telefon.cmd` ni yana bosing; har qadam qayta bosilganda
    bor narsani o'tkazib yuboradi.
-3. Oxirida ekranda **favqulodda admin paroli** chiqadi — yozib oling. Sozlash uchun kerak emas; faqat egasi parolini unutsa
-   (`/#/admin` → klinikaga yangi parol). Klinikaga berilmaydi.
+3. **Klinikada admin sahifasi yo'q** (`ONE_PROFILE=1`): `/#/admin` kirish sahifasiga qaytaradi, server ham rad etadi — klinika
+   .env'dan parol topib admin bo'la olmaydi. Egasi parolni unutsa: kirish sahifasi → «Parolni unutdingizmi?» → Telegram'ida
+   «✅ Ha, yangi parol» → yangi parol o'sha yerga keladi (Telegram ulanmagan bo'lsa — Palantir xodimiga murojaat qiladi).
 4. **Litsenziya (DentaLocal kabi).** Yangi o'rnatish kalitsiz ishlamaydi: panel birinchi ochilishdanoq faqat aktivlashtirish oynasini ko'rsatadi —
    «Kompyuter kodi» va kalit maydoni. Kalit shu kompyuterga bog'langan (Windows qayta o'rnatilsa — yangi kalit kerak). Litsenziyadan oldin
    ishlab turgan klinikaga yangilanish kelsa — 30 kun kalitsiz (keyin faqat panel yopiladi, bot va qo'ng'iroqlar ishlayveradi).

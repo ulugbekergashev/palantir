@@ -1,7 +1,7 @@
 # Palantir-Ornatish.exe ichidagi o'rnatuvchi (exe'ni scripts\setup-exe.ts yig'adi, ichida reliz arxivi app.zip - kutubxonalari bilan).
 # Exe vaqtinchalik papkaga ochiladi va shu faylni ishga tushiradi: app.zip dastur papkasiga ochiladi, keyin install\ornatish.ps1
 # (internetsiz yo'l: files.json, node_modules va panel tayyor). Avval o'rnatilgan bo'lsa - o'sha papkaga yoziladi (.env va
-# ma'lumotlar joyida qoladi). Oyna oxirida Enter kutadi: admin paroli shu oynada chiqadi.
+# ma'lumotlar joyida qoladi). Oyna oxirida Enter kutadi.
 # Jurnal: %TEMP%\palantir-exe.log (bu oyna) va %TEMP%\palantir-ornatish.log (ornatish.ps1) - oyna yopilsa ham qoladi.
 # Bu faylda faqat ASCII belgilar: PowerShell 5.1 boshqa belgilarni buzib o'qiydi.
 $ErrorActionPreference = 'Stop'
@@ -76,7 +76,7 @@ Show-Front
 Write-Host ''
 Write-Host '  ==============================================================' -ForegroundColor Yellow
 Write-Host '   PALANTIR O''RNATILMOQDA - 3-10 DAQIQA. OYNANI YOPMANG.' -ForegroundColor Yellow
-Write-Host '   Savol berilmaydi. Oxirida admin paroli chiqadi.' -ForegroundColor Yellow
+Write-Host '   Savol berilmaydi. Oxirida ulash ustasi o''zi ochiladi.' -ForegroundColor Yellow
 Write-Host '  ==============================================================' -ForegroundColor Yellow
 
 # Nashr ro'yxati (files.json): yangi fayllar ochilganda u almashadi - eskisi oldin o'qib olinadi
@@ -151,8 +151,4 @@ Remove-Stale $root $oldFiles (Release-Files $root)
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'install\ornatish.ps1')
 if ($LASTEXITCODE -ne 0) { Fail "O'rnatish oxiriga yetmadi - yuqoridagi xabarni o'qing. Exe'ni qayta ishga tushirsangiz, qolgan joyidan davom etadi." }
-if (-not $update) {
-  Write-Host ''
-  Write-Host '   Admin parolini yozib oldingizmi? U dastur papkasidagi .env faylida ham turadi.' -ForegroundColor Yellow
-}
 Finish 0

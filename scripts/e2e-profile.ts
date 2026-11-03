@@ -11,7 +11,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import { networkInterfaces, tmpdir } from 'node:os';
 import path from 'node:path';
-import { listen, sleep, stopProcess, tgServer } from './fakes';
+import { listen, OWNER, press, say, sent, sleep, stopProcess, tgServer, waitFor, type Sent } from './fakes';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
@@ -42,6 +42,9 @@ const post = (body: unknown, token?: string) => ({ method: 'POST', headers: { 'c
 const auth = (token: string) => ({ headers: { authorization: `Bearer ${token}` } });
 type Clinic = { id: string; online: boolean; status: { setup?: boolean; label?: string } | null };
 const hubClinic = async (id: string) => ((await (await fetch(`${HUB}/admin/clinics`, { headers: admin })).json()) as { clinics: Clinic[] }).clinics.find(c => c.id === id);
+const textOf = (s: Sent | undefined) => String(s?.params.text ?? '');
+const to = (chat: number, mark: number, needle: string) => sent.slice(mark).find(s => s.method === 'sendMessage' && Number(s.params.chat_id) === chat && textOf(s).includes(needle));
+const buttons = (s: Sent | undefined) => ((s?.params.reply_markup as { inline_keyboard?: { callback_data?: string; text: string }[][] })?.inline_keyboard ?? []).flat();
 const phase = async () => await (await fetch(`${base}/api/profile/phase`)).json() as { setup: boolean; oneProfile: boolean; name: string | null; hub: string | null };
 
 try {
@@ -60,9 +63,13 @@ try {
   console.log('\n# Bitta kompyuter — bitta profil');
   const p0 = await phase();
   ok("profil o'zi yaratildi, sozlash bosqichida, Hub hali yo'q", p0.oneProfile && p0.setup && p0.name === 'Yangi biznes' && p0.hub === null, JSON.stringify(p0));
-  const adminToken = (await (await fetch(`${base}/api/admin/login`, post({ password: 'admin-pass-1' }))).json() as { token: string }).token;
-  const second = await fetch(`${base}/api/admin/businesses`, post({ name: 'Boshqa ish', login: 'boshqa', password: 'secret12' }, adminToken));
-  ok('admin ikkinchi profil ocha olmaydi — 409', second.status === 409, ((await second.json()) as { error: string }).error);
+  // Klinikada admin yo'q: .env dagi ADMIN_PASSWORD to'g'ri bo'lsa ham kirib bo'lmaydi, admin yo'llari ham yopiq
+  const adminLogin = await fetch(`${base}/api/admin/login`, post({ password: 'admin-pass-1' }));
+  ok("klinikada admin yo'q: to'g'ri admin paroli bilan ham — 404", adminLogin.status === 404);
+  const second = await fetch(`${base}/api/admin/businesses`, post({ name: 'Boshqa ish', login: 'boshqa', password: 'secret12' }));
+  ok("admin yo'llari ham yopiq (ikkinchi profil ochilmaydi) — 404", second.status === 404);
+  const early = await fetch(`${base}/api/login/forgot`, post({}));
+  ok("sozlash bosqichida «Parolni unutdingizmi?» — hali topshirilmagan (409)", early.status === 409);
 
   console.log('\n# Sozlash bosqichi: kim kira oladi');
   const local = await (await fetch(`${base}/api/login/setup`, post({}))).json() as { token?: string };
@@ -117,6 +124,33 @@ try {
   ok("Hub: endi oddiy klinika («sozlanmoqda» emas)", !!after);
   const asked = await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/panel`, { method: 'POST', headers: admin, body: '{}' });
   ok("«Panelni ochish»: egasi Telegram'ni ulamagan va ruxsat bermagan — kirilmaydi (403)", asked.status === 403, ((await asked.json()) as { error?: string }).error ?? '');
+
+  // Egasi Telegram'ni shu yerda ulaydi — shuning uchun oxirida (yuqoridagi «ulamagan» holati buzilmasin)
+  console.log("\n# Parolni unutdi — Telegram orqali (admin yo'q)");
+  const noTg = await fetch(`${base}/api/login/forgot`, post({}));
+  ok("Telegram ulanmagan — tiklab bo'lmaydi, Palantir xodimiga (409)", noTg.status === 409 && ((await noTg.json()) as { error: string }).error.includes('Palantir xodimi'));
+  const status = await (await fetch(`${base}/api/me`, auth(owner.token!))).json() as { status: { linkUrl: string | null } };
+  let mark = sent.length;
+  say(OWNER, `/start ${String(status.status.linkUrl).split('start=')[1]}`);
+  ok('egasi Telegram\'ni uladi', !!await waitFor('egasi ulandi', () => to(OWNER, mark, 'ulandi') || to(OWNER, mark, 'Shifo Dent')));
+  mark = sent.length;
+  const forgotAsk = await fetch(`${base}/api/login/forgot`, post({}));
+  const ask = await waitFor("Telegram'ga so'rov", () => to(OWNER, mark, 'parolini tiklash'));
+  ok("«Parolni unutdingizmi?» — egasining Telegram'iga «Ha / Yo'q» so'rovi, parol hali o'zgarmagan", forgotAsk.status === 200 && !!ask
+    && buttons(ask).some(b => b.callback_data?.startsWith('pa|')) && (await fetch(`${base}/api/me`, auth(owner.token!))).status === 200);
+  ok('qayta-qayta bosib egasini ko\'mib bo\'lmaydi — 429', (await fetch(`${base}/api/login/forgot`, post({}))).status === 429);
+  mark = sent.length;
+  press(OWNER, buttons(ask).find(b => b.callback_data?.startsWith('pa|'))!.callback_data!, ask!.id!);
+  const fresh = await waitFor('yangi parol keldi', () => to(OWNER, mark, 'Yangi parol'));
+  const newPassword = /Parol: <code>([^<]+)<\/code>/.exec(textOf(fresh))?.[1];
+  ok("«Ha» — yangi parol Telegram'ga keldi", !!newPassword && textOf(fresh).includes('shifodent'));
+  ok('eski kirish yopildi — 401', (await fetch(`${base}/api/me`, auth(owner.token!))).status === 401);
+  const oldPw = await fetch(`${base}/api/login`, post({ login: 'shifodent', password: given.password }));
+  const relog = await (await fetch(`${base}/api/login`, post({ login: 'shifodent', password: newPassword }))).json() as { token?: string };
+  ok('eski parol ishlamaydi, yangisi bilan kirdi', oldPw.status === 401 && !!relog.token);
+  press(OWNER, buttons(ask).find(b => b.callback_data?.startsWith('pa|'))!.callback_data!, ask!.id!);
+  await sleep(800);
+  ok('o\'sha tugmani qayta bosish — parol yana almashmaydi', (await fetch(`${base}/api/me`, auth(relog.token!))).status === 200);
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

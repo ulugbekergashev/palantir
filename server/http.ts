@@ -20,6 +20,7 @@ import { documents } from './docs/store';
 import { moneyEntries } from './crm/moneyStore';
 import { aiUsage } from './serviceStore';
 import { askSupport, notifySupportVisit } from './supportAsk';
+import { askPasswordReset } from './passwordReset';
 import { createBlocked, handOver, hubVia, inSetup, theProfile } from './profile';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
@@ -136,6 +137,8 @@ function readBody(req: Request, max: number): Promise<Buffer | null> {
 const LOOPBACK = /^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|::1|localhost)$/;
 /** Kabinet parolining eng qisqa uzunligi (kabinetda mijozlar, pul va CRM bor) */
 const MIN_PASSWORD = 8;
+/** Klinika kompyuterida (bitta-profil) admin sahifasi yo'q */
+const NO_ADMIN = "Bu kompyuterda admin sahifasi yo'q";
 /** Sozlash bosqichidagi kirish (shu kompyuterdan): bir kun — o'rnatish kuni yetadi, keyin tugma yana bosiladi */
 const SETUP_SESSION_DAYS = 1;
 /** Shu kompyuterning o'zi (TCP ulanish manzili — Host sarlavhasi emas) */
@@ -241,7 +244,10 @@ export function createApp(bot: BotService) {
     const s = sessionOf(req);
     return s?.support || s?.staff ? res.status(403).json({ error: 'Buni faqat klinika egasi o\'zgartiradi' }) : fn(req, res, biz);
   });
+  // Klinika kompyuterida (bitta-profil) admin yo'q: klinika .env dagi parolni topib, admin bo'lib olmasin.
+  // Bizneslarni sotuvchi Hub'dan boshqaradi; egasi parolni unutsa — Telegram orqali (/api/login/forgot)
   const asAdmin = (fn: Handler): Handler => (req, res) => {
+    if (env.oneProfile) return res.status(404).json({ error: NO_ADMIN });
     if (readToken(token(req))?.role !== 'admin' || !env.adminPassword) return res.status(401).json({ error: 'Admin sifatida kiring' });
     return fn(req, res);
   };
@@ -326,6 +332,28 @@ export function createApp(bot: BotService) {
     const biz = theProfile();
     if (!biz) return res.status(404).json({ error: "Profil yo'q — serverni qayta yoqing" });
     res.json({ token: issueToken(biz.id, 'business', SETUP_SESSION_DAYS, biz.tokenVer) });
+  });
+  // Parolni unutdi (passwordReset.ts): yangi parol faqat egasining Telegram'iga, u «Ha» desa. Klinikada — shu kompyuterning profili;
+  // ko'p biznesli serverda — login bo'yicha, javob har doim bir xil (qaysi login borligini bilib bo'lmasin)
+  app.post('/api/login/forgot', async (req, res) => {
+    const key = `f:${clientKey(req)}`;
+    if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
+    loginFailed(key);
+    if (!env.oneProfile) {
+      const login = typeof req.body?.login === 'string' ? req.body.login.trim().toLowerCase() : '';
+      const biz = login ? businesses.byLogin(login) : undefined;
+      if (biz?.active) await askPasswordReset(biz);
+      return res.json({ message: "Login to'g'ri va egasining Telegram'i ulangan bo'lsa — tasdiqlash so'rovi Telegram'ga yuborildi" });
+    }
+    if (inSetup()) return res.status(409).json({ error: "Panel hali egasiga topshirilmagan — Palantir xodimi sozlab, login va parol beradi" });
+    // Login yozilgan bo'lsa — o'sha kabinet (bitta-profil qoidasidan oldin bir nechta kabinet ochilgan kompyuter), aks holda — kompyuter profili
+    const typed = typeof req.body?.login === 'string' ? businesses.byLogin(req.body.login.trim().toLowerCase()) : undefined;
+    const biz = typed?.active ? typed : theProfile();
+    if (!biz) return res.status(409).json({ error: "Panel hali egasiga topshirilmagan — Palantir xodimi sozlab, login va parol beradi" });
+    const asked = await askPasswordReset(biz);
+    if (asked === 'wait') return res.status(429).json({ error: "So'rov Telegram'ga yuborilgan — u yerda «Ha» ni bosing. Qayta yuborish — 2 daqiqadan keyin" });
+    if (asked === 'unreachable') return res.status(409).json({ error: "Telegram ulanmagan — parolni tiklash uchun Palantir xodimiga murojaat qiling" });
+    res.json({ message: "Telegram'ingizga (Palantir botiga) so'rov yuborildi — «Ha, yangi parol» ni bosing, yangi parol o'sha yerga keladi" });
   });
   // Egasiga topshirish: login va yangi parol bir marta ko'rsatiladi; shu kirish ham, jamoaniki ham bekor bo'ladi
   app.post('/api/handover', asBiz((req, res, biz) => {
@@ -800,6 +828,7 @@ export function createApp(bot: BotService) {
 
   // ─── Admin: bizneslar ──────────────────────────────────────────────────────
   app.post('/api/admin/login', (req, res) => {
+    if (env.oneProfile) return res.status(404).json({ error: NO_ADMIN });
     const key = `a:${req.ip}`;
     if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });
     if (!env.adminPassword || !samePassword(req.body?.password, env.adminPassword)) {

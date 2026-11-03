@@ -139,6 +139,8 @@ async function call<T>(path: string, opts: { method?: string; body?: unknown; ad
 
 export const api = {
   login: (login: string, password: string) => call<{ token: string }>('/login', { body: { login, password } }),
+  /** Parolni unutdi: yangi parol egasining Telegram'iga (server/passwordReset.ts) */
+  forgotPassword: (login: string) => call<{ message: string }>('/login/forgot', { body: { login } }),
   me: () => call<{ business: Business; status: LiveStatus; offeringsRev: string; who: Who }>('/me'),
   /** offeringsRev — xizmatlar ro'yxatining panel yuklagan nusxasi: shu orada boshqa joyda o'zgargan bo'lsa server rad etadi */
   saveBusiness: (b: Business, offeringsRev?: string) => call<{ business: Business; offeringsRev: string }>('/business', { method: 'PUT', body: { ...b, offeringsRev } }),

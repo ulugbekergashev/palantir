@@ -12,6 +12,16 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
   // Profil hali egasiga topshirilmagan (server/profile.ts): o'rnatuvchiga — sozlashni davom ettirish
   const [phase, setPhase] = useState<ProfilePhase | null>(null);
   useEffect(() => { api.profilePhase().then(setPhase).catch(() => {}); }, []);
+  const [forgotMsg, setForgotMsg] = useState<{ text: string; error?: boolean } | null>(null);
+  const [forgotBusy, setForgotBusy] = useState(false);
+  // Ko'p biznesli serverda — qaysi login ekanini bilish kerak; klinikada — kompyuterning o'z profili
+  const forgot = async () => {
+    if (phase && !phase.oneProfile && !login.trim()) { setForgotMsg({ text: 'Avval loginni yozing', error: true }); return; }
+    setForgotBusy(true);
+    try { setForgotMsg({ text: (await api.forgotPassword(login.trim())).message }); }
+    catch (err) { setForgotMsg({ text: (err as Error).message, error: true }); }
+    finally { setForgotBusy(false); }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -47,8 +57,13 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
             {busy && <Loader2 className="h-4 w-4 animate-spin" />} Kirish
           </Button>
         </form>
-        <div className="mt-5 text-center text-sm">
-          <a href="#/admin" className="rounded text-slate-500 hover:text-slate-900">{phase?.oneProfile ? 'Parolni unutdingizmi? (admin)' : 'Admin'}</a>
+        <div className="mt-5 space-y-3 text-center text-sm">
+          {/* Klinikada admin yo'q: yangi parol egasining Telegram'iga keladi (server/passwordReset.ts) */}
+          <button type="button" onClick={forgot} disabled={forgotBusy} className="rounded text-slate-500 hover:text-slate-900 disabled:opacity-60">
+            {forgotBusy && <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />}Parolni unutdingizmi?
+          </button>
+          {forgotMsg && <p role="status" className={`rounded-lg px-3 py-2 text-left ${forgotMsg.error ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-800'}`}>{forgotMsg.text}</p>}
+          {phase && !phase.oneProfile && <a href="#/admin" className="block rounded text-slate-400 hover:text-slate-900">Admin</a>}
         </div>
       </div>
     </main>

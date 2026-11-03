@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { CheckCircle2, KeyRound, Loader2, LogOut, Plus, Power, Wand2 } from 'lucide-react';
-import { adminApi, session, type AdminBusiness, type AdminUsage } from '../data/api';
+import { adminApi, api, session, type AdminBusiness, type AdminUsage } from '../data/api';
 import { download } from '../lib/download';
 import { Logo } from '../components/Logo';
 import { Button, ButtonLink, Card, Field, TextInput } from '../components/ui';
@@ -40,8 +40,17 @@ function UsageTable({ rows }: { rows: AdminUsage[] }) {
   );
 }
 
-/** Sotuvchi (siz) uchun: bizneslarni qo'shish, bloklash, parolni tiklash, AI xarajatini ko'rish */
+/** Klinika kompyuterida (bitta-profil) admin yo'q (server/http.ts): bizneslarni sotuvchi Hub'dan boshqaradi, egasi parolni Telegram orqali tiklaydi */
 export function AdminPage() {
+  const [oneProfile, setOneProfile] = useState<boolean | null>(null);
+  useEffect(() => { api.profilePhase().then(p => setOneProfile(p.oneProfile)).catch(() => setOneProfile(false)); }, []);
+  useEffect(() => { if (oneProfile) window.location.hash = '#/'; }, [oneProfile]);
+  if (oneProfile !== false) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>;
+  return <AdminPanel />;
+}
+
+/** Sotuvchi (siz) uchun: bizneslarni qo'shish, bloklash, parolni tiklash, AI xarajatini ko'rish */
+function AdminPanel() {
   const [authed, setAuthed] = useState(!!session.adminToken());
   const [password, setPassword] = useState('');
   const [list, setList] = useState<AdminBusiness[] | null>(null);

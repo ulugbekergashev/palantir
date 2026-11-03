@@ -92,6 +92,15 @@ try {
   await page.getByRole('heading', { name: 'Kabinetga kirish' }).waitFor({ timeout: 15_000 });
   await sleep(600);
   ok('«sozlanmoqda» yo\'q', !(await page.getByText('Palantir hali sozlanmoqda').count()));
+  // Klinikada admin yo'q: havola yo'q, «Parolni unutdingizmi?» — Telegram orqali (server/passwordReset.ts)
+  ok("kirish sahifasida «Admin» havolasi yo'q, «Parolni unutdingizmi?» bor", !(await page.getByRole('link', { name: /admin/i }).count())
+    && await page.getByRole('button', { name: 'Parolni unutdingizmi?' }).isVisible());
+  await page.getByRole('button', { name: 'Parolni unutdingizmi?' }).click();
+  await page.getByRole('status').waitFor({ timeout: 10_000 });
+  ok("Telegram ulanmagan — «Palantir xodimiga murojaat qiling»", (await page.getByRole('status').textContent())?.includes('Palantir xodimiga'));
+  await page.goto(`${base}/#/admin`);
+  await page.getByRole('heading', { name: 'Kabinetga kirish' }).waitFor({ timeout: 15_000 });
+  ok("#/admin — kirish sahifasiga qaytaradi (admin paroli so'ralmaydi)", !(await page.getByLabel('Admin paroli').count()) && page.url().endsWith('#/'));
   await page.getByLabel('Login').fill('shifodent');
   await page.getByLabel('Parol').fill(password);
   await page.getByRole('button', { name: 'Kirish' }).click();
