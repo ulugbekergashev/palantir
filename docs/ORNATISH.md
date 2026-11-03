@@ -82,8 +82,12 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
    bor narsani o'tkazib yuboradi.
 3. Oxirida ekranda **favqulodda admin paroli** chiqadi — yozib oling. Sozlash uchun kerak emas; faqat egasi parolini unutsa
    (`/#/admin` → klinikaga yangi parol). Klinikaga berilmaydi.
-4. **Litsenziya.** Kalitsiz ham ishlaydi: 14 kun panel burchagida «Aktivlashtirilmagan · N kun qoldi» turadi, keyin panel faqat aktivlashtirish
-   oynasini ko'rsatadi (bot, kameralar va qo'ng'iroqlar to'xtamaydi). Kalit shu kompyuterga bog'langan (Windows qayta o'rnatilsa — yangi kalit kerak).
+4. **Litsenziya (DentaLocal kabi).** Yangi o'rnatish kalitsiz ishlamaydi: panel birinchi ochilishdanoq faqat aktivlashtirish oynasini ko'rsatadi —
+   «Kompyuter kodi» va kalit maydoni. Kalit shu kompyuterga bog'langan (Windows qayta o'rnatilsa — yangi kalit kerak). Litsenziyadan oldin
+   ishlab turgan klinikaga yangilanish kelsa — 30 kun kalitsiz (keyin faqat panel yopiladi, bot va qo'ng'iroqlar ishlayveradi).
+   `litsenziya.json` ni o'chirib muddatni qaytadan boshlab bo'lmaydi — nusxasi bazada.
+   - Telefondan (asosiy yo'l): `npm run kalit-sahifa` bir marta parol bilan `Kalit-DentaCRM-Palantir.html` yasaydi (DentaCRM va Palantir kalitlari bitta
+     sahifada; kodni o'zi taniydi). Faylni telefonga yuborib, brauzerda ochasiz: parol → kompyuter kodi → kalit → nusxalash.
    - Hub orqali, bir bosishda: Hub `/admin` → klinika qatorida «Aktivlashtirish» (Hub kodi kiritilgan va kompyuter aloqada bo'lsa).
    - Qo'lda: panelda «Kalitni kiritish» → kompyuter kodini (`XXXX-XXXX-XXXX-XXXX`) sotuvchiga yuborish; sotuvchi o'z kompyuterida
      `npm run kalit -- XXXX-XXXX-XXXX-XXXX` (yoki `~/.palantir/Kalit-yaratish.cmd`) — chiqqan `PAL1-…` kalitni klinikaga yuboradi, u o'sha oynaga qo'yadi.

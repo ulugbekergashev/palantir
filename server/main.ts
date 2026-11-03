@@ -27,6 +27,7 @@ import { startHubJoin } from './hubJoin';
 import { startOrders } from './orders/run';
 import { startVoiceEnv } from './voice/serviceEnv';
 import { ensureProfile } from './profile';
+import { licenseStatus } from './license';
 
 /** Bot nomini shuncha kutamiz; Telegram javob bermasa — server baribir ko'tariladi, bot fonda ulanadi */
 const BOT_WAIT_MS = 3_000;
@@ -60,6 +61,9 @@ recoverBookings();
   const resumed = resumeUnanswered();
   if (resumed) console.log(`[mijozlar] javobsiz qolgan ${resumed} ta suhbat qaytadan navbatga qo'yildi`);
 }
+// Litsenziya: o'rnatish turi (yangi / eski) profil yaratilishidan OLDIN aniqlanadi — aks holda panel bir kundan keyin ochilsa,
+// shu yerda yaratilgan profil yangi o'rnatishni «eski klinika» qilib 30 kun bepul berardi (license.ts)
+licenseStatus();
 // Bitta kompyuter — bitta ish: yangi o'rnatishda profil shu yerda paydo bo'ladi (o'rnatuvchi admin parolisiz sozlaydi)
 ensureProfile();
 // Port — tarmoqqa bog'liq ishlardan oldin: internet bo'lmasa ham panel ochiladi, port band bo'lsa bot navbatiga tegilmaydi

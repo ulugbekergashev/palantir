@@ -1,5 +1,6 @@
 /**
- * Litsenziya (server/license.ts): kalitsiz muddatda — sahifa tepasida ingichka eslatma («Kalitni kiritish» — oyna ochiladi): suzib
+ * Litsenziya (server/license.ts): yangi o'rnatish — darhol butun ekran aktivlashtirish oynasi (DentaLocal kabi). Eski klinikaning
+ * kalitsiz muddatida — sahifa tepasida ingichka eslatma («Kalitni kiritish» — oyna ochiladi): suzib
  * turadigan tugma telefonda bo'limlar panelini, kompyuterda so'rov tugmalari va yozish maydonini yopib qo'yardi;
  * eslatmani yopsa bo'ladi — ertasi kuni yana chiqadi, oxirgi kunlarda (URGENT_DAYS) yopilmaydi;
  * muddat tugagach — butun ekran aktivlashtirish oynasi. Kompyuter kodini egasi Palantir jamoasiga yuboradi va kalitni qo'yadi
@@ -72,7 +73,7 @@ export function ActivationPanel({ license, onActivated, onClose }: { license: Li
           <h2 id="license-title" className="text-lg font-bold text-slate-900">Palantir'ni aktivlashtirish</h2>
           <p className="mt-1 text-sm text-slate-500">
             {license.blocked
-              ? 'Kalitsiz ishlash muddati tugadi. Bot, kameralar va qo\'ng\'iroqlar ishlayapti — panel kalit kiritilgach ochiladi.'
+              ? 'Palantir kalit bilan ishlaydi: kompyuter kodini yuboring, kelgan kalitni qo\'ying — panel shu zahoti ochiladi.'
               : `Kalitsiz yana ${license.daysLeft} kun ishlaydi. Keyin panel kalit so'raydi (bot, kameralar va qo'ng'iroqlar ishlayveradi).`}
           </p>
         </div>

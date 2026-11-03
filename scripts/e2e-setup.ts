@@ -89,30 +89,54 @@ console.log('\n# Litsenziya kaliti (sof)');
     `const { env } = await import(${JSON.stringify(pathToFileURL(resolve('server/env.ts')).href)}); console.log(JSON.stringify([env.licenseGraceDays, env.licenseMachineId, env.licensePublicKey]))`],
   { cwd: envDir, env: { ...process.env, ...vars }, encoding: 'utf8' })) as [number, string, string];
   const fromDotenv = envOf({ DOTENV: '' });
-  ok(".env dagi ochiq kalit, kompyuter kodi va uzun muddat hisobga olinmaydi (DOTENV=0 ham)", JSON.stringify(fromDotenv) === JSON.stringify([14, '', '']), JSON.stringify(fromDotenv));
+  ok(".env dagi ochiq kalit, kompyuter kodi va muddat hisobga olinmaydi (DOTENV=0 ham)", JSON.stringify(fromDotenv) === JSON.stringify([null, '', '']), JSON.stringify(fromDotenv));
   const testServer = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: '3', LICENSE_MACHINE_ID: id }), bad = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: 'abc' });
-  ok("sinov serverida olinadi; muddat faqat qisqaradi, noto'g'risi — 14", testServer[0] === 3 && testServer[1] === id && bad[0] === 14, JSON.stringify([testServer, bad]));
+  const real = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: 'haqiqiy' });
+  ok("sinov serverida olinadi; noto'g'risi — 14; «haqiqiy» — haqiqiy qoida", testServer[0] === 3 && testServer[1] === id && bad[0] === 14 && real[0] === null, JSON.stringify([testServer, bad, real]));
   rmSync(envDir, { recursive: true, force: true });
-  // Litsenziya qo'shilgan yangilanish oldindan ishlab turgan klinikaga kelsa: biznesi hisob boshlanishidan oldin yaratilgan — 30 kun
-  const statusAfter = (businessAgeDays: number, firstRunDaysAgo: number) => {
-    const dir = mkdtempSync(join(tmpdir(), 'palantir-lic-'));
-    const at = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
-    writeFileSync(join(dir, 'litsenziya.json'), JSON.stringify({ key: null, firstRun: { [id]: at(firstRunDaysAgo) } }));
-    const url = (f: string) => JSON.stringify(pathToFileURL(resolve(f)).href);
-    try {
-      return JSON.parse(execFileSync(process.execPath, ['--no-warnings', '--import', pathToFileURL(resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e',
-        `const { businesses, sql } = await import(${url('server/db.ts')}); const { licenseStatus } = await import(${url('server/license.ts')});
-         businesses.create('klinika', 'x', { name: 'Klinika', ownerName: '', industry: 'stomatologiya', phone: '', address: '', brand: {}, offerings: [], team: [] });
-         sql.run('UPDATE businesses SET created_at = ?', ${JSON.stringify(at(businessAgeDays))});
-         console.log(JSON.stringify(licenseStatus()))`],
-      { env: { ...process.env, DOTENV: '0', DATA_DIR: dir, LICENSE_MACHINE_ID: id, LICENSE_GRACE_DAYS: '' }, encoding: 'utf8' }).trim().split('\n').at(-1)!) as { daysLeft: number; blocked: boolean };
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  };
-  const upgraded = statusAfter(60, 20), fresh = statusAfter(0, 20);
-  ok("yangilangan eski klinika: 30 kun (20 kun o'tdi — 10 qoldi); yangi o'rnatish: 14 kun (yopiq)", upgraded.daysLeft === 10 && !upgraded.blocked && fresh.daysLeft === 0 && fresh.blocked,
-    JSON.stringify([upgraded, fresh]));
+  // Haqiqiy qoida (LICENSE_GRACE_DAYS=haqiqiy): har qadam alohida jarayon — server qayta ishga tushgandek
+  type Lic = { activated: boolean; daysLeft: number; blocked: boolean };
+  const at = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  const url = (f: string) => JSON.stringify(pathToFileURL(resolve(f)).href);
+  const licRun = (dir: string, step = ''): Lic => JSON.parse(execFileSync(process.execPath, ['--no-warnings', '--import', pathToFileURL(resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e',
+    `const { businesses, sql } = await import(${url('server/db.ts')}); const { licenseStatus, activate } = await import(${url('server/license.ts')});
+     ${step}
+     console.log(JSON.stringify(licenseStatus()))`],
+  { env: { ...process.env, DOTENV: '0', DATA_DIR: dir, LICENSE_MACHINE_ID: id, LICENSE_PUBLIC_KEY: pub, LICENSE_GRACE_DAYS: 'haqiqiy' }, encoding: 'utf8' }).trim().split('\n').at(-1)!) as Lic;
+  const business = (ageDays: number) => `if (!businesses.all().length) businesses.create('klinika', 'x', { name: 'Klinika', ownerName: '', industry: 'stomatologiya', phone: '', address: '', brand: {}, offerings: [], team: [] });
+     sql.run('UPDATE businesses SET created_at = ?', ${JSON.stringify(at(ageDays))});`;
+  const licFile = (dir: string) => join(dir, 'litsenziya.json');
+  const oldDir = mkdtempSync(join(tmpdir(), 'palantir-lic-')), newDir = mkdtempSync(join(tmpdir(), 'palantir-lic-')), trialDir = mkdtempSync(join(tmpdir(), 'palantir-lic-'));
+  try {
+    // Litsenziya qo'shilgan yangilanish oldindan ishlab turgan klinikaga kelsa: biznesi hisob boshlanishidan oldin yaratilgan — 30 kun
+    writeFileSync(licFile(oldDir), JSON.stringify({ key: null, firstRun: { [id]: at(20) } }));
+    const upgraded = licRun(oldDir, business(60));
+    rmSync(licFile(oldDir));
+    const upgradedAgain = licRun(oldDir);
+    ok("yangilangan eski klinika: 30 kun (20 kun o'tdi — 10 qoldi); litsenziya.json o'chirilsa ham muddat qaytadan boshlanmaydi",
+      upgraded.daysLeft === 10 && !upgraded.blocked && upgradedAgain.daysLeft === 10, JSON.stringify([upgraded, upgradedAgain]));
+    // Yangi o'rnatish (DentaLocal kabi): birinchi ochilishdanoq yopiq
+    const fresh = licRun(newDir);
+    ok("yangi o'rnatish: kalitsiz bir kun ham yo'q — panel darhol yopiq", !fresh.activated && fresh.daysLeft === 0 && fresh.blocked, JSON.stringify(fresh));
+    rmSync(licFile(newDir));
+    const tricked = licRun(newDir, business(5));
+    ok("yangi o'rnatish: biznes ochib, fayl o'chirilsa ham «eski klinika» muddati berilmaydi", tricked.blocked && tricked.daysLeft === 0, JSON.stringify(tricked));
+    const opened = licRun(newDir, `activate(${JSON.stringify(key)});`);
+    rmSync(licFile(newDir));
+    const openedAgain = licRun(newDir);
+    ok("kalit kiritilgach ochiq; fayl o'chirilsa ham kalit bazada qoladi", opened.activated && !opened.blocked && openedAgain.activated, JSON.stringify([opened, openedAgain]));
+    writeFileSync(licFile(newDir), JSON.stringify({ key: 'PAL1-buzuq', firstRun: {} }));
+    const brokenFile = licRun(newDir);
+    ok("fayldagi buzuq kalit bazadagi to'g'ri kalitni bosib ketmaydi", brokenFile.activated && !brokenFile.blocked, JSON.stringify(brokenFile));
+    // 0.3.x da 14 kun sinov bilan o'rnatilgan, hali kalitsiz klinika: yangilanish uni darhol yopmaydi
+    writeFileSync(licFile(trialDir), JSON.stringify({ key: null, firstRun: { [id]: at(4) } }));
+    const trial = licRun(trialDir, business(4));
+    ok("0.3.x sinov muddatidagi klinika: 14 kun saqlanadi (4 o'tdi — 10 qoldi)", trial.daysLeft === 10 && !trial.blocked, JSON.stringify(trial));
+  } finally {
+    rmSync(oldDir, { recursive: true, force: true });
+    rmSync(newDir, { recursive: true, force: true });
+    rmSync(trialDir, { recursive: true, force: true });
+  }
 }
 
 console.log('\n# Kamera qidiruvi (sof)');

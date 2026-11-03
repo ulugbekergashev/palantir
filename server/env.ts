@@ -32,13 +32,18 @@ function sessionSecret(): string {
   return fresh;
 }
 
-const LICENSE_GRACE_DAYS = 14;
+/** Sinov serverida kalitsiz muddat (kun): boshqa sinovlar paneli ochiq ishlashi uchun; eng ko'pi — 30 */
+const TEST_GRACE_DAYS = 14, MAX_TEST_GRACE_DAYS = 30;
 /** Palantir Hub (sotuvchining serveri, Oracle): yangi o'rnatilgan kompyuter shu yerga o'zi ulanadi (hubJoin.ts) */
 const DEFAULT_HUB_URL = 'https://92-5-56-138.sslip.io';
-/** Kalitsiz ishlash muddati (kun, license.ts): .env faqat qisqartira oladi (sinovda 0); noto'g'ri yoki bo'sh — 14 */
-function graceDays(v: string | undefined): number {
+/**
+ * Kalitsiz ishlash muddati (kun, license.ts) — faqat sinov serverida beriladi; null — haqiqiy qoida (yangi o'rnatish kalitsiz ishlamaydi).
+ * Sinovda: bo'sh yoki noto'g'ri — 14; «haqiqiy» — haqiqiy qoidani sinash uchun
+ */
+function graceDays(v: string | undefined): number | null {
+  if (!testRun || v === 'haqiqiy') return null;
   const n = Number(v);
-  return v?.trim() && Number.isFinite(n) && n >= 0 ? Math.min(n, LICENSE_GRACE_DAYS) : LICENSE_GRACE_DAYS;
+  return v?.trim() && Number.isFinite(n) && n >= 0 ? Math.min(n, MAX_TEST_GRACE_DAYS) : TEST_GRACE_DAYS;
 }
 
 type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
@@ -141,8 +146,7 @@ export const env = {
    */
   hubJoinUrl: process.env.HUB_AUTO === '0' ? '' : (process.env.HUB_URL || (testRun || existsSync('.git') ? '' : DEFAULT_HUB_URL)).replace(/\/+$/, ''),
   /**
-   * Litsenziya (license.ts): kalitsiz ishlash muddati (kun) — faqat qisqartiriladi; sinov uchun kompyuter kodi va sotuvchining ochiq
-   * kaliti — faqat sinov serverida. Kod ochiq: .env ga bir qator yozib (o'z ochiq kaliti, boshqa kompyuter kodi) litsenziyani chetlab
+   * Litsenziya (license.ts): kalitsiz ishlash muddati (kun), kompyuter kodi va sotuvchining ochiq kaliti — faqat sinov serverida. Kod ochiq: .env ga bir qator yozib (o'z ochiq kaliti, boshqa kompyuter kodi) litsenziyani chetlab
    * o'tib bo'lmasin — bunday o'zgarish kechasi yangilanishdan keyin ham qolardi
    */
   licenseGraceDays: graceDays(process.env.LICENSE_GRACE_DAYS),
