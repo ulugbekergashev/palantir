@@ -3,7 +3,7 @@
  * Kanalga chiqarish — faqat egasining tugmasi bilan; video panelda yig'iladi (Kontent-meyker → Video)
  */
 import { z } from 'zod';
-import { ToolError, def } from '../toolkit';
+import { ToolError, assertOwnWords, def } from '../toolkit';
 import { brandStore, makeBrandBook } from './brand';
 import { ContentError, runFactory, topicDraft } from './factory';
 import { PLAN_MAX, PLAN_MIN, makePlan } from './plan';
@@ -52,6 +52,8 @@ export const CONTENT_DEFS = {
       look: z.string().max(600).optional().describe('Color or style wishes'),
     }),
     run: async (i, ctx) => guarded(async () => {
+      // Brend-buk keyingi hamma postlar ovozini belgilaydi: faqat egasining o'z gapidan (rasm, mijoz matni yoki jadvaldan emas)
+      assertOwnWords(ctx);
       const b = await makeBrandBook(ctx.biz, i, contentStore.settings(ctx.biz.id).lang);
       const book = b.book!;
       return { name: book.name, positioning: book.positioning, voice: book.voice, pillars: book.pillars.map(p => `${p.name} ${p.share}%`), motif: book.motif };
@@ -65,6 +67,7 @@ export const CONTENT_DEFS = {
       wish: z.string().max(600).optional().describe("The owner's focus for the plan, in their words (themes, product to push)"),
     }),
     run: async (i, ctx) => guarded(async () => {
+      assertOwnWords(ctx);
       const r = await makePlan(ctx.biz, i.count, i.wish ?? '');
       return { topics: r.items.map(t => `${t.n}. ${t.title}`), madeBrandBook: r.madeBrand };
     }),
@@ -74,6 +77,8 @@ export const CONTENT_DEFS = {
     description: "Prepare a short vertical (9:16) video on a topic in the brand's style: the script (scenes with on-screen text and narration) and the narrator voice (ElevenLabs). The video itself is assembled and downloaded in panel → Marketing → Kontent-meyker → Video (it renders in the browser, ~30 seconds) — tell the owner to open it there. Needs a brand book; if missing, call content_brand_book first.",
     input: z.object({ topic: z.string().trim().min(5).max(600).describe('What the video is about, in the owner\'s words') }),
     run: async (i, ctx) => guarded(async () => {
+      // Ovoz ElevenLabs kreditini sarflaydi: faqat egasi o'zi so'raganda
+      assertOwnWords(ctx);
       if (!brandStore.book(ctx.biz.id)) throw new ToolError("Brend-buk yo'q — avval content_brand_book");
       const v = await makeVideo(ctx.biz, i.topic);
       return {

@@ -139,6 +139,7 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
   app.patch('/api/content/videos/:id', asOwner((req, res, biz) => {
     const p = z.object({ scenes: Scenes }).safeParse(req.body);
     if (!p.success) return bad(res, p.error);
+    if (aiBusy.has(biz.id)) return res.status(409).json({ error: 'Kontent-meyker hozir yozyapti — tugagach tahrirlang' });
     try { editScenes(biz.id, Id(req), p.data.scenes); res.json(view(biz)); } catch (e) { failed(res, e); }
   }));
 
@@ -150,11 +151,16 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
     const mp3 = videoAudio(biz.id, Id(req));
     if (!mp3) return res.status(404).json({ error: "Ovoz hali yo'q" });
     res.setHeader('content-type', 'audio/mpeg');
-    res.setHeader('cache-control', 'private, max-age=600');
+    // Ssenariy tahrirlanib ovoz qayta yozilsa manzil o'sha: brauzer eski ovozni keshdan bermasin
+    res.setHeader('cache-control', 'no-store');
     res.end(mp3);
   }));
 
-  app.delete('/api/content/videos/:id', asBiz((req, res, biz) => { videoStore.remove(biz.id, Id(req)); res.json(view(biz)); }));
+  app.delete('/api/content/videos/:id', asBiz((req, res, biz) => {
+    if (aiBusy.has(biz.id)) return res.status(409).json({ error: "Kontent-meyker hozir yozyapti — tugagach o'chiring" });
+    videoStore.remove(biz.id, Id(req));
+    res.json(view(biz));
+  }));
 
   app.delete('/api/content/drafts/:id', asBiz((req, res, biz) => {
     try { cancelDraft(biz, Id(req)); res.json(view(biz)); } catch (e) { failed(res, e); }

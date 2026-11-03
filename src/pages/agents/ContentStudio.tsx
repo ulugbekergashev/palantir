@@ -235,6 +235,8 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
   const canvas = useRef<HTMLCanvasElement>(null);
   const audio = useRef<ArrayBuffer | null>(null);
   const playing = useRef<Playback | null>(null);
+  /** Ikki marta bosilsa ikkinchi ijro boshlanmasin (ovoz yuklanayotgan paytda ham) */
+  const starting = useRef(false);
   const [mode, setMode] = useState<'idle' | 'play' | 'record'>('idle');
   const [progress, setProgress] = useState(0);
   const [editing, setEditing] = useState(false);
@@ -247,19 +249,24 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
     let live = true;
     void loadFonts().catch(() => undefined).then(() => {
       const ctx = canvas.current?.getContext('2d');
-      if (live && ctx) drawFrame(ctx, spec, 0);
+      if (live && ctx && !playing.current) drawFrame(ctx, spec, 0);
     });
-    return () => { live = false; playing.current?.stop(); };
-  }, [v.id, v.status, v.scenes, book]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { live = false; };
+  }, [v.id, v.status, JSON.stringify(v.scenes), JSON.stringify(book.colors), book.font]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Ijro yoki yozuv faqat karta yopilganda to'xtaydi (boshqa kartadagi amal ko'rinishni yangilasa — davom etadi)
+  useEffect(() => () => playing.current?.stop(), []);
 
   const start = async (record: boolean) => {
+    if (starting.current) return;
+    starting.current = true;
+    setMode(record ? 'record' : 'play');
     try {
       audio.current ??= await api.contentVideoAudio(v.id);
       if (!canvas.current) return;
-      setMode(record ? 'record' : 'play');
       const p = play(canvas.current, spec, audio.current, record, (t, total) => setProgress(t / total));
       playing.current = p;
       const blob = await p.done;
+      if (!blob && record) notify("Yozuv to'xtatildi — video saqlanmadi");
       if (blob) {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -272,6 +279,7 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
       notify((e as Error).message, true);
     } finally {
       playing.current = null;
+      starting.current = false;
       setMode('idle');
       setProgress(0);
     }

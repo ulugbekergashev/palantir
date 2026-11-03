@@ -313,6 +313,7 @@ export function play(canvas: HTMLCanvasElement, spec: RenderSpec, mp3: ArrayBuff
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Kanvas ochilmadi');
     const ac = new AudioContext();
+    let recorder: MediaRecorder | null = null;
     try {
       // Brauzer ovozni to'xtatib qo'ygan bo'lsa (avtoijro qoidasi) — soat yurmaydi, kadrlar joyida qotadi
       if (ac.state === 'suspended') await ac.resume();
@@ -321,7 +322,6 @@ export function play(canvas: HTMLCanvasElement, spec: RenderSpec, mp3: ArrayBuff
       const dest = record ? ac.createMediaStreamDestination() : null;
       const out: AudioNode = dest ?? ac.destination;
       const total = totalLength({ ...spec, duration: spec.duration || voice.duration });
-      let recorder: MediaRecorder | null = null;
       // Kadr o'zi olinmaydi (captureStream(0)): har chizilgan kadr requestFrame bilan beriladi — brauzer kanvasni kam yangilasa ham video silliq
       let push: (() => void) | null = null;
       const chunks: Blob[] = [];
@@ -341,8 +341,11 @@ export function play(canvas: HTMLCanvasElement, spec: RenderSpec, mp3: ArrayBuff
       src.connect(out);
       src.start(t0 + 0.3);
       for (const at of tapTimes(spec)) tap(ac, out, t0 + 0.3 + at);
-      await new Promise<void>(resolve => {
+      await new Promise<void>((resolve, reject) => {
         const frame = () => {
+          try { step(); } catch (e) { reject(e); }
+        };
+        const step = () => {
           const began = performance.now();
           const t = ac.currentTime - t0 - 0.3;
           drawFrame(ctx, spec, Math.max(0, t));
@@ -362,6 +365,8 @@ export function play(canvas: HTMLCanvasElement, spec: RenderSpec, mp3: ArrayBuff
         rec.stop();
       });
     } finally {
+      // Xato bilan chiqilsa ham yozuv to'xtaydi (kanvas va ovoz oqimi ochiq qolmasin)
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
       await ac.close().catch(() => undefined);
     }
   })();

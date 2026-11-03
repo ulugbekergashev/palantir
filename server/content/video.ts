@@ -11,6 +11,7 @@ import type { BusinessRow } from '../db';
 import { newId, sql, type Row } from '../db';
 import { env } from '../env';
 import { brandNotes, brandStore } from './brand';
+import { planStore } from './plan';
 import { ContentError, contentStore } from './store';
 import { askText, fence, jsonIn } from './writer';
 
@@ -56,7 +57,10 @@ export const videoStore = {
     sql.run("UPDATE content_videos SET status = 'failed', error = ? WHERE business_id = ? AND id = ?", error.slice(0, 300), bizId, id),
   remove(bizId: string, id: string): boolean {
     const gone = Number(sql.run('DELETE FROM content_videos WHERE business_id = ? AND id = ?', bizId, id).changes) > 0;
-    if (gone) rmSync(audioFile(id), { force: true });
+    if (gone) {
+      rmSync(audioFile(id), { force: true });
+      planStore.unlinkVideo(bizId, id);
+    }
     return gone;
   },
 };
@@ -80,17 +84,16 @@ export function cleanScenes(raw: unknown, book: Pick<BrandBook, 'name' | 'taglin
   const scenes = (Array.isArray(list) ? list : []).flatMap((s: Record<string, unknown>) => {
     const text = line(s?.text, LIMITS.text), voice = line(s?.voice, LIMITS.voice);
     const kind = KINDS.find(k => k === s?.kind) ?? 'point';
-    return text || voice ? [{ kind, text: text || voice.slice(0, LIMITS.text), voice }] : [];
+    return text || voice ? [{ kind, text: text || voice.slice(0, LIMITS.text), voice: voice || text }] : [];
   });
   const body = scenes.filter(s => s.kind !== 'sign').slice(0, LIMITS.scenes - 1);
   if (body.length) body[0] = { ...body[0], kind: 'hook' };
   const sign = scenes.find(s => s.kind === 'sign');
   const out = [...body, { kind: 'sign' as const, text: book.name.slice(0, LIMITS.text), voice: sign?.voice || book.tagline }];
   // Diktor matni chegarasi: oxirgi fikrlardan boshlab olib tashlanadi (ilgak, da'vo va imzo qoladi)
-  while (out.reduce((n, s) => n + s.voice.length, 0) > LIMITS.totalVoice) {
+  while (out.reduce((n, s) => n + s.voice.length, 0) > LIMITS.totalVoice && out.length > LIMITS.minScenes) {
     const i = out.map(s => s.kind).lastIndexOf('point');
-    if (i < 0) break;
-    out.splice(i, 1);
+    out.splice(i > 0 ? i : out.length - 2, 1);
   }
   return out.length >= LIMITS.minScenes ? out : [];
 }
@@ -179,6 +182,8 @@ export async function voiceVideo(biz: BusinessRow, id: string, speak: Speaker = 
   const { text, offsets } = voiceText(v.scenes, lang);
   try {
     const s = await speak(text);
+    const now = videoStore.get(biz.id, v.id);
+    if (!now || JSON.stringify(now.scenes) !== JSON.stringify(v.scenes)) throw new ContentError("Ovoz yozilayotganda ssenariy o'zgardi yoki video o'chirildi — ovozni qayta yozdiring");
     mkdirSync(audioDir, { recursive: true });
     writeFileSync(audioFile(v.id), s.audio);
     const t = sceneTimes(offsets, text.length, s.alignment, s.audio.length / MP3_BYTES_PER_SEC);
@@ -188,7 +193,9 @@ export async function voiceVideo(biz: BusinessRow, id: string, speak: Speaker = 
     if (!(e instanceof ContentError)) console.error('[kontent] ovoz:', e);
     videoStore.failed(biz.id, v.id, why);
   }
-  return videoStore.get(biz.id, v.id)!;
+  const after = videoStore.get(biz.id, v.id);
+  if (!after) throw new ContentError("Video o'chirilgan");
+  return after;
 }
 
 export interface VideoDeps { write: (biz: BusinessRow, system: string, user: string) => Promise<string>; speak: Speaker }
@@ -211,7 +218,7 @@ export function editScenes(bizId: string, id: string, raw: VideoScene[]): Conten
   const v = videoStore.get(bizId, id);
   if (!v) throw new ContentError('Video topilmadi');
   const scenes = raw.map(s => ({ kind: KINDS.find(k => k === s.kind) ?? 'point', text: line(s.text, LIMITS.text), voice: line(s.voice, LIMITS.voice) }))
-    .filter(s => s.text || s.voice).slice(0, LIMITS.scenes);
+    .filter(s => s.text || s.voice).map(s => ({ ...s, text: s.text || s.voice.slice(0, LIMITS.text), voice: s.voice || s.text })).slice(0, LIMITS.scenes);
   if (scenes.length < LIMITS.minScenes) throw new ContentError(`Kamida ${LIMITS.minScenes} ta sahna kerak`);
   if (scenes.reduce((n, s) => n + s.voice.length, 0) > LIMITS.totalVoice) throw new ContentError(`Diktor matni ${LIMITS.totalVoice} belgidan oshmasin`);
   videoStore.setScenes(bizId, id, scenes);

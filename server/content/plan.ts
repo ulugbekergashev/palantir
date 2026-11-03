@@ -27,12 +27,18 @@ const toItem = (r: Row): PlanItem => ({
   draftId: sql.str(r.draft_id), videoId: sql.str(r.video_id), createdAt: String(r.created_at),
 });
 
+/** Bekor qilingan (yoki o'chgan) qoralama mavzuga bog'liq hisoblanmaydi: mavzudan yana post yozsa bo'ladi */
+const SELECT = `SELECT p.id, p.n, p.pillar, p.title, p.angle, p.video_id, p.created_at,
+  CASE WHEN d.status IS NULL OR d.status = 'cancelled' THEN NULL ELSE p.draft_id END AS draft_id
+  FROM content_plan p LEFT JOIN content_drafts d ON d.business_id = p.business_id AND d.id = p.draft_id`;
+
 export const planStore = {
-  list: (bizId: string): PlanItem[] => sql.many('SELECT * FROM content_plan WHERE business_id = ? ORDER BY n', toItem, bizId),
-  get: (bizId: string, id: string): PlanItem | null => sql.one('SELECT * FROM content_plan WHERE business_id = ? AND id = ?', toItem, bizId, id) ?? null,
+  list: (bizId: string): PlanItem[] => sql.many(`${SELECT} WHERE p.business_id = ? ORDER BY p.n`, toItem, bizId),
+  get: (bizId: string, id: string): PlanItem | null => sql.one(`${SELECT} WHERE p.business_id = ? AND p.id = ?`, toItem, bizId, id) ?? null,
   /** Yangi reja eskisini almashtiradi; post yoki video yozilgan mavzular saqlanadi (ishi bor) */
   replace(bizId: string, items: { pillar: string; title: string; angle: string }[]): PlanItem[] {
-    sql.run('DELETE FROM content_plan WHERE business_id = ? AND draft_id IS NULL AND video_id IS NULL', bizId);
+    sql.run(`DELETE FROM content_plan WHERE business_id = ? AND video_id IS NULL AND (draft_id IS NULL
+      OR draft_id NOT IN (SELECT id FROM content_drafts WHERE business_id = ? AND status <> 'cancelled'))`, bizId, bizId);
     const kept = planStore.list(bizId);
     const start = kept.reduce((m, i) => Math.max(m, i.n), 0);
     const now = sql.nowIso();
@@ -42,6 +48,8 @@ export const planStore = {
   },
   link: (bizId: string, id: string, field: 'draft_id' | 'video_id', value: string) =>
     sql.run(`UPDATE content_plan SET ${field === 'draft_id' ? 'draft_id' : 'video_id'} = ? WHERE business_id = ? AND id = ?`, value, bizId, id),
+  /** Video o'chirilganda: mavzu yana «Video» tugmasi bilan */
+  unlinkVideo: (bizId: string, videoId: string) => sql.run('UPDATE content_plan SET video_id = NULL WHERE business_id = ? AND video_id = ?', bizId, videoId),
   remove: (bizId: string, id: string) => Number(sql.run('DELETE FROM content_plan WHERE business_id = ? AND id = ?', bizId, id).changes) > 0,
 };
 

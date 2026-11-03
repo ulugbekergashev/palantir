@@ -235,6 +235,48 @@ await check("video: ovoz yozilmasa — ssenariy qoladi, sababi ko'rinadi; tahrir
   assert.equal(videoStore.remove(biz.id, v.id), true);
 });
 
+await check("ovoz yozilayotganda ssenariy tahrirlansa — eski matn ovozi yangi ssenariyga yopishmaydi", async () => {
+  const biz = newBiz('Poyga');
+  brandStore.save(biz.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, BOOK as never);
+  replies.push(JSON.stringify(SCRIPT));
+  const v = await makeVideo(biz, 'Mavzu', { write: fakeAi, speak: async () => { throw new ContentError('kalit yo\'q'); } });
+  const r = await voiceVideo(biz, v.id, async () => {
+    editScenes(biz.id, v.id, v.scenes.map((s, i) => (i === 1 ? { ...s, voice: 'Boshqa gap' } : s)));
+    return { audio, alignment: null };
+  });
+  assert.equal(r.status, 'failed');
+  assert.match(r.error ?? '', /ssenariy o'zgardi/);
+  assert.equal(videoAudio(biz.id, v.id), null);
+});
+
+await check("ssenariy: bo'sh diktor gapi — ekrandagi yozuv o'qiladi; fikrsiz uzun ssenariy ham chegaraga tushadi", () => {
+  const s = cleanScenes({ scenes: [{ kind: 'hook', text: 'Ilgak', voice: '' }, { kind: 'point', text: 'Bir', voice: 'bir' }, { kind: 'claim', text: 'Da\'vo', voice: 'davo' }] }, BOOK);
+  assert.equal(s[0].voice, 'Ilgak');
+  const long = 'y'.repeat(240);
+  const many = cleanScenes({ scenes: [{ kind: 'hook', text: 'H', voice: long }, ...Array.from({ length: 5 }, () => ({ kind: 'claim', text: 'C', voice: long }))] }, BOOK);
+  assert.ok(many.reduce((n, x) => n + x.voice.length, 0) <= 900, 'jami 900 dan oshmaydi');
+  assert.equal(many[0].text, 'H');
+  assert.equal(many.at(-1)!.kind, 'sign');
+});
+
+await check("video o'chirilsa yoki post bekor qilinsa — mavzu yana bo'sh («Video» / «Post» tugmasi qaytadi), yangi rejada almashadi", async () => {
+  const biz = newBiz('Bog');
+  brandStore.save(biz.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, BOOK as never);
+  replies.push(JSON.stringify({ items: [{ pillar: 'P', title: 'Bir', angle: '' }, { pillar: 'P', title: 'Ikki', angle: '' }] }));
+  const [a, b] = (await makePlan(biz, 5, '', fakeAi)).items;
+  const d = await planDraft(biz, a.id, async () => ({ text: 'Post', sourceUrl: null }));
+  replies.push(JSON.stringify(SCRIPT));
+  const v = await makeVideo(biz, b.title, { write: fakeAi, speak: async () => ({ audio, alignment: null }) });
+  planStore.link(biz.id, b.id, 'video_id', v.id);
+  assert.equal(planStore.get(biz.id, b.id)?.videoId, v.id);
+  videoStore.remove(biz.id, v.id);
+  assert.equal(planStore.get(biz.id, b.id)?.videoId, null, "o'chgan videoga bog'lanish qolmadi");
+  contentStore.move(biz.id, d.id, ['draft'], 'cancelled');
+  assert.equal(planStore.get(biz.id, a.id)?.draftId, null, 'bekor qilingan post mavzuni band qilmaydi');
+  replies.push(JSON.stringify({ items: [{ pillar: 'P', title: 'Yangi', angle: '' }] }));
+  assert.deepEqual((await makePlan(biz, 5, '', fakeAi)).items.map(i => i.title), ['Yangi'], 'ishsiz qolgan mavzular yangi reja bilan almashdi');
+});
+
 // ─── ElevenLabs (soxta server) ────────────────────────────────────────────────
 
 await check("ElevenLabs so'rovi: kalit sarlavhada, model va matn tanada, javob — mp3 va harf vaqtlari; xatolar tushunarli", async () => {
