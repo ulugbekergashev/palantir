@@ -70,11 +70,13 @@ ok('yasaldi: DentaCRM va Palantir bor', log.includes('DentaCRM: bor') && log.inc
 const html = readFileSync(full, 'utf8');
 ok("sahifada maxfiy qismlar ochiq ko'rinmaydi", !html.includes(salt) && !html.includes('r_tuz') && !html.includes(seedOf(pair).toString('hex')) && !html.includes('/*__PAYLOAD__*/null'));
 build(['birga', onlyPal], { DENTALOCAL_DIR: join(work, 'yoq') });
-// Standart: ish stolida ikkita alohida fayl (ish stoli — vaqtinchalik papkada: USERPROFILE/HOME almashtiriladi)
+// Standart: ish stolida faqat palantir-kalit.html (ish stoli — vaqtinchalik papkada: USERPROFILE/HOME almashtiriladi); DentaCRM — «dentacrm» bilan
 const home = join(work, 'uy');
-build([], { USERPROFILE: home, HOME: home });
 const palFile = join(home, 'Desktop', 'palantir-kalit.html'), dentaFile = join(home, 'Desktop', 'dentacrm-kalit.html');
-ok('standart: ish stolida palantir-kalit.html va dentacrm-kalit.html', existsSync(palFile) && existsSync(dentaFile));
+build([], { USERPROFILE: home, HOME: home });
+ok('standart: ish stolida faqat palantir-kalit.html', existsSync(palFile) && !existsSync(dentaFile));
+build(['dentacrm'], { USERPROFILE: home, HOME: home });
+ok("dentacrm-kalit.html — faqat so'ralsa", existsSync(dentaFile));
 ok('alohida sahifalar — o\'z sarlavhasi va rangi', readFileSync(palFile, 'utf8').includes('<h1>Palantir kalit</h1>') && readFileSync(palFile, 'utf8').includes('data-product="palantir"')
   && readFileSync(dentaFile, 'utf8').includes('<h1>DentaCRM kalit</h1>') && !readFileSync(dentaFile, 'utf8').includes('__SARLAVHA__'));
 let wrongKey = '';

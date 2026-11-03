@@ -1,6 +1,6 @@
 /**
  * Sotuvchi: telefon uchun kalit sahifalari — har dasturga alohida fayl.
- *   npm run kalit-sahifa                         → ish stolida palantir-kalit.html va dentacrm-kalit.html (parol bir marta so'raladi)
+ *   npm run kalit-sahifa                         → ish stolida palantir-kalit.html (DentaCRM'ning o'z sahifasi bor)
  *   npm run kalit-sahifa -- palantir [fayl.html] → faqat Palantir sahifasi
  *   npm run kalit-sahifa -- dentacrm [fayl.html] → faqat DentaCRM sahifasi (aktivatsiya va parolni tiklash)
  *   npm run kalit-sahifa -- birga [fayl.html]    → ikkalasi bitta sahifada (dastur tanlovi bilan)
@@ -36,7 +36,8 @@ if (process.argv[2] && !kindArg) {
 }
 const jobs: { kind: Kind; out: string }[] = kindArg
   ? [{ kind: kindArg, out: process.argv[3] ? resolve(process.argv[3]) : desktop(DEFAULT_FILE[kindArg]) }]
-  : [{ kind: 'palantir', out: desktop(DEFAULT_FILE.palantir) }, { kind: 'dentacrm', out: desktop(DEFAULT_FILE.dentacrm) }];
+  // Standart — faqat Palantir: DentaCRM'ning o'z sahifasi (DentaCRM-kalit-*.html) bor va o'zgarmaydi
+  : [{ kind: 'palantir', out: desktop(DEFAULT_FILE.palantir) }];
 const dentaDir = process.env.DENTALOCAL_DIR || 'D:\\Projects\\dentalocal';
 const pemFile = process.env.LICENSE_SIGNING_KEY_FILE || join(homedir(), '.palantir', 'litsenziya.pem');
 const publicKey = process.env.LICENSE_PUBLIC_KEY || LICENSE_PUBLIC_KEY;
