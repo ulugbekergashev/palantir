@@ -65,7 +65,7 @@ function NumberBlock({ line, onLine, notify }: LineProps) {
     <Block icon={<Phone className="h-[18px] w-[18px]" aria-hidden="true" />} title="Telefon raqami" hint="Mijoz shu raqamga qo'ng'iroq qiladi (yoki klinika telefoni shu raqamga yo'naltiradi) — AI qabulxona javob beradi.">
       <div role="tablist" aria-label="Operator" className="mb-4 flex flex-wrap gap-2">
         {tabBtn('zadarma', 'Zadarma (tavsiya)')}
-        {tabBtn('manual', 'Boshqa operator (Uztelecom)')}
+        {tabBtn('manual', 'Boshqa operator (SIP)')}
       </div>
       {tab === 'zadarma' ? <ZadarmaForm line={line} onLine={onLine} notify={notify} /> : <Trunk line={line} onLine={onLine} notify={notify} />}
     </Block>
@@ -131,14 +131,15 @@ function Trunk({ line, onLine, notify }: LineProps) {
   };
   return (
     <>
-      <p className="mb-3 text-[12.5px] leading-snug text-[#8a909c]">Operator bergan ma'lumotlar: server manzili, login, parol va raqam.</p>
+      <p className="mb-3 text-[12.5px] leading-snug text-[#8a909c]">Operator (Uztelecom, Sarkor yoki boshqasi) bergan SIP ma'lumotlari: server manzili, login, parol va raqam.</p>
       <form onSubmit={save} className="grid gap-3 sm:grid-cols-[1fr_110px]">
-        <Label text="Server manzili"><input className={input} value={form.host} onChange={set('host')} placeholder="sip.uztelecom.uz yoki IP" required /></Label>
+        <Label text="Server manzili"><input className={input} value={form.host} onChange={set('host')} placeholder="Operator bergan manzil yoki IP" required /></Label>
         <Label text="Port"><input className={input} value={form.port} onChange={set('port')} inputMode="numeric" /></Label>
         <Label text="Login"><input className={input} value={form.login} onChange={set('login')} autoComplete="off" required /></Label>
         <Label text="Raqam"><input className={input} value={form.number} onChange={set('number')} placeholder="712000000" inputMode="tel" /></Label>
         <div className="sm:col-span-2">
-          <Label text="Parol"><input className={input} type="password" value={form.password} onChange={set('password')} autoComplete="new-password" placeholder={t ? "O'zgarmasa — bo'sh qoldiring" : ''} required={!t} /></Label>
+          <Label text="Parol"><input className={input} type="password" value={form.password} onChange={set('password')} autoComplete="new-password" placeholder={t ? "Saqlangan — o'zgarmasa bo'sh qoldiring" : ''} required={!t} /></Label>
+          {t && <p className="mt-1.5 text-[12px] leading-snug text-[#7d838f]">Parol saqlangan va ekranga qayta chiqarilmaydi. Qayta yozish faqat operatorda parol almashganda yoki «Telefon raqami» holatida «ulanmadi» chiqsa kerak.</p>}
         </div>
         <div className="flex items-center gap-3 sm:col-span-2">
           <button type="submit" disabled={busy} className="flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[#3fd6c3] px-5 text-[14px] font-semibold text-[#07080b] disabled:opacity-50">

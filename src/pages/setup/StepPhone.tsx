@@ -67,7 +67,7 @@ export function StepPhone({ line, onLine, notify }: { line: PhoneLine | null; on
         </form>
       </Card>
       {connected && <Codes number={connected.number} notify={notify} />}
-      <p className="text-xs text-slate-500">Uztelecom yoki boshqa operator SIP'i — keyin Sozlamalar → Telefon liniyasi → «Boshqa operator».</p>
+      <p className="text-xs text-slate-500">Uztelecom, Sarkor yoki boshqa operator SIP'i — keyin Sozlamalar → Telefon liniyasi → «Boshqa operator».</p>
     </div>
   );
 }

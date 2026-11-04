@@ -48,7 +48,7 @@ export interface TeamDay {
 /** Telefon liniyasi (server/voice/line.ts LineView) */
 export interface PhoneLine {
   trunk: { host: string; port: number; login: string; number: string } | null;
-  /** zadarma — API kalitlari bilan o'zi sozlangan; manual — qo'lda (Uztelecom va boshqalar) */
+  /** zadarma — API kalitlari bilan o'zi sozlangan; manual — qo'lda (Uztelecom, Sarkor va boshqalar) */
   provider: 'zadarma' | 'manual' | null;
   routing: { mode: 'ai' | 'ai_transfer' | 'day_admin'; ring: number; days: number[]; from: string; to: string };
   admin: { server: string; login: string; password: string | null };
