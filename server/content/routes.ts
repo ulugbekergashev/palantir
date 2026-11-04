@@ -11,6 +11,7 @@ import { normalizeHandle } from './telegram';
 import { brandStore, makeBrandBook, setNarrator } from './brand';
 import { PLAN_MAX, PLAN_MIN, makePlan, planDraft, planStore } from './plan';
 import { editScenes, makeVideo, videoAudio, videoStore, voiceVideo } from './video';
+import { renderState, startRender, videoMp4 } from './render';
 import { voiceProvider } from './speech';
 import { NARRATORS } from '../../src/lib/narrators';
 
@@ -51,7 +52,7 @@ function failed(res: Response, e: unknown): void {
 export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void {
   const view = (biz: BusinessRow) => ({
     settings: contentStore.settings(biz.id), sources: contentStore.sources(biz.id), drafts: contentStore.drafts(biz.id), running: factoryRunning(biz.id),
-    brand: brandStore.get(biz.id), plan: planStore.list(biz.id), videos: videoStore.list(biz.id), voice: voiceProvider() !== null, voiceBy: voiceProvider(), busy: aiBusy.has(biz.id),
+    brand: brandStore.get(biz.id), plan: planStore.list(biz.id), videos: videoStore.list(biz.id).map(v => ({ ...v, render: renderState(biz.id, v) })), voice: voiceProvider() !== null, voiceBy: voiceProvider(), busy: aiBusy.has(biz.id),
   });
 
   app.get('/api/content', asBiz((_req, res, biz) => { res.json(view(biz)); }));
@@ -162,6 +163,20 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
     // Ssenariy tahrirlanib ovoz qayta yozilsa manzil o'sha: brauzer eski ovozni keshdan bermasin
     res.setHeader('cache-control', 'no-store');
     res.end(audio.data);
+  }));
+
+  // mp4 serverda yig'iladi (HyperFrames): navbatga qo'yish va tayyor faylni olish
+  app.post('/api/content/videos/:id/render', asBiz((req, res, biz) => {
+    try { startRender(biz.id, Id(req)); res.json(view(biz)); } catch (e) { failed(res, e); }
+  }));
+
+  app.get('/api/content/videos/:id/mp4', asBiz((req, res, biz) => {
+    const file = videoMp4(biz.id, Id(req), !!req.query.poster);
+    if (!file) return res.status(404).json({ error: "Video hali yig'ilmagan" });
+    const v = videoStore.get(biz.id, Id(req));
+    if (req.query.download && v) res.attachment(`${v.topic.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'video'}.mp4`);
+    // Qayta yig'ilsa manzil o'sha: brauzer eskisini keshdan bermasin
+    res.sendFile(file, { headers: { 'cache-control': 'no-store' } });
   }));
 
   app.delete('/api/content/videos/:id', asBiz((req, res, biz) => {

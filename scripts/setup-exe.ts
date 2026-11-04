@@ -2,7 +2,7 @@
  * O'rnatuvchi .exe (DentaLocal kabi — Windows'ning o'z IExpress'i bilan, qo'shimcha dasturlarsiz). Ichida: reliz arxivi kutubxonalari
  * bilan (scripts/archive.ts), install/exe-ornatish.ps1 va runtime\ — o'rnatishda internetdan hech narsa yuklanmaydi:
  *   runtime\node-*.msi       Node.js rasmiy o'rnatgichi (kompyuterda Node 24 bo'lmasa qo'yiladi)
- *   runtime\ffmpeg\          ffmpeg (IP kameralar; Gyan «essentials», GPL — LICENSE yonida)
+ *   runtime\ffmpeg\          ffmpeg va ffprobe (IP kameralar, video renderi; Gyan «essentials», GPL — LICENSE yonida)
  *   runtime\python\          Python (ko'chma) va ovoz xizmati kutubxonalari (tgvoice/requirements.txt)
  *   tgvoice\models\…ru-0.22  «Quloq» modeli
  * Klinikada: exe → «o'rnatilsinmi?» → administrator ruxsati → C:\Palantir ga ochadi → install\ornatish.ps1 (savolsiz) → ulash ustasi.
@@ -90,7 +90,7 @@ async function stageRuntime(dir: string): Promise<void> {
   const msi = await fetchPart(PARTS.node);
   copyFileSync(msi, join(dir, basename(msi)));
   unpack(await fetchPart(PARTS.ffmpeg), join(dir, 'ffmpeg'), name =>
-    name.endsWith('/bin/ffmpeg.exe') ? 'ffmpeg.exe' : /\/(LICENSE|README\.txt)$/.test(name) ? basename(name) : null);
+    name.endsWith('/bin/ffmpeg.exe') ? 'ffmpeg.exe' : name.endsWith('/bin/ffprobe.exe') ? 'ffprobe.exe' : /\/(LICENSE|README\.txt)$/.test(name) ? basename(name) : null);
   stagePython(await fetchPart(PARTS.python), join(dir, 'python'));
 }
 

@@ -350,6 +350,10 @@ export const api = {
   contentVideoVoice: (id: string) => call<ContentView>(`/content/videos/${id}/voice`, { body: {} }),
   contentVideoRemove: (id: string) => call<ContentView>(`/content/videos/${id}`, { method: 'DELETE' }),
   contentVideoAudio: async (id: string) => (await send(`/content/videos/${id}/audio`, {})).arrayBuffer(),
+  /** mp4 serverda yig'ilishi (HyperFrames) */
+  contentVideoRender: (id: string) => call<ContentView>(`/content/videos/${id}/render`, { body: {} }),
+  contentVideoMp4: async (id: string) => (await send(`/content/videos/${id}/mp4`, {})).blob(),
+  contentVideoPoster: async (id: string) => (await send(`/content/videos/${id}/mp4?poster=1`, {})).blob(),
   // Targetolog (Meta reklama)
   ads: () => call<AdsView>('/ads'),
   adsConnect: (v: { token: string; adAccountId: string; pageId: string; igActorId: string | null }) => call<AdsView>('/ads/connect', { body: v }),

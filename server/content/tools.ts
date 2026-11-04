@@ -1,6 +1,6 @@
 /**
  * Yordamchi asboblari (Kontent-meyker): egasining Telegram kanali uchun qoralamalar, brend-buk, kontent reja va video.
- * Kanalga chiqarish — faqat egasining tugmasi bilan; video panelda yig'iladi (Kontent-meyker → Video)
+ * Kanalga chiqarish — faqat egasining tugmasi bilan; video mp4 shu kompyuterda yig'iladi (HyperFrames), panelda ko'riladi (Kontent-meyker → Video)
  */
 import { z } from 'zod';
 import { ToolError, assertOwnWords, def } from '../toolkit';
@@ -74,7 +74,7 @@ export const CONTENT_DEFS = {
   }),
 
   content_video: def({
-    description: "Prepare a short vertical (9:16) video on a topic in the brand's style: the script (scenes with on-screen text and narration) and the narrator voice (the brand book's narrator, Gemini TTS). The video itself (with subtitles) is assembled and downloaded as mp4 in panel → Marketing → Kontent-meyker → Video (it renders in the browser in a few seconds) — tell the owner to open it there. Needs a brand book; if missing, call content_brand_book first.",
+    description: "Prepare a short vertical (9:16) video on a topic in the brand's style: the script (scenes with on-screen text and narration) and the narrator voice (the brand book's narrator, Gemini TTS). After the voice is recorded, the finished mp4 (kinetic text in the brand's colors, word-by-word subtitles, scene transitions) is rendered automatically on this computer in 2–4 minutes; the owner watches and downloads it in panel → Marketing → Kontent-meyker → Video — tell them to open it there. Needs a brand book; if missing, call content_brand_book first.",
     input: z.object({ topic: z.string().trim().min(5).max(600).describe('What the video is about, in the owner\'s words') }),
     run: async (i, ctx) => guarded(async () => {
       // Ovoz pullik xizmatni (Gemini TTS, zaxira — ElevenLabs) ishlatadi: faqat egasi o'zi so'raganda

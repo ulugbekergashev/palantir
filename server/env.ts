@@ -264,6 +264,8 @@ export const env = {
   cameraPayGraceMin: process.env.CAMERA_PAY_GRACE_MIN ? Math.max(0, Number(process.env.CAMERA_PAY_GRACE_MIN) || 0) : 30,
   /** IP kameralardan kadr oladigan dastur (ffmpeg). Yo'li berilmasa PATH'dan qidiriladi; topilmasa IP kameralar o'chiq (veb-kamera ishlayveradi) */
   ffmpeg: process.env.FFMPEG_PATH || 'ffmpeg',
+  /** Video mp4 serverda (HyperFrames: Chrome + ffmpeg) yig'iladimi; VIDEO_RENDER=off — yo'q, panel brauzerda yig'adi (sinovlar uchun ham) */
+  videoRender: process.env.VIDEO_RENDER !== 'off',
   /** Faqat sinov uchun: IP kamera o'rniga ffmpeg'ga beriladigan kirish (JSON ro'yxat, masalan ["-f","lavfi","-i","testsrc"]) */
   cameraTestInput: process.env.CAMERA_TEST_INPUT || '',
   /** Faqat sinov uchun: kamera qidiruvi tarmoq o'rniga shu manzillarga (host:port, vergul bilan) — ONVIF so'rovi va 554-port */

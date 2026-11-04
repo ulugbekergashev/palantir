@@ -611,7 +611,14 @@ export interface VideoScene { kind: 'hook' | 'point' | 'claim' | 'sign'; text: s
 export interface ContentVideo {
   id: string; topic: string; scenes: VideoScene[]; status: 'script' | 'voiced' | 'failed'; error: string | null;
   starts: number[]; duration: number; createdAt: string;
+  /** Server renderi (HyperFrames): panel ro'yxatida keladi */
+  render?: VideoRender;
 }
+/**
+ * mp4 serverda yig'ilishi: none — hali yo'q, queued/rendering — navbatda/yig'ilmoqda (progress 0–100), done — tayyor,
+ * stale — ssenariy, ovoz yoki brend o'zgargan (qayta yasash kerak), failed — xato. available — shu kompyuterda server render bormi
+ */
+export interface VideoRender { phase: 'none' | 'queued' | 'rendering' | 'done' | 'stale' | 'failed'; progress: number; error: string | null; available: boolean }
 
 export interface CallLine { who: 'ai' | 'caller'; text: string }
 /**

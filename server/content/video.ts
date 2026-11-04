@@ -1,10 +1,11 @@
 /**
  * Video: AI brend-buk bo'yicha qisqa ssenariy yozadi (sahnalar: ilgak → fikrlar → da'vo → imzo) → diktor har sahnani o'qiydi
- * (speech.ts: Gemini TTS, zaxira — ElevenLabs) va har sahna ovozda qachon boshlanishi aniq bo'ladi. Videoning o'zi panelda
- * (brauzerda) brend ranglari bilan chiziladi va mp4 qilib yozib olinadi (src/lib/videoRender.ts) — klinika kompyuteriga
- * qo'shimcha dastur kerak emas. Ovoz fayli ma'lumotlar papkasida turadi; ssenariy tahrirlansa — eski ovoz o'chadi.
+ * (speech.ts: Gemini TTS, zaxira — ElevenLabs) va har sahna ovozda qachon boshlanishi aniq bo'ladi. Ovoz tayyor bo'lishi bilan
+ * mp4 shu kompyuterda yig'iladi (render.ts: HyperFrames — kompyuterdagi Chrome/Edge + ffmpeg); Chrome bo'lmasa panel uni
+ * brauzerda chizadi (src/lib/videoRender.ts). Ovoz, mp4 va qo'shimchalar (sahna rasmlari, musiqa) ma'lumotlar papkasida;
+ * ssenariy tahrirlansa — eski ovoz, mp4 va qo'shimchalar o'chadi.
  */
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { BrandBook, ContentVideo, VideoScene } from '../../src/types';
 import { DEFAULT_NARRATOR } from '../../src/lib/narrators';
@@ -14,6 +15,8 @@ import { env } from '../env';
 import { brandNotes, brandStore } from './brand';
 import { planStore } from './plan';
 import { joinLines, liveVoicer, type Voicer } from './speech';
+import type { TimedWord } from './composition';
+import { dropRender, renderAvailable, startRender } from './render';
 import { ContentError, contentStore } from './store';
 import { askText, fence, jsonIn } from './writer';
 
@@ -35,6 +38,31 @@ const audioDir = join(env.dataDir, 'content-video');
 const AUDIO = { wav: 'audio/wav', mp3: 'audio/mpeg' } as const;
 const audioFile = (id: string, ext: keyof typeof AUDIO) => join(audioDir, `${id.replace(/[^A-Za-z0-9_-]/g, '')}.${ext}`);
 const dropAudio = (id: string) => { for (const ext of Object.keys(AUDIO) as (keyof typeof AUDIO)[]) rmSync(audioFile(id, ext), { force: true }); };
+/** Video fayllari papkasi (ovoz, mp4) */
+export const videoDir = (): string => audioDir;
+/** Sahna rasmlari, musiqa va so'z vaqtlari: content-video/<id>/ */
+const assetDir = (id: string) => join(audioDir, id.replace(/[^A-Za-z0-9_-]/g, ''));
+export const videoAssetDir = assetDir;
+const dropAssets = (id: string) => rmSync(assetDir(id), { recursive: true, force: true });
+
+/** Ovoz fayli (bo'lsa) */
+export function videoAudioFile(id: string): string | null {
+  for (const ext of Object.keys(AUDIO) as (keyof typeof AUDIO)[]) if (existsSync(audioFile(id, ext))) return audioFile(id, ext);
+  return null;
+}
+
+/** Videoning qo'shimchalari: sahna rasmlari (scene-N.*), fon musiqasi (music.*), aniq so'z vaqtlari (words.json) */
+export function videoAssets(id: string, scenes: number): { images: (string | null)[]; music: string | null; words: TimedWord[][] | null } {
+  const dir = assetDir(id);
+  const files = existsSync(dir) ? readdirSync(dir) : [];
+  const find = (re: RegExp) => { const f = files.find(n => re.test(n)); return f ? join(dir, f) : null; };
+  let words: TimedWord[][] | null = null;
+  try {
+    const w = JSON.parse(readFileSync(join(dir, 'words.json'), 'utf8')) as TimedWord[][];
+    if (Array.isArray(w) && w.length === scenes) words = w;
+  } catch { /* yo'q — taxminiy vaqtlar */ }
+  return { images: Array.from({ length: scenes }, (_, i) => find(new RegExp(`^scene-${i}\\.(jpe?g|png|webp)$`))), music: find(/^music\.(mp3|wav|ogg|m4a)$/), words };
+}
 
 const toVideo = (r: Row): ContentVideo => ({
   id: String(r.id), topic: String(r.topic), scenes: JSON.parse(String(r.scenes)) as VideoScene[], status: String(r.status) as ContentVideo['status'],
@@ -53,6 +81,8 @@ export const videoStore = {
   setScenes(bizId: string, id: string, scenes: VideoScene[]): void {
     sql.run("UPDATE content_videos SET scenes = ?, status = 'script', error = NULL, starts = '[]', duration = 0 WHERE business_id = ? AND id = ?", JSON.stringify(scenes), bizId, id);
     dropAudio(id);
+    dropAssets(id);
+    dropRender(id);
   },
   voiced: (bizId: string, id: string, starts: number[], duration: number) =>
     sql.run("UPDATE content_videos SET status = 'voiced', error = NULL, starts = ?, duration = ? WHERE business_id = ? AND id = ?", JSON.stringify(starts), duration, bizId, id),
@@ -62,6 +92,8 @@ export const videoStore = {
     const gone = Number(sql.run('DELETE FROM content_videos WHERE business_id = ? AND id = ?', bizId, id).changes) > 0;
     if (gone) {
       dropAudio(id);
+      dropAssets(id);
+      dropRender(id);
       planStore.unlinkVideo(bizId, id);
     }
     return gone;
@@ -144,8 +176,18 @@ export async function voiceVideo(biz: BusinessRow, id: string, voice: Voicer = l
     if (!now || JSON.stringify(now.scenes) !== JSON.stringify(v.scenes)) throw new ContentError("Ovoz yozilayotganda ssenariy o'zgardi yoki video o'chirildi — ovozni qayta yozdiring");
     mkdirSync(audioDir, { recursive: true });
     dropAudio(v.id);
+    dropRender(v.id);
+    rmSync(join(assetDir(v.id), 'words.json'), { force: true });
     writeFileSync(audioFile(v.id, s.mime === 'audio/wav' ? 'wav' : 'mp3'), s.audio);
     videoStore.voiced(biz.id, v.id, s.starts, s.duration);
+    // Ovoz tayyor — mp4 serverda darrov yig'ila boshlaydi (Chrome bo'lsa; bo'lmasa panel brauzerda yig'adi)
+    if (renderAvailable()) {
+      try {
+        startRender(biz.id, v.id);
+      } catch (e) {
+        console.error("[kontent] render navbatga qo'yilmadi:", (e as Error).message);
+      }
+    }
   } catch (e) {
     const why = e instanceof ContentError ? e.message : `Ovoz yozilmadi: ${(e as Error).message}`;
     if (!(e instanceof ContentError)) console.error('[kontent] ovoz:', e);

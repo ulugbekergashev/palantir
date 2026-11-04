@@ -14,10 +14,12 @@ import { Panel, Quiet } from '../../components/agent';
 import { hrefOf } from '../../lib/nav';
 import { H, W, drawFrame, loadFonts, play, recordMime, specOf, type Playback } from '../../lib/videoRender';
 import { ACCENT, button, field, ghost, spin, useRun } from './Content';
+import { renderBusy, renderLabel, renderReady, useServerClip } from './VideoServerClip';
 
 type Props = { view: ContentView | null; setView: (v: ContentView) => void; notify: Notify };
 const loading = <div className="py-6">{spin}</div>;
 const primary = `${button} text-[#07080b]`;
+const TONE = { ok: 'bg-emerald-400/15 text-[#a7f3d0]', wait: 'bg-[#f5b454]/15 text-[#fde2b0]', bad: 'bg-[#f87171]/15 text-[#fecaca]' } as const;
 
 // ─── Brend-buk ────────────────────────────────────────────────────────────────
 
@@ -188,6 +190,11 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
   const spec = specOf(book, v);
   const ready = v.status === 'voiced';
   const canSave = typeof VideoEncoder !== 'undefined' || !!recordMime();
+  /** mp4 serverda yig'iladi (HyperFrames) — bo'lmasa eski yo'l: panel o'zi chizadi va brauzerda yig'adi */
+  const server = !!v.render?.available;
+  const sc = useServerClip(v);
+  const rBusy = renderBusy(v), rReady = renderReady(v);
+  const label = ready ? renderLabel(v) : null;
 
   // Muqova — videoning birinchi kadri (lentada ham shu ko'rinadi)
   useEffect(() => {
@@ -200,6 +207,8 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
   }, [v.id, v.status, JSON.stringify(v.scenes), JSON.stringify(book.colors), book.font]); // eslint-disable-line react-hooks/exhaustive-deps
   // Ijro, yozuv yoki yig'ish faqat karta yopilganda to'xtaydi (boshqa kartadagi amal ko'rinishni yangilasa — davom etadi)
   useEffect(() => () => { playing.current?.stop(); exporting.current?.abort(); }, []);
+
+  const saveServer = () => void sc.file().then(b => { save(b); notify('Video yuklab olindi (mp4)'); }).catch(e => notify((e as Error).message, true));
 
   const save = (blob: Blob) => {
     const a = document.createElement('a');
@@ -264,27 +273,39 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
     <li className="rounded-2xl border border-glass/[0.06] bg-glass/[0.02] p-4">
       <div className="flex flex-wrap gap-5">
         <div className="w-[180px] shrink-0 sm:w-[216px]">
-          <canvas ref={canvas} width={W} height={H} className="w-full rounded-xl border border-glass/10" style={{ aspectRatio: `${W} / ${H}` }} aria-label="Video ko'rinishi" />
+          {sc.clip ? <video src={sc.clip} controls autoPlay playsInline className="w-full rounded-xl border border-glass/10 bg-black" style={{ aspectRatio: `${W} / ${H}` }} aria-label="Video" />
+            : sc.poster ? <img src={sc.poster} alt="Video muqovasi" className="w-full rounded-xl border border-glass/10" style={{ aspectRatio: `${W} / ${H}` }} />
+              : <canvas ref={canvas} width={W} height={H} className="w-full rounded-xl border border-glass/10" style={{ aspectRatio: `${W} / ${H}` }} aria-label="Video ko'rinishi" />}
+          {rBusy && <div className="mt-2 h-1.5 rounded-full bg-glass/10" role="progressbar" aria-label="Video yig'ilmoqda" aria-valuenow={v.render?.progress ?? 0} aria-valuemin={0} aria-valuemax={100}><div className="h-1.5 rounded-full transition-[width]" style={{ width: `${Math.max(3, v.render?.progress ?? 0)}%`, background: ACCENT }} /></div>}
           {mode !== 'idle' && <div className="mt-2 h-1.5 rounded-full bg-glass/10" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}><div className="h-1.5 rounded-full" style={{ width: `${progress * 100}%`, background: ACCENT }} /></div>}
         </div>
         <div className="min-w-0 flex-1 basis-72 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${ready ? 'bg-emerald-400/15 text-[#a7f3d0]' : v.status === 'failed' ? 'bg-[#f87171]/15 text-[#fecaca]' : 'bg-[#f5b454]/15 text-[#fde2b0]'}`}>
-              {ready ? `Ovoz tayyor · ${Math.round(v.duration)} s` : v.status === 'failed' ? 'Ovoz yozilmadi' : 'Ovoz kutyapti'}
+            <span className={`rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${label ? TONE[label.tone] : v.status === 'failed' ? TONE.bad : TONE.wait}`}>
+              {label ? label.text : v.status === 'failed' ? 'Ovoz yozilmadi' : 'Ovoz kutyapti'}
             </span>
             <span className="truncate text-[13px] text-[#a3a9b5]">{v.topic.split('\n')[0]}</span>
           </div>
           {v.error && v.status === 'failed' && <p className="rounded-xl bg-[#f87171]/10 p-3 text-[13px] text-[#fecaca]">{v.error}</p>}
+          {ready && v.render?.phase === 'failed' && v.render.error && <p className="rounded-xl bg-[#f87171]/10 p-3 text-[13px] text-[#fecaca]">{v.render.error}</p>}
           {editing ? <SceneEditor v={v} setView={setView} notify={notify} onDone={() => setEditing(false)} /> : (
             <ol className="space-y-1.5 text-[13.5px] leading-relaxed">
               {v.scenes.map((s, i) => <li key={i}><span className="font-semibold text-[#8a909c]">{KIND[s.kind]}:</span> <span className="text-[#f2f0ea]">«{s.text}»</span> <span className="text-[#a3a9b5]">— {s.voice}</span></li>)}
             </ol>
           )}
           <div className="flex flex-wrap gap-2">
-            {ready && mode === 'idle' && <>
+            {ready && mode === 'idle' && server && <>
+              {rReady && !sc.clip && <button type="button" onClick={() => void sc.watch().catch(e => notify((e as Error).message, true))} className={ghost}><Play className="h-4 w-4" aria-hidden="true" /> Ko'rish</button>}
+              {v.render?.phase === 'stale' && <button type="button" disabled={!!busy} onClick={() => void run('render', () => api.contentVideoRender(v.id), "Video yangilanmoqda — bir necha daqiqa")} className={primary} style={{ background: ACCENT }}>{busy === 'render' ? spin : <RotateCcw className="h-4 w-4" aria-hidden="true" />} Videoni yangilash</button>}
+              {rReady && <button type="button" onClick={saveServer} className={v.render?.phase === 'done' ? primary : ghost} style={v.render?.phase === 'done' ? { background: ACCENT } : undefined}><Download className="h-4 w-4" aria-hidden="true" /> Yuklab olish (mp4)</button>}
+              {(v.render?.phase === 'none' || v.render?.phase === 'failed') && <button type="button" disabled={!!busy} onClick={() => void run('render', () => api.contentVideoRender(v.id), "Video yig'ilmoqda — bir necha daqiqa")} className={primary} style={{ background: ACCENT }}>{busy === 'render' ? spin : <Clapperboard className="h-4 w-4" aria-hidden="true" />} {v.render?.phase === 'failed' ? 'Qayta yasash' : 'Video yasash'}</button>}
+            </>}
+            {ready && mode === 'idle' && !server && <>
               <button type="button" onClick={() => void start(false)} className={ghost}><Play className="h-4 w-4" aria-hidden="true" /> Ko'rish</button>
               <button type="button" onClick={() => void download()} disabled={!canSave} title={canSave ? undefined : "Bu brauzer video yig'a olmaydi — Chrome yoki Edge'da oching"} className={primary} style={{ background: ACCENT }}><Download className="h-4 w-4" aria-hidden="true" /> Yuklab olish (mp4)</button>
-              <button type="button" disabled={!!busy || !voice} onClick={() => void run('voice', () => api.contentVideoVoice(v.id), 'Ovoz qayta yozildi')} title="Diktorni almashtirgan bo'lsangiz — yangi ovoz bilan qayta o'qitish" className={ghost}>{busy === 'voice' ? spin : <RotateCcw className="h-4 w-4" aria-hidden="true" />} Qayta ovoz</button>
+            </>}
+            {ready && mode === 'idle' && <>
+              <button type="button" disabled={!!busy || !voice || rBusy} onClick={() => void run('voice', () => api.contentVideoVoice(v.id), 'Ovoz qayta yozildi')} title="Diktorni almashtirgan bo'lsangiz — yangi ovoz bilan qayta o'qitish" className={ghost}>{busy === 'voice' ? spin : <RotateCcw className="h-4 w-4" aria-hidden="true" />} Qayta ovoz</button>
             </>}
             {mode !== 'idle' && <button type="button" onClick={() => { playing.current?.stop(); exporting.current?.abort(); }} className={ghost}><Square className="h-4 w-4" aria-hidden="true" /> To'xtatish{mode !== 'play' ? ' (video saqlanmaydi)' : ''}</button>}
             {!ready && mode === 'idle' && <button type="button" disabled={!!busy || !voice} title={voice ? undefined : "Avval Gemini kalitini kiriting (Sozlamalar → Kalitlar)"} onClick={() => void run('voice', () => api.contentVideoVoice(v.id), 'Ovoz tayyor')} className={primary} style={{ background: ACCENT }}>{busy === 'voice' ? spin : v.status === 'failed' ? <RotateCcw className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />} {v.status === 'failed' ? 'Qayta urinish' : 'Ovoz yozdirish'}</button>}
@@ -292,6 +313,7 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
             {mode === 'idle' && <button type="button" disabled={!!busy} onClick={() => { if (window.confirm("Video o'chirilsinmi?")) void run('rm', () => api.contentVideoRemove(v.id)); }} aria-label="Videoni o'chirish" className={`${button} text-[#a3a9b5] hover:bg-glass/5`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}
           </div>
           {mode === 'record' && <p className="text-[12.5px] text-[#8a909c]">Yozilyapti — video uzunligicha vaqt ketadi. Bu varaqni yopmang va boshqa varaqqa o'tmang.</p>}
+          {rBusy && <p className="text-[12.5px] text-[#8a909c]" aria-live="polite">Video shu kompyuterda yig'ilmoqda{v.render?.phase === 'rendering' ? ` — ${v.render.progress}%` : ' (navbatda)'}. Odatda 2–4 daqiqa; panelni yopsangiz ham davom etadi.</p>}
           {mode === 'export' && <p className="text-[12.5px] text-[#8a909c]" aria-live="polite">Yig'ilyapti — {Math.round(progress * 100)}%. Odatda video uzunligidan tezroq; varaqni yopmang.</p>}
         </div>
       </div>
@@ -302,6 +324,13 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
 export function ContentVideoTab({ view, setView, notify }: Props) {
   const [topic, setTopic] = useState('');
   const [busy, run] = useRun(notify, setView);
+  // Video serverda yig'ilayotgan bo'lsa — holat har 2,5 soniyada yangilanadi
+  const rendering = !!view?.videos.some(renderBusy);
+  useEffect(() => {
+    if (!rendering) return;
+    const t = setInterval(() => { void api.content().then(setView).catch(() => undefined); }, 2500);
+    return () => clearInterval(t);
+  }, [rendering, setView]);
   if (!view) return loading;
   const book = view.brand?.book;
   const make = (e: FormEvent) => {
@@ -315,7 +344,7 @@ export function ContentVideoTab({ view, setView, notify }: Props) {
           <p className="text-[13.5px] text-[#fde2b0]"><Palette className="mr-1 inline h-4 w-4" aria-hidden="true" />Video brend-buk ranglarida chiziladi — avval <a href={hrefOf('marketolog', 'brend')} className="font-semibold underline">Brend-buk</a> yarating.</p>
         ) : (
           <form onSubmit={make} className="space-y-3">
-            <p className="text-[13.5px] leading-relaxed text-[#a3a9b5]">9:16, 20–35 soniya: Kontent-meyker ssenariy yozadi, diktor ({view.voiceBy === 'elevenlabs' ? 'ElevenLabs' : <>brend-bukdagi ovoz — <b className="text-[#e4e3de]">{book.narrator}</b></>}) o'qiydi, video shu yerda brendingiz ranglarida subtitrlar bilan yig'iladi va mp4 bo'lib yuklab olinadi.</p>
+            <p className="text-[13.5px] leading-relaxed text-[#a3a9b5]">9:16, 20–35 soniya: Kontent-meyker ssenariy yozadi, diktor ({view.voiceBy === 'elevenlabs' ? 'ElevenLabs' : <>brend-bukdagi ovoz — <b className="text-[#e4e3de]">{book.narrator}</b></>}) o'qiydi, video brendingiz uslubida — kinetik matn, so'zma-so'z subtitr, sahna o'tishlari bilan shu kompyuterda mp4 bo'lib yig'iladi.</p>
             {!view.voice && <p className="rounded-xl bg-[#f5b454]/10 p-3 text-[13px] text-[#fde2b0]">Ovoz uchun Gemini kaliti kerak: <a href="#/ulash" className="font-semibold underline">Ulash → Kalitlar</a> → «Gemini kaliti» (aistudio.google.com, bepul ochiladi). Kalitsiz ham ssenariy yoziladi.</p>}
             <div className="flex flex-wrap gap-2">
               <input value={topic} onChange={e => setTopic(e.target.value)} maxLength={600} placeholder="Mavzu: masalan, AI xodim — bu chatbot emas" aria-label="Video mavzusi" className={`${field} min-w-0 flex-1 basis-72`} />
@@ -327,7 +356,7 @@ export function ContentVideoTab({ view, setView, notify }: Props) {
       </Panel>
       <Panel title="Videolar">
         {!view.videos.length || !book ? <Quiet>Hali video yo'q.</Quiet> : (
-          <ul className="flex flex-col gap-3">{view.videos.map(v => <VideoCard key={`${v.id}-${v.status}-${v.duration}-${v.starts.join(',')}-${v.scenes.map(s => s.text).join('|')}`} v={v} book={book} voice={view.voice} setView={setView} notify={notify} />)}</ul>
+          <ul className="flex flex-col gap-3">{view.videos.map(v => <VideoCard key={`${v.id}-${v.status}-${v.duration}-${v.starts.join(',')}-${v.scenes.map(s => s.text).join('|')}-${renderReady(v)}`} v={v} book={book} voice={view.voice} setView={setView} notify={notify} />)}</ul>
         )}
       </Panel>
     </div>

@@ -96,7 +96,7 @@ const PORT = 3291, base = `http://127.0.0.1:${PORT}`;
 let log = '';
 const server: ChildProcess = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
-    ...process.env, DOTENV: '0', ASTERISK_WSL: '0', PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: join(work, 'data'), ONE_PROFILE: '1', HUB_AUTO: '0', PALANTIR_HUB: '',
+    ...process.env, DOTENV: '0', VIDEO_RENDER: 'off', ASTERISK_WSL: '0', PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: join(work, 'data'), ONE_PROFILE: '1', HUB_AUTO: '0', PALANTIR_HUB: '',
     BOT_TOKEN: '', ANTHROPIC_API_KEY: 'sk-ant-sinov-kaliti-ui-video-0000000000000000', ANTHROPIC_AUTH_TOKEN: '', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, AI_ENGINE: 'api', WEB_SEARCH: '0',
     ELEVENLABS_API_KEY: '', GEMINI_API_KEY: `AIza${'x'.repeat(35)}`, GEMINI_API_ROOT: `http://127.0.0.1:${geminiPort}`, GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', ADMIN_PASSWORD: '', SESSION_SECRET: 'ui-video-secret', MORNING_HOUR: '99', EVENING_HOUR: '99', BACKUP_KEEP: '0',
   },

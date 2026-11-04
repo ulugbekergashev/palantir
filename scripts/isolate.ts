@@ -11,6 +11,8 @@ const dir = mkdtempSync(join(tmpdir(), 'palantir-sinov-'));
 process.env.DOTENV = '0';
 process.env.DATA_DIR = dir;
 process.env.SESSION_SECRET ||= 'sinov-secret';
+// Video mp4 serverda yig'ilmasin (Chrome ochiladi, daqiqalab vaqt): kerak bo'lgan sinov (check-video) o'zi yoqadi
+process.env.VIDEO_RENDER ??= 'off';
 process.on('exit', () => {
   try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows: baza hali band */ }
 });

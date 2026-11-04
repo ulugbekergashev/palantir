@@ -91,7 +91,7 @@ CREATE INDEX IF NOT EXISTS replies_due ON replies (status, due_at);
 `);
 
 /** Eski bazaga yangi ustunlar (jadval allaqachon bor bo'lsa CREATE ularni qo'shmaydi) */
-function ensureColumns(table: string, columns: Record<string, string>): void {
+export function ensureColumns(table: string, columns: Record<string, string>): void {
   const have = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(c => c.name));
   for (const [name, type] of Object.entries(columns)) if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
 }

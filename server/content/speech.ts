@@ -18,7 +18,7 @@ export type Voicer = (lines: string[], narrator: string) => Promise<Voiced>;
 
 export const RATE = 24_000;
 /** Sahnalar orasidagi nafas */
-const GAP_S = 0.35;
+export const GAP_S = 0.35;
 /** Kesilgan jimlikdan qoldiriladigan zaxira: so'z boshi va oxiri yutilmasin */
 const PAD_IN_S = 0.06;
 const PAD_OUT_S = 0.12;
