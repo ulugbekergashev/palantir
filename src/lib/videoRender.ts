@@ -65,7 +65,10 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-/** So'zlarni kenglikka sig'diradi; satrlar ko'payib ketsa — shrift kichrayadi (pastki chegara bilan) */
+/**
+ * So'zlarni kenglikka sig'diradi; satrlar ko'payib ketsa yoki bitta uzun so'z («ertalabgacha») kenglikdan oshsa — shrift
+ * kichrayadi (pastki chegara bilan)
+ */
 function fitText(ctx: CanvasRenderingContext2D, text: string, family: string, weight: number, maxW: number, maxLines: number, size: number, min: number): { lines: string[]; size: number } {
   for (let s = size; s >= min; s -= 4) {
     ctx.font = `${weight} ${s}px ${family}`;
@@ -77,7 +80,8 @@ function fitText(ctx: CanvasRenderingContext2D, text: string, family: string, we
       else { lines.push(cur); cur = w; }
     }
     if (cur) lines.push(cur);
-    if (lines.length <= maxLines || s - 4 < min) return { lines, size: s };
+    const fits = lines.length <= maxLines && lines.every(l => ctx.measureText(l).width <= maxW);
+    if (fits || s - 4 < min) return { lines, size: s };
   }
   return { lines: [text], size: min };
 }

@@ -113,7 +113,7 @@ await check("ssenariy: birinchi sahna — ilgak, oxirgisi — imzo (brend nomi b
 await check('ssenariy: diktor matni uzun bo\'lsa — oxirgi fikrlar olib tashlanadi, ilgak va imzo qoladi', () => {
   const long = 'x'.repeat(230);
   const s = cleanScenes({ scenes: [{ kind: 'hook', text: 'H', voice: long }, ...Array.from({ length: 5 }, (_, i) => ({ kind: 'point', text: `P${i}`, voice: long })), { kind: 'sign', text: 'S', voice: 'imzo' }] }, BOOK);
-  assert.ok(s.reduce((n, x) => n + x.voice.length, 0) <= 900);
+  assert.ok(s.reduce((n, x) => n + x.voice.length, 0) <= 700);
   assert.equal(s[0].text, 'H');
   assert.equal(s.at(-1)!.kind, 'sign');
   assert.deepEqual(s.filter(x => x.kind === 'point').map(x => x.text), ['P0', 'P1']);
@@ -262,7 +262,7 @@ await check("ssenariy: bo'sh diktor gapi — ekrandagi yozuv o'qiladi; fikrsiz u
   assert.equal(s[0].voice, 'Ilgak');
   const long = 'y'.repeat(240);
   const many = cleanScenes({ scenes: [{ kind: 'hook', text: 'H', voice: long }, ...Array.from({ length: 5 }, () => ({ kind: 'claim', text: 'C', voice: long }))] }, BOOK);
-  assert.ok(many.reduce((n, x) => n + x.voice.length, 0) <= 900, 'jami 900 dan oshmaydi');
+  assert.ok(many.reduce((n, x) => n + x.voice.length, 0) <= 700, 'jami 700 dan oshmaydi');
   assert.equal(many[0].text, 'H');
   assert.equal(many.at(-1)!.kind, 'sign');
 });
