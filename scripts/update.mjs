@@ -103,7 +103,9 @@ function extract(zip, dir) {
     file.start();
   });
   unzip.register(UnzipInflate);
-  const step = 1 << 20;
+  // Kichik bo'laklar: fflate bitta bo'lakdagi har faylda o'zini qayta chaqiradi — 1 MB da minglab mayda fayl (node_modules)
+  // «Maximum call stack size exceeded» berardi (0.4.5, 29 ming fayl); 16 KB da chuqurlik kichik, tezlik deyarli o'zgarmaydi
+  const step = 1 << 14;
   for (let i = 0; i < zip.length; i += step) unzip.push(zip.subarray(i, i + step), i + step >= zip.length);
   if (failure) throw failure;
   return count;
