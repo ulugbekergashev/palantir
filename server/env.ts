@@ -278,7 +278,12 @@ export const env = {
   /** Faqat sinov uchun: soxta SpeechLab manzili */
   speechlabUrl: (process.env.SPEECHLAB_URL || 'https://speechlab.uz/api/v1').replace(/\/$/, ''),
   /**
-   * Kontent-meyker videosi uchun diktor ovozi — ElevenLabs (elevenlabs.io → Developers → API keys, «Text to Speech» ruxsati).
+   * Kontent-meyker videosi diktori — asosiysi Gemini TTS (GEMINI_API_KEY o'zi yetadi): o'zbekchani toza o'qiydi, 30 soniyalik
+   * video ~0,7 sent (2026-11). Ovoz brend-bukda tanlanadi (src/lib/narrators.ts); model — shu, band bo'lsa Flash-Lite
+   */
+  geminiTtsModel: process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts',
+  /**
+   * Zaxira diktor — ElevenLabs (Gemini kaliti bo'lmasa yoki Gemini ovoz bermasa): elevenlabs.io → Developers → API keys.
    * Ovoz va model almashtirilsa bo'ladi: eleven_v4 o'zbekchani biladi (multilingual_v2 va flash bilmaydi)
    */
   elevenKey: process.env.ELEVENLABS_API_KEY || '',

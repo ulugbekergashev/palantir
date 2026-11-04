@@ -1,10 +1,13 @@
 /**
  * Kontent-meyker videosi brauzerda: brend-buk ranglari va shrifti bilan 1080×1920 kanvasda sahnalar chiziladi, diktor ovozi
- * (ElevenLabs mp3) ostiga qo'yiladi va MediaRecorder bilan mp4 (bo'lmasa webm) qilib yozib olinadi. Klinika kompyuteriga
- * hech narsa o'rnatilmaydi; yozish real vaqtda (video qancha bo'lsa — shuncha soniya), varaq ochiq turishi kerak.
+ * (Gemini WAV yoki ElevenLabs mp3) ostiga qo'yiladi. Klinika kompyuteriga hech narsa o'rnatilmaydi.
+ * Yuklab olish — videoExport.ts (WebCodecs: kadrma-kadr, tez, kadr tushmaydi). Shu fayldagi play(record) — faqat WebCodecs'siz
+ * brauzer uchun zaxira: MediaRecorder real vaqtda yozadi (video qancha bo'lsa — shuncha soniya, kodlovchi kadr tashlashi mumkin).
  *
  * Uslub — «plitka»: sahna yozuvi fon ustiga plitka bo'lib tushadi (ozgina sakrab), fikrlar plitkalar bo'lib teriladi,
  * da'vo — katta harflar fon ustida, oxiri — monogramma plitkasi, nom va shior. Har plitka tushganda qisqa «chiq» tovushi.
+ * Diktor gapi pastda subtitr bo'lib chiqadi (aytilayotgan so'z urg'u rangida), tepada — jarayon chizig'i va brend nomi,
+ * fon to'ri sekin siljiydi (kadr «tirik» turadi).
  */
 import type { BrandBook, ContentVideo, VideoScene } from '../types';
 
@@ -20,8 +23,16 @@ const HOLD = 1.6;
 const MAX_POINTS = 4;
 /** Ilgak plitkasining markazi: Reels/Shorts pastki yozuvlari va tugmalari ostida qolmasin */
 const HOOK_Y = 820;
+/** Subtitr markazi: Reels'ning pastki yozuv va tugmalari (pastdan ~420 px) ustida */
+const CAPTION_Y = 1430;
+const CAPTION_WORDS = 5;
+/** Fon to'ri siljishi, px/soniya */
+const DRIFT = 9;
 
 export interface RenderSpec { book: BrandBook; scenes: VideoScene[]; starts: number[]; duration: number }
+
+/** Ovoz boshlanishidan oldingi muqova soniyasi (ko'rishda ham, mp4 da ham) */
+export const LEAD = 0.3;
 
 export const totalLength = (s: RenderSpec): number => Math.max(s.duration + HOLD, (s.starts.at(-1) ?? 0) + HOLD + 1);
 
@@ -93,32 +104,48 @@ function tile(ctx: CanvasRenderingContext2D, b: BrandBook, x: number, y: number,
   return l;
 }
 
-/** Fon va chok to'ri har kadrda bir xil: bir marta chiziladi, keyin rasm bo'lib qo'yiladi */
-let groundCache: { key: string; canvas: HTMLCanvasElement } | null = null;
-function ground(ctx: CanvasRenderingContext2D, b: BrandBook) {
+/** Fon, chok to'ri va chekka soyasi har kadrda bir xil: bir marta chiziladi, keyin rasm bo'lib qo'yiladi (to'r — siljib) */
+let groundCache: { key: string; grid: HTMLCanvasElement; shade: HTMLCanvasElement } | null = null;
+function ground(ctx: CanvasRenderingContext2D, b: BrandBook, t: number) {
   const key = `${b.colors.bg}${b.colors.deep}`;
   if (groundCache?.key !== key) {
-    const c = document.createElement('canvas');
-    c.width = W;
-    c.height = H;
-    const g = c.getContext('2d');
+    const grid = document.createElement('canvas');
+    grid.width = W + GRID;
+    grid.height = H + GRID;
+    const shade = document.createElement('canvas');
+    shade.width = W;
+    shade.height = H;
+    const g = grid.getContext('2d'), s = shade.getContext('2d');
     if (g) paintGround(g, b);
-    groundCache = { key, canvas: c };
+    if (s) paintShade(s, b);
+    groundCache = { key, grid, shade };
   }
-  ctx.drawImage(groundCache.canvas, 0, 0);
+  const off = (t * DRIFT) % GRID;
+  ctx.drawImage(groundCache.grid, -off, -off);
+  ctx.drawImage(groundCache.shade, 0, 0);
 }
 
 function paintGround(ctx: CanvasRenderingContext2D, b: BrandBook) {
+  const w = ctx.canvas.width, h = ctx.canvas.height;
   ctx.fillStyle = b.colors.bg;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, w, h);
   ctx.strokeStyle = b.colors.deep;
   ctx.globalAlpha = 0.35;
   ctx.lineWidth = 3;
   ctx.beginPath();
-  for (let x = GRID / 2; x < W; x += GRID) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
-  for (let y = GRID / 2; y < H; y += GRID) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  for (let x = GRID / 2; x < w; x += GRID) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+  for (let y = GRID / 2; y < h; y += GRID) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
   ctx.stroke();
   ctx.globalAlpha = 1;
+}
+
+/** Chekkalar to'qroq: ko'z markazga tortiladi, kadr chuqurroq ko'rinadi */
+function paintShade(ctx: CanvasRenderingContext2D, b: BrandBook) {
+  const g = ctx.createRadialGradient(W / 2, H * 0.45, H * 0.2, W / 2, H * 0.45, H * 0.75);
+  g.addColorStop(0, `${b.colors.deep}00`);
+  g.addColorStop(1, `${b.colors.deep}cc`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
 }
 
 function centeredLines(ctx: CanvasRenderingContext2D, lines: string[], size: number, cx: number, top: number, lh = 1.12) {
@@ -146,7 +173,7 @@ function drawHook(ctx: CanvasRenderingContext2D, b: BrandBook, s: VideoScene, t:
 function drawPoints(ctx: CanvasRenderingContext2D, b: BrandBook, points: { s: VideoScene; t: number }[], fall: number) {
   const w = W - MARGIN * 2, h = 210, gap = 36;
   const shown = points.slice(-MAX_POINTS);
-  const top = (H - (shown.length * h + (shown.length - 1) * gap)) / 2 - 80;
+  const top = (H - (shown.length * h + (shown.length - 1) * gap)) / 2 - 150;
   shown.forEach((p, i) => {
     const y = top + i * (h + gap) + easeIn(fall) * (1400 + i * 120);
     const current = i === shown.length - 1;
@@ -221,8 +248,13 @@ function drawSign(ctx: CanvasRenderingContext2D, b: BrandBook, s: VideoScene, t:
 
 /** Bitta kadr: t — videoning boshidan soniya */
 export function drawFrame(ctx: CanvasRenderingContext2D, spec: RenderSpec, t: number): void {
+  drawScene(ctx, spec, t);
+  overlay(ctx, spec, t);
+}
+
+function drawScene(ctx: CanvasRenderingContext2D, spec: RenderSpec, t: number): void {
   const { book: b, scenes, starts } = spec;
-  ground(ctx, b);
+  ground(ctx, b, t);
   const at = (i: number) => (starts[i] ?? 0) - 0.08;
   let cur = 0;
   for (let i = 0; i < scenes.length; i++) if (t >= at(i)) cur = i;
@@ -244,6 +276,75 @@ export function drawFrame(ctx: CanvasRenderingContext2D, spec: RenderSpec, t: nu
   if (s.kind === 'hook') drawHook(ctx, b, s, after);
   else if (s.kind === 'claim') drawClaim(ctx, b, s, after, 0);
   else drawSign(ctx, b, s, after);
+}
+
+/** Hozirgi sahna (ovozda boshlanishidan biroz oldin) */
+function sceneAt(spec: RenderSpec, t: number): number {
+  let cur = 0;
+  for (let i = 0; i < spec.scenes.length; i++) if (t >= (spec.starts[i] ?? 0) - 0.08) cur = i;
+  return cur;
+}
+
+/** Tepa (brend nomi, jarayon chizig'i) va past (subtitr) qatlam — imzo sahnasida faqat chiziq */
+function overlay(ctx: CanvasRenderingContext2D, spec: RenderSpec, t: number) {
+  const b = spec.book, cur = sceneAt(spec, t), total = totalLength(spec);
+  ctx.save();
+  ctx.fillStyle = b.colors.deep;
+  ctx.fillRect(0, 0, W, 10);
+  ctx.fillStyle = b.colors.accent;
+  ctx.fillRect(0, 0, W * clamp(t / total), 10);
+  if (spec.scenes[cur]?.kind !== 'sign') {
+    ctx.fillStyle = b.colors.accent;
+    ctx.fillRect(MARGIN, 146, 22, 22);
+    ctx.fillStyle = b.colors.surface;
+    ctx.globalAlpha = 0.85;
+    ctx.font = `700 34px ${TEXT_FONT}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(b.name, MARGIN + 40, 158);
+    ctx.globalAlpha = 1;
+    drawCaption(ctx, spec, t, cur);
+  }
+  ctx.restore();
+}
+
+/**
+ * Subtitr: sahnaning diktor gapi 5 so'zlik bo'laklarda; aytilayotgan so'z — harf soniga mutanosib vaqtda (har sahna ovozi
+ * aniq chegaralangan, ichida taxmin yetarli). Muqova kadrida (ovoz boshlanmagan) — yo'q
+ */
+function drawCaption(ctx: CanvasRenderingContext2D, spec: RenderSpec, t: number, cur: number) {
+  const s = spec.scenes[cur], start = spec.starts[cur] ?? 0;
+  const end = (spec.starts[cur + 1] ?? spec.duration) - 0.25;
+  const words = s.voice.split(/\s+/).filter(Boolean);
+  if (!words.length || t < start + 0.05 || end <= start) return;
+  const weights = words.map(w => w.length + 1), sum = weights.reduce((a, x) => a + x, 0);
+  const at = clamp((t - start) / (end - start)) * sum;
+  let k = 0;
+  for (let acc = weights[0]; k < words.length - 1 && acc < at; acc += weights[++k]);
+  const from = Math.floor(k / CAPTION_WORDS) * CAPTION_WORDS;
+  const chunk = words.slice(from, from + CAPTION_WORDS);
+  const fit = fitText(ctx, chunk.join(' '), TEXT_FONT, 800, W - MARGIN * 2 - 80, 2, 58, 40);
+  const lh = fit.size * 1.22, padX = 34, padY = 22;
+  ctx.font = `800 ${fit.size}px ${TEXT_FONT}`;
+  const widest = Math.max(...fit.lines.map(l => ctx.measureText(l).width));
+  const boxH = fit.lines.length * lh + padY * 2, top = CAPTION_Y - boxH / 2;
+  ctx.globalAlpha = easeOut(clamp((t - start) / 0.15)) * 0.9;
+  ctx.fillStyle = spec.book.colors.deep;
+  roundRect(ctx, (W - widest) / 2 - padX, top, widest + padX * 2, boxH, 22);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  let wi = from;
+  fit.lines.forEach((ln, li) => {
+    let x = (W - ctx.measureText(ln).width) / 2;
+    for (const w of ln.split(' ')) {
+      ctx.fillStyle = wi === k ? spec.book.colors.accent : spec.book.colors.surface;
+      ctx.fillText(w, x, top + padY + li * lh);
+      x += ctx.measureText(`${w} `).width;
+      wi++;
+    }
+  });
 }
 
 /** i-sahnagacha uzluksiz ketgan fikrlar (har biri o'z tushish vaqti bilan) */
@@ -283,7 +384,7 @@ export function loadFonts(): Promise<void> {
 }
 
 /** Plitka tovushi: qisqa, past «chiq» (WebAudio — fayl kerak emas) */
-function tap(ac: AudioContext, out: AudioNode, at: number) {
+function tap(ac: BaseAudioContext, out: AudioNode, at: number) {
   const o = ac.createOscillator(), g = ac.createGain();
   o.type = 'triangle';
   o.frequency.setValueAtTime(520, at);
@@ -294,6 +395,19 @@ function tap(ac: AudioContext, out: AudioNode, at: number) {
   o.connect(g).connect(out);
   o.start(at);
   o.stop(at + 0.14);
+}
+
+/** mp4 uchun ovoz: muqova pauzasi + diktor + plitka tovushlari, oxirgi kadrgacha (stereo, rate Hz) */
+export async function mixdown(spec: RenderSpec, audio: ArrayBuffer, rate: number): Promise<AudioBuffer> {
+  const voice = await new OfflineAudioContext(1, 1, rate).decodeAudioData(audio.slice(0));
+  const total = totalLength({ ...spec, duration: spec.duration || voice.duration });
+  const ac = new OfflineAudioContext(2, Math.ceil((LEAD + total) * rate), rate);
+  const src = ac.createBufferSource();
+  src.buffer = voice;
+  src.connect(ac.destination);
+  src.start(LEAD);
+  for (const at of tapTimes(spec)) tap(ac, ac.destination, LEAD + at);
+  return ac.startRendering();
 }
 
 const MIME = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
@@ -339,15 +453,15 @@ export function play(canvas: HTMLCanvasElement, spec: RenderSpec, mp3: ArrayBuff
       const src = ac.createBufferSource();
       src.buffer = voice;
       src.connect(out);
-      src.start(t0 + 0.3);
-      for (const at of tapTimes(spec)) tap(ac, out, t0 + 0.3 + at);
+      src.start(t0 + LEAD);
+      for (const at of tapTimes(spec)) tap(ac, out, t0 + LEAD + at);
       await new Promise<void>((resolve, reject) => {
         const frame = () => {
           try { step(); } catch (e) { reject(e); }
         };
         const step = () => {
           const began = performance.now();
-          const t = ac.currentTime - t0 - 0.3;
+          const t = ac.currentTime - t0 - LEAD;
           drawFrame(ctx, spec, Math.max(0, t));
           push?.();
           onTime?.(clamp(t, 0, total), total);

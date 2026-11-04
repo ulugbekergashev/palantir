@@ -11,8 +11,9 @@ import type { AdPlan, AdsView, AgentEvent, AgentOrder, BrandAnswers, ContentBran
 export interface ContentView {
   settings: ContentSettings; sources: ContentSource[]; drafts: ContentDraft[]; running: boolean;
   brand: ContentBrand | null; plan: PlanItem[]; videos: ContentVideo[];
-  /** ElevenLabs kaliti bormi (video ovozi) */
+  /** Video diktori uchun kalit bormi va qaysi xizmat o'qiydi (Gemini; zaxira — ElevenLabs) */
   voice: boolean;
+  voiceBy: 'gemini' | 'elevenlabs' | null;
   /** Brend-buk, reja yoki video yozilyapti */
   busy: boolean;
 }
@@ -339,6 +340,7 @@ export const api = {
   contentPublish: (id: string) => call<ContentView>(`/content/drafts/${id}/publish`, { body: {} }),
   contentCancel: (id: string) => call<ContentView>(`/content/drafts/${id}`, { method: 'DELETE' }),
   contentBrand: (answers: Partial<BrandAnswers>) => call<ContentView>('/content/brand', { method: 'PUT', body: { answers } }),
+  contentNarrator: (narrator: string) => call<ContentView>('/content/brand/narrator', { method: 'PUT', body: { narrator } }),
   contentPlan: (count: number, wish: string) => call<ContentView>('/content/plan', { body: { count, wish } }),
   contentPlanDraft: (id: string) => call<ContentView>(`/content/plan/${id}/draft`, { body: {} }),
   contentPlanVideo: (id: string) => call<ContentView>(`/content/plan/${id}/video`, { body: {} }),

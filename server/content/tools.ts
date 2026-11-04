@@ -74,10 +74,10 @@ export const CONTENT_DEFS = {
   }),
 
   content_video: def({
-    description: "Prepare a short vertical (9:16) video on a topic in the brand's style: the script (scenes with on-screen text and narration) and the narrator voice (ElevenLabs). The video itself is assembled and downloaded in panel → Marketing → Kontent-meyker → Video (it renders in the browser, ~30 seconds) — tell the owner to open it there. Needs a brand book; if missing, call content_brand_book first.",
+    description: "Prepare a short vertical (9:16) video on a topic in the brand's style: the script (scenes with on-screen text and narration) and the narrator voice (the brand book's narrator, Gemini TTS). The video itself (with subtitles) is assembled and downloaded as mp4 in panel → Marketing → Kontent-meyker → Video (it renders in the browser in a few seconds) — tell the owner to open it there. Needs a brand book; if missing, call content_brand_book first.",
     input: z.object({ topic: z.string().trim().min(5).max(600).describe('What the video is about, in the owner\'s words') }),
     run: async (i, ctx) => guarded(async () => {
-      // Ovoz ElevenLabs kreditini sarflaydi: faqat egasi o'zi so'raganda
+      // Ovoz pullik xizmatni (Gemini TTS, zaxira — ElevenLabs) ishlatadi: faqat egasi o'zi so'raganda
       assertOwnWords(ctx);
       if (!brandStore.book(ctx.biz.id)) throw new ToolError("Brend-buk yo'q — avval content_brand_book");
       const v = await makeVideo(ctx.biz, i.topic);

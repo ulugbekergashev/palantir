@@ -1,12 +1,13 @@
 /**
  * Kontent-meyker → Brend-buk · Reja · Video.
- * Brend-buk — qisqa anketa (bo'sh qolsa ham bo'ladi: AI biznes profilidan oladi) → pozitsiya, ovoz, ranglar, ustunlar.
+ * Brend-buk — qisqa anketa (bo'sh qolsa ham bo'ladi: AI biznes profilidan oladi) → to'liq brend-tizim (BrandBookView.tsx).
  * Reja — brend-buk ustunlari bo'yicha mavzular; har biridan bir tugma bilan post yoki video.
- * Video — AI ssenariy + ElevenLabs ovozi serverda; kadrlar shu yerda (brauzerda) chiziladi va mp4 bo'lib yuklab olinadi.
+ * Video — AI ssenariy + diktor (Gemini, zaxira — ElevenLabs) serverda; kadrlar shu yerda (brauzerda) chiziladi va mp4 bo'lib yuklab olinadi.
  */
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Clapperboard, Download, FileText, Mic, Palette, Pencil, Play, RotateCcw, Square, Trash2, Wand2 } from 'lucide-react';
 import type { BrandAnswers, BrandBook, ContentVideo, VideoScene } from '../../types';
+import { BrandBookView } from './BrandBookView';
 import { api, type ContentView } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { Panel, Quiet } from '../../components/agent';
@@ -56,69 +57,11 @@ function BrandForm({ initial, setView, notify, onDone }: Props & { initial: Bran
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" disabled={!!busy} className={primary} style={{ background: ACCENT }}>
-          {busy ? spin : <Wand2 className="h-4 w-4" aria-hidden="true" />} {busy ? 'Yozyapti… (1 daqiqagacha)' : 'Brend-buk yaratish'}
+          {busy ? spin : <Wand2 className="h-4 w-4" aria-hidden="true" />} {busy ? 'Yozyapti… (2–3 daqiqa)' : 'Brend-buk yaratish'}
         </button>
         <p className="text-[13px] text-[#8a909c]">Javob bermagan savollarni Palantir biznes profilingizdan o'zi to'ldiradi.</p>
       </div>
     </form>
-  );
-}
-
-function Swatch({ name, hex }: { name: string; hex: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className="h-9 w-9 shrink-0 rounded-lg border border-glass/10" style={{ background: hex }} aria-hidden="true" />
-      <span className="text-[12.5px] leading-tight text-[#c9cbd2]">{name}<br /><span className="tabular-nums text-[#7d838f]">{hex}</span></span>
-    </div>
-  );
-}
-
-const COLOR_NAMES: Record<keyof BrandBook['colors'], string> = { bg: 'Fon', deep: "Fonning to'qi", surface: 'Plitka', ink: 'Matn', accent: "Urg'u", muted: 'Ikkinchi matn' };
-
-function BookView({ b }: { b: BrandBook }) {
-  return (
-    <div className="space-y-5">
-      <div className="rounded-2xl p-6" style={{ background: b.colors.bg }}>
-        <div className="max-w-xl rounded-2xl p-5" style={{ background: b.colors.surface, boxShadow: `0 8px 0 ${b.colors.deep}` }}>
-          <p className="text-[13px] font-bold" style={{ color: b.colors.ink, opacity: 0.6 }}>{b.name}</p>
-          <p className="mt-1 text-[24px] font-extrabold leading-tight" style={{ color: b.colors.ink, fontFamily: `"${b.font}", Manrope, sans-serif` }}>{b.positioning}</p>
-          <p className="mt-3 inline-block rounded-md px-2 py-0.5 text-[13px] font-bold" style={{ background: b.colors.accent, color: '#111' }}>{b.tagline}</p>
-        </div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">{(Object.keys(COLOR_NAMES) as (keyof BrandBook['colors'])[]).map(k => <Swatch key={k} name={COLOR_NAMES[k]} hex={b.colors[k]} />)}</div>
-      <div className="grid gap-5 md:grid-cols-2">
-        <Facts title="Ovoz qoidalari" items={b.voice} />
-        <Facts title="Qadriyatlar" items={b.values} />
-        <div>
-          <h4 className="mb-2 text-[13px] font-semibold text-[#a3a9b5]">Kontent ustunlari</h4>
-          <ul className="space-y-2">{b.pillars.map(p => (
-            <li key={p.name}>
-              <div className="flex justify-between text-[13.5px] text-[#e4e3de]"><span>{p.name}</span><span className="tabular-nums text-[#8a909c]">{p.share}%</span></div>
-              <div className="mt-1 h-1.5 rounded-full bg-glass/10"><div className="h-1.5 rounded-full" style={{ width: `${p.share}%`, background: ACCENT }} /></div>
-              {p.about && <p className="mt-1 text-[12.5px] text-[#8a909c]">{p.about}</p>}
-            </li>
-          ))}</ul>
-        </div>
-        <div className="space-y-4">
-          {b.motif && <div><h4 className="mb-1 text-[13px] font-semibold text-[#a3a9b5]">Ko'rinish g'oyasi</h4><p className="text-[13.5px] leading-relaxed text-[#e4e3de]">{b.motif}</p></div>}
-          <div><h4 className="mb-1 text-[13px] font-semibold text-[#a3a9b5]">Shrift</h4><p className="text-[20px] text-[#e4e3de]" style={{ fontFamily: `"${b.font}", Manrope, sans-serif`, fontWeight: 800 }}>{b.font}</p></div>
-        </div>
-        <Facts title="Ishlatilmaydigan so'zlar" items={b.banned} inline />
-        <Facts title="Qilinmaydi" items={b.dont} />
-      </div>
-    </div>
-  );
-}
-
-function Facts({ title, items, inline }: { title: string; items: string[]; inline?: boolean }) {
-  if (!items.length) return null;
-  return (
-    <div>
-      <h4 className="mb-2 text-[13px] font-semibold text-[#a3a9b5]">{title}</h4>
-      {inline
-        ? <p className="flex flex-wrap gap-1.5">{items.map(x => <span key={x} className="rounded-full bg-glass/[0.06] px-2.5 py-0.5 text-[12.5px] text-[#c9cbd2]">{x}</span>)}</p>
-        : <ul className="list-disc space-y-1 pl-5 text-[13.5px] leading-relaxed text-[#e4e3de]">{items.map(x => <li key={x}>{x}</li>)}</ul>}
-    </div>
   );
 }
 
@@ -131,14 +74,14 @@ export function ContentBrandTab(props: Props) {
   if (!brand?.book || editing) {
     return (
       <Panel title={brand?.book ? 'Anketani o\'zgartirish' : 'Brend-buk yaratish'} action={brand?.book ? <button type="button" onClick={() => setEditing(false)} className={ghost}>Bekor</button> : undefined}>
-        <p className="mb-4 text-[13.5px] leading-relaxed text-[#a3a9b5]">Brend-buk — postlar va videolar uchun yagona uslub: kimligingiz, qanday gapirasiz, qaysi ranglar. Kontent-meyker har postda shunga tayanadi; videolar shu ranglarda chiziladi.</p>
+        <p className="mb-4 text-[13.5px] leading-relaxed text-[#a3a9b5]">Brend-buk — postlar va videolar uchun yagona tizim: mohiyat va va'da, auditoriya, xabarlar, ovoz qoidalari va namunalari, ranglar, ilgaklar, formatlar va video diktori. Kontent-meyker har postda shunga tayanadi; videolar shu ranglarda chiziladi.</p>
         <BrandForm {...props} initial={answers} onDone={() => setEditing(false)} />
       </Panel>
     );
   }
   return (
     <Panel title="Brend-buk" action={<button type="button" onClick={() => setEditing(true)} className={ghost}><Pencil className="h-4 w-4" aria-hidden="true" /> Qayta yaratish</button>}>
-      <BookView b={brand.book} />
+      <BrandBookView b={brand.book} setView={props.setView} notify={props.notify} />
     </Panel>
   );
 }
@@ -235,14 +178,16 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
   const canvas = useRef<HTMLCanvasElement>(null);
   const audio = useRef<ArrayBuffer | null>(null);
   const playing = useRef<Playback | null>(null);
+  const exporting = useRef<AbortController | null>(null);
   /** Ikki marta bosilsa ikkinchi ijro boshlanmasin (ovoz yuklanayotgan paytda ham) */
   const starting = useRef(false);
-  const [mode, setMode] = useState<'idle' | 'play' | 'record'>('idle');
+  const [mode, setMode] = useState<'idle' | 'play' | 'record' | 'export'>('idle');
   const [progress, setProgress] = useState(0);
   const [editing, setEditing] = useState(false);
   const [busy, run] = useRun(notify, setView);
   const spec = specOf(book, v);
   const ready = v.status === 'voiced';
+  const canSave = typeof VideoEncoder !== 'undefined' || !!recordMime();
 
   // Muqova — videoning birinchi kadri (lentada ham shu ko'rinadi)
   useEffect(() => {
@@ -253,8 +198,42 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
     });
     return () => { live = false; };
   }, [v.id, v.status, JSON.stringify(v.scenes), JSON.stringify(book.colors), book.font]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Ijro yoki yozuv faqat karta yopilganda to'xtaydi (boshqa kartadagi amal ko'rinishni yangilasa — davom etadi)
-  useEffect(() => () => playing.current?.stop(), []);
+  // Ijro, yozuv yoki yig'ish faqat karta yopilganda to'xtaydi (boshqa kartadagi amal ko'rinishni yangilasa — davom etadi)
+  useEffect(() => () => { playing.current?.stop(); exporting.current?.abort(); }, []);
+
+  const save = (blob: Blob) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName(v.topic, blob.type);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+  };
+
+  /** mp4: kadrlar birma-bir kodlanadi (WebCodecs) — tez va kadr tushib qolmaydi; brauzer bilmasa — real vaqt yozuvi */
+  const download = async () => {
+    if (starting.current) return;
+    // Darhol band: modul yuklanayotganda ikkinchi bosish ikkinchi yig'ishni boshlamasin
+    starting.current = true;
+    const x = await import('../../lib/videoExport').catch(() => null);
+    if (!x || !(await x.canExport())) { starting.current = false; void start(true); return; }
+    setMode('export');
+    const ac = new AbortController();
+    exporting.current = ac;
+    try {
+      audio.current ??= await api.contentVideoAudio(v.id);
+      let shown = 0;
+      const blob = await x.exportMp4(spec, audio.current, p => { if (p - shown >= 0.01 || p === 1) { shown = p; setProgress(p); } }, ac.signal);
+      save(blob);
+      notify('Video yuklab olindi (mp4)');
+    } catch (e) {
+      notify(e instanceof x.ExportCancelled ? "Yig'ish to'xtatildi — video saqlanmadi" : `Video yig'ilmadi: ${(e as Error).message}`, !(e instanceof x.ExportCancelled));
+    } finally {
+      exporting.current = null;
+      starting.current = false;
+      setMode('idle');
+      setProgress(0);
+    }
+  };
 
   const start = async (record: boolean) => {
     if (starting.current) return;
@@ -268,11 +247,7 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
       const blob = await p.done;
       if (!blob && record) notify("Yozuv to'xtatildi — video saqlanmadi");
       if (blob) {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = fileName(v.topic, blob.type);
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+        save(blob);
         notify(blob.type.includes('mp4') ? 'Video yuklab olindi (mp4)' : 'Video yuklab olindi (webm — Instagram uchun mp4 kerak bo\'lsa, Chrome\'ning yangi versiyasida oching)');
       }
     } catch (e) {
@@ -308,14 +283,16 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
           <div className="flex flex-wrap gap-2">
             {ready && mode === 'idle' && <>
               <button type="button" onClick={() => void start(false)} className={ghost}><Play className="h-4 w-4" aria-hidden="true" /> Ko'rish</button>
-              <button type="button" onClick={() => void start(true)} disabled={!recordMime()} title={recordMime() ? undefined : "Bu brauzer yozib ololmaydi — Chrome yoki Edge'da oching"} className={primary} style={{ background: ACCENT }}><Download className="h-4 w-4" aria-hidden="true" /> Yuklab olish</button>
+              <button type="button" onClick={() => void download()} disabled={!canSave} title={canSave ? undefined : "Bu brauzer video yig'a olmaydi — Chrome yoki Edge'da oching"} className={primary} style={{ background: ACCENT }}><Download className="h-4 w-4" aria-hidden="true" /> Yuklab olish (mp4)</button>
+              <button type="button" disabled={!!busy || !voice} onClick={() => void run('voice', () => api.contentVideoVoice(v.id), 'Ovoz qayta yozildi')} title="Diktorni almashtirgan bo'lsangiz — yangi ovoz bilan qayta o'qitish" className={ghost}>{busy === 'voice' ? spin : <RotateCcw className="h-4 w-4" aria-hidden="true" />} Qayta ovoz</button>
             </>}
-            {mode !== 'idle' && <button type="button" onClick={() => playing.current?.stop()} className={ghost}><Square className="h-4 w-4" aria-hidden="true" /> To'xtatish{mode === 'record' ? ' (yozuv bekor bo\'ladi)' : ''}</button>}
-            {!ready && mode === 'idle' && <button type="button" disabled={!!busy || !voice} title={voice ? undefined : "Avval ElevenLabs kalitini kiriting"} onClick={() => void run('voice', () => api.contentVideoVoice(v.id), 'Ovoz tayyor')} className={primary} style={{ background: ACCENT }}>{busy === 'voice' ? spin : v.status === 'failed' ? <RotateCcw className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />} {v.status === 'failed' ? 'Qayta urinish' : 'Ovoz yozdirish'}</button>}
+            {mode !== 'idle' && <button type="button" onClick={() => { playing.current?.stop(); exporting.current?.abort(); }} className={ghost}><Square className="h-4 w-4" aria-hidden="true" /> To'xtatish{mode !== 'play' ? ' (video saqlanmaydi)' : ''}</button>}
+            {!ready && mode === 'idle' && <button type="button" disabled={!!busy || !voice} title={voice ? undefined : "Avval Gemini kalitini kiriting (Sozlamalar → Kalitlar)"} onClick={() => void run('voice', () => api.contentVideoVoice(v.id), 'Ovoz tayyor')} className={primary} style={{ background: ACCENT }}>{busy === 'voice' ? spin : v.status === 'failed' ? <RotateCcw className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />} {v.status === 'failed' ? 'Qayta urinish' : 'Ovoz yozdirish'}</button>}
             {!editing && mode === 'idle' && <button type="button" onClick={() => setEditing(true)} className={ghost}><Pencil className="h-4 w-4" aria-hidden="true" /> Ssenariy</button>}
             {mode === 'idle' && <button type="button" disabled={!!busy} onClick={() => { if (window.confirm("Video o'chirilsinmi?")) void run('rm', () => api.contentVideoRemove(v.id)); }} aria-label="Videoni o'chirish" className={`${button} text-[#a3a9b5] hover:bg-glass/5`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}
           </div>
           {mode === 'record' && <p className="text-[12.5px] text-[#8a909c]">Yozilyapti — video uzunligicha vaqt ketadi. Bu varaqni yopmang va boshqa varaqqa o'tmang.</p>}
+          {mode === 'export' && <p className="text-[12.5px] text-[#8a909c]" aria-live="polite">Yig'ilyapti — {Math.round(progress * 100)}%. Odatda video uzunligidan tezroq; varaqni yopmang.</p>}
         </div>
       </div>
     </li>
@@ -338,8 +315,8 @@ export function ContentVideoTab({ view, setView, notify }: Props) {
           <p className="text-[13.5px] text-[#fde2b0]"><Palette className="mr-1 inline h-4 w-4" aria-hidden="true" />Video brend-buk ranglarida chiziladi — avval <a href={hrefOf('marketolog', 'brend')} className="font-semibold underline">Brend-buk</a> yarating.</p>
         ) : (
           <form onSubmit={make} className="space-y-3">
-            <p className="text-[13.5px] leading-relaxed text-[#a3a9b5]">9:16, 20–35 soniya: Kontent-meyker ssenariy yozadi, ElevenLabs diktor ovozini beradi, video shu yerda brendingiz ranglarida yig'iladi va mp4 bo'lib yuklab olinadi.</p>
-            {!view.voice && <p className="rounded-xl bg-[#f5b454]/10 p-3 text-[13px] text-[#fde2b0]">Ovoz uchun ElevenLabs kaliti kerak: <a href="#/ulash" className="font-semibold underline">Ulash → Kalitlar</a> → «ElevenLabs kaliti». Kalitsiz ham ssenariy yoziladi.</p>}
+            <p className="text-[13.5px] leading-relaxed text-[#a3a9b5]">9:16, 20–35 soniya: Kontent-meyker ssenariy yozadi, diktor ({view.voiceBy === 'elevenlabs' ? 'ElevenLabs' : <>brend-bukdagi ovoz — <b className="text-[#e4e3de]">{book.narrator}</b></>}) o'qiydi, video shu yerda brendingiz ranglarida subtitrlar bilan yig'iladi va mp4 bo'lib yuklab olinadi.</p>
+            {!view.voice && <p className="rounded-xl bg-[#f5b454]/10 p-3 text-[13px] text-[#fde2b0]">Ovoz uchun Gemini kaliti kerak: <a href="#/ulash" className="font-semibold underline">Ulash → Kalitlar</a> → «Gemini kaliti» (aistudio.google.com, bepul ochiladi). Kalitsiz ham ssenariy yoziladi.</p>}
             <div className="flex flex-wrap gap-2">
               <input value={topic} onChange={e => setTopic(e.target.value)} maxLength={600} placeholder="Mavzu: masalan, AI xodim — bu chatbot emas" aria-label="Video mavzusi" className={`${field} min-w-0 flex-1 basis-72`} />
               <button type="submit" disabled={topic.trim().length < 5 || !!busy || view.busy} className={primary} style={{ background: ACCENT }}>{busy === 'make' ? spin : <Clapperboard className="h-4 w-4" aria-hidden="true" />} {busy === 'make' ? 'Yozyapti…' : 'Video tayyorlash'}</button>
@@ -350,7 +327,7 @@ export function ContentVideoTab({ view, setView, notify }: Props) {
       </Panel>
       <Panel title="Videolar">
         {!view.videos.length || !book ? <Quiet>Hali video yo'q.</Quiet> : (
-          <ul className="flex flex-col gap-3">{view.videos.map(v => <VideoCard key={`${v.id}-${v.status}-${v.scenes.map(s => s.text).join('|')}`} v={v} book={book} voice={view.voice} setView={setView} notify={notify} />)}</ul>
+          <ul className="flex flex-col gap-3">{view.videos.map(v => <VideoCard key={`${v.id}-${v.status}-${v.duration}-${v.starts.join(',')}-${v.scenes.map(s => s.text).join('|')}`} v={v} book={book} voice={view.voice} setView={setView} notify={notify} />)}</ul>
         )}
       </Panel>
     </div>

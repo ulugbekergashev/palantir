@@ -535,7 +535,21 @@ export interface BrandAnswers {
 /** Brend-buk ranglari: video va postlar shu tokenlardan chiziladi */
 export interface BrandColors { bg: string; deep: string; surface: string; ink: string; accent: string; muted: string }
 export interface BrandPillar { name: string; share: number; about: string }
-/** AI yaratgan brend-buk (egasi tahrirlaydi yoki qayta yaratadi) */
+/** Auditoriya portreti: og'riqlar — mijozning o'z so'zi bilan, e'tirozlar — sotib olishga nima to'sqinlik qiladi */
+export interface BrandPersona { name: string; who: string; pains: string[]; wants: string[]; objections: string[] }
+/** Asosiy xabar va uni nima bilan ko'rsatish mumkin (faqat haqiqiy dalil) */
+export interface BrandMessage { message: string; proof: string }
+/** Ovoz xususiyati: «biz — X, lekin Y emas» */
+export interface BrandTrait { trait: string; is: string; isNot: string }
+/** Oddiy gap → brend ovozida qayta yozilgani */
+export interface BrandExample { bad: string; good: string }
+/** Takrorlanadigan kontent formati */
+export interface BrandFormat { name: string; how: string }
+/**
+ * AI yaratgan brend-buk (egasi qayta yaratadi). Ikki qatlam: asos (pozitsiya, ovoz qoidalari, ranglar, ustunlar) va to'liq
+ * brend-tizim (auditoriya, xabarlar, ovoz namunalari, ilgaklar, formatlar, vizual qoidalar). Eski kitoblarda ikkinchi qatlam
+ * bo'sh keladi (o'qishda to'ldiriladi) — panel «qayta yarating» deydi.
+ */
 export interface BrandBook {
   name: string;
   /** Bir gapli pozitsiya: «… uchun … qilaman» */
@@ -553,6 +567,35 @@ export interface BrandBook {
   font: 'Unbounded' | 'Manrope';
   pillars: BrandPillar[];
   dont: string[];
+  /** Brend g'oyasi 2–5 so'zda */
+  essence: string;
+  /** Mijozga asosiy va'da */
+  promise: string;
+  /** Brend arxetipi (12 klassik arxetipdan) va nega shu */
+  archetype: { name: string; why: string };
+  /** Kelib chiqishi va nega — 3–4 gap */
+  story: string;
+  personas: BrandPersona[];
+  /** Nimasi bilan boshqacha: «X o'rniga — Y» */
+  difference: string[];
+  messages: BrandMessage[];
+  traits: BrandTrait[];
+  examples: BrandExample[];
+  /** Ataylab ishlatiladigan so'zlar (lug'at) */
+  words: string[];
+  /** Video va post uchun tayyor ilgaklar */
+  hooks: string[];
+  /** Harakatga chaqiriqlar */
+  ctas: string[];
+  formats: BrandFormat[];
+  /** Profil bio (≤150 belgi) */
+  bio: string;
+  /** Kompozitsiya qoidalari (dizayner/video uchun) */
+  visualRules: string[];
+  /** Videodagi harakat uslubi */
+  motion: string;
+  /** Video diktori — Gemini ovozi (src/lib/narrators.ts) */
+  narrator: string;
 }
 export interface ContentBrand { answers: BrandAnswers; book: BrandBook | null; updatedAt: string }
 
@@ -562,7 +605,7 @@ export interface PlanItem { id: string; n: number; pillar: string; title: string
 /** Video sahnasi: ekrandagi qisqa yozuv va diktor gapi. kind — sahna turi (andoza shunga qarab chizadi) */
 export interface VideoScene { kind: 'hook' | 'point' | 'claim' | 'sign'; text: string; voice: string }
 /**
- * Video: AI ssenariy yozadi → ElevenLabs ovoz beradi (so'z vaqtlari bilan) → video panelda (brauzerda) chiziladi va yozib olinadi.
+ * Video: AI ssenariy yozadi → diktor (Gemini, zaxira — ElevenLabs) sahnama-sahna o'qiydi → video panelda (brauzerda) chiziladi va yozib olinadi.
  * starts — har sahna ovozda boshlanadigan soniya; duration — ovoz uzunligi
  */
 export interface ContentVideo {

@@ -72,8 +72,9 @@ const textOf = (res: Anthropic.Beta.BetaMessage) =>
   res.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text').map(b => b.text).join('').trim();
 
 /** Oddiy matnli so'rov (obunada ham ishlaydi): brend-buk, reja va video ssenariysi ham shu orqali */
-export async function askText(biz: BusinessRow, system: string, user: string): Promise<string> {
-  const res = await think(biz.id, 'owner', { model: env.aiModel, max_tokens: 8000, system, messages: [{ role: 'user', content: user }], output_config: { effort: 'medium' } });
+export async function askText(biz: BusinessRow, system: string, user: string, maxTokens = 8000): Promise<string> {
+  const res = await think(biz.id, 'owner', { model: env.aiModel, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }], output_config: { effort: 'medium' } });
+  if (res.stop_reason === 'max_tokens') console.error('[kontent] AI javobi chegarada kesildi:', maxTokens);
   if (res.stop_reason === 'refusal') {
     console.error('[kontent] AI rad etdi');
     throw new ContentError("AI bu materiallardan post yozishni rad etdi");

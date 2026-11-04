@@ -1,17 +1,28 @@
 /**
  * Kontent-meyker studiyasi haqiqiy panelda (ko'rinmas brauzer):  npm run build && npm run test:ui-video
- *   Brend-buk anketasi → «Brend-buk yaratish» → Reja → mavzudan «Video» → ssenariy va ovoz → «Yuklab olish» (brauzerda yozilgan video).
- * AI o'rnida soxta Anthropic (javob — tizim ko'rsatmasiga qarab), ElevenLabs o'rnida soxta server (WAV ovoz va harf vaqtlari).
+ * Brend-buk anketasi → «Brend-buk yaratish» (to'liq brend-tizim, diktor almashtirish) → Reja → mavzudan «Video» → ssenariy va
+ * ovoz → «Yuklab olish» (brauzerda yozilgan video).
+ * AI o'rnida soxta Anthropic (javob — tizim ko'rsatmasiga qarab), Gemini TTS o'rnida soxta server (har sahnaga xom PCM ovoz).
  * Yuklangan video va skrinshotlar saqlanadi (yo'li oxirida): kadrlarni ko'z bilan tekshirish uchun.
  */
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { chromium, type Page } from 'playwright-core';
 import { json, listen, readBody, sleep, stopProcess } from './fakes';
 import { chromePath } from './chrome';
+
+/** Kadr vaqtlari (ffprobe bor bo'lsa: FFMPEG_PATH yonida yoki PATH'da) — kadr tushib qolishini o'lchash uchun */
+function probeFrames(file: string): number[] | null {
+  const near = process.env.FFMPEG_PATH ? join(dirname(process.env.FFMPEG_PATH), process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe') : '';
+  for (const bin of [near, 'ffprobe'].filter(Boolean)) {
+    const r = spawnSync(bin, ['-v', 'error', '-select_streams', 'v', '-show_entries', 'frame=pts_time', '-of', 'csv=p=0', file], { encoding: 'utf8', windowsHide: true });
+    if (r.status === 0 && r.stdout.trim()) return r.stdout.trim().split(/\r?\n/).map(Number);
+  }
+  return null;
+}
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
@@ -23,6 +34,14 @@ const BOOK = {
   motif: "Koshin plitkalari: har ish — bitta plitka, birga — naqsh", font: 'Unbounded',
   pillars: [{ name: 'AI amaliyotda', share: 40, about: 'Real misollar' }, { name: 'Qurilish jurnali', share: 30, about: 'Palantir va DentaCRM' }, { name: 'Saboqlar', share: 30, about: 'Startap' }],
   dont: ['Robot rasmlari', "Va'dalar"],
+  essence: 'Halol AI xodim', promise: 'Takroriy ishni AI xodim qiladi — siz mijozga vaqt ajratasiz',
+  archetype: { name: 'Donishmand', why: 'Avval sinaydi, keyin oddiy tilda tushuntiradi' }, story: "Palantir'ni avval o'zim uchun qurdim.",
+  personas: [{ name: 'Band klinika egasi', who: '2 filial, qabulxona yetishmaydi', pains: ["Kechqurun qo'ng'iroqqa hech kim javob bermaydi"], wants: ["Bemor yo'qolmasin"], objections: ["AI o'zbekcha tushunmaydi"] }],
+  messages: [{ message: 'AI xodim ishlaydi, chatbot gapiradi', proof: 'Jonli namoyish' }], difference: ["Chatbot o'rniga — qabulga yozadigan xodim"],
+  traits: [{ trait: 'Halol', is: 'Sinalmaganini aytadi', isNot: "Va'da bermaydi" }], examples: [{ bad: 'Inqilobiy AI yechim!', good: "AI xodim kechki qo'ng'iroqqa javob beradi." }],
+  words: ['AI xodim'], hooks: ['Narxi qancha?', "Kechki qo'ng'iroq javobsiz qoldi"], ctas: ["Telegram'ga «demo» deb yozing"],
+  formats: [{ name: "O'zimda sinadim", how: 'Muammo → sinov → natija' }], bio: "Biznesga AI xodim quraman. O'zbek tilida.",
+  visualRules: ['Matn faqat plitkada'], motion: 'Plitkalar yuqoridan tushadi', narrator: 'Charon',
 };
 const PLAN = { items: Array.from({ length: 10 }, (_, i) => ({ pillar: BOOK.pillars[i % 3].name, title: i ? `Mavzu ${i + 1}` : 'AI xodim — bu chatbot emas', angle: 'Mijoz «Narxi qancha?» deb yozadi — chatbot javob beradi va tamom, AI xodim qabulga yozadi.' })) };
 const SCRIPT = {
@@ -42,7 +61,7 @@ const aiServer = createServer(async (req, res) => {
   const body = JSON.parse((await readBody(req)).toString()) as { system: string; model: string };
   const sys = String(body.system);
   asked.push(sys.slice(0, 40));
-  const text = sys.startsWith('You are a brand strategist') ? `Mana brend-buk:\n\`\`\`json\n${JSON.stringify(BOOK)}\n\`\`\``
+  const text = sys.startsWith('You are a senior brand strategist') ? `Mana brend-buk:\n\`\`\`json\n${JSON.stringify(BOOK)}\n\`\`\``
     : sys.startsWith('You plan content') ? JSON.stringify(PLAN)
     : sys.startsWith('You write scripts') ? JSON.stringify(SCRIPT)
     : sys.startsWith('You are the content maker') ? '### POST 1\n🤖 AI xodim — bu chatbot emas\n\nMatn.'
@@ -50,30 +69,25 @@ const aiServer = createServer(async (req, res) => {
   json(res, { id: `msg_${asked.length}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 10 } });
 });
 
-// ─── Soxta ElevenLabs: matn uzunligicha ovoz (WAV, 22 kHz) va harf vaqtlari ──────
+// ─── Soxta Gemini TTS: har sahnaga matn uzunligicha xom PCM (24 kHz), atrofida jimlik ──────
 const PER_CHAR = 0.055;
-function wav(seconds: number): Buffer {
-  const rate = 22050, n = Math.floor(seconds * rate), data = Buffer.alloc(n * 2);
-  for (let i = 0; i < n; i++) data.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 220 * i) / rate) * 3000 * (Math.floor(i / (rate / 4)) % 2)), i * 2);
-  const h = Buffer.alloc(44);
-  h.write('RIFF', 0); h.writeUInt32LE(36 + data.length, 4); h.write('WAVE', 8); h.write('fmt ', 12); h.writeUInt32LE(16, 16);
-  h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * 2, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34);
-  h.write('data', 36); h.writeUInt32LE(data.length, 40);
-  return Buffer.concat([h, data]);
+function pcm(seconds: number): Buffer {
+  const rate = 24000, n = Math.floor(seconds * rate), data = Buffer.alloc(n * 2), pad = Math.floor(0.2 * rate);
+  for (let i = pad; i < n - pad; i++) data.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 220 * i) / rate) * 3000 * (Math.floor(i / (rate / 4)) % 2 ? 1 : 0.4)), i * 2);
+  return data;
 }
 const spoken: string[] = [];
-const elevenServer = createServer(async (req, res) => {
-  const body = JSON.parse((await readBody(req)).toString()) as { text: string };
-  spoken.push(body.text);
-  const chars = [...body.text];
-  json(res, {
-    audio_base64: wav(chars.length * PER_CHAR + 0.2).toString('base64'),
-    alignment: { characters: chars, character_start_times_seconds: chars.map((_, i) => i * PER_CHAR), character_end_times_seconds: chars.map((_, i) => (i + 1) * PER_CHAR) },
-  });
+const voices: string[] = [];
+const geminiServer = createServer(async (req, res) => {
+  const body = JSON.parse((await readBody(req)).toString()) as { input: { content: { text: string }[] }[]; generation_config: { speech_config: { voice: string }[] } };
+  const text = body.input[0].content[0].text;
+  spoken.push(text);
+  voices.push(body.generation_config.speech_config[0].voice);
+  json(res, { steps: [{ content: [{ type: 'audio', mime_type: 'audio/l16', data: pcm([...text].length * PER_CHAR + 0.4).toString('base64') }] }] });
 });
 
 const aiPort = await listen(aiServer);
-const elevenPort = await listen(elevenServer);
+const geminiPort = await listen(geminiServer);
 const work = mkdtempSync(join(tmpdir(), 'palantir-ui-video-'));
 const shots = join(tmpdir(), 'palantir-ui-video-shots');
 rmSync(shots, { recursive: true, force: true });
@@ -84,8 +98,7 @@ const server: ChildProcess = spawn(process.execPath, ['--no-warnings=Experimenta
   env: {
     ...process.env, DOTENV: '0', ASTERISK_WSL: '0', PORT: String(PORT), LISTEN_HOST: '127.0.0.1', DATA_DIR: join(work, 'data'), ONE_PROFILE: '1', HUB_AUTO: '0', PALANTIR_HUB: '',
     BOT_TOKEN: '', ANTHROPIC_API_KEY: 'sk-ant-sinov-kaliti-ui-video-0000000000000000', ANTHROPIC_AUTH_TOKEN: '', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, AI_ENGINE: 'api', WEB_SEARCH: '0',
-    ELEVENLABS_API_KEY: `sk_${'ab'.repeat(24)}`, ELEVENLABS_URL: `http://127.0.0.1:${elevenPort}`,
-    GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', ADMIN_PASSWORD: '', SESSION_SECRET: 'ui-video-secret', MORNING_HOUR: '99', EVENING_HOUR: '99', BACKUP_KEEP: '0',
+    ELEVENLABS_API_KEY: '', GEMINI_API_KEY: `AIza${'x'.repeat(35)}`, GEMINI_API_ROOT: `http://127.0.0.1:${geminiPort}`, GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', ADMIN_PASSWORD: '', SESSION_SECRET: 'ui-video-secret', MORNING_HOUR: '99', EVENING_HOUR: '99', BACKUP_KEEP: '0',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -121,7 +134,13 @@ try {
   await shot(page, 'brend-anketa');
   await page.getByRole('button', { name: 'Brend-buk yaratish' }).click();
   await page.getByText(BOOK.positioning).first().waitFor({ timeout: 20_000 });
-  ok("brend-buk ko'rsatildi: pozitsiya, ranglar, ustunlar", (await page.locator('main').textContent())?.includes('#F4B63F') && (await page.getByText('AI amaliyotda').count()) > 0);
+  const main = (await page.locator('main').textContent()) ?? '';
+  ok("brend-buk ko'rsatildi: pozitsiya, ranglar, ustunlar", main.includes('#F4B63F') && (await page.getByText('AI amaliyotda').count()) > 0);
+  ok("to'liq brend-tizim: auditoriya, ovoz namunasi, ilgaklar, bio", ['Band klinika egasi', 'Inqilobiy AI yechim!', "Kechki qo'ng'iroq javobsiz qoldi", 'Biznesga AI xodim quraman. O\'zbek tilida.'].every(x => main.includes(x)));
+  ok('diktor: brend-bukdagisi tanlangan', (await page.getByRole('radio', { name: /^Charon/ }).getAttribute('aria-checked')) === 'true');
+  await page.getByRole('radio', { name: /^Orus/ }).click();
+  await page.waitForFunction(() => document.querySelector('[role=radio][aria-checked=true]')?.textContent?.startsWith('Orus'), null, { timeout: 10_000 });
+  ok('diktor almashtirildi (Orus)', true);
   await shot(page, 'brend-buk');
 
   console.log('\n# Reja');
@@ -137,22 +156,28 @@ try {
   await page.getByRole('link', { name: 'Video bor' }).first().waitFor({ timeout: 30_000 });
   ok('mavzudan video ssenariysi va ovozi tayyorlandi', true);
   await shot(page, 'reja');
-  ok("diktorga «AI» emas «ey-ay» bordi", spoken.at(-1)?.includes('ey-ay xodim') && !/\bAI\b/.test(spoken.at(-1) ?? ''), spoken.at(-1)?.slice(0, 60));
+  ok("diktorga «AI» emas «ey-ay» bordi", spoken.some(t => t.includes('ey-ay xodim')) && !spoken.some(t => /\bAI\b/.test(t)), spoken.join(' | ').slice(0, 80));
+  ok('har sahna alohida o\'qildi, tanlangan diktor bilan', spoken.length === SCRIPT.scenes.length && voices.every(v => v === 'Orus'), `${spoken.length} so'rov, ${[...new Set(voices)].join(',')}`);
 
   console.log('\n# Video');
   await page.goto(`${base}/#/marketolog/video`);
   await page.getByText(/Ovoz tayyor · \d+ s/).waitFor({ timeout: 15_000 });
   await sleep(800);
   await shot(page, 'video-karta');
-  const mime = await page.evaluate(() => ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m)) ?? null);
-  ok('brauzer videoni yoza oladi', !!mime, mime ?? '');
+  ok('brauzer mp4 ni kadrma-kadr yig\'a oladi (WebCodecs)', await page.evaluate(() => typeof VideoEncoder !== 'undefined' && typeof AudioEncoder !== 'undefined'));
   const download = page.waitForEvent('download', { timeout: 90_000 });
+  const began = Date.now();
   await page.getByRole('button', { name: 'Yuklab olish' }).click();
   const d = await download;
   videoPath = join(shots, d.suggestedFilename());
   await d.saveAs(videoPath);
   const size = statSync(videoPath).size;
-  ok('video fayli yuklab olindi', size > 50_000, `${d.suggestedFilename()} · ${Math.round(size / 1024)} KB`);
+  ok('video fayli yuklab olindi', size > 50_000 && d.suggestedFilename().endsWith('.mp4'), `${d.suggestedFilename()} · ${Math.round(size / 1024)} KB · ${((Date.now() - began) / 1000).toFixed(1)} s`);
+  const frames = probeFrames(videoPath);
+  if (frames) {
+    const gap = Math.max(...frames.slice(1).map((t, i) => t - frames[i]));
+    ok("videoda kadr tushib qolmagan (30 kadr/s, bo'shliqsiz)", gap < 0.05 && frames.length > 25 * frames.at(-1)!, `${frames.length} kadr, ${frames.at(-1)!.toFixed(1)} s, eng katta oraliq ${gap.toFixed(3)} s`);
+  } else console.log('  · ffprobe topilmadi — kadrlar tekshirilmadi');
   await shot(page, 'video-yozilgandan-keyin');
   ok("sahifada xato yo'q", !errors.length, errors.slice(0, 3).join(' | '));
 } catch (e) {
@@ -162,7 +187,7 @@ try {
   await browser.close();
   await stopProcess(server);
   aiServer.close();
-  elevenServer.close();
+  geminiServer.close();
 }
 
 console.log(`\nSkrinshotlar: ${shots}${videoPath ? `\nVideo: ${videoPath}` : ''}`);

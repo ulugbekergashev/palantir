@@ -8,10 +8,11 @@ import type { BusinessRow } from '../db';
 import { ContentError, MAX_DRAFT, contentStore } from './store';
 import { cancelDraft, connectChannel, disconnectChannel, editDraft, factoryRunning, publishDraft, runFactory, topicDraft } from './factory';
 import { normalizeHandle } from './telegram';
-import { brandStore, makeBrandBook } from './brand';
+import { brandStore, makeBrandBook, setNarrator } from './brand';
 import { PLAN_MAX, PLAN_MIN, makePlan, planDraft, planStore } from './plan';
 import { editScenes, makeVideo, videoAudio, videoStore, voiceVideo } from './video';
-import { env } from '../env';
+import { voiceProvider } from './speech';
+import { NARRATORS } from '../../src/lib/narrators';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -50,7 +51,7 @@ function failed(res: Response, e: unknown): void {
 export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void {
   const view = (biz: BusinessRow) => ({
     settings: contentStore.settings(biz.id), sources: contentStore.sources(biz.id), drafts: contentStore.drafts(biz.id), running: factoryRunning(biz.id),
-    brand: brandStore.get(biz.id), plan: planStore.list(biz.id), videos: videoStore.list(biz.id), voice: !!env.elevenKey, busy: aiBusy.has(biz.id),
+    brand: brandStore.get(biz.id), plan: planStore.list(biz.id), videos: videoStore.list(biz.id), voice: voiceProvider() !== null, voiceBy: voiceProvider(), busy: aiBusy.has(biz.id),
   });
 
   app.get('/api/content', asBiz((_req, res, biz) => { res.json(view(biz)); }));
@@ -108,6 +109,13 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
     try { await once(biz.id, () => makeBrandBook(biz, p.data, contentStore.settings(biz.id).lang)); res.json(view(biz)); } catch (e) { failed(res, e); }
   }));
 
+  // Brend-buk yozilayotganda almashtirilmaydi: AI javobi tanlovni ustidan yozib yubormasin
+  app.put('/api/content/brand/narrator', asOwner(async (req, res, biz) => {
+    const p = z.object({ narrator: z.enum(NARRATORS.map(n => n.id) as [string, ...string[]]) }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    try { await once(biz.id, async () => setNarrator(biz.id, p.data.narrator)); res.json(view(biz)); } catch (e) { failed(res, e); }
+  }));
+
   app.post('/api/content/plan', asBiz(async (req, res, biz) => {
     const p = z.object({ count: z.number().int().min(PLAN_MIN).max(PLAN_MAX), wish: z.string().max(600).optional() }).safeParse(req.body);
     if (!p.success) return bad(res, p.error);
@@ -148,12 +156,12 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
   }));
 
   app.get('/api/content/videos/:id/audio', asBiz((req, res, biz) => {
-    const mp3 = videoAudio(biz.id, Id(req));
-    if (!mp3) return res.status(404).json({ error: "Ovoz hali yo'q" });
-    res.setHeader('content-type', 'audio/mpeg');
+    const audio = videoAudio(biz.id, Id(req));
+    if (!audio) return res.status(404).json({ error: "Ovoz hali yo'q" });
+    res.setHeader('content-type', audio.mime);
     // Ssenariy tahrirlanib ovoz qayta yozilsa manzil o'sha: brauzer eski ovozni keshdan bermasin
     res.setHeader('cache-control', 'no-store');
-    res.end(mp3);
+    res.end(audio.data);
   }));
 
   app.delete('/api/content/videos/:id', asBiz((req, res, biz) => {
