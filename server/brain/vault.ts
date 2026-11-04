@@ -10,7 +10,9 @@
  *   Bilim/Namunalar/*.md      hujjat namunalari
  *   Bilim/ ichidagi boshqa .md  egasi o'zi yozgan sahifalar
  *   Kutyapti/*.md             egasining tasdig'ini kutayotganlar — mijozlarga javobda ishlatilmaydi
- *   Hujjatlar/*.md            yordamchi tayyorlagan hujjatlar nusxasi — bilim emas, hech qaysi modelga o'qib berilmaydi
+ *                             (egasining o'ziga hujjat yozuvchi o'qiydi — «tasdiqlanmagan» belgisi bilan: eski shartnomadagi rekvizitlar; docs/brain.ts)
+ *   Hujjatlar/*.md            yordamchi tayyorlagan hujjatlar nusxasi — bilim emas, mijozlarga javobda ishlatilmaydi
+ *                             (faqat egasiga yangi hujjat yozilganda «oldingi hujjat» bo'lib o'qiladi)
  *   Manbalar/*                egasi suhbatga tashlagan fayllarning asli (PDF, Word, Excel) — o'qilgan matni Kutyapti'ga taklif bo'lib tushadi
  *
  * Holat papkadan bilinadi: faylni Kutyapti'dan Bilim/Savollar'ga ko'chirish — tasdiqlash. Fayl boshidagi xossalardan faqat
