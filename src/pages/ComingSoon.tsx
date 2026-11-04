@@ -4,7 +4,7 @@
  * Yangi xodim — UPCOMING ga bitta qator; ishlay boshlaganda bu yerdan olinib, jamoaga (components/team.tsx) o'tadi.
  */
 import {
-  BadgeCheck, BookUser, Briefcase, Calculator, Clapperboard, GraduationCap, Handshake, Hourglass, Landmark, Lock, Megaphone, MessageSquareHeart,
+  BadgeCheck, BookUser, Briefcase, Calculator, GraduationCap, Handshake, Hourglass, Landmark, Lock, Megaphone, MessageSquareHeart,
   PackageSearch, Repeat, Scale, ShieldCheck, ShoppingCart, Sparkles, Star, UserSearch, UsersRound, Warehouse, type LucideIcon,
 } from 'lucide-react';
 
@@ -12,7 +12,7 @@ export type Department = 'sotuv' | 'marketing' | 'hr' | 'moliya' | 'taminot' | '
 
 export const DEPARTMENTS: Record<Department, { name: string; about: string; icon: LucideIcon }> = {
   sotuv: { name: 'Sotuv', about: 'Yangi mijoz topish, qaytarish va obro\'', icon: Handshake },
-  marketing: { name: 'Marketing', about: 'Video va hamkorliklar', icon: Megaphone },
+  marketing: { name: 'Marketing', about: 'Blogerlar va hamkorliklar', icon: Megaphone },
   hr: { name: 'HR', about: 'Ishga olish, o\'rgatish va jamoaning ishi', icon: UsersRound },
   moliya: { name: 'Moliya', about: 'Hisob, kassa va qarzlar', icon: Landmark },
   taminot: { name: "Ta'minot", about: 'Xarid va ombor', icon: Warehouse },
@@ -32,8 +32,7 @@ export const UPCOMING: Upcoming[] = [
   { id: 'sharhlar', department: 'sotuv', name: 'Sharh menejeri', role: "Sotuv · obro'", icon: Star,
     about: "Google, 2GIS va Yandex'dagi sharhlarga javob yozadi, mamnun mijozlardan sharh so'raydi, yomon sharhni darhol aytadi." },
   // Marketing
-  { id: 'video', department: 'marketing', name: 'Video-meyker', role: 'Marketing · Reels', icon: Clapperboard,
-    about: "Kontent-meyker postlaridan qisqa video (Reels, Shorts) yasaydi: ssenariy, ovoz, subtitr, montaj." },
+  // Video alohida xodim emas — Kontent-meykerning formati (ssenariy, ovoz, mp4 uning «Video» varag'ida)
   { id: 'hamkorlik', department: 'marketing', name: 'Hamkorlik menejeri', role: 'Marketing · blogerlar', icon: MessageSquareHeart,
     about: "Mos blogerlar va hamkorlarni topadi, taklif yozadi, kelishuv va natijani kuzatadi." },
   // HR
