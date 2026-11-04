@@ -1,5 +1,6 @@
 /**
- * Panelning brauzer sinovi (AI jamoa paneli: Palantir, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Miya, Sozlamalar): server + soxta Telegram/Claude/ovoz + tayyor build.
+ * Panelning brauzer sinovi (AI jamoa paneli: Palantir, standart jamoa Direktor va Yordamchi, «Xodim qo'shish» bilan qolganlari, Miya, Sozlamalar):
+ * server + soxta Telegram/Claude/ovoz + tayyor build.
  * Talab: npm run build; Chrome o'rnatilgan (CHROME — boshqa yo'l bo'lsa).
  * Ishga tushirish: npx tsx scripts/ui-live.ts <skrinshot papkasi>
  */
@@ -91,21 +92,56 @@ try {
   await page.getByLabel("Palantir'ga yozing").waitFor({ timeout: 10000 });
   ok('kirdi: bosh ekran — ovozli sfera va yozish qatori', await page.getByRole('button', { name: 'Palantir bilan gaplashish' }).isVisible());
   // Logotip havolasi (rasm, matnsiz) ro'yxatga kirmaydi
-  const items = (await rail().getByRole('link').allInnerTexts()).map(t => t.trim().split('\n')[0]).filter(Boolean);
-  ok("menyu: Palantir, AI xodimlar, Marketing bo'limi, «Tez kunda», Miya, Sozlamalar", items.join(', ') === 'Palantir, Direktor, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Marketing, Tez kunda, Miya, Sozlamalar',items.join(' | '));
+  const menuItems = async () => (await rail().getByRole('link').allInnerTexts()).map(t => t.trim().split('\n')[0]).filter(Boolean).join(', ');
+  const first = await menuItems();
+  ok("yangi biznes: menyuda jamoa faqat Direktor va Yordamchi, keyin «Xodim qo'shish», Miya, Sozlamalar", first === "Palantir, Direktor, Yordamchi, Xodim qo'shish, Miya, Sozlamalar", first);
+  const teamCards = page.getByRole('region', { name: 'AI jamoa' });
+  // Karta — xodim nomi aniq shu bo'lgan havola («Xodim qo'shish» kartasining izohida ham xodim nomlari bor)
+  const cardOf = (name: string) => teamCards.getByRole('link').filter({ has: page.getByText(name, { exact: true }) });
+  await visible(cardOf('Direktor'));
+  ok("bosh ekran: jamoada ikki xodim va «Xodim qo'shish» kartasi", await cardOf('Direktor').count() === 1 && await cardOf('Yordamchi').count() === 1
+    && await cardOf('Qabulxona').count() === 0 && (await cardOf("Xodim qo'shish").getAttribute('href'))?.endsWith('#/xodimlar'));
+  await shot('02-home-standart', true);
+
+  console.log("\n# AI xodimlar: ishga olish");
+  await cardOf("Xodim qo'shish").click();
+  ok("«AI xodimlar»: bo'lim-bo'lim — jamoadagilar, olinadiganlar va tez kunda keladiganlar", await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 }))
+    && await page.getByRole('region', { name: 'Boshqaruv' }).getByRole('article', { name: 'Direktor' }).getByText('Asosiy').isVisible()
+    && await page.getByRole('region', { name: 'Mijozlar va sotuv' }).getByRole('article', { name: 'Qabulxona' }).getByRole('button', { name: 'Ishga olish' }).isVisible()
+    && await page.getByRole('region', { name: 'HR' }).getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible()
+    && await page.getByRole('article', { name: 'Video-meyker — tez kunda' }).count() === 0 && await page.getByRole('article', { name: 'Strateg — tez kunda' }).count() === 0);
+  ok("asosiy xodimni olib tashlab bo'lmaydi — Direktor kartasida «Olib tashlash» yo'q", await page.getByRole('article', { name: 'Direktor' }).getByRole('button', { name: 'Olib tashlash' }).count() === 0);
+  await shot('02b-xodimlar', true);
+  for (const name of ['Qabulxona', 'Kuzatuvchi', 'Tahlilchi', 'Marketolog', 'Kontent-meyker', 'Targetolog']) {
+    const card = page.getByRole('article', { name, exact: true });
+    await card.getByRole('button', { name: 'Ishga olish' }).click();
+    await card.getByText('Jamoada').waitFor({ timeout: 8000 });
+  }
+  const hired = await menuItems();
+  ok("ishga olinganlar menyuda darhol paydo bo'ldi (Marketing — uchta xodim bitta bo'limda)", hired === "Palantir, Direktor, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Marketing, Xodim qo'shish, Miya, Sozlamalar", hired);
+  const tracker = page.getByRole('article', { name: 'Kuzatuvchi', exact: true });
+  await tracker.getByRole('button', { name: 'Olib tashlash' }).click();
+  ok("olib tashlashdan oldin nima to'xtashi aytiladi", await visible(tracker.getByText(/kechki hisoboti to'xtaydi.*o'chmaydi/)));
+  await tracker.getByRole('button', { name: 'Ha, olib tashlash' }).click();
+  await tracker.getByRole('button', { name: 'Ishga olish' }).waitFor({ timeout: 8000 });
+  ok('olib tashlangan Kuzatuvchi menyudan chiqdi', !(await menuItems()).includes('Kuzatuvchi'));
+  await go('kuzatuvchi');
+  ok("jamoada yo'q xodim manzili bilan ochilsa — «AI xodimlar»ga (u yerda ishga olinadi)", await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 })) && page.url().endsWith('#/xodimlar'), page.url());
+  await page.getByRole('article', { name: 'Kuzatuvchi', exact: true }).getByRole('button', { name: 'Ishga olish' }).click();
+  await page.getByRole('article', { name: 'Kuzatuvchi', exact: true }).getByText('Jamoada').waitFor({ timeout: 8000 });
+  await nav('Palantir');
+  await page.getByLabel("Palantir'ga yozing").waitFor({ timeout: 10000 });
+  const items = (await menuItems()).split(', ');
   ok("menyu: «Quloq» tugmasi bor (o'chiq)", await rail().getByRole('button', { name: /Quloq/ }).getAttribute('aria-pressed') === 'false');
   await page.getByLabel("Palantir'ga yozing").fill('Bugun nima qilishim kerak?');
   await page.getByLabel("Palantir'ga yozing").press('Enter');
   ok("bosh ekran: yozilgan savolga javob shu yerda karta bo'lib chiqadi", await visible(page.getByRole('region', { name: 'Natijalar' }).getByText('Bugun:').first(), 15000));
   ok("bosh ekran: «Bugun jamoa nima qildi» — xodimlarning bugungi ishi; jurnal bo'sh bo'lsa alohida karta chiqmaydi", await visible(page.getByRole('heading', { name: 'Bugun jamoa nima qildi' }))
     && !(await page.getByRole('heading', { name: 'Bugungi jurnal' }).isVisible()) && !(await page.getByText("Bugun hali yozuv yo'q").isVisible()));
-  const teamCards = page.getByRole('region', { name: 'AI jamoa' });
-  const cardOf = (name: string) => teamCards.getByRole('link').filter({ hasText: name });
   ok("birinchi kun: sozlanmagan xodim kartasida bitta keyingi qadam — to'g'ri ulash sahifasiga",
     await cardOf('Marketolog').getByText('Meta AI’ga kirish').isVisible() && (await cardOf('Marketolog').getAttribute('href'))?.endsWith('#/marketolog/ulash'));
-  ok("Kontent-meyker ishlatilmayapti (kanal ham, manba ham yo'q) — bosh ekranda kartasi yo'q, Marketing bo'limida bor", await cardOf('Kontent-meyker').count() === 0);
-  ok("kamerasiz savdo biznesida Kuzatuvchi bosh ekranda yo'q («Kamerani ulash» deb bezovta qilmaydi), menyuda bor",
-    !(await cardOf('Kuzatuvchi').count()) && items.includes('Kuzatuvchi'));
+  ok("ishga olingan Kontent-meyker va Kuzatuvchi bosh ekranda — birinchi qadami bilan (manba qo'shish, kamerani ulash)",
+    await cardOf('Kontent-meyker').getByText("Kuzatiladigan kanal qo'shish").isVisible() && await cardOf('Kuzatuvchi').getByText('Kamerani ulash').isVisible() && items.includes('Kuzatuvchi'));
   ok("birinchi kun: savdo sohasida Tahlilchi DentaCRM so'ramaydi", !(await cardOf('Tahlilchi').getByText('DentaCRM’ni ulash').count()));
   await shot('02a-home', true);
 
@@ -317,11 +353,13 @@ try {
     && await tabOn('Kampaniyalar').isVisible() && await tabOn('Kabinet va limitlar').isVisible() && await visible(page.getByRole('button', { name: 'Reja tuzsin' })) && await page.getByText('Meta reklama kabinetini ulang').isVisible() && page.url().endsWith('#/marketolog/kampaniyalar'));
   await shot('12d-targetolog', true);
   await go('hr');
-  ok("«Tez kunda»: bo'lim-bo'lim qulfli xodimlar (eski #/hr manzili ham shu yerga)", await visible(page.getByRole('heading', { name: 'Tez kunda', exact: true }))
-    && await page.getByRole('region', { name: 'HR — tez kunda' }).getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible()
-    && await page.getByRole('region', { name: 'Moliya — tez kunda' }).getByRole('article', { name: 'Buxgalter — tez kunda' }).isVisible()
-    && await page.getByRole('article').count() >= 15);
-  await shot('12e-tezkunda', true);
+  ok("eski #/hr va #/tezkunda manzillari — «AI xodimlar»ga, tez kunda keladiganlar qulf bilan", await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 }))
+    && await page.getByRole('region', { name: 'HR' }).getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible()
+    && await page.getByRole('region', { name: 'Moliya' }).getByRole('article', { name: 'Buxgalter — tez kunda' }).isVisible()
+    && await page.getByRole('article').count() >= 18);
+  await go('tezkunda');
+  ok('#/tezkunda ham shu sahifa', await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 })));
+  await shot('12e-xodimlar', true);
 
   console.log('\n# Qabulxona: yozishma');
   tgUser.incoming(TG_SESSION, '6001', 'Stol narxi qancha?', { name: 'Bobur', username: 'bobur_t' });
@@ -492,17 +530,20 @@ try {
   ok("telefon: pastda yettita tugma — Palantir, beshta xodim va «Ko'proq»", bar.length === 7 && bar.at(-1) === "Ko'proq" && !bar.includes('Miya'), JSON.stringify(bar));
   await rail().getByRole('button', { name: "Ko'proq" }).click();
   const menu = page.getByRole('menu', { name: "Ko'proq" });
-  ok("«Ko'proq»: Miya, Sozlamalar, Quloq va Chiqish", await visible(menu.getByRole('menuitem', { name: 'Sozlamalar' })) && await menu.getByRole('menuitem', { name: 'Miya' }).isVisible()
+  ok("«Ko'proq»: Direktor, Xodim qo'shish, Miya, Sozlamalar, Quloq va Chiqish", await visible(menu.getByRole('menuitem', { name: 'Sozlamalar' })) && await menu.getByRole('menuitem', { name: 'Miya' }).isVisible()
+    && await menu.getByRole('menuitem', { name: 'Direktor' }).isVisible() && await menu.getByRole('menuitem', { name: "Xodim qo'shish" }).isVisible()
     && await menu.getByRole('menuitemcheckbox', { name: /Quloq/ }).isVisible() && await menu.getByRole('menuitem', { name: /Chiqish/ }).isVisible());
   await shot('09c-mobile-koproq');
   await menu.getByRole('menuitem', { name: 'Sozlamalar' }).click();
   ok("«Ko'proq» → Sozlamalar ochildi, menyu yopildi", await visible(page.getByRole('navigation', { name: 'Ulanishlar' })) && page.url().endsWith('#/sozlamalar') && await menu.count() === 0);
   // Panel Telegram ichida (Mini App) ham ochiladi — sozlamalarning asosiy va Telegram bo'limlari ham telefon enida sig'sin
-  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'marketolog/kampaniyalar', 'marketolog/kabinet', 'tezkunda', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
+  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'marketolog/kampaniyalar', 'marketolog/kabinet', 'xodimlar', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
     await go(p);
     await sleep(300);
     const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    ok(`telefon: ${p} — sig'adi`, o <= 0, `${o}px`);
+    // Sig'masa — qaysi element ekrandan chiqqani (eng ichkisi) aytiladi
+    const wide = o > 0 ? await page.evaluate(() => [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > window.innerWidth + 1 && ![...e.children].some(c => c.getBoundingClientRect().right > window.innerWidth + 1)).slice(0, 3).map(e => `${e.tagName.toLowerCase()}.${String((e as HTMLElement).className).slice(0, 60)} «${(e.textContent ?? '').trim().slice(0, 30)}»`).join(' | ')) : '';
+    ok(`telefon: ${p} — sig'adi`, o <= 0, `${o}px ${wide}`);
     if (p === 'yordamchi/jurnal') await shot('10-mobile-ishlar');
     if (p === 'qabulxona') await shot('13-mobile-qabulxona');
     if (p === 'sozlamalar/asosiy') await shot('14-mobile-sozlamalar');

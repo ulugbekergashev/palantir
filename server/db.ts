@@ -96,7 +96,7 @@ export function ensureColumns(table: string, columns: Record<string, string>): v
   for (const [name, type] of Object.entries(columns)) if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
 }
 ensureColumns('replies', { booking: 'TEXT', booked_at: 'TEXT', question: 'TEXT', visit_change: 'TEXT', changed_at: 'TEXT' });
-ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT', token_ver: 'INTEGER NOT NULL DEFAULT 0', support_access: 'INTEGER NOT NULL DEFAULT 0', support_ver: 'INTEGER NOT NULL DEFAULT 0', support_until: 'TEXT' });
+ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT', token_ver: 'INTEGER NOT NULL DEFAULT 0', support_access: 'INTEGER NOT NULL DEFAULT 0', support_ver: 'INTEGER NOT NULL DEFAULT 0', support_until: 'TEXT', crew: 'TEXT' });
 ensureColumns('support_visits', { who: 'TEXT' });
 ensureColumns('tasks', { call_to: 'TEXT', spoken: 'INTEGER NOT NULL DEFAULT 0', lead_id: 'TEXT' });
 ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT', next_step: 'TEXT', next_at: 'TEXT', phone_key: 'TEXT', patient_id: 'TEXT', phone_proof: 'TEXT' });
@@ -152,6 +152,8 @@ export interface BusinessRow {
   ownerPhone: string | null;
   /** O'rnatish holati (JSON, setup/state.ts): anketadan qolgan hal qilinmagan narsalar — narx ziddiyatlari, egasida bor kanallar */
   setup: string | null;
+  /** AI jamoa tarkibi (JSON, src/lib/crew.ts): kim ishga olingan va kimni egasi olib tashlagan; null — hali hisoblanmagan */
+  crew: string | null;
   /** Natijasi so'ralgan vazifa (JSON, outcome.ts): egasining keyingi gapi shu vazifaning natijasi deb olinadi */
   outcome: string | null;
   /** Kechki «kun qanday o'tdi» savoli oxirgi marta qaysi kuni berilgan (YYYY-MM-DD) */
@@ -181,6 +183,7 @@ const toBusiness = (r: Raw): BusinessRow => ({
   interview: str(r.interview),
   ownerPhone: str(r.owner_phone),
   setup: str(r.setup),
+  crew: str(r.crew),
   outcome: str(r.outcome),
   eveningDate: str(r.evening_date),
   briefSentDate: str(r.brief_sent_date),
@@ -194,7 +197,7 @@ const toBusiness = (r: Raw): BusinessRow => ({
 const BIZ_COLUMNS = {
   login: 'login', passwordHash: 'password_hash', profile: 'profile', ownerChatId: 'owner_chat_id', linkCode: 'link_code',
   active: 'active', briefDate: 'brief_date', interview: 'interview', ownerPhone: 'owner_phone',
-  setup: 'setup', outcome: 'outcome', eveningDate: 'evening_date', briefSentDate: 'brief_sent_date', supportAccess: 'support_access',
+  setup: 'setup', crew: 'crew', outcome: 'outcome', eveningDate: 'evening_date', briefSentDate: 'brief_sent_date', supportAccess: 'support_access',
 } as const;
 
 export const businesses = {

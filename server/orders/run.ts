@@ -18,6 +18,7 @@ import { checkFrame } from './look';
 import { events, orders } from './store';
 import { dueAt, dueEvery } from './logic';
 import { watchFrame } from './watch';
+import { crewWorks } from '../../src/lib/crew';
 
 const TICK_MS = Number(process.env.ORDERS_TICK_MS) || 30_000;
 /** Bajarilmagan ish (internet, AI chegarasi) shundan keyin qayta uriniladi — vaqti o'tib ketmagan bo'lsa */
@@ -101,7 +102,8 @@ export function startOrders(bot: BotService): () => void {
       const due = o.spec.kind === 'schedule' ? dueAt(o.spec.at, o.spec.days, since, now) : o.spec.kind === 'look' ? dueEvery(o.spec, o.spec.at ? since : o.lastRunAt, now) : false;
       if (!due) continue;
       const biz = businesses.byId(o.businessId);
-      if (!biz?.active) continue;
+      // Xodim jamoadan olib tashlangan — uning topshiriqlari to'xtaydi (o'chirilmaydi: qaytib olinsa, davom etadi)
+      if (!biz?.active || !crewWorks(biz, o.member)) continue;
       busy.add(o.id);
       // Vaqtidagi ish (schedule, soatli look) — natijasi jurnalga; har N daqiqalik qarash — faqat muammo bo'lsa
       const work = o.spec.kind === 'schedule' ? runScheduled(bot, biz, o) : runLook(biz, o, !(o.spec.kind === 'look' && o.spec.at));

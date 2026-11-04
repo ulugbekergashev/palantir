@@ -14,6 +14,7 @@ import { cameras, connections, outbound, tasks, type BusinessRow } from './db';
 import { isClinic } from '../src/data/industries';
 import { crmConnected } from './crm/index';
 import { events } from './orders/store';
+import { crewHas } from '../src/lib/crew';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps { asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler }
@@ -78,8 +79,12 @@ export function teamDay(biz: BusinessRow, now = new Date()): TeamDay {
   const t = events.tally(biz.id, from);
   return {
     date: today,
-    // Kamerasi yo'q, klinika emas — Kuzatuvchi ro'yxatda yo'q (bo'sh «Kamera 0» ko'rsatilmaydi)
-    members: [reception(biz, now), assistant(biz, from, to, today), ...(usesCameras(biz) ? [watcher(biz, t)] : []), analyst(t), marketer(biz, t)],
+    // Faqat jamoadagi xodimlar; kamerasi yo'q, klinika emas — Kuzatuvchi ro'yxatda yo'q (bo'sh «Kamera 0» ko'rsatilmaydi)
+    members: [
+      ...(crewHas(biz, 'qabulxona') ? [reception(biz, now)] : []), assistant(biz, from, to, today),
+      ...(crewHas(biz, 'kuzatuvchi') && usesCameras(biz) ? [watcher(biz, t)] : []),
+      ...(crewHas(biz, 'tahlilchi') ? [analyst(t)] : []), ...(crewHas(biz, 'marketolog') ? [marketer(biz, t)] : []),
+    ],
     timeline: events.since(biz.id, from, TIMELINE),
   };
 }

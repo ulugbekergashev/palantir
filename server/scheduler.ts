@@ -27,6 +27,7 @@ import { tgCall, tgCallEnabled } from './tgcall';
 import { ContentError, factoryDue, runFactory } from './content/factory';
 import { watchAll as watchAds } from './ads/campaigns';
 import { directorMorning } from './director/telegram';
+import { crewWorks } from '../src/lib/crew';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 /** Reklama sarfi va limitlar tekshiruvi oralig'i */
@@ -292,7 +293,7 @@ export function startScheduler(bot: BotService): () => void {
       const contentHour = now.getHours(), contentDay = iso(now);
       if (env.aiEnabled && Date.now() >= remindRetryAt && contentHour >= env.morningHour + 1 && contentHour < env.morningHour + 8) {
         for (const biz of businesses.all()) {
-          if (!biz.active || !biz.ownerChatId || !factoryDue(biz.id, now)) continue;
+          if (!biz.active || !biz.ownerChatId || !crewWorks(biz, 'kontent') || !factoryDue(biz.id, now)) continue;
           void runFactory(biz).catch(async e => {
             const why = e instanceof ContentError ? e.message : 'ichki xato';
             console.error(`[jadval] kontent-zavod (${biz.profile.name}):`, (e as Error).message);

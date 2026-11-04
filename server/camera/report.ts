@@ -9,6 +9,7 @@ import { env } from '../env';
 import { events } from '../orders/store';
 import { reportHtml } from './reportText';
 import { daySummary } from './routes';
+import { crewWorks } from '../../src/lib/crew';
 
 sql.exec(`CREATE TABLE IF NOT EXISTS camera_reports (
   business_id TEXT NOT NULL, date TEXT NOT NULL, sent_at TEXT NOT NULL, PRIMARY KEY (business_id, date)
@@ -39,7 +40,7 @@ export async function reportTick(send: (biz: BusinessRow, html: string) => Promi
   try {
     const day = iso(now);
     for (const biz of businesses.all()) {
-      if (!biz.active || !biz.ownerChatId || biz.profile.morningBrief === false || !cameras.list(biz.id).length || sentToday(biz.id, day)) continue;
+      if (!biz.active || !biz.ownerChatId || biz.profile.morningBrief === false || !crewWorks(biz, 'kuzatuvchi') || !cameras.list(biz.id).length || sentToday(biz.id, day)) continue;
       if ((retryAt.get(biz.id) ?? 0) > now.getTime()) continue;
       try {
         const html = await cameraReport(biz, day, now);

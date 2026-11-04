@@ -179,18 +179,19 @@ const KONTENT_TABS = ['qoralamalar', 'reja', 'video', 'brend', 'manbalar', 'kana
 const TARGET_TABS = ['kampaniyalar', 'kabinet'];
 
 /** Marketing bo'limi: Marketolog (Meta AI, Instagram postlari), Targetolog (Meta reklama) va Kontent-meyker (Telegram kanal uchun kontent-zavod) */
-export function MarketingArea(props: Common & { onStatus: (s: LiveStatus) => void; kontent: MemberState | null; target: MemberState | null }) {
-  const kontent = !!props.tab && KONTENT_TABS.includes(props.tab);
-  const target = !!props.tab && TARGET_TABS.includes(props.tab);
+export function MarketingArea(props: Common & { crew: Member[]; onStatus: (s: LiveStatus) => void; kontent: MemberState | null; target: MemberState | null }) {
+  // Bo'limda faqat jamoadagi xodimlar; varaq ko'rsatilmagan bo'lsa — birinchisi (masalan, faqat Kontent-meyker olingan)
   const members = [
-    { member: 'marketolog' as const, href: hrefOf('marketolog'), badge: props.state?.badge },
-    { member: 'target' as const, href: hrefOf('marketolog', 'kampaniyalar'), badge: props.target?.badge },
-    { member: 'kontent' as const, href: hrefOf('marketolog', 'qoralamalar'), badge: props.kontent?.badge },
-  ];
+    { member: 'marketolog' as const, href: hrefOf('marketolog'), badge: props.state?.badge, tabs: null },
+    { member: 'target' as const, href: hrefOf('marketolog', 'kampaniyalar'), badge: props.target?.badge, tabs: TARGET_TABS },
+    { member: 'kontent' as const, href: hrefOf('marketolog', 'qoralamalar'), badge: props.kontent?.badge, tabs: KONTENT_TABS },
+  ].filter(m => props.crew.includes(m.member));
+  const byTab = members.find(m => !!props.tab && !!m.tabs?.includes(props.tab));
+  const active = byTab?.member ?? (members.some(m => m.member === 'marketolog') ? 'marketolog' : members[0]?.member ?? 'marketolog');
   return (
     <div className="space-y-4">
-      <DepartmentSwitch title="Marketing" members={members} active={kontent ? 'kontent' : target ? 'target' : 'marketolog'} />
-      {kontent ? <ContentArea {...props} /> : target ? <TargetArea {...props} /> : <MarketologArea {...props} />}
+      {members.length > 1 && <DepartmentSwitch title="Marketing" members={members} active={active} />}
+      {active === 'kontent' ? <ContentArea {...props} /> : active === 'target' ? <TargetArea {...props} /> : <MarketologArea {...props} />}
     </div>
   );
 }

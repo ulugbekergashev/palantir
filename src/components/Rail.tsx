@@ -1,23 +1,23 @@
 /**
- * Chap ustun (telefonda — pastki panel): Palantir (ovoz), AI jamoa, Miya, Sozlamalar. Hamma bo'limda bir xil — dastur bitta.
- * Kompyuterda — ixcham qatorlar (belgi va nom bir qatorda), guruhlarga bo'lingan: past ekranda ham hamma bo'lim ko'rinadi.
+ * Chap ustun (telefonda — pastki panel): Palantir (ovoz), AI jamoa (faqat ishga olinganlar) va «Xodim qo'shish», Miya, Sozlamalar.
+ * Hamma bo'limda bir xil — dastur bitta. Kompyuterda — ixcham qatorlar (belgi va nom bir qatorda), guruhlarga bo'lingan.
  * Tepadagi tugma ustunni yig'adi (faqat belgilar) — tanlov shu kompyuterda eslab qolinadi; kenglik --rail o'zgaruvchisida (LiveApp).
- * Telefonda pastda — Palantir va jamoa (yetti tugma, barmoq sig'adi); Miya, Sozlamalar, Quloq va Chiqish — «Ko'proq» ichida.
+ * Telefonda pastda — Palantir va jamoadan 5 tagacha tugma (yetti tugma, barmoq sig'adi): avval ishchi xodimlar, joy qolsa Direktor
+ * va «Qo'shish»; qolgani, Miya, Sozlamalar, Quloq va Chiqish — «Ko'proq» ichida.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Brain, Compass, Ear, EarOff, Ellipsis, Hourglass, Lock, LogOut, PanelLeftClose, PanelLeftOpen, Settings, Sparkles, type LucideIcon } from 'lucide-react';
-import { UPCOMING } from '../pages/ComingSoon';
+import { Brain, Ear, EarOff, Ellipsis, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Settings, Sparkles, type LucideIcon } from 'lucide-react';
 import type { Wake } from '../lib/useWake';
 import type { Area } from '../lib/nav';
 import { hrefOf } from '../lib/nav';
 import { DEPARTMENT_LABEL, DEPARTMENT_OF, MEMBERS, RAIL_MEMBERS, TEAM, type Member, type MemberState } from './team';
 
-interface Item { area: Area; label: string; icon: LucideIcon; badge?: number; /** Bo'lim hali ishlamaydi — tez kunda */ locked?: boolean; /** Xodim ishlayapti (yashil nuqta) */ live?: boolean }
+interface Item { area: Area; label: string; icon: LucideIcon; badge?: number; /** Xodim ishlayapti (yashil nuqta) */ live?: boolean }
 
 /** Telefonning pastki panelida yetti tugma sig'ishi uchun qisqa nomlar (kompyuterda — to'liq) */
-const SHORT: Partial<Record<Area, string>> = { qabulxona: 'Qabul', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', marketolog: 'SMM' };
-/** Telefonda «Ko'proq» ichida turadigan bo'limlar */
-const MORE: Area[] = ['direktor', 'tezkunda', 'miya', 'sozlamalar'];
+const SHORT: Partial<Record<Area, string>> = { qabulxona: 'Qabul', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', marketolog: 'SMM', xodimlar: 'Qo‘shish' };
+/** Telefonning pastki panelida Palantir va «Ko'proq» orasidagi tugmalar soni */
+const PHONE_SLOTS = 5;
 /** Kompyuterdagi kenglik: to'liq va yig'ilgan (px) — sahifa shu qadar o'ngga suriladi */
 const WIDE = 224, NARROW = 68;
 const FOLD_KEY = 'palantir:rail-yigilgan';
@@ -34,7 +34,7 @@ const EAR: Record<Wake['phase'], { dot: string; hint: string }> = {
 const readFold = (): boolean => { try { return localStorage.getItem(FOLD_KEY) === '1'; } catch { return false; } };
 
 /** allowed — shu kirishga ochiq bo'limlar (klinika xodimi: server/access.ts); berilmasa — hammasi */
-export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area: Area; team: Record<Member, MemberState> | null; ownerName: string; onLogout: () => void; wake: Wake; allowed?: Area[] }) {
+export function Rail({ area, team, crew, ownerName, onLogout, wake, allowed }: { area: Area; team: Record<Member, MemberState> | null; crew: Member[]; ownerName: string; onLogout: () => void; wake: Wake; allowed?: Area[] }) {
   const open = (a: Area) => !allowed || allowed.includes(a);
   const [folded, setFolded] = useState(readFold);
   useEffect(() => {
@@ -43,34 +43,38 @@ export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area:
   }, [folded]);
 
   const home: Item[] = [{ area: 'ai' as Area, label: 'Palantir', icon: Sparkles }].filter(it => open(it.area));
-  // Bo'lim tugmasidagi nishon — ichidagi xodimlarniki bilan birga (Marketing: Marketolog + Kontent-meyker)
-  const crew: Item[] = RAIL_MEMBERS.map(m => {
-    const inside = MEMBERS.filter(x => x === m || DEPARTMENT_OF[x]?.area === m);
-    return { area: m as Area, label: DEPARTMENT_LABEL[m] ?? TEAM[m].name, icon: TEAM[m].icon, badge: team ? inside.reduce((n, x) => n + team[x].badge, 0) : undefined, live: !!team && inside.some(x => team[x].live) };
+  // Bo'lim tugmasidagi nishon — ichidagi jamoadagi xodimlarniki bilan birga (Marketing: Marketolog, Kontent-meyker, Targetolog).
+  // Bo'limda bitta xodim bo'lsa — tugma o'sha xodimning nomi bilan (faqat Kontent-meyker olingan — «Kontent-meyker»)
+  const members: Item[] = RAIL_MEMBERS.flatMap(m => {
+    const inside = MEMBERS.filter(x => (x === m || DEPARTMENT_OF[x]?.area === m) && crew.includes(x));
+    if (!inside.length) return [];
+    const solo = inside.length === 1 ? inside[0] : null;
+    return [{ area: m as Area, label: solo ? TEAM[solo].name : DEPARTMENT_LABEL[m] ?? TEAM[m].name, icon: TEAM[solo ?? m].icon, badge: team ? inside.reduce((n, x) => n + team[x].badge, 0) : undefined, live: !!team && inside.some(x => team[x].live) }];
   }).filter(it => open(it.area));
-  const rest: Item[] = [
-    { area: 'tezkunda' as Area, label: 'Tez kunda', icon: Hourglass, locked: true },
-    { area: 'miya' as Area, label: 'Miya', icon: Brain },
-  ].filter(it => open(it.area));
+  const add: Item[] = [{ area: 'xodimlar' as Area, label: "Xodim qo'shish", icon: Plus }].filter(it => open(it.area));
+  const rest: Item[] = [{ area: 'miya' as Area, label: 'Miya', icon: Brain }].filter(it => open(it.area));
+  // Telefonning pastki paneli: avval ishchi xodimlar, joy qolsa Direktor va «Qo'shish»; qolgani «Ko'proq» ichida
+  const bar = new Set<Area>(['ai', ...[...members.filter(it => it.area !== 'direktor'), ...members.filter(it => it.area === 'direktor'), ...add].slice(0, PHONE_SLOTS).map(it => it.area)]);
+  const more: Item[] = [...members, ...add, ...rest, { area: 'sozlamalar' as Area, label: 'Sozlamalar', icon: Settings }].filter(it => !bar.has(it.area) && open(it.area));
 
-  const [more, setMore] = useState(false);
+  const [sheetOpen, setMore] = useState(false);
   const sheet = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!more) return;
+    if (!sheetOpen) return;
     const close = (e: Event) => {
       if (e instanceof KeyboardEvent ? e.key === 'Escape' : !sheet.current?.contains(e.target as Node)) setMore(false);
     };
     document.addEventListener('keydown', close);
     document.addEventListener('pointerdown', close);
     return () => { document.removeEventListener('keydown', close); document.removeEventListener('pointerdown', close); };
-  }, [more]);
+  }, [sheetOpen]);
 
   /** Kompyuterdagi qator: to'liq — belgi va nom yonma-yon; yig'ilgan — faqat belgi (nom ekran o'quvchisi va maslahat uchun) */
   const row = folded ? 'lg:h-10 lg:w-11 lg:flex-none lg:justify-center lg:self-center lg:px-0' : 'lg:h-9 lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:px-2.5';
   const link = (it: Item) => {
     const active = area === it.area;
-    // Miya va Sozlamalar telefonda pastki panelda emas — «Ko'proq» ichida
-    const desktopOnly = MORE.includes(it.area) ? 'hidden lg:flex' : 'flex';
+    // Pastki panelga sig'magani (Miya, Sozlamalar, ortiqcha xodimlar) telefonda «Ko'proq» ichida
+    const desktopOnly = bar.has(it.area) ? 'flex' : 'hidden lg:flex';
     return (
       <a
         key={it.area}
@@ -83,7 +87,6 @@ export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area:
         {active && <span aria-hidden="true" className="absolute -left-2 top-1.5 hidden h-6 w-[3px] rounded-r-full bg-[#ff9a3c] lg:block" />}
         <span className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors lg:h-auto lg:w-auto lg:rounded-none lg:bg-transparent ${active ? 'bg-[#ff9a3c]/18 text-[#ffd9a0]' : 'group-hover:bg-glass/5 lg:group-hover:bg-transparent'}`}>
           <it.icon className="h-[19px] w-[19px] lg:h-[18px] lg:w-[18px]" aria-hidden="true" />
-          {it.locked && <Lock className="absolute -bottom-1 -right-1.5 h-3 w-3 rounded-full bg-[#07080b] p-[1px] text-[#c9cbd2]" aria-hidden="true" />}
           {it.live && folded && <span aria-hidden="true" className="absolute -right-1 -top-1 hidden h-2 w-2 rounded-full bg-emerald-400 lg:block" />}
         </span>
         <span className="max-w-full truncate lg:hidden" aria-hidden="true">{SHORT[it.area] ?? it.label}</span>
@@ -116,24 +119,25 @@ export function Rail({ area, team, ownerName, onLogout, wake, allowed }: { area:
       </div>
       <div className="flex flex-1 gap-0.5 lg:flex-none lg:flex-col">
         {home.map(link)}
-        {crew.length > 0 && group('AI jamoa')}
-        {crew.map(link)}
+        {members.length > 0 && group('AI jamoa')}
+        {members.map(link)}
+        {add.map(link)}
         {rest.length > 0 && group('Boshqa')}
         {rest.map(link)}
       </div>
       <div className="hidden flex-1 lg:block" />
       <div ref={sheet} className="relative flex w-[calc(100%/7)] lg:hidden">
-        <button type="button" onClick={() => setMore(v => !v)} aria-expanded={more} aria-controls="koproq" aria-label="Ko'proq"
-          className={`group flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[11px] font-medium transition-colors ${more || MORE.includes(area) ? 'text-[#f2f0ea]' : 'text-[#8a909c]'}`}>
-          <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${more || MORE.includes(area) ? 'bg-[#ff9a3c]/18 text-[#ffd9a0]' : ''}`}>
+        <button type="button" onClick={() => setMore(v => !v)} aria-expanded={sheetOpen} aria-controls="koproq" aria-label="Ko'proq"
+          className={`group flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 text-[11px] font-medium transition-colors ${sheetOpen || !bar.has(area) ? 'text-[#f2f0ea]' : 'text-[#8a909c]'}`}>
+          <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${sheetOpen || !bar.has(area) ? 'bg-[#ff9a3c]/18 text-[#ffd9a0]' : ''}`}>
             <Ellipsis className="h-[19px] w-[19px]" aria-hidden="true" />
           </span>
           <span aria-hidden="true">Ko'proq</span>
           {wake.enabled && EAR[wake.phase].dot && <span className={`absolute right-3 top-2 h-2 w-2 rounded-full ${EAR[wake.phase].dot}`} aria-hidden="true" />}
         </button>
-        {more && (
+        {sheetOpen && (
           <div id="koproq" role="menu" aria-label="Ko'proq" className="absolute bottom-[calc(100%+8px)] right-1 w-56 rounded-2xl border border-glass/[0.08] bg-[#0b0c10] p-1.5 shadow-2xl">
-            {[{ area: 'direktor' as Area, label: 'Direktor', icon: Compass }, { area: 'tezkunda' as Area, label: `Tez kunda · ${UPCOMING.length} ta xodim`, icon: Hourglass }, { area: 'miya' as Area, label: 'Miya', icon: Brain }, { area: 'sozlamalar' as Area, label: 'Sozlamalar', icon: Settings }].filter(it => open(it.area)).map(it => (
+            {more.map(it => (
               <a key={it.area} role="menuitem" href={hrefOf(it.area)} onClick={() => setMore(false)} aria-current={area === it.area ? 'page' : undefined}
                 className={`flex items-center gap-3 rounded-xl px-3 py-3 text-[14px] no-underline ${area === it.area ? 'bg-[#ff9a3c]/12 text-[#f2f0ea]' : 'text-[#d9dbe1] active:bg-glass/5'}`}>
                 <it.icon className="h-[18px] w-[18px]" aria-hidden="true" />{it.label}

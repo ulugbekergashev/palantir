@@ -27,6 +27,7 @@ import { decide, type Decision } from './replier';
 import { phoneChanged } from '../people';
 import { deliverToTeam, editTeamCards, openRequest } from '../requests/index';
 import { replyCards } from '../requests/store';
+import { crewWorks } from '../../src/lib/crew';
 
 export interface Sender {
   /** Shu mijozga shu kanal orqali yozish mumkinmi */
@@ -63,7 +64,11 @@ export const notifyOwnerFile = (biz: BusinessRow, path: string, caption: string)
 export const notifyOwnerPhoto = (biz: BusinessRow, path: string, html: string, keyboard?: InlineKeyboardMarkup) => owner?.sendPhoto(biz, path, html, keyboard) ?? Promise.resolve(null);
 
 export const DEFAULT_REPLY: AutoReply = { mode: 'draft', contacts: false, delayMin: 2 };
-export const replySettings = (biz: BusinessRow): AutoReply => ({ ...DEFAULT_REPLY, ...biz.profile.autoReply });
+/** Qabulxona jamoadan olib tashlangan bo'lsa — javob tayyorlanmaydi (xabarlar saqlanaveradi) */
+export const replySettings = (biz: BusinessRow): AutoReply => {
+  const s = { ...DEFAULT_REPLY, ...biz.profile.autoReply };
+  return crewWorks(biz, 'qabulxona') ? s : { ...s, mode: 'off' };
+};
 
 const CHANNEL_LABEL: Record<LeadChannel, string> = { bot: 'Telegram bot', telegram: 'Telegram', instagram: 'Instagram', manual: "qo'lda" };
 /** Qaysi kanal orqali yozish: mijoz qayerda yozishgan bo'lsa — o'sha yerda */

@@ -41,11 +41,12 @@ const one = (s: unknown, max: number): string => String(s ?? '').replace(/\s+/g,
  * Model javobini tekshiradi: noma'lum xodim yoki ko'rsatkich — tashlanadi; muddat 3–14 kun oralig'iga keltiriladi; 3 tadan oshmaydi;
  * ma'lumoti yo'q (null) ko'rsatkichga taklif — tashlanadi (o'lchab bo'lmaydi)
  */
-export function cleanPlan(raw: unknown, numbers: Numbers): DirectorPlan {
+export function cleanPlan(raw: unknown, numbers: Numbers, allowed: readonly MoveMember[] = MOVE_MEMBERS): DirectorPlan {
   const r = (raw ?? {}) as { summary?: unknown; problem?: { title?: unknown; evidence?: unknown } | null; moves?: unknown };
   const title = one(r.problem?.title, LIMITS.title);
   const moves = (Array.isArray(r.moves) ? r.moves : []).flatMap((m: Record<string, unknown>) => {
-    const member = MOVE_MEMBERS.find(x => x === m?.member);
+    // Jamoada yo'q xodimga taklif — tashlanadi (egasi uni ishga olmagan)
+    const member = allowed.find(x => x === m?.member);
     const task = one(m?.task, LIMITS.task);
     if (!member || !task || !isMetric(m?.metric) || !numbers[m.metric]) return [];
     const days = Math.round(Number(m?.check_days));

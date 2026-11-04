@@ -58,6 +58,7 @@ import { forgetLead } from './forget';
 import { telegramBusinessStatus } from './inbox/telegramBusiness';
 import { mountOrders } from './orders/routes';
 import { mountDirector } from './director/routes';
+import { mountCrew, syncCrew } from './crew';
 import { mountAttention } from './attention';
 import { mountTeamDay } from './teamDay';
 import { mountInsights } from './insights/routes';
@@ -458,7 +459,11 @@ export function createApp(bot: BotService) {
     if (s?.staff) return { kind: 'staff' as const, name: s.staff.name, access: s.staff.access };
     return { kind: s?.support ? 'support' as const : 'owner' as const, name: biz.profile.ownerName || biz.profile.name, access: null };
   };
-  app.get('/api/me', asBiz((req, res, biz) => res.json({ business: biz.profile, status: statusFor(req, biz), offeringsRev: offeringsRev(biz.profile.offerings), who: whoOf(req, biz) })));
+  app.get('/api/me', asBiz((req, res, biz) => {
+    const st = statusFor(req, biz);
+    // AI jamoa: ishi ulangan xodim shu yerda o'zi qo'shiladi (server/crew.ts)
+    res.json({ business: biz.profile, status: st, offeringsRev: offeringsRev(biz.profile.offerings), who: whoOf(req, biz), crew: syncCrew(biz, st) });
+  }));
 
   app.put('/api/business', asBiz((req, res, biz) => {
     const parsed = BusinessSchema.safeParse(req.body);
@@ -771,6 +776,7 @@ export function createApp(bot: BotService) {
   mountBrain(app, { asBiz, bad, fail });
   mountOrders(app, { asBiz, bad, fail, bot });
   mountDirector(app, { asBiz, fail });
+  mountCrew(app, { asOwner, bad });
   mountAttention(app, { asBiz });
   mountTeamDay(app, { asBiz });
   mountInsights(app, { asBiz });

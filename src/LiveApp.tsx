@@ -6,7 +6,7 @@ import { api, session, type Who } from './data/api';
 import { Rail } from './components/Rail';
 import { WakeOverlay } from './components/WakeOverlay';
 import { useWake } from './lib/useWake';
-import { TEAM, isMember, useTeam } from './components/team';
+import { DEPARTMENT_OF, TEAM, isMember, useTeam, type Member } from './components/team';
 import { Button } from './components/ui';
 import { useFontsReady, useNow, useToast } from './lib/hooks';
 import { AREAS, hrefOf, routeFromHash, type Area, type Route } from './lib/nav';
@@ -14,21 +14,26 @@ import { AiPage } from './pages/AiPage';
 import { AnalystArea, AssistantArea, MarketingArea, ReceptionArea, SettingsArea, WatchArea } from './pages/TeamPages';
 import { MiyaArea } from './pages/VaultPage';
 import { DirectorArea } from './pages/DirectorPage';
-import { ComingSoonArea } from './pages/ComingSoon';
+import { CrewArea } from './pages/CrewPage';
 
 /**
- * Panel — bitta dastur, AI jamoa atrofida: bosh ekran (Palantir, ovoz bilan), besh xodim (Qabulxona, Yordamchi, Kuzatuvchi,
- * Tahlilchi, Marketolog), Miya (Obsidian kabi) va Sozlamalar. Chapda (telefonda — pastda) bir xil ustun. Ko'rinish qorong'i (index.css: .night).
+ * Panel — bitta dastur, AI jamoa atrofida: bosh ekran (Palantir, ovoz bilan), jamoadagi xodimlar (standart — Direktor va Yordamchi,
+ * qolganini egasi «AI xodimlar»da ishga oladi: src/lib/crew.ts), Miya (Obsidian kabi) va Sozlamalar. Chapda (telefonda — pastda) bir xil ustun.
+ * Ko'rinish qorong'i (index.css: .night).
  */
 const TITLES: Record<Area, string> = {
   ai: 'Palantir', direktor: TEAM.direktor.name, qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
-  tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', tezkunda: 'Tez kunda', miya: 'Miya', sozlamalar: 'Sozlamalar',
+  tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', xodimlar: 'AI xodimlar', miya: 'Miya', sozlamalar: 'Sozlamalar',
 };
 
 /** Hamma bo'lim — nav.ts dagi yagona ro'yxat (yangi bo'lim qo'shilsa, bu yerda alohida yozish shart emas) */
 const ALL_AREAS: Area[] = AREAS;
 const areasFor = (who: Who | null): Area[] =>
   who?.kind !== 'staff' ? ALL_AREAS : who.access === 'manager' ? ALL_AREAS.filter(a => a !== 'sozlamalar') : ['qabulxona'];
+
+/** Xodim bo'limi jamoada bormi: Marketing — ichidagi xodimlardan biri olingan bo'lsa (Marketolog, Kontent-meyker, Targetolog) */
+const crewOpen = (a: Area, crew: Member[]): boolean =>
+  !isMember(a) || crew.some(m => m === a || DEPARTMENT_OF[m]?.area === a);
 
 export default function LiveApp() {
   useFontsReady();
@@ -40,6 +45,7 @@ export default function LiveApp() {
   const [error, setError] = useState('');
   const [offeringsRev, setOfferingsRev] = useState('');
   const [who, setWho] = useState<Who | null>(null);
+  const [crew, setCrew] = useState<Member[] | null>(null);
   const [tick, setTick] = useState(0);
   const loaded = useRef(false);
   const main = useRef<HTMLElement>(null);
@@ -69,15 +75,21 @@ export default function LiveApp() {
       setStatus(r.status);
       setOfferingsRev(r.offeringsRev);
       setWho(r.who);
+      setCrew(r.crew);
     }).catch(e => { if (!stale && !loaded.current) setError((e as Error).message); });
     return () => { stale = true; };
   }, [route.area]);
 
   const notify = (text: string, isError = false) => setToast({ text, error: isError });
   // Klinika xodimi (server/access.ts): qabulxona — faqat Qabulxona; boshqaruvchi — Sozlamalarsiz hammasi. Yopiq bo'limga kirsa — o'zinikiga
-  const allowed = areasFor(who);
+  // Jamoada yo'q xodimning bo'limi menyuda yo'q; manzil bilan ochilsa — «AI xodimlar» (u yerda ishga olinadi)
+  const byAccess = areasFor(who);
+  const inCrew = byAccess.filter(a => !crew || crewOpen(a, crew));
+  const allowed = inCrew.length ? inCrew : byAccess;
+  // Klinika xodimiga berilgan bo'lim (Qabulxona) egasi uni jamoadan olib tashlagan bo'lsa ham menyuda ko'rinsin
+  const railCrew = !crew || inCrew.length ? crew ?? [] : [...crew, ...byAccess.filter(isMember)];
   const closed = !allowed.includes(route.area);
-  const home = allowed[0];
+  const home = isMember(route.area) && allowed.includes('xodimlar') ? 'xodimlar' : allowed[0];
   useEffect(() => { if (closed) window.location.hash = hrefOf(home); }, [closed, home]);
   const team = useTeam(status ?? ({ crm: { account: null } } as unknown as LiveStatus), tick, !!biz && isClinic(biz.industry, !!status?.crm.account));
   const wake = useWake();
@@ -94,7 +106,7 @@ export default function LiveApp() {
       </div>
     );
   }
-  if (!biz || !status) return <div className="night flex min-h-screen items-center justify-center text-slate-400"><Loader2 className="h-7 w-7 animate-spin" /></div>;
+  if (!biz || !status || !crew) return <div className="night flex min-h-screen items-center justify-center text-slate-400"><Loader2 className="h-7 w-7 animate-spin" /></div>;
 
   if (closed) return <div className="night flex min-h-screen items-center justify-center text-slate-400"><Loader2 className="h-7 w-7 animate-spin" /></div>;
   const { area, tab } = route;
@@ -102,11 +114,11 @@ export default function LiveApp() {
 
   return (
     <div className="night min-h-dvh pb-20 lg:pb-0 lg:pl-[var(--rail,224px)]">
-      <Rail area={area} team={team} ownerName={who?.kind === 'staff' ? who.name : biz.ownerName} onLogout={logout} wake={wake} allowed={allowed} />
+      <Rail area={area} team={team} crew={railCrew} ownerName={who?.kind === 'staff' ? who.name : biz.ownerName} onLogout={logout} wake={wake} allowed={allowed} />
       <WakeOverlay wake={wake} />
       {area === 'ai' ? (
         <main key="ai" ref={main} tabIndex={-1} className="outline-none">
-          <AiPage biz={biz} status={status} now={now} team={team} notify={notify} tick={tick} onChanged={changed} />
+          <AiPage biz={biz} status={status} now={now} team={team} crew={crew} notify={notify} tick={tick} onChanged={changed} />
         </main>
       ) : (
         <main key={area} ref={main} tabIndex={-1} className={`animate-rise mx-auto w-full px-4 py-5 outline-none sm:px-6 sm:py-7 lg:px-10 lg:py-9 ${area === 'miya' ? 'max-w-[1500px]' : 'max-w-6xl'}`}>
@@ -115,8 +127,8 @@ export default function LiveApp() {
           {area === 'yordamchi' && <AssistantArea {...common} />}
           {area === 'kuzatuvchi' && <WatchArea {...common} />}
           {area === 'tahlilchi' && <AnalystArea {...common} />}
-          {area === 'marketolog' && <MarketingArea {...common} onStatus={setStatus} kontent={team?.kontent ?? null} target={team?.target ?? null} />}
-          {area === 'tezkunda' && <ComingSoonArea />}
+          {area === 'marketolog' && <MarketingArea {...common} crew={crew} onStatus={setStatus} kontent={team?.kontent ?? null} target={team?.target ?? null} />}
+          {area === 'xodimlar' && <CrewArea crew={crew} onCrew={setCrew} notify={notify} owner={who?.kind !== 'staff'} />}
           {area === 'miya' && <MiyaArea tab={tab} notify={notify} />}
           {area === 'sozlamalar' && (
             <SettingsArea {...common} onStatus={setStatus} onBiz={setBiz} offeringsRev={offeringsRev} onSaved={(b, rev) => { setBiz(b); setOfferingsRev(rev); }} />

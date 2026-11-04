@@ -1,15 +1,15 @@
 /**
- * Panel tuzilishi — AI jamoa: bosh ekran (Palantir, ovoz), besh xodim, Miya va Sozlamalar. Manzil: #/<bo'lim>/<varaq>.
+ * Panel tuzilishi — AI jamoa: bosh ekran (Palantir, ovoz), ishga olingan xodimlar, «AI xodimlar» (qo'shish), Miya va Sozlamalar. Manzil: #/<bo'lim>/<varaq>.
  * Eski manzillar (#/requests, #/journal…) ham ishlayveradi — o'z xodimiga olib boradi; sahifa o'z manzilini o'zi o'qisa
  * (#/inbox/<mijoz>), u buzilmaydi: manzil qayta yozilmaydi.
  */
 
-export type Area = 'ai' | 'direktor' | 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'tezkunda' | 'miya' | 'sozlamalar';
+export type Area = 'ai' | 'direktor' | 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'xodimlar' | 'miya' | 'sozlamalar';
 /** Eski bo'lim nomlari: jurnal yozuvlari va ovozli buyruqlar hali shular bilan ishlaydi, OLD ularni xodim varag'iga o'giradi */
 export type Page = 'home' | 'chat' | 'journal' | 'inbox' | 'requests' | 'calls' | 'cameras' | 'brain' | 'telegram';
 export interface Route { area: Area; tab: string | null }
 
-export const AREAS: Area[] = ['ai', 'direktor', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'tezkunda', 'miya', 'sozlamalar'];
+export const AREAS: Area[] = ['ai', 'direktor', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'xodimlar', 'miya', 'sozlamalar'];
 
 /** Eski bo'limlar — qaysi xodimning qaysi varag'i */
 const OLD: Record<string, Route> = {
@@ -27,8 +27,9 @@ const OLD: Record<string, Route> = {
   documents: { area: 'miya', tab: null },
   telegram: { area: 'sozlamalar', tab: 'telegram' },
   business: { area: 'sozlamalar', tab: null },
-  // Avval faqat HR edi — endi hamma tez kunda keladigan xodimlar bir joyda
-  hr: { area: 'tezkunda', tab: null },
+  // Avval faqat HR, keyin «Tez kunda» edi — endi hamma AI xodim (ishdagi, olinadigan va tez kunda keladigan) bir joyda
+  hr: { area: 'xodimlar', tab: null },
+  tezkunda: { area: 'xodimlar', tab: null },
 };
 
 export function routeFromHash(hash = window.location.hash): Route {

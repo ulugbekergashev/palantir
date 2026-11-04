@@ -104,8 +104,13 @@ export async function orderApiTests(h: Harness): Promise<void> {
   // «Bugun jamoa nima qildi»: haqiqiy yozuvlardan — to'rt xodim, kamera hodisasi jurnalda, bajarilgan ish sanaldi; begona biznesga ko'rinmaydi
   type Day = { members: { member: string; summary: string; facts: { label: string; value: number }[] }[]; timeline: { id: string }[] };
   const fact = (d: Day, m: string, label: string) => d.members.find(x => x.member === m)?.facts.find(f => f.label === label)?.value ?? -1;
+  // Ro'yxatda — faqat jamoadagi xodimlar (src/lib/crew.ts): egasi Kuzatuvchi va Marketologni ishga oladi
+  for (const member of ['qabulxona', 'kuzatuvchi', 'tahlilchi', 'marketolog']) await api('/api/crew', { token, body: { member, on: true } });
   const day = (await api('/api/team/day', { token })).json as Day;
-  ok("bugun jamoa: besh xodim, tartibda", day.members?.map(m => m.member).join() === 'qabulxona,yordamchi,kuzatuvchi,tahlilchi,marketolog',JSON.stringify(day.members?.map(m => m.summary)));
+  ok("bugun jamoa: jamoadagi besh xodim, tartibda", day.members?.map(m => m.member).join() === 'qabulxona,yordamchi,kuzatuvchi,tahlilchi,marketolog',JSON.stringify(day.members?.map(m => m.summary)));
+  await api('/api/crew', { token, body: { member: 'marketolog', on: false } });
+  ok("bugun jamoa: jamoadan olib tashlangan Marketolog ro'yxatda yo'q", !((await api('/api/team/day', { token })).json as Day).members.some(m => m.member === 'marketolog'));
+  ok("asosiy xodimni (Direktor) olib tashlab bo'lmaydi", (await api('/api/crew', { token, body: { member: 'direktor', on: false } })).status === 409);
   ok('bugun jamoa: kamera hodisasi jurnalda va Kuzatuvchi sanadi', day.timeline.some(e => e.id === events[0].id) && fact(day, 'kuzatuvchi', 'Yozuv') >= 1 && fact(day, 'kuzatuvchi', 'Kamera') >= 1);
   ok("bugun jamoa: bajarilgan ish Yordamchida sanaldi", fact(day, 'yordamchi', 'Bajarildi') >= 1, day.members.find(m => m.member === 'yordamchi')?.summary);
   const otherDay = (await api('/api/team/day', { token: otherToken })).json as Day;

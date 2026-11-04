@@ -1,6 +1,8 @@
 /**
- * AI jamoa: har xodim kim, nima qiladi va hozir nima bilan band — bosh ekrandagi kartalar va xodim sahifasining sarlavhasi
- * shu yerdan. Holat haqiqiy ma'lumotdan (so'rovlar, qo'ng'iroqlar, vazifalar, kameralar, DentaCRM), 30 soniyada yangilanadi.
+ * AI jamoa: har xodim kim, qaysi bo'limda, nima qiladi va hozir nima bilan band — bosh ekrandagi kartalar, «AI xodimlar» sahifasi
+ * va xodim sahifasining sarlavhasi shu yerdan. Holat haqiqiy ma'lumotdan (so'rovlar, qo'ng'iroqlar, vazifalar, kameralar, DentaCRM),
+ * 30 soniyada yangilanadi. Kim jamoada — src/lib/crew.ts (standart: Direktor va Yordamchi, qolgani «+ Xodim qo'shish»dan).
+ * about — xodim haqiqatan nima qiladi (egasi shunga qarab ishga oladi): bajarmaydigan ishini yozmang.
  */
 import { useEffect, useState } from 'react';
 import { Camera, ChartLine, Compass, Headset, Megaphone, PenLine, Target, UserRound, type LucideIcon } from 'lucide-react';
@@ -10,20 +12,38 @@ import type { AdsView, DirectorView } from '../types';
 import { iso } from '../lib/week';
 import { hrefOf, type Area } from '../lib/nav';
 import { som } from '../lib/text';
+import { CREW, isCore, type CrewMember } from '../lib/crew';
 
-export type Member = 'direktor' | 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'kontent' | 'target';
+export type Member = CrewMember;
 
-export const TEAM: Record<Member, { name: string; role: string; about: string; icon: LucideIcon }> = {
-  direktor: { name: 'Direktor', role: 'Raqamlar · qarorlar · jamoa', icon: Compass, about: "Har tong raqamlarni o'qiydi, eng katta muammoni topadi va xodimlarga topshiriq taklif qiladi; siz tasdiqlasangiz — topshiradi va natijasini o'lchaydi." },
-  qabulxona: { name: 'Qabulxona', role: 'Telefon · Instagram · Telegram', icon: Headset, about: "Mijozlarga kunu tun javob beradi, yozilish va savollarni hal qiladi; o'zi hal qila olmaganini sizga so'rov qilib qoldiradi." },
-  yordamchi: { name: 'Yordamchi', role: "Sizning o'ng qo'lingiz", icon: UserRound, about: 'Eslatadi, hujjat tayyorlaydi, savolingizga javob beradi — ovoz bilan yoki yozib.' },
-  kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, about: "Kameralarni kuzatadi, siz bergan topshiriqlarni bajaradi va kadrga qarab savolingizga javob beradi; kelganlarni jadval bilan solishtiradi." },
-  tahlilchi: { name: 'Tahlilchi', role: 'Raqamlar', icon: ChartLine, about: "Murojaatlar, so'rovlar va natija (CRM ulangan bo'lsa — qabul va tushum ham) — kunlik va haftalik ko'rinishda." },
-  marketolog: { name: 'Marketolog', role: 'Meta AI · Instagram', icon: Megaphone, about: "Meta AI orqali raqobatchilarni, akkauntingizni va videolarni tahlil qiladi; kontent-reja va post g'oyalarini tayyorlaydi." },
-  target: { name: 'Targetolog', role: 'Meta reklama · Facebook va Instagram', icon: Target, about: "Topshirig'ingizdan reklama kampaniyasini tuzadi, siz tasdiqlasangiz — Meta'da ishga tushiradi; sarfni kuzatadi va limitga yetsa o'zi to'xtatadi." },
-  kontent: { name: 'Kontent-meyker', role: 'Telegram kanal · kontent-zavod', icon: PenLine, about: "Siz kuzatadigan kanallardagi yangiliklardan kanalingiz uchun post yozadi; siz «Joylash»ni bossangiz — kanalga chiqaradi." },
+/**
+ * Bo'limlar — «AI xodimlar» sahifasida xodimlar shu tartibda guruhlanadi (ishdagilari ham, tez kunda keladiganlari ham).
+ * Yangi xodim — o'z bo'limiga, va bitta ishni ikki xodim qilmasin (masalan, video — Kontent-meykerning ishi, alohida xodim emas)
+ */
+export type Department = 'boshqaruv' | 'sotuv' | 'marketing' | 'sifat' | 'hr' | 'moliya' | 'taminot' | 'huquq';
+export const DEPARTMENTS: Record<Department, { name: string; about: string }> = {
+  boshqaruv: { name: 'Boshqaruv', about: 'Qarorlar, raqamlar va sizning ishlaringiz' },
+  sotuv: { name: 'Mijozlar va sotuv', about: "Javob berish, yangi mijoz, qaytarish va obro'" },
+  marketing: { name: 'Marketing', about: 'Strategiya, kontent, reklama va hamkorliklar' },
+  sifat: { name: 'Nazorat va sifat', about: 'Kameralar, xizmat sifati va standartlar' },
+  hr: { name: 'HR', about: "Ishga olish, o'rgatish va jamoaning ishi" },
+  moliya: { name: 'Moliya', about: 'Hisob, kassa va qarzlar' },
+  taminot: { name: "Ta'minot", about: 'Xarid va ombor' },
+  huquq: { name: 'Huquq', about: 'Shartnoma va hujjatlar' },
 };
-export const MEMBERS = Object.keys(TEAM) as Member[];
+
+export const TEAM: Record<Member, { name: string; role: string; about: string; icon: LucideIcon; department: Department }> = {
+  direktor: { name: 'Direktor', role: 'Raqamlar · qarorlar · jamoa', icon: Compass, department: 'boshqaruv', about: "Har tong raqamlarni o'qiydi, eng katta muammoni topadi va jamoadagi xodimlarga topshiriq taklif qiladi; siz tasdiqlasangiz — topshiradi va natijasini o'lchaydi." },
+  qabulxona: { name: 'Qabulxona', role: 'Telefon · Instagram · Telegram', icon: Headset, department: 'sotuv', about: "Mijozlarga javob tayyorlaydi — siz tasdiqlab yuborasiz yoki o'zi yuboradi (o'zingiz tanlaysiz); yozilishni hal qiladi, bilmaganini sizdan so'raydi." },
+  yordamchi: { name: 'Yordamchi', role: "Sizning o'ng qo'lingiz", icon: UserRound, department: 'boshqaruv', about: 'Eslatadi, hujjat tayyorlaydi, savolingizga javob beradi — ovoz bilan yoki yozib.' },
+  kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, department: 'sifat', about: "Kameralarni kuzatadi, siz bergan topshiriqlarni bajaradi (kassada odam bormi, kim uzoq kutyapti), kadrga qarab savolingizga javob beradi va kechqurun hisobot yuboradi." },
+  tahlilchi: { name: 'Tahlilchi', role: 'Raqamlar', icon: ChartLine, department: 'boshqaruv', about: "Murojaatlar, so'rovlar va natija (CRM ulangan bo'lsa — qabul va tushum ham) — kunlik va haftalik ko'rinishda; mijozlar nimani so'rayotganini guruhlaydi." },
+  marketolog: { name: 'Marketolog', role: 'Meta AI · Instagram', icon: Megaphone, department: 'marketing', about: "Meta AI orqali raqobatchilarni va akkauntingizni tahlil qiladi; Instagram post yozib, rasmini chizdiradi va siz tasdiqlagach joylaydi." },
+  target: { name: 'Targetolog', role: 'Meta reklama · Facebook va Instagram', icon: Target, department: 'marketing', about: "Topshirig'ingizdan reklama kampaniyasini tuzadi, siz tasdiqlasangiz — Meta'da ishga tushiradi; sarfni kuzatadi va limitga yetsa o'zi to'xtatadi." },
+  kontent: { name: 'Kontent-meyker', role: 'Post · kontent-reja · video', icon: PenLine, department: 'marketing', about: "Kontent-reja, post va qisqa video (ssenariy, diktor ovozi, mp4) tayyorlaydi; Telegram kanalingizga siz tasdiqlagach joylaydi." },
+};
+export const MEMBERS: Member[] = [...CREW];
+export { isCore };
 
 /**
  * Bo'limlar: pastki panelda (telefonda 7 tugma sig'adi) bo'lim bitta tugma, ichida xodimlari. Marketing — Marketolog va Kontent-meyker.
@@ -42,9 +62,7 @@ export const isMember = (a: Area): a is RailMember => (RAIL_MEMBERS as string[])
  * on — ishlayapti (yashil nuqta); live — hozir faol ish ustida (qo'ng'iroqda, kamera kuzatyapti): nuqta yorqin halqa bilan.
  * next — birinchi kun: xodim ishlashi uchun egasi qiladigan bitta keyingi qadam (bosh ekrandagi kartada tugma); tayyor bo'lsa — null
  */
-export interface MemberState { status: string; detail: string; on: boolean; live: boolean; badge: number; next: { label: string; href: string } | null;
-  /** Bu biznesda ishlatilmaydi (kamerasi yo'q, klinika emas): bosh ekranda ko'rsatilmaydi va «ulang» deb bezovta qilmaydi */
-  hidden?: boolean }
+export interface MemberState { status: string; detail: string; on: boolean; live: boolean; badge: number; next: { label: string; href: string } | null }
 
 /** Direktor: nechta taklif tasdiq kutyapti (nishon), nechta qaror ishda, oxirgi tahlil qachon */
 function directorState(v: DirectorView | null): MemberState {
@@ -67,8 +85,6 @@ function adsState(v: AdsView | null): MemberState {
   const cur = v?.account?.currency ?? '';
   return {
     on: !!v?.account && limits, live: active > 0, badge: waiting,
-    // Ishlatilmayotgan biznesda bosh ekranda ko'rinmaydi — Marketing bo'limida bor
-    hidden: !!v && !v.account && !v.campaigns.length,
     status: active ? `${active} ta kampaniya ishlayapti` : waiting ? `${waiting} ta reja tasdiq kutyapti` : v?.account ? 'Kabinet ulangan' : 'Reklama kabineti ulanmagan',
     detail: v?.spend && v.account ? `Bugun ${v.spend.today} ${cur} · oy ${v.spend.month} ${cur}` : 'Ulash — bir marta, token bilan',
     next: !v?.account ? { label: 'Reklama kabinetini ulash', href: tab('kabinet') } : !limits ? { label: 'Limitlarni belgilash', href: tab('kabinet') } : null,
@@ -82,8 +98,6 @@ function contentState(c: ContentView | null): MemberState {
   const tab = (t: string) => hrefOf('marketolog', t);
   return {
     on: !!channel && sources > 0, live: !!c?.running, badge: waiting,
-    // Ishlatilmayotgan biznesda (kanal ham, manba ham yo'q) bosh ekranda ko'rinmaydi — Marketing bo'limida bor
-    hidden: !!c && !channel && !sources && !waiting,
     status: c?.running ? 'Post yozyapti…' : waiting ? `${waiting} ta post tasdiq kutyapti` : channel ? `Kanal: ${channel}` : 'Kanal ulanmagan',
     detail: `${sources} ta manba${c?.settings.auto ? ' · har kuni ertalab' : ''}`,
     next: !sources ? { label: "Kuzatiladigan kanal qo'shish", href: tab('manbalar') } : !channel ? { label: 'Kanalingizni ulash', href: tab('kanal') } : null,
@@ -141,9 +155,10 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
           next: ownerLinked ? null : { label: 'Telegram’da ulanish', href: hrefOf('sozlamalar', 'telegram') },
         },
         kuzatuvchi: {
-          on: cams > 0, live: cams > 0, badge: waiting('kuzatuvchi'), hidden: !cams && !clinic,
+          on: cams > 0, live: cams > 0, badge: waiting('kuzatuvchi'),
           status: cams ? `${cams} kamera kuzatyapti` : 'Kamera ulanmagan',
-          detail: cams ? 'Kreslo va kassa — jadval bilan solishtiriladi' : 'Ulash — 2 daqiqa',
+          // Jadval bilan solishtirish — faqat DentaCRM ulangan bo'lsa (qabullar shundan)
+          detail: cams ? (crm ? 'Kreslo va kassa — jadval bilan solishtiriladi' : 'Kreslo, kassa va kutish joyi kuzatiladi') : 'Ulash — 2 daqiqa',
           next: cams ? null : { label: 'Kamerani ulash', href: hrefOf('kuzatuvchi', 'ulash') },
         },
         tahlilchi: {

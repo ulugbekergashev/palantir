@@ -118,6 +118,9 @@ try {
   ok('Palantir ishga tushdi', await up(`${base}/api/health`));
   const setup = await (await fetch(`${base}/api/login/setup`, post({}))).json() as { token: string };
   const given = await (await fetch(`${base}/api/handover`, post({ login: 'ulugbek' }, setup.token))).json() as { password: string };
+  // Yangi profilda jamoa — Direktor va Yordamchi; Kontent-meyker «AI xodimlar»dan olinadi
+  const owner = await (await fetch(`${base}/api/login`, post({ login: 'ulugbek', password: given.password }))).json() as { token: string };
+  ok("Kontent-meyker jamoaga olindi (standart jamoada yo'q)", (await fetch(`${base}/api/crew`, post({ member: 'kontent', on: true }, owner.token))).ok);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
   page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(`console: ${m.text()}`); });

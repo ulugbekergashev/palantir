@@ -1,3 +1,4 @@
+import type { CrewMember } from '../lib/crew';
 import type { BrainView, Call, Camera, CameraAccuracy, CameraSummary, CameraTiming, CameraZone, ClinicDay, ZoneNow } from '../types';
 import type { PriceLine } from '../lib/prices';
 import type { AnketaData } from '../lib/anketa';
@@ -142,7 +143,10 @@ export const api = {
   login: (login: string, password: string) => call<{ token: string }>('/login', { body: { login, password } }),
   /** Parolni unutdi: yangi parol egasining Telegram'iga (server/passwordReset.ts) */
   forgotPassword: (login: string) => call<{ message: string }>('/login/forgot', { body: { login } }),
-  me: () => call<{ business: Business; status: LiveStatus; offeringsRev: string; who: Who }>('/me'),
+  /** crew — AI jamoa (src/lib/crew.ts): ishga olingan xodimlar, asosiylari bilan */
+  me: () => call<{ business: Business; status: LiveStatus; offeringsRev: string; who: Who; crew: CrewMember[] }>('/me'),
+  /** Xodimni ishga olish (on) yoki jamoadan olib tashlash */
+  setCrew: (member: CrewMember, on: boolean) => call<{ crew: CrewMember[] }>('/crew', { body: { member, on } }),
   /** offeringsRev — xizmatlar ro'yxatining panel yuklagan nusxasi: shu orada boshqa joyda o'zgargan bo'lsa server rad etadi */
   saveBusiness: (b: Business, offeringsRev?: string) => call<{ business: Business; offeringsRev: string }>('/business', { method: 'PUT', body: { ...b, offeringsRev } }),
 

@@ -1,14 +1,15 @@
 /**
  * AI bosh ekran (#/ai): egasi qo'l bilan emas, ovoz bilan ishlaydi. Markazda Palantir — bosing va gapiring: jonli suhbat
  * (Gemini Live, telefondagi yordamchining o'zi), javob ovozda va ekranda; asbob natijasi (vazifalar, Palantir javobi) karta bo'lib chiqadi.
- * Pastda AI jamoa — Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi: har biri hozir nima qilayotgani haqiqiy ma'lumotdan.
+ * Pastda AI jamoa — faqat ishga olingan xodimlar (standart: Direktor va Yordamchi), har biri hozir nima qilayotgani haqiqiy ma'lumotdan;
+ * oxirida «+ Xodim qo'shish» — «AI xodimlar» sahifasiga (u yerda qolganlari va tez kunda keladiganlari).
  * Kartani bosish — o'sha xodimning sahifasi (qobiq: LiveApp, chap ustun — Rail). O'rtada «Sizni kutyapti» — hamma xodimdan egasining qarorini
  * kutayotganlar (components/Attention.tsx).
  */
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, ArrowUp, Mic, Sparkles, Square } from 'lucide-react';
+import { ArrowRight, ArrowUp, Mic, Plus, Sparkles, Square } from 'lucide-react';
 import type { Business, LiveStatus } from '../types';
-import { MEMBERS, TEAM, memberHref, type Member, type MemberState } from '../components/team';
+import { TEAM, memberHref, type Member, type MemberState } from '../components/team';
 import { api } from '../data/api';
 import { Markdown } from '../components/Markdown';
 import { useVoice, type VoiceMode } from '../lib/useVoice';
@@ -16,7 +17,6 @@ import { Attention } from '../components/Attention';
 import { GoalsStrip } from '../components/Goals';
 import { dotClass } from '../components/agent';
 import { TeamDay } from '../components/TeamDay';
-import { UPCOMING, UpcomingCard } from './ComingSoon';
 import { hrefOf } from '../lib/nav';
 import { PalantirOrb } from '../components/PalantirOrb';
 import type { Notify } from '../components/Artifacts';
@@ -34,12 +34,16 @@ const STATE_TEXT: Record<VoiceMode, string> = {
 
 const greeting = (h: number) => (h < 5 ? 'Xayrli tun' : h < 12 ? 'Xayrli tong' : h < 18 ? 'Xayrli kun' : 'Xayrli kech');
 
-export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Business; status: LiveStatus; now: Date; team: Record<Member, MemberState> | null; notify: Notify; tick: number; onChanged: () => void }) {
+export function AiPage({ biz, now, team, crew, notify, tick, onChanged }: { biz: Business; status: LiveStatus; now: Date; team: Record<Member, MemberState> | null; crew: Member[]; notify: Notify; tick: number; onChanged: () => void }) {
   const { mode, active, you, ai, cards, error, toggle, orb, push, setYou, setAi, setError, nextId } = useVoice('owner');
   const [typed, setTyped] = useState('');
   const [busyText, setBusyText] = useState(false);
-  // Ishlatilmaydigan xodim (masalan, kamerasiz biznesda Kuzatuvchi) bosh ekranda ko'rsatilmaydi
-  const shown = MEMBERS.filter(m => !team?.[m].hidden);
+  // Faqat jamoadagi xodimlar; oxirgi karta — «+ Xodim qo'shish»
+  const shown = crew;
+  const cells = shown.length + 1;
+  const spanOf = (i: number) => `${i < 2 ? 'lg:col-span-3' : 'lg:col-span-2'} ${i === cells - 1 && cells % 2 ? 'sm:col-span-2 lg:col-span-2' : ''}`;
+  // «Qo'shish» kartasi oxirgi qatorda qolgan joyni to'ldiradi (kompyuterda 6 ustun: tepada 3+3, keyin 2+2+2)
+  const addSpan = `${cells % 2 ? 'sm:col-span-2' : ''} ${['lg:col-span-2', 'lg:col-span-6', 'lg:col-span-4'][(cells - 2) % 3]}`;
 
   const ask = async (text: string) => {
     const q = text.trim();
@@ -157,11 +161,11 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
         {/* AI jamoa — har biri o'z ishida */}
         <section aria-label="AI jamoa" className="mt-14 w-full">
           <h2 className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#9ba1ad]">Sizning AI jamoangiz</h2>
-          {/* Besh xodim: kompyuterda tepada ikkitasi (asosiy ish), pastda uchtasi; telefonda ikki ustun, oxirgisi to'liq enida */}
+          {/* Kompyuterda tepada ikkitasi (asosiy ish), pastda uchtadan; telefonda ikki ustun, toq bo'lsa oxirgisi to'liq enida */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             {shown.map((m, i) => {
               const meta = TEAM[m], st = team?.[m];
-              const span = `${i < 2 ? 'lg:col-span-3' : 'lg:col-span-2'} ${i === shown.length - 1 && shown.length % 2 ? 'sm:col-span-2 lg:col-span-2' : ''}`;
+              const span = spanOf(i);
               return st ? (
                 // Xodim hali ishlay olmasa — karta to'g'ri ulash sahifasiga olib boradi (birinchi kun)
                 <a key={m} href={st.next?.href ?? memberHref(m)} className={`${span} group flex flex-col gap-3 rounded-2xl border border-glass/10 bg-glass/[0.03] p-4 text-left no-underline transition-colors hover:border-glass/20 hover:bg-glass/[0.06]`}>
@@ -185,14 +189,13 @@ export function AiPage({ biz, now, team, notify, tick, onChanged }: { biz: Busin
                 </a>
               ) : <div key={m} className={`${span} h-[132px] animate-pulse rounded-2xl border border-glass/5 bg-glass/[0.02]`} />;
             })}
+            {/* Jamoani kengaytirish: qolgan xodimlar va tez kunda keladiganlari — «AI xodimlar» sahifasida */}
+            <a href={hrefOf('xodimlar')} className={`${addSpan} group flex min-h-[132px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-glass/15 p-4 text-center no-underline transition-colors hover:border-[#ff9a3c]/40 hover:bg-[#ff9a3c]/[0.04]`}>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ff9a3c]/15 text-[#ffd9a0] transition-colors group-hover:bg-[#ff9a3c]/25"><Plus className="h-5 w-5" aria-hidden="true" /></span>
+              <span className="text-[15px] font-semibold text-[#f2f0ea]">Xodim qo'shish</span>
+              <span className="text-xs text-[#9ba1ad]">Qabulxona, Marketing, kameralar va boshqalar</span>
+            </a>
           </div>
-        </section>
-
-        {/* Tez kunda: jamoa qayerga qarab o'sayotgani (qulf bilan, bosilmaydi) */}
-        <section aria-label="Tez kunda" className="mt-8 w-full">
-          <h2 className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#7d838f]">🔒 Tez kunda · {UPCOMING.length} ta yangi xodim</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{UPCOMING.slice(0, 6).map(u => <UpcomingCard key={u.id} u={u} compact />)}</div>
-          <a href={hrefOf('tezkunda')} className="mt-3 flex justify-center text-[13px] font-semibold text-[#a3a9b5] no-underline hover:text-[#f2f0ea]">Hammasi — {UPCOMING.length} ta →</a>
         </section>
 
         {/* Har xodimning bugungi ishi va bugungi jurnal */}

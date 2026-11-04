@@ -38,6 +38,7 @@
     "test:subscription": "tsx scripts/check-subscription.ts",
     "live:subscription": "tsx scripts/live-subscription.ts",
     "test:content": "tsx scripts/check-content.ts",
+    "test:crew": "tsx scripts/check-crew.ts",
     "test:brend": "tsx scripts/check-brend.ts",
     "test:video": "tsx scripts/check-video.ts",
     "live:content": "tsx scripts/live-content.ts",

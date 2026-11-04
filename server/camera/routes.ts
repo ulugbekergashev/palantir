@@ -25,6 +25,7 @@ import { attendance, chairUse, inHours, waitStats, workHours } from './occupancy
 import { flushWaits, settleWaits, waitingIn, waitingNow } from './waiting';
 import { judgeLook, type TamperEvent, type TamperState } from './tamper';
 import type { Look } from './wire';
+import { crewWorks } from '../../src/lib/crew';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -104,7 +105,8 @@ function judgeFrame(biz: BusinessRow, cam: Camera, look: Look, now: number): voi
   const darkOk = !inHours(workHours(biz.profile.hours), new Date(now));
   const r = judgeLook(looks.get(cam.id), look, now, { warmupMs: env.cameraTamperWarmupSec * 1000, holdMs: env.cameraTamperHoldSec * 1000, darkOk });
   looks.set(cam.id, r.next);
-  if (!r.event) return;
+  // Kuzatuvchi jamoadan olib tashlangan — kamera holati haqida xabar yo'q (kadrlar yozilaveradi: qaytib olinsa, tarix joyida)
+  if (!r.event || !crewWorks(biz, 'kuzatuvchi')) return;
   for (const fn of lookListeners) {
     try { fn(biz, cam, r.event); } catch (e) { console.error('[kamera] yopildi/burildi xabari:', (e as Error).message); }
   }
@@ -120,7 +122,7 @@ export function observe(biz: BusinessRow, cam: Camera, people: { x: number; y: n
   // Kadrlar uzoq uzilgan bo'lsa, kamera "yangidan ko'ra boshladi": o'sha oraliqdagi qabullar haqida hukm chiqarilmaydi
   const silent = !cam.lastSeenAt || !cam.seenFrom || now - Date.parse(cam.lastSeenAt) > 2 * t.leaveMs;
   cameras.seen(biz.id, cam.id, isoAt(now), silent ? isoAt(now) : cam.seenFrom!);
-  for (const fn of frameListeners) {
+  for (const fn of crewWorks(biz, 'kuzatuvchi') ? frameListeners : []) {
     try { fn(biz, cam, people, now); } catch (e) { console.error('[kamera] qoida:', (e as Error).message); }
   }
   return Object.fromEntries(cam.zones.map(z => {
