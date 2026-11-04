@@ -163,7 +163,7 @@ html, body { margin: 0; background: ${c.deep}; }
 .stage { position: absolute; left: 96px; right: 96px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; }
 .w { display: inline-block; overflow: hidden; vertical-align: top; padding: 0.06em 0.02em 0.1em; margin: -0.06em -0.02em -0.1em; position: relative; }
 .wi { display: inline-block; position: relative; }
-.fit { margin: 0; width: 100%; overflow-wrap: normal; word-break: keep-all; }
+.fit { margin: 0; width: 100%; overflow-wrap: normal; word-break: keep-all; text-wrap: balance; }
 .hook .stage { top: 380px; bottom: 700px; }
 .hook h1 { font-family: "PDisplay", sans-serif; font-weight: 800; line-height: 1.08; letter-spacing: -0.02em; color: ${c.surface}; text-shadow: 0 6px 28px ${c.deep}b3; }
 .hl-bar { position: absolute; left: 0; right: 0; top: 0.08em; bottom: 0.06em; background: ${c.accent}; border-radius: 0.12em; transform-origin: 0 50%; }
