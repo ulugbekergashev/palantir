@@ -86,7 +86,10 @@ try {
   const password = /parol: (\S+)/.exec(text)?.[1] ?? '';
   ok('login va parol bir marta ko\'rsatildi', text.includes('login: shifodent') && password.length >= 12, text.replace(password, '•••'));
   await shot(page, 'topshirildi');
-  await page.getByRole('button', { name: 'Tayyor — kirish sahifasiga' }).click();
+  const leave = page.getByRole('button', { name: 'Tayyor — kirish sahifasiga' });
+  ok('parol yozib olinmaguncha «Tayyor» bosilmaydi', await leave.isDisabled());
+  await page.getByLabel('Login va parolni yozib oldim').check();
+  await leave.click();
 
   console.log('\n# Endi — faqat login va parol bilan');
   await page.getByRole('heading', { name: 'Kabinetga kirish' }).waitFor({ timeout: 15_000 });

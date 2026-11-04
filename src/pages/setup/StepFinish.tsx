@@ -111,6 +111,8 @@ function Handover({ name }: { name: string }) {
   const [error, setError] = useState('');
   const [done, setDone] = useState<{ login: string; password: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  // Parol boshqa ko'rsatilmaydi, Telegram ulanmagan klinikada tiklab ham bo'lmaydi: «Tayyor» faqat yozib olingani tasdiqlansa
+  const [saved, setSaved] = useState(false);
 
   const give = async (e: FormEvent) => {
     e.preventDefault();
@@ -128,9 +130,13 @@ Parol: ${done.password}`;
       <Card title="Egasiga topshirildi">
         <p className="text-sm text-slate-600">Egasiga bering — u panelga shu bilan kiradi va parolni Sozlamalarda o'zi almashtiradi. Parol boshqa ko'rsatilmaydi.</p>
         <p className="mt-3 rounded-xl bg-emerald-50 px-3.5 py-3 font-mono text-sm text-emerald-900" data-testid="handover-creds">login: {done.login} · parol: {done.password}</p>
+        <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <input type="checkbox" checked={saved} onChange={e => setSaved(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+          Login va parolni yozib oldim
+        </label>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button onClick={() => { void navigator.clipboard?.writeText(text).then(() => setCopied(true), () => {}); }}><Copy className="h-4 w-4" /> {copied ? 'Nusxalandi' : 'Nusxalash'}</Button>
-          <Button variant="primary" onClick={finish}>Tayyor — kirish sahifasiga</Button>
+          <Button variant="primary" onClick={finish} disabled={!saved}>Tayyor — kirish sahifasiga</Button>
         </div>
         <p className="mt-3 text-sm text-slate-500">Sizning kirishingiz tugadi. Keyin Palantir'dan bu klinikaga — Hub'dagi «Panelni ochish», egasi Telegram'da ruxsat beradi.</p>
       </Card>
