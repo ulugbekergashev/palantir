@@ -345,7 +345,7 @@ try {
     && await visible(page.getByRole('button', { name: "Meta AI'ga kirish" })) && await tabOn('Hisobotlar').isVisible() && await tabOn('Topshiriqlar').isVisible());
   await shot('12b-marketolog', true);
   await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Kontent-meyker' }).click();
-  ok("Marketing → Kontent-meyker: o'z sarlavhasi, varaqlari va «manba qo'shing» yo'llanmasi", await visible(page.getByRole('heading', { name: 'Kontent-meyker' }))
+  ok("Marketing → Kontent-meyker: o'z sarlavhasi, varaqlari va «manba qo'shing» yo'llanmasi; Brend-buk varag'i yo'q (Miya'da)", await visible(page.getByRole('heading', { name: 'Kontent-meyker' })) && await tabOn('Brend-buk').count() === 0
     && await tabOn('Qoralamalar').isVisible() && await tabOn('Kanal').isVisible() && await visible(page.getByRole('button', { name: 'Yangi qoralamalar' })) && page.url().endsWith('#/marketolog/qoralamalar'));
   await shot('12c-kontent', true);
   await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Targetolog' }).click();
@@ -537,7 +537,7 @@ try {
   await menu.getByRole('menuitem', { name: 'Sozlamalar' }).click();
   ok("«Ko'proq» → Sozlamalar ochildi, menyu yopildi", await visible(page.getByRole('navigation', { name: 'Ulanishlar' })) && page.url().endsWith('#/sozlamalar') && await menu.count() === 0);
   // Panel Telegram ichida (Mini App) ham ochiladi — sozlamalarning asosiy va Telegram bo'limlari ham telefon enida sig'sin
-  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'marketolog/kampaniyalar', 'marketolog/kabinet', 'xodimlar', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
+  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'marketolog/kampaniyalar', 'marketolog/kabinet', 'xodimlar', 'miya/brend', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
     await go(p);
     await sleep(300);
     const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

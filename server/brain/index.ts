@@ -12,6 +12,7 @@ import { businesses, newId, type BusinessRow } from '../db';
 import { LIMITS, approvedAnswers, brainPrompt, fitPages, inert, packView, plain, sameQuestion } from './logic';
 import { FILE_SOURCE, facts as notes, refresh, removeSource, style, vault as knowledge, vaultPath } from './vault';
 import { orders } from '../orders/store';
+import { companyContext } from '../company';
 
 export { FILE_SOURCE } from './vault';
 
@@ -104,6 +105,8 @@ export function replierBrain(biz: BusinessRow): string {
   return [
     brainPrompt({ qa: of('qa'), fixes: of('fix'), pages: of('page'), style: style.get(biz.id) }),
     rules.length ? `<owner_standing_orders>\nThe owner's standing orders for answering customers — always follow them:\n${rules.map(r => `- ${r}`).join('\n')}\n</owner_standing_orders>` : '',
+    // Brend ovozi (brend-buk — Miya → Brend): qanday gapirish; fakt va narx bu yerdan olinmaydi
+    companyContext(biz, 'customers'),
   ].filter(Boolean).join('\n\n');
 }
 

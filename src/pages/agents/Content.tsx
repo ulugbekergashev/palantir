@@ -251,7 +251,8 @@ export function ContentChannel({ view, setView, notify, status }: { view: Conten
             </label>
           </div>
           <label className="block">
-            <span className="mb-1.5 block text-[13px] font-semibold text-[#a3a9b5]">Uslubingiz va talablaringiz</span>
+            <span className="mb-1.5 block text-[13px] font-semibold text-[#a3a9b5]">Shu kanal uchun qo'shimcha talablar</span>
+            <span className="mb-1.5 block text-[12.5px] text-[#8a909c]">Kompaniyaning ovozi va auditoriyasi — <a href={hrefOf('miya', 'brend')} className="underline">Miya → Brend</a> (hamma xodim shundan oladi). Bu yerda — faqat kanalga xos narsa.</span>
             <textarea value={style ?? s.style} onChange={e => setStyle(e.target.value)} rows={5} maxLength={2000} className={field}
               placeholder="Masalan: «sen» bilan emas, «siz» bilan. Qisqa gaplar. Har postda klinikalar uchun bitta amaliy maslahat. Emoji ko'p bo'lmasin. Oxirida: «Palantir — klinikangiz uchun AI yordamchi»." />
           </label>

@@ -166,13 +166,57 @@ await check("brend-buk: anketa va kitob saqlanadi; yaroqsiz javobda eski kitob q
   assert.equal(brandStore.get(biz.id)?.answers.what, 'boshqa', 'yangi anketa saqlandi');
 });
 
-await check("post yozuvchisiga brend-buk qoidalari boradi (ovoz, taqiqlangan so'zlar)", async () => {
+await check("post yozuvchisiga kompaniya bloki boradi: biznes nomi va brend-buk qoidalari (ovoz, taqiqlangan so'zlar)", async () => {
   const biz = newBiz('Yozuv');
   brandStore.save(biz.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, BOOK as never);
   let got = '';
-  await topicDraft(biz, 'AI xodim nima', async (_b, s) => { got = s.brand ?? ''; return { text: 'Post', sourceUrl: null }; });
-  assert.equal(got, brandNotes(brandStore.book(biz.id)!));
+  await topicDraft(biz, 'AI xodim nima', async (_b, s) => { got = s.company ?? ''; return { text: 'Post', sourceUrl: null }; });
+  assert.match(got, /^<company>/);
+  assert.match(got, /Business: Yozuv/);
+  // Brend-bukning birinchi qatori (mohiyat va pozitsiya) blok ichida — burchak qavslar almashtirilgan holda
+  const first = brandNotes(brandStore.book(biz.id)!).split('\n')[0].replace(/</g, '‹').replace(/>/g, '›');
+  assert.ok(got.includes(first), first);
   assert.match(got, /Never use these words: inqilob/);
+});
+
+await check("kompaniya asosi: har xodim o'z qismini oladi — kontent hammasini, Qabulxona faqat ovozni, Yordamchi bir qatorni", async () => {
+  const { companyContext } = await import('../server/company');
+  const biz = newBiz('Asos');
+  businesses.update(biz.id, { profile: { ...biz.profile, offerings: [{ id: 'a', name: 'Plomba', price: 250_000 }, { id: 'b', name: 'Maslahat', price: 0 }] } });
+  const row = businesses.byId(biz.id)!;
+  assert.equal(companyContext(row, 'owner'), '', "brend-buksiz Yordamchiga qo'shimcha blok yo'q (profil bor)");
+  assert.equal(companyContext(row, 'customers'), '', "brend-buksiz Qabulxonaga ham");
+  const bare = companyContext(row, 'content');
+  assert.match(bare, /Business: Asos \(IT\)/);
+  assert.match(bare, /Biznesga AI xodim quradi/, "«Biznes haqida» yo'q bo'lsa — profildagi tavsif");
+  assert.match(bare, /- Plomba — 250 000 so'm/);
+  assert.match(bare, /- Maslahat\n/, "narxsiz xizmat — narxsiz");
+  brandStore.save(biz.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, { ...BOOK, personas: [{ name: 'Klinika egasi', who: '30–50 yosh, vaqti kam', pains: ['javobsiz mijozlar'] }] } as never);
+  const content = companyContext(row, 'content'), customers = companyContext(row, 'customers'), owner = companyContext(row, 'owner'), ads = companyContext(row, 'ads');
+  assert.match(content, /Brand book:/);
+  assert.match(content, /Never use these words: inqilob/);
+  assert.match(customers, /Brand voice/);
+  assert.match(customers, /Never use these words: inqilob/);
+  assert.doesNotMatch(customers, /Plomba|Biznesga AI xodim|Business:/, "Qabulxonaga narx va tavsif bu yerdan bormaydi (o'z yo'li bor)");
+  assert.match(owner, /Brand: /);
+  assert.doesNotMatch(owner, /Plomba|Voice rules/);
+  assert.match(ads, /Plomba/);
+  assert.match(ads, /Audience:/);
+  assert.equal(companyContext(row, 'content', { withBrand: false }).includes('Brand book:'), false);
+});
+
+await check("brend-buk Miya papkasida: saqlanganda Brend.md yoziladi (Bilim ichida emas — mijoz javobiga tushmaydi), mundarijada havola", async () => {
+  const { vaultDir } = await import('../server/brain/vault');
+  const { existsSync, readFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const biz = newBiz('Papka');
+  brandStore.save(biz.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, BOOK as never);
+  const dir = vaultDir(biz.id);
+  const page = readFileSync(join(dir, 'Brend.md'), 'utf8');
+  assert.match(page, /^# Brend — /);
+  assert.match(page, /## Ishlatilmaydigan so'zlar\n- inqilob/);
+  assert.equal(existsSync(join(dir, 'Bilim', 'Brend.md')), false);
+  assert.match(readFileSync(join(dir, 'INDEKS.md'), 'utf8'), /\[\[Brend\|Brend\]\]/);
 });
 
 await check("reja: brend-buk bo'lmasa — avval u yoziladi; mavzu soni chegarada; yangi reja ishi bor mavzularni saqlaydi", async () => {

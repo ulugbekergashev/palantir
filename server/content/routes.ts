@@ -9,6 +9,7 @@ import { ContentError, MAX_DRAFT, contentStore } from './store';
 import { cancelDraft, connectChannel, disconnectChannel, editDraft, factoryRunning, publishDraft, runFactory, topicDraft } from './factory';
 import { normalizeHandle } from './telegram';
 import { brandStore, makeBrandBook, setNarrator } from './brand';
+import { mirrorBrand } from './brandPage';
 import { PLAN_MAX, PLAN_MIN, makePlan, planDraft, planStore } from './plan';
 import { editScenes, makeVideo, videoAudio, videoStore, voiceVideo } from './video';
 import { renderState, startRender, videoMp4 } from './render';
@@ -55,7 +56,11 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
     brand: brandStore.get(biz.id), plan: planStore.list(biz.id), videos: videoStore.list(biz.id).map(v => ({ ...v, render: renderState(biz.id, v) })), voice: voiceProvider() !== null, voiceBy: voiceProvider(), busy: aiBusy.has(biz.id),
   });
 
-  app.get('/api/content', asBiz((_req, res, biz) => { res.json(view(biz)); }));
+  app.get('/api/content', asBiz((_req, res, biz) => {
+    // Bu o'zgarishdan oldin yaratilgan brend-buk ham Miya papkasiga tushsin (o'zgarmagan bo'lsa yozilmaydi)
+    mirrorBrand(biz.id, brandStore.book(biz.id));
+    res.json(view(biz));
+  }));
 
   app.put('/api/content/settings', asOwner((req, res, biz) => {
     const p = Settings.safeParse(req.body);

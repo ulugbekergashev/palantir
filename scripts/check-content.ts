@@ -82,6 +82,14 @@ await check("yozuvchiga manba matni ma'lumot sifatida beriladi: yopuvchi teg orq
   assert.match(p.user, /<source_post n="1"/);
 });
 
+await check("yozuvchi: kanal mavzusi biznesdan (kompaniya bloki) — «kichik biznes uchun AI» qotirilmagan", () => {
+  const p = buildWriterPrompt({ lang: 'uz', style: '', channelTitle: 'Tabassum', company: '<company>\nBusiness: Tabassum (stomatologiya)\n</company>' }, [{ id: 1, url: 'u', date: null, text: 'Yangi plomba usuli' }], 1, 'Aziz');
+  assert.doesNotMatch(p.system, /small business owners|AI and technology/);
+  assert.match(p.system, /Business: Tabassum \(stomatologiya\)/);
+  assert.match(p.system, /Bu siz uchun nima degani\?/);
+  assert.doesNotMatch(p.user, /small business/);
+});
+
 await check("AI javobi: sarlavha biroz boshqacha bo'lsa ham o'qiladi; «NO_POSTS» — bo'sh; tushunarsiz javob — xato (manbalar yo'qolmasin)", () => {
   assert.deepEqual(draftsFromAnswer('**### POST 1:** sarlavha\nMatn bir', items).map(d => d.text), ['Matn bir']);
   assert.deepEqual(draftsFromAnswer('NO_POSTS', items), []);

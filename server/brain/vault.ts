@@ -462,6 +462,7 @@ function rebuild(biz: BusinessRow, root: string): void {
     // Hali yozilmagan faylga havola qo'yilmaydi (Obsidian uni «uzilgan havola» deb ko'rsatadi)
     ...(existsSync(join(root, FACTS)) ? [`- ${link(FACTS, 'Faktlar')} — ${factCount(root)} ta`] : []),
     ...(existsSync(join(root, STYLE)) ? [`- ${link(STYLE, 'Uslub')}`] : []),
+    ...(existsSync(join(root, 'Brend.md')) ? [`- ${link('Brend.md', 'Brend')} — kompaniyaning ovozi va auditoriyasi (panel → Miya → Brend)`] : []),
     ...(existsSync(join(root, TASKS_FILE)) ? [`- ${link(TASKS_FILE, 'Vazifalar')}`] : []),
     ...(existsSync(join(root, PHONE_FILE)) ? [`- ${link(PHONE_FILE, 'Telefon')} — telefondagi AI qanday gaplashadi`] : []),
     `- ${link('QOIDALAR.md', 'Bu papka qanday tuzilgan')}`, '',
@@ -495,7 +496,8 @@ Bu — Palantir'ning ikkinchi miyasi: biznes haqida bilgan hamma narsasi shu fay
 - **Vazifalar.md** — vazifa va eslatmalar. Katakchani belgilasangiz — bajarildi, \`[-]\` — bekor; nom yoki vaqtni (📅) o'zgartirsangiz — Palantir'da ham o'zgaradi; yangi qator \`- [ ] Nima qilish 2026-10-20 15:00\` — yangi vazifa.
 - **Qo'ng'iroqlar/** — telefon suhbatlari: nima qilindi va suhbat matni.
 - **Telefon.md** — telefondagi AI qanday gaplashadi: salomlashish, murojaat, ohang, ovoz (\`ovoz: standart\` yoki Gemini ovozi nomi). O'zgartirsangiz — keyingi qo'ng'iroqdan.
-- **INDEKS.md**, **Narxlar.md** — Palantir o'zi yozadi; qo'lda o'zgartirmang.
+- **Brend.md** — brend-buk: kompaniyaning ovozi, auditoriyasi va ranglari. Hamma xodim shu ovozda yozadi. O'zgartirish — panel → Miya → Brend.
+- **INDEKS.md**, **Narxlar.md**, **Brend.md** — Palantir o'zi yozadi; qo'lda o'zgartirmang.
 
 Narxlar, qabullar va to'lovlar bu yerda emas — ular panelda va CRM'da.
 `;

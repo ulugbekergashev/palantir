@@ -12,6 +12,7 @@ import type { BusinessRow } from '../db';
 import { sql, type Row } from '../db';
 import { ContentError } from './store';
 import { askText, fence, jsonIn } from './writer';
+import { mirrorBrand } from './brandPage';
 
 sql.exec(`
 CREATE TABLE IF NOT EXISTS content_brand (
@@ -47,7 +48,10 @@ export const brandStore = {
     sql.run(`INSERT INTO content_brand (business_id, answers, book, updated_at) VALUES (?, ?, ?, ?)
       ON CONFLICT (business_id) DO UPDATE SET answers = excluded.answers, book = excluded.book, updated_at = excluded.updated_at`,
       bizId, JSON.stringify(answers), book ? JSON.stringify(book) : null, sql.nowIso());
-    return brandStore.get(bizId)!;
+    const saved = brandStore.get(bizId)!;
+    // Miya papkasida nusxa (Brend.md) — Obsidian'da ham ko'rinsin
+    mirrorBrand(bizId, saved.book);
+    return saved;
   },
 };
 

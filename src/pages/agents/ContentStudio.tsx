@@ -1,5 +1,5 @@
 /**
- * Kontent-meyker → Brend-buk · Reja · Video.
+ * Brend-buk (kompaniyaniki: Miya → Brend, hamma xodim o'qiydi — server/company.ts) · Kontent-meyker → Reja · Video.
  * Brend-buk — qisqa anketa (bo'sh qolsa ham bo'ladi: AI biznes profilidan oladi) → to'liq brend-tizim (BrandBookView.tsx).
  * Reja — brend-buk ustunlari bo'yicha mavzular; har biridan bir tugma bilan post yoki video.
  * Video — AI ssenariy + diktor (Gemini, zaxira — ElevenLabs) serverda; kadrlar shu yerda (brauzerda) chiziladi va mp4 bo'lib yuklab olinadi.
@@ -76,7 +76,7 @@ export function ContentBrandTab(props: Props) {
   if (!brand?.book || editing) {
     return (
       <Panel title={brand?.book ? 'Anketani o\'zgartirish' : 'Brend-buk yaratish'} action={brand?.book ? <button type="button" onClick={() => setEditing(false)} className={ghost}>Bekor</button> : undefined}>
-        <p className="mb-4 text-[13.5px] leading-relaxed text-[#a3a9b5]">Brend-buk — postlar va videolar uchun yagona tizim: mohiyat va va'da, auditoriya, xabarlar, ovoz qoidalari va namunalari, ranglar, ilgaklar, formatlar va video diktori. Kontent-meyker har postda shunga tayanadi; videolar shu ranglarda chiziladi.</p>
+        <p className="mb-4 text-[13.5px] leading-relaxed text-[#a3a9b5]">Brend-buk — postlar va videolar uchun yagona tizim: mohiyat va va'da, auditoriya, xabarlar, ovoz qoidalari va namunalari, ranglar, ilgaklar, formatlar va video diktori. Butun jamoa shunga tayanadi: Kontent-meyker post va videoda, Marketolog Instagram'da, Targetolog reklamada, Qabulxona mijozlarga javobda. Videolar shu ranglarda chiziladi.</p>
         <BrandForm {...props} initial={answers} onDone={() => setEditing(false)} />
       </Panel>
     );
@@ -106,7 +106,7 @@ export function ContentPlanTab({ view, setView, notify }: Props) {
     <div className="space-y-5">
       <Panel title="Kontent reja">
         <form onSubmit={make} className="space-y-3">
-          {!view.brand?.book && <p className="rounded-xl bg-[#f5b454]/10 p-3 text-[13px] text-[#fde2b0]">Brend-buk hali yo'q — reja bilan birga biznes profilingizdan o'zi yoziladi. Aniqroq bo'lishi uchun avval <a href={hrefOf('marketolog', 'brend')} className="font-semibold underline">Brend-buk</a> anketasini to'ldirsangiz yaxshi.</p>}
+          {!view.brand?.book && <p className="rounded-xl bg-[#f5b454]/10 p-3 text-[13px] text-[#fde2b0]">Brend-buk hali yo'q — reja bilan birga biznes profilingizdan o'zi yoziladi. Aniqroq bo'lishi uchun avval <a href={hrefOf('miya', 'brend')} className="font-semibold underline">Brend-buk</a> anketasini to'ldirsangiz yaxshi.</p>}
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex items-center gap-2 text-[13.5px] text-[#c9cbd2]">
               <select value={count} onChange={e => setCount(Number(e.target.value))} className="rounded-lg border border-glass/10 bg-[#0b0c10] px-2 py-1.5 text-[#f2f0ea]">
@@ -341,7 +341,7 @@ export function ContentVideoTab({ view, setView, notify }: Props) {
     <div className="space-y-5">
       <Panel title="Video tayyorlash">
         {!book ? (
-          <p className="text-[13.5px] text-[#fde2b0]"><Palette className="mr-1 inline h-4 w-4" aria-hidden="true" />Video brend-buk ranglarida chiziladi — avval <a href={hrefOf('marketolog', 'brend')} className="font-semibold underline">Brend-buk</a> yarating.</p>
+          <p className="text-[13.5px] text-[#fde2b0]"><Palette className="mr-1 inline h-4 w-4" aria-hidden="true" />Video brend-buk ranglarida chiziladi — avval <a href={hrefOf('miya', 'brend')} className="font-semibold underline">Brend-buk</a> yarating.</p>
         ) : (
           <form onSubmit={make} className="space-y-3">
             <p className="text-[13.5px] leading-relaxed text-[#a3a9b5]">9:16, 20–35 soniya: Kontent-meyker ssenariy yozadi, diktor ({view.voiceBy === 'elevenlabs' ? 'ElevenLabs' : <>brend-bukdagi ovoz — <b className="text-[#e4e3de]">{book.narrator}</b></>}) o'qiydi, video brendingiz uslubida — kinetik matn, so'zma-so'z subtitr, sahna o'tishlari bilan shu kompyuterda mp4 bo'lib yig'iladi.</p>

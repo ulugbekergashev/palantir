@@ -34,6 +34,8 @@ const OLD: Record<string, Route> = {
 
 export function routeFromHash(hash = window.location.hash): Route {
   const [head = '', tab = null] = hash.replace(/^#\/?/, '').split(/[?]/)[0].split('/');
+  // Brend-buk avval Kontent-meykerda edi — endi kompaniyaniki, Miya'da
+  if (head === 'marketolog' && tab === 'brend') return { area: 'miya', tab: 'brend' };
   if ((AREAS as string[]).includes(head)) return { area: head as Area, tab: tab || null };
   return Object.hasOwn(OLD, head) ? OLD[head] : { area: 'ai', tab: null };
 }

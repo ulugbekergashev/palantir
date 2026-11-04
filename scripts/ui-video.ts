@@ -130,8 +130,9 @@ try {
   await page.getByRole('button', { name: 'Kirish' }).click();
   await page.waitForFunction(() => !document.querySelector('h1')?.textContent?.includes('Kabinetga kirish'), null, { timeout: 15_000 });
 
-  console.log('\n# Brend-buk');
-  await page.goto(`${base}/#/marketolog/brend`);
+  console.log('\n# Brend-buk (kompaniyaniki — Miya → Brend)');
+  await page.goto(`${base}/#/miya/brend`);
+  ok("brend-buk Miya'da: «Brend» varag'i tanlangan", await page.locator('nav[aria-label="Varaqlar"]').getByRole('link', { name: 'Brend', exact: true }).getAttribute('aria-current') === 'page');
   await page.getByRole('radio', { name: 'Shaxsiy brendim' }).click();
   await page.getByLabel('Nima qilasiz?').fill('Biznesga AI xodim quraman');
   await shot(page, 'brend-anketa');
