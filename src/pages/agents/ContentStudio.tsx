@@ -313,7 +313,7 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
             {mode === 'idle' && <button type="button" disabled={!!busy} onClick={() => { if (window.confirm("Video o'chirilsinmi?")) void run('rm', () => api.contentVideoRemove(v.id)); }} aria-label="Videoni o'chirish" className={`${button} text-[#a3a9b5] hover:bg-glass/5`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}
           </div>
           {mode === 'record' && <p className="text-[12.5px] text-[#8a909c]">Yozilyapti — video uzunligicha vaqt ketadi. Bu varaqni yopmang va boshqa varaqqa o'tmang.</p>}
-          {rBusy && <p className="text-[12.5px] text-[#8a909c]" aria-live="polite">Video shu kompyuterda yig'ilmoqda{v.render?.phase === 'rendering' ? ` — ${v.render.progress}%` : ' (navbatda)'}. Odatda 2–4 daqiqa; panelni yopsangiz ham davom etadi.</p>}
+          {rBusy && <p className="text-[12.5px] text-[#8a909c]" aria-live="polite">{v.render?.phase === 'rendering' ? `${v.render.step || "Video yig'ilmoqda"} — ${v.render.progress}%` : 'Video navbatda'}. Shu kompyuterda, odatda 3–5 daqiqa; panelni yopsangiz ham davom etadi.</p>}
           {mode === 'export' && <p className="text-[12.5px] text-[#8a909c]" aria-live="polite">Yig'ilyapti — {Math.round(progress * 100)}%. Odatda video uzunligidan tezroq; varaqni yopmang.</p>}
         </div>
       </div>

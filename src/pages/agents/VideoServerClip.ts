@@ -16,7 +16,7 @@ export function renderLabel(v: ContentVideo): { text: string; tone: 'ok' | 'wait
   const r = v.render;
   if (!r?.available || r.phase === 'none') return { text: `Ovoz tayyor · ${Math.round(v.duration)} s`, tone: 'ok' };
   if (r.phase === 'queued') return { text: 'Video navbatda', tone: 'wait' };
-  if (r.phase === 'rendering') return { text: `Video yig'ilmoqda · ${r.progress}%`, tone: 'wait' };
+  if (r.phase === 'rendering') return { text: `${r.step || "Video yig'ilmoqda"} · ${r.progress}%`, tone: 'wait' };
   if (r.phase === 'done') return { text: `Video tayyor · ${Math.round(v.duration + 2.3)} s`, tone: 'ok' };
   if (r.phase === 'stale') return { text: "Ssenariy yoki brend o'zgargan — videoni yangilang", tone: 'wait' };
   return { text: "Video yig'ilmadi", tone: 'bad' };
@@ -26,6 +26,9 @@ export function useServerClip(v: ContentVideo) {
   const [poster, setPoster] = useState<string | null>(null);
   const [clip, setClip] = useState<string | null>(null);
   const mp4 = useRef<Blob | null>(null);
+  /** Karta yopilgan bo'lsa (mp4 yuklanayotganda) — blob manzili yaratilmaydi, oqib ketmaydi */
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const ready = renderReady(v);
 
   // Muqova: video tayyor bo'lsa serverdan olinadi
@@ -46,7 +49,10 @@ export function useServerClip(v: ContentVideo) {
   return {
     poster: ready ? poster : null,
     clip: ready ? clip : null,
-    watch: async () => setClip(URL.createObjectURL(await file())),
+    watch: async () => {
+      const b = await file();
+      if (alive.current) setClip(URL.createObjectURL(b));
+    },
     file,
   };
 }

@@ -603,7 +603,11 @@ export interface ContentBrand { answers: BrandAnswers; book: BrandBook | null; u
 export interface PlanItem { id: string; n: number; pillar: string; title: string; angle: string; draftId: string | null; videoId: string | null; createdAt: string }
 
 /** Video sahnasi: ekrandagi qisqa yozuv va diktor gapi. kind — sahna turi (andoza shunga qarab chizadi) */
-export interface VideoScene { kind: 'hook' | 'point' | 'claim' | 'sign'; text: string; voice: string }
+export interface VideoScene {
+  kind: 'hook' | 'point' | 'claim' | 'sign'; text: string; voice: string;
+  /** Sahna rasmi tavsifi (inglizcha, AI yozadi; rasm Gemini'da chiziladi) — ilgak va fikrlarda */
+  visual?: string;
+}
 /**
  * Video: AI ssenariy yozadi → diktor (Gemini, zaxira — ElevenLabs) sahnama-sahna o'qiydi → video panelda (brauzerda) chiziladi va yozib olinadi.
  * starts — har sahna ovozda boshlanadigan soniya; duration — ovoz uzunligi
@@ -611,6 +615,8 @@ export interface VideoScene { kind: 'hook' | 'point' | 'claim' | 'sign'; text: s
 export interface ContentVideo {
   id: string; topic: string; scenes: VideoScene[]; status: 'script' | 'voiced' | 'failed'; error: string | null;
   starts: number[]; duration: number; createdAt: string;
+  /** Fon musiqasi kayfiyati (inglizcha, AI yozadi; musiqa Gemini Lyria'da) */
+  music?: string | null;
   /** Server renderi (HyperFrames): panel ro'yxatida keladi */
   render?: VideoRender;
 }
@@ -618,7 +624,7 @@ export interface ContentVideo {
  * mp4 serverda yig'ilishi: none — hali yo'q, queued/rendering — navbatda/yig'ilmoqda (progress 0–100), done — tayyor,
  * stale — ssenariy, ovoz yoki brend o'zgargan (qayta yasash kerak), failed — xato. available — shu kompyuterda server render bormi
  */
-export interface VideoRender { phase: 'none' | 'queued' | 'rendering' | 'done' | 'stale' | 'failed'; progress: number; error: string | null; available: boolean }
+export interface VideoRender { phase: 'none' | 'queued' | 'rendering' | 'done' | 'stale' | 'failed'; progress: number; error: string | null; available: boolean; step?: string | null }
 
 export interface CallLine { who: 'ai' | 'caller'; text: string }
 /**

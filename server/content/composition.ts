@@ -23,6 +23,9 @@ const PRE = 0.15;
 const CAP_WORDS = 4;
 const CAP_CHARS = 24;
 const MUSIC_VOLUME = 0.14;
+/** Musiqa bo'lagi uzunligi (Lyria 3 Clip — 30 s): video uzunroq bo'lsa ikkinchi nusxa yumshoq o'tish bilan ulanadi */
+export const MUSIC_LOOP = 30;
+const MUSIC_XFADE = 1.5;
 
 export interface TimedWord { text: string; start: number; end: number }
 
@@ -155,14 +158,14 @@ html, body { margin: 0; background: ${c.deep}; }
 #vignette { background: radial-gradient(ellipse at 50% 42%, ${c.deep}00 38%, ${c.deep}d9 100%); }
 .shot { overflow: hidden; }
 .shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.scrim { background: linear-gradient(180deg, ${c.deep}cc 0%, ${c.deep}33 30%, ${c.deep}40 55%, ${c.deep}f2 100%), linear-gradient(0deg, ${c.bg}55, ${c.bg}55); }
+.scrim { background: linear-gradient(180deg, ${c.deep}d9 0%, ${c.deep}59 26%, ${c.deep}73 52%, ${c.deep}f2 100%), linear-gradient(0deg, ${c.bg}4d, ${c.bg}4d); }
 .scene, .scene .in { position: absolute; inset: 0; }
 .stage { position: absolute; left: 96px; right: 96px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; }
 .w { display: inline-block; overflow: hidden; vertical-align: top; padding: 0.06em 0.02em 0.1em; margin: -0.06em -0.02em -0.1em; position: relative; }
 .wi { display: inline-block; position: relative; }
 .fit { margin: 0; width: 100%; overflow-wrap: normal; word-break: keep-all; }
 .hook .stage { top: 380px; bottom: 700px; }
-.hook h1 { font-family: "PDisplay", sans-serif; font-weight: 800; line-height: 1.08; letter-spacing: -0.02em; color: ${c.surface}; }
+.hook h1 { font-family: "PDisplay", sans-serif; font-weight: 800; line-height: 1.08; letter-spacing: -0.02em; color: ${c.surface}; text-shadow: 0 6px 28px ${c.deep}b3; }
 .hl-bar { position: absolute; left: 0; right: 0; top: 0.08em; bottom: 0.06em; background: ${c.accent}; border-radius: 0.12em; transform-origin: 0 50%; }
 .point .stage { top: 330px; bottom: 680px; justify-content: flex-start; }
 .num { font-family: "PDisplay", sans-serif; font-weight: 800; font-size: 230px; line-height: 1; color: transparent; -webkit-text-stroke: 4px ${c.accent}; margin-bottom: 28px; }
@@ -198,6 +201,30 @@ html, body { margin: 0; background: ${c.deep}; }
 #mark { position: absolute; left: 96px; top: 96px; display: flex; align-items: center; gap: 18px; font-weight: 700; font-size: 34px; color: ${c.surface}; letter-spacing: 0.01em; }
 #mark i { display: block; width: 26px; height: 26px; border-radius: 6px; background: ${c.accent}; }
 `;
+}
+
+/**
+ * Fon musiqasi: boshida sekin kiradi, diktor gapirganda past, ovoz tugagach biroz ko'tariladi va oxirida so'nadi. Video musiqa
+ * bo'lagidan (30 s) uzun bo'lsa — ikkinchi nusxa birinchisi so'nayotganda kiradi (sezilmas ulanish)
+ */
+export function musicTags(file: string, total: number, voiceEnd: number): string {
+  const level = (t: number): number => {
+    const pts: [number, number][] = [[0, 0], [0.8, MUSIC_VOLUME], [voiceEnd, MUSIC_VOLUME], [Math.min(total - 0.6, voiceEnd + 0.4), MUSIC_VOLUME * 2.2], [total, 0]];
+    for (let k = 1; k < pts.length; k++) {
+      if (t <= pts[k][0]) return pts[k - 1][1] + ((pts[k][1] - pts[k - 1][1]) * (t - pts[k - 1][0])) / Math.max(1e-6, pts[k][0] - pts[k - 1][0]);
+    }
+    return 0;
+  };
+  const parts = total <= MUSIC_LOOP
+    ? [{ start: 0, end: total, fadeIn: false, fadeOut: false }]
+    : [{ start: 0, end: MUSIC_LOOP, fadeIn: false, fadeOut: true }, { start: MUSIC_LOOP - MUSIC_XFADE, end: total, fadeIn: true, fadeOut: false }];
+  return parts.map((p, k) => {
+    const marks = [p.start, p.start + MUSIC_XFADE, 0.8, voiceEnd, voiceEnd + 0.4, p.end - MUSIC_XFADE, total - 0.6, p.end]
+      .filter(t => t >= p.start && t <= p.end).sort((a, b) => a - b).filter((t, i, a) => i === 0 || t - a[i - 1] > 0.01);
+    const xf = (t: number) => Math.min(p.fadeIn ? (t - p.start) / MUSIC_XFADE : 1, p.fadeOut ? (p.end - t) / MUSIC_XFADE : 1, 1);
+    const points = marks.map(t => ({ t: r3(t - p.start), v: r3(Math.max(0, level(t) * xf(t))) }));
+    return `<audio id="music${k ? k + 1 : ''}" src="${esc(file)}" data-start="${r3(p.start)}" data-duration="${r3(p.end - p.start)}" data-volume="1" data-automation='${JSON.stringify({ version: 1, lanes: [{ target: 'volume', points }] })}'></audio>`;
+  }).join('\n');
 }
 
 /** Kompozitsiya: total — videoning to'liq uzunligi (soniya) */
@@ -253,13 +280,7 @@ export function buildComposition(input: CompositionInput): Composition {
   };
   const json = JSON.stringify(data).replace(/</g, '\\u003c');
 
-  const voiceEnd = r3(LEAD + duration);
-  const music = files.music
-    ? `<audio id="music" src="${esc(files.music)}" data-start="0" data-duration="${total}" data-volume="${MUSIC_VOLUME}" data-automation='${JSON.stringify({
-      version: 1,
-      lanes: [{ target: 'volume', points: [{ t: 0, v: 0 }, { t: 0.8, v: MUSIC_VOLUME }, { t: voiceEnd, v: MUSIC_VOLUME }, { t: Math.min(total - 0.6, voiceEnd + 0.4), v: MUSIC_VOLUME * 2.2 }, { t: total, v: 0 }] }],
-    })}'></audio>`
-    : '';
+  const music = files.music ? musicTags(files.music, total, r3(LEAD + duration)) : '';
 
   const lang = /[а-яё]/i.test(scenes.map(s => s.voice).join(' ')) ? 'ru' : 'uz';
   const html = `<!doctype html>

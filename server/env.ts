@@ -284,6 +284,11 @@ export const env = {
    * video ~0,7 sent (2026-11). Ovoz brend-bukda tanlanadi (src/lib/narrators.ts); model — shu, band bo'lsa Flash-Lite
    */
   geminiTtsModel: process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts',
+  /** Video qo'shimchalari (media.ts): sahna rasmlari, fon musiqasi, so'z vaqtlari. VIDEO_MEDIA=off — Gemini'dan so'ralmaydi */
+  geminiImageModel: process.env.GEMINI_IMAGE_MODEL || 'gemini-nano-banana-2.1',
+  geminiMusicModel: process.env.GEMINI_MUSIC_MODEL || 'lyria-3-clip-preview',
+  geminiTranscribeModel: process.env.GEMINI_TRANSCRIBE_MODEL || 'gemini-3.5-transcribe',
+  videoMedia: process.env.VIDEO_MEDIA !== 'off',
   /**
    * Zaxira diktor — ElevenLabs (Gemini kaliti bo'lmasa yoki Gemini ovoz bermasa): elevenlabs.io → Developers → API keys.
    * Ovoz va model almashtirilsa bo'ladi: eleven_v4 o'zbekchani biladi (multilingual_v2 va flash bilmaydi)
