@@ -7,6 +7,7 @@
  */
 import type { BrandAnswers, BrandBook, BrandColors, BrandPillar, ContentBrand } from '../../src/types';
 import { DEFAULT_NARRATOR, NARRATORS, isNarrator } from '../../src/lib/narrators';
+import { contrast } from '../../src/lib/color';
 import type { BusinessRow } from '../db';
 import { sql, type Row } from '../db';
 import { ContentError } from './store';
@@ -61,15 +62,7 @@ const objs = <T>(v: unknown, max: number, f: (o: Obj) => T | null): T[] =>
   (Array.isArray(v) ? v : []).flatMap(x => { const r = x && typeof x === 'object' ? f(x as Obj) : null; return r ? [r] : []; }).slice(0, max);
 const HEX = /^#[0-9a-f]{6}$/i;
 
-/** WCAG nisbiy yorqinlik va kontrast (1…21) */
-function luminance(hex: string): number {
-  const ch = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
-}
-export function contrast(a: string, b: string): number {
-  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
-  return (x + 0.05) / (y + 0.05);
-}
+export { contrast };
 /** Fon ustida o'qiladigan rang: berilgani yetarli bo'lsa o'zi, aks holda qora yoki oqdan qaysi biri kontrastliroq */
 const readableOn = (bg: string, want: string): string =>
   contrast(bg, want) >= MIN_CONTRAST ? want : contrast(bg, '#111111') >= contrast(bg, '#FFFFFF') ? '#111111' : '#FFFFFF';

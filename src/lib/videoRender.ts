@@ -10,6 +10,7 @@
  * fon to'ri sekin siljiydi (kadr «tirik» turadi).
  */
 import type { BrandBook, ContentVideo, VideoScene } from '../types';
+import { LARGE_AA, contrast } from './color';
 
 export const W = 1080;
 export const H = 1920;
@@ -195,6 +196,9 @@ function drawPoints(ctx: CanvasRenderingContext2D, b: BrandBook, points: { s: Vi
   });
 }
 
+/** Da'voning oxirgi qatori — urg'u rangida, lekin u fonda o'qilmasa (3:1 dan past) plitka rangida */
+const claimAccent = (b: BrandBook) => (contrast(b.colors.accent, b.colors.bg) >= LARGE_AA ? b.colors.accent : b.colors.surface);
+
 function drawClaim(ctx: CanvasRenderingContext2D, b: BrandBook, s: VideoScene, t: number, out: number) {
   const fit = fitText(ctx, s.text, display(b), 800, W - MARGIN * 2, 4, 120, 64);
   const lastLine = fit.lines.length - 1;
@@ -211,7 +215,7 @@ function drawClaim(ctx: CanvasRenderingContext2D, b: BrandBook, s: VideoScene, t
     for (const w of ln.split(' ')) {
       const p = easeOut(clamp((t - wi * 0.12) / 0.25));
       ctx.globalAlpha = p * (1 - easeIn(out));
-      ctx.fillStyle = li === lastLine ? b.colors.accent : b.colors.surface;
+      ctx.fillStyle = li === lastLine ? claimAccent(b) : b.colors.surface;
       ctx.fillText(w, x, top + li * lh + (1 - p) * 30);
       x += ctx.measureText(`${w} `).width;
       wi++;

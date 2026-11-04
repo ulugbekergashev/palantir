@@ -9,6 +9,7 @@ import type { BrandBook } from '../../types';
 import { api, type ContentView } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { NARRATORS } from '../../lib/narrators';
+import { LARGE_AA, TEXT_AA, contrast } from '../../lib/color';
 import { H, W, drawFrame, loadFonts } from '../../lib/videoRender';
 import { ACCENT, spin, useRun } from './Content';
 
@@ -16,15 +17,8 @@ type Props = { b: BrandBook; setView: (v: ContentView) => void; notify: Notify }
 const head = (b: BrandBook) => ({ fontFamily: `"${b.font}", Manrope, sans-serif` });
 const isFull = (b: BrandBook) => !!(b.essence || b.personas.length || b.hooks.length);
 
-/** WCAG kontrasti (brend-buk bo'limida juftliklarni tekshirish uchun) */
-function contrast(a: string, b: string): number {
-  const lum = (hex: string) => {
-    const ch = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
-  };
-  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
-  return (x + 0.05) / (y + 0.05);
-}
+/** AI og'riqni o'zi qo'shtirnoqqa olgan bo'lsa — ikkinchi marta qo'yilmaydi */
+const unquote = (s: string) => s.replace(/^[«"“„']+|[»"”']+$/g, '').trim();
 
 async function copy(text: string, notify: Notify) {
   try { await navigator.clipboard.writeText(text); notify('Nusxa olindi'); } catch { notify("Nusxa olib bo'lmadi — matnni belgilab oling", true); }
@@ -51,7 +45,7 @@ function Bullets({ items, tone = 'plain' }: { items: string[]; tone?: 'plain' | 
   if (!items.length) return null;
   return (
     <ul className="space-y-1.5 text-[13.5px] leading-relaxed text-[#e4e3de]">
-      {items.map((x, i) => <li key={i} className="flex gap-2"><span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-[#7d838f]" aria-hidden="true" />{tone === 'quote' ? <span className="italic text-[#d6d4cd]">«{x}»</span> : x}</li>)}
+      {items.map((x, i) => <li key={i} className="flex gap-2"><span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-[#7d838f]" aria-hidden="true" />{tone === 'quote' ? <span className="italic text-[#d6d4cd]">«{unquote(x)}»</span> : x}</li>)}
     </ul>
   );
 }
@@ -222,11 +216,11 @@ const COLOR_ROLE: Record<keyof BrandBook['colors'], { name: string; use: string 
 
 function Pair({ fg, bg, label }: { fg: string; bg: string; label: string }) {
   const c = contrast(fg, bg);
-  const good = c >= 4.5;
+  const level = c >= TEXT_AA ? { cls: 'text-emerald-300', say: "o'qiladi" } : c >= LARGE_AA ? { cls: 'text-[#fbbf77]', say: 'faqat katta matn' } : { cls: 'text-[#f87171]', say: 'past kontrast — matnga emas' };
   return (
     <div className="flex items-center gap-2.5 rounded-xl border border-glass/[0.07] p-2">
       <span className="grid h-9 w-12 shrink-0 place-items-center rounded-lg text-[15px] font-bold" style={{ background: bg, color: fg }} aria-hidden="true">Aa</span>
-      <span className="text-[12.5px] leading-tight text-[#c9cbd2]">{label}<br /><span className={`tabular-nums ${good ? 'text-emerald-300' : 'text-[#fbbf77]'}`}>{c.toFixed(1)}:1 {good ? "o'qiladi" : 'faqat katta matn'}</span></span>
+      <span className="text-[12.5px] leading-tight text-[#c9cbd2]">{label}<br /><span className={`tabular-nums ${level.cls}`}>{c.toFixed(1)}:1 {level.say}</span></span>
     </div>
   );
 }
