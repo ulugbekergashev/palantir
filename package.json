@@ -1,7 +1,7 @@
 {
   "name": "palantir",
   "private": true,
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Palantir — har qanday biznes uchun AI yordamchi (Telegram + panel)",
   "type": "module",
   "scripts": {
