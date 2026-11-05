@@ -713,6 +713,10 @@ export function createBot(): BotService {
       const m = await tg.sendMessage(chatId, text, { link_preview_options: { is_disabled: true } });
       return m.message_id;
     },
+    async postVideo(chatId, file, caption) {
+      const m = await tg.sendVideo(chatId, { source: file }, { caption, supports_streaming: true });
+      return m.message_id;
+    },
   });
 
   return {

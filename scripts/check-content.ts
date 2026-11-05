@@ -115,6 +115,7 @@ const posted: { chat: string; text: string }[] = [];
 setChannelOutlet({
   resolve: async target => (target === '@mening_kanalim' ? { id: '-100777', title: 'Mening kanalim' } : (() => { throw new ContentError("Kanal topilmadi yoki bot kanalda admin emas"); })()),
   post: async (chat, text) => { posted.push({ chat, text }); return 501 + posted.length; },
+  postVideo: async () => 0,
 });
 
 await check("manbasiz ishga tushirilsa — tushunarli sabab, qoralama yo'q", async () => {
@@ -187,10 +188,10 @@ await check("matn o'zgargach eski karta tugmasi joylamaydi; bekor qilingani joyl
 
 await check("Telegram rad etsa — qoralama «xato» holatiga o'tadi va qayta joylash mumkin", async () => {
   const d = contentStore.drafts(biz.id).find(x => x.status === 'draft')!;
-  setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'x' }), post: async () => { throw new Error('Forbidden: bot is not a member'); } });
+  setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'x' }), post: async () => { throw new Error('Forbidden: bot is not a member'); }, postVideo: async () => 0 });
   await rejects(publishDraft(biz, d.id), /joylanmadi/);
   assert.equal(contentStore.draft(biz.id, d.id)!.status, 'failed');
-  setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'x' }), post: async () => 900 });
+  setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'x' }), post: async () => 900, postVideo: async () => 0 });
   await publishDraft(biz, d.id);
   assert.equal(contentStore.draft(biz.id, d.id)!.status, 'published');
 });

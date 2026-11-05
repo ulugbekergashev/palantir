@@ -13,6 +13,9 @@ export class AdsError extends Error {
 }
 
 const base = () => `${(process.env.META_GRAPH_BASE || 'https://graph.facebook.com').replace(/\/$/, '')}/${GRAPH_VERSION}`;
+/** Video yuklash — Meta hujjati bo'yicha alohida manzil (sinovda — o'sha soxta server) */
+const videoBase = () => `${(process.env.META_GRAPH_BASE || 'https://graph-video.facebook.com').replace(/\/$/, '')}/${GRAPH_VERSION}`;
+const UPLOAD_TIMEOUT_MS = 180_000;
 
 interface GraphErrorBody { error?: { message?: string; code?: number; error_user_msg?: string; error_user_title?: string } }
 
@@ -55,4 +58,24 @@ export async function graph<T>(token: string, method: 'GET' | 'POST' | 'DELETE',
     }
     throw e;
   }
+}
+
+/** Faylni yuklash (reklama videosi: act_X/advideos, «source» maydoni). Qayta yuborilmaydi — ikki nusxa yuklanmasin */
+export async function graphUpload<T>(token: string, path: string, file: { name: string; type: string; data: Buffer }, fields: Record<string, string> = {}): Promise<T> {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(fields)) f.set(k, v);
+  f.set('access_token', token);
+  f.set('source', new Blob([new Uint8Array(file.data)], { type: file.type }), file.name);
+  let res: Response;
+  try {
+    res = await fetch(`${videoBase()}/${path.replace(/^\//, '')}`, { method: 'POST', body: f, signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS) });
+  } catch (e) {
+    throw new AdsError(`Meta'ga video yuklanmadi: ${(e as Error).message}`, null, true);
+  }
+  const body = (await res.json().catch(() => ({}))) as T & GraphErrorBody;
+  if (!res.ok || body.error) {
+    const e = body.error ?? {};
+    throw new AdsError(e.error_user_msg ?? e.message ?? `HTTP ${res.status}`, typeof e.code === 'number' ? e.code : null);
+  }
+  return body;
 }

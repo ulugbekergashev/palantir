@@ -362,6 +362,7 @@ export const api = {
   contentVideoAudio: async (id: string) => (await send(`/content/videos/${id}/audio`, {})).arrayBuffer(),
   /** mp4 serverda yig'ilishi (HyperFrames) */
   contentVideoRender: (id: string) => call<ContentView>(`/content/videos/${id}/render`, { body: {} }),
+  contentVideoChannel: (id: string, caption: string) => call<ContentView>(`/content/videos/${id}/channel`, { body: { caption } }),
   contentVideoMp4: async (id: string) => (await send(`/content/videos/${id}/mp4`, {})).blob(),
   contentVideoPoster: async (id: string) => (await send(`/content/videos/${id}/mp4?poster=1`, {})).blob(),
   // Targetolog (Meta reklama)

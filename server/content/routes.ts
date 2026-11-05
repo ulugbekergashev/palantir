@@ -15,6 +15,7 @@ import { PostError, posts } from '../marketing/posts';
 import { PictureError, pictureMaker } from './picture';
 import { editScenes, makeVideo, videoAudio, videoStore, voiceVideo } from './video';
 import { renderState, startRender, videoMp4 } from './render';
+import { MAX_VIDEO_CAPTION, videoToChannel } from './publish';
 import { voiceProvider } from './speech';
 import { NARRATORS } from '../../src/lib/narrators';
 
@@ -202,6 +203,13 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
     if (req.query.download && v) res.attachment(`${v.topic.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'video'}.mp4`);
     // Qayta yig'ilsa manzil o'sha: brauzer eskisini keshdan bermasin
     res.sendFile(file, { headers: { 'cache-control': 'no-store' } });
+  }));
+
+  // Tayyor video egasining Telegram kanaliga — kanal egasining nomidan: faqat egasi
+  app.post('/api/content/videos/:id/channel', asOwner(async (req, res, biz) => {
+    const p = z.object({ caption: z.string().max(MAX_VIDEO_CAPTION) }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    try { await videoToChannel(biz, Id(req), p.data.caption); res.json(view(biz)); } catch (e) { failed(res, e); }
   }));
 
   app.delete('/api/content/videos/:id', asBiz((req, res, biz) => {

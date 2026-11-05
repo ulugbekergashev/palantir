@@ -16,7 +16,8 @@ import type { BusinessRow } from '../db';
 import { env } from '../env';
 import { notifyOwner } from '../inbox/core';
 import { posts } from '../marketing/posts';
-import { AdsError, graph } from './graph';
+import { videoMp4 } from '../content/render';
+import { AdsError, graph, graphUpload } from './graph';
 import { CURRENCIES, adParams, adsetParams, campaignParams, creativeParams, money, planProblems, planSummary, toMinor, type Plan, type Spend } from './plan';
 import { TargetError, adsStore, type AdsConnection, type MetaIds } from './store';
 
@@ -31,15 +32,39 @@ const DAY_MS = 86_400_000;
 /** Panelda yuklangan reklama rasmlari — har biznesning o'z papkasida */
 export const uploadDir = (bizId: string) => join(env.dataDir, 'reklama', bizId.replace(/[^A-Za-z0-9]/g, ''));
 const FILE = /^[a-z0-9]{8,24}\.jpg$/;
+const ID = /^[A-Za-z0-9_-]{6,20}$/;
 /**
- * «post:<id>» — shu biznesning Marketolog posti rasmi; «file:<nom>» — shu biznes panelda yuklagani. Yo'l tashqariga va boshqa
- * biznesga chiqmaydi
+ * Rasm: «post:<id>» — shu biznesning Instagram posti rasmi; «file:<nom>» — shu biznes panelda yuklagani; «video:<id>» — Kontent-meyker
+ * videosining muqovasi (reklamada videoning o'zi, videoFile). Yo'l tashqariga va boshqa biznesga chiqmaydi
  */
 export function imagePath(ref: string, bizId: string): string | null {
   const [kind, name = ''] = ref.split(':');
-  const path = kind === 'post' && /^[A-Za-z0-9]{6,20}$/.test(name) && posts.get(bizId, name) ? join(env.dataDir, 'postlar', `${name}.jpg`)
+  if (kind === 'video') return ID.test(name) ? videoMp4(bizId, name, true) : null;
+  const path = kind === 'post' && ID.test(name) && posts.get(bizId, name) ? join(env.dataDir, 'postlar', `${name}.jpg`)
     : kind === 'file' && FILE.test(name) ? join(uploadDir(bizId), name) : null;
   return path && existsSync(path) ? path : null;
+}
+/** «video:<id>» — shu biznesning yig'ilgan mp4 videosi; boshqa ref — null */
+export function videoFile(ref: string, bizId: string): string | null {
+  const [kind, name = ''] = ref.split(':');
+  return kind === 'video' && ID.test(name) ? videoMp4(bizId, name) : null;
+}
+
+/** Meta videoni qayta ishlashini kutish (yuklangach «processing» → «ready») */
+const VIDEO_READY_MS = Number(process.env.ADS_VIDEO_WAIT_MS) || 5 * 60_000;
+const VIDEO_POLL_MS = Number(process.env.ADS_VIDEO_POLL_MS) || 5_000;
+async function uploadVideo(c: AdsConnection, act: string, file: string, name: string): Promise<string> {
+  const up = await graphUpload<{ id?: string }>(c.token, `${act}/advideos`, { name, type: 'video/mp4', data: readFileSync(file) }, { name });
+  if (!up.id) throw new TargetError("Meta video raqamini qaytarmadi");
+  const until = Date.now() + VIDEO_READY_MS;
+  for (;;) {
+    const st = await graph<{ status?: { video_status?: string } }>(c.token, 'GET', up.id, { fields: 'status' });
+    const s = st.status?.video_status;
+    if (s === 'ready') return up.id;
+    if (s === 'error') throw new TargetError("Meta videoni qabul qilmadi (format yoki o'lcham) — boshqa video tanlang");
+    if (Date.now() > until) throw new TargetError("Meta videoni hali tayyorlayapti — birozdan keyin qayta urinib ko'ring");
+    await new Promise(r => setTimeout(r, VIDEO_POLL_MS));
+  }
 }
 export const ensureUploadDir = (bizId: string) => { mkdirSync(uploadDir(bizId), { recursive: true }); };
 
@@ -202,9 +227,10 @@ async function launchOne(biz: BusinessRow, id: string, opts: { mark?: string }):
     throw new TargetError("Reja shu payt o'zgardi — qayta tekshirib ishga tushiring");
   }
   const images = camp.plan.ads.map(a => imagePath(a.image, biz.id));
-  if (images.some(x => !x)) {
+  const videos = camp.plan.ads.map(a => (a.image.startsWith('video:') ? videoFile(a.image, biz.id) : null));
+  if (images.some(x => !x) || camp.plan.ads.some((a, i) => a.image.startsWith('video:') && !videos[i])) {
     adsStore.move(biz.id, id, ['launching'], 'proposed');
-    throw new TargetError('Reklama rasmi topilmadi — panelda qayta tanlang');
+    throw new TargetError('Reklama rasmi yoki videosi topilmadi — panelda qayta tanlang');
   }
 
   const p = camp.plan, meta: MetaIds = {};
@@ -216,6 +242,9 @@ async function launchOne(biz: BusinessRow, id: string, opts: { mark?: string }):
       const r = await graph<{ images?: Record<string, { hash?: string }> }>(c.token, 'POST', `${act}/adimages`, { bytes: readFileSync(path!).toString('base64'), name: `palantir-${id}-${i}.jpg` });
       meta.imageHashes.push(imageHash(r));
     }
+    // Video — kampaniyadan oldin: Meta qayta ishlashini kutadi; yiqilsa Meta'da hali kampaniya yo'q (pul ketmaydi)
+    meta.videoIds = [];
+    for (const [i, file] of videos.entries()) meta.videoIds.push(file ? await uploadVideo(c, act, file, `palantir-${id}-${i}.mp4`) : '');
     const created = await graph<{ id: string }>(c.token, 'POST', `${act}/campaigns`, campaignParams(p, c.currency));
     meta.campaignId = created.id;
     adsStore.setMeta(biz.id, id, meta);
@@ -227,7 +256,7 @@ async function launchOne(biz: BusinessRow, id: string, opts: { mark?: string }):
     meta.creativeIds = [];
     meta.adIds = [];
     for (let i = 0; i < p.ads.length; i++) {
-      const cr = await graph<{ id: string }>(c.token, 'POST', `${act}/adcreatives`, creativeParams(p, c, i, meta.imageHashes[i]));
+      const cr = await graph<{ id: string }>(c.token, 'POST', `${act}/adcreatives`, creativeParams(p, c, i, meta.imageHashes[i], meta.videoIds[i] || undefined));
       meta.creativeIds.push(cr.id);
       adsStore.setMeta(biz.id, id, meta);
       meta.adIds.push((await graph<{ id: string }>(c.token, 'POST', `${act}/ads`, adParams(p, i, meta.adsetId, cr.id))).id);

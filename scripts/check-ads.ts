@@ -12,11 +12,23 @@ import { join } from 'node:path';
 // ─── Soxta Meta ───────────────────────────────────────────────────────────────
 interface Call { method: string; path: string; params: Record<string, string> }
 const calls: Call[] = [];
-const fake = { today: '0', month: '0', echoBudget: null as string | null, failAds: false, failActivate: false, failCleanup: false, campaignSeq: 0, lastBudget: '0' };
+const fake = { today: '0', month: '0', echoBudget: null as string | null, failAds: false, failActivate: false, failCleanup: false, campaignSeq: 0, lastBudget: '0', videoPolls: 0, videoBytes: 0 };
 const body = (req: IncomingMessage) => new Promise<string>(r => { let s = ''; req.on('data', c => { s += c; }); req.on('end', () => r(s)); });
+/** multipart (video yuklash): oddiy maydonlar va fayl hajmi */
+function multipart(raw: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const part of raw.split(/--[^\r\n]+\r\n/)) {
+    const m = /name="([^"]+)"(; filename="[^"]*")?[^]*?\r\n\r\n([^]*)\r\n$/.exec(part);
+    if (!m) continue;
+    if (m[2]) fake.videoBytes = m[3].length; else out[m[1]] = m[3];
+  }
+  return out;
+}
 const server = createServer(async (req, res) => {
   const url = new URL(req.url!, 'http://x');
-  const params = Object.fromEntries(req.method === 'GET' ? url.searchParams : new URLSearchParams(await body(req)));
+  const raw = req.method === 'GET' ? '' : await body(req);
+  const params = req.method === 'GET' ? Object.fromEntries(url.searchParams)
+    : String(req.headers['content-type']).startsWith('multipart/') ? multipart(raw) : Object.fromEntries(new URLSearchParams(raw));
   const path = url.pathname.replace(/^\/v26\.0\//, '');
   calls.push({ method: req.method!, path, params });
   const send = (code: number, o: unknown) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
@@ -29,6 +41,9 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && path === 'act_1234567/insights') return send(200, { data: [{ spend: params.date_preset === 'today' ? fake.today : fake.month }] });
   if (req.method === 'GET' && path === 'search') return send(200, { data: params.q === 'Toshkent' ? [{ key: '2215', name: 'Tashkent', country_code: 'UZ', type: 'city' }] : [] });
   if (req.method === 'POST' && path === 'act_1234567/adimages') return send(200, { images: { [params.name]: { hash: `hash-${calls.length}` } } });
+  if (req.method === 'POST' && path === 'act_1234567/advideos') return send(200, { id: 'v77' });
+  // Meta videoni avval qayta ishlaydi: birinchi so'rovda «processing», keyin «ready»
+  if (req.method === 'GET' && path === 'v77') return send(200, { status: { video_status: ++fake.videoPolls < 2 ? 'processing' : 'ready' } });
   if (req.method === 'POST' && path === 'act_1234567/campaigns') { fake.lastBudget = params.lifetime_budget; return send(200, { id: `c${++fake.campaignSeq}` }); }
   if (req.method === 'GET' && /^c\d+$/.test(path)) return send(200, { lifetime_budget: fake.echoBudget ?? fake.lastBudget });
   if (req.method === 'POST' && path === 'act_1234567/adsets') return send(200, { id: 's1' });
@@ -40,6 +55,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise<void>(r => server.listen(0, '127.0.0.1', () => r()));
 process.env.META_GRAPH_BASE = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+process.env.ADS_VIDEO_POLL_MS = '20';
 
 const { toMinor, planProblems, campaignParams, adsetParams, creativeParams, targeting } = await import('../server/ads/plan');
 const { adsStore } = await import('../server/ads/store');
@@ -106,6 +122,13 @@ await check("Meta so'rovlari: kampaniya pauzada, umumiy byudjet sentda; guruh �
   const cr = creativeParams(p, ACC, 0, 'h1') as { object_story_spec: { instagram_actor_id: string; link_data: { call_to_action: { type: string }; image_hash: string } } };
   assert.equal(cr.object_story_spec.instagram_actor_id, '8880001');
   assert.equal(cr.object_story_spec.link_data.call_to_action.type, 'INSTAGRAM_MESSAGE');
+  const vid = creativeParams(p, ACC, 0, 'h1', 'v77') as { object_story_spec: { link_data?: unknown; video_data: { video_id: string; image_hash: string; message: string; title: string; page_welcome_message: string; call_to_action: { type: string } } } };
+  assert.equal(vid.object_story_spec.link_data, undefined, 'video — link_data emas, video_data');
+  assert.deepEqual([vid.object_story_spec.video_data.video_id, vid.object_story_spec.video_data.image_hash, vid.object_story_spec.video_data.title], ['v77', 'h1', 'Bepul konsultatsiya'], 'video va uning muqovasi');
+  assert.equal(vid.object_story_spec.video_data.call_to_action.type, 'INSTAGRAM_MESSAGE');
+  assert.equal(vid.object_story_spec.video_data.page_welcome_message, 'Salom! Qaysi xizmat qiziqtiradi?');
+  const webVid = creativeParams(plan({ destination: 'website', link: 'https://palantir.uz' }) as never, ACC, 0, 'h1', 'v77') as { object_story_spec: { video_data: { call_to_action: { value: { link: string } } } } };
+  assert.equal(webVid.object_story_spec.video_data.call_to_action.value.link, 'https://palantir.uz', 'videoda havola — tugmada');
   const web = creativeParams(plan({ destination: 'website', link: 'https://palantir.uz' }) as never, ACC, 0, 'h1') as { object_story_spec: { link_data: { link: string } } };
   assert.equal(web.object_story_spec.link_data.link, 'https://palantir.uz');
   assert.equal(adsetParams(plan({ destination: 'website', link: 'https://palantir.uz' }) as never, ACC, 'c', start).promoted_object, undefined);
@@ -244,6 +267,30 @@ await check("limit olib tashlansa (0) — ishlayotganlar to'xtatiladi; kuzatuvda
   await watch(biz);
   assert.equal(adsStore.campaign(biz.id, liveId)?.status, 'paused');
   assert.match(adsStore.campaign(biz.id, liveId)?.stopReason ?? '', /olib tashlandi/);
+});
+
+await check("video reklama (Kontent-meyker videosi): avval muqova va video yuklanadi, Meta tayyorlaguncha kutiladi, kreativ — video_data; keyin kampaniya", async () => {
+  const { videoStore, videoDir } = await import('../server/content/video');
+  const { imagePath, videoFile } = await import('../server/ads/campaigns');
+  const b2 = businesses.create(`targetv${Date.now()}`, 'x', { name: 'Video', ownerName: 'X', industry: '', phone: '', address: '', contentLang: 'uz', brand: { primary: '#000', accent: '#111' }, offerings: [], team: [] } as never);
+  await connect(b2, { token: 'tok-1', adAccountId: '1234567', pageId: '7770001', igActorId: '8880001' });
+  adsStore.saveLimits(b2.id, LIMITS);
+  const v = videoStore.add(b2.id, 'Implant — 30 soniyada', [{ kind: 'hook', text: 'Implant', voice: 'Implant' }]);
+  mkdirSync(videoDir(), { recursive: true });
+  writeFileSync(join(videoDir(), `${v.id}.mp4`), Buffer.alloc(4096, 1));
+  writeFileSync(join(videoDir(), `${v.id}.mp4.jpg`), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+  assert.ok(imagePath(`video:${v.id}`, b2.id)?.endsWith('.mp4.jpg'), 'muqova — reklama rasmi o\'rnida');
+  assert.ok(videoFile(`video:${v.id}`, b2.id)?.endsWith('.mp4'));
+  assert.equal(videoFile(`video:${v.id}`, biz.id), null, "boshqa biznes videosi olinmaydi");
+  const c = await propose(b2, 'x', plan({ ads: [{ text: 'Implant — bepul konsultatsiya, 3D tomografiya bilan.', headline: null, image: `video:${v.id}` }] }) as never);
+  const before = calls.length;
+  const done = await launch(b2, c.id);
+  assert.equal(done.status, 'active');
+  const order = calls.slice(before).filter(x => x.method !== 'GET' || /^c\d+$|^v77$/.test(x.path)).map(x => `${x.method} ${x.path.replace(/^c\d+$/, 'C')}${x.params.status ? `:${x.params.status}` : ''}`);
+  assert.deepEqual(order, ['POST act_1234567/adimages', 'POST act_1234567/advideos', 'GET v77', 'GET v77', 'POST act_1234567/campaigns:PAUSED', 'GET C', 'POST act_1234567/adsets:ACTIVE', 'POST act_1234567/adcreatives', 'POST act_1234567/ads:ACTIVE', 'POST C:ACTIVE']);
+  assert.equal(fake.videoBytes, 4096, 'mp4 to\'liq yuklandi');
+  const creative = JSON.parse(calls.find((x, i) => i >= before && x.path === 'act_1234567/adcreatives')!.params.object_story_spec) as { video_data: { video_id: string } };
+  assert.equal(creative.video_data.video_id, 'v77');
 });
 
 server.close();

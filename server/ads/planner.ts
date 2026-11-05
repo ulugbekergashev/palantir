@@ -8,18 +8,20 @@ import { think } from '../claude';
 import type { BusinessRow } from '../db';
 import { env } from '../env';
 import { posts } from '../marketing/posts';
+import { readyVideos } from '../content/publish';
 import { imagePath, uploadDir } from './campaigns';
 import { PlanSchema, money, type Plan } from './plan';
 import { TargetError, adsStore } from './store';
 import { companyContext } from '../company';
 
-/** Reklamaga tanlasa bo'ladigan rasmlar: Marketolog postlari (rasmi bor) va panelda yuklanganlar */
+/** Reklamaga tanlasa bo'ladigan rasm va videolar: Kontent-meyker videolari (yig'ilgan, eskirmagan), Instagram postlari (rasmi bor) va panelda yuklanganlar */
 export function availableImages(bizId: string): { ref: string; label: string }[] {
   const fromPosts = posts.list(bizId).filter(p => imagePath(`post:${p.id}`, bizId)).slice(0, 12)
     .map(p => ({ ref: `post:${p.id}`, label: `Instagram posti: ${p.caption.replace(/\s+/g, ' ').slice(0, 80)}` }));
   const files = existsSync(uploadDir(bizId)) ? readdirSync(uploadDir(bizId)).sort() : [];
   const uploads = files.filter(f => imagePath(`file:${f}`, bizId)).slice(-12).map((f, i) => ({ ref: `file:${f}`, label: `Yuklangan rasm ${i + 1}` }));
-  return [...uploads, ...fromPosts];
+  const videos = readyVideos(bizId).slice(0, 8).map(v => ({ ref: `video:${v.id}`, label: `Video (${Math.round(v.duration)} s): ${v.topic.split('\n')[0].replace(/\s+/g, ' ').slice(0, 80)}` }));
+  return [...videos, ...uploads, ...fromPosts];
 }
 
 const fence = (s: string) => s.replace(/</g, '‹').replace(/>/g, '›');
@@ -41,7 +43,7 @@ Rules:
 - Geography: Uzbekistan ("UZ") unless the task says otherwise; cities only if named (use their usual Latin/English name, e.g. "Tashkent", "Samarkand").
 - Audience: ages and gender only if the task or the service clearly implies them; otherwise 18-65, all. autoAudience true only if the owner asks Meta to find people itself.
 - ads: 2 variants (1 if the task is narrow, max 3). Write in ${lang}. text: 2-4 short sentences — the offer, a concrete benefit, a call to write; no prices, discounts or guarantees unless in the task; for medical services no promises of results or painlessness. headline: up to 25 characters.
-- image: pick the most fitting ref from this list, or "" if none fits:
+- image: pick the most fitting picture or video ref from this list (a short video usually works better than a picture when it fits the task), or "" if none fits:
 ${images.length ? images.map(i => `  ${i.ref} — ${i.label}`).join('\n') : '  (no images yet)'}
 - notes: short notes to the owner in ${lang} — assumptions you made and anything missing (budget, image, link).
 - Owner's hard limits (for your notes only, the system enforces them): per campaign ${money(limits.perCampaign, currency)}, per day ${money(limits.daily, currency)}, per month ${money(limits.monthly, currency)} (0 = not set).

@@ -28,8 +28,8 @@ CREATE TABLE IF NOT EXISTS content_videos (
 );
 CREATE INDEX IF NOT EXISTS content_videos_biz ON content_videos (business_id, created_at);
 `);
-// Fon musiqasi kayfiyati (AI ssenariy bilan birga yozadi)
-ensureColumns('content_videos', { music: 'TEXT' });
+// Fon musiqasi kayfiyati (AI ssenariy bilan birga yozadi); Telegram kanaliga chiqqan bo'lsa — xabar raqami va vaqti
+ensureColumns('content_videos', { music: 'TEXT', channel_msg: 'INTEGER', channel_at: 'TEXT' });
 
 /** totalVoice: ~700 belgi o'zbekcha diktorda ~35 soniya (sahnalar orasidagi pauzalar bilan) */
 const LIMITS = { scenes: 7, minScenes: 3, text: 48, voice: 240, totalVoice: 700, topic: 600, visual: 320, music: 300 } as const;
@@ -70,7 +70,7 @@ export function videoAssets(id: string, scenes: number): { images: (string | nul
 const toVideo = (r: Row): ContentVideo => ({
   id: String(r.id), topic: String(r.topic), scenes: JSON.parse(String(r.scenes)) as VideoScene[], status: String(r.status) as ContentVideo['status'],
   error: sql.str(r.error), starts: JSON.parse(String(r.starts)) as number[], duration: Number(r.duration), createdAt: String(r.created_at),
-  music: sql.str(r.music),
+  music: sql.str(r.music), channelAt: sql.str(r.channel_at),
 });
 
 export const videoStore = {
@@ -100,6 +100,9 @@ export const videoStore = {
   },
   voiced: (bizId: string, id: string, starts: number[], duration: number) =>
     sql.run("UPDATE content_videos SET status = 'voiced', error = NULL, starts = ?, duration = ? WHERE business_id = ? AND id = ?", JSON.stringify(starts), duration, bizId, id),
+  /** Kanalga chiqdi (bir marta: qayta bosilsa ikkinchi nusxa chiqmasin) */
+  toChannel: (bizId: string, id: string, messageId: number) =>
+    Number(sql.run('UPDATE content_videos SET channel_msg = ?, channel_at = ? WHERE business_id = ? AND id = ? AND channel_at IS NULL', messageId, sql.nowIso(), bizId, id).changes) > 0,
   failed: (bizId: string, id: string, error: string) =>
     sql.run("UPDATE content_videos SET status = 'failed', error = ? WHERE business_id = ? AND id = ?", error.slice(0, 300), bizId, id),
   remove(bizId: string, id: string): boolean {

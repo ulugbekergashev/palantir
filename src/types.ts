@@ -622,6 +622,8 @@ export interface ContentVideo {
   music?: string | null;
   /** Server renderi (HyperFrames): panel ro'yxatida keladi */
   render?: VideoRender;
+  /** Telegram kanaliga chiqqan vaqti (chiqmagan — null) */
+  channelAt?: string | null;
 }
 /**
  * mp4 serverda yig'ilishi: none — hali yo'q, queued/rendering — navbatda/yig'ilmoqda (progress 0–100), done — tayyor,

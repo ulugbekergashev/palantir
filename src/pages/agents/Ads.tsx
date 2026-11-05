@@ -103,7 +103,7 @@ function PlanEditor({ c, view, setView, notify }: { c: Campaign; view: AdsView; 
             <div className="space-y-2 sm:w-36">
               {a.image ? <AdImage refId={a.image} className="aspect-square w-full rounded-lg" /> : <span className="flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-glass/15 text-[12px] text-[#7d838f]">rasm yo'q</span>}
               <select aria-label={`${i + 1}-reklama rasmi`} value={a.image} onChange={e => setAd(i, { image: e.target.value })} className="w-full rounded-lg border border-glass/10 bg-[#0b0c10] px-2 py-1 text-[12.5px] text-[#f2f0ea]">
-                <option value="">— rasm —</option>
+                <option value="">— rasm yoki video —</option>
                 {view.images.map(img => <option key={img.ref} value={img.ref}>{img.label.slice(0, 40)}</option>)}
               </select>
               <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-glass/10 py-1.5 text-[12.5px] text-[#c9cbd2] hover:bg-glass/5">

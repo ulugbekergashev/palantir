@@ -24,7 +24,7 @@ sql.run("UPDATE ads_campaigns SET status = 'failed', error = 'Yaratilayotganda s
 export class TargetError extends Error {}
 
 /** Meta'dagi qismlar: o'chirish va kuzatish uchun */
-export interface MetaIds { campaignId?: string; adsetId?: string; creativeIds?: string[]; adIds?: string[]; imageHashes?: string[] }
+export interface MetaIds { campaignId?: string; adsetId?: string; creativeIds?: string[]; adIds?: string[]; imageHashes?: string[]; videoIds?: string[] }
 
 export interface AdsConnection extends AdsAccount { token: string; accountName: string; pageName: string; timezone: string }
 

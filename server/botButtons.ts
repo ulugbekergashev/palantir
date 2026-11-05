@@ -1,5 +1,5 @@
 /**
- * Bot tugmalari (callback_query): so'rov kartasi, kompyuterdagi ish, jamoa kirishi, Marketolog posti, mijozlarga xabar,
+ * Bot tugmalari (callback_query): so'rov kartasi, kompyuterdagi ish, jamoa kirishi, Instagram posti (Kontent-meyker), mijozlarga xabar,
  * pul yozuvi, ikkinchi miya, vazifalar va javob takliflari. bot.ts dan ajratilgan; bot ichidagi ishlar d orqali keladi.
  */
 import type { Context, Telegraf } from 'telegraf';

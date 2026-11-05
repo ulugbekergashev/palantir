@@ -5,7 +5,7 @@
  * Video — AI ssenariy + diktor (Gemini, zaxira — ElevenLabs) serverda; kadrlar shu yerda (brauzerda) chiziladi va mp4 bo'lib yuklab olinadi.
  */
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Clapperboard, Download, FileText, Mic, Palette, Pencil, Play, RotateCcw, Square, Trash2, Wand2, Image } from 'lucide-react';
+import { Clapperboard, Download, FileText, Mic, Palette, Pencil, Play, RotateCcw, Square, Trash2, Wand2, Image, Send, Megaphone } from 'lucide-react';
 import type { BrandAnswers, BrandBook, ContentVideo, VideoScene } from '../../types';
 import { BrandBookView } from './BrandBookView';
 import { api, type ContentView } from '../../data/api';
@@ -179,7 +179,42 @@ function SceneEditor({ v, setView, notify, onDone }: Omit<Props, 'view'> & { v: 
   );
 }
 
-function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { v: ContentVideo; book: BrandBook; voice: boolean }) {
+const MAX_VIDEO_CAPTION = 1024;
+
+/**
+ * Tayyor (yangi yig'ilgan) video tashqariga: Telegram kanaliga — izoh bilan, egasi bosganda; reklamaga — Targetolog rejasida tanlanadi.
+ * Instagram Reels — hozircha qo'lda (yuklab olib): Instagram brauzer orqali ulangan, Reels uchun rasmiy yo'l yo'q
+ */
+function VideoOut({ v, channel, setView, notify }: Omit<Props, 'view'> & { v: ContentVideo; channel: string | null }) {
+  const [caption, setCaption] = useState<string | null>(null);
+  const [busy, run] = useRun(notify, setView);
+  if (v.channelAt) {
+    return <p className="text-[13px] text-[#a7f3d0]">📢 Kanalga chiqdi — {new Date(v.channelAt).toLocaleString('uz', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · <a href={hrefOf('marketolog', 'kampaniyalar')} className="underline">Reklamada ishlatish</a></p>;
+  }
+  if (caption === null) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={!channel} title={channel ? undefined : "Telegram kanal ulanmagan — «Kanallar» varag'ida ulang"} onClick={() => setCaption(v.topic.split('\n')[0].slice(0, MAX_VIDEO_CAPTION))} className={ghost}><Send className="h-4 w-4" aria-hidden="true" /> Kanalga joylash</button>
+        <a href={hrefOf('marketolog', 'kampaniyalar')} className={`${ghost} no-underline`}><Megaphone className="h-4 w-4" aria-hidden="true" /> Reklamada ishlatish</a>
+        {!channel && <span className="text-[12.5px] text-[#8a909c]">Kanal ulanmagan — <a href={hrefOf('marketolog', 'kanal')} className="underline">Kanallar</a></span>}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-xl border border-glass/[0.08] p-3">
+      <label className="block">
+        <span className="mb-1.5 flex items-center justify-between text-[13px] font-semibold text-[#a3a9b5]">«{channel}» kanaliga — video izohi <span className="font-normal tabular-nums text-[#7d838f]">{caption.length}/{MAX_VIDEO_CAPTION}</span></span>
+        <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={3} maxLength={MAX_VIDEO_CAPTION} aria-label="Video izohi" className={field} />
+      </label>
+      <div className="flex gap-2">
+        <button type="button" disabled={!!busy} onClick={() => void run('channel', () => api.contentVideoChannel(v.id, caption), 'Video kanalga joylandi')} className={primary} style={{ background: ACCENT }}>{busy === 'channel' ? spin : <Send className="h-4 w-4" aria-hidden="true" />} Joylash</button>
+        <button type="button" onClick={() => setCaption(null)} className={ghost}>Bekor</button>
+      </div>
+    </div>
+  );
+}
+
+function VideoCard({ v, book, voice, channel, setView, notify }: Omit<Props, 'view'> & { v: ContentVideo; book: BrandBook; voice: boolean; channel: string | null }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const audio = useRef<ArrayBuffer | null>(null);
   const playing = useRef<Playback | null>(null);
@@ -316,6 +351,7 @@ function VideoCard({ v, book, voice, setView, notify }: Omit<Props, 'view'> & { 
             {mode === 'idle' && <button type="button" disabled={!!busy} onClick={() => { if (window.confirm("Video o'chirilsinmi?")) void run('rm', () => api.contentVideoRemove(v.id)); }} aria-label="Videoni o'chirish" className={`${button} text-[#a3a9b5] hover:bg-glass/5`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}
           </div>
           {mode === 'record' && <p className="text-[12.5px] text-[#8a909c]">Yozilyapti — video uzunligicha vaqt ketadi. Bu varaqni yopmang va boshqa varaqqa o'tmang.</p>}
+          {ready && mode === 'idle' && server && v.render?.phase === 'done' && <VideoOut v={v} channel={channel} setView={setView} notify={notify} />}
           {rBusy && <p className="text-[12.5px] text-[#8a909c]" aria-live="polite">{v.render?.phase === 'rendering' ? `${v.render.step || "Video yig'ilmoqda"} — ${v.render.progress}%` : 'Video navbatda'}. Shu kompyuterda, odatda 3–5 daqiqa; panelni yopsangiz ham davom etadi.</p>}
           {mode === 'export' && <p className="text-[12.5px] text-[#8a909c]" aria-live="polite">Yig'ilyapti — {Math.round(progress * 100)}%. Odatda video uzunligidan tezroq; varaqni yopmang.</p>}
         </div>
@@ -359,7 +395,7 @@ export function ContentVideoTab({ view, setView, notify }: Props) {
       </Panel>
       <Panel title="Videolar">
         {!view.videos.length || !book ? <Quiet>Hali video yo'q.</Quiet> : (
-          <ul className="flex flex-col gap-3">{view.videos.map(v => <VideoCard key={`${v.id}-${v.status}-${v.duration}-${v.starts.join(',')}-${v.scenes.map(s => s.text).join('|')}-${renderReady(v)}`} v={v} book={book} voice={view.voice} setView={setView} notify={notify} />)}</ul>
+          <ul className="flex flex-col gap-3">{view.videos.map(v => <VideoCard key={`${v.id}-${v.status}-${v.duration}-${v.starts.join(',')}-${v.scenes.map(s => s.text).join('|')}-${renderReady(v)}`} v={v} book={book} voice={view.voice} channel={view.settings.channelTitle} setView={setView} notify={notify} />)}</ul>
         )}
       </Panel>
     </div>

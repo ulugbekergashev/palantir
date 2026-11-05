@@ -18,7 +18,7 @@ export const AdSchema = z.object({
   text: z.string().trim().min(10).max(2000),
   /** Sarlavha (ixtiyoriy, 25 belgigacha tavsiya) */
   headline: z.string().trim().max(80).nullable().optional(),
-  /** Rasm: «post:<id>» (Marketolog posti) yoki «file:<nom>» (panelda yuklangan); bo'sh — hali tanlanmagan */
+  /** Rasm yoki video: «post:<id>» (Instagram posti), «file:<nom>» (panelda yuklangan), «video:<id>» (Kontent-meyker videosi); bo'sh — hali tanlanmagan */
   image: z.string().trim().max(60).default(''),
 });
 
@@ -159,9 +159,30 @@ const CTA: Record<Destination, (p: Plan) => Record<string, unknown>> = {
   website: p => ({ type: 'LEARN_MORE', value: { link: p.link } }),
 };
 
-export function creativeParams(p: Plan, a: AdsAccount, index: number, imageHash: string): Record<string, unknown> {
+/**
+ * Kreativ: rasm (link_data) yoki video (video_data — imageHash videoning muqovasi). Video uchun havola chaqiriq tugmasida bo'ladi
+ */
+export function creativeParams(p: Plan, a: AdsAccount, index: number, imageHash: string, videoId?: string): Record<string, unknown> {
   const ad = p.ads[index];
   const link = p.destination === 'website' ? p.link : p.destination === 'whatsapp' ? 'https://api.whatsapp.com/send' : undefined;
+  if (videoId) {
+    const cta = CTA[p.destination](p) as { type: string; value: Record<string, unknown> };
+    return {
+      name: `${p.name} — ${index + 1}`.slice(0, 100),
+      object_story_spec: {
+        page_id: a.pageId,
+        ...(a.igActorId ? { instagram_actor_id: a.igActorId } : {}),
+        video_data: {
+          video_id: videoId,
+          image_hash: imageHash,
+          message: ad.text,
+          ...(ad.headline ? { title: ad.headline } : {}),
+          ...(p.welcome && p.destination !== 'website' ? { page_welcome_message: p.welcome } : {}),
+          call_to_action: link && !cta.value.link ? { ...cta, value: { ...cta.value, link } } : cta,
+        },
+      },
+    };
+  }
   return {
     name: `${p.name} — ${index + 1}`.slice(0, 100),
     object_story_spec: {

@@ -14,13 +14,16 @@ import { writeDrafts, writeTopicDraft, type DraftText } from './writer';
 
 export { ContentError } from './store';
 
-/** Telegram bot orqali kanal: topish (bot admin va post yoza oladimi) va joylash. bot.ts ro'yxatdan o'tkazadi */
+/** Telegram bot orqali kanal: topish (bot admin va post yoza oladimi), matn va video joylash. bot.ts ro'yxatdan o'tkazadi */
 export interface ChannelOutlet {
   resolve(handle: string): Promise<{ id: string; title: string }>;
   post(chatId: string, text: string): Promise<number>;
+  /** Video fayl (mp4) izoh bilan — qaytaradi: kanaldagi xabar raqami */
+  postVideo(chatId: string, file: string, caption: string): Promise<number>;
 }
 let outlet: ChannelOutlet | null = null;
 export const setChannelOutlet = (o: ChannelOutlet | null): void => { outlet = o; };
+export const channelOutlet = (): ChannelOutlet | null => outlet;
 
 export interface FactoryDeps {
   fetch: (handle: string) => Promise<SourcePost[] | { title: string | null; posts: SourcePost[] }>;

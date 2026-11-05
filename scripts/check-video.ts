@@ -250,11 +250,40 @@ if (!renderAvailable()) {
     assert.deepEqual(assets, ['music.mp3', 'scene-0.jpg', 'scene-1.jpg'], 'rasmlar va musiqa tayyorlangan');
   });
 
+  await check("tayyor video — Telegram kanaliga (mp4 va izoh, bir marta) va Targetolog tanloviga («video:<id>»)", async () => {
+    const { videoToChannel, readyVideos } = await import('../server/content/publish');
+    const { setChannelOutlet, ContentError } = await import('../server/content/factory');
+    const { contentStore } = await import('../server/content/store');
+    const { availableImages } = await import('../server/ads/planner');
+    const { events } = await import('../server/orders/store');
+    const sentVideos: { chat: string; file: string; caption: string }[] = [];
+    setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'Kanal' }), post: async () => 1, postVideo: async (chat, file, caption) => { sentVideos.push({ chat, file, caption }); return 42; } });
+    await assert.rejects(videoToChannel(biz, v.id, 'Izoh'), (e: Error) => e instanceof ContentError && /Kanal ulanmagan/.test(e.message));
+    contentStore.saveSettings(biz.id, { channelId: '-100777', channelTitle: 'Kanal' });
+    await assert.rejects(videoToChannel(biz, v.id, 'x'.repeat(1025)), /1024/);
+    const out = await videoToChannel(biz, v.id, 'Implant haqida 30 soniya');
+    assert.ok(out.channelAt, 'kanalga chiqqan vaqti yozildi');
+    assert.deepEqual(sentVideos.map(x => [x.chat, x.file.endsWith('.mp4'), x.caption]), [['-100777', true, 'Implant haqida 30 soniya']]);
+    await assert.rejects(videoToChannel(biz, v.id, 'yana'), /allaqachon/);
+    assert.equal(sentVideos.length, 1, 'ikkinchi nusxa chiqmadi');
+    assert.ok(events.since(biz.id, new Date(Date.now() - 60_000).toISOString()).some(e => e.member === 'kontent' && e.title.startsWith('Kanalga video joylandi')));
+    assert.deepEqual(readyVideos(biz.id).map(x => x.id), [v.id]);
+    assert.ok(availableImages(biz.id).some(i => i.ref === `video:${v.id}` && i.label.startsWith('Video (')), 'Targetolog videoni tanlay oladi');
+    setChannelOutlet(null);
+  });
+
   await check("brend ranglari o'zgarsa video «eskirgan»; boshqa biznes uni ololmaydi", () => {
     const other = businesses.create(`Begona${Date.now()}`, 'x', { name: 'B', ownerName: 'B', industry: 'IT', description: '', phone: '', address: '', contentLang: 'uz', brand: { primary: '#000', accent: '#111' }, offerings: [], team: [] } as never);
     assert.equal(videoMp4(other.id, v.id), null);
     brandStore.save(biz.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, { ...BOOK, colors: { ...BOOK.colors, accent: '#D9480F' } });
     assert.equal(renderState(biz.id, videoStore.get(biz.id, v.id)!).phase, 'stale');
+  });
+
+  await check("eskirgan video reklamaga taklif qilinmaydi va kanalga yuborilmaydi", async () => {
+    const { readyVideos, videoToChannel } = await import('../server/content/publish');
+    assert.deepEqual(readyVideos(biz.id), []);
+    const fresh = videoStore.add(biz.id, 'Boshqa', SCENES);
+    await assert.rejects(videoToChannel(biz, fresh.id, 'x'), /yig'ilmagan/);
   });
 
   await check("ssenariy tahrirlansa eski mp4 va muqova o'chadi", () => {
