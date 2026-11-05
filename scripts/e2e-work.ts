@@ -74,6 +74,9 @@ ok("dushanba: hafta bo'sh bo'lsa — yakun bloki yo'q (va faqat shu bilan reja y
 const wrote = iso(12);
 const prepPlan = planText({ ...base, autoPrep: true, leads: [lead('w', 'Yozgan', { updatedAt: iso(9), lastInboundAt: wrote }), lead('n', 'Yozmagan', { updatedAt: iso(9) })] })!;
 ok("AI o'zi faqat bizga yozgan mijozga xabar tayyorlaydi; yozmaganiga — egasi tugma bilan", prepPlan.prep.join() === 'w' && prepPlan.buttons.length === 1 && prepPlan.buttons[0][0].data === 'fu|n');
+const noWriter = planText({ ...base, autoPrep: true, writer: false, leads: [lead('w', 'Yozgan', { updatedAt: iso(9), lastInboundAt: wrote }), lead('n', 'Yozmagan', { updatedAt: iso(9) })] })!;
+ok("Qabulxona jamoada yo'q — xabar tayyorlanmaydi, «✍️» tugmasi ham yo'q; kim yozishi aytiladi", !noWriter.prep.length && !noWriter.buttons.some(r => r.some(x => x.data.startsWith('fu|')))
+  && noWriter.html.includes("Qabulxonaning ishi") && noWriter.html.includes('Unutilgan'), noWriter.html.slice(-300));
 {
   const p = { html: '☀️ Reja', buttons: [[{ text: '✍️ Ali', data: 'fu|1' }]] }, d = { html: '🧭 Direktor', buttons: [[{ text: '✅ 1', data: 'dv|a' }]] };
   const one = joinMorning(p, d);
@@ -144,7 +147,7 @@ try {
   const morning = await waitFor('reja', () => toOwner(mark, 'Xayrli tong'));
   const mText = String(morning?.params.text ?? '');
   ok('reja keldi: bugungi qadam, unutilgan mijoz, vazifa', mText.includes('Tabassum klinikasi — taklif yuborish') && mText.includes('Unutilgan mijozlar (1)') && mText.includes('Eski mijoz') && mText.includes('Tabassum bilan uchrashuv'), mText.slice(0, 300));
-  ok("AI bor — «✍️» tugma o'rniga «2 ta mijozga xabar tayyorlayapman»", mText.includes('2 ta mijozga xabar tayyorlayapman') && !buttons(morning).some(x => x.callback_data?.startsWith('fu|')), mText.slice(-200));
+  ok("AI bor — «✍️» tugma o'rniga «Qabulxona 2 ta mijozga xabar tayyorlayapti» (mijozga yozish — Qabulxonaniki)", mText.includes('Qabulxona 2 ta mijozga xabar tayyorlayapti') && !buttons(morning).some(x => x.callback_data?.startsWith('fu|')), mText.slice(-200));
   const prepReq = await waitFor('tayyorgarlik', () => ai.requests.slice(aiBefore).find(r => JSON.stringify(r.messages).includes('Morning preparation')));
   const prepText = JSON.stringify(prepReq?.messages ?? '');
   ok("yordamchiga ertalabki topshiriq: faqat id'lar (ismlar emas), ikkala mijoz", !!prepReq && prepText.includes(a.id) && prepText.includes(b.id) && !prepText.includes('Eski mijoz'));

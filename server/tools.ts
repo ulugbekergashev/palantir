@@ -394,6 +394,9 @@ It takes a minute or two. Afterwards tell the owner in one or two sentences what
   }),
 };
 
+/** Mijozga yoziladigan xabar — Qabulxonaning ishi: kim so'rasa ham (Yordamchi, ertalabki reja), uning ovozi va qoidalari bilan */
+const { draft_followup, ...BASE_DEFS } = DEFS;
+const QABULXONA_DEFS = { draft_followup };
 
 const schemaOf = (s: z.ZodType) => {
   const { $schema: _, ...rest } = z.toJSONSchema(s) as Record<string, unknown>;
@@ -403,26 +406,29 @@ const schemaOf = (s: z.ZodType) => {
 const isCrmTool = (name: string) => Object.hasOwn(CRM_DEFS, name);
 
 /**
- * Har xodimning asboblari. base — Yordamchi (vazifa, mijoz, hujjat, xotira, so'rovlar, kompyuter, klinika) — Tahlilchi va Qabulxona
- * topshiriqlari ham shu bilan bajariladi; qolganlari — o'z xodimiga tegishli: jamoada bo'lmasa, Yordamchida ham yo'q
+ * Har xodimning asboblari. base — Yordamchi (vazifa, mijoz, hujjat, xotira, raqamlar, so'rovlar, kompyuter, klinika) — Tahlilchi
+ * topshiriqlari ham shu bilan bajariladi; qolganlari — o'z xodimiga tegishli: jamoada bo'lmasa, Yordamchida ham yo'q.
+ * Qabulxona — mijozga yozish (draft_followup); uning topshiriqlari base bilan ham ishlaydi (mijozlar, yozishmalar, raqamlar)
  */
-export type ToolGroup = 'base' | 'kontent' | 'target' | 'marketolog' | 'kuzatuvchi';
-const SPECIALISTS = ['kontent', 'target', 'marketolog', 'kuzatuvchi'] as const;
+export type ToolGroup = 'base' | 'qabulxona' | 'kontent' | 'target' | 'marketolog' | 'kuzatuvchi';
+const SPECIALISTS = ['qabulxona', 'kontent', 'target', 'marketolog', 'kuzatuvchi'] as const;
 type Specialist = (typeof SPECIALISTS)[number];
-const GROUP_DEFS: Record<Specialist, Record<string, ToolDef<z.ZodType>>> = { kontent: CONTENT_DEFS, target: ADS_DEFS, marketolog: MARKETING_DEFS, kuzatuvchi: CAMERA_DEFS };
+const GROUP_DEFS: Record<Specialist, Record<string, ToolDef<z.ZodType>>> = { qabulxona: QABULXONA_DEFS, kontent: CONTENT_DEFS, target: ADS_DEFS, marketolog: MARKETING_DEFS, kuzatuvchi: CAMERA_DEFS };
 /** Asbob kimniki (faqat mutaxassislar; base asboblari — hammaniki) */
 export const toolOwner = (name: string): Specialist | null => SPECIALISTS.find(m => Object.hasOwn(GROUP_DEFS[m], name)) ?? null;
 
 /** Egasi bilan suhbat: Yordamchi asboblari va jamoaga olingan mutaxassislarniki */
 export const chatGroups = (biz: { crew: string | null }): ToolGroup[] => ['base', ...SPECIALISTS.filter(m => crewHas(biz, m))];
-/** Topshiriqni bajaruvchi xodim — faqat o'z asboblari bilan */
-export const memberGroups = (m: CrewMember): ToolGroup[] => ((SPECIALISTS as readonly string[]).includes(m) ? [m as Specialist] : ['base']);
+/** Topshiriqni bajaruvchi xodim — faqat o'z asboblari bilan (Qabulxona — mijozlar va yozishmalarni ham o'qiydi: base) */
+export const memberGroups = (m: CrewMember): ToolGroup[] =>
+  (m === 'qabulxona' ? ['base', 'qabulxona'] : (SPECIALISTS as readonly string[]).includes(m) ? [m as Specialist] : ['base']);
 
 /** Claude'ga beriladigan asboblar ro'yxati (API ham, obuna ham — subscription/tools.ts — shu ro'yxatni oladi). crm — DentaCRM ulangan biznes */
 export function ownerToolDefs(crm: boolean, groups: ToolGroup[] = ['base', ...SPECIALISTS]): [string, ToolDef<z.ZodType>][] {
   const on = (g: ToolGroup) => groups.includes(g);
   return Object.entries({
-    ...(on('base') ? { ...DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS } : {}), ...(on('kuzatuvchi') ? CAMERA_DEFS : {}), ...(on('kontent') ? CONTENT_DEFS : {}), ...(on('target') ? ADS_DEFS : {}),
+    ...(on('base') ? { ...BASE_DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS } : {}), ...(on('qabulxona') ? QABULXONA_DEFS : {}),
+    ...(on('kuzatuvchi') ? CAMERA_DEFS : {}), ...(on('kontent') ? CONTENT_DEFS : {}), ...(on('target') ? ADS_DEFS : {}),
     ...(on('base') && computerEnabled() ? COMPUTER_DEFS : {}), ...(on('marketolog') && marketingEnabled() ? MARKETING_DEFS : {}), ...(on('base') && crm ? CRM_DEFS : {}),
   }) as [string, ToolDef<z.ZodType>][];
 }
@@ -440,6 +446,7 @@ export interface ToolOutcome { content: string; isError: boolean }
 const JOURNAL: Record<string, string> = {
   content_drafts: 'Kanal posti tayyorlandi', draft_post: 'Instagram posti tayyorlanyapti (rasm chizilyapti)', content_plan: 'Kontent-reja tuzildi',
   content_video: 'Video ssenariysi va ovozi tayyorlandi', content_brand_book: 'Brend-buk yozildi', ads_plan: 'Reklama rejasi tuzildi', ads_pause: "Reklama to'xtatildi",
+  draft_followup: 'Mijozga xabar tayyorlandi (yuborishni egasi bosadi)',
 };
 function journal(name: string, input: unknown, ctx: ToolCtx): void {
   const member = toolOwner(name);

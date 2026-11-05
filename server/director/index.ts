@@ -65,8 +65,8 @@ export async function readNumbers(biz: BusinessRow, now = new Date()): Promise<N
 
 /** Jamoadagi xodim → unga topshiriq nima qiladi (faqat ishga olinganlari modelga aytiladi) */
 const TEAM_LINES: Record<MoveMember, string> = {
-  qabulxona: 'qabulxona: answers customers in Telegram, Instagram and phone. Your task becomes a standing instruction it follows in every customer reply (how to answer, what to offer next, when to hand over to a person).',
-  yordamchi: "yordamchi: the owner's assistant. A standing instruction for its daily work: following up forgotten customers (as drafts the owner sends), reminders, documents.",
+  qabulxona: 'qabulxona: answers customers in Telegram, Instagram and phone, and writes every message to a customer — follow-ups to forgotten customers too (as drafts the owner sends). Your task becomes a standing instruction it follows in every customer message (how to answer, what to offer next, whom to write to again, when to hand over to a person).',
+  yordamchi: "yordamchi: the owner's assistant. A standing instruction for its daily work: the owner's tasks and reminders, documents, keeping customer records up to date.",
   tahlilchi: 'tahlilchi: numbers and reports. A standing instruction for what to watch and report.',
   marketolog: 'marketolog: market research through Meta AI — competitors, the business\'s Instagram account, what works in this field; measures how published posts did; its findings feed the content plan. A standing instruction for what to research.',
   kontent: 'kontent: makes Telegram channel and Instagram posts and short videos, keeps the content plan. A standing instruction for what to post about and how (topics to push, what to stop); the owner still approves every post.',

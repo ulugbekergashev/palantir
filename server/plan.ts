@@ -26,8 +26,13 @@ export interface PlanInput {
   week: { leadsAdded: number; tasksDone: number; crmLine: string | null } | null;
   /** Klinika, dushanba: 6–12 oy oldin kelgan bemorlar soni */
   recall: number;
-  /** Yordamchi (AI) ishlaydi: bugungi va unutilgan mijozlarga xabarni o'zi tayyorlaydi — tugma o'rniga */
+  /** AI ishlaydi: bugungi va unutilgan mijozlarga xabarni Qabulxona o'zi tayyorlaydi — tugma o'rniga */
   autoPrep: boolean;
+  /**
+   * Qabulxona jamoada — mijozga yozish uniki. Yo'q bo'lsa: xabar tayyorlanmaydi, «✍️» tugmalari ham yo'q (bosilsa — rad bo'lardi);
+   * egasiga kim yozishini aytiladi. Berilmasa — bor (eski chaqiruvlar)
+   */
+  writer?: boolean;
 }
 
 export interface PlanButton { text: string; data: string }
@@ -94,18 +99,21 @@ export function planText(p: PlanInput): Plan | null {
   section(`🔴 Kechikkan (${overdue.length})`, overdue.slice(0, MAX_LINES).map(taskLine));
   // AI o'zi tayyorlaydigan xabar — faqat bizga o'zi yozgan mijozga: hech qachon yozmagan odamga birinchi bo'lib AI yozmaydi
   // (egasi o'zi so'rasa — boshqa gap, u «Yuborish»ni o'zi bosadi)
-  const prep = p.autoPrep ? [...due, ...forgotten].filter(l => !!l.lastInboundAt).slice(0, MAX_PREP).map(l => l.id) : [];
+  const writer = p.writer !== false;
+  const prep = p.autoPrep && writer ? [...due, ...forgotten].filter(l => !!l.lastInboundAt).slice(0, MAX_PREP).map(l => l.id) : [];
   if (forgotten.length) {
     section(`💤 Unutilgan ${many} (${forgotten.length})`, forgotten.slice(0, MAX_LINES).map(l => `• ${esc(nameOf(l))} — ${idleDays(l, p.now)} kundan beri${l.note ? ` · <i>${esc(cut(l.note, 60))}</i>` : ''}`));
     // AI o'zi tayyorlamaganlar (AI o'chiq yoki mijoz bizga hech yozmagan) — egasi tugma bilan o'zi tanlaydi
     const byButton = forgotten.filter(l => !prep.includes(l.id));
-    if (byButton.length) {
-      out.push('Keyingi qadam qo\'yilmagan. Tugmani bossangiz — qayta yozish uchun xabar tayyorlayman.');
+    if (byButton.length && writer) {
+      out.push('Keyingi qadam qo\'yilmagan. Tugmani bossangiz — Qabulxona qayta yozish uchun xabar tayyorlaydi.');
       for (const l of byButton.slice(0, MAX_FOLLOW_BUTTONS)) buttons.push([{ text: `✍️ ${cut(nameOf(l), 28)}`, data: `fu|${l.id}` }]);
+    } else if (byButton.length) {
+      out.push("Keyingi qadam qo'yilmagan. Mijozlarga qayta yozish — Qabulxonaning ishi: uni panelda «+ Xodim qo'shish» orqali jamoaga oling.");
     }
   }
   // Sondan keyin birlik: «4 ta bemorga» (o'zbekchada «4 ta bemorlarga» emas)
-  if (prep.length) out.push('', `✍️ <b>${prep.length} ta ${p.profile.customer.one}ga xabar tayyorlayapman</b> — bir daqiqada shu yerga «Yuborish» tugmasi bilan keladi.`);
+  if (prep.length) out.push('', `✍️ <b>Qabulxona ${prep.length} ta ${p.profile.customer.one}ga xabar tayyorlayapti</b> — bir daqiqada shu yerga «Yuborish» tugmasi bilan keladi.`);
   if (p.recall) {
     out.push('', `🔁 <b>Qaytarish kerak:</b> ${p.recall} ta bemor 6–12 oy oldin kelgan va boshqa kelmagan. Qabulxona qo'ng'iroq qilib, ko'rikka chaqirsa — eng arzon yangi bemor shu.`);
     buttons.push([{ text: "📋 Bemorlar ro'yxati", data: 'rc|list' }]);

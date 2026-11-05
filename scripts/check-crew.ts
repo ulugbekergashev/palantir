@@ -107,9 +107,11 @@ console.log("\n# Asboblar xodim bo'yicha (3-bosqich)");
   });
   check("suhbatda — Yordamchi va jamoadagi mutaxassislar; topshiriqda — faqat bajaruvchiniki", () => {
     assert.deepEqual(chatGroups({ crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'kontent'], dismissed: [] }) }), ['base', 'kontent']);
-    assert.deepEqual(chatGroups({ crew: null }), ['base', 'kontent', 'target', 'marketolog', 'kuzatuvchi'], 'eski baza — hammasi');
+    assert.deepEqual(chatGroups({ crew: null }), ['base', 'qabulxona', 'kontent', 'target', 'marketolog', 'kuzatuvchi'], 'eski baza — hammasi');
     assert.deepEqual(memberGroups('kontent'), ['kontent']);
     assert.deepEqual(memberGroups('tahlilchi'), ['base']);
+    assert.deepEqual(memberGroups('qabulxona'), ['base', 'qabulxona'], "Qabulxona topshirig'i mijozlar va yozishmalarni ham o'qiydi");
+    assert.equal(toolOwner('draft_followup'), 'qabulxona', 'mijozga yozish — Qabulxonaniki');
     const k = ownerToolDefs(false, ['kontent']).map(([n]) => n);
     assert.ok(k.includes('content_plan') && !k.includes('create_task') && !k.includes('ads_plan'));
   });
@@ -179,6 +181,30 @@ console.log("\n# «Bugun jamoa» hisoblagichlari va kamera zonalari (5-bosqich)"
     assert.match(text, /"z1" Kutish \(waiting area\)/);
     assert.match(text, /"z2" Xona \(private area — blacked out/);
     assert.match(text, /"z3" Kassa \(cash desk\)/);
+  });
+}
+
+console.log("\n# Mijozga yozish — Qabulxonaniki");
+{
+  const { runTool } = await import('../server/tools');
+  const { leads } = await import('../server/db');
+  const { events } = await import('../server/orders/store');
+  const biz = businesses.create(`qx${Date.now()}`, 'x', emptyBusiness('Qx klinika', 'stomatologiya'));
+  businesses.update(biz.id, { crew: JSON.stringify({ hired: [], dismissed: ['qabulxona'] }) });
+  const lead = leads.add(biz.id, { name: 'Ali', phone: '+998901234567', note: null, source: null });
+  const refused = await runTool('draft_followup', { lead_ids: [lead.id], text: 'Assalomu alaykum, Ali! Qabulga yozilasizmi?' }, { biz: businesses.byId(biz.id)!, artifacts: [] });
+  businesses.update(biz.id, { crew: JSON.stringify({ hired: ['qabulxona'], dismissed: [] }) });
+  const artifacts: unknown[] = [];
+  const made = await runTool('draft_followup', { lead_ids: [lead.id], text: 'Assalomu alaykum, Ali! Qabulga yozilasizmi?' }, { biz: businesses.byId(biz.id)!, artifacts: artifacts as never });
+  check("Qabulxona jamoada yo'q — mijozga xabar tayyorlanmaydi («+ Xodim qo'shish»)", () => {
+    assert.equal(refused.isError, true);
+    assert.match(refused.content, /Qabulxonaning ishi, u jamoada yo'q/);
+  });
+  check("Qabulxona jamoada — xabar tayyor (egasi «Yuborish»ni bosadi), Qabulxona jurnalida", () => {
+    assert.equal(made.isError, false, made.content);
+    assert.equal(artifacts.length, 1);
+    const ev = events.since(biz.id, '2000-01-01', 10).find(e => e.member === 'qabulxona');
+    assert.ok(ev && ev.title.startsWith('Mijozga xabar tayyorlandi') && ev.body.includes('Yordamchi orqali'), JSON.stringify(ev));
   });
 }
 

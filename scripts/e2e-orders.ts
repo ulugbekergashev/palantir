@@ -140,6 +140,20 @@ export async function orderApiTests(h: Harness): Promise<void> {
     && !chatAfter.system.includes('<acting_as>') && !JSON.stringify(chatAfter.messages).includes('Jadvaldagi topshiriq'), `${chatAfter.messages.length} xabar`);
   const kEvents = (await api('/api/agents/kontent/events', { token })).json.events as { title: string }[] | undefined;
   ok("bajarilgani Kontent-meyker jurnalida", !!kEvents?.some(e => e.title.startsWith('Bajarildi:')), JSON.stringify(kEvents?.slice(0, 2)));
+
+  console.log("\n# Mijozga yoziladigan hamma narsa — Qabulxonaniki");
+  // Qabulxonaning doimiy qoidasi (yuqorida saqlangan «Chegirma va‘da qilma»): Yordamchi mijozga qayta yozganda ham shu qoida bilan yozadi
+  await api('/api/crew', { token, body: { member: 'qabulxona', on: true } });
+  await api('/api/chat', { token, body: { text: 'Eski mijozlarga qayta yozish matnini tayyorla' } });
+  const withQ = lastOwnerReq();
+  ok("Qabulxona jamoada: mijozga yozish asbobi bor va Yordamchi uning qoidasi bilan yozadi (<writing_to_customers>)", toolNames(withQ).includes('draft_followup')
+    && /<writing_to_customers>[\s\S]*Chegirma va‘da qilma[\s\S]*<\/writing_to_customers>/.test(withQ?.system ?? ''), (withQ?.system ?? '').split('<writing_to_customers>')[1]?.slice(0, 300));
+  await api('/api/crew', { token, body: { member: 'qabulxona', on: false } });
+  await api('/api/chat', { token, body: { text: 'Eski mijozlarga qayta yozish matnini tayyorla' } });
+  const withoutQ = lastOwnerReq();
+  ok("Qabulxona olib tashlandi — mijozga yozilmaydi: asbob yo'q, ko'rsatmada «jamoaga oling»", !toolNames(withoutQ).includes('draft_followup')
+    && /Not hired[^\n]*Qabulxona/.test(withoutQ?.system ?? '') && !(withoutQ?.system ?? '').includes('<writing_to_customers>'), toolNames(withoutQ).join(','));
+  await api('/api/crew', { token, body: { member: 'qabulxona', on: true } });
   ok('bugun jamoa: kamera hodisasi jurnalda va Kuzatuvchi sanadi', day.timeline.some(e => e.id === events[0].id) && fact(day, 'kuzatuvchi', 'Yozuv') >= 1 && fact(day, 'kuzatuvchi', 'Kamera') >= 1);
   ok("bugun jamoa: bajarilgan ish Yordamchida sanaldi", fact(day, 'yordamchi', 'Bajarildi') >= 1, day.members.find(m => m.member === 'yordamchi')?.summary);
   const otherDay = (await api('/api/team/day', { token: otherToken })).json as Day;

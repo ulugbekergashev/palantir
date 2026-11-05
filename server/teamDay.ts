@@ -1,7 +1,7 @@
 /**
  * «Bugun jamoa nima qildi» — bosh ekranda har AI xodimning bugungi ishi, haqiqiy yozuvlardan (AI'siz: arzon, tez, har doim bir xil):
- *   Qabulxona — murojaatlar, javoblar, qabulga yozilganlar, qoldirilgan so'rovlar (analytics.ts bilan bir xil hisob);
- *   Yordamchi — ertalabki reja, eslatmalar, bajarilgan ishlar, mijozlarga tayyorlangan xabarlar;
+ *   Qabulxona — murojaatlar, javoblar, qabulga yozilganlar, qoldirilgan so'rovlar (analytics.ts bilan bir xil hisob), mijozlarga tayyorlangan xabarlar;
+ *   Yordamchi — ertalabki reja, eslatmalar, bajarilgan ishlar;
  *   Kuzatuvchi — kameralar va bugungi hodisalar; Tahlilchi — hisobotlar (haftalik talab tahlili va topshiriqlar); Marketolog — Meta AI'dan olgan tahlillari;
  *   Kontent-meyker — postlar, videolar, joylangani; Targetolog — ishlayotgan reklama va yangi rejalar.
  * Bajarilmagan urinish («Bajarilmadi: …») ish deb sanalmaydi — alohida aytiladi.
@@ -33,25 +33,30 @@ export interface TeamDay { date: string; members: DayMember[]; timeline: AgentEv
 
 const TIMELINE = 12;
 
-function reception(biz: BusinessRow, now: Date): DayMember {
+const sentence = (parts: (string | false | 0)[]) => { const p = parts.filter(Boolean).join(', '); return p ? `${p.replace(/^./, c => c.toUpperCase())}.` : ''; };
+
+/** Qabulxona: murojaatlar va javoblar; mijozlarga qayta yozish xabarlari ham uniki (kim so'rasa ham — tools.ts QABULXONA_DEFS) */
+function reception(biz: BusinessRow, now: Date, from: string): DayMember {
   const k = dashboard(biz, periodDays('today', now), now).kpi;
   const inq = k.inquiries.value, ans = k.answered.value, booked = k.booked.value, left = k.unanswered.value;
+  const drafts = outbound.countSince(biz.id, from);
   const clinic = isClinic(biz.profile.industry, crmConnected(biz.id));
-  const summary = !inq ? "Bugun hali murojaat bo'lmadi — navbatchilikda."
+  const wrote = drafts ? ` Mijozlarga ${drafts} ta qayta yozish xabarini tayyorladi.` : '';
+  const summary = !inq ? `Bugun hali murojaat bo'lmadi — navbatchilikda.${wrote}`
     : `${inq} murojaatdan ${ans} tasiga javob berdi${k.answered.responseMin != null ? ` (o'rtacha ${k.answered.responseMin} daqiqada)` : ''}`
-      + `${booked ? (clinic ? `, ${booked} kishini qabulga yozdi` : `, ${booked} ta kelishuv`) : ''}.${left ? ` ${left} tasi hali javobsiz.` : ''}`;
+      + `${booked ? (clinic ? `, ${booked} kishini qabulga yozdi` : `, ${booked} ta kelishuv`) : ''}.${left ? ` ${left} tasi hali javobsiz.` : ''}${wrote}`;
   return { member: 'qabulxona', summary, facts: [
     { label: 'Murojaat', value: inq }, { label: 'Javob berdi', value: ans }, { label: clinic ? 'Qabulga yozdi' : 'Kelishildi', value: booked }, { label: "So'rov qoldirdi", value: k.requests.value },
+    { label: 'Xabar tayyorladi', value: drafts },
   ] };
 }
 
 function assistant(biz: BusinessRow, from: string, to: string, today: string): DayMember {
   const done = tasks.doneBetween(biz.id, from, to), reminded = tasks.remindedBetween(biz.id, from, to);
-  const drafts = outbound.countSince(biz.id, from);
   const plan = biz.briefSentDate === today;
-  const parts = [plan && 'ertalabki rejani yubordi', reminded && `${reminded} ta eslatma qildi`, done && `${done} ta ish bajarildi`, drafts && `mijozlarga ${drafts} ta xabar tayyorladi`].filter(Boolean);
-  const summary = parts.length ? `${String(parts.join(', ')).replace(/^./, c => c.toUpperCase())}.` : "Bugun hali ish bo'lmadi — eslatma yoki topshiriq bering.";
-  return { member: 'yordamchi', summary, facts: [{ label: 'Eslatma', value: reminded }, { label: 'Bajarildi', value: done }, { label: 'Xabar tayyorladi', value: drafts }] };
+  const summary = sentence([plan && 'ertalabki rejani yubordi', reminded && `${reminded} ta eslatma qildi`, done && `${done} ta ish bajarildi`])
+    || "Bugun hali ish bo'lmadi — eslatma yoki topshiriq bering.";
+  return { member: 'yordamchi', summary, facts: [{ label: 'Eslatma', value: reminded }, { label: 'Bajarildi', value: done }] };
 }
 
 type Tally = { member: OrderMember; level: AgentEvent['level']; kind: 'done' | 'failed' | 'assigned'; n: number }[];
@@ -60,7 +65,6 @@ type Pick = 'all' | 'alerts' | 'done' | 'failed';
 const count = (t: Tally, member: OrderMember, pick: Pick = 'all') => t.filter(x => x.member === member
   && (pick === 'alerts' ? x.level !== 'info' : pick === 'all' ? true : x.kind === pick)).reduce((a, x) => a + x.n, 0);
 const failedNote = (n: number) => (n ? ` ${n} ta urinish bajarilmadi — sababi jurnalda.` : '');
-const sentence = (parts: (string | false | 0)[]) => { const p = parts.filter(Boolean).join(', '); return p ? `${p.replace(/^./, c => c.toUpperCase())}.` : ''; };
 /** Bugun (from'dan beri) shu ustunga vaqt yozilgan qatorlar soni. Jadval va ustun nomlari — shu fayldagi o'zgarmaslar */
 const since = (table: string, column: string, bizId: string, from: string, where = '') =>
   sql.one(`SELECT COUNT(*) AS n FROM ${table} WHERE business_id = ? AND ${column} >= ?${where}`, r => Number(r.n), bizId, from) ?? 0;
@@ -123,7 +127,7 @@ export function teamDay(biz: BusinessRow, now = new Date()): TeamDay {
     date: today,
     // Faqat jamoadagi xodimlar; kamerasi yo'q, klinika emas — Kuzatuvchi ro'yxatda yo'q (bo'sh «Kamera 0» ko'rsatilmaydi)
     members: [
-      ...(crewHas(biz, 'qabulxona') ? [reception(biz, now)] : []), assistant(biz, from, to, today),
+      ...(crewHas(biz, 'qabulxona') ? [reception(biz, now, from)] : []), assistant(biz, from, to, today),
       ...(crewHas(biz, 'kuzatuvchi') && usesCameras(biz) ? [watcher(biz, t)] : []),
       ...(crewHas(biz, 'tahlilchi') ? [analyst(biz, t)] : []), ...(crewHas(biz, 'marketolog') ? [marketer(biz, t)] : []),
       ...(crewHas(biz, 'kontent') ? [content(biz, from)] : []), ...(crewHas(biz, 'target') ? [ads(biz, from)] : []),

@@ -12,7 +12,7 @@ const dayOf = (isoTime: string): string => { const d = new Date(isoTime); return
  * Bir kunning jurnali: tepada egasining qarorini kutayotgan ishlar, pastda yordamchi qilgan va ko'rgan narsalar (yangisi yuqorida).
  * Sof funksiya: ma'lumot qo'ng'iroqlar, kamera hisobi va yozishmalardan yig'iladi. day — "YYYY-MM-DD" (mahalliy sana).
  * toRemember — ikkinchi miyada egasining tasdig'ini kutayotgan javob va tuzatishlar soni.
- * followups — yordamchi tayyorlagan, lekin egasi hali «Yuborish»ni bosmagan mijozlarga xabarlar soni.
+ * followups — Qabulxona tayyorlagan (Yordamchi orqali so'ralgan bo'lsa ham), lekin egasi hali «Yuborish»ni bosmagan mijozlarga xabarlar soni.
  */
 export function buildJournal(calls: Call[], summary: CameraSummary | null, threads: InboxThread[], day: string, toRemember = 0, followups = 0): Journal {
   const waiting: JournalItem[] = [

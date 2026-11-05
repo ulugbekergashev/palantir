@@ -27,7 +27,8 @@ import { tgCall, tgCallEnabled } from './tgcall';
 import { ContentError, factoryDue, runFactory } from './content/factory';
 import { watchAll as watchAds } from './ads/campaigns';
 import { directorReport } from './director/telegram';
-import { crewWorks } from '../src/lib/crew';
+import { crewHas, crewWorks } from '../src/lib/crew';
+import { crewFromData } from './crew';
 import { measure, measureDue } from './marketing/results';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -120,7 +121,8 @@ export async function morningPlan(biz: BusinessRow, now = new Date(), opts: { we
     leads: leads.active(biz.id).map(publicLead),
     repliesPending: replies.pendingTotal(biz.id),
     outboundDrafts: outbound.list(biz.id, 50).filter(o => o.status === 'draft').length,
-    crmLines, holidays, recall: recall.length, autoPrep: env.aiEnabled,
+    // Mijozga yozish — Qabulxonaning ishi (bazada mijozlar bor bo'lsa — u jamoaga o'zi qo'shiladi: crewFromData)
+    crmLines, holidays, recall: recall.length, autoPrep: env.aiEnabled, writer: crewHas(crewFromData(biz), 'qabulxona'),
     week: monday ? { leadsAdded: leads.addedBetween(biz.id, weekFrom, weekTo), tasksDone: tasks.doneBetween(biz.id, weekFrom, weekTo), crmLine: weekLine } : null,
   });
 }

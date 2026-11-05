@@ -15,8 +15,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { Artifact, ChatEntry } from '../src/types';
 import { upcomingOccasions } from '../src/lib/occasions';
 import { DAYS, iso, stamp, weekday } from '../src/lib/week';
-import { LIMITS as BRAIN_LIMITS, fitPages, plain } from './brain/logic';
-import { facts as notes, vault as knowledge } from './brain/vault';
+import { LIMITS as BRAIN_LIMITS, brainPrompt, fitPages, plain } from './brain/logic';
+import { facts as notes, style, vault as knowledge } from './brain/vault';
 import { businesses, chatLog, conversations, type BusinessRow } from './db';
 import { env } from './env';
 import { AiLimitError, profileText, think } from './claude';
@@ -101,7 +101,7 @@ export function knowledgeBlocks(b: BusinessRow): string[] {
 /** Har xodim nima qiladi (egasi bilan suhbatdagi jamoa bloki va topshiriq bajaruvchining roli) */
 const ROLE: Record<CrewMember, string> = {
   direktor: 'reads the numbers every morning and proposes tasks to the team',
-  qabulxona: 'answers customers in Telegram, Instagram and by phone',
+  qabulxona: 'answers customers in Telegram, Instagram and by phone, and writes every message to a customer — follow-ups too (draft_followup)',
   yordamchi: "the owner's personal assistant: tasks, reminders, customers, documents, memory",
   kuzatuvchi: 'watches the cameras (camera_day, look_camera)',
   tahlilchi: 'numbers and reports',
@@ -110,7 +110,24 @@ const ROLE: Record<CrewMember, string> = {
   target: 'runs Meta ads: campaign plans, launch after the owner approves, spend limits',
 };
 /** Yordamchi bajara oladigan mutaxassislar ishi (jamoada bo'lsa — asboblari bor) */
-const SPECIALISTS: CrewMember[] = ['kontent', 'target', 'marketolog', 'kuzatuvchi'];
+const SPECIALISTS: CrewMember[] = ['qabulxona', 'kontent', 'target', 'marketolog', 'kuzatuvchi'];
+
+/**
+ * Mijozga yoziladigan har xabar — Qabulxonaning ishi: kim tayyorlasa ham (Yordamchi, ertalabki reja) uning qoidalari bilan — egasining
+ * Qabulxonaga doimiy topshiriqlari, «mijozlarga qanday yozish» uslubi, egasi tuzatgan javoblar va brend ovozi (mijozlarga javob beradigan
+ * modeldagi kabi — brain/index.ts replierBrain; savol-javob va sahifalar bu yerda yo'q: ular bilim bloklarida bor)
+ */
+function customerVoice(b: BusinessRow, as?: CrewMember): string {
+  const fixes = knowledge.list(b.id).filter(k => k.kind === 'fix');
+  // Qabulxona topshirig'ida uning doimiy topshiriqlari standingOrders'da bor — ikki marta yozilmaydi
+  const rules = as ? [] : orders.standing(b.id, 'qabulxona');
+  const body = [
+    brainPrompt({ qa: [], fixes, style: style.get(b.id) }),
+    rules.length ? `THE OWNER'S STANDING ORDERS FOR THE QABULXONA — follow them in every message to a customer:\n${rules.map(r => `- ${r}`).join('\n')}` : '',
+    companyContext(b, 'customers'),
+  ].filter(Boolean).join('\n\n');
+  return `<writing_to_customers>\nEvery message to a customer (draft_followup) is the Qabulxona's work, whoever asked for it: write it in the Qabulxona's voice and by its rules.${body ? `\n\n${body}` : ''}\n</writing_to_customers>`;
+}
 
 /** Egasi bilan suhbat: kim jamoada (uning ishini uning asboblari bilan qilasiz), kim yo'q (ishini qilmaysiz — jamoaga olishni taklif qilasiz) */
 function teamBlock(b: BusinessRow): string {
@@ -160,6 +177,7 @@ ${COMMON_RULES}
     clinicBlock(b.id),
     as ? actingAs(as) : teamBlock(b),
     standingOrders(b, as),
+    (as ? as === 'qabulxona' : crewHas(b, 'qabulxona')) ? customerVoice(b, as) : '',
     `Session started: ${iso(now)}.`,
   ];
   return parts.filter(Boolean).join('\n\n');
