@@ -32,7 +32,8 @@ function Codes({ number, notify }: { number: string; notify: Notify }) {
 export function StepPhone({ line, onLine, notify }: { line: PhoneLine | null; onLine: (l: PhoneLine) => void; notify: Notify }) {
   const [form, setForm] = useState({ key: '', secret: '' });
   const [busy, setBusy] = useState(false);
-  const connected = line?.provider === 'zadarma' && line.trunk ? line.trunk : null;
+  // Raqamsiz (qo'lda kiritilgan Zadarma SIP) — «Raqam: +» va bo'sh yo'naltirish kodlari chiqmasin
+  const connected = line?.provider === 'zadarma' && line.trunk?.number ? line.trunk : null;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);

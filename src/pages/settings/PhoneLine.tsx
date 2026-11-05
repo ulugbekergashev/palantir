@@ -93,7 +93,7 @@ function ZadarmaForm({ line, onLine, notify }: LineProps) {
     <form onSubmit={save} className="grid gap-3">
       {connected && (
         <p className="rounded-xl border border-[#3fd6c3]/25 bg-[#3fd6c3]/[0.06] px-3.5 py-2.5 text-[13px] text-[#cdeee9]">
-          Ulangan raqam: <b className="tabular-nums">+{line.trunk!.number}</b>
+          {line.trunk!.number ? <>Ulangan raqam: <b className="tabular-nums">+{line.trunk!.number}</b></> : <>Ulangan: Zadarma SIP <b className="tabular-nums">{line.trunk!.login}</b></>}
           {result && <> · balans {result.balance.toFixed(2)} {result.currency}{result.channels ? ` · ${result.channels} ta liniya` : ''}</>}
         </p>
       )}
@@ -115,7 +115,9 @@ function ZadarmaForm({ line, onLine, notify }: LineProps) {
 }
 
 function Trunk({ line, onLine, notify }: LineProps) {
-  const t = line.trunk;
+  // Saqlangan liniya Zadarma bo'lsa — u o'z yorlig'ida; bu shakl boshqa operator uchun bo'sh ochiladi
+  const t = line.provider === 'manual' ? line.trunk : null;
+  const replacing = line.provider === 'zadarma' && !!line.trunk;
   const [form, setForm] = useState({ host: t?.host ?? '', port: String(t?.port ?? 5060), login: t?.login ?? '', number: t?.number ?? '', password: '' });
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -132,6 +134,7 @@ function Trunk({ line, onLine, notify }: LineProps) {
   return (
     <>
       <p className="mb-3 text-[12.5px] leading-snug text-[#8a909c]">Operator (Uztelecom, Sarkor yoki boshqasi) bergan SIP ma'lumotlari: server manzili, login, parol va raqam.</p>
+      {replacing && <p className="mb-3 rounded-xl bg-amber-400/10 px-3.5 py-2.5 text-[12.5px] leading-snug text-amber-200">Hozir Zadarma ulangan. Shu yerda saqlasangiz, Zadarma o'rniga shu operator ulanadi.</p>}
       <form onSubmit={save} className="grid gap-3 sm:grid-cols-[1fr_110px]">
         <Label text="Server manzili"><input className={input} value={form.host} onChange={set('host')} placeholder="Operator bergan manzil yoki IP" required /></Label>
         <Label text="Port"><input className={input} value={form.port} onChange={set('port')} inputMode="numeric" /></Label>

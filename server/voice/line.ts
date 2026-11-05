@@ -154,7 +154,9 @@ export async function lineView(biz: BusinessRow, withStatus = true): Promise<Lin
   const s = secretsOf(biz.id);
   return {
     trunk: a.host ? { host: a.host, port: Number(a.port) || 5060, login: a.login ?? '', number: a.number ?? '' } : null,
-    provider: a.host ? (a.provider === 'zadarma' ? 'zadarma' : 'manual') : null,
+    // sip.zadarma.com — har doim Zadarma, «Boshqa operator» shaklida qo'lda kiritilgan bo'lsa ham (o'sha shakl Uztelecom, Sarkor
+    // va boshqalar uchun; aks holda u Zadarma ma'lumoti bilan to'lib ochiladi)
+    provider: a.host ? (a.provider === 'zadarma' || a.host.trim().toLowerCase() === ZADARMA_HOST ? 'zadarma' : 'manual') : null,
     routing: lineRouting(biz.id),
     admin: { server: lanIp(), login: 'admin', password: s.admin ?? null },
     status: withStatus ? await lineStatus() : { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: null },

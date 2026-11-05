@@ -117,6 +117,9 @@ export async function lineApiTests(h: Harness): Promise<void> {
   ok('liniya: administrator telefoni uchun parol yaratildi', admin.status === 200 && typeof admin.json.line?.admin?.password === 'string' && admin.json.line.admin.password.length >= 10 && admin.json.line.admin.login === 'admin');
   ok("liniya: begona biznes boshqa biznesning raqamini ko'rmaydi", (await api('/api/phone/line', { token: otherToken })).json.line?.trunk === null);
   ok("liniya: qo'lda kiritilgan raqam — «boshqa operator»", again.json.line?.provider === 'manual');
+  // «Boshqa operator» shakliga Zadarma SIP'i yozilgan (API kalitlarisiz) — baribir Zadarma: Uztelecom/Sarkor shakli u bilan to'lib ochilmasin
+  const manualZ = await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: 'SIP.zadarma.com', port: 5061, login: '343303', number: '', password: 'Zadarma-sip-1' } });
+  ok("liniya: qo'lda kiritilgan sip.zadarma.com — Zadarma (boshqa operator emas)", manualZ.status === 200 && manualZ.json.line?.provider === 'zadarma', JSON.stringify(manualZ.json).slice(0, 200));
 
   console.log("\n# Telefon liniyasi: Zadarma (faqat API kalitlari)");
   const zadarma = (body: Record<string, string>, t = token) => api('/api/phone/line/zadarma', { token: t, body });
