@@ -36,7 +36,7 @@ export function analystStats(d: DashboardView | null, f: FunnelView | null): Sta
     { label: 'Murojaat', value: k.inquiries.value, hint: delta(k.inquiries.value, k.inquiries.prev) },
     { label: 'Javob berildi', value: k.answered.value, hint: k.answered.responseMin != null ? `o'rtacha ${k.answered.responseMin} daq ichida` : delta(k.answered.value, k.answered.prev) },
     { label: 'Qabulga yozildi', value: k.booked.value, hint: delta(k.booked.value, k.booked.prev), tone: k.booked.value ? 'good' : undefined },
-    f?.revenue ? { label: "Tushum, so'm", value: som(f.revenue.total), hint: 'murojaat qilganlardan' } : { label: 'Javobsiz qoldi', value: k.unanswered.value, tone: k.unanswered.value ? 'warn' : undefined, hint: `${k.unanswered.messages} xabar · ${k.unanswered.missedCalls} qo'ng'iroq` },
+    f?.revenue ? { label: "Murojaatlardan tushum", value: som(f.revenue.total), hint: "so'm · klinikaning umumiy tushumi emas" } : { label: 'Javobsiz qoldi', value: k.unanswered.value, tone: k.unanswered.value ? 'warn' : undefined, hint: `${k.unanswered.messages} xabar · ${k.unanswered.missedCalls} qo'ng'iroq` },
   ];
 }
 

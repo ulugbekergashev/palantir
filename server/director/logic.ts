@@ -15,8 +15,9 @@ export const METRICS = {
   booked: { label: 'Qabulga yozilganlar', good: 'up', unit: '' },
   new_leads: { label: 'Yangi mijozlar', good: 'up', unit: '' },
   requests_open: { label: "Ochiq so'rovlar", good: 'down', unit: '' },
-  came: { label: 'Kelganlar (CRM)', good: 'up', unit: '' },
-  revenue: { label: "Tushum (CRM), so'm", good: 'up', unit: '' },
+  // Murojaat qilganlardan (voronka, server/funnel.ts) — klinikaning umumiy tushumi emas: jamoa ta'sir qiladigan qismi
+  came: { label: 'Kelganlar (murojaatlardan)', good: 'up', unit: '' },
+  revenue: { label: "Murojaatlardan tushum, so'm", good: 'up', unit: '' },
 } as const;
 export type MetricKey = keyof typeof METRICS;
 export const METRIC_KEYS = Object.keys(METRICS) as MetricKey[];
@@ -142,4 +143,13 @@ export function progress(g: Goal, numbers: Numbers): GoalProgress {
 /** Modelga: maqsadlar va joriy holat */
 export function goalsText(list: GoalProgress[]): string {
   return list.map(g => `- ${g.metric}: target ${g.target}${g.unit.trim()}, now ${g.now === null ? 'unknown' : Math.round(g.now)}${g.reached ? ' (reached)' : g.pct === null ? '' : ` (${g.pct}% of target)`}`).join('\n');
+}
+
+type Key = { text: string; callback_data?: string };
+/** Taklif tugmasi bosilgach xabar klaviaturasi: boshqa qatorlar (ertalabki xabarda — kun rejasiniki) o'z joyida, Direktor qatorlari — yangisi */
+export function mergeKeyboard(current: Key[][], director: { text: string; data: string }[][]): { text: string; callback_data: string }[][] {
+  const others = current.filter(row => !row.some(k => /^d[vn]\|/.test(k.callback_data ?? '')))
+    .map(row => row.flatMap(k => (k.callback_data ? [{ text: k.text, callback_data: k.callback_data }] : [])))
+    .filter(row => row.length);
+  return [...others, ...director.map(row => row.map(k => ({ text: k.text, callback_data: k.data })))];
 }

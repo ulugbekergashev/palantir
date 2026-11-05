@@ -17,7 +17,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { ALL_PACKS, EDUCATION_PACK, MANUFACTURING_PACK, SERVICES_PACK, industryOf } from '../src/data/industries';
 import type { Lead, Task } from '../src/types';
 import { stamp } from '../src/lib/week';
-import { forgottenLeads, planText, type PlanInput } from '../server/plan';
+import { forgottenLeads, joinMorning, planText, TG_TEXT, type PlanInput } from '../server/plan';
 import { wantsOutcome } from '../server/outcome';
 import { CUSTOMER, OWNER, ai, aiServer, listen, press, say, sent, sleep, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 
@@ -74,6 +74,12 @@ ok("dushanba: hafta bo'sh bo'lsa — yakun bloki yo'q (va faqat shu bilan reja y
 const wrote = iso(12);
 const prepPlan = planText({ ...base, autoPrep: true, leads: [lead('w', 'Yozgan', { updatedAt: iso(9), lastInboundAt: wrote }), lead('n', 'Yozmagan', { updatedAt: iso(9) })] })!;
 ok("AI o'zi faqat bizga yozgan mijozga xabar tayyorlaydi; yozmaganiga — egasi tugma bilan", prepPlan.prep.join() === 'w' && prepPlan.buttons.length === 1 && prepPlan.buttons[0][0].data === 'fu|n');
+{
+  const p = { html: '☀️ Reja', buttons: [[{ text: '✍️ Ali', data: 'fu|1' }]] }, d = { html: '🧭 Direktor', buttons: [[{ text: '✅ 1', data: 'dv|a' }]] };
+  const one = joinMorning(p, d);
+  ok("ertalab bitta xabar: kun rejasi va Direktor hisoboti, tugmalari birga", one.length === 1 && one[0].html.startsWith('☀️ Reja') && one[0].html.endsWith('🧭 Direktor') && one[0].buttons.length === 2);
+  ok("juda uzun bo'lsa — ikki xabar; biri yo'q bo'lsa — boshqasi o'zi", joinMorning({ ...p, html: 'x'.repeat(TG_TEXT) }, d).length === 2 && joinMorning(null, d)[0] === d && joinMorning(p, null)[0] === p && !joinMorning(null, null).length);
+}
 ok("matndagi begona belgilar HTML'ni buzmaydi", planText({ ...base, leads: [lead('x', '<b>Ali</b> & Co', { updatedAt: iso(9) })] })!.html.includes('&lt;b&gt;Ali&lt;/b&gt; &amp; Co'));
 
 console.log('\n# Natijasi so\'raladigan vazifalar');
@@ -265,6 +271,9 @@ try {
     const seen = ai.director.at(-1) ?? '';
     ok("direktor: modelga oxirgi 7 kun raqamlari bordi (javob ulushi 25 vs 100), egasining qarorlari bilan", seen.includes('answered_pct') && seen.includes('last 7 days 25, previous 7 days 100') && seen.includes('<memory>'), seen.slice(0, 400));
     ok('direktor: modelga maqsad va undan qanchalik ortda ekani bordi', seen.includes('- answered_pct: target 80%, now 25 (31% of target)'), seen.split('<goals>')[1]?.slice(0, 200));
+    ok("direktor: Tahlilchi haftalik talab tahlilini o'zi qildi va u modelga bordi (jamoa topganlari)", seen.includes('<team_findings>') && seen.includes("theme: Narx so'rash") && ai.insights.length > 0, seen.split('<team_findings>')[1]?.slice(0, 300));
+    const tEvents = (await api('/api/agents/tahlilchi/events', { token })).json.events as { title: string }[] | undefined;
+    ok("Tahlilchi jurnalida: «Haftalik talab tahlili»", !!tEvents?.some(e => e.title.startsWith('Haftalik talab tahlili')), JSON.stringify(tEvents?.slice(0, 2)));
     const waiting = (run.json.waiting ?? []) as { id: string; member: string; status: string; baseline: number }[];
     ok('direktor: muammo va 2 ta taklif tasdiq kutyapti (boshlang\'ich qiymat yozildi)', run.status === 200 && run.json.run?.problem?.includes('javobsiz') && waiting.length === 2 && waiting[0].baseline === 25, JSON.stringify(run.json).slice(0, 400));
     const toReception = waiting.find(m => m.member === 'qabulxona')!, toOwner = waiting.find(m => m.member === 'egasi')!;

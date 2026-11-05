@@ -17,7 +17,7 @@ import { licenseStatus } from './license';
 import { env } from './env';
 import { crmBriefLines, crmConnected, crmWeekLine, recallPatients } from './crm/index';
 import { industryOf, isClinic } from '../src/data/industries';
-import { planText, type Plan } from './plan';
+import { planText, type Plan, joinMorning } from './plan';
 import { periodRange } from './crm/report';
 import { DAY_OUTCOME, askDay } from './outcome';
 import { flushDue } from './inbox/core';
@@ -26,7 +26,7 @@ import { syncTasks } from './brain/mirror';
 import { tgCall, tgCallEnabled } from './tgcall';
 import { ContentError, factoryDue, runFactory } from './content/factory';
 import { watchAll as watchAds } from './ads/campaigns';
-import { directorMorning } from './director/telegram';
+import { directorReport } from './director/telegram';
 import { crewWorks } from '../src/lib/crew';
 import { measure, measureDue } from './marketing/results';
 
@@ -50,6 +50,22 @@ export async function sendMorning(bot: BotService, biz: BusinessRow, now = new D
   await bot.sendText(biz.ownerChatId, plan.html, plan.buttons);
   // Fonda: jadval kutib qolmaydi, xato bo'lsa reja baribir yuborilgan
   if (plan.prep.length) void bot.prepareDay(biz, prepPrompt(plan.prep), '☀️ Bugungi xabarlarni tayyorla').catch(e => console.error(`[jadval] tayyorgarlik (${biz.profile.name}):`, (e as Error).message));
+  return true;
+}
+
+/**
+ * Ertalabki BITTA xabar: Yordamchining kun rejasi va Direktorning hisoboti (raqamlar, muammo, takliflar — tugmalari bilan).
+ * Direktor tahlili (AI) avval tugaydi, keyin xabar ketadi; Direktor yiqilsa yoki aytadigan narsasi bo'lmasa — reja o'zi.
+ * Juda uzun bo'lsa — ikki xabar. Qaytadi: biror narsa yuborildimi
+ */
+export async function morningMessage(bot: BotService, biz: BusinessRow, now = new Date()): Promise<boolean> {
+  if (!biz.ownerChatId) return false;
+  const plan = await morningPlan(biz, now).catch(e => { console.error(`[jadval] reja (${biz.profile.name}):`, e); return null; });
+  const dir = await directorReport(biz, now).catch(e => { console.error(`[direktor] (${biz.profile.name}):`, (e as Error).message); return null; });
+  const messages = joinMorning(plan, dir);
+  if (!messages.length) return false;
+  for (const m of messages) await bot.sendText(biz.ownerChatId, m.html, m.buttons);
+  if (plan?.prep.length) void bot.prepareDay(biz, prepPrompt(plan.prep), '☀️ Bugungi xabarlarni tayyorla').catch(e => console.error(`[jadval] tayyorgarlik (${biz.profile.name}):`, (e as Error).message));
   return true;
 }
 
@@ -241,6 +257,8 @@ export function startScheduler(bot: BotService): () => void {
   const stopInbox = startInbox();
   let running = false;
   let briefRetryAt = 0;
+  /** Ertalabki xabar tayyorlanayotgan bizneslar (Direktor tahlili fonda) */
+  const morningBusy = new Set<string>();
   /** Kontent-zavod xatosi egasiga qaysi kuni aytilgan (kuniga bir marta) */
   const contentWarned = new Map<string, string>();
   // Internet yo'q paytda har tekshiruvda emas, siyrakroq uriniladi (jurnal bir xil xato bilan to'lmasin)
@@ -332,17 +350,17 @@ export function startScheduler(bot: BotService): () => void {
       if (hour >= env.morningHour && hour < env.morningHour + 4 && Date.now() >= briefRetryAt) {
         const today = iso(now);
         for (const biz of businesses.all()) {
-          if (!biz.active || !biz.ownerChatId || biz.briefDate === today || biz.profile.morningBrief === false) continue;
-          try {
-            if (await sendMorning(bot, biz, now)) businesses.update(biz.id, { briefSentDate: today });
-            // Direktor — rejadan keyin, fonda (AI o'ylaydi, jadval kutmaydi); kuniga bir marta (director_runs)
-            void directorMorning(bot, biz, now).catch(e => console.error(`[direktor] (${biz.profile.name}):`, (e as Error).message));
-          } catch (e) {
+          if (!biz.active || !biz.ownerChatId || biz.briefDate === today || biz.profile.morningBrief === false || morningBusy.has(biz.id)) continue;
+          // Fonda: Direktor tahlili (AI) bir daqiqagacha ketadi — eslatmalar va boshqa ishlar kutib qolmasin. Xabar bitta: reja + Direktor
+          morningBusy.add(biz.id);
+          void morningMessage(bot, biz, now).then(sent => {
+            businesses.update(biz.id, { briefDate: today, ...(sent ? { briefSentDate: today } : {}) });
+          }, e => {
             console.error(`[jadval] xulosa (${biz.profile.name}):`, (e as Error).message);
             // Internet yo'q — «yuborildi» deb belgilanmaydi: besh daqiqadan keyin yana uriniladi (ertalabki oraliq ichida)
-            if (transient(e)) { briefRetryAt = Date.now() + BRIEF_RETRY_MS; break; }
-          }
-          businesses.update(biz.id, { briefDate: today });
+            if (transient(e)) briefRetryAt = Date.now() + BRIEF_RETRY_MS;
+            else businesses.update(biz.id, { briefDate: today });
+          }).finally(() => morningBusy.delete(biz.id));
         }
       }
       // 4) Litsenziya: panel yopilishiga 7, 3, 1 kun qolganda va yopilganda — egasiga Telegram'da (kunduzi — REQUEST_HOURS, har bosqichda bir marta)

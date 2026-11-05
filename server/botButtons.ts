@@ -23,6 +23,7 @@ import { requestButton } from './requests/telegram';
 import { answerSupport } from './supportAsk';
 import { answerPasswordReset } from './passwordReset';
 import { directorButton } from './director/telegram';
+import { mergeKeyboard } from './director/logic';
 
 export interface ButtonDeps {
   handleOwner(ctx: Context, biz: BusinessRow, text: string, voice?: boolean, extra?: { display?: string; photo?: boolean }): Promise<void>;
@@ -107,7 +108,9 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
     // Direktor taklifi: topshirish (xodimga doimiy topshiriq + Xotira'ga qaror) yoki kerak emas
     if (code === 'dv' || code === 'dn') {
       const r = directorButton(biz, code, id);
-      await ctx.editMessageReplyMarkup({ inline_keyboard: r.keyboard.map(row => row.map(k => ({ text: k.text, callback_data: k.data }))) }).catch(() => {});
+      // Ertalabki xabarda kun rejasining tugmalari ham bor: faqat Direktor qatorlari yangilanadi
+      const current = (ctx.callbackQuery?.message as { reply_markup?: { inline_keyboard?: { text: string; callback_data?: string }[][] } } | undefined)?.reply_markup?.inline_keyboard ?? [];
+      await ctx.editMessageReplyMarkup({ inline_keyboard: mergeKeyboard(current, r.keyboard) }).catch(() => {});
       return toast(ctx, r.toast, r.alert ? { show_alert: true } : undefined);
     }
     if (code === 'zp' || code === 'zx') {

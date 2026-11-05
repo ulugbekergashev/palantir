@@ -5,7 +5,12 @@
 import { addDays, iso } from './week';
 
 export type PeriodKey = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
-export const PERIOD_LABEL: Record<Exclude<PeriodKey, 'custom'>, string> = { today: 'Bugun', yesterday: 'Kecha', week: 'Hafta', month: 'Oy' };
+/**
+ * Davrlar — butun Palantir'da bitta ma'noda: «7 kun» va «30 kun» — kechagacha to'liq kunlar (bugun hali tugamagan — solishtirishni
+ * buzmasin; Google Analytics'dagidek). Tahlilchi, Direktor va maqsadlar shuni o'qiydi. «O'tgan hafta» (dushanba–yakshanba) — faqat
+ * dushanba kungi yakunda (plan.ts), shunday deb yoziladi
+ */
+export const PERIOD_LABEL: Record<Exclude<PeriodKey, 'custom'>, string> = { today: 'Bugun', yesterday: 'Kecha', week: '7 kun', month: '30 kun' };
 /** Oraliq shundan uzun bo'lmaydi (bitta so'rovda) */
 export const MAX_PERIOD_DAYS = 366;
 
@@ -15,8 +20,8 @@ export interface Period { key: PeriodKey; from: string; to: string }
 export function periodDays(key: PeriodKey, now: Date, custom?: { from: string; to: string }): Period {
   const today = iso(now);
   if (key === 'yesterday') { const y = iso(addDays(now, -1)); return { key, from: y, to: y }; }
-  if (key === 'week') return { key, from: iso(addDays(now, -6)), to: today };
-  if (key === 'month') return { key, from: iso(addDays(now, -29)), to: today };
+  if (key === 'week') return { key, from: iso(addDays(now, -7)), to: iso(addDays(now, -1)) };
+  if (key === 'month') return { key, from: iso(addDays(now, -30)), to: iso(addDays(now, -1)) };
   if (key === 'custom' && custom && custom.from <= custom.to) return { key, from: custom.from, to: custom.to };
   return { key: 'today', from: today, to: today };
 }

@@ -1,6 +1,7 @@
 /**
- * Direktor Telegram'da: ertalabki xabar (rejadan keyin, kuniga bir marta) va «✅ topshirish / ✖️ kerak emas» tugmalari.
- * Xabar faqat aytadigan narsa bo'lsa yuboriladi: muammo, taklif yoki tekshirilgan qaror natijasi.
+ * Direktor Telegram'da: ertalabki hisobot (kuniga bir marta; Yordamchining kun rejasi bilan bitta xabarda — scheduler.ts
+ * morningMessage) va «✅ topshirish / ✖️ kerak emas» tugmalari. Hisobot faqat aytadigan narsa bo'lsa: muammo, taklif yoki
+ * tekshirilgan qaror natijasi.
  */
 import { iso } from '../../src/lib/week';
 import type { BusinessRow } from '../db';
@@ -10,13 +11,20 @@ import { moveButtons, reportHtml } from './logic';
 
 interface Sender { sendText(chatId: string, html: string, buttons?: { text: string; data: string }[][]): Promise<void> }
 
-/** Ertalab: bugun hali tahlil qilinmagan bo'lsa — tahlil va xabar. Qaytadi: xabar yuborildimi */
-export async function directorMorning(bot: Sender, biz: BusinessRow, now = new Date()): Promise<boolean> {
-  if (!biz.ownerChatId || !env.aiEnabled || directorRuns.onDay(biz.id, iso(now))) return false;
+/** Ertalab: bugun hali tahlil qilinmagan bo'lsa — tahlil; aytadigan narsa bo'lsa — hisobot va tugmalar (yuborilmaydi) */
+export async function directorReport(biz: BusinessRow, now = new Date()): Promise<{ html: string; buttons: { text: string; data: string }[][] } | null> {
+  if (!env.aiEnabled || directorRuns.onDay(biz.id, iso(now))) return null;
   const r = await runDirector(biz, now);
   const html = reportHtml({ numbers: r.numbers, plan: r.plan, moves: r.moves, checked: r.checked });
-  if (!html) return false;
-  await bot.sendText(biz.ownerChatId, html, moveButtons(r.moves));
+  return html ? { html, buttons: moveButtons(r.moves) } : null;
+}
+
+/** Faqat Direktor hisoboti (alohida xabar). Qaytadi: yuborildimi */
+export async function directorMorning(bot: Sender, biz: BusinessRow, now = new Date()): Promise<boolean> {
+  if (!biz.ownerChatId) return false;
+  const r = await directorReport(biz, now);
+  if (!r) return false;
+  await bot.sendText(biz.ownerChatId, r.html, r.buttons);
   return true;
 }
 

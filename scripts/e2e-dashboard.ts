@@ -151,7 +151,7 @@ try {
   ok("kartada birinchi murojaat — eng birinchi xabar, oxirgisi — eng oxirgi (6 daqiqa farq)", Math.abs(gapMin - 6) < 0.1, `${card.firstMessageAt} → ${card.lastMessageAt}`);
   ok("so'rovlari bor mijoz kartasida — so'rovlar", ((await api(`/api/leads/${b}/card`, { token })).json.card as import('../src/types').ClientCardView).requests.length === 1);
   const week = (await api('/api/dashboard?period=week', { token })).json.dashboard as DashboardView;
-  ok("hafta: kun bo'yicha 7 bo'lak, 9 murojaat (kecha bilan)", week.period.bucket === 'day' && week.period.labels.length === 7 && week.kpi.inquiries.value === 9);
+  ok("«7 kun» — kechagacha 7 to'liq kun (bugungi 8 ta kirmaydi, Direktor ham shuni o'qiydi): kun bo'yicha 7 bo'lak, kechagi 1 murojaat", week.period.bucket === 'day' && week.period.labels.length === 7 && week.kpi.inquiries.value === 1 && week.period.to < new Date().toISOString().slice(0, 10), JSON.stringify(week.period).slice(0, 120));
   ok("noto'g'ri oraliq (to < from) — bugun", ((await api('/api/dashboard?period=custom&from=2026-10-10&to=2026-10-01', { token })).json.dashboard as DashboardView).period.key === 'today');
 
   console.log('\n# Ko\'rinish (headless)');
@@ -175,9 +175,9 @@ try {
   await page.waitForTimeout(300);
   await page.locator('section', { has: chart }).screenshot({ path: join(OUT, 'dashboard-tooltip.png') });
   ok('grafikda sichqoncha bilan — tooltip', await page.getByText("Kiruvchi qo'ng'iroq").count() > 1);
-  await page.getByRole('tab', { name: 'Hafta' }).click();
+  await page.getByRole('tab', { name: '7 kun' }).click();
   await page.waitForTimeout(800);
-  ok("«Hafta» — kun bo'yicha", await page.getByText("kun bo'yicha").isVisible());
+  ok("«7 kun» — kun bo'yicha", await page.getByText("kun bo'yicha").isVisible());
   await page.setViewportSize({ width: 390, height: 900 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(500);

@@ -3,7 +3,7 @@
  * Ishga tushirish: npx tsx scripts/check-direktor.ts
  */
 import { cleanPlan, moveButtons, reportHtml, verdict, type Numbers } from '../server/director/logic';
-import { goalsText, progress } from '../server/director/logic';
+import { goalsText, mergeKeyboard, progress } from '../server/director/logic';
 
 let failed = 0;
 function ok(name: string, cond: boolean, info = ''): void {
@@ -56,6 +56,11 @@ ok('modelga: maqsad, joriy va foiz', goalsText([progress(g('answered_pct', 90), 
 
 if (failed) {
   console.error(`\n${failed} ta sinov yiqildi`);
-  process.exit(1);
+  ok("tugma bosilganda: kun rejasining tugmalari qoladi, Direktor qatorlari yangilanadi", JSON.stringify(mergeKeyboard(
+  [[{ text: '✍️ Ali', callback_data: 'fu|1' }], [{ text: '✅ 1', callback_data: 'dv|a' }, { text: '✖️ 1', callback_data: 'dn|a' }], [{ text: '✅ 2', callback_data: 'dv|b' }], [{ text: 'havola' }]],
+  [[{ text: '✅ 2', data: 'dv|b' }]],
+)) === JSON.stringify([[{ text: '✍️ Ali', callback_data: 'fu|1' }], [{ text: '✅ 2', callback_data: 'dv|b' }]]));
+
+process.exit(1);
 }
 console.log("\nHammasi o'tdi");

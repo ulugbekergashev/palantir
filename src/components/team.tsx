@@ -171,7 +171,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
           // CRM bo'lmasa ham murojaat va so'rovlar hisoblanadi — ishlayapti
           on: crm ? !!day : true, live: !!day, badge: waiting('tahlilchi'),
           status: day ? `Bugun ${day.total} qabul · ${day.came} keldi` : crm ? 'DentaCRM javob bermadi' : `Ochiq so‘rovlar: ${requests?.open ?? 0}`,
-          detail: day ? `Tushum ${som(day.revenue.total)}` : crm ? 'Birozdan keyin qayta urinadi' : 'Murojaat va so‘rovlarni hisoblaydi',
+          detail: day ? `Bugungi tushum (klinika) ${som(day.revenue.total)}` : crm ? 'Birozdan keyin qayta urinadi' : 'Murojaat va so‘rovlarni hisoblaydi',
           next: clinic && !crm ? { label: 'DentaCRM’ni ulash', href: hrefOf('sozlamalar', 'dentacrm') } : null,
         },
         marketolog: {

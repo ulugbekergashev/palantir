@@ -112,9 +112,23 @@ export function planText(p: PlanInput): Plan | null {
   }
   section(`Yangi ${many} (${fresh.length})`, fresh.slice(0, MAX_LINES).map(l => `• ${esc(nameOf(l))}${l.phone ? ` — ${esc(l.phone)}` : ''}`));
   if (week) {
-    section("📊 O'tgan hafta", [`• Yangi ${many}: ${week.leadsAdded}`, `• Bajarilgan vazifalar: ${week.tasksDone}`, ...(week.crmLine ? [`• ${week.crmLine}`] : [])]);
+    section("📊 O'tgan hafta (dushanba–yakshanba)", [`• Yangi ${many}: ${week.leadsAdded}`, `• Bajarilgan vazifalar: ${week.tasksDone}`, ...(week.crmLine ? [`• ${week.crmLine}`] : [])]);
   }
   if (p.holidays.length) out.push('', ...p.holidays);
   out.push('', 'Nima qilamiz? Yozing yoki ovozli xabar yuboring.');
   return { html: out.join('\n'), buttons, prep };
+}
+
+/** Telegram xabari chegarasi (4096) — zaxira bilan */
+export const TG_TEXT = 3900;
+type Msg = { html: string; buttons: PlanButton[][] };
+
+/**
+ * Ertalab bitta xabar: kun rejasi va Direktor hisoboti (tugmalari birga). Juda uzun bo'lsa — ikkita; biri yo'q bo'lsa — boshqasi o'zi
+ */
+export function joinMorning(plan: Msg | null, director: Msg | null): Msg[] {
+  const parts = [plan, director].filter((x): x is Msg => !!x);
+  if (parts.length < 2) return parts;
+  const html = `${plan!.html}\n\n━━━━━━━━━━\n\n${director!.html}`;
+  return html.length <= TG_TEXT ? [{ html, buttons: [...plan!.buttons, ...director!.buttons] }] : parts;
 }
