@@ -86,8 +86,9 @@ export function inUse(s: CrewSignals): CrewMember[] {
     qabulxona: s.customers,
     tahlilchi: s.customers || s.crm,
     kuzatuvchi: s.cameras > 0,
-    marketolog: s.metaAi || s.marketingPosts > 0,
-    kontent: s.content,
+    // Instagram postlarini Kontent-meyker yasaydi (oldin Marketologda edi): ularni ishlatgan bazada Kontent-meyker jamoada
+    marketolog: s.metaAi,
+    kontent: s.content || s.marketingPosts > 0,
     target: s.ads,
   };
   return CREW.filter(m => on[m]);

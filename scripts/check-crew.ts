@@ -37,6 +37,10 @@ check("Instagram ulandi — Qabulxona va Tahlilchi o'zi qo'shiladi; kamera — K
   const s = withInUse(null, inUse({ ...none, customers: true, cameras: 2 }));
   assert.deepEqual(crewList(s), ['direktor', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi']);
 });
+check("Instagram postlari — Kontent-meykerning ishi (Marketolog emas); Meta AI — Marketolog", () => {
+  assert.deepEqual(crewList(withInUse(null, inUse({ ...none, marketingPosts: 1 }))), ['direktor', 'yordamchi', 'kontent']);
+  assert.deepEqual(crewList(withInUse(null, inUse({ ...none, metaAi: true }))), ['direktor', 'yordamchi', 'marketolog']);
+});
 check("egasi olib tashlagan xodim ishi ulangan bo'lsa ham qaytib qo'shilmaydi; «Ishga olish» bilan qaytadi", () => {
   const hired = withInUse(null, inUse({ ...none, cameras: 1 }));
   const out = setHired(hired, 'kuzatuvchi', false);

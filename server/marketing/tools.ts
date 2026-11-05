@@ -1,6 +1,7 @@
 /**
  * Marketolog asboblari: Meta AI'dan so'rash (egasining meta.ai akkaunti — metaAi.ts). Meta AI Instagram va Facebook'ni ichidan
- * ko'radi: raqobatchilar, egasining o'z akkaunti, Reels/video nimani aytadi, kontent g'oyalari.
+ * ko'radi: raqobatchilar, egasining o'z akkaunti, Reels/video nimani aytadi, kontent g'oyalari. Javoblar kontent-rejaga ham tushadi
+ * (content/plan.ts — research.ts orqali); postni Marketolog emas, Kontent-meyker yasaydi (content/tools.ts draft_post).
  *
  * Savol fonda ketadi (javob daqiqalab keladi — yordamchining navbatini, jonli qo'ng'iroqni ushlab turmasin): asbob darhol «boshladim»
  * deydi, javob tayyor bo'lgach — Marketolog jurnaliga (panel → Marketolog → Hisobotlar) to'liq va egasining Telegram'iga.
@@ -15,7 +16,7 @@ import { instagramUserExists } from '../inbox/instagram';
 import { events } from '../orders/store';
 import { ToolError, def } from '../toolkit';
 import { MetaAiError, askMetaAi, assertMetaAiReady, metaAiAvailable } from './metaAi';
-import { MAX_CAPTION, PostError, captionWarnings, draftWithMetaAi } from './posts';
+import { TOPICS, type Topic } from './research';
 
 /** Bir javobdan tekshiriladigan akkauntlar soni */
 const MAX_HANDLES = 8;
@@ -24,8 +25,6 @@ const MAX_QUEUED = 3;
 /** Telegram xabariga javobning shuncha qismi (to'lig'i — panelda) */
 const TELEGRAM_CHARS = 3000;
 
-const TOPICS = { raqobatchilar: 'Raqobatchilar', akkaunt: 'Akkaunt tahlili', video: 'Video tahlili', kontent: 'Kontent', boshqa: 'Savol' } as const;
-type Topic = keyof typeof TOPICS;
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -83,7 +82,7 @@ async function job(biz: BusinessRow, question: string, topic: Topic): Promise<vo
 
 export const MARKETING_DEFS = {
   meta_ai: def({
-    description: "Ask Meta AI through the owner's own meta.ai account (connected in panel → Marketolog → Ulash) — the Marketolog's main tool for marketing work: who the competitors are on Instagram and Facebook and what they post, a review of the business's own Instagram account, what a Reel or video says and why it works (put its link in the question), content plan, post and Reels ideas, captions, hashtags, trends in this field. Meta AI sees Instagram and Facebook from the inside, which other models cannot. Write the question fully and concretely in Russian or Uzbek with the business context: field, city, the business's Instagram username if known, what result is needed and in what form (a list, a table, a plan for 7 days). The answer takes a few minutes, so it runs in the background: the tool returns at once, and the answer goes to the owner's Telegram and to Marketolog → Hisobotlar, with the @accounts it names checked on Instagram. Tell the owner you asked and where the answer will come — do not invent the answer yourself. One complete question is better than several small ones (the account has a daily limit).",
+    description: "Ask Meta AI through the owner's own meta.ai account (connected in panel → Marketolog → Ulash) — the Marketolog's main tool for marketing work: who the competitors are on Instagram and Facebook and what they post, a review of the business's own Instagram account, what a Reel or video says and why it works (put its link in the question), post and Reels ideas, hashtags, trends in this field. Its recent answers are used automatically when a content plan is made (content_plan), so do not ask Meta AI to write the plan itself; posts are made with draft_post / content_drafts, not here. Meta AI sees Instagram and Facebook from the inside, which other models cannot. Write the question fully and concretely in Russian or Uzbek with the business context: field, city, the business's Instagram username if known, what result is needed and in what form (a list, a table, a plan for 7 days). The answer takes a few minutes, so it runs in the background: the tool returns at once, and the answer goes to the owner's Telegram and to Marketolog → Hisobotlar, with the @accounts it names checked on Instagram. Tell the owner you asked and where the answer will come — do not invent the answer yourself. One complete question is better than several small ones (the account has a daily limit).",
     input: z.object({
       question: z.string().trim().min(10).max(4000).describe('The full question for Meta AI, with the business context'),
       topic: z.enum(['raqobatchilar', 'akkaunt', 'video', 'kontent', 'boshqa']).describe('What it is about — for the Marketolog journal'),
@@ -107,30 +106,6 @@ export const MARKETING_DEFS = {
         started: true, queued_before: waiting,
         note: "Asked Meta AI in the background. The answer will come to the owner's Telegram and to panel → Marketolog → Hisobotlar in a few minutes.",
       };
-    },
-  }),
-
-  draft_post: def({
-    description: "Prepare an Instagram post (a picture with a caption) for the owner to approve — nothing is published until the owner presses «Instagram'ga joylash» in Telegram or in panel → Marketolog → Postlar. You write the caption yourself, in the business's content language: a hook line, the substance in 2-4 short lines, a call to action, 5-10 hashtags; no exaggerated promises (for clinics: no «kafolat», «og'riqsiz», «eng yaxshi»). Meta AI draws the picture from image_description (in the background, a few minutes; it shares the daily Meta AI limit); describe what is in the picture concretely (scene, style, colours) and never ask for text inside the picture. If the owner wants their own photo, tell them to add it in panel → Marketolog → Postlar → «Yangi post». Tell the owner the draft will come to Telegram for approval.",
-    input: z.object({
-      caption: z.string().trim().min(10).max(MAX_CAPTION).describe('The full post caption, ready to publish'),
-      image_description: z.string().trim().min(10).max(1000).describe('What Meta AI should draw for the picture'),
-    }),
-    run: (i, ctx) => {
-      if (!metaAiAvailable()) throw new ToolError("Bu kompyuterda Chrome yoki Edge yo'q — Meta AI rasm chiza olmaydi");
-      try {
-        assertMetaAiReady(ctx.biz);
-        const p = draftWithMetaAi(ctx.biz, i.caption, i.image_description);
-        const warnings = captionWarnings(ctx.biz, p.caption);
-        return {
-          started: true, post_id: p.id,
-          note: "Meta AI is drawing the picture in the background; the draft with the picture will come to the owner's Telegram with a «Joylash» button, and to panel → Marketolog → Postlar.",
-          ...(warnings.length ? { caption_warnings: warnings } : {}),
-        };
-      } catch (e) {
-        if (e instanceof MetaAiError || e instanceof PostError) throw new ToolError(e.message);
-        throw e;
-      }
     },
   }),
 };

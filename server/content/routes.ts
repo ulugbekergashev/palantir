@@ -10,7 +10,9 @@ import { cancelDraft, connectChannel, disconnectChannel, editDraft, factoryRunni
 import { normalizeHandle } from './telegram';
 import { brandStore, makeBrandBook, setNarrator } from './brand';
 import { mirrorBrand } from './brandPage';
-import { PLAN_MAX, PLAN_MIN, makePlan, planDraft, planStore } from './plan';
+import { PLAN_MAX, PLAN_MIN, makePlan, planDraft, planInstagram, planStore } from './plan';
+import { PostError, posts } from '../marketing/posts';
+import { PictureError, pictureMaker } from './picture';
 import { editScenes, makeVideo, videoAudio, videoStore, voiceVideo } from './video';
 import { renderState, startRender, videoMp4 } from './render';
 import { voiceProvider } from './speech';
@@ -44,8 +46,20 @@ async function once<T>(bizId: string, fn: () => Promise<T>): Promise<T> {
   try { return await fn(); } finally { aiBusy.delete(bizId); }
 }
 
+const WEEK_MS = 7 * 86_400_000;
+/** Instagram postlari (Kontent-meyker): tasdiq kutayotgan, oxirgi 7 kunda chiqqan, rasm chizilayotgani bormi */
+function igCounts(bizId: string): { waiting: number; week: number; drawing: boolean } {
+  const list = posts.list(bizId);
+  const since = Date.now() - WEEK_MS;
+  return {
+    waiting: list.filter(p => p.status === 'draft' || p.status === 'failed' || p.status === 'unknown').length,
+    week: list.filter(p => p.status === 'published' && Date.parse(p.publishedAt ?? '') > since).length,
+    drawing: list.some(p => p.status === 'drawing'),
+  };
+}
+
 function failed(res: Response, e: unknown): void {
-  if (e instanceof ContentError) { res.status(409).json({ error: e.message }); return; }
+  if (e instanceof ContentError || e instanceof PostError || e instanceof PictureError) { res.status(409).json({ error: e.message }); return; }
   console.error('[kontent]', e);
   res.status(500).json({ error: "Ichki xato — qayta urinib ko'ring" });
 }
@@ -54,6 +68,7 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
   const view = (biz: BusinessRow) => ({
     settings: contentStore.settings(biz.id), sources: contentStore.sources(biz.id), drafts: contentStore.drafts(biz.id), running: factoryRunning(biz.id),
     brand: brandStore.get(biz.id), plan: planStore.list(biz.id), videos: videoStore.list(biz.id).map(v => ({ ...v, render: renderState(biz.id, v) })), voice: voiceProvider() !== null, voiceBy: voiceProvider(), busy: aiBusy.has(biz.id),
+    picture: pictureMaker(biz), igPosts: igCounts(biz.id),
   });
 
   app.get('/api/content', asBiz((_req, res, biz) => {
@@ -130,6 +145,11 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
 
   app.post('/api/content/plan/:id/draft', asBiz(async (req, res, biz) => {
     try { await once(biz.id, () => planDraft(biz, Id(req))); res.json(view(biz)); } catch (e) { failed(res, e); }
+  }));
+
+  // Instagram posti: matn yoziladi, rasm fonda chiziladi — qoralama Kontent-meyker → Postlar → Instagram'da va Telegram'da
+  app.post('/api/content/plan/:id/instagram', asBiz(async (req, res, biz) => {
+    try { await once(biz.id, () => planInstagram(biz, Id(req))); res.json(view(biz)); } catch (e) { failed(res, e); }
   }));
 
   app.post('/api/content/plan/:id/video', asBiz(async (req, res, biz) => {

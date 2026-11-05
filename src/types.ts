@@ -452,18 +452,20 @@ export interface AgentOrder {
   active: boolean; createdAt: string; lastRunAt: string | null; lastResult: string | null;
   /** Necha marta ishlagan (qoida bo'lsa — necha marta xabar bergan) */ hits: number;
 }
+/** Jurnalga yozadigan xodim: topshiriq oladiganlar va Kontent-meyker, Targetolog (hozircha topshiriqsiz — faqat «nima qildi») */
+export type EventMember = OrderMember | 'kontent' | 'target';
 /** Xodim jurnalidagi yozuv: nima ko'rdi yoki nima qildi. hasImage — kadr saqlangan (kamera hodisasi) */
 export interface AgentEvent {
-  id: string; member: OrderMember; orderId: string | null; level: 'info' | 'warn' | 'crit'; title: string; body: string;
+  id: string; member: EventMember; orderId: string | null; level: 'info' | 'warn' | 'crit'; title: string; body: string;
   cameraId: string | null; hasImage: boolean; at: string;
 }
 
 /**
- * Marketolog posti: drawing — Meta AI rasm chizyapti; draft — egasi tasdiqini kutyapti; failed — joylanmadi (qayta urinsa bo'ladi);
+ * Instagram posti (Kontent-meyker): drawing — AI rasm chizyapti (Meta AI yoki Gemini); draft — egasi tasdiqini kutyapti; failed — joylanmadi (qayta urinsa bo'ladi);
  * unknown — Instagram post yaratishni boshlagan, natijasi noma'lum (egasi Instagram'da tekshirib, tasdiq bilan qayta joylaydi)
  */
 export interface MarketingPost {
-  id: string; caption: string; source: 'photo' | 'meta_ai'; prompt: string | null;
+  id: string; caption: string; source: 'photo' | 'meta_ai' | 'gemini'; prompt: string | null;
   status: 'drawing' | 'draft' | 'publishing' | 'published' | 'failed' | 'unknown' | 'cancelled'; url: string | null; error: string | null;
   createdAt: string; publishedAt: string | null;
 }
@@ -600,7 +602,8 @@ export interface BrandBook {
 export interface ContentBrand { answers: BrandAnswers; book: BrandBook | null; updatedAt: string }
 
 /** Kontent rejasidagi mavzu: post yozilgach draftId, video tayyorlangach videoId */
-export interface PlanItem { id: string; n: number; pillar: string; title: string; angle: string; draftId: string | null; videoId: string | null; createdAt: string }
+/** Reja mavzusi: draftId — Telegram kanal posti, postId — Instagram posti, videoId — video */
+export interface PlanItem { id: string; n: number; pillar: string; title: string; angle: string; draftId: string | null; postId: string | null; videoId: string | null; createdAt: string }
 
 /** Video sahnasi: ekrandagi qisqa yozuv va diktor gapi. kind — sahna turi (andoza shunga qarab chizadi) */
 export interface VideoScene {

@@ -38,9 +38,9 @@ export const TEAM: Record<Member, { name: string; role: string; about: string; i
   yordamchi: { name: 'Yordamchi', role: "Sizning o'ng qo'lingiz", icon: UserRound, department: 'boshqaruv', about: 'Eslatadi, hujjat tayyorlaydi, savolingizga javob beradi — ovoz bilan yoki yozib.' },
   kuzatuvchi: { name: 'Kuzatuvchi', role: 'Kameralar', icon: Camera, department: 'sifat', about: "Kameralarni kuzatadi, siz bergan topshiriqlarni bajaradi (kassada odam bormi, kim uzoq kutyapti), kadrga qarab savolingizga javob beradi va kechqurun hisobot yuboradi." },
   tahlilchi: { name: 'Tahlilchi', role: 'Raqamlar', icon: ChartLine, department: 'boshqaruv', about: "Murojaatlar, so'rovlar va natija (CRM ulangan bo'lsa — qabul va tushum ham) — kunlik va haftalik ko'rinishda; mijozlar nimani so'rayotganini guruhlaydi." },
-  marketolog: { name: 'Marketolog', role: 'Meta AI · Instagram', icon: Megaphone, department: 'marketing', about: "Meta AI orqali raqobatchilarni va akkauntingizni tahlil qiladi; Instagram post yozib, rasmini chizdiradi va siz tasdiqlagach joylaydi." },
+  marketolog: { name: 'Marketolog', role: 'Bozor · raqobatchilar', icon: Megaphone, department: 'marketing', about: "Meta AI orqali raqobatchilarni, akkauntingizni va sohangizda nima ishlayotganini o'rganadi; topilmalari kontent-rejaga tushadi." },
   target: { name: 'Targetolog', role: 'Meta reklama · Facebook va Instagram', icon: Target, department: 'marketing', about: "Topshirig'ingizdan reklama kampaniyasini tuzadi, siz tasdiqlasangiz — Meta'da ishga tushiradi; sarfni kuzatadi va limitga yetsa o'zi to'xtatadi." },
-  kontent: { name: 'Kontent-meyker', role: 'Post · kontent-reja · video', icon: PenLine, department: 'marketing', about: "Kontent-reja, post va qisqa video (ssenariy, diktor ovozi, mp4) tayyorlaydi; Telegram kanalingizga siz tasdiqlagach joylaydi." },
+  kontent: { name: 'Kontent-meyker', role: 'Telegram · Instagram · video', icon: PenLine, department: 'marketing', about: "Kontent-reja tuzadi; Telegram kanali va Instagram uchun post (rasmi bilan) va qisqa video tayyorlaydi; siz tasdiqlagach joylaydi." },
 };
 export const MEMBERS: Member[] = [...CREW];
 export { isCore };
@@ -49,7 +49,7 @@ export { isCore };
  * Bo'limlar: pastki panelda (telefonda 7 tugma sig'adi) bo'lim bitta tugma, ichida xodimlari. Marketing — Marketolog va Kontent-meyker.
  * DEPARTMENT_OF — bo'lim ichidagi xodim (o'z tugmasi yo'q) qaysi bo'limda va qaysi varaqdan ochiladi
  */
-export const DEPARTMENT_OF: Partial<Record<Member, { area: Area; tab: string }>> = { kontent: { area: 'marketolog', tab: 'qoralamalar' }, target: { area: 'marketolog', tab: 'kampaniyalar' } };
+export const DEPARTMENT_OF: Partial<Record<Member, { area: Area; tab: string }>> = { kontent: { area: 'marketolog', tab: 'postlar' }, target: { area: 'marketolog', tab: 'kampaniyalar' } };
 export const RAIL_MEMBERS = MEMBERS.filter(m => !DEPARTMENT_OF[m]);
 /** Bo'lim tugmasining nomi (ichida bir nechta xodim) */
 export const DEPARTMENT_LABEL: Partial<Record<Member, string>> = { marketolog: 'Marketing' };
@@ -91,16 +91,21 @@ function adsState(v: AdsView | null): MemberState {
   };
 }
 
-/** Kontent-meyker: kanal ulanganmi, nechta manba, nechta qoralama tasdiq kutyapti (nishon) */
-function contentState(c: ContentView | null): MemberState {
-  const waiting = c?.drafts.filter(d => d.status === 'draft' || d.status === 'failed').length ?? 0;
+/**
+ * Kontent-meyker: qayerga joylaydi (Telegram kanal, Instagram), nechta post tasdiq kutyapti (nishon — ikkalasi birga).
+ * Keyingi qadam: joylaydigan joy yo'q — ulash; bor, lekin reja yo'q — reja tuzish
+ */
+function contentState(c: ContentView | null, instagram: string | null): MemberState {
+  const waiting = (c?.drafts.filter(d => d.status === 'draft' || d.status === 'failed').length ?? 0) + (c?.igPosts.waiting ?? 0);
   const sources = c?.sources.length ?? 0, channel = c?.settings.channelTitle;
+  const drawing = !!c?.igPosts.drawing;
+  const where = [channel && `Kanal: ${channel}`, instagram && `Instagram: ${instagram}`].filter(Boolean).join(' · ');
   const tab = (t: string) => hrefOf('marketolog', t);
   return {
-    on: !!channel && sources > 0, live: !!c?.running, badge: waiting,
-    status: c?.running ? 'Post yozyapti…' : waiting ? `${waiting} ta post tasdiq kutyapti` : channel ? `Kanal: ${channel}` : 'Kanal ulanmagan',
-    detail: `${sources} ta manba${c?.settings.auto ? ' · har kuni ertalab' : ''}`,
-    next: !sources ? { label: "Kuzatiladigan kanal qo'shish", href: tab('manbalar') } : !channel ? { label: 'Kanalingizni ulash', href: tab('kanal') } : null,
+    on: !!channel || !!instagram, live: !!c?.running || drawing, badge: waiting,
+    status: c?.running ? 'Post yozyapti…' : drawing ? 'Rasm chizilyapti…' : waiting ? `${waiting} ta post tasdiq kutyapti` : where || 'Kanal ulanmagan',
+    detail: `${c?.plan.length ? `Rejada ${c.plan.length} mavzu` : 'Reja yo\'q'} · ${sources} ta manba${c?.settings.auto ? ' · har kuni ertalab' : ''}`,
+    next: !channel && !instagram ? { label: 'Kanalingizni ulash', href: tab('kanal') } : c && !c.plan.length ? { label: 'Kontent-reja tuzish', href: tab('reja') } : null,
   };
 }
 
@@ -112,6 +117,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
   // Qabulxona navbatchilikda — mijoz yozadigan yoki qo'ng'iroq qiladigan kamida bitta kanal ulangan bo'lsa
   const reachable = !!(status.bot || status.telegramBusiness?.account || status.instagram?.account || status.instagramApi?.account);
   const ownerLinked = !!status.ownerLinked;
+  const igAccount = status.instagram?.account ?? null;
   useEffect(() => {
     let stale = false;
     const load = async () => {
@@ -174,13 +180,13 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
           next: meta?.problem ? { label: 'Meta AI’ga qayta kirish', href: hrefOf('marketolog', 'ulash') } : meta?.connected ? null : { label: 'Meta AI’ga kirish', href: hrefOf('marketolog', 'ulash') },
           detail: meta?.connected ? `Bugun ${reports?.events.filter(e => iso(new Date(e.at)) === today).length ?? 0} ta tahlil · ${meta.usedToday}/${meta.dailyLimit} savol` : 'Ulash — akkauntingizga bir marta kirasiz',
         },
-        kontent: contentState(content),
+        kontent: contentState(content, igAccount),
         target: adsState(ads),
       });
     };
     void load();
     const t = setInterval(() => { void load(); }, 30_000);
     return () => { stale = true; clearInterval(t); };
-  }, [crm, clinic, reachable, ownerLinked, meta?.connected, meta?.problem, meta?.usedToday, meta?.dailyLimit, tick]);
+  }, [crm, clinic, reachable, ownerLinked, igAccount, meta?.connected, meta?.problem, meta?.usedToday, meta?.dailyLimit, tick]);
   return team;
 }

@@ -1,10 +1,14 @@
 /**
- * Marketolog → Postlar: yangi post (egasining surati yoki Meta AI chizadi; matnni o'zi yozadi yoki Marketolog yozib beradi),
- * qoralamalar va joylanganlar. Instagram'ga faqat egasi «Joylash»ni bosganda chiqadi (Telegram kartasida ham shu tugma).
+ * Kontent-meyker → Postlar → Instagram: yangi post (egasining surati yoki AI chizadi — Meta AI, bo'lmasa Gemini; matnni o'zi yozadi
+ * yoki Kontent-meyker yozib beradi), qoralamalar va joylanganlar. Instagram'ga faqat egasi «Joylash»ni bosganda chiqadi (Telegram
+ * kartasida ham shu tugma).
  */
 import { useEffect, useState, type FormEvent } from 'react';
 import { ExternalLink, ImagePlus, Loader2, Send, Sparkles, Wand2, X } from 'lucide-react';
 import type { LiveStatus, PostView } from '../../types';
+
+type Picture = 'meta_ai' | 'gemini' | null;
+const PICTURE_BY: Record<'meta_ai' | 'gemini', string> = { meta_ai: 'Meta AI', gemini: 'Gemini' };
 import { api } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { HUE, Panel, Quiet } from '../../components/agent';
@@ -30,7 +34,7 @@ export async function shrink(file: File): Promise<string> {
 }
 
 const STATUS: Record<PostView['status'], { label: string; cls: string }> = {
-  drawing: { label: 'Meta AI chizyapti…', cls: 'bg-[#a78bfa]/15 text-[#d9ccff]' },
+  drawing: { label: 'Rasm chizilyapti…', cls: 'bg-[#a78bfa]/15 text-[#d9ccff]' },
   draft: { label: 'Tasdiqingizni kutyapti', cls: 'bg-[#f5b454]/15 text-[#fde2b0]' },
   publishing: { label: 'Joylanyapti…', cls: 'bg-[#3fb6ff]/15 text-[#bfe6ff]' },
   published: { label: 'Joylandi', cls: 'bg-emerald-400/15 text-[#a7f3d0]' },
@@ -54,13 +58,12 @@ function PostImage({ id, alt }: { id: string; alt: string }) {
 const field = 'w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3.5 py-2.5 text-[14.5px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f] focus:border-glass/25';
 const button = 'inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 text-[13.5px] font-semibold transition-opacity disabled:opacity-40';
 
-function NewPost({ status, notify, onCreated }: { status: LiveStatus; notify: Notify; onCreated: () => void }) {
-  const [mode, setMode] = useState<'photo' | 'meta'>(status.metaAi.connected ? 'meta' : 'photo');
+function NewPost({ picture, notify, onCreated }: { picture: Picture; notify: Notify; onCreated: () => void }) {
+  const [mode, setMode] = useState<'photo' | 'ai'>(picture ? 'ai' : 'photo');
   const [image, setImage] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [caption, setCaption] = useState('');
   const [busy, setBusy] = useState<'caption' | 'save' | null>(null);
-  const meta = status.metaAi.connected && !status.metaAi.problem;
 
   const write = async () => {
     const topic = (caption || description).trim();
@@ -73,30 +76,30 @@ function NewPost({ status, notify, onCreated }: { status: LiveStatus; notify: No
     setBusy('save');
     try {
       if (mode === 'photo') await api.postPhoto(caption, image!);
-      else await api.postMeta(caption, description);
-      notify(mode === 'photo' ? "Qoralama tayyor — Telegram'ga ham yuborildi" : "Meta AI rasm chizyapti — tayyor bo'lgach Telegram'ga keladi");
+      else await api.postDraw(caption, description);
+      notify(mode === 'photo' ? "Qoralama tayyor — Telegram'ga ham yuborildi" : "Rasm chizilyapti — tayyor bo'lgach Telegram'ga keladi");
       setImage(null); setDescription(''); setCaption('');
       onCreated();
     } catch (err) { notify((err as Error).message, true); } finally { setBusy(null); }
   };
-  const ready = caption.trim() && (mode === 'photo' ? !!image : description.trim().length >= 10 && meta);
+  const ready = caption.trim() && (mode === 'photo' ? !!image : description.trim().length >= 10 && !!picture);
 
   return (
     <form onSubmit={submit} className="space-y-4">
       <div role="radiogroup" aria-label="Rasm" className="flex flex-wrap gap-2">
-        {([['meta', "Meta AI chizsin", Sparkles], ['photo', "O'z suratim", ImagePlus]] as const).map(([id, label, Icon]) => (
+        {([['ai', picture ? `${PICTURE_BY[picture]} chizsin` : 'AI chizsin', Sparkles], ['photo', "O'z suratim", ImagePlus]] as const).map(([id, label, Icon]) => (
           <button key={id} type="button" role="radio" aria-checked={mode === id} onClick={() => setMode(id)}
-            className={`${button} border ${mode === id ? 'border-transparent text-[#07080b]' : 'border-glass/10 text-[#c9cbd2] hover:bg-glass/5'}`} style={mode === id ? { background: HUE.marketolog.a } : undefined}>
+            className={`${button} border ${mode === id ? 'border-transparent text-[#07080b]' : 'border-glass/10 text-[#c9cbd2] hover:bg-glass/5'}`} style={mode === id ? { background: HUE.kontent.a } : undefined}>
             <Icon className="h-4 w-4" aria-hidden="true" />{label}
           </button>
         ))}
       </div>
-      {mode === 'meta' ? (
+      {mode === 'ai' ? (
         <label className="block">
           <span className="mb-1.5 block text-[13px] font-semibold text-[#a3a9b5]">Rasmda nima bo'lsin</span>
           <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} maxLength={1000} className={field}
             placeholder="Masalan: yorug' stomatologiya kabineti, shifokor bemorga tabassum bilan tushuntiryapti, oq va havorang ranglar" />
-          {!meta && <span className="mt-1.5 block text-[12.5px] text-[#fde2b0]">Meta AI ulanmagan — «Ulash» varag'ida ulang yoki o'z suratingizni qo'shing.</span>}
+          {!picture && <span className="mt-1.5 block text-[12.5px] text-[#fde2b0]">Rasm chizadigan xizmat ulanmagan — «Kanal» varag'ida Meta AI'ni ulang yoki o'z suratingizni qo'shing.</span>}
         </label>
       ) : (
         <label className="flex cursor-pointer items-center gap-4 rounded-xl border border-dashed border-glass/15 p-4 hover:bg-glass/[0.03]">
@@ -114,13 +117,13 @@ function NewPost({ status, notify, onCreated }: { status: LiveStatus; notify: No
       <label className="block">
         <span className="mb-1.5 flex items-center justify-between text-[13px] font-semibold text-[#a3a9b5]">Post matni <span className="font-normal tabular-nums text-[#7d838f]">{caption.length}/{MAX_CAPTION}</span></span>
         <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={6} maxLength={MAX_CAPTION} className={field}
-          placeholder="Matnni yozing yoki mavzuni yozib, «Marketolog yozsin»ni bosing" />
+          placeholder="Matnni yozing yoki mavzuni yozib, «Kontent-meyker yozsin»ni bosing" />
       </label>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => void write()} disabled={!!busy} className={`${button} border border-glass/10 text-[#c9cbd2] hover:bg-glass/5`}>
-          {busy === 'caption' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wand2 className="h-4 w-4" aria-hidden="true" />} Marketolog yozsin
+          {busy === 'caption' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wand2 className="h-4 w-4" aria-hidden="true" />} Kontent-meyker yozsin
         </button>
-        <button type="submit" disabled={!ready || !!busy} className={`${button} text-[#07080b]`} style={{ background: HUE.marketolog.a }}>
+        <button type="submit" disabled={!ready || !!busy} className={`${button} text-[#07080b]`} style={{ background: HUE.kontent.a }}>
           {busy === 'save' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Qoralama tayyorlash
         </button>
       </div>
@@ -145,11 +148,11 @@ function PostCard({ p, notify, onPosts }: { p: PostView; notify: Notify; onPosts
       {p.status === 'drawing'
         ? <span className="flex aspect-[4/5] w-full items-center justify-center rounded-xl bg-glass/[0.04] sm:w-44"><Loader2 className="h-6 w-6 animate-spin text-[#d9ccff]" aria-label="Rasm chizilmoqda" /></span>
         : !p.hasImage ? <span className="flex aspect-[4/5] w-full items-center justify-center rounded-xl border border-dashed border-glass/10 text-[12px] text-[#7d838f] sm:w-44">rasm yo'q</span>
-        : <PostImage id={p.id} alt={p.prompt ? `Meta AI rasmi: ${p.prompt}` : 'Post rasmi'} />}
+        : <PostImage id={p.id} alt={p.prompt ? `AI rasmi: ${p.prompt}` : 'Post rasmi'} />}
       <div className="min-w-0 flex-1 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className={`rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${s.cls}`}>{s.label}</span>
-          {p.source === 'meta_ai' && <span className="text-[12px] text-[#7d838f]">rasm — Meta AI</span>}
+          {p.source !== 'photo' && <span className="text-[12px] text-[#7d838f]">rasm — {PICTURE_BY[p.source]}</span>}
           <span className="ml-auto text-[12px] tabular-nums text-[#7d838f]">{new Date(p.publishedAt ?? p.createdAt).toLocaleString('uz', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
         </div>
         {editable
@@ -168,7 +171,7 @@ function PostCard({ p, notify, onPosts }: { p: PostView; notify: Notify; onPosts
               onClick={() => {
                 if (unknown && !window.confirm("Oldingi urinishda post Instagram'da chiqqan bo'lishi mumkin. Instagram'ni ochib tekshirdingizmi va post chiqmaganmi? Qayta joylansinmi?")) return;
                 void act('publish', () => api.postPublish(p.id, unknown), "Instagram'ga joylandi");
-              }} className={`${button} text-[#07080b]`} style={{ background: HUE.marketolog.a }}>
+              }} className={`${button} text-[#07080b]`} style={{ background: HUE.kontent.a }}>
               {busy === 'publish' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />} {p.status === 'failed' ? 'Qayta joylash' : unknown ? "Chiqmagan — qayta joylash" : "Instagram'ga joylash"}
             </button>
           )}
@@ -184,16 +187,20 @@ function PostCard({ p, notify, onPosts }: { p: PostView; notify: Notify; onPosts
   );
 }
 
-export function MarketingPosts({ status, notify, tick }: { status: LiveStatus; notify: Notify; tick: number }) {
+/** onCount — tasdiq kutayotganlar soni (Postlar varag'idagi «Instagram» tugmasida) */
+export function InstagramPosts({ status, notify, tick, onCount }: { status: LiveStatus; notify: Notify; tick: number; onCount?: (n: number) => void }) {
   const [list, setList] = useState<PostView[] | null>(null);
+  const [picture, setPicture] = useState<Picture>(null);
   const [rev, setRev] = useState(0);
   useEffect(() => {
     let stale = false;
-    api.posts().then(r => { if (!stale) setList(r.posts); }).catch(e => notify((e as Error).message, true));
+    api.posts().then(r => { if (stale) return; setList(r.posts); setPicture(r.picture); }).catch(e => notify((e as Error).message, true));
     return () => { stale = true; };
   }, [tick, rev]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Meta AI chizayotgan yoki joylanayotgan post bo'lsa — holat o'zi yangilanadi
+  // Rasm chizilayotgan yoki joylanayotgan post bo'lsa — holat o'zi yangilanadi
   const pending = list?.some(p => p.status === 'drawing' || p.status === 'publishing');
+  const waiting = list?.filter(p => p.status === 'draft' || p.status === 'failed' || p.status === 'unknown').length ?? 0;
+  useEffect(() => { onCount?.(waiting); }, [waiting]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!pending) return;
     const t = setInterval(() => setRev(n => n + 1), 5000);
@@ -208,10 +215,10 @@ export function MarketingPosts({ status, notify, tick }: { status: LiveStatus; n
           Instagram'ga joylash uchun akkauntingiz brauzer orqali ulangan bo'lishi kerak{ig.enabled ? <>: <a href={hrefOf('sozlamalar', 'instagram')} className="font-semibold text-[#fde2b0] underline">Sozlamalar → Instagram</a> → «Instagram'ga kirish»</> : " — o'rnatuvchi .env'da IG_VIA_BROWSER=1 ni yoqishi kerak"}. Qoralamani hozir ham tayyorlasa bo'ladi.
         </p>
       )}
-      <Panel title="Yangi post"><NewPost status={status} notify={notify} onCreated={() => setRev(n => n + 1)} /></Panel>
-      <Panel title="Postlar">
+      <Panel title="Yangi Instagram posti">{list === null ? <Loader2 className="h-5 w-5 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" /> : <NewPost picture={picture} notify={notify} onCreated={() => setRev(n => n + 1)} />}</Panel>
+      <Panel title="Instagram postlari">
         {list === null ? <Loader2 className="h-5 w-5 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" />
-          : !list.length ? <Quiet>Hali post yo'q. Yuqorida tayyorlang yoki Marketologga ayting: «Ertangi kun uchun implant haqida post tayyorla».</Quiet>
+          : !list.length ? <Quiet>Hali post yo'q. Yuqorida tayyorlang, «Reja»dagi mavzuda «Instagram»ni bosing yoki Yordamchiga ayting: «Ertangi kun uchun Instagram post tayyorla».</Quiet>
             : <ul className="flex flex-col gap-3">{list.map(p => <PostCard key={`${p.id}-${p.status}-${p.caption}`} p={p} notify={notify} onPosts={setList} />)}</ul>}
       </Panel>
     </div>

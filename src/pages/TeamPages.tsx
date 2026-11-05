@@ -18,8 +18,9 @@ import { DemandBody } from './agents/Demand';
 import { DiscoveriesBody } from './agents/Discoveries';
 import { AssistantDesk, dueGroup, useAssistantData } from './agents/Assistant';
 import { MarketingDesk, MarketingReports, MetaAiConnect, marketingStats, useMarketingReports } from './agents/Marketing';
-import { MarketingPosts } from './agents/Posts';
+import { InstagramPosts } from './agents/Posts';
 import { ContentChannel, ContentDrafts, ContentSources, contentStats, useContent } from './agents/Content';
+import type { ContentView } from '../data/api';
 import { ContentPlanTab, ContentVideoTab } from './agents/ContentStudio';
 import { AdsCabinet, AdsCampaigns, adsStats, useAds } from './agents/Ads';
 import { HUE } from '../components/agent';
@@ -175,16 +176,21 @@ function DepartmentSwitch({ title, members, active }: { title: string; members: 
   );
 }
 
-const KONTENT_TABS = ['qoralamalar', 'reja', 'video', 'manbalar', 'kanal'];
+/** postlar — Telegram kanal va Instagram postlari (telegram / instagram — qaysi biri ochiq; qoralamalar — eski havola) */
+const KONTENT_TABS = ['postlar', 'telegram', 'instagram', 'qoralamalar', 'reja', 'video', 'manbalar', 'kanal'];
+const POST_TABS = ['postlar', 'telegram', 'instagram', 'qoralamalar'];
 const TARGET_TABS = ['kampaniyalar', 'kabinet'];
 
-/** Marketing bo'limi: Marketolog (Meta AI, Instagram postlari), Targetolog (Meta reklama) va Kontent-meyker (Telegram kanal uchun kontent-zavod) */
+/**
+ * Marketing bo'limi — har xodimning bitta ishi: Marketolog bozorni o'rganadi (Meta AI), Kontent-meyker hamma kontentni yasaydi
+ * (Telegram kanal va Instagram postlari, reja, video), Targetolog reklamani yuritadi (Meta)
+ */
 export function MarketingArea(props: Common & { crew: Member[]; onStatus: (s: LiveStatus) => void; kontent: MemberState | null; target: MemberState | null }) {
   // Bo'limda faqat jamoadagi xodimlar; varaq ko'rsatilmagan bo'lsa — birinchisi (masalan, faqat Kontent-meyker olingan)
   const members = [
     { member: 'marketolog' as const, href: hrefOf('marketolog'), badge: props.state?.badge, tabs: null },
     { member: 'target' as const, href: hrefOf('marketolog', 'kampaniyalar'), badge: props.target?.badge, tabs: TARGET_TABS },
-    { member: 'kontent' as const, href: hrefOf('marketolog', 'qoralamalar'), badge: props.kontent?.badge, tabs: KONTENT_TABS },
+    { member: 'kontent' as const, href: hrefOf('marketolog', 'postlar'), badge: props.kontent?.badge, tabs: KONTENT_TABS },
   ].filter(m => props.crew.includes(m.member));
   const byTab = members.find(m => !!props.tab && !!m.tabs?.includes(props.tab));
   const active = byTab?.member ?? (members.some(m => m.member === 'marketolog') ? 'marketolog' : members[0]?.member ?? 'marketolog');
@@ -210,34 +216,65 @@ function TargetArea({ tab, notify, target, tick }: Common & { target: MemberStat
   );
 }
 
-function ContentArea({ tab, status, notify, kontent, tick }: Common & { kontent: MemberState | null }) {
+/** Postlar: Telegram kanali yoki Instagram — bitta varaqda, almashtirgich havola (sahifa manzilida qoladi) */
+function ContentPosts({ tab, status, notify, tick, view, setView }: Pick<Common, 'tab' | 'status' | 'notify' | 'tick'> & { view: ContentView | null; setView: (v: ContentView) => void }) {
+  // Instagram varag'i ochiq bo'lsa — o'sha ro'yxatdan (joylash/bekor qilishdan keyin darhol), bo'lmasa — Kontent-meyker ma'lumotidan
+  const [igCount, setIgCount] = useState<number | null>(null);
+  const igWaiting = view?.igPosts.waiting ?? 0;
+  // «Postlar» (aniq tanlanmagan): kanal ulanmagan, Instagram ulangan bo'lsa — Instagram
+  const which = tab === 'instagram' || (tab === 'postlar' && view !== null && !view.settings.channelId && !!status.instagram.account) ? 'instagram' : 'telegram';
+  const tgWaiting = view?.drafts.filter(d => d.status === 'draft' || d.status === 'failed').length ?? 0;
+  const tabs = [
+    { id: 'telegram', label: 'Telegram kanal', count: tgWaiting },
+    { id: 'instagram', label: 'Instagram', count: igCount ?? igWaiting },
+  ] as const;
+  return (
+    <div className="space-y-5">
+      <nav aria-label="Qayerga" className="flex flex-wrap gap-2">
+        {tabs.map(t => {
+          const on = which === t.id;
+          return (
+            <a key={t.id} href={hrefOf('marketolog', t.id)} aria-current={on ? 'page' : undefined}
+              className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3.5 text-[13.5px] font-semibold no-underline ${on ? 'border-transparent text-[#07080b]' : 'border-glass/10 text-[#c9cbd2] hover:bg-glass/5'}`}
+              style={on ? { background: HUE.kontent.a } : undefined}>
+              {t.label}{!!t.count && <span className={`rounded-full px-1.5 text-[11px] font-bold ${on ? 'bg-[#07080b]/15' : 'bg-[#f5b454] text-[#07080b]'}`}>{t.count}</span>}
+            </a>
+          );
+        })}
+      </nav>
+      {which === 'instagram' ? <InstagramPosts status={status} notify={notify} tick={tick} onCount={setIgCount} /> : <ContentDrafts view={view} setView={setView} notify={notify} />}
+    </div>
+  );
+}
+
+function ContentArea({ tab, status, notify, onStatus, kontent, tick }: Common & { onStatus: (s: LiveStatus) => void; kontent: MemberState | null }) {
   const active = pick(tab, KONTENT_TABS);
   const [view, setView] = useContent(notify, tick);
+  const posts = POST_TABS.includes(active);
   return (
     <div className="space-y-6">
-      <AgentHero member="kontent" state={kontent} stats={contentStats(view)}>
-        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'qoralamalar', label: 'Qoralamalar', count: kontent?.badge }, { id: 'reja', label: 'Reja' }, { id: 'video', label: 'Video' }, { id: 'manbalar', label: 'Manbalar' }, { id: 'kanal', label: 'Kanal' }]} />
+      <AgentHero member="kontent" state={kontent} stats={contentStats(view, status.instagram.account)}>
+        <AgentTabs area="marketolog" active={posts ? 'postlar' : active} tabs={[{ id: 'postlar', label: 'Postlar', count: kontent?.badge }, { id: 'reja', label: 'Reja' }, { id: 'video', label: 'Video' }, { id: 'manbalar', label: 'Manbalar' }, { id: 'kanal', label: 'Kanallar' }]} />
       </AgentHero>
-      {active === 'qoralamalar' && <ContentDrafts view={view} setView={setView} notify={notify} />}
+      {posts && <ContentPosts tab={active === 'qoralamalar' ? 'telegram' : active} status={status} notify={notify} tick={tick} view={view} setView={setView} />}
       {active === 'reja' && <ContentPlanTab view={view} setView={setView} notify={notify} />}
       {active === 'video' && <ContentVideoTab view={view} setView={setView} notify={notify} />}
       {active === 'manbalar' && <ContentSources view={view} setView={setView} notify={notify} />}
-      {active === 'kanal' && <ContentChannel view={view} setView={setView} notify={notify} status={status} />}
+      {active === 'kanal' && <ContentChannel view={view} setView={setView} notify={notify} status={status} onStatus={onStatus} />}
     </div>
   );
 }
 
 function MarketologArea({ tab, status, notify, onStatus, state, tick }: Common & { onStatus: (s: LiveStatus) => void }) {
-  const active = pick(tab, ['sorash', 'postlar', 'hisobotlar', 'topshiriqlar', 'ulash']);
+  const active = pick(tab, ['sorash', 'hisobotlar', 'topshiriqlar', 'ulash']);
   const [asked, setAsked] = useState(0);
   const reports = useMarketingReports(notify, tick + asked);
   return (
     <div className="space-y-6">
       <AgentHero member="marketolog" state={state} stats={marketingStats(status, reports)}>
-        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'sorash', label: "So'rash" }, { id: 'postlar', label: 'Postlar' }, { id: 'hisobotlar', label: 'Hisobotlar', count: reports?.length }, { id: 'topshiriqlar', label: 'Topshiriqlar' }, { id: 'ulash', label: 'Ulash' }]} />
+        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'sorash', label: "So'rash" }, { id: 'hisobotlar', label: 'Hisobotlar', count: reports?.length }, { id: 'topshiriqlar', label: 'Topshiriqlar' }, { id: 'ulash', label: 'Ulash' }]} />
       </AgentHero>
       {active === 'sorash' && <MarketingDesk status={status} onStatus={onStatus} notify={notify} reports={reports} onAsked={() => setAsked(n => n + 1)} />}
-      {active === 'postlar' && <MarketingPosts status={status} notify={notify} tick={tick + asked} />}
       {active === 'hisobotlar' && <MarketingReports reports={reports} />}
       {active === 'topshiriqlar' && <OrdersPanel member="marketolog" notify={notify} />}
       {active === 'ulash' && <section aria-label="Meta AI ulash" className="rounded-[22px] border border-glass/[0.07] bg-[#0b0c10] p-5"><MetaAiConnect status={status} onStatus={onStatus} notify={notify} /></section>}

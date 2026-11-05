@@ -329,6 +329,82 @@ await check("video o'chirilsa yoki post bekor qilinsa — mavzu yana bo'sh («Vi
   assert.deepEqual((await makePlan(biz, 5, '', fakeAi)).items.map(i => i.title), ['Yangi'], 'ishsiz qolgan mavzular yangi reja bilan almashdi');
 });
 
+// ─── Marketing birga: tadqiqot → reja → Instagram posti ──────────────────────
+
+await check("Marketolog tadqiqotlari rejaga g'oya bo'lib tushadi (begona matn — o'ralgan); bajarilmagani, eski va boshqa yozuvlar — yo'q", async () => {
+  const { events } = await import('../server/orders/store');
+  const { recentResearch } = await import('../server/marketing/research');
+  const biz = newBiz('Tadqiqot');
+  brandStore.save(biz.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, BOOK as never);
+  events.add(biz.id, { member: 'marketolog', orderId: null, level: 'info', title: 'Raqobatchilar: kim nima postlaydi', body: '@smile_dent haftasiga 3 ta Reels: «oldin-keyin» <b>ko\'p layk</b>', cameraId: null });
+  events.add(biz.id, { member: 'marketolog', orderId: null, level: 'warn', title: 'Bajarilmadi — Raqobatchilar: yana', body: 'sayt ishlamadi', cameraId: null });
+  events.add(biz.id, { member: 'marketolog', orderId: null, level: 'info', title: "Instagram'ga joylandi: eski post", body: 'x', cameraId: null });
+  events.add(biz.id, { member: 'marketolog', orderId: null, level: 'info', title: 'Direktordan topshiriq', body: 'y', cameraId: null });
+  const r = recentResearch(biz.id);
+  assert.deepEqual(r.map(x => x.title), ['Raqobatchilar: kim nima postlaydi']);
+  assert.deepEqual(recentResearch(biz.id, Date.now() + 40 * 86_400_000), [], '30 kundan eski tadqiqot olinmaydi');
+  replies.push(JSON.stringify({ items: [{ pillar: 'P', title: 'Oldin-keyin', angle: '' }] }));
+  await makePlan(biz, 5, '', fakeAi);
+  const p = prompts.at(-1)!;
+  assert.match(p.user, /<research>\n## Raqobatchilar: kim nima postlaydi\n@smile_dent/);
+  assert.ok(!p.user.includes('<b>') && p.user.includes('‹b›'), 'tadqiqotdagi teglar o\'ralgan');
+  assert.match(p.system, /can be wrong/, "AI'ga: tadqiqot — g'oya, fakt emas");
+  const bare = newBiz('Tadqiqotsiz');
+  brandStore.save(bare.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, BOOK as never);
+  replies.push(JSON.stringify({ items: [{ pillar: 'P', title: 'Bir', angle: '' }] }));
+  await makePlan(bare, 5, '', fakeAi);
+  assert.ok(!prompts.at(-1)!.user.includes('<research>') && !prompts.at(-1)!.system.includes('research'), "tadqiqot yo'q — blok ham, gap ham yo'q");
+});
+
+await check("rejadagi mavzu: Instagram posti uni band qiladi, bekor qilinsa — bo'shaydi; yangi reja Instagram postli mavzuni saqlaydi", async () => {
+  const { posts } = await import('../server/marketing/posts');
+  const biz = newBiz('Insta');
+  brandStore.save(biz.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, BOOK as never);
+  replies.push(JSON.stringify({ items: [{ pillar: 'P', title: 'Bir', angle: '' }, { pillar: 'P', title: 'Ikki', angle: '' }] }));
+  const [a] = (await makePlan(biz, 5, '', fakeAi)).items;
+  sql.run("INSERT INTO marketing_posts (id, business_id, caption, source, prompt, status, created_at) VALUES ('ig1', ?, 'Matn', 'gemini', 'rasm', 'draft', ?)", biz.id, new Date().toISOString());
+  planStore.link(biz.id, a.id, 'post_id', 'ig1');
+  assert.equal(planStore.get(biz.id, a.id)?.postId, 'ig1');
+  replies.push(JSON.stringify({ items: [{ pillar: 'P', title: 'Yangi', angle: '' }] }));
+  assert.deepEqual((await makePlan(biz, 5, '', fakeAi)).items.map(i => i.title), ['Bir', 'Yangi'], 'Instagram postli mavzu qoldi, ishsizi almashdi');
+  posts.move(biz.id, 'ig1', ['draft'], 'cancelled');
+  assert.equal(planStore.get(biz.id, a.id)?.postId, null, 'bekor qilingan Instagram posti mavzuni band qilmaydi');
+});
+
+await check("Instagram yozuvchisi: kompaniya bloki va o'ralgan mavzu; rasm tavsifi faqat so'ralganda; javob bo'limlari ajraladi", async () => {
+  const { buildInstagramPrompt, parseInstagram } = await import('../server/content/writer');
+  const biz = newBiz('Yozuv');
+  brandStore.save(biz.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, BOOK as never);
+  const withPic = buildInstagramPrompt(biz, 'Implant <b>bepul</b> maslahat', true);
+  assert.match(withPic.system, /^You write Instagram post captions/, 'soxta AI shu boshlanish bilan taniydi');
+  assert.match(withPic.system, /### PICTURE/);
+  assert.match(withPic.user, /<company>/);
+  assert.match(withPic.user, /Implant ‹b›bepul‹\/b› maslahat/);
+  assert.ok(!buildInstagramPrompt(biz, 'x', false).system.includes('### PICTURE'));
+  assert.deepEqual(parseInstagram('### CAPTION\nTabassum 😊\n#toshkent\n### PICTURE\nA bright clinic room,\n soft light'), { caption: 'Tabassum 😊\n#toshkent', picture: 'A bright clinic room, soft light' });
+  assert.deepEqual(parseInstagram('Faqat matn\n#teg'), { caption: 'Faqat matn\n#teg', picture: null }, "bo'limsiz javob — hammasi matn");
+  assert.deepEqual(parseInstagram('### CAPTION\nMatn'), { caption: 'Matn', picture: null });
+});
+
+await check("rasmni kim chizadi: Meta AI yo'q — Gemini (kalit bo'lsa), u ham yo'q — hech kim; Gemini so'rovida brend ranglari, yozuvsiz", async () => {
+  const { pictureMaker, picturePrompt } = await import('../server/content/picture');
+  const biz = newBiz('Rasm');
+  const key = env.geminiKey;
+  try {
+    (env as { geminiKey: string }).geminiKey = '';
+    assert.equal(pictureMaker(biz as never), null);
+    (env as { geminiKey: string }).geminiKey = 'AIza-sinov';
+    assert.equal(pictureMaker(biz as never), 'gemini');
+  } finally { (env as { geminiKey: string }).geminiKey = key; }
+  const p = picturePrompt('yorug\' kabinet', BOOK as never);
+  assert.match(p, /^A 4:5 vertical picture for an Instagram post: yorug' kabinet/);
+  assert.match(p, /Koshin plitkalari/);
+  assert.match(p, /#0E6B66/);
+  assert.match(p, /No text/);
+  assert.match(p, /Avoid: robot rasmlari/);
+  assert.ok(!picturePrompt('x', null).includes('Colour palette'), "brend-buksiz — ranglar o'ylab topilmaydi");
+});
+
 // ─── ElevenLabs (soxta server) ────────────────────────────────────────────────
 
 await check("ElevenLabs so'rovi: kalit sarlavhada, model va matn tanada, javob — mp3 va harf vaqtlari; xatolar tushunarli", async () => {

@@ -56,7 +56,8 @@ export function imagePrompt(visual: string, book: BrandBook): string {
   ].filter(Boolean).join(' ');
 }
 
-export async function sceneImage(prompt: string): Promise<Buffer> {
+/** aspect — video sahnasi 9:16, Instagram posti 4:5 */
+export async function sceneImage(prompt: string, aspect: '9:16' | '4:5' = '9:16'): Promise<Buffer> {
   const models = [env.geminiImageModel, 'gemini-3.1-flash-lite-image'].filter((m, i, a) => a.indexOf(m) === i);
   let last: Error = new GeminiFail('rasm chiqmadi');
   for (const model of models) {
@@ -64,7 +65,7 @@ export async function sceneImage(prompt: string): Promise<Buffer> {
       const b = await interact({
         model,
         input: [{ type: 'user_input', content: [{ type: 'text', text: prompt }] }],
-        response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: '9:16', image_size: '2K' },
+        response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: aspect, image_size: '2K' },
         generation_config: { thinking_level: 'minimal' },
       }, 'image', IMAGE_TIMEOUT_MS);
       if (b.data) return Buffer.from(b.data, 'base64');

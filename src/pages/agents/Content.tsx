@@ -1,7 +1,8 @@
 /**
- * Marketing → Kontent-meyker (kontent-zavod): siz kuzatadigan ochiq Telegram kanallardagi yangiliklardan kanalingiz uchun post
- * qoralamalari. Qoralama Telegram'ingizga ham keladi; kanalga faqat siz «Kanalga joylash»ni bosganda chiqadi.
- * Varaqlar: Qoralamalar (yozdirish, tahrir, joylash) · Manbalar (kuzatiladigan kanallar) · Kanal (ulash, til, uslub, jadval)
+ * Marketing → Kontent-meyker: Telegram kanal qoralamalari (kontent-zavod — siz kuzatadigan ochiq kanallardagi yangiliklardan yoki
+ * mavzudan). Qoralama Telegram'ingizga ham keladi; kanalga faqat siz «Kanalga joylash»ni bosganda chiqadi.
+ * Varaqlar: Postlar → Telegram kanal (yozdirish, tahrir, joylash) · Manbalar (kuzatiladigan kanallar) · Kanallar (Telegram kanal, til,
+ * uslub, jadval; Instagram va rasm chizish holati). Instagram postlari — Posts.tsx
  */
 import { useEffect, useState, type FormEvent } from 'react';
 import { ExternalLink, Loader2, Plus, Send, Sparkles, Trash2, Wand2, X } from 'lucide-react';
@@ -10,6 +11,7 @@ import { api, type ContentView } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { HUE, Panel, Quiet } from '../../components/agent';
 import { hrefOf } from '../../lib/nav';
+import { MetaAiConnect } from './Marketing';
 
 const MAX_DRAFT = 4000;
 export const ACCENT = HUE.kontent.a;
@@ -48,14 +50,16 @@ export function useRun(notify: Notify, setView: (v: ContentView) => void): [stri
   return [busy, run];
 }
 
-export function contentStats(v: ContentView | null) {
-  const waiting = v?.drafts.filter(d => d.status === 'draft' || d.status === 'failed').length;
+/** Shapka raqamlari — Telegram kanal va Instagram birga (instagram — ulangan akkaunt) */
+export function contentStats(v: ContentView | null, instagram: string | null) {
+  const waiting = v ? v.drafts.filter(d => d.status === 'draft' || d.status === 'failed').length + v.igPosts.waiting : null;
   const week = Date.now() - 7 * 86_400_000;
+  const where = v ? [v.settings.channelId && 'Telegram', instagram && 'Instagram'].filter(Boolean) : [];
   return [
     { label: 'Tasdiq kutyapti', value: waiting ?? '—', tone: waiting ? 'warn' as const : undefined },
-    { label: 'Kanalga chiqdi', value: v ? v.drafts.filter(d => d.status === 'published' && Date.parse(d.publishedAt ?? '') > week).length : '—', hint: 'oxirgi 7 kunda' },
-    { label: 'Manbalar', value: v?.sources.length ?? '—' },
-    { label: 'Kanal', value: v ? (v.settings.channelTitle ?? 'ulanmagan') : '—', tone: v && !v.settings.channelId ? 'warn' as const : undefined },
+    { label: 'Chiqdi', value: v ? v.drafts.filter(d => d.status === 'published' && Date.parse(d.publishedAt ?? '') > week).length + v.igPosts.week : '—', hint: 'oxirgi 7 kunda' },
+    { label: 'Rejada', value: v?.plan.length ?? '—', hint: 'mavzu' },
+    { label: 'Joylaydi', value: v ? (where.length ? where.join(' · ') : 'ulanmagan') : '—', tone: v && !where.length ? 'warn' as const : undefined },
   ];
 }
 
@@ -147,7 +151,7 @@ export function ContentDrafts({ view, setView, notify }: { view: ContentView | n
           <TopicForm notify={notify} setView={setView} />
         </div>
       </Panel>
-      <Panel title="Qoralamalar">
+      <Panel title="Kanal qoralamalari">
         {!list.length
           ? <Quiet>Hali qoralama yo'q. «Yangi qoralamalar»ni bosing yoki Yordamchiga ayting: «kanalimga bugungi yangiliklardan post tayyorla».</Quiet>
           : <ul className="flex flex-col gap-3">{list.map(d => <DraftCard key={`${d.id}-${d.status}-${d.text.length}`} d={d} channel={channel} notify={notify} setView={setView} />)}</ul>}
@@ -196,7 +200,32 @@ export function ContentSources({ view, setView, notify }: { view: ContentView | 
 
 // ─── Kanal va uslub ───────────────────────────────────────────────────────────
 
-export function ContentChannel({ view, setView, notify, status }: { view: ContentView | null; setView: (v: ContentView) => void; notify: Notify; status: LiveStatus }) {
+/** Instagram va rasm chizish: qayerga joylanadi, kim chizadi */
+function OtherOutlets({ view, status, onStatus, notify }: { view: ContentView; status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
+  const ig = status.instagram;
+  const meta = status.metaAi;
+  return (
+    <>
+      <Panel title="Instagram">
+        {ig.account
+          ? <p className="text-[15px] text-[#f2f0ea]">📸 <b>{ig.account}</b> <span className="text-[13px] text-[#8a909c]">— tasdiqlangan Instagram postlari shu akkauntga chiqadi</span></p>
+          : <p className="text-[13.5px] leading-relaxed text-[#fde2b0]">Instagram ulanmagan{ig.enabled ? <>: <a href={hrefOf('sozlamalar', 'instagram')} className="font-semibold text-[#fde2b0] underline">Sozlamalar → Instagram</a> → «Instagram'ga kirish»</> : " — o'rnatuvchi IG_VIA_BROWSER=1 ni yoqishi kerak"}. Qoralamani hozir ham tayyorlasa bo'ladi.</p>}
+      </Panel>
+      <Panel title="Rasm chizish">
+        <div className="space-y-3">
+          <p className="text-[13.5px] leading-relaxed text-[#c9cbd2]">
+            {view.picture === 'meta_ai' ? <>Instagram postlari rasmini <b>Meta AI</b> chizadi — akkauntingiz orqali, bepul (kunlik chegara Marketolog savollari bilan bitta).</>
+              : view.picture === 'gemini' ? <>Rasmni <b>Gemini</b> chizadi — tez, brend ranglarida (~5 sent). Meta AI ulansa — o'sha chizadi, bepul.</>
+              : <>Rasm chizadigan xizmat yo'q — Meta AI'ni ulang yoki postga o'z suratingizni qo'shing.</>}
+          </p>
+          {(!meta.connected || meta.problem) && <MetaAiConnect status={status} onStatus={onStatus} notify={notify} />}
+        </div>
+      </Panel>
+    </>
+  );
+}
+
+export function ContentChannel({ view, setView, notify, status, onStatus }: { view: ContentView | null; setView: (v: ContentView) => void; notify: Notify; status: LiveStatus; onStatus: (s: LiveStatus) => void }) {
   const [channel, setChannel] = useState('');
   const [style, setStyle] = useState<string | null>(null);
   const [busy, run] = useRun(notify, setView);
@@ -208,7 +237,7 @@ export function ContentChannel({ view, setView, notify, status }: { view: Conten
   };
   return (
     <div className="space-y-5">
-      <Panel title="Kanalingiz">
+      <Panel title="Telegram kanalingiz">
         {s.channelId ? (
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-[15px] text-[#f2f0ea]">📢 <b>{s.channelTitle}</b> <span className="text-[13px] text-[#8a909c]">— tasdiqlangan postlar shu yerga chiqadi</span></p>
@@ -263,6 +292,7 @@ export function ContentChannel({ view, setView, notify, status }: { view: Conten
           )}
         </div>
       </Panel>
+      <OtherOutlets view={view} status={status} onStatus={onStatus} notify={notify} />
     </div>
   );
 }

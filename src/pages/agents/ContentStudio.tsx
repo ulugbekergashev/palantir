@@ -5,7 +5,7 @@
  * Video — AI ssenariy + diktor (Gemini, zaxira — ElevenLabs) serverda; kadrlar shu yerda (brauzerda) chiziladi va mp4 bo'lib yuklab olinadi.
  */
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Clapperboard, Download, FileText, Mic, Palette, Pencil, Play, RotateCcw, Square, Trash2, Wand2 } from 'lucide-react';
+import { Clapperboard, Download, FileText, Mic, Palette, Pencil, Play, RotateCcw, Square, Trash2, Wand2, Image } from 'lucide-react';
 import type { BrandAnswers, BrandBook, ContentVideo, VideoScene } from '../../types';
 import { BrandBookView } from './BrandBookView';
 import { api, type ContentView } from '../../data/api';
@@ -119,7 +119,7 @@ export function ContentPlanTab({ view, setView, notify }: Props) {
         </form>
       </Panel>
       <Panel title={view.plan.length ? `Mavzular (${view.plan.length})` : 'Mavzular'}>
-        {!view.plan.length ? <Quiet>Hali reja yo'q. «Reja tuzish»ni bosing yoki Yordamchiga ayting: «menga 25 ta post rejasini tuz».</Quiet> : (
+        {!view.plan.length ? <Quiet>Hali reja yo'q. «Reja tuzish»ni bosing yoki Yordamchiga ayting: «menga 25 ta post rejasini tuz». Marketologning oxirgi tadqiqotlari bo'lsa, reja ulardan ham g'oya oladi.</Quiet> : (
           <ol className="flex flex-col gap-2.5">
             {view.plan.map(p => (
               <li key={p.id} className="rounded-2xl border border-glass/[0.06] bg-glass/[0.02] p-4">
@@ -132,12 +132,15 @@ export function ContentPlanTab({ view, setView, notify }: Props) {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {p.draftId
-                      ? <a href={hrefOf('marketolog', 'qoralamalar')} className={ghost}><FileText className="h-4 w-4" aria-hidden="true" /> Post tayyor</a>
-                      : <button type="button" disabled={!!busy || view.busy} onClick={() => void run(`d${p.id}`, () => api.contentPlanDraft(p.id), "Post qoralamasi tayyor — Telegram'ga ham yuborildi")} className={ghost}>{busy === `d${p.id}` ? spin : <FileText className="h-4 w-4" aria-hidden="true" />} Post</button>}
+                      ? <a href={hrefOf('marketolog', 'postlar')} className={ghost}><FileText className="h-4 w-4" aria-hidden="true" /> Telegram posti bor</a>
+                      : <button type="button" disabled={!!busy || view.busy} onClick={() => void run(`d${p.id}`, () => api.contentPlanDraft(p.id), "Kanal posti tayyor — Telegram'ga ham yuborildi")} className={ghost}>{busy === `d${p.id}` ? spin : <FileText className="h-4 w-4" aria-hidden="true" />} Telegram</button>}
+                    {p.postId
+                      ? <a href={hrefOf('marketolog', 'postlar')} className={ghost}><Image className="h-4 w-4" aria-hidden="true" /> Instagram posti bor</a>
+                      : <button type="button" disabled={!!busy || view.busy} onClick={() => void run(`i${p.id}`, () => api.contentPlanInstagram(p.id), "Instagram posti yozildi — rasm chizilyapti, tayyor bo'lgach Telegram'ga keladi")} className={ghost}>{busy === `i${p.id}` ? spin : <Image className="h-4 w-4" aria-hidden="true" />} Instagram</button>}
                     {p.videoId
                       ? <a href={hrefOf('marketolog', 'video')} className={ghost}><Clapperboard className="h-4 w-4" aria-hidden="true" /> Video bor</a>
                       : <button type="button" disabled={!!busy || view.busy || !view.brand?.book} onClick={() => void run(`v${p.id}`, () => api.contentPlanVideo(p.id), 'Video ssenariysi tayyor — «Video» varag\'ida')} className={ghost}>{busy === `v${p.id}` ? spin : <Clapperboard className="h-4 w-4" aria-hidden="true" />} Video</button>}
-                    {!p.draftId && !p.videoId && <button type="button" disabled={!!busy} onClick={() => void run(`x${p.id}`, () => api.contentPlanRemove(p.id))} aria-label={`${p.n}-mavzuni o'chirish`} className={`${button} text-[#a3a9b5] hover:bg-glass/5`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}
+                    {!p.draftId && !p.postId && !p.videoId && <button type="button" disabled={!!busy} onClick={() => void run(`x${p.id}`, () => api.contentPlanRemove(p.id))} aria-label={`${p.n}-mavzuni o'chirish`} className={`${button} text-[#a3a9b5] hover:bg-glass/5`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}
                   </div>
                 </div>
               </li>

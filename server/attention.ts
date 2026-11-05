@@ -7,7 +7,7 @@
  * Har biri o'z joyidagi tugma bilan hal qilinadi (javob yuborish, so'rovni yopish, «ko'rdim», ishni surish).
  */
 import type { Express, Request, Response } from 'express';
-import type { OrderMember } from '../src/types';
+import type { EventMember } from '../src/types';
 import { dueLabel, stamp } from '../src/lib/week';
 import { leads, replies, tasks, type BusinessRow } from './db';
 import { requests } from './requests/store';
@@ -22,7 +22,7 @@ interface Deps { asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => 
 export type AttentionKind = 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order';
 export interface AttentionItem {
   /** Ro'yxat kaliti: tur va manba id */
-  key: string; kind: AttentionKind; member: OrderMember | 'direktor';
+  key: string; kind: AttentionKind; member: EventMember | 'direktor';
   /** Manbaning o'z id'si (javob, so'rov, hodisa, vazifa, topshiriq) — tugmalar shu bilan ishlaydi */
   refId: string; title: string; body: string; at: string; phone: string | null;
   /** Hodisa darajasi (kamera) yoki kechikkan — tepaga */

@@ -16,9 +16,8 @@ import { iso } from '../../lib/week';
 const CHIPS = [
   "Instagram'dagi asosiy raqobatchilarimizni tahlil qil",
   "Instagram akkauntimizni tahlil qil: nima yaxshi, nimani o'zgartirish kerak",
-  "Keyingi haftaga 7 kunlik kontent-reja tuz",
   "Bizning sohada hozir qanday Reels ko'p ko'rilyapti?",
-  "Ertangi kun uchun Instagram post tayyorla",
+  "Raqobatchilarimiz qaysi mavzularda ko'p izoh va layk olyapti?",
 ];
 
 export function useMarketingReports(notify: Notify, tick: number): AgentEvent[] | null {

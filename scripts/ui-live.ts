@@ -140,8 +140,8 @@ try {
     && !(await page.getByRole('heading', { name: 'Bugungi jurnal' }).isVisible()) && !(await page.getByText("Bugun hali yozuv yo'q").isVisible()));
   ok("birinchi kun: sozlanmagan xodim kartasida bitta keyingi qadam — to'g'ri ulash sahifasiga",
     await cardOf('Marketolog').getByText('Meta AI’ga kirish').isVisible() && (await cardOf('Marketolog').getAttribute('href'))?.endsWith('#/marketolog/ulash'));
-  ok("ishga olingan Kontent-meyker va Kuzatuvchi bosh ekranda — birinchi qadami bilan (manba qo'shish, kamerani ulash)",
-    await cardOf('Kontent-meyker').getByText("Kuzatiladigan kanal qo'shish").isVisible() && await cardOf('Kuzatuvchi').getByText('Kamerani ulash').isVisible() && items.includes('Kuzatuvchi'));
+  ok("ishga olingan Kontent-meyker va Kuzatuvchi bosh ekranda — birinchi qadami bilan (joylaydigan joyni ulash, kamerani ulash)",
+    await cardOf('Kontent-meyker').getByText('Kanalingizni ulash').isVisible() && await cardOf('Kuzatuvchi').getByText('Kamerani ulash').isVisible() && items.includes('Kuzatuvchi'));
   ok("birinchi kun: savdo sohasida Tahlilchi DentaCRM so'ramaydi", !(await cardOf('Tahlilchi').getByText('DentaCRM’ni ulash').count()));
   await shot('02a-home', true);
 
@@ -342,11 +342,17 @@ try {
   ok("kuzatuvchi: kamera yo'q — nima qiladi va qanday ulanadi", await visible(page.getByRole('heading', { name: "Kuzatuvchi hali hech narsani ko'rmayapti" })) && await tabOn('Kameralar').isVisible());
   await nav('Marketing');
   ok("marketolog: Meta AI ulanmagan — avval ulash, «Meta AI'ga kirish» tugmasi va varaqlar", await visible(page.getByRole('heading', { name: 'Marketolog' }))
-    && await visible(page.getByRole('button', { name: "Meta AI'ga kirish" })) && await tabOn('Hisobotlar').isVisible() && await tabOn('Topshiriqlar').isVisible());
+    && await visible(page.getByRole('button', { name: "Meta AI'ga kirish" })) && await tabOn('Hisobotlar').isVisible() && await tabOn('Topshiriqlar').isVisible() && await tabOn('Postlar').count() === 0);
   await shot('12b-marketolog', true);
   await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Kontent-meyker' }).click();
-  ok("Marketing → Kontent-meyker: o'z sarlavhasi, varaqlari va «manba qo'shing» yo'llanmasi; Brend-buk varag'i yo'q (Miya'da)", await visible(page.getByRole('heading', { name: 'Kontent-meyker' })) && await tabOn('Brend-buk').count() === 0
-    && await tabOn('Qoralamalar').isVisible() && await tabOn('Kanal').isVisible() && await visible(page.getByRole('button', { name: 'Yangi qoralamalar' })) && page.url().endsWith('#/marketolog/qoralamalar'));
+  // Instagram ulangan, Telegram kanal — yo'q: «Postlar» Instagram'dan ochiladi; shapkada ikkalasi bo'yicha raqamlar
+  ok("Marketing → Kontent-meyker: Postlar (kanal ulanmagan, Instagram ulangan — Instagram ochiladi), Kanallar; Brend-buk varag'i yo'q (Miya'da)", await visible(page.getByRole('heading', { name: 'Kontent-meyker' })) && await tabOn('Brend-buk').count() === 0
+    && await tabOn('Postlar').isVisible() && await tabOn('Kanallar').isVisible() && await visible(page.getByRole('heading', { name: 'Yangi Instagram posti' }))
+    && await visible(page.getByRole('radio', { name: 'Gemini chizsin' })) && !(await page.getByText('@@').count()) && page.url().endsWith('#/marketolog/postlar'));
+  await page.locator('nav[aria-label="Qayerga"]').getByRole('link', { name: /Telegram kanal/ }).click();
+  ok("almashtirgich: «Telegram kanal» — kontent-zavod va «kanal ulanmagan» yo'llanmasi", await visible(page.getByRole('button', { name: 'Yangi qoralamalar' }))
+    && await page.getByText('Kanalingiz hali ulanmagan').isVisible() && page.url().endsWith('#/marketolog/telegram'));
+  await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Kontent-meyker' }).click();
   await shot('12c-kontent', true);
   await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Targetolog' }).click();
   ok("Marketing → Targetolog: kabinet ulanmagan — ogohlantirish, «Reja tuzsin» va varaqlar", await visible(page.getByRole('heading', { name: 'Targetolog' }))
@@ -537,7 +543,7 @@ try {
   await menu.getByRole('menuitem', { name: 'Sozlamalar' }).click();
   ok("«Ko'proq» → Sozlamalar ochildi, menyu yopildi", await visible(page.getByRole('navigation', { name: 'Ulanishlar' })) && page.url().endsWith('#/sozlamalar') && await menu.count() === 0);
   // Panel Telegram ichida (Mini App) ham ochiladi — sozlamalarning asosiy va Telegram bo'limlari ham telefon enida sig'sin
-  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'marketolog/kampaniyalar', 'marketolog/kabinet', 'xodimlar', 'miya/brend', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
+  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/instagram', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'marketolog/kampaniyalar', 'marketolog/kabinet', 'xodimlar', 'miya/brend', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
     await go(p);
     await sleep(300);
     const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

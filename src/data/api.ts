@@ -7,7 +7,7 @@ import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveChec
 import type { AutoReply, Business, ChatEntry, DirectorView, Doc, GoalView, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
-import type { AdPlan, AdsView, AgentEvent, AgentOrder, BrandAnswers, ContentBrand, ContentDraft, ContentSettings, ContentSource, ContentVideo, PlanItem, VideoScene, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
+import type { AdPlan, AdsView, AgentEvent, AgentOrder, BrandAnswers, ContentBrand, ContentDraft, ContentSettings, ContentSource, ContentVideo, EventMember, PlanItem, VideoScene, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
 
 export interface ContentView {
   settings: ContentSettings; sources: ContentSource[]; drafts: ContentDraft[]; running: boolean;
@@ -17,13 +17,17 @@ export interface ContentView {
   voiceBy: 'gemini' | 'elevenlabs' | null;
   /** Brend-buk, reja yoki video yozilyapti */
   busy: boolean;
+  /** Instagram posti rasmini kim chizadi (Meta AI, Gemini yoki hech kim) */
+  picture: 'meta_ai' | 'gemini' | null;
+  /** Instagram postlari: tasdiq kutayotgan, oxirgi 7 kunda chiqqan, rasm chizilyaptimi */
+  igPosts: { waiting: number; week: number; drawing: boolean };
 }
 import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 
 export type RequestView = LeadRequest & { lead: Lead | null };
 /** «Sizni kutyapti» qatori (server/attention.ts) */
 export interface AttentionItem {
-  key: string; kind: 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order'; member: OrderMember | 'direktor'; refId: string;
+  key: string; kind: 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order'; member: EventMember | 'direktor'; refId: string;
   title: string; body: string; at: string; phone: string | null; urgent: boolean;
 }
 /** Talab tahlili (server/insights/analyze.ts): sonlar bandlardan kodda sanalgan */
@@ -323,10 +327,11 @@ export const api = {
   metaAiLogin: () => call<{ status: LiveStatus }>('/meta-ai/login', { body: {} }),
   metaAiCancel: () => call<{ ok: true }>('/meta-ai/cancel', { body: {} }),
   metaAiDisconnect: () => call<{ status: LiveStatus }>('/meta-ai', { method: 'DELETE' }),
-  posts: () => call<{ posts: PostView[] }>('/posts'),
+  /** picture — kim rasm chiza oladi (Meta AI, Gemini yoki hech kim) */
+  posts: () => call<{ posts: PostView[]; picture: 'meta_ai' | 'gemini' | null }>('/posts'),
   postImage: async (id: string) => (await send(`/posts/${id}/image`, { method: 'GET' })).blob(),
   postPhoto: (caption: string, image: string) => call<{ post: MarketingPost }>('/posts', { body: { caption, image } }),
-  postMeta: (caption: string, description: string) => call<{ post: MarketingPost }>('/posts/meta', { body: { caption, description } }),
+  postDraw: (caption: string, description: string) => call<{ post: MarketingPost }>('/posts/draw', { body: { caption, description } }),
   postCaption: (topic: string) => call<{ caption: string }>('/posts/caption', { body: { topic } }),
   postEdit: (id: string, caption: string) => call<{ posts: PostView[] }>(`/posts/${id}`, { method: 'PATCH', body: { caption } }),
   postPublish: (id: string, confirm = false) => call<{ posts: PostView[] }>(`/posts/${id}/publish`, { body: { confirm } }),
@@ -347,6 +352,7 @@ export const api = {
   contentNarrator: (narrator: string) => call<ContentView>('/content/brand/narrator', { method: 'PUT', body: { narrator } }),
   contentPlan: (count: number, wish: string) => call<ContentView>('/content/plan', { body: { count, wish } }),
   contentPlanDraft: (id: string) => call<ContentView>(`/content/plan/${id}/draft`, { body: {} }),
+  contentPlanInstagram: (id: string) => call<ContentView>(`/content/plan/${id}/instagram`, { body: {} }),
   contentPlanVideo: (id: string) => call<ContentView>(`/content/plan/${id}/video`, { body: {} }),
   contentPlanRemove: (id: string) => call<ContentView>(`/content/plan/${id}`, { method: 'DELETE' }),
   contentVideo: (topic: string) => call<ContentView>('/content/videos', { body: { topic } }),

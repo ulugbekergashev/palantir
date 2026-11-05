@@ -78,7 +78,7 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
       return toast(ctx, 'Palantir jamoasi kirishi yopildi', { show_alert: true });
     }
 
-    // Marketolog posti: Instagram'ga joylash (fonda — Instagram sekin bo'lishi mumkin) yoki bekor qilish
+    // Instagram posti (Kontent-meyker): joylash (fonda — Instagram sekin bo'lishi mumkin) yoki bekor qilish
     if (code === 'gp' || code === 'gx') {
       if (code === 'gx') {
         try { cancelPost(biz, id); } catch (e) { return toast(ctx, (e as Error).message, { show_alert: true }); }
@@ -88,7 +88,7 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
       const p = posts.get(biz.id, id);
       const stop: Partial<Record<string, string>> = {
         published: 'Allaqachon joylangan', cancelled: 'Bekor qilingan', publishing: 'Joylanyapti…', drawing: 'Rasm hali chizilmoqda',
-        unknown: "Oldingi urinish natijasi noma'lum — Instagram'da tekshiring, keyin panel → Marketolog → Postlar",
+        unknown: "Oldingi urinish natijasi noma'lum — Instagram'da tekshiring, keyin panel → Kontent-meyker → Postlar",
       };
       if (!p || stop[p.status]) return toast(ctx, !p ? 'Post topilmadi' : stop[p.status]!, { show_alert: true });
       // Kartadagi tugma shu matnga berilgan: panelda matn o'zgargan bo'lsa — joylanmaydi, yangi karta keladi

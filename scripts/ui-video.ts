@@ -65,6 +65,7 @@ const aiServer = createServer(async (req, res) => {
     : sys.startsWith('You plan content') ? JSON.stringify(PLAN)
     : sys.startsWith('You write scripts') ? JSON.stringify(SCRIPT)
     : sys.startsWith('You are the content maker') ? '### POST 1\n🤖 AI xodim — bu chatbot emas\n\nMatn.'
+    : sys.startsWith('You write Instagram post captions') ? '### CAPTION\nAI xodim — bu chatbot emas 🤖\nDirect\'ga «demo» deb yozing.\n#aixodim\n### PICTURE\nA calm desk with a laptop and ceramic tiles, teal and gold tones'
     : 'OK';
   json(res, { id: `msg_${asked.length}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 10 } });
 });
@@ -78,9 +79,16 @@ function pcm(seconds: number): Buffer {
 }
 const spoken: string[] = [];
 const voices: string[] = [];
+/** Gemini chizgan rasmlar (Instagram posti): so'rov matni va tomonlar nisbati */
+const drawn: { prompt: string; aspect: string }[] = [];
+const PICTURE = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=864x1080', '-frames:v', '1', '-f', 'image2', '-c:v', 'mjpeg', 'pipe:1'], { maxBuffer: 20e6 }).stdout as Buffer;
 const geminiServer = createServer(async (req, res) => {
-  const body = JSON.parse((await readBody(req)).toString()) as { input: { content: { text: string }[] }[]; generation_config: { speech_config: { voice: string }[] } };
+  const body = JSON.parse((await readBody(req)).toString()) as { input: { content: { text: string }[] }[]; generation_config: { speech_config: { voice: string }[] }; response_format?: { type?: string; aspect_ratio?: string } };
   const text = body.input[0].content[0].text;
+  if (body.response_format?.type === 'image') {
+    drawn.push({ prompt: text, aspect: String(body.response_format.aspect_ratio) });
+    return json(res, { steps: [{ content: [{ type: 'image', mime_type: 'image/jpeg', data: PICTURE.toString('base64') }] }] });
+  }
   spoken.push(text);
   voices.push(body.generation_config.speech_config[0].voice);
   json(res, { steps: [{ content: [{ type: 'audio', mime_type: 'audio/l16', data: pcm([...text].length * PER_CHAR + 0.4).toString('base64') }] }] });
@@ -153,15 +161,32 @@ try {
   await page.getByRole('button', { name: 'Reja tuzish' }).click();
   await page.getByText('AI xodim — bu chatbot emas').first().waitFor({ timeout: 20_000 });
   ok('reja: 10 ta mavzu', (await page.locator('ol > li').count()) === 10);
-  await page.getByRole('button', { name: 'Post' }).first().click();
-  await page.getByRole('link', { name: 'Post tayyor' }).first().waitFor({ timeout: 20_000 });
-  ok('mavzudan post qoralamasi yozildi', true);
+  await page.getByRole('button', { name: 'Telegram', exact: true }).first().click();
+  await page.getByRole('link', { name: 'Telegram posti bor' }).first().waitFor({ timeout: 20_000 });
+  ok('mavzudan Telegram kanal posti yozildi', true);
+  await page.getByRole('button', { name: 'Instagram', exact: true }).first().click();
+  await page.getByRole('link', { name: 'Instagram posti bor' }).first().waitFor({ timeout: 20_000 });
+  ok("o'sha mavzudan Instagram posti: matn yozildi, rasm Gemini'da 4:5 da, brend ranglari bilan va yozuvsiz chizildi",
+    drawn.length === 1 && drawn[0].aspect === '4:5' && drawn[0].prompt.includes('ceramic tiles') && drawn[0].prompt.includes('#F4B63F') && drawn[0].prompt.includes('No text'), JSON.stringify(drawn));
   await page.getByRole('button', { name: 'Video' }).first().click();
   await page.getByRole('link', { name: 'Video bor' }).first().waitFor({ timeout: 30_000 });
   ok('mavzudan video ssenariysi va ovozi tayyorlandi', true);
   await shot(page, 'reja');
   ok("diktorga «AI» emas «ey-ay» bordi", spoken.some(t => t.includes('ey-ay xodim')) && !spoken.some(t => /\bAI\b/.test(t)), spoken.join(' | ').slice(0, 80));
   ok('har sahna alohida o\'qildi, tanlangan diktor bilan', spoken.length === SCRIPT.scenes.length && voices.every(v => v === 'Orus'), `${spoken.length} so'rov, ${[...new Set(voices)].join(',')}`);
+
+  console.log('\n# Postlar: Telegram kanal va Instagram — bitta varaqda');
+  await page.goto(`${base}/#/marketolog/instagram`);
+  await page.getByText('rasm — Gemini').first().waitFor({ timeout: 20_000 });
+  ok("Kontent-meyker → Postlar → Instagram: qoralama rasmi bilan, «Instagram'ga joylash» tugmasi (egasi bosmaguncha chiqmaydi)",
+    await page.getByText("AI xodim — bu chatbot emas 🤖").first().isVisible() && await page.getByRole('button', { name: "Instagram'ga joylash" }).first().isVisible()
+    && await page.getByRole('img', { name: /^AI rasmi/ }).first().isVisible());
+  ok("«Postlar» varag'i tanlangan, almashtirgichda «Instagram» — 1 ta kutyapti", await page.locator('nav[aria-label="Varaqlar"]').getByRole('link', { name: /^Postlar/ }).getAttribute('aria-current') === 'page'
+    && /Instagram\s*1/.test((await page.locator('nav[aria-label="Qayerga"]').getByRole('link', { name: /Instagram/ }).textContent()) ?? ''));
+  await shot(page, 'postlar-instagram');
+  await page.locator('nav[aria-label="Qayerga"]').getByRole('link', { name: /Telegram kanal/ }).click();
+  await page.getByText('🤖 AI xodim — bu chatbot emas').first().waitFor({ timeout: 10_000 });
+  ok("almashtirgich: «Telegram kanal» — kanal qoralamalari", page.url().endsWith('#/marketolog/telegram'));
 
   console.log('\n# Video');
   await page.goto(`${base}/#/marketolog/video`);

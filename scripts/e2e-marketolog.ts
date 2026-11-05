@@ -142,7 +142,8 @@ try {
   ok('egasi oynada kirdi → ulandi', await until('ulandi', async () => { const s = await status(token); return s.metaAi.connected && !s.metaAi.waiting ? s : undefined; }));
   ok("egasiga Telegram'da: «Meta AI ulandi»", await waitFor('xabar', () => toOwner(mark, 'Meta AI ulandi')));
   const day = (await api('/api/team/day', { token })).json;
-  ok('bosh ekranda beshinchi xodim — Marketolog', day.members?.length === 5 && day.members.at(-1).member === 'marketolog', JSON.stringify(day.members?.map((m: { member: string }) => m.member)));
+  // Jamoa «+» bilan olinadi: Meta AI ulangani — Marketolog ishlatilyapti, o'zi jamoaga qo'shildi
+  ok("Meta AI ulandi → Marketolog jamoada, bosh ekranda", day.members?.some((m: { member: string }) => m.member === 'marketolog'), JSON.stringify(day.members?.map((m: { member: string }) => m.member)));
 
   console.log("\n# So'rash: fonda, jurnal va Telegram, akkauntlar tekshiruvi");
   mark = sent.length;
@@ -171,7 +172,7 @@ try {
   ok("akkauntlar Instagram'da tekshirildi: ikkitasi bor, Meta AI o'ylab topgani — «yo'q», hisobot boshida va diqqat belgisi bilan", ev2?.[0].body.startsWith("Akkauntlar: 2 tasi Instagram'da bor; Instagram'da yo'q (Meta AI xato aytgan): @soxta_klinika") && ev2[0].level === 'warn', ev2?.[0].body.slice(0, 160));
   ok("Instagram'da faqat profil so'raldi (Direct'ga hech narsa yozilmadi)", igWeb.paths.some(p => p.includes('/api/v1/users/web_profile_info/')) && !igWeb.typed.length);
 
-  console.log('\n# Postlar: qoralama → tasdiq → Instagram');
+  console.log('\n# Instagram postlari (Kontent-meyker): qoralama → tasdiq → Instagram');
   mark = sent.length;
   const caption = "Tabassumingiz — bizning g'ururimiz! 😊\nBirinchi konsultatsiya bepul.\nDirect'ga yozing.\n#stomatologiya #toshkent";
   const draft = await api('/api/posts', { token, body: { caption, image: `data:image/png;base64,${TALL_PNG.toString('base64')}` } });
@@ -180,7 +181,7 @@ try {
   const size = jpegSize(Buffer.from(await imgRes.arrayBuffer()));
   ok("rasm Instagram o'lchamiga keltirildi: JPEG, 3:4 surat 4:5 gacha kesildi", imgRes.status === 200 && !!size && size.width / size.height >= 0.8 && size.width <= 1080, JSON.stringify(size));
   const cardOf = (m: number, id: string) => sent.slice(m).find(s => s.method === 'sendPhoto' && Number(s.params.chat_id) === OWNER && JSON.stringify(s.params.reply_markup ?? '').includes(`gp|${id}`));
-  ok("egasiga Telegram'da: rasm, matn va «Instagram'ga joylash» tugmasi", await waitFor('karta', () => { const c = cardOf(mark, draft.json.post?.id); return c && textOf(c).includes('Birinchi konsultatsiya') ? c : undefined; }));
+  ok("egasiga Telegram'da: rasm, matn va «Instagram'ga joylash» tugmasi — Kontent-meyker nomidan", await waitFor('karta', () => { const c = cardOf(mark, draft.json.post?.id); return c && textOf(c).includes('Birinchi konsultatsiya') && textOf(c).includes('Kontent-meyker') ? c : undefined; }));
   ok("hali hech narsa joylanmagan (egasi bosmaguncha)", !igWeb.uploads.length && !igWeb.posted.length);
   const tooMany = await api('/api/posts', { token, body: { caption: Array.from({ length: 31 }, (_, i) => `#teg${i}`).join(' '), image: `data:image/png;base64,${TALL_PNG.toString('base64')}` } });
   ok("31 ta heshteg — rad (Instagram chegarasi)", tooMany.status === 409 && /30 tadan/.test(tooMany.json.error), tooMany.json.error);
@@ -190,13 +191,15 @@ try {
   const cancelled = await api(`/api/posts/${warned.json.post?.id}`, { method: 'DELETE', token });
   ok("qoralama bekor qilindi — ro'yxatdan chiqdi", cancelled.status === 200 && !cancelled.json.posts.some((p: { id: string }) => p.id === warned.json.post?.id));
   const written = await api('/api/posts/caption', { token, body: { topic: "implant bo'yicha bepul konsultatsiya" } });
-  ok("«Marketolog yozsin»: post matni tayyor (egasi tahrir qiladi)", written.status === 200 && String(written.json.caption ?? '').trim().length > 0, String(written.json.caption ?? written.json.error).slice(0, 80));
+  ok("«Kontent-meyker yozsin»: post matni tayyor (egasi tahrir qiladi)", written.status === 200 && String(written.json.caption ?? '').trim().length > 0, String(written.json.caption ?? written.json.error).slice(0, 80));
   mark = sent.length;
   const pub = await api(`/api/posts/${draft.json.post?.id}/publish`, { token, body: {} });
   const published = pub.json.posts?.find((p: { id: string }) => p.id === draft.json.post?.id);
   ok("«Instagram'ga joylash»: rasm yuklandi (o'lchami bilan), post matni bilan yaratildi, havolasi bor", pub.status === 200 && published?.status === 'published' && published.url === 'https://www.instagram.com/p/POST1/'
     && igWeb.uploads.length === 1 && Number(igWeb.uploads[0].params.upload_media_width) === size?.width && igWeb.posted[0]?.caption === caption, JSON.stringify(pub.json).slice(0, 200));
-  ok("egasiga «joylandi» va Marketolog jurnalida", await waitFor('joylandi', () => toOwner(mark, "Instagram'ga joylandi")) && (await reports(token))[0]?.title.startsWith("Instagram'ga joylandi"));
+  const timeline = (await api('/api/team/day', { token })).json.timeline as { member: string; title: string }[] | undefined;
+  ok("egasiga «joylandi»; «Bugun jamoa» lentasida — Kontent-meyker nomidan (Marketolog tadqiqotlariga aralashmaydi)", await waitFor('joylandi', () => toOwner(mark, "Instagram'ga joylandi"))
+    && timeline?.some(e => e.member === 'kontent' && e.title.startsWith("Instagram'ga joylandi")) && !(await reports(token)).some(e => e.title.startsWith("Instagram'ga joylandi")), JSON.stringify(timeline?.slice(0, 3)));
   const again = await api(`/api/posts/${draft.json.post?.id}/publish`, { token, body: {} });
   ok("ikkinchi bosish — ikki marta joylanmaydi", again.status === 409 && igWeb.posted.length === 1, again.json.error);
 
@@ -222,7 +225,7 @@ try {
   const confirmed = await api(`/api/posts/${second.id}/publish`, { token, body: { confirm: true } });
   ok("egasi tekshirib tasdiqladi — joylandi", confirmed.status === 200 && confirmed.json.posts.find((x: { id: string }) => x.id === second.id)?.status === 'published' && igWeb.posted.at(-1)?.caption === 'Tuzatilgan matn #toshkent');
 
-  // Marketolog o'zi tayyorlaydi: matnni yozadi, rasmni Meta AI chizadi (fonda) → Telegram kartasi → egasi bosadi
+  // Kontent-meyker o'zi tayyorlaydi (Yordamchi orqali): matnni yozadi, rasmni Meta AI chizadi (fonda) → Telegram kartasi → egasi bosadi
   mark = sent.length;
   ownerCalls('draft_post', { caption: "Yangi tishlar — yangi kayfiyat ✨\nImplant bo'yicha bepul maslahat.\n#implant #toshkent", image_description: "yorug' stomatologiya kabineti, shifokor bemorga tabassum bilan tushuntiryapti, oq va havorang" });
   await api('/api/chat', { token, body: { text: "Ertaga uchun implant haqida post tayyorla" } });
@@ -267,20 +270,21 @@ try {
   ownerAsks('Kontent g\'oyalari: 7 kunlik reja', 'kontent', 4);
   await api('/api/chat', { token, body: { text: "To'rtta narsani so'ra" } });
   ok("navbatda 3 tadan ko'p savol turmaydi — to'rtinchisiga «navbatda» deyiladi", seenResults.some(t => t.includes('navbatda')));
-  await reportCount(token, 8);
+  // Jurnalda faqat tadqiqotlar (Instagram'ga joylash — Kontent-meyker yozuvi): 2 + 3 ta savol
+  await reportCount(token, 5);
   meta.delay = 0;
   ok("uchta savol meta.ai'ga ketdi", meta.asked.length - before === 3, String(meta.asked.length - before));
   meta.fail = true;
   const usedBefore = (await status(token)).metaAi.usedToday;
   ownerAsks('Sayt ishlamay turganda savol', 'boshqa');
   await api('/api/chat', { token, body: { text: "So'ra" } });
-  const failed = await reportCount(token, 9);
+  const failed = await reportCount(token, 6);
   const afterFail = (await status(token)).metaAi;
   meta.fail = false;
   ok("sayt xatosi: hisobotda «bajarilmadi», kunlik hisob qaytdi, «qayta kiring» deyilmadi", failed?.[0].title.startsWith('Bajarilmadi') && afterFail.usedToday === usedBefore && !afterFail.problem, JSON.stringify(afterFail));
   ownerAsks('Yana bitta savol: hashteglar', 'boshqa');
   await api('/api/chat', { token, body: { text: "Yana so'ra" } });
-  await reportCount(token, 10);
+  await reportCount(token, 7);
   const used = (await status(token)).metaAi;
   ok(`kunlik chegara: ${used.usedToday}/${used.dailyLimit} — oshgach meta.ai'ga bormaydi`, used.usedToday === 8 && await (async () => {
     const n = meta.asked.length;
@@ -327,6 +331,12 @@ try {
   const wipedBefore = meta.wiped;
   const off = await api('/api/meta-ai', { method: 'DELETE', token });
   ok("uzildi: panelda ulanmagan, brauzer profili o'chirildi", off.json.status.metaAi.connected === false && meta.wiped === wipedBefore + 1);
+  const noPainter = (await api('/api/posts', { token })).json.picture;
+  ownerCalls('draft_post', { caption: 'Yangi post matni #toshkent', image_description: "yorug' kabinet, oq va havorang ranglar" });
+  await api('/api/chat', { token, body: { text: 'Instagram uchun post tayyorla' } });
+  const drew = await api('/api/posts/draw', { token, body: { caption: 'Yangi post matni #toshkent', description: "yorug' kabinet, oq va havorang ranglar" } });
+  ok("Meta AI ham, Gemini kaliti ham yo'q — rasm chizadigan yo'q: asbob ham, panel ham ochiq aytadi (o'z surati bilan bo'ladi)",
+    noPainter === null && seenResults.at(-1)?.includes("o'z suratini") && drew.status === 409 && /o'z suratingizni/.test(drew.json.error), `${noPainter} · ${drew.json.error}`);
   ok("serverda kutilmagan xato yo'q", !/\[asbob\]|\[marketolog\]|Ichki xato|TypeError|ReferenceError/.test(log), log.split('\n').filter(l => /\[asbob\]|\[marketolog\]|TypeError|ReferenceError/.test(l)).slice(0, 3).join(' | '));
 } catch (e) {
   ok(`kutilmagan xato: ${(e as Error).stack}`, false);
