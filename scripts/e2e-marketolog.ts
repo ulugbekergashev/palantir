@@ -130,6 +130,9 @@ try {
   say(OWNER, `/start ${String(me.status.linkUrl).split('start=')[1]}`);
   await waitFor('egasi', () => toOwner(mark, 'Shifo Dent'));
 
+  // Egasi Marketolog va Kontent-meykerni «+ Xodim qo'shish»da jamoaga oladi (standart jamoa — Direktor va Yordamchi)
+  for (const member of ['marketolog', 'kontent']) await api('/api/crew', { token, body: { member, on: true } });
+
   console.log('\n# Ulash');
   ok('panel: Meta AI bor (brauzer), hali ulanmagan', me.status.metaAi?.available === true && me.status.metaAi.connected === false, JSON.stringify(me.status.metaAi));
   ownerAsks('Toshkentdagi raqobatchilarimizni aytib ber', 'raqobatchilar');

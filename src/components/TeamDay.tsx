@@ -5,9 +5,8 @@
  */
 import { useEffect, useState } from 'react';
 import { api, type TeamDay as Day } from '../data/api';
-import { hrefOf } from '../lib/nav';
 import { HUE, clock } from './agent';
-import { TEAM } from './team';
+import { TEAM, memberHref } from './team';
 
 const POLL_MS = 60_000;
 
@@ -30,7 +29,7 @@ export function TeamDay({ tick = 0 }: { tick?: number }) {
             const h = HUE[m.member], meta = TEAM[m.member];
             return (
               <li key={m.member}>
-                <a href={hrefOf(m.member)} className="flex items-start gap-3 px-4 py-3.5 no-underline transition-colors hover:bg-glass/[0.03]">
+                <a href={memberHref(m.member)} className="flex items-start gap-3 px-4 py-3.5 no-underline transition-colors hover:bg-glass/[0.03]">
                   <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: `${h.a}1f`, color: h.text }}><meta.icon className="h-[18px] w-[18px]" aria-hidden="true" /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[14px] font-semibold text-[#f2f0ea]">{meta.name}</span>

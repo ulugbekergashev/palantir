@@ -4,7 +4,7 @@
  */
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance, type SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { ownerToolDefs, runTool, type ToolCtx } from '../tools';
+import { ownerToolDefs, runTool, type ToolCtx, type ToolGroup } from '../tools';
 import { APP_VERSION } from '../version';
 
 /** MCP asbobga maydonlar ro'yxati kerak; Palantir asboblarining kirishi doim z.object — boshqasi dasturchi xatosi */
@@ -44,12 +44,12 @@ export class ToolGate {
 
 const LATE = { content: 'Bu gap tugagan — asbob ishlamadi', isError: true };
 
-export function palantirTools(ctx: ToolCtx, crm: boolean, gate: ToolGate): SdkMcpToolDefinition<z.ZodRawShape>[] {
-  return ownerToolDefs(crm).map(([name, d]) => tool(name, d.description, shapeOf(name, d.input), async args => {
+export function palantirTools(ctx: ToolCtx, crm: boolean, groups: ToolGroup[], gate: ToolGate): SdkMcpToolDefinition<z.ZodRawShape>[] {
+  return ownerToolDefs(crm, groups).map(([name, d]) => tool(name, d.description, shapeOf(name, d.input), async args => {
     const out = await gate.run(() => runTool(name, args, ctx), LATE);
     return { content: [{ type: 'text' as const, text: out.content }], isError: out.isError };
   }));
 }
 
-export const palantirServer = (ctx: ToolCtx, crm: boolean, gate: ToolGate): McpSdkServerConfigWithInstance =>
-  createSdkMcpServer({ name: 'palantir', version: APP_VERSION, tools: palantirTools(ctx, crm, gate) });
+export const palantirServer = (ctx: ToolCtx, crm: boolean, groups: ToolGroup[], gate: ToolGate): McpSdkServerConfigWithInstance =>
+  createSdkMcpServer({ name: 'palantir', version: APP_VERSION, tools: palantirTools(ctx, crm, groups, gate) });

@@ -19,7 +19,9 @@ const ROLE: Record<OrderMember, string> = {
   yordamchi: "the owner's personal assistant: reminders, documents, answers, reports from the CRM and the business's data",
   kuzatuvchi: 'the camera watcher: watches the IP cameras (a person detector counts people in each camera and in marked zones), and can look at a camera frame with AI vision to check something',
   tahlilchi: 'the analyst: numbers from the CRM and the conversations — leads, bookings, revenue, by day, week and month',
-  marketolog: "the marketer (SMM): asks Meta AI through the owner's meta.ai account — competitors on Instagram, a review of the business's own account, what a Reel says, content plans, post ideas and captions",
+  marketolog: "the marketer: market research through Meta AI with the owner's meta.ai account — competitors on Instagram, a review of the business's own account, what a Reel says, what works in this field; measures how published posts did",
+  kontent: 'the content maker: Telegram channel posts, Instagram posts with a picture, the content plan, short videos — drafts the owner approves before anything is published',
+  target: 'the ads specialist (targetologist): Meta (Facebook and Instagram) ad campaigns — plans the owner approves, spend reports, pausing campaigns',
 };
 
 const SYSTEM = `You turn a business owner's instruction to one of their AI employees into a structured standing order. The business is in Uzbekistan; the owner writes in Uzbek or Russian.

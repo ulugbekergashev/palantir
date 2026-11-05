@@ -809,7 +809,8 @@ export const aiServer = patient(createServer(async (req, res) => {
   }
 
   // Suhbat faqat oxiriga qo'shiladimi (tizim ko'rsatmasi o'zgarmaydimi)
-  const key = /Name: (.*)/.exec(body.system)?.[1] ?? '?';
+  // Xodim topshirig'i (<acting_as>) — alohida, saqlanmaydigan suhbat: egasi bilan suhbatning sessiyasi bilan aralashmaydi
+  const key = `${/Name: (.*)/.exec(body.system)?.[1] ?? '?'}${body.system.includes('<acting_as>') ? '|xodim' : ''}`;
   const said = lastOwnerText(body.messages).toLowerCase();
   const s = sessions.get(key);
   if (body.messages.length > 1) {

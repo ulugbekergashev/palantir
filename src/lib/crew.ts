@@ -16,6 +16,10 @@ export const CREW = ['direktor', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlil
 export type CrewMember = typeof CREW[number];
 /** Asosiy xodimlar: har biznesda bor, olib tashlanmaydi */
 export const CORE: readonly CrewMember[] = ['direktor', 'yordamchi'];
+/** Xodim nomi (server xabarlarida; panel — components/team.tsx TEAM) */
+export const TEAM_NAME: Record<CrewMember, string> = {
+  direktor: 'Direktor', qabulxona: 'Qabulxona', yordamchi: 'Yordamchi', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', kontent: 'Kontent-meyker', target: 'Targetolog',
+};
 
 /** hired — egasi olgan yoki ishi ulangani uchun o'zi qo'shilgan; dismissed — egasi o'zi olib tashlagan (o'zi qaytib qo'shilmaydi) */
 export interface CrewState { hired: CrewMember[]; dismissed: CrewMember[] }

@@ -34,6 +34,8 @@ import { MARKETING_DEFS, marketingEnabled } from './marketing/tools';
 import { CONTENT_DEFS } from './content/tools';
 import { ADS_DEFS } from './ads/tools';
 import { ToolError, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
+import { TEAM_NAME, crewHas, type CrewMember } from '../src/lib/crew';
+import { events } from './orders/store';
 import { DOC_KINDS } from './docs/playbooks';
 import { writeDocument } from './docs/writer';
 
@@ -399,14 +401,33 @@ const schemaOf = (s: z.ZodType) => {
 
 const isCrmTool = (name: string) => Object.hasOwn(CRM_DEFS, name);
 
-/** Claude'ga beriladigan asboblar ro'yxati (suhbat davomida o'zgarmaydi). crm — DentaCRM ulangan biznes uchun klinika asboblari bilan */
-/** Egasining yordamchisi ko'radigan asboblar (API ham, obuna ham — subscription/tools.ts — shu ro'yxatni oladi) */
-export function ownerToolDefs(crm: boolean): [string, ToolDef<z.ZodType>][] {
-  return Object.entries({ ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...CONTENT_DEFS, ...ADS_DEFS, ...(computerEnabled() ? COMPUTER_DEFS : {}), ...(marketingEnabled() ? MARKETING_DEFS : {}), ...(crm ? CRM_DEFS : {}) }) as [string, ToolDef<z.ZodType>][];
+/**
+ * Har xodimning asboblari. base — Yordamchi (vazifa, mijoz, hujjat, xotira, so'rovlar, kompyuter, klinika) — Tahlilchi va Qabulxona
+ * topshiriqlari ham shu bilan bajariladi; qolganlari — o'z xodimiga tegishli: jamoada bo'lmasa, Yordamchida ham yo'q
+ */
+export type ToolGroup = 'base' | 'kontent' | 'target' | 'marketolog' | 'kuzatuvchi';
+const SPECIALISTS = ['kontent', 'target', 'marketolog', 'kuzatuvchi'] as const;
+type Specialist = (typeof SPECIALISTS)[number];
+const GROUP_DEFS: Record<Specialist, Record<string, ToolDef<z.ZodType>>> = { kontent: CONTENT_DEFS, target: ADS_DEFS, marketolog: MARKETING_DEFS, kuzatuvchi: CAMERA_DEFS };
+/** Asbob kimniki (faqat mutaxassislar; base asboblari — hammaniki) */
+export const toolOwner = (name: string): Specialist | null => SPECIALISTS.find(m => Object.hasOwn(GROUP_DEFS[m], name)) ?? null;
+
+/** Egasi bilan suhbat: Yordamchi asboblari va jamoaga olingan mutaxassislarniki */
+export const chatGroups = (biz: { crew: string | null }): ToolGroup[] => ['base', ...SPECIALISTS.filter(m => crewHas(biz, m))];
+/** Topshiriqni bajaruvchi xodim — faqat o'z asboblari bilan */
+export const memberGroups = (m: CrewMember): ToolGroup[] => ((SPECIALISTS as readonly string[]).includes(m) ? [m as Specialist] : ['base']);
+
+/** Claude'ga beriladigan asboblar ro'yxati (API ham, obuna ham — subscription/tools.ts — shu ro'yxatni oladi). crm — DentaCRM ulangan biznes */
+export function ownerToolDefs(crm: boolean, groups: ToolGroup[] = ['base', ...SPECIALISTS]): [string, ToolDef<z.ZodType>][] {
+  const on = (g: ToolGroup) => groups.includes(g);
+  return Object.entries({
+    ...(on('base') ? { ...DEFS, ...REQUEST_DEFS } : {}), ...(on('kuzatuvchi') ? CAMERA_DEFS : {}), ...(on('kontent') ? CONTENT_DEFS : {}), ...(on('target') ? ADS_DEFS : {}),
+    ...(on('base') && computerEnabled() ? COMPUTER_DEFS : {}), ...(on('marketolog') && marketingEnabled() ? MARKETING_DEFS : {}), ...(on('base') && crm ? CRM_DEFS : {}),
+  }) as [string, ToolDef<z.ZodType>][];
 }
 
-export function toolDefinitions(webSearch: boolean, crm = false): Anthropic.Beta.BetaToolUnion[] {
-  const custom: Anthropic.Beta.BetaToolUnion[] = ownerToolDefs(crm).map(([name, d]) => ({
+export function toolDefinitions(webSearch: boolean, crm = false, groups?: ToolGroup[]): Anthropic.Beta.BetaToolUnion[] {
+  const custom: Anthropic.Beta.BetaToolUnion[] = ownerToolDefs(crm, groups).map(([name, d]) => ({
     name, description: d.description, input_schema: schemaOf(d.input),
   }));
   return webSearch ? [...custom, { type: 'web_search_20260209', name: 'web_search', max_uses: 3 }] : custom;
@@ -414,18 +435,39 @@ export function toolDefinitions(webSearch: boolean, crm = false): Anthropic.Beta
 
 export interface ToolOutcome { content: string; isError: boolean }
 
+/** Mutaxassis ishi Yordamchi orqali bajarilsa — o'sha xodimning jurnaliga (panel: xodim sahifasi, «Bugun jamoa nima qildi») */
+const JOURNAL: Record<string, string> = {
+  content_drafts: 'Kanal posti tayyorlandi', draft_post: 'Instagram posti tayyorlanyapti (rasm chizilyapti)', content_plan: 'Kontent-reja tuzildi',
+  content_video: 'Video ssenariysi va ovozi tayyorlandi', content_brand_book: 'Brend-buk yozildi', ads_plan: 'Reklama rejasi tuzildi', ads_pause: "Reklama to'xtatildi",
+};
+function journal(name: string, input: unknown, ctx: ToolCtx): void {
+  const member = toolOwner(name);
+  const title = JOURNAL[name];
+  if (!title || !member || member === 'marketolog' || member === 'kuzatuvchi' || ctx.as === member) return;
+  const about = Object.values((input ?? {}) as Record<string, unknown>).find((v): v is string => typeof v === 'string' && v.trim().length > 0) ?? '';
+  try {
+    events.add(ctx.biz.id, { member, orderId: null, level: 'info', title, body: `Yordamchi orqali${about ? `: ${about.replace(/\s+/g, ' ').slice(0, 300)}` : ''}`, cameraId: null });
+  } catch (e) { console.error('[asbob] jurnal:', (e as Error).message); }
+}
+
 export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promise<ToolOutcome> {
   // Klinika asboblari faqat DentaCRM ulangan biznesda ishlaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin)
   if (isCrmTool(name) && !crmConnected(ctx.biz.id)) return { content: "DentaCRM ulanmagan — egasi panel → Ulanishlar'da ulashi kerak", isError: true };
   const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...CONTENT_DEFS, ...ADS_DEFS, ...COMPUTER_DEFS, ...MARKETING_DEFS, ...CRM_DEFS };
   const d = Object.hasOwn(all, name) ? all[name] : undefined;
   if (!d) return { content: `Noma'lum asbob: ${name}`, isError: true };
+  // Mutaxassis jamoada emas — uning ishi qilinmaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin: eski suhbat, obuna)
+  const owner = toolOwner(name);
+  if (owner && !crewHas(ctx.biz, owner)) return { content: `Bu ${TEAM_NAME[owner]}ning ishi, u jamoada yo'q. Egasi uni panelda «+ Xodim qo'shish» orqali jamoaga olsin.`, isError: true };
+  if (ctx.as && owner && owner !== ctx.as) return { content: `Bu ${TEAM_NAME[owner]}ning ishi — ${TEAM_NAME[ctx.as]} uni qilmaydi`, isError: true };
   const parsed = d.input.safeParse(input);
   if (!parsed.success) {
     return { content: `Kirish noto'g'ri: ${parsed.error.issues.slice(0, 6).map(i => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')}`, isError: true };
   }
   try {
-    return { content: JSON.stringify(await d.run(parsed.data, ctx)), isError: false };
+    const out = { content: JSON.stringify(await d.run(parsed.data, ctx)), isError: false };
+    journal(name, parsed.data, ctx);
+    return out;
   } catch (e) {
     if (e instanceof ToolError) return { content: e.message, isError: true };
     console.error(`[asbob] ${name}:`, e);

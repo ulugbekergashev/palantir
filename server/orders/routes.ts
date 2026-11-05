@@ -26,7 +26,7 @@ interface Deps {
   bot: BotService;
 }
 
-const MEMBERS = ['qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog'] as const;
+const MEMBERS = ['qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'kontent', 'target'] as const;
 const Member = z.enum(MEMBERS);
 const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const Days = z.array(z.number().int().min(1).max(7)).max(7);

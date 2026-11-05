@@ -178,9 +178,20 @@ function DepartmentSwitch({ title, members, active }: { title: string; members: 
 }
 
 /** postlar — Telegram kanal va Instagram postlari (telegram / instagram — qaysi biri ochiq; qoralamalar — eski havola) */
-const KONTENT_TABS = ['postlar', 'telegram', 'instagram', 'qoralamalar', 'reja', 'video', 'manbalar', 'kanal'];
+/** Varaq nomlari Marketing bo'limida takrorlanmaydi (bo'lim manzili bitta): topshiriqlar — har xodimning o'zi */
+const KONTENT_TABS = ['postlar', 'telegram', 'instagram', 'qoralamalar', 'reja', 'video', 'manbalar', 'kanal', 'kontent-topshiriqlar'];
 const POST_TABS = ['postlar', 'telegram', 'instagram', 'qoralamalar'];
-const TARGET_TABS = ['kampaniyalar', 'kabinet'];
+const TARGET_TABS = ['kampaniyalar', 'kabinet', 'reklama-topshiriqlar'];
+
+/** Topshiriqlar va ostida — xodim nima qilgani (jurnal) */
+function OrdersAndJournal({ member, notify, tick }: { member: 'kontent' | 'target'; notify: Notify; tick: number }) {
+  return (
+    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <OrdersPanel member={member} notify={notify} />
+      <section aria-label="Bajarganlari" className="rounded-[22px] border border-glass/[0.07] bg-[#0b0c10] p-5"><h2 className="mb-4 text-[13px] font-semibold uppercase tracking-[0.12em] text-[#a3a9b5]">Bajarganlari</h2><AgentJournal member={member} notify={notify} tick={tick} /></section>
+    </div>
+  );
+}
 
 /**
  * Marketing bo'limi — har xodimning bitta ishi: Marketolog bozorni o'rganadi (Meta AI), Kontent-meyker hamma kontentni yasaydi
@@ -209,10 +220,11 @@ function TargetArea({ tab, notify, target, tick }: Common & { target: MemberStat
   return (
     <div className="space-y-6">
       <AgentHero member="target" state={target} stats={adsStats(view)}>
-        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'kampaniyalar', label: 'Kampaniyalar', count: target?.badge }, { id: 'kabinet', label: 'Kabinet va limitlar' }]} />
+        <AgentTabs area="marketolog" active={active} tabs={[{ id: 'kampaniyalar', label: 'Kampaniyalar', count: target?.badge }, { id: 'kabinet', label: 'Kabinet va limitlar' }, { id: 'reklama-topshiriqlar', label: 'Topshiriqlar' }]} />
       </AgentHero>
       {active === 'kampaniyalar' && <AdsCampaigns view={view} setView={setView} notify={notify} />}
       {active === 'kabinet' && <AdsCabinet view={view} setView={setView} notify={notify} />}
+      {active === 'reklama-topshiriqlar' && <OrdersAndJournal member="target" notify={notify} tick={tick} />}
     </div>
   );
 }
@@ -255,13 +267,14 @@ function ContentArea({ tab, status, notify, onStatus, kontent, tick }: Common & 
   return (
     <div className="space-y-6">
       <AgentHero member="kontent" state={kontent} stats={contentStats(view, status.instagram.account)}>
-        <AgentTabs area="marketolog" active={posts ? 'postlar' : active} tabs={[{ id: 'postlar', label: 'Postlar', count: kontent?.badge }, { id: 'reja', label: 'Reja' }, { id: 'video', label: 'Video' }, { id: 'manbalar', label: 'Manbalar' }, { id: 'kanal', label: 'Kanallar' }]} />
+        <AgentTabs area="marketolog" active={posts ? 'postlar' : active} tabs={[{ id: 'postlar', label: 'Postlar', count: kontent?.badge }, { id: 'reja', label: 'Reja' }, { id: 'video', label: 'Video' }, { id: 'manbalar', label: 'Manbalar' }, { id: 'kanal', label: 'Kanallar' }, { id: 'kontent-topshiriqlar', label: 'Topshiriqlar' }]} />
       </AgentHero>
       {posts && <ContentPosts tab={active === 'qoralamalar' ? 'telegram' : active} status={status} notify={notify} tick={tick} view={view} setView={setView} />}
       {active === 'reja' && <ContentPlanTab view={view} setView={setView} notify={notify} />}
       {active === 'video' && <ContentVideoTab view={view} setView={setView} notify={notify} />}
       {active === 'manbalar' && <ContentSources view={view} setView={setView} notify={notify} />}
       {active === 'kanal' && <ContentChannel view={view} setView={setView} notify={notify} status={status} onStatus={onStatus} />}
+      {active === 'kontent-topshiriqlar' && <OrdersAndJournal member="kontent" notify={notify} tick={tick} />}
     </div>
   );
 }

@@ -93,5 +93,41 @@ check("Direktor faqat jamoadagi xodimga va egasiga taklif beradi", () => {
   assert.deepEqual(plan.moves.map(m => m.member), ['qabulxona']);
 });
 
+console.log("\n# Asboblar xodim bo'yicha (3-bosqich)");
+{
+  const { toolOwner, chatGroups, memberGroups, ownerToolDefs, runTool } = await import('../server/tools');
+  const { businesses } = await import('../server/db');
+  check('asbob egasi: kontent, reklama, kamera, Meta AI — mutaxassisniki; vazifa — Yordamchiniki', () => {
+    assert.equal(toolOwner('content_video'), 'kontent');
+    assert.equal(toolOwner('draft_post'), 'kontent');
+    assert.equal(toolOwner('ads_plan'), 'target');
+    assert.equal(toolOwner('look_camera'), 'kuzatuvchi');
+    assert.equal(toolOwner('meta_ai'), 'marketolog');
+    assert.equal(toolOwner('create_task'), null);
+  });
+  check("suhbatda — Yordamchi va jamoadagi mutaxassislar; topshiriqda — faqat bajaruvchiniki", () => {
+    assert.deepEqual(chatGroups({ crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'kontent'], dismissed: [] }) }), ['base', 'kontent']);
+    assert.deepEqual(chatGroups({ crew: null }), ['base', 'kontent', 'target', 'marketolog', 'kuzatuvchi'], 'eski baza — hammasi');
+    assert.deepEqual(memberGroups('kontent'), ['kontent']);
+    assert.deepEqual(memberGroups('tahlilchi'), ['base']);
+    const k = ownerToolDefs(false, ['kontent']).map(([n]) => n);
+    assert.ok(k.includes('content_plan') && !k.includes('create_task') && !k.includes('ads_plan'));
+  });
+  const biz = businesses.create(`jamoa${Date.now()}`, 'x', { name: 'J', ownerName: 'X', industry: '', phone: '', address: '', contentLang: 'uz', brand: { primary: '#000', accent: '#111' }, offerings: [], team: [] } as never);
+  businesses.update(biz.id, { crew: JSON.stringify({ hired: ['direktor', 'yordamchi'], dismissed: [] }) });
+  const b = businesses.byId(biz.id)!;
+  const out = await runTool('content_plan', { count: 5 }, { biz: b, artifacts: [] });
+  check("jamoada yo'q mutaxassis asbobi chaqirilsa ham ishlamaydi — «+ Xodim qo'shish»", () => {
+    assert.equal(out.isError, true);
+    assert.match(out.content, /Kontent-meykerning ishi, u jamoada yo'q/);
+  });
+  businesses.update(biz.id, { crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'kontent', 'tahlilchi'], dismissed: [] }) });
+  const other = await runTool('content_plan', { count: 5 }, { biz: businesses.byId(biz.id)!, artifacts: [], as: 'tahlilchi' });
+  check("topshiriq bajaruvchi boshqa xodimning ishini qilmaydi", () => {
+    assert.equal(other.isError, true);
+    assert.match(other.content, /Tahlilchi uni qilmaydi/);
+  });
+}
+
 console.log(failed ? `\n✗ ${failed} ta tekshiruv o'tmadi` : "\n✓ hammasi o'tdi");
 process.exit(failed ? 1 : 0);

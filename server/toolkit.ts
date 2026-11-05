@@ -1,5 +1,6 @@
 /** Asboblar uchun umumiy turlar (tools.ts va crm/tools.ts bir-birini import qilmasligi uchun alohida) */
 import type { z } from 'zod';
+import type { CrewMember } from '../src/lib/crew';
 import type { Artifact } from '../src/types';
 import type { BusinessRow } from './db';
 
@@ -22,6 +23,8 @@ export interface ToolCtx {
   fromPhoto?: boolean;
   /** Jadvaldagi topshiriq (orders/run.ts): egasi kuzatmayapti — bilimga va CRM'ga yozadigan asboblar ishlamaydi */
   unattended?: boolean;
+  /** Kim nomidan ishlayapti: topshiriqni bajarayotgan xodim (orders/run.ts); yo'q — egasi bilan suhbatdagi Yordamchi */
+  as?: CrewMember;
   /** Shu javob davomida mijozlar yozgan matn o'qildi (yozishma, mijozlar ro'yxati): u ham begona matn */
   readStrangers?: boolean;
   /** Shu gapda qo'shilgan mijozlar soni (chegara: tools.ts MAX_LEADS_PER_TURN) */

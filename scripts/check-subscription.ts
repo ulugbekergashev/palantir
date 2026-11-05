@@ -131,7 +131,7 @@ await check("har bir Palantir asbobi MCP asbobiga aylanadi va natija runTool orq
   const biz = businesses.create(`obuna${Date.now()}`, 'x', { name: 'Sinov', ownerName: 'Ulug\'bek', industry: '', phone: '', address: '', contentLang: 'uz', brand: { primary: '#000', accent: '#111' }, offerings: [], team: [] } as never);
   const ctx = { biz, artifacts: [] };
   const defs = ownerToolDefs(false);
-  const tools = palantirTools(ctx, false, new ToolGate());
+  const tools = palantirTools(ctx, false, ['base', 'kontent', 'target', 'marketolog', 'kuzatuvchi'], new ToolGate());
   assert.deepEqual(tools.map(t => t.name).sort(), defs.map(([n]) => n).sort());
   const byName = new Map(tools.map(t => [t.name, t]));
   const ok = await byName.get('list_tasks')!.handler({} as never, undefined);

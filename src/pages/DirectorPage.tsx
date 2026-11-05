@@ -12,7 +12,7 @@ import { GoalsPanel } from '../components/Goals';
 import type { MemberState } from '../components/team';
 import type { DirectorMoveView, DirectorNumber, DirectorView } from '../types';
 
-const MEMBER_NAME: Record<DirectorMoveView['member'], string> = { qabulxona: 'Qabulxona', yordamchi: 'Yordamchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', egasi: 'Siz' };
+const MEMBER_NAME: Record<DirectorMoveView['member'], string> = { qabulxona: 'Qabulxona', yordamchi: 'Yordamchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', kontent: 'Kontent-meyker', target: 'Targetolog', kuzatuvchi: 'Kuzatuvchi', egasi: 'Siz' };
 const MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
 const day = (d: string | null) => (d ? `${Number(d.slice(8, 10))}-${MONTHS[Number(d.slice(5, 7)) - 1] ?? ''}` : '');
 const num = (v: number, unit = '') => `${Math.round(v).toLocaleString('ru-RU').replace(/ /g, ' ')}${unit}`;

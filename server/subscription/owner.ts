@@ -9,7 +9,7 @@ import type { BusinessRow } from '../db';
 import { conversations } from '../db';
 import { env } from '../env';
 import { metered } from '../claude';
-import type { ToolCtx } from '../tools';
+import type { ToolCtx, ToolGroup } from '../tools';
 import { SubscriptionError, runQuery, sessionKey, sessionOf, type TurnResult } from './engine';
 import { ToolGate, palantirServer } from './tools';
 
@@ -26,6 +26,8 @@ export interface OwnerTurnInput {
   biz: BusinessRow;
   /** Asboblar to'plamining kaliti (agent.ts Toolset.key): o'zgarsa — yangi sessiya */
   setKey: string;
+  /** Kimning asboblari (tools.ts ToolGroup) */
+  groups: ToolGroup[];
   crm: boolean;
   userText: string;
   phone: boolean;
@@ -33,6 +35,8 @@ export interface OwnerTurnInput {
   /** Asboblar shu kontekstda ishlaydi; xato bo'lsa chaqiruvchi tayyor bo'lgan narsalarni (artifacts) shundan oladi */
   ctx: ToolCtx;
   buildSystem: (b: BusinessRow) => string;
+  /** Xodim topshirig'i: yangi sessiya, saqlanmaydi (egasi bilan suhbatga aralashmaydi) */
+  ephemeral?: boolean;
 }
 
 interface Session { resume: string; system: string; startedAt: string }
@@ -47,7 +51,7 @@ function liveSession(p: OwnerTurnInput): Session | null {
 }
 
 export async function ownerTurn(p: OwnerTurnInput): Promise<string> {
-  const session = liveSession(p);
+  const session = p.ephemeral ? null : liveSession(p);
   const gate = new ToolGate();
   try {
     return await turn(p, session, gate);
@@ -62,7 +66,7 @@ export async function ownerTurn(p: OwnerTurnInput): Promise<string> {
 async function turn(p: OwnerTurnInput, session: Session | null, gate: ToolGate): Promise<string> {
   const system = session?.system ?? `${p.buildSystem(p.biz)}\n\n${TOOL_NAMES_NOTE}`;
   const startedAt = session?.startedAt ?? new Date().toISOString();
-  const save = (sessionId: string) => conversations.save(p.biz.id, { system, toolsKey: sessionKey(p.setKey, sessionId), startedAt, messages: [] });
+  const save = (sessionId: string) => { if (!p.ephemeral) conversations.save(p.biz.id, { system, toolsKey: sessionKey(p.setKey, sessionId), startedAt, messages: [] }); };
   let r: TurnResult;
   try {
     r = await metered(p.biz.id, 'owner', () => runQuery(p.userText, {
@@ -72,7 +76,7 @@ async function turn(p: OwnerTurnInput, session: Session | null, gate: ToolGate):
       effort: p.phone ? 'low' : env.aiEffortOwner,
       maxTurns: MAX_TURNS,
       ...(session ? { resume: session.resume } : {}),
-      mcp: palantirServer(p.ctx, p.crm, gate),
+      mcp: palantirServer(p.ctx, p.crm, p.groups, gate),
       webSearch: env.webSearch,
       // Internetdan qidiruv natijasi — begona matn: shu gapda bilim va xotiraga yozuvchi asboblar yopiladi
       onWebSearch: () => { p.ctx.readStrangers = true; },

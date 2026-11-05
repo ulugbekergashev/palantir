@@ -427,7 +427,8 @@ export interface ChairUse { zoneId: string; name: string; cameraName: string; bu
 export interface WaitStats { count: number; avgMin: number; maxMin: number; longCount: number; alertMin: number; nowWaiting: number; nowLongestMin: number }
 
 // ─── AI xodimlarga topshiriqlar va ularning jurnali ──────────────────────────
-export type OrderMember = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog';
+/** Topshiriq oladigan xodim (Direktor — bermaydi, taklif qiladi) */
+export type OrderMember = 'qabulxona' | 'yordamchi' | 'kuzatuvchi' | 'tahlilchi' | 'marketolog' | 'kontent' | 'target';
 /**
  * Kamera qoidasi sharti (odam topuvchi sanagan odamlar bo'yicha): crowd — kamida `people` kishi; linger — kimdir turibdi
  * (uzoq turish); empty — hech kim yo'q; presence — odam ko'rindi (masalan, ish vaqtidan tashqari)
@@ -452,8 +453,8 @@ export interface AgentOrder {
   active: boolean; createdAt: string; lastRunAt: string | null; lastResult: string | null;
   /** Necha marta ishlagan (qoida bo'lsa — necha marta xabar bergan) */ hits: number;
 }
-/** Jurnalga yozadigan xodim: topshiriq oladiganlar va Kontent-meyker, Targetolog (hozircha topshiriqsiz — faqat «nima qildi») */
-export type EventMember = OrderMember | 'kontent' | 'target';
+/** Jurnalga yozadigan xodim — topshiriq oladiganlar bilan bir xil */
+export type EventMember = OrderMember;
 /** Xodim jurnalidagi yozuv: nima ko'rdi yoki nima qildi. hasImage — kadr saqlangan (kamera hodisasi) */
 export interface AgentEvent {
   id: string; member: EventMember; orderId: string | null; level: 'info' | 'warn' | 'crit'; title: string; body: string;
@@ -802,7 +803,7 @@ export interface CameraAccuracy {
 /** AI Direktor (server/director): taklif va qarorlar jurnali yozuvi */
 export type DirectorMoveStatus = 'taklif' | 'topshirildi' | 'rad' | 'tekshirildi';
 export interface DirectorMoveView {
-  id: string; runId: string; member: 'qabulxona' | 'yordamchi' | 'tahlilchi' | 'marketolog' | 'egasi'; task: string; why: string;
+  id: string; runId: string; member: 'qabulxona' | 'yordamchi' | 'tahlilchi' | 'marketolog' | 'kontent' | 'target' | 'kuzatuvchi' | 'egasi'; task: string; why: string;
   metric: string; baseline: number; checkDays: number; status: DirectorMoveStatus; createdAt: string; decidedAt: string | null; checkAt: string | null;
   after: number | null; verdict: 'yaxshi' | 'yomon' | 'ozgarmadi' | null; checkedAt: string | null;
 }

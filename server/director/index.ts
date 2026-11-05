@@ -67,7 +67,10 @@ const TEAM_LINES: Record<MoveMember, string> = {
   qabulxona: 'qabulxona: answers customers in Telegram, Instagram and phone. Your task becomes a standing instruction it follows in every customer reply (how to answer, what to offer next, when to hand over to a person).',
   yordamchi: "yordamchi: the owner's assistant. A standing instruction for its daily work: following up forgotten customers (as drafts the owner sends), reminders, documents.",
   tahlilchi: 'tahlilchi: numbers and reports. A standing instruction for what to watch and report.',
-  marketolog: 'marketolog: market research through Meta AI — competitors, the business\'s Instagram account, what works in this field; its findings feed the content plan. A standing instruction for what to research.',
+  marketolog: 'marketolog: market research through Meta AI — competitors, the business\'s Instagram account, what works in this field; measures how published posts did; its findings feed the content plan. A standing instruction for what to research.',
+  kontent: 'kontent: makes Telegram channel and Instagram posts and short videos, keeps the content plan. A standing instruction for what to post about and how (topics to push, what to stop); the owner still approves every post.',
+  target: 'target: runs Meta ads within the owner\'s limits. A standing instruction for campaigns (which service to advertise, audience, what to stop); budgets and launches are always approved by the owner.',
+  kuzatuvchi: 'kuzatuvchi: watches the cameras. A standing rule it applies whenever it looks at camera frames (what counts as a problem to report, which place matters). Only useful when the business has cameras.',
   egasi: 'egasi: the owner personally. Anything about money, prices, discounts, ad budget, hiring, staff, or work only a person can do.',
 };
 

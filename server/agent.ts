@@ -22,7 +22,8 @@ import { env } from './env';
 import { AiLimitError, profileText, think } from './claude';
 import { crmClinicName, crmConnected } from './crm/index';
 import { COMMON_RULES, industryOf, isClinic } from '../src/data/industries';
-import { runTool, toolDefinitions, type ToolCtx } from './tools';
+import { chatGroups, memberGroups, runTool, toolDefinitions, type ToolCtx, type ToolGroup } from './tools';
+import { TEAM_NAME, crewHas, type CrewMember } from '../src/lib/crew';
 import { orders } from './orders/store';
 import { SubscriptionError, subscriptionOn, type SubscriptionReason } from './subscription/engine';
 import { ownerTurn } from './subscription/owner';
@@ -37,14 +38,24 @@ const IDLE_MS = 6 * 3600_000;
 const MAX_MESSAGES = 120;
 const MAX_CHARS = 400_000;
 
-/** Asboblar to'plami biznesga qarab: oddiy yoki klinika (DentaCRM ulangan). Kaliti boshqa bo'lsa — suhbat yangidan boshlanadi */
-interface Toolset { tools: ReturnType<typeof toolDefinitions>; key: string }
-const toolset = (crm: boolean): Toolset => {
-  const tools = toolDefinitions(env.webSearch, crm);
-  return { tools, key: createHash('sha256').update(env.aiModel).update(JSON.stringify(tools)).digest('hex').slice(0, 16) };
+/**
+ * Asboblar to'plami: klinika (DentaCRM ulangan) yoki yo'q va kimniki — egasi bilan suhbatda Yordamchi va jamoaga olingan mutaxassislar,
+ * topshiriqda — faqat bajaruvchi xodimniki. Kaliti boshqa bo'lsa — suhbat yangidan boshlanadi (jamoa o'zgarganda ham)
+ */
+interface Toolset { tools: ReturnType<typeof toolDefinitions>; key: string; groups: ToolGroup[] }
+const TOOLSETS = new Map<string, Toolset>();
+const toolsetFor = (biz: BusinessRow, as?: CrewMember): Toolset => {
+  const crm = crmConnected(biz.id);
+  const groups = as ? memberGroups(as) : chatGroups(biz);
+  const id = `${crm}|${groups.join(',')}`;
+  let set = TOOLSETS.get(id);
+  if (!set) {
+    const tools = toolDefinitions(env.webSearch, crm, groups);
+    set = { tools, groups, key: createHash('sha256').update(env.aiModel).update(JSON.stringify(tools)).digest('hex').slice(0, 16) };
+    TOOLSETS.set(id, set);
+  }
+  return set;
 };
-const TOOLSETS = { base: toolset(false), crm: toolset(true) };
-const toolsetFor = (bizId: string): Toolset => (crmConnected(bizId) ? TOOLSETS.crm : TOOLSETS.base);
 
 // ─── Tizim ko'rsatmasi ────────────────────────────────────────────────────────
 
@@ -86,15 +97,46 @@ export function knowledgeBlocks(b: BusinessRow): string[] {
   ];
 }
 
-/** Egasining doimiy topshiriqlari yordamchi, tahlilchi va marketologga (panel: xodim sahifasi → Topshiriqlar) */
-function standingOrders(bizId: string): string {
-  const mine = orders.standing(bizId, 'yordamchi'), analyst = orders.standing(bizId, 'tahlilchi'), marketer = orders.standing(bizId, 'marketolog');
-  if (!mine.length && !analyst.length && !marketer.length) return '';
-  const lines = [...mine, ...analyst.map(t => `(reports and numbers) ${t}`), ...marketer.map(t => `(marketing, Meta AI and content) ${t}`)].map(t => `- ${t}`);
-  return `<owner_standing_orders>\nStanding orders the owner gave you — follow them in every conversation:\n${lines.join('\n')}\n</owner_standing_orders>`;
+/** Har xodim nima qiladi (egasi bilan suhbatdagi jamoa bloki va topshiriq bajaruvchining roli) */
+const ROLE: Record<CrewMember, string> = {
+  direktor: 'reads the numbers every morning and proposes tasks to the team',
+  qabulxona: 'answers customers in Telegram, Instagram and by phone',
+  yordamchi: "the owner's personal assistant: tasks, reminders, customers, documents, memory",
+  kuzatuvchi: 'watches the cameras (camera_day, look_camera)',
+  tahlilchi: 'numbers and reports',
+  marketolog: "market research through the owner's Meta AI (meta_ai): competitors, the business's Instagram, what works",
+  kontent: 'makes all content: Telegram channel posts, Instagram posts with a picture, the content plan, the brand book, short videos',
+  target: 'runs Meta ads: campaign plans, launch after the owner approves, spend limits',
+};
+/** Yordamchi bajara oladigan mutaxassislar ishi (jamoada bo'lsa — asboblari bor) */
+const SPECIALISTS: CrewMember[] = ['kontent', 'target', 'marketolog', 'kuzatuvchi'];
+
+/** Egasi bilan suhbat: kim jamoada (uning ishini uning asboblari bilan qilasiz), kim yo'q (ishini qilmaysiz — jamoaga olishni taklif qilasiz) */
+function teamBlock(b: BusinessRow): string {
+  const hired = SPECIALISTS.filter(m => crewHas(b, m)), missing = SPECIALISTS.filter(m => !crewHas(b, m));
+  return `<team>
+You are the Yordamchi of the business's AI team. The specialists' work you do with their tools, and it is recorded in their journal.
+${hired.length ? `Hired: ${hired.map(m => `${TEAM_NAME[m]} — ${ROLE[m]}`).join('; ')}.` : 'No specialists are hired yet.'}${missing.length ? `
+Not hired (you do not have their tools): ${missing.map(m => `${TEAM_NAME[m]} — ${ROLE[m]}`).join('; ')}. If the owner asks for such work, say in one sentence that it is that employee's job and they can add them in the panel with «+ Xodim qo'shish»; offer what you can do yourself (for example, write the text).` : ''}
+</team>`;
 }
 
-function buildSystem(b: BusinessRow): string {
+/** Egasining doimiy topshiriqlari (panel: xodim sahifasi → Topshiriqlar). as — topshiriq bajaruvchi: faqat uniki */
+function standingOrders(b: BusinessRow, as?: CrewMember): string {
+  const of = (m: CrewMember) => (m === 'direktor' ? [] : orders.standing(b.id, m));
+  const tagged: [CrewMember, string][] = as ? [[as, '']]
+    : [['yordamchi', ''], ['tahlilchi', '(reports and numbers) '], ['marketolog', '(market research) '], ...(['kontent', 'target'] as const).filter(m => crewHas(b, m)).map(m => [m, `(${TEAM_NAME[m]}) `] as [CrewMember, string])];
+  const lines = tagged.flatMap(([m, tag]) => of(m).map(t => `- ${tag}${t}`));
+  if (!lines.length) return '';
+  return `<owner_standing_orders>\nStanding orders the owner gave ${as ? `the ${TEAM_NAME[as]}` : 'you and the team'} — follow them:\n${lines.join('\n')}\n</owner_standing_orders>`;
+}
+
+/** Topshiriq bajaruvchi: kim nomidan va faqat o'z ishi */
+const actingAs = (m: CrewMember) => `<acting_as>
+Right now you work as the ${TEAM_NAME[m]} of the business's AI team (${ROLE[m]}), carrying out a scheduled task the owner gave this employee. Use only this employee's tools; do this employee's work and nothing else. The owner is not watching: finish the task and report the result in a few short sentences.
+</acting_as>`;
+
+function buildSystem(b: BusinessRow, as?: CrewMember): string {
   const now = new Date();
   const holidays = upcomingOccasions(now, 21, isClinic(b.profile.industry, crmConnected(b.id)));
   // Fayl tashlanganidagi yozuvlar (📎 …) kiritilmaydi: ularda fayl nomi va matnining boshi bor — bu begona matn, egasi hali tasdiqlamagan
@@ -115,7 +157,8 @@ ${COMMON_RULES}
       ? `<previous_session>\nThe last messages before this conversation started (for continuity; the tools have the current data):\n${recent.map(e => `${e.role === 'owner' ? 'Owner' : 'Palantir'}: ${e.text.slice(0, 300)}`).join('\n')}\n</previous_session>`
       : '',
     clinicBlock(b.id),
-    standingOrders(b.id),
+    as ? actingAs(as) : teamBlock(b),
+    standingOrders(b, as),
     `Session started: ${iso(now)}.`,
   ];
   return parts.filter(Boolean).join('\n\n');
@@ -206,7 +249,7 @@ export function friendlyError(e: unknown): string {
 const PHONE_NOTE = ' (live phone call, speech-to-text: reply in one or two short spoken sentences of plain text — no lists, markdown, links or emoji, it is read aloud)';
 
 /** Egasining gapiga javob. Hech qachon tashlamaydi: xato bo'lsa — tushunarli matn */
-export function ask(bizId: string, channel: ChatEntry['channel'], text: string, opts: { voice?: boolean; /** Jurnalda ko'rinadigan matn (rasm yuborilganda: tavsif emas, qisqa belgi) */ display?: string; /** Gap rasm tavsifi bilan kelgan (toolkit.ts: fromPhoto) */ photo?: boolean; /** Jonli telefon qo'ng'irog'i: javob ovoz chiqarib o'qiladi */ phone?: boolean; /** Jadvaldagi topshiriq: egasi kuzatmayapti (toolkit.ts: unattended) */ unattended?: boolean } = {}): Promise<Reply> {
+export function ask(bizId: string, channel: ChatEntry['channel'], text: string, opts: { voice?: boolean; /** Jurnalda ko'rinadigan matn (rasm yuborilganda: tavsif emas, qisqa belgi) */ display?: string; /** Gap rasm tavsifi bilan kelgan (toolkit.ts: fromPhoto) */ photo?: boolean; /** Jonli telefon qo'ng'irog'i: javob ovoz chiqarib o'qiladi */ phone?: boolean; /** Jadvaldagi topshiriq: egasi kuzatmayapti (toolkit.ts: unattended) */ unattended?: boolean; /** Topshiriq bajaruvchi xodim: alohida suhbat (egasi bilan suhbatga aralashmaydi), faqat uning asboblari */ as?: CrewMember } = {}): Promise<Reply> {
   return serial(bizId, async () => {
     const biz = businesses.byId(bizId);
     if (!biz) throw new Error('Biznes topilmadi');
@@ -222,8 +265,10 @@ export function ask(bizId: string, channel: ChatEntry['channel'], text: string, 
     const userText = `${nowLabel(channel)}${opts.phone ? PHONE_NOTE : opts.voice ? ' (voice message, transcribed)' : ''}\n${text}`;
     const attempt = async (restart: boolean) => {
       if (subscriptionOn()) return viaSubscription(biz, userText, opts);
+      const set = toolsetFor(biz, opts.as);
+      // Xodim topshirig'i — har safar yangi, saqlanmaydigan suhbat: egasi bilan suhbatning tarixi va asboblari o'zgarmasin
+      if (opts.as) return run(biz, { system: buildSystem(biz, opts.as), startedAt: new Date().toISOString(), messages: [] }, set, userText, false, false, false, true, opts.as);
       const prev = conversations.get(biz.id);
-      const set = toolsetFor(biz.id);
       const keep = !restart && fresh(prev, set.key);
       const session = keep && prev
         ? { system: prev.system, startedAt: prev.startedAt, messages: prev.messages as Msg[] }
@@ -249,11 +294,12 @@ export function ask(bizId: string, channel: ChatEntry['channel'], text: string, 
 }
 
 /** Obuna orqali (subscription/owner.ts): xato bo'lsa — shu gapda tayyorlangan narsalar egasiga baribir ko'rsatiladi */
-async function viaSubscription(biz: BusinessRow, userText: string, opts: { photo?: boolean; phone?: boolean; unattended?: boolean }) {
+async function viaSubscription(biz: BusinessRow, userText: string, opts: { photo?: boolean; phone?: boolean; unattended?: boolean; as?: CrewMember }) {
   const crm = crmConnected(biz.id);
-  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto: !!opts.photo, unattended: !!opts.unattended };
+  const set = toolsetFor(biz, opts.as);
+  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto: !!opts.photo, unattended: !!opts.unattended || !!opts.as, ...(opts.as ? { as: opts.as } : {}) };
   try {
-    const text = await ownerTurn({ biz, setKey: toolsetFor(biz.id).key, crm, userText, phone: !!opts.phone, idleMs: IDLE_MS, ctx, buildSystem });
+    const text = await ownerTurn({ biz, setKey: set.key, groups: set.groups, crm, userText, phone: !!opts.phone, idleMs: IDLE_MS, ctx, buildSystem: b => buildSystem(b, opts.as), ephemeral: !!opts.as });
     return { text, artifacts: ctx.artifacts };
   } catch (e) {
     throw ctx.artifacts.length ? new PartialError(e, ctx.artifacts) : e;
@@ -265,10 +311,11 @@ class PartialError extends Error {
   constructor(readonly cause: unknown, readonly artifacts: Artifact[]) { super('partial'); }
 }
 
-async function run(biz: BusinessRow, session: { system: string; startedAt: string; messages: Msg[] }, set: Toolset, userText: string, continuing: boolean, fromPhoto = false, phone = false, unattended = false) {
-  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto, unattended };
+async function run(biz: BusinessRow, session: { system: string; startedAt: string; messages: Msg[] }, set: Toolset, userText: string, continuing: boolean, fromPhoto = false, phone = false, unattended = false, as?: CrewMember) {
+  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto, unattended, ...(as ? { as } : {}) };
   const messages = withOwnerText(session.messages, userText);
-  const save = (upTo: number) => conversations.save(biz.id, { system: session.system, toolsKey: set.key, startedAt: session.startedAt, messages: messages.slice(0, upTo) });
+  // Xodim topshirig'i saqlanmaydi (egasi bilan suhbat o'z holicha qoladi)
+  const save = (upTo: number) => { if (!as) conversations.save(biz.id, { system: session.system, toolsKey: set.key, startedAt: session.startedAt, messages: messages.slice(0, upTo) }); };
   /** Oxirgi to'liq holat (egasining xabari yoki asbob natijalari bilan tugaydi) */
   let safe = 0;
   let spoken = '';

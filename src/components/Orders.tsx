@@ -38,8 +38,18 @@ export const TEMPLATES: Record<OrderMember, string[]> = {
   ],
   marketolog: [
     'Har dushanba 10:00 da Instagram’dagi raqobatchilarimiz tahlilini yubor',
-    'Har juma 16:00 da keyingi haftaga 7 kunlik kontent-reja tuz',
-    'Post g‘oyalarida doim bepul konsultatsiyani eslat',
+    'Har oyning boshida sohamizda nima ishlayotganini o‘rgan',
+    'Raqobatchilarda doim narx va aksiyalarga e‘tibor ber',
+  ],
+  kontent: [
+    'Har dushanba 9:00 da kanal uchun 3 ta post qoralamasini tayyorla',
+    'Har juma 15:00 da keyingi haftaga 7 ta mavzuli kontent-reja tuz',
+    'Postlarda doim bepul konsultatsiyani eslat',
+  ],
+  target: [
+    'Har kuni 20:00 da reklama sarfi va natijasini yubor',
+    'Har dushanba 10:00 da o‘tgan hafta reklamasi xulosasini yubor',
+    'Reklamada faqat Toshkentni nishonla',
   ],
 };
 

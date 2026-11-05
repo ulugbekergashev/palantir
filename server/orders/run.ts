@@ -18,20 +18,23 @@ import { checkFrame } from './look';
 import { events, orders } from './store';
 import { dueAt, dueEvery } from './logic';
 import { watchFrame } from './watch';
-import { crewWorks } from '../../src/lib/crew';
+import { TEAM_NAME, crewWorks } from '../../src/lib/crew';
 
 const TICK_MS = Number(process.env.ORDERS_TICK_MS) || 30_000;
 /** Bajarilmagan ish (internet, AI chegarasi) shundan keyin qayta uriniladi — vaqti o'tib ketmagan bo'lsa */
 const RETRY_MS = 5 * 60_000;
-const NAMES: Record<AgentOrder['member'], string> = { qabulxona: 'Qabulxona', yordamchi: 'Yordamchi', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog' };
+const NAMES: Record<AgentOrder['member'], string> = TEAM_NAME;
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** Jadvaldagi ish: yordamchi bajaradi (suhbatda ham ko'rinadi), natija — Telegram'ga */
+/**
+ * Jadvaldagi ish: topshiriq kimga berilgan bo'lsa — o'sha bajaradi, o'z asboblari bilan, alohida suhbatda (egasi bilan suhbatga
+ * aralashmaydi; jurnalda ko'rinadi). Natija — Telegram'ga
+ */
 export async function runScheduled(bot: BotService, biz: BusinessRow, o: AgentOrder): Promise<string> {
   const prompt = `⏰ Jadvaldagi topshiriq (${NAMES[o.member]} uchun, egasi bergan): ${o.text}\nHozir bajaring va natijani qisqa yozing.`;
   // Egasi kuzatmayapti: bilimga va CRM'ga yozadigan asboblar ishlamaydi (mijozlar matni o'qilsa ham, u buyruq bo'lib qolmasin)
-  const reply = await ask(biz.id, 'web', prompt, { display: `⏰ ${NAMES[o.member]}: ${o.text}`, unattended: true });
+  const reply = await ask(biz.id, 'web', prompt, { display: `⏰ ${NAMES[o.member]}: ${o.text}`, unattended: true, as: o.member });
   if (reply.failed) throw new Error(reply.text);
   orders.ran(o.id, reply.text);
   // Marketolog hisobotini Meta AI javobi kelganda o'zi yozadi (marketing/tools.ts) — bu yerda «so'radim» ikkinchi yozuv bo'lib sanalmasin

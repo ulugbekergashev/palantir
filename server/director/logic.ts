@@ -26,9 +26,9 @@ export const isMetric = (s: unknown): s is MetricKey => typeof s === 'string' &&
 export type Numbers = Partial<Record<MetricKey, { now: number; prev: number } | null>>;
 
 /** Kimga topshiriq berish mumkin: topshiriq oladigan AI xodimlar va egasining o'zi (pul, narx, chegirma, odam — faqat egasi) */
-export const MOVE_MEMBERS = ['qabulxona', 'yordamchi', 'tahlilchi', 'marketolog', 'egasi'] as const;
+export const MOVE_MEMBERS = ['qabulxona', 'yordamchi', 'tahlilchi', 'marketolog', 'kontent', 'target', 'kuzatuvchi', 'egasi'] as const;
 export type MoveMember = typeof MOVE_MEMBERS[number];
-export const MEMBER_NAME: Record<MoveMember, string> = { qabulxona: 'Qabulxona', yordamchi: 'Yordamchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', egasi: 'Siz' };
+export const MEMBER_NAME: Record<MoveMember, string> = { qabulxona: 'Qabulxona', yordamchi: 'Yordamchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', kontent: 'Kontent-meyker', target: 'Targetolog', kuzatuvchi: 'Kuzatuvchi', egasi: 'Siz' };
 
 export const LIMITS = { moves: 3, task: 300, why: 300, title: 140, evidence: 400, summary: 300, minDays: 3, maxDays: 14 };
 

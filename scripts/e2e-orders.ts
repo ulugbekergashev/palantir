@@ -5,7 +5,7 @@
 import type { Camera } from '../src/types';
 import { conditionHolds, dueAt, dueEvery, inWindow, judge, toSpec, whatHappened } from '../server/orders/logic';
 import type { Harness } from './e2e-crm';
-import { sent, sleep } from './fakes';
+import { ai, sent, sleep } from './fakes';
 
 type Ok = Harness['ok'];
 const at = (hhmm: string, day = '2026-10-19') => new Date(`${day}T${hhmm}:00`);
@@ -111,6 +111,35 @@ export async function orderApiTests(h: Harness): Promise<void> {
   await api('/api/crew', { token, body: { member: 'marketolog', on: false } });
   ok("bugun jamoa: jamoadan olib tashlangan Marketolog ro'yxatda yo'q", !((await api('/api/team/day', { token })).json as Day).members.some(m => m.member === 'marketolog'));
   ok("asosiy xodimni (Direktor) olib tashlab bo'lmaydi", (await api('/api/crew', { token, body: { member: 'direktor', on: false } })).status === 409);
+
+  console.log("\n# Har xodim o'z asboblari bilan (3-bosqich)");
+  type AiReq = { system: string; tools: { name?: string }[]; messages: unknown[] };
+  const lastOwnerReq = () => (ai.requests as AiReq[]).filter(r => String(r.system).startsWith('You are Palantir')).at(-1);
+  const toolNames = (r?: AiReq) => (r?.tools ?? []).map(t => t.name ?? '');
+  await api('/api/crew', { token, body: { member: 'kontent', on: false } });
+  await api('/api/chat', { token, body: { text: 'Kanalga post tayyorla' } });
+  const without = lastOwnerReq();
+  ok("Kontent-meyker jamoada yo'q — Yordamchida uning asboblari yo'q, ko'rsatmada «jamoaga oling» deyiladi",
+    !toolNames(without).some(n => n.startsWith('content_') || n === 'draft_post') && toolNames(without).includes('create_task') && /Not hired[^\n]*Kontent-meyker/.test(without?.system ?? '') && without!.system.includes("+ Xodim qo'shish"), toolNames(without).join(','));
+  await api('/api/crew', { token, body: { member: 'kontent', on: true } });
+  await api('/api/chat', { token, body: { text: 'Kanalga post tayyorla' } });
+  const withK = lastOwnerReq();
+  ok("Kontent-meyker jamoaga olindi — Yordamchi uning asboblari bilan ishlaydi (suhbat yangilandi)", toolNames(withK).includes('content_drafts') && toolNames(withK).includes('draft_post') && /Hired:[^\n]*Kontent-meyker/.test(withK?.system ?? '') && withK!.messages.length === 1);
+  const kOrder = (await api('/api/orders', { token, body: { member: 'kontent', text: 'Har dushanba 9:00 da kanal uchun 3 ta post tayyorla', spec: { kind: 'schedule', at: '09:00', days: [1] }, summary: 'Har dushanba 9:00 da 3 ta post' } })).json.order;
+  ok("Kontent-meykerga jadvalli topshiriq saqlandi", kOrder?.member === 'kontent', JSON.stringify(kOrder));
+  // Topshiriq qo'shilganda suhbat yangilanadi (doimiy topshiriqlar ko'rsatmada) — shundan keyingi suhbat bilan solishtiriladi
+  await api('/api/chat', { token, body: { text: 'Salom' } });
+  const chatBefore = lastOwnerReq()!;
+  const ranK = await api(`/api/orders/${kOrder.id}/run`, { token, body: {} });
+  const kReq = lastOwnerReq();
+  ok("topshiriqni Kontent-meyker o'zi bajaradi: o'z roli bilan, faqat o'z asboblari, alohida suhbatda", ranK.status === 200 && kReq!.system.includes('<acting_as>') && kReq!.system.includes('Kontent-meyker')
+    && toolNames(kReq).includes('content_drafts') && !toolNames(kReq).includes('create_task') && !toolNames(kReq).includes('ads_plan') && kReq!.messages.length === 1, toolNames(kReq).join(','));
+  await api('/api/chat', { token, body: { text: 'Davom etamiz' } });
+  const chatAfter = lastOwnerReq()!;
+  ok("egasi bilan suhbat topshiriqdan keyin ham o'z holida davom etadi (yangidan boshlanmadi, topshiriq unga aralashmadi)", chatAfter.messages.length > chatBefore.messages.length
+    && !chatAfter.system.includes('<acting_as>') && !JSON.stringify(chatAfter.messages).includes('Jadvaldagi topshiriq'), `${chatAfter.messages.length} xabar`);
+  const kEvents = (await api('/api/agents/kontent/events', { token })).json.events as { title: string }[] | undefined;
+  ok("bajarilgani Kontent-meyker jurnalida", !!kEvents?.some(e => e.title.startsWith('Bajarildi:')), JSON.stringify(kEvents?.slice(0, 2)));
   ok('bugun jamoa: kamera hodisasi jurnalda va Kuzatuvchi sanadi', day.timeline.some(e => e.id === events[0].id) && fact(day, 'kuzatuvchi', 'Yozuv') >= 1 && fact(day, 'kuzatuvchi', 'Kamera') >= 1);
   ok("bugun jamoa: bajarilgan ish Yordamchida sanaldi", fact(day, 'yordamchi', 'Bajarildi') >= 1, day.members.find(m => m.member === 'yordamchi')?.summary);
   const otherDay = (await api('/api/team/day', { token: otherToken })).json as Day;
