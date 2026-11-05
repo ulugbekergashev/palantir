@@ -204,7 +204,7 @@ try {
 
   console.log('\n# Topshiriqlar');
   await go('yordamchi/topshiriqlar');
-  ok('topshiriqlar: misollar va bo\'sh holat', await visible(page.getByText('Hali topshiriq yo\'q.', { exact: false })) && await page.getByRole('button', { name: /kun rejamni yubor/ }).isVisible());
+  ok('topshiriqlar: misollar va bo\'sh holat', await visible(page.getByText('Hali topshiriq yo\'q.', { exact: false })) && await page.getByRole('button', { name: /javobsiz qolgan mijozlarni eslat/ }).isVisible());
   const auth = { authorization: `Bearer ${await page.evaluate(() => localStorage.getItem('palantir_token'))}`, 'content-type': 'application/json' };
   await fetch(`${base}/api/orders`, { method: 'POST', headers: auth, body: JSON.stringify({ member: 'yordamchi', text: 'Har kuni 8:30 da kun rejamni yubor', spec: { kind: 'schedule', at: '08:30', days: [] }, summary: 'Har kuni 08:30 da kun rejangizni yuboraman.' }) });
   await page.reload({ waitUntil: 'networkidle' });

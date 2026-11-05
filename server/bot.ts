@@ -691,9 +691,10 @@ export function createBot(): BotService {
       if (!biz.ownerChatId) return;
       await tg.sendDocument(biz.ownerChatId, { source: path, filename: basename(path) }, { caption: cut(caption, 1000) });
     },
-    async sendPhoto(biz, path, html, keyboard) {
+    async sendPhoto(biz, photo, html, keyboard) {
       if (!biz.ownerChatId) return null;
-      const m = await tg.sendPhoto(biz.ownerChatId, { source: path }, { caption: html, parse_mode: 'HTML', reply_markup: keyboard });
+      const source = typeof photo === 'string' ? { source: photo } : { source: photo, filename: 'kadr.jpg' };
+      const m = await tg.sendPhoto(biz.ownerChatId, source, { caption: html, parse_mode: 'HTML', reply_markup: keyboard });
       return m.message_id;
     },
   });

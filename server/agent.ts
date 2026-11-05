@@ -28,6 +28,7 @@ import { orders } from './orders/store';
 import { SubscriptionError, subscriptionOn, type SubscriptionReason } from './subscription/engine';
 import { ownerTurn } from './subscription/owner';
 import { companyContext } from './company';
+import { crewFromData } from './crew';
 
 type Msg = Anthropic.Beta.BetaMessageParam;
 type Block = Anthropic.Beta.BetaContentBlockParam;
@@ -251,8 +252,10 @@ const PHONE_NOTE = ' (live phone call, speech-to-text: reply in one or two short
 /** Egasining gapiga javob. Hech qachon tashlamaydi: xato bo'lsa — tushunarli matn */
 export function ask(bizId: string, channel: ChatEntry['channel'], text: string, opts: { voice?: boolean; /** Jurnalda ko'rinadigan matn (rasm yuborilganda: tavsif emas, qisqa belgi) */ display?: string; /** Gap rasm tavsifi bilan kelgan (toolkit.ts: fromPhoto) */ photo?: boolean; /** Jonli telefon qo'ng'irog'i: javob ovoz chiqarib o'qiladi */ phone?: boolean; /** Jadvaldagi topshiriq: egasi kuzatmayapti (toolkit.ts: unattended) */ unattended?: boolean; /** Topshiriq bajaruvchi xodim: alohida suhbat (egasi bilan suhbatga aralashmaydi), faqat uning asboblari */ as?: CrewMember } = {}): Promise<Reply> {
   return serial(bizId, async () => {
-    const biz = businesses.byId(bizId);
-    if (!biz) throw new Error('Biznes topilmadi');
+    const found = businesses.byId(bizId);
+    if (!found) throw new Error('Biznes topilmadi');
+    // Kamera, kanal, reklama hozirgina ulangan bo'lsa — xodimi jamoada (uning asboblari shu gapdayoq bor)
+    const biz = crewFromData(found);
     // Jurnalga javob bilan birga yoziladi (yangi sessiyaning "oldingi gaplar"iga joriy gap tushmasin)
     const finish = (reply: string, artifacts: Artifact[], failed = false): Reply => ({
       text: reply,

@@ -210,8 +210,12 @@ async function api(path: string, opts: { method?: string; token?: string; body?:
   return { status: r.status, json: await r.json().catch(() => ({})) as any };
 }
 const caption = (s: Sent) => String(s.params.caption ?? s.params.text ?? '');
-const photos = (mark: number) => sent.slice(mark).filter(s => s.method === 'sendPhoto' && Number(s.params.chat_id) === OWNER);
+/** Kamera ogohlantirishi (burildi/yopildi/tuzaldi, uzoq kutish) — kadr bo'lsa rasm bo'lib keladi; so'ralgan rasmlar orasiga qo'shilmasin */
+const isAlert = (t: string) => /^(⚠️|✅|⏳)/.test(t);
+const photos = (mark: number) => sent.slice(mark).filter(s => s.method === 'sendPhoto' && Number(s.params.chat_id) === OWNER && !isAlert(caption(s)));
 const texts = (mark: number) => sent.slice(mark).filter(s => s.method === 'sendMessage' && Number(s.params.chat_id) === OWNER).map(caption);
+/** Egasiga ketgan hamma narsa: matn ham, rasm izohi ham */
+const owned = (mark: number) => sent.slice(mark).filter(s => (s.method === 'sendMessage' || s.method === 'sendPhoto') && Number(s.params.chat_id) === OWNER);
 const isJpeg = (b: Buffer | undefined) => !!b && b.length > 100 && b[0] === 0xff && b[1] === 0xd8;
 /**
  * Zonada odam turibdi: kamera zonani «band» degunicha va yana holdMs davomida kadr yuboriladi. Band bo'lgunicha kadrlar orasidagi
@@ -373,9 +377,11 @@ try {
   ok("kutish joyi holati: band", state === 'open', state);
   const during = (await api(`/api/cameras/summary?date=${today}`, { token })).json.summary as { waiting: { nowWaiting: number; count: number } | null };
   ok('hozir 2 kishi kutyapti', during?.waiting?.nowWaiting === 2 && during.waiting.count === 0, JSON.stringify(during?.waiting));
-  const told = await waitFor('kutish xabari', () => texts(mark).find(t => t.includes('kutyapti')));
+  const toldMsg = await waitFor('kutish xabari', () => owned(mark).find(s => caption(s).includes('kutyapti')));
+  const told = toldMsg && caption(toldMsg);
   ok("uzoq kutish — egasiga Telegram'da (kamera va joy nomi bilan)", !!told && told.includes('Kabinet · Kutish zali') && told.includes('daqiqadan beri kutyapti'), told);
-  ok("ikki kishi uzoq kutdi, lekin xabar bitta (bir joy — 15 daqiqada bitta)", texts(mark).filter(t => t.includes('kutyapti')).length === 1);
+  ok("brauzer kamerasi: serverda kadr yo'q — xabar matn bo'lib ketdi (rasmsiz ham yetadi)", toldMsg?.method === 'sendMessage', toldMsg?.method);
+  ok("ikki kishi uzoq kutdi, lekin xabar bitta (bir joy — 15 daqiqada bitta)", owned(mark).filter(s => caption(s).includes('kutyapti')).length === 1);
   const evs = (await api('/api/agents/kuzatuvchi/events', { token })).json.events as { title: string; level: string }[];
   ok('Kuzatuvchi jurnalida ogohlantirish', evs.length === evBefore + 1 && evs[0].level === 'warn' && evs[0].title.includes('kutyapti'), JSON.stringify(evs.slice(0, 2)));
   for (let i = 0; i < 12; i++) { await api(`/api/cameras/${kabinet.id}/observe`, { token, body: { people: [] } }); await sleep(300); }
@@ -395,13 +401,15 @@ try {
   ok("yordamchi kamera hisobida kutish va bandlik bor", tool.status === 200 && res.waiting?.waited_today === afterEdit.waiting.count && Array.isArray(res.chair_use) && res.chair_use[0]?.chair === 'Kreslo 1', JSON.stringify(res).slice(0, 220));
 
   console.log("\n# Kamera burildi yoki yopildi (jonli: ffmpeg sinov tasviri)");
-  const ownerTexts = () => sent.filter(m => m.method === 'sendMessage' && Number(m.params.chat_id) === OWNER).map(caption);
+  const ownerTexts = () => owned(0).map(caption);
   const timeline = await waitFor('burildi → tuzaldi → yopildi → tuzaldi', () => {
     const t = ownerTexts().filter(x => x.includes('«Qabulxona» kamerasi'));
     const kinds = t.map(x => (x.includes('burilgan') ? 'moved' : x.includes("ko'rmay qoldi") ? 'covered' : x.includes('yana odatdagidek') ? 'restored' : '?'));
     return kinds.join() === 'moved,restored,covered,restored' ? kinds : kinds.length >= 4 ? kinds : undefined;
   }, 150_000);
   ok("kamera burildi, qaytdi, yopildi, qaytdi — egasiga to'rt xabar, tartib bilan", timeline?.join() === 'moved,restored,covered,restored', String(timeline));
+  const movedTg = owned(0).find(s => caption(s).includes('«Qabulxona» kamerasi burilgan'));
+  ok("«burilgan» xabari Telegram'ga hozirgi kadr bilan keldi (egasi o'zi ko'radi)", movedTg?.method === 'sendPhoto' && isJpeg(movedTg.file) && caption(movedTg).includes('joyiga qaytaring'), `${movedTg?.method} ${movedTg?.file?.length ?? 0} bayt`);
   const tamperEvents = ((await api('/api/agents/kuzatuvchi/events?camera=' + zal.id, { token })).json.events ?? []) as { title: string; level: string; hasImage: boolean }[];
   const movedEv = tamperEvents.find(e => e.title.includes('burilgan'));
   ok('jurnalda «burilgan» — jiddiy, hozirgi kadr bilan', movedEv?.level === 'crit' && movedEv.hasImage, JSON.stringify(tamperEvents.map(e => e.title)));

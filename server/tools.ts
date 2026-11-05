@@ -33,6 +33,7 @@ import { COMPUTER_DEFS, computerEnabled } from './computer/tools';
 import { MARKETING_DEFS, marketingEnabled } from './marketing/tools';
 import { CONTENT_DEFS } from './content/tools';
 import { ADS_DEFS } from './ads/tools';
+import { NUMBER_DEFS } from './numbersTools';
 import { ToolError, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
 import { TEAM_NAME, crewHas, type CrewMember } from '../src/lib/crew';
 import { events } from './orders/store';
@@ -421,7 +422,7 @@ export const memberGroups = (m: CrewMember): ToolGroup[] => ((SPECIALISTS as rea
 export function ownerToolDefs(crm: boolean, groups: ToolGroup[] = ['base', ...SPECIALISTS]): [string, ToolDef<z.ZodType>][] {
   const on = (g: ToolGroup) => groups.includes(g);
   return Object.entries({
-    ...(on('base') ? { ...DEFS, ...REQUEST_DEFS } : {}), ...(on('kuzatuvchi') ? CAMERA_DEFS : {}), ...(on('kontent') ? CONTENT_DEFS : {}), ...(on('target') ? ADS_DEFS : {}),
+    ...(on('base') ? { ...DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS } : {}), ...(on('kuzatuvchi') ? CAMERA_DEFS : {}), ...(on('kontent') ? CONTENT_DEFS : {}), ...(on('target') ? ADS_DEFS : {}),
     ...(on('base') && computerEnabled() ? COMPUTER_DEFS : {}), ...(on('marketolog') && marketingEnabled() ? MARKETING_DEFS : {}), ...(on('base') && crm ? CRM_DEFS : {}),
   }) as [string, ToolDef<z.ZodType>][];
 }
@@ -453,7 +454,7 @@ function journal(name: string, input: unknown, ctx: ToolCtx): void {
 export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promise<ToolOutcome> {
   // Klinika asboblari faqat DentaCRM ulangan biznesda ishlaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin)
   if (isCrmTool(name) && !crmConnected(ctx.biz.id)) return { content: "DentaCRM ulanmagan — egasi panel → Ulanishlar'da ulashi kerak", isError: true };
-  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...CONTENT_DEFS, ...ADS_DEFS, ...COMPUTER_DEFS, ...MARKETING_DEFS, ...CRM_DEFS };
+  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS, ...CAMERA_DEFS, ...CONTENT_DEFS, ...ADS_DEFS, ...COMPUTER_DEFS, ...MARKETING_DEFS, ...CRM_DEFS };
   const d = Object.hasOwn(all, name) ? all[name] : undefined;
   if (!d) return { content: `Noma'lum asbob: ${name}`, isError: true };
   // Mutaxassis jamoada emas — uning ishi qilinmaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin: eski suhbat, obuna)

@@ -20,18 +20,21 @@ interface Deps {
 const stateOf = (biz: BusinessRow): CrewState | null => parseCrew(biz.crew);
 const save = (bizId: string, s: CrewState) => { businesses.update(bizId, { crew: JSON.stringify(s) }); };
 
-/** Shu biznesda allaqachon ulangan ishlar (panelning holati bilan) */
-function signals(biz: BusinessRow, status: LiveStatus): CrewSignals {
+/**
+ * Shu biznesda allaqachon ulangan ishlar. status (panelning holati) bo'lmasa — faqat bazadagi ma'lumotdan:
+ * ulanish holatiga bog'liqlari (Instagram, Telegram biznes, DentaCRM, Meta AI) «yo'q» deb olinadi
+ */
+function signals(biz: BusinessRow, status?: LiveStatus): CrewSignals {
   // Jadval hali yaratilmagan bo'lsa (modul yuklanmagan) — «yo'q»: tarkibni hisoblash panelni yiqitmasin
   const has = (table: string) => { try { return !!sql.one(`SELECT 1 AS x FROM ${table} WHERE business_id = ? LIMIT 1`, r => r, biz.id); } catch { return false; } };
   const content = contentStore.settings(biz.id);
   return {
     // Klinika xodimiga Qabulxona kirishi berilgan — Qabulxona ishlatilyapti
-    customers: !!(status.telegramBusiness.account || status.instagram.account || status.instagramApi.account) || has('leads') || has('calls')
+    customers: !!(status && (status.telegramBusiness.account || status.instagram.account || status.instagramApi.account)) || has('leads') || has('calls')
       || staff.list(biz.id).some(s => s.access === 'reception'),
-    crm: !!status.crm.account,
+    crm: !!status?.crm.account,
     cameras: cameras.list(biz.id).length,
-    metaAi: status.metaAi.connected,
+    metaAi: !!status?.metaAi.connected,
     marketingPosts: has('marketing_posts') ? 1 : 0,
     content: !!content.channelTitle || contentStore.sources(biz.id).length > 0 || contentStore.drafts(biz.id).length > 0
       || has('content_brand') || has('content_plan') || has('content_videos'),
@@ -45,6 +48,20 @@ export function syncCrew(biz: BusinessRow, status: LiveStatus): CrewMember[] {
   const next = withInUse(before, inUse(signals(biz, status)));
   if (next !== before) save(biz.id, next);
   return crewList(next);
+}
+
+/**
+ * Egasi yozganda (yordamchi suhbati, topshiriq): bazada ishi paydo bo'lgan xodim jamoaga qo'shiladi — masalan kamera qo'shilgan bo'lsa,
+ * panel qayta ochilishini kutmay Kuzatuvchi (aks holda «kameraga qara» — «Kuzatuvchi jamoada yo'q»). Faqat qo'shadi, egasi olib tashlaganini
+ * qaytarmaydi. Eski baza (tarkib hali hisoblanmagan) bu yerda o'zgarmaydi: uni panel to'liq holat bilan hisoblaydi (syncCrew)
+ */
+export function crewFromData(biz: BusinessRow): BusinessRow {
+  const before = stateOf(biz);
+  if (!before) return biz;
+  const next = withInUse(before, inUse(signals(biz)));
+  if (next === before) return biz;
+  save(biz.id, next);
+  return { ...biz, crew: JSON.stringify(next) };
 }
 
 const Change = z.object({ member: z.enum(CREW), on: z.boolean() });

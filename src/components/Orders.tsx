@@ -27,7 +27,8 @@ export const TEMPLATES: Record<OrderMember, string[]> = {
     'Har kuni 19:00 da bugungi murojaatlar xulosasini yubor',
   ],
   yordamchi: [
-    'Har kuni 8:30 da kun rejamni yubor',
+    // Ertalabki kun rejasi o'zi keladi (sozlamalarda) — namunada takrorlanmaydi
+    'Har kuni 18:00 da bugun javobsiz qolgan mijozlarni eslat',
     'Har juma 17:00 da haftaning qilingan va qolgan ishlarini yubor',
     'Menga doim qisqa va aniq javob ber',
   ],

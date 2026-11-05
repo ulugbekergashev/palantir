@@ -1,7 +1,7 @@
 /**
  * Topshiriqlarni bajarish. Har yarim daqiqada:
  *   schedule — vaqti kelgan topshiriq yordamchiga beriladi (asboblari bilan bajaradi), natija suhbatga va egasining Telegram'iga;
- *   look — AI ko'zi: vaqti kelgan (soatda yoki har N daqiqada) kameralarning kadri tekshiriladi; muammo bo'lsa — jurnal va Telegram.
+ *   look — AI ko'zi: vaqti kelgan (soatda yoki har N daqiqada) kameralarning kadri tekshiriladi; muammo bo'lsa — jurnal va Telegram (kadr bilan).
  * Kamera qoidalari (watch) bu yerda emas — har kadrda (watch.ts). Server qisqa to'xtagan bo'lsa, CATCH_UP_MS ichida o'tib ketgan vaqt
  * baribir bajariladi; undan eskisi — o'tkaziladi (kechagi eslatma bugun kelmasin).
  */
@@ -10,7 +10,7 @@ import { iso } from '../../src/lib/week';
 import { ask } from '../agent';
 import type { BotService } from '../bot';
 import { businesses, cameras, type BusinessRow } from '../db';
-import { notifyOwner } from '../inbox/core';
+import { notifyOwner, notifyOwnerPhoto } from '../inbox/core';
 import { cameraFrame, onCameraFrame, onCameraLook } from '../camera/routes';
 import { waitFrame } from '../camera/waiting';
 import { reportTick } from '../camera/report';
@@ -26,6 +26,25 @@ const RETRY_MS = 5 * 60_000;
 const NAMES: Record<AgentOrder['member'], string> = TEAM_NAME;
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Telegram rasm izohi chegarasi (1024 belgi) — zaxira bilan; HTML uzunligi ko'rinadigan matndan doim katta */
+const CAPTION_MAX = 1000;
+
+/**
+ * Kamera ogohlantirishi egasiga: kadr bo'lsa — rasm, xabar uning izohida (egasi nima bo'lganini o'zi ko'radi).
+ * Xabar izohga sig'masa (uzun AI javobi) — rasm, ostidan to'liq matn. Kadr yo'q yoki rasm ketmadi — oddiy matn
+ */
+export async function alertOwner(biz: BusinessRow, html: string, image: Buffer | null): Promise<void> {
+  if (image) {
+    const fits = html.length <= CAPTION_MAX;
+    try {
+      await notifyOwnerPhoto(biz, image, fits ? html : '');
+      if (fits) return;
+    } catch (e) {
+      console.error('[kuzatuvchi] kadr yuborilmadi, matn ketadi:', (e as Error).message);
+    }
+  }
+  await notifyOwner(biz, html);
+}
 
 /**
  * Jadvaldagi ish: topshiriq kimga berilgan bo'lsa — o'sha bajaradi, o'z asboblari bilan, alohida suhbatda (egasi bilan suhbatga
@@ -57,7 +76,7 @@ export async function runLook(biz: BusinessRow, o: AgentOrder, quiet: boolean): 
     said.push(`${cam.name}: ${r.answer}`);
     if (r.alert) {
       events.add(biz.id, { member: 'kuzatuvchi', orderId: o.id, level: 'warn', title: `${cam.name}: ${o.text.slice(0, 120)}`, body: r.answer, cameraId: cam.id }, frame);
-      await notifyOwner(biz, `👁 <b>${esc(cam.name)}</b> — ${esc(r.answer)}\n<i>Topshiriq: ${esc(o.text)}</i>`).catch(() => {});
+      await alertOwner(biz, `👁 <b>${esc(cam.name)}</b> — ${esc(r.answer)}\n<i>Topshiriq: ${esc(o.text)}</i>`, frame).catch(() => {});
     } else if (!quiet) {
       events.add(biz.id, { member: 'kuzatuvchi', orderId: o.id, level: 'info', title: `${cam.name}: tekshirildi`, body: r.answer, cameraId: cam.id }, frame);
     }
@@ -68,7 +87,7 @@ export async function runLook(biz: BusinessRow, o: AgentOrder, quiet: boolean): 
 }
 
 export function startOrders(bot: BotService): () => void {
-  onCameraFrame((biz, cam, people, now) => watchFrame(biz, cam, people, now, (b, html) => notifyOwner(b, html), () => cameraFrame(biz.id, cam.id)));
+  onCameraFrame((biz, cam, people, now) => watchFrame(biz, cam, people, now, alertOwner, () => cameraFrame(biz.id, cam.id)));
   // Kamera yopildi yoki burildi — jurnalga (hozirgi kadr bilan) va egasiga; tuzalsa — «yana ko'ryapti»
   onCameraLook((biz, cam, e) => {
     const title = e.type === 'covered' ? `«${cam.name}» kamerasi ko'rmay qoldi` : e.type === 'moved' ? `«${cam.name}» kamerasi burilgan yoki joyi o'zgargan` : `«${cam.name}» kamerasi yana odatdagidek ko'ryapti`;
@@ -77,7 +96,7 @@ export function startOrders(bot: BotService): () => void {
         : 'Kadr yana odatdagi ko\'rinishda.';
     void cameraFrame(biz.id, cam.id).then(image => {
       events.add(biz.id, { member: 'kuzatuvchi', orderId: null, level: e.type === 'restored' ? 'info' : 'crit', title, body, cameraId: cam.id }, image);
-      return notifyOwner(biz, `${e.type === 'restored' ? '✅' : '⚠️'} <b>${esc(title)}</b>\n${esc(body)}`);
+      return alertOwner(biz, `${e.type === 'restored' ? '✅' : '⚠️'} <b>${esc(title)}</b>\n${esc(body)}`, image);
     }).catch(err => console.error('[kuzatuvchi] kamera holati xabari:', (err as Error).message));
   });
   // Kutish joyi: kimdir uzoq kutsa — jurnalga (kadr bilan) va egasiga
@@ -85,7 +104,7 @@ export function startOrders(bot: BotService): () => void {
     const title = `${c.name} · ${zone.name}: bir kishi ${minutes} daqiqadan beri kutyapti`;
     void cameraFrame(b.id, c.id).then(image => {
       events.add(b.id, { member: 'kuzatuvchi', orderId: null, level: 'warn', title, body: "Kutish joyida uzoq kutish — kimdir uni qabul qilsin yoki nima bo'lganini aytsin", cameraId: c.id }, image);
-      return notifyOwner(b, `⏳ <b>${esc(title)}</b>\nQabulxonaga ayting: bemorni qabul qilsin yoki kechikish sababini aytsin.`);
+      return alertOwner(b, `⏳ <b>${esc(title)}</b>\nQabulxonaga ayting: bemorni qabul qilsin yoki kechikish sababini aytsin.`, image);
     }).catch(e => console.error('[kuzatuvchi] kutish xabari:', (e as Error).message));
   }));
   const busy = new Set<string>();

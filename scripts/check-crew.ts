@@ -129,5 +129,82 @@ console.log("\n# Asboblar xodim bo'yicha (3-bosqich)");
   });
 }
 
+console.log("\n# «Bugun jamoa» hisoblagichlari va kamera zonalari (5-bosqich)");
+{
+  const { teamDay } = await import('../server/teamDay');
+  const { events } = await import('../server/orders/store');
+  const { contentStore } = await import('../server/content/store');
+  const { camerasText } = await import('../server/orders/parse');
+  const biz = businesses.create(`kun${Date.now()}`, 'x', emptyBusiness('Kun klinika', 'stomatologiya'));
+  businesses.update(biz.id, { crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'tahlilchi', 'marketolog', 'kontent', 'target'], dismissed: [] }) });
+  events.add(biz.id, { member: 'tahlilchi', orderId: 'o1', level: 'info', title: 'Bajarildi: haftalik hisobot', body: 'x', cameraId: null });
+  events.add(biz.id, { member: 'tahlilchi', orderId: 'o2', level: 'warn', title: 'Bajarilmadi: oylik hisobot', body: "internet yo'q", cameraId: null });
+  events.add(biz.id, { member: 'marketolog', orderId: null, level: 'warn', title: 'Bajarilmadi — Raqobatchilar', body: 'x', cameraId: null });
+  events.add(biz.id, { member: 'tahlilchi', orderId: 'o3', level: 'info', title: 'Direktordan topshiriq', body: 'Javobsizlarni kuzat', cameraId: null });
+  events.add(biz.id, { member: 'marketolog', orderId: 'o4', level: 'info', title: 'Direktordan topshiriq', body: "Raqobatchilarni o'rgan", cameraId: null });
+  contentStore.addDraft(biz.id, { text: 'Post', sourceUrl: null, topic: null });
+  const day = teamDay(businesses.byId(biz.id)!);
+  const m = (k: string) => day.members.find(x => x.member === k)!;
+  check("bajarilmagan urinish va Direktor bergan topshiriq hisobot/tahlil deb sanalmaydi", () => {
+    assert.equal(m('tahlilchi').facts[0].value, 1);
+    assert.match(m('tahlilchi').summary, /^Bugun 1 ta hisobot tayyorladi\. 1 ta urinish bajarilmadi/);
+    assert.equal(m('marketolog').facts[0].value, 0);
+  });
+  check("Kontent-meyker va Targetolog ham «Bugun jamoa»da — bugungi postlar va reklama", () => {
+    assert.deepEqual(day.members.map(x => x.member), ['yordamchi', 'tahlilchi', 'marketolog', 'kontent', 'target']);
+    assert.equal(m('kontent').facts.find(f => f.label === 'Post')?.value, 1);
+    assert.equal(m('kontent').summary, '1 ta post tayyorladi. 1 ta qoralama tasdiqingizni kutyapti.');
+    assert.equal(m('target').summary, 'Hozir reklama ishlamayapti.');
+  });
+  const { runTool, ownerToolDefs, memberGroups } = await import('../server/tools');
+  const { iso } = await import('../src/lib/week');
+  const ctx = { biz: businesses.byId(biz.id)!, artifacts: [] };
+  const week = await runTool('business_numbers', { period: 'week' }, { ...ctx, as: 'tahlilchi' });
+  const custom = await runTool('business_numbers', { period: 'custom', from: '2026-11-01', to: '2026-11-03' }, ctx);
+  const half = await runTool('business_numbers', { period: 'custom', from: '2026-11-01' }, ctx);
+  check("Tahlilchi topshirig'ida raqamlar asbobi bor — panel bilan bir xil «7 kun» (kechagacha to'liq kunlar)", () => {
+    assert.ok(ownerToolDefs(false, memberGroups('tahlilchi')).some(([n]) => n === 'business_numbers'));
+    assert.equal(week.isError, false, week.content);
+    const r = JSON.parse(week.content);
+    const day = (n: number) => iso(new Date(Date.now() - n * 86_400_000));
+    assert.deepEqual([r.period.label, r.period.from, r.period.to], ['7 kun', day(7), day(1)]);
+    assert.deepEqual(r.inquiries.now, 0);
+    assert.match(r.crm, /DentaCRM ulanmagan/);
+    assert.equal(JSON.parse(custom.content).period.from, '2026-11-01');
+    assert.equal(half.isError, true);
+  });
+  check("topshiriq tuzuvchiga zona turi to'g'ri boradi (kutish joyi «kassa» emas; maxfiy joy — AI ko'rmaydi)", () => {
+    const zone = (id: string, kind: string, name: string) => ({ id, kind, name, x: 0, y: 0, w: 0.5, h: 0.5, doctorId: null });
+    const text = camerasText([{ id: 'c1', name: 'Zal', profile: null, zones: [zone('z1', 'waiting', 'Kutish'), zone('z2', 'private', 'Xona'), zone('z3', 'desk', 'Kassa')] }] as never);
+    assert.match(text, /"z1" Kutish \(waiting area\)/);
+    assert.match(text, /"z2" Xona \(private area — blacked out/);
+    assert.match(text, /"z3" Kassa \(cash desk\)/);
+  });
+}
+
+console.log("\n# Ish paydo bo'lishi bilan xodim jamoada (panel ochilishini kutmay)");
+{
+  const { crewFromData } = await import('../server/crew');
+  const { cameras } = await import('../server/db');
+  const mk = (crew: string | null) => {
+    const b = businesses.create(`ish${Date.now()}${Math.random().toString(36).slice(2, 6)}`, 'x', emptyBusiness('Ish klinika', 'stomatologiya'));
+    businesses.update(b.id, { crew });
+    cameras.create(b.id, 'Zal');
+    return businesses.byId(b.id)!;
+  };
+  check("kamera qo'shildi — egasi yozishi bilan Kuzatuvchi jamoada (asbobi shu gapdayoq bor)", () => {
+    const b = crewFromData(mk(JSON.stringify({ hired: [], dismissed: [] })));
+    assert.ok(crewHas(b, 'kuzatuvchi'));
+    assert.ok(crewHas(businesses.byId(b.id)!, 'kuzatuvchi'), 'bazada saqlandi');
+  });
+  check("egasi olib tashlagan Kuzatuvchi qaytib qo'shilmaydi; eski baza (tarkib hisoblanmagan) o'zgarmaydi", () => {
+    const off = crewFromData(mk(JSON.stringify({ hired: [], dismissed: ['kuzatuvchi'] })));
+    assert.ok(!crewHas(off, 'kuzatuvchi'));
+    const old = mk(null);
+    assert.equal(crewFromData(old), old);
+    assert.equal(businesses.byId(old.id)!.crew, null);
+  });
+}
+
 console.log(failed ? `\n✗ ${failed} ta tekshiruv o'tmadi` : "\n✓ hammasi o'tdi");
 process.exit(failed ? 1 : 0);

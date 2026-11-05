@@ -160,6 +160,8 @@ const transient = (e: unknown): boolean => {
 const BRIEF_RETRY_MS = 5 * 60_000;
 /** Egasi botga ulanmagan bo'lsa navbatdagi xabar shuncha saqlanadi */
 const NOTICE_KEEP_MS = 7 * 86_400_000;
+/** Egasi Telegram'ni ulamagan paytda vaqti kelgan eslatma shuncha kutadi (ulangach keladi); eskisi — o'tkaziladi */
+const LINK_WAIT_MS = 24 * 3_600_000;
 
 /** Qo'ng'iroqqa berilgan eslatmalar (shu ishga tushish davomida): Telegram uzilib qayta urinilganda qo'ng'iroq takrorlanmasin */
 const called = new Set<string>();
@@ -275,8 +277,10 @@ export function startScheduler(bot: BotService): () => void {
       // 1) Eslatmalar
       for (const t of Date.now() >= remindRetryAt ? tasks.due(stamp(now)) : []) {
         const biz = businesses.byId(t.businessId);
-        // Qo'ng'iroq Telegram'ga bog'liq emas: internet bor-yo'qligidan qat'i nazar o'z vaqtida
+        // Qo'ng'iroq Telegram'ga bog'liq emas: internet bor-yo'qligidan qat'i nazar o'z vaqtida (qayta qo'ng'iroq qilinmaydi — called)
         if (biz) phoneReminder(bot, biz, t);
+        // Egasi Telegram'ni hali ulamagan (vazifani panelda qo'shgan): eslatma yo'qolmasin — ulangach keladi; bir sutkadan eskisi o'tkaziladi
+        if (biz && !biz.ownerChatId && now.getTime() - new Date(t.dueAt!).getTime() < LINK_WAIT_MS) continue;
         if (biz?.ownerChatId) {
           try {
             await bot.remindTask(biz, t);

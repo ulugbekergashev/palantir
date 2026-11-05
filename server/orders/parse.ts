@@ -4,7 +4,7 @@
  * Model chiqargan qiymatlar shu yerda tekshiriladi: vaqt «HH:MM», kamera va zona — shu biznesniki, sonlar — chegarada.
  */
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Camera, OrderMember } from '../../src/types';
+import type { Camera, OrderMember, ZoneKind } from '../../src/types';
 import { KINDS, MIN_LOOK_EVERY, oneLine, toSpec, type Parsed } from './logic';
 import { stamp } from '../../src/lib/week';
 import { think } from '../claude';
@@ -51,9 +51,15 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
+/** Zona turi modelga (panel nomi bilan bir xil ma'noda: src/lib/zones.ts). Maxfiy joy kadrda qora — AI ko'zi u yerni ko'rmaydi */
+const ZONE_KIND: Record<ZoneKind, string> = {
+  chair: 'treatment chair', desk: 'cash desk', waiting: 'waiting area', staff: "staff member's workplace",
+  private: 'private area — blacked out in every frame, AI vision cannot see it; do not use it for a look order',
+};
+
 /** Kameralar ro'yxati modelga: id, nomi, egasining tavsifi va zonalari */
-const camerasText = (cams: Camera[]) => cams.length
-  ? cams.map(c => `- camera_id "${c.id}": ${c.name}${c.profile ? ` — ${oneLine(c.profile, 300)}` : ''}${c.zones.length ? `; zones: ${c.zones.map(z => `zone_id "${z.id}" ${z.name} (${z.kind === 'chair' ? 'chair' : 'desk'})`).join(', ')}` : ''}`).join('\n')
+export const camerasText = (cams: Camera[]) => cams.length
+  ? cams.map(c => `- camera_id "${c.id}": ${c.name}${c.profile ? ` — ${oneLine(c.profile, 300)}` : ''}${c.zones.length ? `; zones: ${c.zones.map(z => `zone_id "${z.id}" ${z.name} (${ZONE_KIND[z.kind]})`).join(', ')}` : ''}`).join('\n')
   : '(no cameras connected yet)';
 
 export async function parseOrder(biz: BusinessRow, member: OrderMember, text: string, cams: Camera[]): Promise<Parsed> {

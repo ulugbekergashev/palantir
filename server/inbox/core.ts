@@ -46,8 +46,8 @@ export interface OwnerOutlet {
   edit(biz: BusinessRow, messageId: number, html: string, keyboard?: InlineKeyboardMarkup): Promise<void>;
   /** Kompyuterdagi fayl (hujjat sifatida) */
   sendFile(biz: BusinessRow, path: string, caption: string): Promise<void>;
-  /** Kompyuterdagi rasm izoh (HTML, ~1000 belgigacha) va tugmalar bilan */
-  sendPhoto(biz: BusinessRow, path: string, html: string, keyboard?: InlineKeyboardMarkup): Promise<number | null>;
+  /** Rasm (kompyuterdagi fayl yoki xotiradagi JPEG — kamera kadri) izoh (HTML, ~1000 belgigacha) va tugmalar bilan */
+  sendPhoto(biz: BusinessRow, photo: string | Buffer, html: string, keyboard?: InlineKeyboardMarkup): Promise<number | null>;
 }
 
 /** Yuborish yo'llari: nomi bo'yicha (bir kanalda bir nechta bo'lishi mumkin — Instagram'da brauzer va rasmiy API) */
@@ -61,7 +61,7 @@ export const clearBotOutlets = (): void => { senders.delete('bot'); owner = null
 export const notifyOwner = (biz: BusinessRow, html: string, keyboard?: InlineKeyboardMarkup) => owner?.notify(biz, html, keyboard) ?? Promise.resolve(null);
 export const editOwner = (biz: BusinessRow, messageId: number, html: string, keyboard?: InlineKeyboardMarkup) => owner?.edit(biz, messageId, html, keyboard) ?? Promise.resolve();
 export const notifyOwnerFile = (biz: BusinessRow, path: string, caption: string) => owner?.sendFile(biz, path, caption) ?? Promise.resolve();
-export const notifyOwnerPhoto = (biz: BusinessRow, path: string, html: string, keyboard?: InlineKeyboardMarkup) => owner?.sendPhoto(biz, path, html, keyboard) ?? Promise.resolve(null);
+export const notifyOwnerPhoto = (biz: BusinessRow, photo: string | Buffer, html: string, keyboard?: InlineKeyboardMarkup) => owner?.sendPhoto(biz, photo, html, keyboard) ?? Promise.resolve(null);
 
 export const DEFAULT_REPLY: AutoReply = { mode: 'draft', contacts: false, delayMin: 2 };
 /** Qabulxona jamoadan olib tashlangan bo'lsa — javob tayyorlanmaydi (xabarlar saqlanaveradi) */
