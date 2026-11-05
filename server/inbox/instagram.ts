@@ -586,6 +586,36 @@ export async function instagramUserExists(bizId: string, username: string): Prom
   }
 }
 
+export interface IgPostStats { code: string; likes: number | null; comments: number | null; views: number | null }
+
+/** web_profile_info javobidan oxirgi postlar (Instagram profil sahifasi ko'rsatadigan 12 ta) */
+export function parseProfilePosts(json: unknown): IgPostStats[] {
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const edges = (json as { data?: { user?: { edge_owner_to_timeline_media?: { edges?: { node?: Record<string, unknown> }[] } } } })?.data?.user?.edge_owner_to_timeline_media?.edges ?? [];
+  return edges.flatMap(e => {
+    const n = e.node ?? {};
+    const code = typeof n.shortcode === 'string' ? n.shortcode : '';
+    if (!code) return [];
+    const count = (k: string) => num((n[k] as { count?: unknown } | undefined)?.count);
+    return [{ code, likes: count('edge_liked_by') ?? count('edge_media_preview_like'), comments: count('edge_media_to_comment'), views: num(n.video_view_count) }];
+  });
+}
+
+/**
+ * Egasining o'z Instagram'idagi oxirgi postlar natijasi (Marketolog o'lchaydi) — profil sahifasi so'rovi bilan (raqobatchini
+ * tekshirgandek bitta so'rov, kuniga bir marta). Ulanmagan yoki javob bo'lmasa — null
+ */
+export async function instagramOwnPosts(bizId: string): Promise<IgPostStats[] | null> {
+  const c = connections.get(bizId, 'instagram');
+  if (!driver || !c || problemOf(c) || attaching.has(bizId) || !c.account.username) return null;
+  try {
+    const r = await driver.request(bizId, 'GET', `/api/v1/users/web_profile_info/?username=${encodeURIComponent(c.account.username)}`);
+    return r.status === 200 ? parseProfilePosts(JSON.parse(r.body)) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Instagram'ga bir kunda shuncha post (akkaunt xavfsizligi) */
 const POSTS_PER_DAY = 5;
 

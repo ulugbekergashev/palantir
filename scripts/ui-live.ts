@@ -342,7 +342,12 @@ try {
   ok("kuzatuvchi: kamera yo'q — nima qiladi va qanday ulanadi", await visible(page.getByRole('heading', { name: "Kuzatuvchi hali hech narsani ko'rmayapti" })) && await tabOn('Kameralar').isVisible());
   await nav('Marketing');
   ok("marketolog: Meta AI ulanmagan — avval ulash, «Meta AI'ga kirish» tugmasi va varaqlar", await visible(page.getByRole('heading', { name: 'Marketolog' }))
-    && await visible(page.getByRole('button', { name: "Meta AI'ga kirish" })) && await tabOn('Hisobotlar').isVisible() && await tabOn('Topshiriqlar').isVisible() && await tabOn('Postlar').count() === 0);
+    && await visible(page.getByRole('button', { name: "Meta AI'ga kirish" })) && await tabOn('Natijalar').isVisible() && await tabOn('Hisobotlar').isVisible() && await tabOn('Topshiriqlar').isVisible() && await tabOn('Postlar').count() === 0);
+  await tabOn('Natijalar').click();
+  ok("Marketolog → Natijalar: oxirgi 30 kun, «Yangilash», chiqqan kontent bo'lmasa — tushuntirish", await visible(page.getByRole('heading', { name: 'Oxirgi 30 kun' }))
+    && await page.getByRole('button', { name: 'Yangilash' }).isVisible() && await page.getByText("Oxirgi 30 kunda chiqqan post yo'q").isVisible());
+  await shot('12b2-natijalar', true);
+  await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Marketolog' }).click();
   await shot('12b-marketolog', true);
   await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Kontent-meyker' }).click();
   // Instagram ulangan, Telegram kanal — yo'q: «Postlar» Instagram'dan ochiladi; shapkada ikkalasi bo'yicha raqamlar
@@ -543,7 +548,7 @@ try {
   await menu.getByRole('menuitem', { name: 'Sozlamalar' }).click();
   ok("«Ko'proq» → Sozlamalar ochildi, menyu yopildi", await visible(page.getByRole('navigation', { name: 'Ulanishlar' })) && page.url().endsWith('#/sozlamalar') && await menu.count() === 0);
   // Panel Telegram ichida (Mini App) ham ochiladi — sozlamalarning asosiy va Telegram bo'limlari ham telefon enida sig'sin
-  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/instagram', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'marketolog/kampaniyalar', 'marketolog/kabinet', 'xodimlar', 'miya/brend', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
+  for (const p of ['ai', 'qabulxona', 'qabulxona/yozishmalar', 'yordamchi/stol', 'yordamchi/jurnal', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'marketolog/postlar', 'marketolog/instagram', 'marketolog/natijalar', 'marketolog/ulash', 'marketolog/qoralamalar', 'marketolog/manbalar', 'marketolog/kanal', 'marketolog/kampaniyalar', 'marketolog/kabinet', 'xodimlar', 'miya/brend', 'sozlamalar/asosiy', 'sozlamalar/telegram', 'sozlamalar/telefon', 'miya']) {
     await go(p);
     await sleep(300);
     const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

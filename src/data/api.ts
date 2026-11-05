@@ -7,7 +7,7 @@ import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveChec
 import type { AutoReply, Business, ChatEntry, DirectorView, Doc, GoalView, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
-import type { AdPlan, AdsView, AgentEvent, AgentOrder, BrandAnswers, ContentBrand, ContentDraft, ContentSettings, ContentSource, ContentVideo, EventMember, PlanItem, VideoScene, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
+import type { AdPlan, AdsView, AgentEvent, AgentOrder, BrandAnswers, ContentBrand, ContentDraft, ContentSettings, ContentSource, ContentVideo, EventMember, PlanItem, ResultsView, VideoScene, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
 
 export interface ContentView {
   settings: ContentSettings; sources: ContentSource[]; drafts: ContentDraft[]; running: boolean;
@@ -213,6 +213,8 @@ export const api = {
   deleteOrder: (id: string) => call<{ ok: true }>(`/orders/${id}`, { method: 'DELETE' }),
   runOrder: (id: string) => call<{ result: string }>(`/orders/${id}/run`, { body: {} }),
   agentEvents: (member: OrderMember, cameraId?: string) => call<{ events: AgentEvent[] }>(`/agents/${member}/events${cameraId ? `?camera=${cameraId}` : ''}`),
+  results: () => call<ResultsView>('/results'),
+  resultsRefresh: () => call<ResultsView & { measured: { telegram: number | string; instagram: number | string } }>('/results/refresh', { body: {} }),
   eventImage: async (id: string) => (await send(`/agents/events/${id}/image`, { method: 'GET' })).blob(),
   /** So'rovlar: ochiq (eng eskisi birinchi) yoki yopilganlar */
   requests: (which: 'open' | 'closed' = 'open') => call<{ requests: RequestView[]; open: number }>(`/requests?which=${which}`),

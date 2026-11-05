@@ -6,6 +6,7 @@ import { ContentError } from '../content/store';
 import { PictureError, pictureMaker } from '../content/picture';
 import { MetaAiError } from './metaAi';
 import { ImageError } from './image';
+import { MeasureError, measure, resultsView } from './results';
 import { MAX_CAPTION, PostError, cancelPost, createDraft, draftWithPicture, editCaption, postImage, postView, posts, publishPost, writeCaption } from './posts';
 
 type Handler = (req: Request, res: Response) => unknown;
@@ -23,7 +24,7 @@ const Id = (req: Request) => String(req.params.id).slice(0, 20);
 
 /** Kutilgan xato — egasiga sababi; boshqasi — ichki */
 function failed(res: Response, e: unknown): void {
-  if (e instanceof PostError || e instanceof ImageError || e instanceof MetaAiError || e instanceof ContentError || e instanceof PictureError) { res.status(409).json({ error: e.message }); return; }
+  if (e instanceof PostError || e instanceof ImageError || e instanceof MetaAiError || e instanceof ContentError || e instanceof PictureError || e instanceof MeasureError) { res.status(409).json({ error: e.message }); return; }
   console.error('[postlar]', e);
   res.status(500).json({ error: "Ichki xato — qayta urinib ko'ring" });
 }
@@ -32,6 +33,12 @@ export function mountMarketing(app: Express, { asBiz, asOwner, bad }: Deps): voi
   const view = (biz: BusinessRow) => posts.list(biz.id).map(p => postView(biz, p));
 
   // picture — kim rasm chiza oladi (Meta AI, Gemini yoki hech kim: egasi o'z suratini qo'shadi)
+  // Marketolog → Natijalar: chiqqan kontent va reklama qanday ishladi; «Yangilash» — hozir o'lchash (yarim soatda bir marta)
+  app.get('/api/results', asBiz((_req, res, biz) => { res.json(resultsView(biz)); }));
+  app.post('/api/results/refresh', asBiz(async (_req, res, biz) => {
+    try { const r = await measure(biz, undefined, { force: true }); res.json({ ...resultsView(biz), measured: r }); } catch (e) { failed(res, e); }
+  }));
+
   app.get('/api/posts', asBiz((_req, res, biz) => { res.json({ posts: view(biz), picture: pictureMaker(biz) }); }));
 
   app.get('/api/posts/:id/image', asBiz((req, res, biz) => {

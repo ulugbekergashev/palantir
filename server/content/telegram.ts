@@ -55,7 +55,34 @@ const titleOf = (html: string): string | null => {
   return t ? decode(t).slice(0, 120) : null;
 };
 
-export async function fetchChannel(handle: string): Promise<{ title: string | null; posts: SourcePost[] }> {
+/** «1.2K» → 1200, «3,4M» → 3400000, «845» → 845; o'qilmasa — null */
+export function parseCount(s: string): number | null {
+  const m = /^([\d.,]+)\s*([KkMm]?)$/.exec(s.trim());
+  if (!m) return null;
+  const n = Number(m[1].replace(',', '.'));
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * (m[2] ? (m[2].toLowerCase() === 'k' ? 1_000 : 1_000_000) : 1));
+}
+
+/** Sahifadagi har postning ko'rishlar soni (xabar raqami → ko'rishlar); matnsiz (video, rasm) postlar ham */
+export function parseViews(html: string): Map<number, number> {
+  const starts = [...html.matchAll(/data-post="[^"/]+\/(\d+)"/g)];
+  const out = new Map<number, number>();
+  starts.forEach((m, i) => {
+    const block = html.slice(m.index, starts[i + 1]?.index ?? html.length);
+    const v = /class="tgme_widget_message_views"[^>]*>([^<]+)</.exec(block)?.[1];
+    const n = v ? parseCount(decode(v)) : null;
+    if (n !== null) out.set(Number(m[1]), n);
+  });
+  return out;
+}
+
+/** Egasining ochiq kanalidagi oxirgi postlarning ko'rishlari (Marketolog o'lchaydi) */
+export async function fetchChannelViews(handle: string): Promise<Map<number, number>> {
+  return parseViews(await page(handle));
+}
+
+async function page(handle: string): Promise<string> {
   let res: Response;
   try {
     res = await fetch(`https://t.me/s/${handle}`, {
@@ -69,5 +96,10 @@ export async function fetchChannel(handle: string): Promise<{ title: string | nu
   const html = await res.text();
   // Yopiq yoki mavjud bo'lmagan kanal: t.me postlarsiz sahifa qaytaradi
   if (!html.includes('tgme_channel_info')) throw new ContentError(`@${handle} — ochiq kanal emas yoki topilmadi`);
+  return html;
+}
+
+export async function fetchChannel(handle: string): Promise<{ title: string | null; posts: SourcePost[] }> {
+  const html = await page(handle);
   return { title: titleOf(html), posts: parseChannelHtml(html, handle) };
 }

@@ -236,6 +236,15 @@ try {
   press(OWNER, gp ?? 'gp|x', Number(metaCard?.id ?? 0));
   ok("egasi Telegram'da «Joylash»ni bosdi → Instagram'ga chiqdi", await until('joylandi', async () => igWeb.posted.length === 3 || undefined) && igWeb.posted[2].caption.includes('Implant'));
 
+  console.log("\n# Natijalar (Marketolog o'lchaydi)");
+  const res1 = await api('/api/results/refresh', { token, body: {} });
+  const igItems = (res1.json.items ?? []).filter((i: { kind: string }) => i.kind === 'instagram') as { likes: number; comments: number; url: string }[];
+  ok("«Yangilash»: joylangan Instagram postlari layk va izohlari bilan (egasining profil sahifasidan); kanal ulanmagan — aytiladi",
+    res1.status === 200 && igItems.length === 3 && igItems.find(i => i.url.endsWith('/POST1/'))?.likes === 10 && igItems.find(i => i.url.endsWith('/POST3/'))?.comments === 2
+    && res1.json.measured?.instagram === 3 && /ulanmagan/.test(String(res1.json.measured?.telegram)) && igWeb.paths.includes('GET /api/v1/users/web_profile_info/'), JSON.stringify(res1.json).slice(0, 300));
+  const res2 = await api('/api/results/refresh', { token, body: {} });
+  ok("yarim soat ichida qayta o'lchanmaydi (Instagram'ga ortiqcha so'rov ketmasin), ko'rish — bo'ladi", res2.status === 409 && (await api('/api/results', { token })).json.items?.length === 3, res2.json.error);
+
   console.log('\n# Jonli tekshiruv (server/live/check.ts)');
   type Lc = { key: string; level: string; detail: string };
   const byKey = (list: Lc[], key: string) => list.find(c => c.key === key);

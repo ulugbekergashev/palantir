@@ -196,5 +196,29 @@ await check("Telegram rad etsa — qoralama «xato» holatiga o'tadi va qayta jo
   assert.equal(contentStore.draft(biz.id, d.id)!.status, 'published');
 });
 
+await check("kanal ko'rishlari: «1.2K», «3,4M», «845»; matnsiz (video) post ham; o'qilmagani — yo'q", async () => {
+  const { parseCount, parseViews } = await import('../server/content/telegram');
+  assert.equal(parseCount('1.2K'), 1200);
+  assert.equal(parseCount('3,4M'), 3_400_000);
+  assert.equal(parseCount('845'), 845);
+  assert.equal(parseCount('ko\'p'), null);
+  const html = `<div data-post="kanal/10"><div class="tgme_widget_message_text js-message_text">Post</div><span class="tgme_widget_message_views">1.5K</span></div>
+<div data-post="kanal/11"><video></video><span class="tgme_widget_message_views">320</span></div>
+<div data-post="kanal/12"><div class="tgme_widget_message_text js-message_text">Yangi</div></div>`;
+  assert.deepEqual([...parseViews(html)], [[10, 1500], [11, 320]]);
+});
+
+await check("Instagram profili: oxirgi postlar — kod, layk, izoh, video ko'rishi; buzuq javob — bo'sh", async () => {
+  const { parseProfilePosts } = await import('../server/inbox/instagram');
+  const json = { data: { user: { edge_owner_to_timeline_media: { edges: [
+    { node: { shortcode: 'POST1', edge_liked_by: { count: 40 }, edge_media_to_comment: { count: 3 } } },
+    { node: { shortcode: 'REEL2', edge_media_preview_like: { count: 7 }, edge_media_to_comment: { count: 0 }, video_view_count: 900 } },
+    { node: { edge_liked_by: { count: 1 } } },
+  ] } } } };
+  assert.deepEqual(parseProfilePosts(json), [{ code: 'POST1', likes: 40, comments: 3, views: null }, { code: 'REEL2', likes: 7, comments: 0, views: 900 }]);
+  assert.deepEqual(parseProfilePosts({ data: { user: null } }), []);
+  assert.deepEqual(parseProfilePosts('x'), []);
+});
+
 console.log(failed ? `\n${failed} ta tekshiruv yiqildi` : '\nHammasi o\'tdi');
 process.exit(failed ? 1 : 0);

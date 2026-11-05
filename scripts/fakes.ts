@@ -328,6 +328,11 @@ export const igWebServer = patient(createServer(async (req, res) => {
       }
       if (url.pathname === '/api/v1/users/web_profile_info/') {
         const u = url.searchParams.get('username') ?? '';
+        // Egasining o'z profili: joylangan postlar layk va izohlari bilan (Marketolog natijani o'lchaydi)
+        if (u === IG_VIEWER.username) {
+          const edges = igWeb.posted.map((_, i) => ({ node: { shortcode: `POST${i + 1}`, edge_liked_by: { count: 10 * (i + 1) }, edge_media_to_comment: { count: i } } })).reverse();
+          return reply(200, { data: { user: { username: u, edge_owner_to_timeline_media: { edges } } }, status: 'ok' });
+        }
         return igWeb.users.has(u) ? reply(200, { data: { user: { username: u } }, status: 'ok' }) : reply(404, { message: 'User not found', status: 'fail' });
       }
       if (url.pathname === '/api/v1/media/configure/' && body.method === 'POST') {

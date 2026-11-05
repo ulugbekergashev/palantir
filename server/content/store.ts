@@ -3,7 +3,7 @@
  * Holat faqat kutilgan holatdan o'zgaradi (move): ikki marta bosilsa ikki marta joylanmaydi
  */
 import type { ContentDraft, ContentSettings, ContentSource } from '../../src/types';
-import { newId, sql, type Row } from '../db';
+import { ensureColumns, newId, sql, type Row } from '../db';
 
 sql.exec(`
 CREATE TABLE IF NOT EXISTS content_settings (
@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS content_drafts (
 );
 CREATE INDEX IF NOT EXISTS content_drafts_biz ON content_drafts (business_id, created_at);
 `);
+// Kanalning ochiq nomi (@siz): Marketolog postlar ko'rishini t.me sahifasidan o'qiydi; yopiq kanalda — yo'q
+ensureColumns('content_settings', { channel_handle: 'TEXT' });
 // Server joylash paytida to'xtagan: Telegram javobi noma'lum — qayta urinish egasining qarori (kanalda tekshiradi)
 sql.run("UPDATE content_drafts SET status = 'failed', error = 'Joylanayotganda server to''xtadi — kanalda chiqqan-chiqmaganini tekshiring' WHERE status = 'publishing'");
 
@@ -31,10 +33,10 @@ const PAGE = 60;
 /** Kutilgan xato — sababi egasiga ko'rsatiladi */
 export class ContentError extends Error {}
 
-const DEFAULTS: ContentSettings = { channelId: null, channelTitle: null, style: '', lang: 'uz', perRun: 3, auto: false, lastRun: null };
+const DEFAULTS: ContentSettings = { channelId: null, channelTitle: null, channelHandle: null, style: '', lang: 'uz', perRun: 3, auto: false, lastRun: null };
 
 const toSettings = (r: Row): ContentSettings => ({
-  channelId: sql.str(r.channel_id), channelTitle: sql.str(r.channel_title), style: String(r.style), lang: r.lang === 'ru' ? 'ru' : 'uz',
+  channelId: sql.str(r.channel_id), channelTitle: sql.str(r.channel_title), channelHandle: sql.str(r.channel_handle), style: String(r.style), lang: r.lang === 'ru' ? 'ru' : 'uz',
   perRun: Number(r.per_run), auto: Number(r.auto) === 1, lastRun: sql.str(r.last_run),
 });
 const toSource = (r: Row): ContentSource => ({ id: String(r.id), handle: String(r.handle), title: sql.str(r.title), lastPost: Number(r.last_post), createdAt: String(r.created_at) });
@@ -47,10 +49,10 @@ export const contentStore = {
   settings: (bizId: string): ContentSettings => sql.one('SELECT * FROM content_settings WHERE business_id = ?', toSettings, bizId) ?? DEFAULTS,
   saveSettings(bizId: string, patch: Partial<ContentSettings>): ContentSettings {
     const s = { ...contentStore.settings(bizId), ...patch };
-    sql.run(`INSERT INTO content_settings (business_id, channel_id, channel_title, style, lang, per_run, auto, last_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT (business_id) DO UPDATE SET channel_id = excluded.channel_id, channel_title = excluded.channel_title, style = excluded.style,
-      lang = excluded.lang, per_run = excluded.per_run, auto = excluded.auto, last_run = excluded.last_run`,
-      bizId, s.channelId, s.channelTitle, s.style, s.lang, s.perRun, s.auto ? 1 : 0, s.lastRun);
+    sql.run(`INSERT INTO content_settings (business_id, channel_id, channel_title, channel_handle, style, lang, per_run, auto, last_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (business_id) DO UPDATE SET channel_id = excluded.channel_id, channel_title = excluded.channel_title, channel_handle = excluded.channel_handle,
+      style = excluded.style, lang = excluded.lang, per_run = excluded.per_run, auto = excluded.auto, last_run = excluded.last_run`,
+      bizId, s.channelId, s.channelTitle, s.channelHandle ?? null, s.style, s.lang, s.perRun, s.auto ? 1 : 0, s.lastRun);
     return s;
   },
 

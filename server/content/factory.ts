@@ -16,7 +16,7 @@ export { ContentError } from './store';
 
 /** Telegram bot orqali kanal: topish (bot admin va post yoza oladimi), matn va video joylash. bot.ts ro'yxatdan o'tkazadi */
 export interface ChannelOutlet {
-  resolve(handle: string): Promise<{ id: string; title: string }>;
+  resolve(handle: string): Promise<{ id: string; title: string; username?: string | null }>;
   post(chatId: string, text: string): Promise<number>;
   /** Video fayl (mp4) izoh bilan — qaytaradi: kanaldagi xabar raqami */
   postVideo(chatId: string, file: string, caption: string): Promise<number>;
@@ -140,11 +140,11 @@ export async function connectChannel(biz: BusinessRow, input: string): Promise<{
   const ch = await outlet.resolve(id ?? `@${handle}`);
   // Bitta bot bir nechta biznesga xizmat qilsa: boshqa biznes kanaliga joylab bo'lmasin
   if (contentStore.channelTaken(ch.id, biz.id)) throw new ContentError('Bu kanal boshqa biznesga ulangan');
-  contentStore.saveSettings(biz.id, { channelId: ch.id, channelTitle: ch.title });
+  contentStore.saveSettings(biz.id, { channelId: ch.id, channelTitle: ch.title, channelHandle: ch.username ?? handle ?? null });
   return ch;
 }
 
-export const disconnectChannel = (biz: BusinessRow): void => { contentStore.saveSettings(biz.id, { channelId: null, channelTitle: null }); };
+export const disconnectChannel = (biz: BusinessRow): void => { contentStore.saveSettings(biz.id, { channelId: null, channelTitle: null, channelHandle: null }); };
 
 const STOP: Partial<Record<ContentDraft['status'], string>> = {
   published: 'Allaqachon joylangan', cancelled: 'Bekor qilingan', publishing: 'Hozir joylanyapti',

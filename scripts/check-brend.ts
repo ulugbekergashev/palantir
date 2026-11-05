@@ -405,6 +405,58 @@ await check("rasmni kim chizadi: Meta AI yo'q — Gemini (kalit bo'lsa), u ham y
   assert.ok(!picturePrompt('x', null).includes('Colour palette'), "brend-buksiz — ranglar o'ylab topilmaydi");
 });
 
+await check("Marketolog o'lchaydi: ochiq kanal ko'rishlari va Instagram layklari saqlanadi; yopiq kanal — aytiladi; 30 daqiqada bir marta", async () => {
+  const { measure, resultsView, MeasureError } = await import('../server/marketing/results');
+  const biz = newBiz('Natija');
+  contentStore.saveSettings(biz.id, { channelId: '-100555', channelTitle: 'Kanal', channelHandle: 'mening_kanalim' });
+  const d1 = contentStore.addDraft(biz.id, { text: 'Birinchi post\nmatn', sourceUrl: null, topic: null });
+  const d2 = contentStore.addDraft(biz.id, { text: 'Ikkinchi post', sourceUrl: null, topic: null });
+  contentStore.move(biz.id, d1.id, ['draft'], 'published', { messageId: 10 });
+  contentStore.move(biz.id, d2.id, ['draft'], 'published', { messageId: 11 });
+  sql.run("INSERT INTO marketing_posts (id, business_id, caption, source, prompt, status, url, created_at, published_at) VALUES ('igp1', ?, 'Instagram post', 'photo', NULL, 'published', 'https://www.instagram.com/p/POST1/', ?, ?)", biz.id, new Date().toISOString(), new Date().toISOString());
+  const asked: string[] = [];
+  const deps = {
+    channelViews: async (h: string) => { asked.push(h); return new Map([[10, 1500], [11, 90]]); },
+    igPosts: async () => [{ code: 'POST1', likes: 40, comments: 3, views: null }, { code: 'BEGONA', likes: 1, comments: 0, views: null }],
+  };
+  const r = await measure(biz, deps, { force: true });
+  assert.deepEqual(r, { telegram: 2, instagram: 1 });
+  assert.deepEqual(asked, ['mening_kanalim']);
+  const v = resultsView(biz);
+  assert.deepEqual(v.items.map(i => [i.kind, i.title, i.views, i.likes, i.comments]).sort(), [['instagram', 'Instagram post', null, 40, 3], ['telegram', 'Birinchi post', 1500, null, null], ['telegram', 'Ikkinchi post', 90, null, null]]);
+  assert.equal(v.items.find(i => i.title === 'Birinchi post')?.url, 'https://t.me/mening_kanalim/10');
+  assert.equal(v.channelOpen, true);
+  await assert.rejects(measure(biz, deps, { force: true }), (e: Error) => e instanceof MeasureError && /yarim soatdan/.test(e.message));
+  const closed = newBiz('Yopiq');
+  contentStore.saveSettings(closed.id, { channelId: '-100666', channelTitle: 'Yopiq', channelHandle: null });
+  assert.match(String((await measure(closed, deps)).telegram), /yopiq/);
+  assert.equal(resultsView(closed).channelOpen, false);
+});
+
+await check("natijalar rejaga: eng yaxshi va eng sust postlar (kamida 3 ta o'lchangan bo'lsa); kam bo'lsa — blok yo'q", async () => {
+  const { measure } = await import('../server/marketing/results');
+  const biz = newBiz('Reja natija');
+  brandStore.save(biz.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, BOOK as never);
+  contentStore.saveSettings(biz.id, { channelId: '-100777', channelTitle: 'K', channelHandle: 'k_kanal' });
+  const views = new Map<number, number>();
+  ['Implant oldin-keyin', 'Narxlar', 'Shifokor bilan tanishuv', 'Bayram tabrigi', 'Qoidalar'].forEach((t, i) => {
+    const d = contentStore.addDraft(biz.id, { text: t, sourceUrl: null, topic: null });
+    contentStore.move(biz.id, d.id, ['draft'], 'published', { messageId: 100 + i });
+    views.set(100 + i, [2400, 900, 1300, 60, 40][i]);
+  });
+  await measure(biz, { channelViews: async () => views, igPosts: async () => null });
+  replies.push(JSON.stringify({ items: [{ pillar: 'P', title: 'X', angle: '' }] }));
+  await makePlan(biz, 5, '', fakeAi);
+  const p = prompts.at(-1)!;
+  assert.match(p.user, /<results>\nBest:\n- Telegram post «Implant oldin-keyin»: 2400 views\n- Telegram post «Shifokor bilan tanishuv»: 1300 views\n- Telegram post «Narxlar»: 900 views\nWeakest:\n- Telegram post «Bayram tabrigi»: 60 views\n- Telegram post «Qoidalar»: 40 views\n<\/results>/);
+  assert.match(p.system, /plan more topics like the best ones/);
+  const few = newBiz('Kam');
+  brandStore.save(few.id, { whose: 'company', what: '', audience: '', values: '', tone: '', avoid: '', look: '' }, BOOK as never);
+  replies.push(JSON.stringify({ items: [{ pillar: 'P', title: 'X', angle: '' }] }));
+  await makePlan(few, 5, '', fakeAi);
+  assert.ok(!prompts.at(-1)!.user.includes('<results>') && !prompts.at(-1)!.system.includes('<results>'), "o'lchangan post yo'q — blok ham, gap ham yo'q");
+});
+
 // ─── ElevenLabs (soxta server) ────────────────────────────────────────────────
 
 await check("ElevenLabs so'rovi: kalit sarlavhada, model va matn tanada, javob — mp3 va harf vaqtlari; xatolar tushunarli", async () => {

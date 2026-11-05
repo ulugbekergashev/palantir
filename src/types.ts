@@ -509,6 +509,8 @@ export interface AdsView {
 export interface ContentSource { id: string; handle: string; title: string | null; lastPost: number; createdAt: string }
 export interface ContentSettings {
   channelId: string | null; channelTitle: string | null;
+  /** Kanalning ochiq nomi (@siz) — ko'rishlar shu sahifadan o'qiladi; yopiq kanalda null */
+  channelHandle?: string | null;
   /** Egasining uslubi va talablari (AI har safar o'qiydi) */
   style: string; lang: 'uz' | 'ru';
   /** Bir ishga tushishda nechta qoralama */
@@ -815,4 +817,19 @@ export interface DirectorView {
 export interface GoalView {
   id: string; metric: string; target: number; createdAt: string; label: string; unit: string; good: 'up' | 'down';
   now: number | null; pct: number | null; reached: boolean;
+}
+
+/** Marketolog natijalari: chiqqan kontent (Telegram kanal posti va videosi, Instagram posti) — o'lchangan sonlari bilan */
+export interface ResultItem {
+  kind: 'telegram' | 'video' | 'instagram'; id: string; title: string; at: string; url: string | null;
+  views: number | null; likes: number | null; comments: number | null;
+  /** Oxirgi o'lchangan vaqt (hali o'lchanmagan — null) */
+  checkedAt: string | null;
+}
+export interface ResultsView {
+  items: ResultItem[];
+  ads: { id: string; name: string; status: string; at: string; spent: number; results: number; clicks: number; impressions: number; currency: string }[];
+  checkedAt: string | null;
+  /** Telegram kanal: ulanmagan — null; ochiq (ko'rishlar o'lchanadi) — true; yopiq — false */
+  channelOpen: boolean | null;
 }

@@ -28,6 +28,7 @@ import { ContentError, factoryDue, runFactory } from './content/factory';
 import { watchAll as watchAds } from './ads/campaigns';
 import { directorMorning } from './director/telegram';
 import { crewWorks } from '../src/lib/crew';
+import { measure, measureDue } from './marketing/results';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 /** Reklama sarfi va limitlar tekshiruvi oralig'i */
@@ -302,6 +303,13 @@ export function startScheduler(bot: BotService): () => void {
             contentWarned.set(biz.id, contentDay);
             await bot.sendText(biz.ownerChatId!, `⚠️ <b>Kontent-meyker</b>: bugungi qoralamalar tayyorlanmadi — ${esc(why)}. Bir soatdan keyin yana urinaman.`).catch(() => {});
           });
+        }
+      }
+      // 4b) Marketolog natijani o'lchaydi (AI'siz): ertalab, kuniga bir marta — kanal ko'rishlari, Instagram layklari
+      if (contentHour >= env.morningHour && contentHour < env.morningHour + 12) {
+        for (const biz of businesses.all()) {
+          if (!biz.active || !crewWorks(biz, 'marketolog') || !measureDue(biz.id, now)) continue;
+          void measure(biz).catch(e => console.error(`[jadval] natijalar (${biz.profile.name}):`, (e as Error).message));
         }
       }
       // 3) Kechki savol: kun qanday o'tdi — egasining javobidan yordamchi mijoz va vazifalarni yangilaydi

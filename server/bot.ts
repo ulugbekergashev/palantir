@@ -707,7 +707,7 @@ export function createBot(): BotService {
       const member = await tg.getChatMember(chat.id, me.id).catch(() => null);
       const canPost = member?.status === 'administrator' && member.can_post_messages === true;
       if (!canPost) throw new ContentError(`Botni (@${me.username}) kanalga admin qiling va «Xabar joylash» huquqini bering, keyin qayta ulang`);
-      return { id: String(chat.id), title: chat.title };
+      return { id: String(chat.id), title: chat.title, username: 'username' in chat && chat.username ? chat.username : null };
     },
     async post(chatId, text) {
       const m = await tg.sendMessage(chatId, text, { link_preview_options: { is_disabled: true } });
