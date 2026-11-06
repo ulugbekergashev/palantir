@@ -16,6 +16,8 @@ const route = () => {
 };
 /** Litsenziya holati shuncha vaqtda qayta so'raladi: muddat panel ochiq turganda tugashi mumkin */
 const LICENSE_CHECK_MS = 10 * 60_000;
+/** Panel yopiq (aktivlashtirish oynasi): sotuvchi Hub'dan aktivlashtirsa, oyna sahifani yangilamasdan o'zi yopilsin */
+const LICENSE_WAIT_MS = 4_000;
 
 export default function App() {
   const [where, setWhere] = useState(route);
@@ -27,12 +29,13 @@ export default function App() {
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
+  const blocked = !!license?.blocked;
   useEffect(() => {
     const check = () => { api.license().then(r => setLicense(r.license)).catch(() => {}); };
     check();
-    const t = setInterval(check, LICENSE_CHECK_MS);
+    const t = setInterval(check, blocked ? LICENSE_WAIT_MS : LICENSE_CHECK_MS);
     return () => clearInterval(t);
-  }, []);
+  }, [blocked]);
 
   // Anketa — egasining telefonidagi sahifa (kirishsiz): litsenziya u yerda ko'rsatilmaydi
   const showLicense = where !== 'anketa' && license && !license.activated;

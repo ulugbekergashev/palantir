@@ -1,6 +1,6 @@
 /**
  * Bitta kompyuter — bitta profil: ulash ustasi haqiqiy brauzerda (ko'rinmas oyna).
- *   Kirish sahifasi «sozlanmoqda» deydi → «Sozlashni davom ettirish» — admin parolisiz → klinika ma'lumoti saqlanadi →
+ *   Kirish sahifasi «sozlanmoqda» deydi → «Sozlashni davom ettirish» — admin parolisiz, Hub kodisiz → klinika ma'lumoti saqlanadi →
  *   «Klinika kalitlari» → «Egasiga topshirish»: login va parol bir marta → kirish sahifasi, endi faqat login-parol bilan.
  * Skrinshotlar saqlanadi (yo'li oxirida). Ishga tushirish: npm run build && npm run test:ui-profile
  */
@@ -55,8 +55,10 @@ try {
   await page.getByRole('link', { name: 'Sozlashni davom ettirish' }).click();
 
   console.log('\n# Ulash ustasi — admin parolisiz');
-  await page.getByText('Palantir ulanish kodi', { exact: true }).waitFor({ timeout: 15_000 });
-  ok('usta parolsiz ochildi: ulanish kodi maydoni', await page.locator('#hub-code').isVisible() && !(await page.getByText('Admin paroli').count()));
+  await page.locator('#p-name').waitFor({ timeout: 15_000 });
+  ok('usta parolsiz ochildi: birinchi qadam — klinika ma\'lumotlari', !(await page.getByText('Admin paroli').count()));
+  // Kompyuter Hub'ga o'zi ulanadi: «phub.» kodi so'ralmaydi (zaxira yo'l — «Kalitlar» maydoni)
+  ok("Hub ulanish kodi so'ralmaydi", !(await page.getByText('Palantir ulanish kodi').count()) && !(await page.locator('#hub-code').count()));
   ok('klinikani tanlash/qo\'shish yo\'q (profil bitta)', !(await page.getByRole('button', { name: /Yangi klinika/ }).count()));
   await page.locator('#p-name').fill('Shifo Dent');
   await page.locator('#p-address').fill('Toshkent, Chilonzor 7');
@@ -71,6 +73,7 @@ try {
   await page.locator('aside').getByRole('button', { name: /Kalitlar/ }).click();
   await page.getByText('Klinika kalitlari').waitFor({ timeout: 10_000 });
   ok('«Klinika kalitlari» (server kalitlari emas)', !(await page.getByText('Server kalitlari').count()));
+  ok("jadvalda Hub kodi yo'q (egasi bilmasdan o'chirib qo'ymasin)", !(await page.getByText('Palantir Hub kodi').count()));
   await shot(page, 'kalitlar');
 
   console.log('\n# Egasiga topshirish');
@@ -110,7 +113,7 @@ try {
   await page.waitForFunction(() => !document.querySelector('h1')?.textContent?.includes('Kabinetga kirish'), null, { timeout: 15_000 });
   ok('egasi berilgan parol bilan kirdi', !(await page.getByRole('heading', { name: 'Kabinetga kirish' }).count()));
   await page.goto(`${base}/#/ulash`);
-  await page.getByText('Palantir ulanish kodi', { exact: true }).waitFor({ timeout: 15_000 });
+  await page.locator('#p-name').waitFor({ timeout: 15_000 });
   ok('egasi ham ulash ustasini ochadi (topshirish tugmasisiz)', !(await page.locator('#handover-login').count()));
   await shot(page, 'egasi-ustada');
   ok("brauzerda xato yo'q", !errors.length, errors.slice(0, 3).join(' | '));

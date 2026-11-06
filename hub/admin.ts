@@ -8,12 +8,13 @@
  * nusxalanmaydi), panel oynasi ochuvchisiz (opener = null) va sahifada Cross-Origin-Opener-Policy (hub/server.ts) — panel bu
  * sahifaga qo'l cho'za olmaydi. Sahifa yangilansa, kalit qayta so'raladi.
  *
- * O'zi ulangan kompyuter «tasdiqlanmagan» (hub/server.ts, 11-band): «Tasdiqlash» — egasi panelidagi kompyuter kodini kiritasiz (kod
- * yozuvnikiga mos kelishi kerak); bir xil kodli bir nechta yozuv bo'lsa ogohlantiriladi. Soxta yozuv — «O'chirish».
+ * Asosiy yo'l: yangi o'rnatilgan kompyuter o'zi ulanadi va «tasdiqlanmagan» bo'ladi (hub/server.ts, 11-band). «Tasdiqlash va
+ * aktivlashtirish» — klinika ekranidagi kompyuter kodini kiritasiz (kod yozuvnikiga mos kelishi kerak), shu bosishda litsenziya ham
+ * beriladi; bir xil kodli bir nechta yozuv bo'lsa ogohlantiriladi. Soxta yozuv — «O'chirish».
  *
- * «Yangi klinika»: yozuv tasdiqlangan holda ochiladi va ulanish kodi BIR MARTA ko'rsatiladi (hubda faqat xeshi). Klinika o'rnatish
- * oxirida shu kodni qo'yadi — kompyuter shu yozuvga ulanadi. Egasiga topshirilmagan klinika (holatda setup) — «Sozlash»: panel
- * so'ramasdan ochiladi va ulash ustasiga o'tadi (klinika tomoni: server/profile.ts).
+ * «Yangi klinika» — zaxira yo'l (kompyuter o'zi ulana olmasa): yozuv tasdiqlangan holda ochiladi va ulanish kodi BIR MARTA
+ * ko'rsatiladi (hubda faqat xeshi); o'rnatuvchi uni ulash ustasining «Kalitlar» maydoniga qo'yadi. Egasiga topshirilmagan klinika
+ * (holatda setup) — «Sozlash»: panel so'ramasdan ochiladi va ulash ustasiga o'tadi (klinika tomoni: server/profile.ts).
  *
  * Kirish — har kishining o'z logini va paroli (hub/team.ts): kalit sahifa xotirasida, 12 soat. Login bo'sh qoldirilsa — parol
  * o'rniga asosiy kalit (HUB_ADMIN_KEY): birinchi asoschini ochish va favqulodda. Asoschi «Jamoa» (hisoblar: yangi, yangi parol,
@@ -59,7 +60,7 @@ select{padding:9px 11px;border:1px solid var(--line);border-radius:10px;backgrou
 </style>
 <main>
 <h1>Palantir klinikalari</h1>
-<p class="lead">Yangi klinika — ulanish kodi oling va klinikaga bering: o'rnatish oxirida shu kodni qo'yadi. Egasiga topshirilguncha «Sozlash» bilan masofadan so'ramasdan kirasiz; topshirilgandan keyin — egasining Telegram'dagi ruxsati bilan. Har kirish egasiga aytiladi.</p>
+<p class="lead">Yangi o'rnatilgan kompyuter bu ro'yxatga o'zi tushadi («tasdiqlanmagan»). O'rnatuvchidan ekrandagi kompyuter kodini so'rab, «Tasdiqlash va aktivlashtirish»ni bosing — klinika ekrani o'zi ochiladi. Egasiga topshirilguncha «Sozlash» bilan masofadan so'ramasdan kirasiz; topshirilgandan keyin — egasining Telegram'dagi ruxsati bilan. Har kirish egasiga aytiladi.</p>
 <form id="key" hidden><input id="lg" placeholder="Login (asosiy kalit bilan — bo'sh)" autocomplete="username" maxlength="40"><input id="k" type="password" placeholder="Parol" autocomplete="current-password" required><button>Kirish</button></form>
 <div id="bar" class="bar" hidden><span id="me"></span><button class="second" id="tabTeam" hidden>Jamoa</button><button class="second" id="tabAudit" hidden>Jurnal</button><button class="second" id="pw">Parolim</button><button class="second" id="out">Chiqish</button></div>
 <form id="pwf" hidden><input id="pw1" type="password" placeholder="Joriy parol" autocomplete="current-password" required><input id="pw2" type="password" placeholder="Yangi parol (10+ belgi)" autocomplete="new-password" minlength="10" required><button>Almashtirish</button></form>
@@ -68,7 +69,7 @@ select{padding:9px 11px;border:1px solid var(--line);border-radius:10px;backgrou
 <div id="mcode" class="code" hidden></div>
 <ul id="members"></ul></section>
 <section id="audit" hidden><h2>Jurnal</h2><ul id="log" class="log"></ul></section>
-<form id="new" hidden><input id="nm" placeholder="Klinika nomi (masalan, Shifo Dent)" maxlength="80" required><button>Yangi klinika</button></form>
+<form id="new" hidden><input id="nm" placeholder="Kompyuter o'zi ulana olmasa: klinika nomi" maxlength="80" required><button>Yangi klinika</button></form>
 <div id="code" class="code" hidden></div>
 <div id="msg" role="status"></div>
 <ul id="list"></ul>
@@ -127,9 +128,10 @@ function row(c, twins) {
   who.append(el('b', '', c.name + label), el('small', '', fresh + (c.online ? 'aloqada' : 'aloqada emas · ' + ago(c.seenAt)) + (c.status && c.status.version ? ' · v' + c.status.version : '') + licText + (c.machineId ? ' · ' + c.machineId : '') + twin));
   li.append(dot, who);
   if (!c.approved) {
-    // Tasdiqlash va o'chirish — faqat asoschi (o'rnatuvchi ko'radi, lekin qila olmaydi)
+    // Tasdiqlash va o'chirish — faqat asoschi (o'rnatuvchi ko'radi, lekin qila olmaydi). Yangi o'rnatish kalitsiz ochilmaydi —
+    // shuning uchun tasdiqlash o'sha bosishda litsenziyani ham beradi (bitta kod, bitta tugma)
     if (!founder()) return li;
-    const ok = el('button', '', 'Tasdiqlash');
+    const ok = el('button', '', lic && lic.activated ? 'Tasdiqlash' : 'Tasdiqlash va aktivlashtirish');
     ok.onclick = () => approve(c, ok);
     const del = el('button', 'second', "O'chirish");
     del.onclick = () => remove(c, del);
@@ -150,15 +152,23 @@ function row(c, twins) {
 }
 
 async function approve(c, btn) {
-  const code = prompt("«" + c.name + "» egasidan panelidagi kompyuter kodini so'rang (Litsenziya oynasi) va kiriting — XXXX-XXXX-XXXX-XXXX:");
+  const code = prompt("«" + c.name + "»: o'rnatuvchidan (yoki egasidan) ekrandagi kompyuter kodini so'rang va kiriting — XXXX-XXXX-XXXX-XXXX:");
   if (!code) return;
   btn.disabled = true;
   try {
     const r = await api('/admin/clinics/' + c.id + '/approve', { machineId: code.trim() });
     const j = await r.json().catch(() => ({}));
     if (r.status === 401) return load();
-    say(r.ok ? '«' + c.name + '» tasdiqlandi' : (j.error || 'Xato: ' + r.status));
-    if (r.ok) load();
+    if (!r.ok) return say(j.error || 'Xato: ' + r.status);
+    // Holat hali kelmagan (endigina ulangan) bo'lsa ham urinib ko'riladi: litsenziyani klinikaning o'zidan so'raydi
+    const lic = c.status && c.status.license;
+    if (lic && lic.activated) { say('«' + c.name + '» tasdiqlandi'); return load(); }
+    // Tasdiqlandi — endi o'sha kod bilan litsenziya (klinika ekranidagi aktivlashtirish oynasi o'zi yopiladi)
+    say('«' + c.name + "» tasdiqlandi, litsenziya berilmoqda…");
+    const g = await api('/admin/clinics/' + c.id + '/license', {});
+    const gj = await g.json().catch(() => ({}));
+    say(g.ok ? '«' + c.name + "» tasdiqlandi va aktivlashtirildi — klinika ekrani o'zi ochiladi" : '«' + c.name + "» tasdiqlandi, lekin litsenziya berilmadi: " + (gj.error || 'Xato: ' + g.status) + " — «Aktivlashtirish»ni qayta bosing");
+    load();
   } catch {
     say("Hub bilan aloqa yo'q");
   } finally {
@@ -266,7 +276,7 @@ function showCode(name, code) {
   box.replaceChildren(
     el('b', '', '«' + name + '» ulanish kodi'),
     el('code', '', code),
-    el('small', '', "Klinikaga bering: Palantir o'rnatilgach ochilgan oynada «Palantir ulanish kodi» maydoniga qo'yadi. Kod faqat hozir ko'rinadi — saqlab qo'ying."),
+    el('small', '', "O'rnatuvchiga bering: ulash ustasi → «Kalitlar» maydoniga qo'yadi. Faqat kompyuter Hub'ga o'zi ulana olmaganda kerak. Kod faqat hozir ko'rinadi — saqlab qo'ying."),
     copy,
   );
   box.hidden = false;

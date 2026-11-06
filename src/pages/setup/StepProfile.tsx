@@ -1,71 +1,29 @@
 /**
  * Ulash ustasining birinchi qadami — bitta kompyuter, bitta profil (server/profile.ts) rejimida.
- * Klinikani tanlash yo'q: shu kompyuterning profili bitta. Bu yerda:
- *   - Palantir ulanish kodi: sotuvchi Hub'da «Yangi klinika» bilan olgan kod — qo'yilgach, kompyuter shu yozuvga ulanadi va
- *     Palantir xodimi Hub'dagi «Sozlash» bilan masofadan kiradi;
- *   - klinika ma'lumotlari: nomi, egasi, telefon, manzil, ish vaqti (masofadan ham to'ldiriladi);
- *   - anketa (ixtiyoriy).
+ * Klinikani tanlash yo'q: shu kompyuterning profili bitta. Bu yerda faqat klinika ma'lumotlari (nomi, soha, egasi, telefon,
+ * manzil, ish vaqti — masofadan ham to'ldiriladi) va ixtiyoriy anketa.
+ *
+ * Hub ulanish kodi bu yerda so'ralmaydi: kompyuter Hub'ga o'zi yoziladi (server/hubJoin.ts), sotuvchi uni Hub'da ekrandagi
+ * kompyuter kodi bilan tasdiqlaydi va o'sha bosishda litsenziya beradi. O'zi ulana olmagan kamdan-kam holatda «phub.» kodi
+ * «Kalitlar» maydoniga qo'yiladi (src/lib/secrets.ts uni taniydi).
  */
 import { useEffect, useState, type FormEvent } from 'react';
-import { CheckCircle2, Loader2, Plug } from 'lucide-react';
-import { api, putKey, type ProfilePhase } from '../../data/api';
+import { Loader2 } from 'lucide-react';
+import { api } from '../../data/api';
 import { Button, Card, Field, TextInput } from '../../components/ui';
 import type { Business, SetupView } from '../../types';
 import { AnketaCard } from './StepClinic';
 
 type Notify = (text: string, error?: boolean) => void;
 
-export function StepProfile({ phase, onPhase, setup, onSetup, notify }: {
-  phase: ProfilePhase; onPhase: () => Promise<void>; setup: SetupView | null; onSetup: (s: SetupView) => void; notify: Notify;
+export function StepProfile({ onPhase, setup, onSetup, notify }: {
+  onPhase: () => Promise<void>; setup: SetupView | null; onSetup: (s: SetupView) => void; notify: Notify;
 }) {
   return (
     <div className="space-y-4">
-      <HubCodeCard phase={phase} onPhase={onPhase} notify={notify} />
       <ClinicCard notify={notify} onSaved={onPhase} />
       <AnketaCard setup={setup} onSetup={onSetup} notify={notify} />
     </div>
-  );
-}
-
-function HubCodeCard({ phase, onPhase, notify }: { phase: ProfilePhase; onPhase: () => Promise<void>; notify: Notify }) {
-  const linked = phase.hub === 'code';
-  const [open, setOpen] = useState(!linked);
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  const save = async (e: FormEvent, force = false) => {
-    e.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      const r = await putKey('PALANTIR_HUB', code.trim(), force, false);
-      if (!r.ok) { setError(r.error); return; }
-      setCode('');
-      setOpen(false);
-      await onPhase();
-      notify('Palantir Hub\'ga ulandi');
-    } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
-  };
-
-  return (
-    <Card title="Palantir ulanish kodi"
-      description="Palantir'dan olgan kodni qo'ying: kompyuter bizning ro'yxatimizga ulanadi va sozlashni masofadan davom ettira olamiz. Kod «phub.» bilan boshlanadi.">
-      {linked && !open ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="flex items-center gap-2 text-sm font-semibold text-emerald-800"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Ulangan — Palantir bu klinikani ko'radi</p>
-          <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>Boshqa kod qo'yish</Button>
-        </div>
-      ) : (
-        <form onSubmit={save} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <Field label="Ulanish kodi" hint={phase.hub === 'self' ? "Kompyuter Palantir'ga o'zi yozildi, lekin hali tasdiqlanmagan — kod qo'yilsa, darhol tasdiqlangan bo'ladi" : undefined}>
-            <TextInput id="hub-code" value={code} onChange={e => setCode(e.target.value)} placeholder="phub.…" className="font-mono" autoComplete="off" spellCheck={false} required />
-          </Field>
-          <Button type="submit" variant="primary" disabled={busy || !code.trim()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />} Ulash</Button>
-          {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 sm:col-span-2">{error}</p>}
-        </form>
-      )}
-    </Card>
   );
 }
 

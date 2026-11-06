@@ -280,10 +280,14 @@ try {
   };
   type Listed = { id: string; name: string; online: boolean; self?: boolean; approved?: boolean; machineId?: string | null };
   const mine = async () => (await adminList() as Listed[]).filter(c => c.machineId === NEW_MACHINE);
+  mark = sent.length;
   let newcomer = start('server/index.ts', newcomerEnv);
   ok('yangi Palantir ishga tushdi (Hub kodisiz)', await up(`http://127.0.0.1:${NEW_PORT}/api/health`));
   const joined = await until("o'zi ulangan kompyuter", async () => (await mine()).find(c => c.online), 15_000);
   ok("hub /admin ro'yxatida: o'zi ulangan, tasdiqlanmagan, kompyuter kodi va nomi bilan, aloqada", !!joined && joined.self === true && joined.approved === false && joined.name.length > 0, JSON.stringify(joined));
+  const newcomerAlert = await waitFor('yangi kompyuter xabari', () => toVendor(mark, 'Yangi kompyuter')[0], 10_000);
+  ok("sotuvchiga Telegram'da: yangi kompyuter yozildi — kompyuter kodi xabarda yo'q (tasdiqlash o'rnatuvchi aytgan kod bilan)",
+    !!newcomerAlert && String(newcomerAlert.params.text).includes('Tasdiqlash va aktivlashtirish') && !String(newcomerAlert.params.text).includes(NEW_MACHINE), String(newcomerAlert?.params.text ?? ''));
   const N = `${HUB}/c/${joined!.id}`;
   const quarantined = [await fetch(`${N}/`, { headers: { accept: 'text/html' } }), await fetch(`${N}/api/health`)];
   const qPage = await quarantined[0].text();

@@ -89,6 +89,9 @@ export function StepKeys({ keys, onKeys, onRouted, profile }: {
   };
 
   const required = (keys ?? []).filter(k => k.required);
+  // Klinika kompyuterida Hub ulanishi kalit emas: kompyuter o'zi ulanadi (server/hubJoin.ts). Jadvalda bo'lsa, egasi uni bilmasdan
+  // o'chirib qo'yishi mumkin — masofadan yordam, zaxira va rasmiy Instagram uziladi. Zaxira yo'l («phub.» kodini maydonga qo'yish) qoladi
+  const rows = profile ? KEYS.filter(k => k.name !== 'PALANTIR_HUB') : KEYS;
   return (
     <div className="space-y-4">
       <Card>
@@ -131,7 +134,7 @@ export function StepKeys({ keys, onKeys, onRouted, profile }: {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-slate-100">
-                  {KEYS.map(info => {
+                  {rows.map(info => {
                     const k = keys.find(x => x.name === info.name);
                     return (
                       <tr key={info.name}>

@@ -90,7 +90,9 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
    - Telefondan (asosiy yo'l): `npm run kalit-sahifa` bir marta parol bilan ish stolida `palantir-kalit.html` yasaydi (DentaCRM o'z sahifasida qoladi;
      kerak bo'lsa `-- dentacrm` — `dentacrm-kalit.html`, `-- birga` — ikkalasi
      bitta sahifada). Faylni telefonga yuborib, brauzerda ochasiz: parol → kompyuter kodi → kalit → nusxalash.
-   - Hub orqali, bir bosishda: Hub `/admin` → klinika qatorida «Aktivlashtirish» (Hub kodi kiritilgan va kompyuter aloqada bo'lsa).
+   - **Hub orqali (asosiy yo'l), bir bosishda:** yangi o'rnatilgan kompyuter Hub'ga o'zi yoziladi, sizga Telegram'da xabar keladi.
+     O'rnatuvchidan ekrandagi kompyuter kodini so'rab, Hub `/admin` → shu qatorda «Tasdiqlash va aktivlashtirish» → kodni kiritasiz.
+     Klinika ekranidagi aktivlashtirish oynasi bir necha soniyada o'zi yopiladi. Eski, tasdiqlangan klinikada — «Aktivlashtirish».
    - Qo'lda: panelda «Kalitni kiritish» → kompyuter kodini (`XXXX-XXXX-XXXX-XXXX`) sotuvchiga yuborish; sotuvchi o'z kompyuterida
      `npm run kalit -- XXXX-XXXX-XXXX-XXXX` (yoki `~/.palantir/Kalit-yaratish.cmd`) — chiqqan `PAL1-…` kalitni klinikaga yuboradi, u o'sha oynaga qo'yadi.
    - Maxfiy kalit faqat sotuvchida (`~/.palantir/litsenziya.pem`) va Hub'da; yo'qolsa eski kalitlar ishlayveradi, yangisini berib bo'lmaydi — zaxiralang.
@@ -104,7 +106,7 @@ Zaxira nusxani fleshkaga olsangiz: unda baza va uni ochadigan kalit yonma-yon tu
 Panel: ish stolidagi «Palantir AI» yorlig'i. Usta: `http://localhost:3200/#/ulash` — egasiga topshirilguncha parolsiz (shu kompyuterdan yoki
 Hub → «Sozlash»), keyin — egasining login-paroli bilan. Chapda qadamlar va «klinikada o'tgan vaqt», har qadam tayyor bo'lsa yashil belgi oladi; qadamlarni istalgan tartibda bosish mumkin.
 
-1. **Klinika**: **Palantir ulanish kodi** (Hub'dagi «Yangi klinika»dan) → «Ulash». Klinika nomi, egasi, telefon, manzil, ish vaqti. Ixtiyoriy — **anketa kodi** va o'z serveringiz manzili → «Yuklash»: manzil, ish vaqti, narxlar, javoblar shu kompyuterga tushadi. Internet bo'lmasa — anketa sahifasidan yuklab olingan `.json` faylni tanlang.
+1. **Klinika**: klinika nomi, soha, egasi, telefon, manzil, ish vaqti. Hub kodi so'ralmaydi — kompyuter Hub'ga o'zi ulanadi. Faqat u o'zi ulana olmasa (Hub ro'yxatdan o'tishni yopgan): Hub'da «Yangi klinika» → `phub.` kodini «Kalitlar» maydoniga qo'yasiz. Ixtiyoriy — **anketa kodi** va o'z serveringiz manzili → «Yuklash»: manzil, ish vaqti, narxlar, javoblar shu kompyuterga tushadi. Internet bo'lmasa — anketa sahifasidan yuklab olingan `.json` faylni tanlang.
 2. **Kalitlar**: bot tokeni, Claude va Gemini kalitlari, kamera `rtsp://` manzili, DentaCRM havolasi, Telegram raqami — **hammasini bitta maydonga** qo'ying. Usta har qatorning turini o'zi taniydi (AI'siz, qolip bo'yicha), kalitni haqiqiy xizmatda tekshiradi va shifrlab saqlaydi; qolganini o'z qadamiga o'tkazadi. Tanimagan qatorni (masalan, DentaCRM paroli) bir tugma bilan belgilaysiz. Server to'xtamaydi: bot shu zahoti yangi token bilan ulanadi.
 3. **Egasining Telegram'i**: havolani egasi **o'z telefonida** ochadi va «Start» bosadi — sahifa o'zi yangilanadi.
 4. **DentaCRM**: manzil va parol kalitlar maydonidan o'tgan bo'ladi, loginni yozasiz → «Ulash va tekshirish».
@@ -126,7 +128,7 @@ Hub → «Sozlash»), keyin — egasining login-paroli bilan. Chapda qadamlar va
    Keyin Kuzatuvchi → «Topshiriqlar» → **«Tayyor qoidalar»**dan kerakligini bir bosishda yoqing: kechasi odam ko'rinsa, kassa bo'sh qolsa, ko'p odam yig'ilsa, ertalab tartib, yopilgandan keyin.
    Kreslo bandligi va «kechasi chiroq o'chdi» qaysi soatlar ish vaqti ekaniga qarab hisoblanadi: anketadagi (yoki «Biznes haqida»dagi) **ish vaqti** to'g'ri yozilganini tekshiring («Du–Sh 9:00–20:00»). Yozilmagan bo'lsa — 08:00–21:00.
    **Pilotda o'lchang** (Kuzatuvchi → Hozir): «Kamera aniqligi — 7 kun» — oxirgi kunlarda DentaCRM'dagi kelgan qabullarning necha foizi kamerada topildi (maqsad ≥ 90%), «to'lovsiz» ogohlantirishlar kuniga (maqsad ≤ 1) va CRM'da yo'q o'tirishlar; kamera o'chiq bo'lgan payt hisobga kirmaydi, bugungi kun ham. «Kompyuter yuklamasi» — protsessor, xotira va har IP kamerada daqiqasiga ishlangan kadrlar (30 kutiladi): kamroq bo'lsa kompyuter ulgurmayapti — kameralar sonini kamaytiring yoki kuchliroq kompyuter qo'ying. Maqsadga yetmasa — kreslo zonasini aniqroq chizing, kamera burchagini o'zgartiring.
-6. **Instagram** (rasmiy): «Kalitlar»da Hub kodi bo'lsa — «Instagram'ni rasmiy ulash» → egasi ochilgan Instagram oynasida kiradi va ruxsat beradi. Hub kodi hali yo'q bo'lsa — bu qadamni keyin qiling. Pastdagi «Chegaralar»ni o'qing.
+6. **Instagram** (rasmiy): kompyuter Hub'ga ulangan va tasdiqlangan bo'lsa — «Instagram'ni rasmiy ulash» → egasi ochilgan Instagram oynasida kiradi va ruxsat beradi. Hub hali tasdiqlamagan bo'lsa — bu qadamni keyin qiling. Pastdagi «Chegaralar»ni o'qing.
 7. **Bo'shliqlar**: usta hamma ma'lumotni tekshirib, yetishmagan va zid joylarni ko'rsatadi — bitta xizmatga ikki xil narx, yozilmagan kunlar, manzil, telefon. «Egasidan Telegram'da so'rash» — bot egasiga bittalab so'raydi (narx savolida tugmalar bilan), javob o'z joyiga yoziladi: narx — jadvalga, manzil va ish vaqti — «Biznes haqida» sahifasiga. Keyin ko'p so'raladigan savollar keladi. Ro'yxat egasi javob bergan sari ekranda qisqaradi.
 8. **Tayyor**: hamma qadam holati va o'tgan vaqt. «Kabinetga o'tish» — klinika kabineti qayta kirishsiz ochiladi.
 

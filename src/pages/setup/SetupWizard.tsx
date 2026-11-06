@@ -119,7 +119,7 @@ function Shell({ label, facts, stepKey, onStep, onLogout, children, toast }: {
   );
 }
 
-const PROFILE_LEAD = "Palantir ulanish kodi va klinikaning asosiy ma'lumotlari. Kod qo'yilgach, sozlashni Palantir masofadan davom ettira oladi.";
+const PROFILE_LEAD = "Klinikaning asosiy ma'lumotlari. Narxlar va mijozlar ko'p so'raydigan savollarni egasi Telegram'ni ulagach bot o'zi so'raydi.";
 
 /** Klinika kabineti holati: kanallar, bo'shliqlar, kameralar soni, telefon liniyasi — ikkala rejimda bir xil (kabinet yo'llari orqali) */
 function useCabinet(notify: Notify) {
@@ -206,7 +206,7 @@ function ProfileWizard({ phase, onPhase }: { phase: ProfilePhase; onPhase: () =>
   return (
     <Shell label={phase.name} facts={facts} stepKey={stepKey} onStep={setStepKey} onLogout={logout} toast={toast}>
       {(key, go, elapsed) => !ready || !cab.status || !cab.setup ? loading
-        : key === 'clinic' ? <StepProfile phase={phase} onPhase={onPhase} setup={cab.setup} onSetup={cab.setSetup} notify={notify} />
+        : key === 'clinic' ? <StepProfile onPhase={onPhase} setup={cab.setup} onSetup={cab.setSetup} notify={notify} />
         : key === 'keys' ? <StepKeys profile keys={keys} onKeys={k => { setKeys(k); refresh().catch(() => {}); }} onRouted={cab.setRouted} />
         : key === 'done' ? <StepDone facts={facts} elapsed={elapsed} onGo={go} handover={phase.setup} name={phase.name ?? ''} />
         : cabinetStep(key, cab)}

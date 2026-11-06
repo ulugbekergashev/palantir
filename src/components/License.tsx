@@ -3,8 +3,9 @@
  * kalitsiz muddatida — sahifa tepasida ingichka eslatma («Kalitni kiritish» — oyna ochiladi): suzib
  * turadigan tugma telefonda bo'limlar panelini, kompyuterda so'rov tugmalari va yozish maydonini yopib qo'yardi;
  * eslatmani yopsa bo'ladi — ertasi kuni yana chiqadi, oxirgi kunlarda (URGENT_DAYS) yopilmaydi;
- * muddat tugagach — butun ekran aktivlashtirish oynasi. Kompyuter kodini egasi Palantir jamoasiga yuboradi va kalitni qo'yadi
- * (klinika Hub'ga ulangan bo'lsa, jamoa Hub'dan o'zi aktivlashtiradi — kod almashish shart emas).
+ * muddat tugagach — butun ekran aktivlashtirish oynasi. Kompyuter kodini o'rnatuvchi yoki egasi Palantir jamoasiga aytadi:
+ * kompyuter Hub'ga o'zi yozilgan, jamoa Hub'da shu kod bilan «Tasdiqlash va aktivlashtirish»ni bosadi — oyna o'zi yopiladi (App.tsx
+ * yopiq paytda holatni tez-tez so'raydi). Hub'siz — jamoa PAL1 kalitini yuboradi, u shu oynaga qo'yiladi.
  */
 import { useState, type FormEvent } from 'react';
 import { Copy, KeyRound, Loader2, X } from 'lucide-react';
@@ -78,14 +79,14 @@ export function ActivationPanel({ license, onActivated, onClose }: { license: Li
           </p>
         </div>
         <div>
-          <p className="text-sm">1. Kompyuter kodini Palantir jamoasiga yuboring:</p>
+          <p className="text-sm">1. Kompyuter kodini Palantir jamoasiga ayting. Jamoa uni masofadan aktivlashtirsa, bu oyna o'zi yopiladi:</p>
           <div className="mt-2 flex items-center gap-2">
             <code className="flex-1 rounded-xl bg-slate-100 px-3 py-2.5 text-center font-mono text-lg tracking-wider text-slate-900">{license.machineId}</code>
             <Button size="sm" onClick={() => { void copy(); }}><Copy className="h-4 w-4" aria-hidden="true" /> {copied ? 'Nusxalandi' : 'Nusxalash'}</Button>
           </div>
         </div>
         <div>
-          <label htmlFor="license-key" className="text-sm">2. Jamoa yuborgan kalitni shu yerga qo'ying:</label>
+          <label htmlFor="license-key" className="text-sm">2. Jamoa kalit yuborgan bo'lsa — shu yerga qo'ying:</label>
           <textarea id="license-key" value={key} onChange={e => setKey(e.target.value)} rows={3} spellCheck={false} autoComplete="off" placeholder="PAL1-…"
             className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-xs text-slate-900 outline-none focus:border-brand-400" />
         </div>

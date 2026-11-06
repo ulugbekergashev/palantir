@@ -32,8 +32,9 @@
  *      Oddiy /c/ so'rovi bu belgini ololmaydi.
  *  10. Litsenziya: holat xabarida (heartbeat) aktivlashtirilganmi va necha kun qolgani; POST /admin/clinics/<klinika>/license
  *      (admin kaliti) — klinikadan kompyuter kodi olinadi, LICENSE_SIGNING_KEY bilan imzolanadi va kalit klinikaga yuboriladi.
- *  11. O'zi ulanish: POST /api/register {machineId, name} — yangi o'rnatilgan Palantir Hub kodini o'zi oladi (server/hubJoin.ts);
- *      /admin ro'yxatida «tasdiqlanmagan». Cheklov: bir manzildan HUB_REGISTER_PER_IP (3) va kuniga jami HUB_REGISTER_PER_DAY (30); HUB_REGISTRATION=0 — yopiq.
+ *  11. O'zi ulanish (asosiy yo'l): POST /api/register {machineId, name} — yangi o'rnatilgan Palantir Hub kodini o'zi oladi (server/hubJoin.ts);
+ *      /admin ro'yxatida «tasdiqlanmagan», sotuvchiga Telegram'da xabar (kompyuter kodisiz). /admin dagi «Tasdiqlash va aktivlashtirish»
+ *      approve + license ni ketma-ket chaqiradi. Cheklov: bir manzildan HUB_REGISTER_PER_IP (3) va kuniga jami HUB_REGISTER_PER_DAY (30); HUB_REGISTRATION=0 — yopiq.
  *      Ro'yxatdan o'tishni internetdagi har kim qila oladi, shuning uchun sotuvchi tasdiqlaguncha (POST /admin/clinics/<klinika>/approve —
  *      egasi panelidagi kompyuter kodi bilan solishtiriladi) bunday kompyuter karantinda: /c/ orqali hech narsa bermaydi (klinika panellari
  *      va ularning kirish kalitlari shu manzilda turadi — begona sahifa ular yonida ochilmasin), jamoa kirishi, litsenziya, zaxira va
@@ -446,6 +447,8 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     registerHits.set(ip, [...fromIp, Date.now()]);
     const id = newId(), secret = randomBytes(24).toString('base64url');
     db.prepare('INSERT INTO clinics (id, name, key_hash, created_at, machine_id, self, approved) VALUES (?, ?, ?, ?, ?, 1, 0)').run(id, name, sha(secret), now(), machine);
+    // Sotuvchi ro'yxatni kuzatib o'tirmasin. Kompyuter kodi xabarga yozilmaydi: tasdiqlash — o'rnatuvchi ekrandan aytgan kod bilan
+    void alert(`🆕 Yangi kompyuter Hub'ga yozildi: «${name}». Siz o'rnatayotgan bo'lsa — o'rnatuvchidan ekrandagi kompyuter kodini so'rab, ${cfg.publicUrl}/admin da «Tasdiqlash va aktivlashtirish»ni bosing. Tanimasangiz — «O'chirish».`);
     return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl, id, secret) });
   }
 
