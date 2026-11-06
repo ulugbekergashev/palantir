@@ -4,6 +4,7 @@ import { adminApi, api, putKey } from '../../data/api';
 import { Button, Card } from '../../components/ui';
 import { KEYS, classifyText, maskSecret, type Classified, type KeyName } from '../../lib/secrets';
 import type { KeyView } from '../../types';
+import { ClaudeObuna } from './ClaudeObuna';
 
 /** Boshqa qadamga o'tkaziladigan narsalar: kalit emas, lekin o'rnatuvchi shu maydonga qo'ygan */
 export interface Routed { crmUrl: string; crmPassword: string; phone: string; instagram: string; rtsp: string[] }
@@ -79,6 +80,9 @@ export function StepKeys({ keys, onKeys, onRouted, profile }: {
     void saveKey(line, as);
   };
 
+  // Obunaga kirildi yoki AI yo'li almashdi: Claude kaliti majburiyligi o'zgaradi
+  const refreshKeys = () => { list().then(r => onKeys(r.keys), () => {}); };
+
   const [removeError, setRemoveError] = useState('');
   const remove = async (name: KeyName) => {
     try {
@@ -112,6 +116,8 @@ export function StepKeys({ keys, onKeys, onRouted, profile }: {
           <p className="flex items-center gap-1.5 text-xs text-slate-500"><Lock className="h-3.5 w-3.5" aria-hidden="true" /> Turi qolip bo'yicha aniqlanadi — kalit AI'ga yuborilmaydi. Saqlanganlari shifrlanib faqat klinika kompyuterida turadi.</p>
         </div>
       </Card>
+
+      {profile && <ClaudeObuna onChange={refreshKeys} />}
 
       {lines.length > 0 && (
         <ul className="space-y-2" aria-live="polite">

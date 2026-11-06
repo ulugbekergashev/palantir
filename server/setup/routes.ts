@@ -17,6 +17,8 @@ import { vault } from '../brain/vault';
 import { businesses, type BusinessRow } from '../db';
 import { anketas } from './anketaStore';
 import { keyList, removeKey, setKey } from '../keys';
+import { apiKeyPresent } from '../subscription/engine';
+import { cancelLogin, loginView, obunaStatus, sendCode, setEngine, startLogin } from '../subscription/login';
 import { anketaData, anketaView, applyAnketa, createAnketa, fetchAnketa, liveAnketa, parseAnketa } from './anketa';
 import { gapsOf } from './gaps';
 import { setupOf } from './state';
@@ -36,6 +38,9 @@ interface Deps {
 }
 
 const KeyBody = z.object({ value: z.string().max(400), force: z.boolean().optional() });
+/** Claude sahifasi ko'rsatgan kod: «kod#state», bo'sh joy va yangi qatorsiz (dasturning kirishiga bitta qator bo'lib yoziladi) */
+const ObunaCode = z.object({ code: z.string().trim().max(2000).regex(/^[^\s#]+#[^\s#]+$/) });
+const ObunaEngine = z.object({ engine: z.enum(['api', 'subscription']) });
 const NewAnketa = z.object({ label: z.string().trim().min(1).max(60), industry: z.string().trim().max(80).default('') });
 const SaveAnketa = z.object({ data: z.unknown(), submit: z.boolean().optional() });
 const ImportAnketa = z.union([
@@ -97,6 +102,30 @@ export function mountSetup(app: Express, { asBiz, asAdmin, bad, fail, bot, statu
     const name = String(req.params.name);
     if (!isKeyName(name)) return res.status(404).json({ error: 'Bunday kalit yo\'q' });
     res.json({ key: await removeKey(name) });
+  }));
+
+  // ─── Claude obunasi (subscription/login.ts): klinika o'z obunasiga panel orqali kiradi, AI o'zi obunaga o'tadi
+  app.get('/api/keys/obuna', asProfile(async (req, res) => res.json(await obunaStatus(req.query.fresh === '1'))));
+  app.post('/api/keys/obuna/kirish', asProfile((_req, res) => {
+    try {
+      res.json({ login: startLogin() });
+    } catch (e) { fail(res, e, 400); }
+  }));
+  app.delete('/api/keys/obuna/kirish', asProfile((_req, res) => { cancelLogin(); res.json({ login: loginView() }); }));
+  app.post('/api/keys/obuna/kod', asProfile((req, res) => {
+    const p = ObunaCode.safeParse(req.body);
+    if (!p.success) return res.status(400).json({ error: "Kod to'liq emas: sahifadagi kodni butunlay nusxalang" });
+    try {
+      res.json({ login: sendCode(p.data.code) });
+    } catch (e) { fail(res, e, 409); }
+  }));
+  app.post('/api/keys/obuna/engine', asProfile(async (req, res) => {
+    const p = ObunaEngine.safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    if (p.data.engine === 'subscription' && !(await obunaStatus(true)).loggedIn) return res.status(400).json({ error: 'Avval Claude obunasiga kiring' });
+    if (p.data.engine === 'api' && !apiKeyPresent()) return res.status(400).json({ error: 'Claude API kaliti kiritilmagan' });
+    setEngine(p.data.engine);
+    res.json(await obunaStatus());
   }));
 
   /** Ulash ustasi biznes kabineti nomidan ishlaydi (CRM, kameralar, Telegram): admin parolini bilgan kabinetga ham kira oladi */

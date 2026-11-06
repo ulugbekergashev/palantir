@@ -57,11 +57,14 @@ async function changed(name: KeyName): Promise<void> {
   }
 }
 
+/** AI obuna orqali ishlasa (subscription/login.ts) Claude kaliti majburiy emas */
+const requiredNow = (k: (typeof KEYS)[number]): boolean => !!k.required && !(k.name === 'ANTHROPIC_API_KEY' && env.aiEngine === 'subscription');
+
 export function keyList(): KeyView[] {
   return KEYS.map(k => {
     const v = valueOf(k.name);
     const panel = stored.get(k.name);
-    return { name: k.name, label: k.label, where: k.where, required: !!k.required, source: panel ? 'panel' : v ? 'env' : null, masked: v ? maskSecret(v) : null, updatedAt: panel?.updatedAt ?? null };
+    return { name: k.name, label: k.label, where: k.where, required: requiredNow(k), source: panel ? 'panel' : v ? 'env' : null, masked: v ? maskSecret(v) : null, updatedAt: panel?.updatedAt ?? null };
   });
 }
 

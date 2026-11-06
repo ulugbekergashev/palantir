@@ -738,6 +738,16 @@ export interface KeyView {
 }
 export type KeyCheck = { ok: true; info: string; warn?: string } | { ok: false; error: string; canForce: boolean };
 
+/** AI qayerdan ishlaydi: API kalit yoki shu kompyuterdagi Claude obunasi (server/subscription/login.ts) */
+export type AiEngine = 'api' | 'subscription';
+/** Obunaga kirish jarayoni: url — boshqa qurilmada ochiladigan havola (sahifa kod ko'rsatadi) */
+export interface ObunaLogin { running: boolean; url: string | null; ok: boolean; error: string | null }
+/**
+ * Claude obunasi holati. available — Palantir bilan kelgan Claude dasturi bor; plan — pro, max, team…;
+ * engine — AI hozir qayerdan ishlayapti; apiKey — API kalit ham kiritilgan (kalitga qaytsa bo'ladi)
+ */
+export interface ObunaStatus { available: boolean; loggedIn: boolean; plan: string | null; email: string | null; engine: AiEngine; apiKey: boolean; login: ObunaLogin | null }
+
 /** Bo'shliq: Palantir'ga yetishmagan yoki zid narsa — egasidan so'raladi */
 export interface Gap {
   /** gap:… — suhbatdagi savol id'si shu bilan boshlanadi */

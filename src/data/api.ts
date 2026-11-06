@@ -3,7 +3,7 @@ import type { BrainView, Call, Camera, CameraAccuracy, CameraSummary, CameraTimi
 import type { PriceLine } from '../lib/prices';
 import type { AnketaData } from '../lib/anketa';
 import type { KeyName } from '../lib/secrets';
-import type { AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveCheck, SetupView } from '../types';
+import type { AiEngine, AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView, LiveCheck, ObunaLogin, ObunaStatus, SetupView } from '../types';
 import type { AutoReply, Business, ChatEntry, DirectorView, Doc, GoalView, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
@@ -304,6 +304,12 @@ export const api = {
   /** Klinika kalitlari (bitta-profil serverida) */
   keys: () => call<{ keys: KeyView[] }>('/keys'),
   removeKey: (name: KeyName) => call<{ key: KeyView }>(`/keys/${name}`, { method: 'DELETE' }),
+  /** Claude obunasi (server/subscription/login.ts): holat, kirish, boshqa qurilmadagi kod, AI qayerdan ishlaydi */
+  obuna: (fresh = false) => call<ObunaStatus>(`/keys/obuna${fresh ? '?fresh=1' : ''}`),
+  obunaLogin: () => call<{ login: ObunaLogin }>('/keys/obuna/kirish', { body: {} }),
+  obunaCancel: () => call<{ login: ObunaLogin | null }>('/keys/obuna/kirish', { method: 'DELETE' }),
+  obunaCode: (code: string) => call<{ login: ObunaLogin }>('/keys/obuna/kod', { body: { code } }),
+  setAiEngine: (engine: AiEngine) => call<ObunaStatus>('/keys/obuna/engine', { body: { engine } }),
   /** Parolni almashtirish: boshqa qurilmalardagi kirish bekor, shu qurilma uchun yangi kalit qaytadi */
   changePassword: (current: string, next: string) => call<{ token: string }>('/account/password', { body: { current, next } }),
   signOutOthers: () => call<{ token: string }>('/account/sign-out-others', { body: {} }),
