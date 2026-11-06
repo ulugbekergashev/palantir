@@ -18,7 +18,7 @@ import { phoneKey, prettyPhone } from '../src/lib/phone';
 import { iso, stamp } from '../src/lib/week';
 import { namesFit, patientFor, patientHasPhone, phoneVerified, proofFor, samePerson } from '../server/personRules';
 import { cleanDue, daytime, firstRemind } from '../server/requests/timing';
-import { unsupportedOffer } from '../server/inbox/offerGuard';
+import { unknownNumber, unsupportedOffer } from '../server/inbox/offerGuard';
 import { CUSTOMER, OWNER, ai, aiServer, igWeb, igWebServer, listen, press, say, sent, shareContact, sleep, tgNames, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
 
@@ -55,6 +55,20 @@ console.log('\n# Javobdagi narx va chegirma (sof)');
     && !unsupportedOffer("+998 90 123 45 67 ga qo'ng'iroq qiling", k) && !unsupportedOffer('Soat 10:00 da ochiqmiz', k));
   ok("ma'lumotda yo'q narx, foiz, chegirma — egasiga", unsupportedOffer('Narxi 400 ming', k) && unsupportedOffer('Sizga 20% chegirma', k)
     && unsupportedOffer('Скидка 10%', k) && unsupportedOffer("1 200 000 so'm", k));
+}
+
+console.log('\n# Javobdagi telefon, karta va hisob raqami (sof)');
+{
+  // Kommo AI agenti mijozlarga bilimda yo'q hisob raqamini aytgan — pul begona hisobga ketgan (replica/kommo/feedback.md).
+  // Bizda: saqlangan ma'lumotlarda (yoki mijozning o'z gapida) yo'q uzun raqam javobda bo'lsa — o'zi ketmaydi.
+  const k = "Tel +998 90 123 45 67. Oldindan to'lov kartaga: 8600 1234 5678 9012. Mijoz: raqamim 93 555 44 33";
+  ok("bilimdagi telefon va karta — boshqa yozilishda ham o'tadi", !unknownNumber("90 123 45 67 ga qo'ng'iroq qiling", k)
+    && !unknownNumber('+998901234567', k) && !unknownNumber('Karta: 8600123456789012', k) && !unknownNumber('8600-1234-5678-9012 ga', k));
+  ok("mijozning o'z raqami — o'tadi", !unknownNumber("Sizga +998 93 555 44 33 raqamiga qo'ng'iroq qilamiz", k));
+  ok("sana, vaqt va narx — raqam deb ushlanmaydi", !unknownNumber("12.11.2026 kuni soat 10:00 da, 2026-11-12", k) && !unknownNumber("Plomba 350 000 so'm", k));
+  ok("bilimda yo'q telefon — egasiga", unknownNumber("+998 91 999 88 77 ga yozing", k) && unknownNumber('(71) 200-11-22', k));
+  ok("bilimda yo'q karta yoki hisob raqami — egasiga", unknownNumber("To'lovni 8600 9999 8888 7777 kartaga o'tkazing", k)
+    && unknownNumber('9860-1111-2222-3333', k) && unknownNumber('Hisob: 20208000900123456789', k));
 }
 
 console.log('\n# Eslatma vaqti (sof)');
