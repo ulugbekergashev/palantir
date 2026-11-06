@@ -91,6 +91,13 @@ export interface LicenseView { activated: boolean; machineId: string; issuedAt: 
 /** Palantir jamoasi kirishi: egasi ruxsat berganmi, hozirgi kirish jamoanikimi (mine), oxirgi kirishlar */
 /** allowed — doimiy ruxsat (so'ramasdan); until — egasi Telegram'da bergan bir martalik ruxsat shu paytgacha ochiq */
 export interface SupportAccessView { allowed: boolean; until: string | null; hub: boolean; mine: boolean; visits: { at: string; ip: string | null; who: string | null }[] }
+/** Palantir jamoasiga yordam so'rovi (server/help.ts): javob jamoa /admin da yozganda keladi */
+export interface HelpRequestView {
+  id: string; text: string; by: string | null; withDiag: boolean; createdAt: string;
+  answer: string | null; answeredAt: string | null; answeredBy: string | null;
+}
+/** hub — so'rov yuborish mumkinmi; support — hozirgi kirish Palantir jamoasiniki (u o'ziga so'rov yubormaydi) */
+export interface HelpView { hub: boolean; support: boolean; requests: HelpRequestView[] }
 
 /**
  * Server bilan ishlash. Token — shu brauzerda; hub orqali — har klinikaniki alohida (hammasi bitta hub manzilida turadi:
@@ -305,6 +312,9 @@ export const api = {
   activateLicense: (key: string) => call<{ license: LicenseView }>('/license', { body: { key } }),
   supportAccess: () => call<SupportAccessView>('/account/support'),
   setSupportAccess: (allowed: boolean) => call<{ allowed: boolean }>('/account/support', { method: 'PUT', body: { allowed } }),
+  help: () => call<HelpView>('/help'),
+  /** diag — so'rov bilan kompyuter holati va texnik jurnallar (parol va kalitlarsiz) ham boradi */
+  askHelp: (text: string, diag: boolean) => call<{ request: HelpRequestView }>('/help', { body: { text, diag } }),
   /** Mijoz so'rasa: karta, yozishmalar, so'rovlar, qo'ng'iroqlar va yozuvlari — butunlay */
   forgetLead: (leadId: string) => call<{ ok: true }>(`/leads/${leadId}`, { method: 'DELETE' }),
   thread: (leadId: string) => call<{ lead: Lead; messages: InboxMessage[]; replies: ReplyDraft[] }>(`/inbox/${leadId}`),

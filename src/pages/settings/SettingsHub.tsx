@@ -1,12 +1,13 @@
 /**
  * Sozlamalar — jamoa qayerda ishlashi. Tepada har ulanishning holati (plitka: ulangan / ulanmagan / muammo) va jonli tekshiruv, bosilgan plitka pastda ochiladi:
- * Asosiy (ism, til, javob rejimi, mijozlar havolasi), Telegram, Instagram, DentaCRM, Telefon liniyasi; Kameralar — Kuzatuvchi'da.
+ * Asosiy (ism, til, javob rejimi, mijozlar havolasi), Telegram, Instagram, DentaCRM, Telefon liniyasi, Yordam (Palantir jamoasiga so'rov);
+ * Kameralar — Kuzatuvchi'da.
  * Manzil: #/sozlamalar/<bo'lim>.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Camera as CameraIcon, MessageCircleHeart, Phone, Send, Settings, Sparkles, Stethoscope, Users, type LucideIcon } from 'lucide-react';
+import { Camera as CameraIcon, LifeBuoy, MessageCircleHeart, Phone, Send, Settings, Sparkles, Stethoscope, Users, type LucideIcon } from 'lucide-react';
 import type { Business, LiveStatus } from '../../types';
-import { api, type PhoneLine } from '../../data/api';
+import { api, type HelpView, type PhoneLine } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { isClinic } from '../../data/industries';
 import { hrefOf } from '../../lib/nav';
@@ -17,6 +18,7 @@ import { ClientLink, Instagram, InstagramOfficial, OwnerBot, RemoteAccess, Reply
 import { PhoneLineSettings } from './PhoneLine';
 import { StaffLogins } from './StaffLogins';
 import { SupportAccess } from './SupportAccess';
+import { HelpRequest } from './HelpRequest';
 
 type Tone = 'on' | 'off' | 'warn';
 interface Tile { id: string; name: string; icon: LucideIcon; tone: Tone; state: string; href?: string }
@@ -39,12 +41,16 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
 }) {
   const [line, setLine] = useState<PhoneLine | null>(null);
   const [cameras, setCameras] = useState<number | null>(null);
+  const [help, setHelp] = useState<HelpView | null>(null);
   useEffect(() => {
     let stale = false;
     api.phoneLine().then(r => { if (!stale) setLine(r.line); }).catch(() => {});
     api.cameras().then(r => { if (!stale) setCameras(r.cameras.length); }).catch(() => {});
+    // Xodimga (qabulxona) yopiq bo'lsa — plitka «…» bo'lib qoladi, bo'lim ochilmaydi
+    api.help().then(r => { if (!stale) setHelp(r); }).catch(() => {});
     return () => { stale = true; };
   }, [tab]);
+  const waiting = help?.requests.filter(r => !r.answer).length ?? 0;
 
   const clinic = isClinic(biz.industry, !!status.crm.account);
   const ig = status.instagramApi.account ?? status.instagram.account;
@@ -58,6 +64,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
     { id: 'xodimlar', name: 'Xodimlar', icon: Users, tone: 'on', state: 'panelga kirish va huquqlar' },
     { id: 'kameralar', name: 'Kameralar', icon: CameraIcon, tone: cameras ? 'on' : 'off', state: cameras == null ? '…' : cameras ? `${cameras} ta kamera` : "kamera yo'q", href: hrefOf('kuzatuvchi', 'ulash') },
     { id: 'ai', name: 'AI va ovoz', icon: Sparkles, tone: status.ai ? (status.voice ? 'on' : 'warn') : 'warn', state: status.ai ? (status.voice ? 'ishlayapti' : 'ovozli xabar o‘chiq') : 'AI kaliti yo‘q', href: '#/ulash' },
+    { id: 'yordam', name: 'Yordam', icon: LifeBuoy, tone: help?.hub ? 'on' : 'off', state: !help ? '…' : !help.hub ? 'Hub ulanmagan' : waiting ? `${waiting} ta javob kutilmoqda` : 'Palantir jamoasiga yozish' },
   ];
   const active = tiles.some(t => t.id === tab && !t.href) ? tab! : 'asosiy';
 
@@ -90,6 +97,11 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
             <AccountCard notify={notify} />
           </div>
         </div>
+      )}
+      {active === 'yordam' && help && (
+        <Part title="Palantir jamoasidan yordam" hint="Muammoni o'z so'zingiz bilan yozing — Palantir'ni o'rnatgan jamoa ko'radi, javobi shu yerga va Telegram'ingizga keladi.">
+          <HelpRequest view={help} onAsked={r => setHelp({ ...help, requests: [r, ...help.requests] })} notify={notify} />
+        </Part>
       )}
       {active === 'telegram' && (
         <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">

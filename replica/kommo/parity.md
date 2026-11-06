@@ -77,3 +77,4 @@ Not shippable yet: 13 must-have features are not done.
 - Ertalabki reja va kechki «kun qanday o'tdi» egasiga Telegram'da
 - Reklama filtri: tibbiy va'dalar mijozga o'zi ketmaydi
 - Internetsiz klinika tarmog'i va kompyuter o'chib yonsa ham davom etish
+- Yordam so'rash: egasi muammoni yozadi (panel yoki /yordam) → Palantir jamoasi javobi Telegram'iga

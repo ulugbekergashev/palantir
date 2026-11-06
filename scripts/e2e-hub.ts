@@ -6,6 +6,7 @@
  *   Diagnostika: admin panelidan hubga — holat va jurnallar, kalitlarsiz.
  *   Palantir jamoasi: hubdagi «Panelni ochish» — egasining roziligi bilan (Telegram'da ✅/✖️ yoki doimiy ruxsat), har kirish egasiga
  *   aytiladi va yopiladi, soxtalashtirib bo'lmaydi. O'zi ulangan kompyuter — sotuvchi kompyuter kodi bilan tasdiqlaguncha karantinda.
+ *   Yordam so'rash: egasi panelda yoki botda (/yordam) yozadi → sotuvchiga Telegram'da → /admin da javob → egasining Telegramiga va panelga.
  * Haqiqiy hub va Palantir jarayonlari, soxta Telegram (sotuvchining boti ham, klinika boti ham — bitta soxta server).
  */
 process.env.TZ = 'Asia/Tashkent';
@@ -222,7 +223,7 @@ try {
 
   console.log("\n# Yordam so'rash: egasi yozadi → jamoa /admin da javob beradi → egasining Telegramiga");
   type HelpReq = { id: string; text: string; by: string | null; withDiag: boolean; answer: string | null; answeredBy: string | null };
-  type HubHelp = { id: string; clinicId: string; clinicName: string; text: string; diag: string | null; answer: string | null };
+  type HubHelp = { id: string; clinicId: string; clinicName: string; business: string | null; text: string; diag: string | null; answer: string | null };
   const askJson = (body: unknown, auth = owner) => ({ method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const helpView = async () => await (await viaHub('/api/help', { headers: owner })).json() as { hub: boolean; support: boolean; requests: HelpReq[] };
   const hubHelp = async (key: Record<string, string> = admin) => (await (await fetch(`${HUB}/admin/help`, { headers: key })).json() as { help: HubHelp[] }).help;
@@ -250,10 +251,23 @@ try {
   mark = sent.length;
   ok('jamoa /admin da javob yozdi', (await answerHelp(item!.id, 'Tekshirdik: Instagram tokeni yangilandi, endi javob ketadi')).status === 200);
   const toldAnswer = await waitFor('javob egasiga', () => toOwner(mark, 'Tekshirdik'), 15_000);
-  ok("javob egasining Telegramiga keldi — so'rovi bilan birga", String(toldAnswer?.params.text ?? '').includes("Instagram'ga javob ketmayapti"), String(toldAnswer?.params.text ?? ''));
+  const toldText = String(toldAnswer?.params.text ?? '');
+  ok("javob egasining Telegramiga keldi — so'rovi bilan; asosiy kalit bilan yozilgani «Palantir jamoasi» deb (shaxs nomi emas)", toldText.includes("Instagram'ga javob ketmayapti")
+    && toldText.includes('Palantir jamoasi javob berdi') && !toldText.includes('Asosiy kalit'), toldText);
   const shown = (await helpView()).requests.find(r => r.id === item!.id);
-  ok('panelda: so\'rov va jamoaning javobi', !!shown?.answer?.includes('Tekshirdik') && shown.withDiag && !!shown.answeredBy, JSON.stringify(shown));
+  ok("panelda: so'rov va jamoaning javobi (asosiy kalit — ism yo'q, «Palantir jamoasi» deb chiqadi)", !!shown?.answer?.includes('Tekshirdik') && shown.withDiag && shown.answeredBy === null, JSON.stringify(shown));
   ok("bitta so'rovga ikkinchi javob — 409", (await answerHelp(item!.id, 'Yana javob')).status === 409);
+  const resend = (id: string) => fetch(`${HUB}/admin/help/${id}/resend`, { method: 'POST', headers: admin });
+  ok("«Qayta yuborish»: javob klinikaga qayta navbatga; yetib borgani egasiga ikkinchi marta yozilmaydi", (await resend(item!.id)).status === 200
+    && (await sleep(2500), sent.slice(mark).filter(s => s.method === 'sendMessage' && Number(s.params.chat_id) === OWNER && String(s.params.text).includes('Tekshirdik')).length === 1));
+  // Klinika so'rovni yozib ulgurmagan (hub qabul qildi, javobi yetmadi): javob hub aytgan biznes bo'yicha baribir egasiga yetadi
+  const orphan = await (await fetch(`${HUB}/api/help`, { method: 'POST', headers: { authorization: `Bearer ${parseHubCode(clinic.code)!.key}` }, body: JSON.stringify({ text: "Javobi yetmagan so'rov", business: item!.business ?? '' }) })).json() as { id?: string };
+  ok("javobsiz so'rovni qayta yuborib bo'lmaydi — 409", !!orphan.id && (await resend(orphan.id)).status === 409);
+  mark = sent.length;
+  await answerHelp(orphan.id!, 'Yetmagan so\'rovga javob');
+  const toldOrphan = await waitFor('yetmagan so\'rovga javob', () => toOwner(mark, "Yetmagan so'rovga javob"), 15_000);
+  ok("klinikada yozilmagan so'rovga javob ham egasiga keladi — so'rov matni bilan, panelda ham", String(toldOrphan?.params.text ?? '').includes("Javobi yetmagan so'rov")
+    && (await helpView()).requests.some(r => r.id === orphan.id && r.answer?.includes('Yetmagan')), String(toldOrphan?.params.text ?? ''));
   mark = sent.length;
   say(OWNER, '/yordam');
   ok("botda /yordam matnsiz — qanday yozishni aytadi, hech narsa yubormaydi", !!(await waitFor('yordam ko\'rsatma', () => toOwner(mark, '/yordam '), 10_000)) && !toVendor(mark, "yordam so'radi").length);
@@ -262,6 +276,13 @@ try {
   ok("botda /yordam matn bilan — egasiga «yuborildi», jamoaga xabar", !!(await waitFor('yordam bot', () => toOwner(mark, 'yuborildi'), 15_000))
     && !!(await waitFor('jamoaga bot so\'rovi', () => toVendor(mark, 'Kamera rasmi')[0], 10_000)));
   ok("bot so'rovi panelda ham ko'rinadi", (await helpView()).requests.some(r => r.text.includes('Kamera rasmi') && r.withDiag));
+  const named = await (await fetch(`${HUB}/admin/team`, { method: 'POST', headers: admin, body: JSON.stringify({ name: 'Ulugbek', login: 'ulugbek', role: 'founder' }) })).json() as { password?: string };
+  const namedKey = { authorization: `Bearer ${(await (await fetch(`${HUB}/admin/login`, { method: 'POST', body: JSON.stringify({ login: 'ulugbek', password: named.password }) })).json() as { token?: string }).token}` };
+  const botAsk = (await hubHelp(namedKey)).find(h => h.text.includes('Kamera rasmi'));
+  mark = sent.length;
+  const namedAnswer = botAsk ? await answerHelp(botAsk.id, "Kamera kabelini tekshiring, rasm qaytdi", namedKey) : null;
+  const toldNamed = await waitFor('ismli javob', () => toOwner(mark, 'Kamera kabelini'), 15_000);
+  ok("o'z hisobi bilan javob bergan jamoa a'zosi — egasiga ismi bilan", namedAnswer?.status === 200 && String(toldNamed?.params.text ?? '').includes('Palantir jamoasidan Ulugbek javob berdi'), String(toldNamed?.params.text ?? ''));
 
   console.log('\n# Litsenziya: kalitsiz muddat');
   type LicenseView = { activated: boolean; machineId: string; daysLeft: number; blocked: boolean };

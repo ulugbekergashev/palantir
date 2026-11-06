@@ -8,7 +8,7 @@ import type { Lang, MoneyEntry, MoneyStatus, Outbound, Task } from '../src/types
 import { isClinic } from '../src/data/industries';
 import { crmConnected } from './crm/index';
 import { cameras, leads, type BusinessRow, type LeadRow } from './db';
-import { voiceEnabled } from './env';
+import { env, voiceEnabled } from './env';
 
 export const langOf = (b: BusinessRow): Lang => b.profile.contentLang ?? 'uz';
 export const cut = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 1)}…`);
@@ -130,6 +130,7 @@ export function helpFor(biz: BusinessRow): string {
     '/vazifalar — ochiq vazifalar',
     "/savollar — mijozlar ko'p so'raydigan savollarni birma-bir so'rayman, javobingizni eslab qolaman",
     '/yangi — yangi suhbat (oldingisini unutadi, vazifa va mijozlar qoladi)',
+    ...(env.hub ? ["/yordam — muammo bo'lsa Palantir jamoasiga yozing (masalan: «/yordam Instagram'ga javob ketmayapti»), javob shu yerga keladi"] : []),
   ].join('\n');
 }
 

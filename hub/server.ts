@@ -42,6 +42,9 @@
  *  12. Jamoa (team.ts): /admin ga har kishi o'z logini bilan (POST /admin/login → 12 soatlik kalit); asoschi — hammasi, o'rnatuvchi —
  *      ro'yxat, «Yangi klinika», panel, diagnostika. HUB_ADMIN_KEY — asosiy kalit (asoschi). Hisoblar: /admin/team (asoschi), jurnal:
  *      /admin/audit. Panelga kirishda kimligi klinikaga beriladi (who) — egasi Telegram'da va Sozlamalarda ko'radi.
+ *  13. Yordam so'rash (help.ts): egasi muammoni yozadi (panel → Sozlamalar → Yordam yoki botda /yordam) → POST /api/help, xohlasa
+ *      diagnostika bilan → sotuvchiga Telegram'da. GET /admin/help — ro'yxat (o'rnatuvchi — o'z klinikalari), POST
+ *      /admin/help/<id>/answer — javob navbat orqali klinikaga (help_answer): egasining Telegramiga va panelga. Karantinda yopiq.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -61,6 +64,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { adminPage } from './admin.ts';
+import { createHelp, HelpError, type HelpRow } from './help.ts';
 import { issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
 import { createTeam, TeamError, type HubRole, type Member } from './team.ts';
 import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
@@ -146,6 +150,8 @@ const stateSecret = ((): string => {
 
 /** Jamoa hisoblari va jurnal (team.ts): asosiy kalit (HUB_ADMIN_KEY) — asoschi sifatida */
 const team = createTeam(db, stateSecret, () => cfg.adminKey);
+/** Yordam so'rovlari (help.ts, 13-band) */
+const help = createHelp(db);
 
 const now = () => new Date().toISOString();
 /**
@@ -298,6 +304,28 @@ function memberOf(req: IncomingMessage, res: ServerResponse, need: HubRole = 'in
 const mine = (who: Member, clinicId: string) => who.role === 'founder'
   || (db.prepare('SELECT created_by FROM clinics WHERE id = ?').get(clinicId) as { created_by: string | null } | undefined)?.created_by === who.id;
 const teamFail = (res: ServerResponse, e: unknown) => { if (e instanceof TeamError) return send(res, e.code, { error: e.message }); throw e; };
+const helpFail = (res: ServerResponse, e: unknown) => { if (e instanceof HelpError) return send(res, e.code, { error: e.message }); throw e; };
+/** Sotuvchiga Telegram xabarida so'rov matnidan shuncha (to'liqi — /admin da) */
+const HELP_ALERT_CHARS = 1500;
+/** Yordam so'rovi — sotuvchiga Telegram'da. Yetmasa — jurnalga; nazorat sikli (watch) qayta urinadi */
+async function alertHelp(h: HelpRow): Promise<void> {
+  const name = (db.prepare('SELECT name FROM clinics WHERE id = ?').get(h.clinicId) as { name: string } | undefined)?.name ?? h.clinicId;
+  const where = h.businessName && h.businessName !== name ? `«${name}» (${h.businessName})` : `«${name}»`;
+  const said = await alert(`🆘 ${where} yordam so'radi${h.by ? ` — ${h.by}` : ''}:\n${h.text.slice(0, HELP_ALERT_CHARS)}\n\nJavob berish: ${cfg.publicUrl || `http://127.0.0.1:${cfg.port}`}/admin`);
+  if (said) help.markAlerted(h.id);
+  else if (cfg.botToken && cfg.alertChat) console.warn(`[hub] yordam so'rovi ${h.id} sotuvchiga Telegram'da yetmadi — qayta uriniladi`);
+}
+/** Javob klinikaga navbat orqali. asked — klinika so'rovni yozib ulgurmagan bo'lsa ham egasiga so'rovi bilan yetsin */
+const deliverHelp = (h: HelpRow) => enqueue(h.clinicId, 'help_answer', { id: h.id, business: h.business, text: h.answer, who: h.answeredBy, asked: h.text });
+/** Klinika yuborgan diagnostika — klinika papkasiga, oxirgi DIAG_KEEP tasi qoladi. Qaytaradi: fayl nomi */
+function saveDiag(clinicId: string, raw: Buffer): string {
+  const dir = join(cfg.diagDir, clinicId), file = `${now().replace(/[:.]/g, '-')}.txt`;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, file), raw);
+  const all = readdirSync(dir).filter(n => n.endsWith('.txt')).sort();
+  for (const old of all.slice(0, Math.max(0, all.length - DIAG_KEEP))) rmSync(join(dir, old), { force: true });
+  return file;
+}
 const readJson = async (req: IncomingMessage): Promise<Record<string, unknown> | null> => {
   try { const v = JSON.parse((await readRaw(req))?.toString() || '{}') as unknown; return v && typeof v === 'object' ? v as Record<string, unknown> : null; } catch { return null; }
 };
@@ -596,6 +624,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     db.prepare('DELETE FROM events WHERE clinic_id = ?').run(id);
     db.prepare('DELETE FROM accounts WHERE clinic_id = ?').run(id);
     db.prepare('DELETE FROM clinics WHERE id = ?').run(id);
+    help.forget(id);
     relayQueue.delete(id);
     for (const dir of [join(cfg.backupDir, id), join(cfg.diagDir, id)]) rmSync(dir, { recursive: true, force: true });
     team.log(who, 'klinika.ochirildi', id);
@@ -671,12 +700,60 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
     const raw = await readRaw(req);
     if (!raw || !raw.length) return send(res, 413, { error: 'bo\'sh yoki juda katta' });
-    const dir = join(cfg.diagDir, clinic), file = `${now().replace(/[:.]/g, '-')}.txt`;
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, file), raw);
-    const all = readdirSync(dir).filter(n => n.endsWith('.txt')).sort();
-    for (const old of all.slice(0, Math.max(0, all.length - DIAG_KEEP))) rmSync(join(dir, old), { force: true });
-    return send(res, 200, { ok: true, file });
+    return send(res, 200, { ok: true, file: saveDiag(clinic, raw) });
+  }
+
+  // Klinika: yordam so'rovi (13-band) — egasining o'z so'zi, xohlasa diagnostika bilan. Sotuvchiga Telegram'da aytiladi
+  if (p === '/api/help' && req.method === 'POST') {
+    const clinic = clinicOf(req);
+    if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    // Karantin: ro'yxatdan o'tishni internetdagi har kim qila oladi — tasdiqlanmagan yozuv sotuvchining Telegramiga yoza olmasin
+    if (!approved(clinic)) return send(res, 403, { error: QUARANTINE });
+    const body = await readJson(req);
+    if (!body) return send(res, 400, { error: 'json' });
+    try {
+      const asked = help.ask(clinic, body);
+      if (typeof body.diag === 'string' && body.diag) help.attachDiag(asked.id, saveDiag(clinic, Buffer.from(body.diag)));
+      void alertHelp(asked);
+      return send(res, 200, { id: asked.id });
+    } catch (e) { return helpFail(res, e); }
+  }
+  if (p === '/admin/help' && req.method === 'GET') {
+    const who = memberOf(req, res); if (!who) return;
+    const names = new Map((db.prepare('SELECT id, name FROM clinics').all() as { id: string; name: string }[]).map(c => [c.id, c.name]));
+    return send(res, 200, { help: help.list(c => mine(who, c)).map(h => ({ ...h, clinicName: names.get(h.clinicId) ?? h.clinicId })) });
+  }
+  const answering = /^\/admin\/help\/([0-9a-f]{12})\/answer$/.exec(p);
+  if (answering && req.method === 'POST') {
+    const who = memberOf(req, res); if (!who) return;
+    const asked = help.get(answering[1]);
+    if (!asked || !mine(who, asked.clinicId)) return send(res, 404, { error: "So'rov topilmadi" });
+    const body = await readJson(req);
+    if (!body) return send(res, 400, { error: 'json' });
+    try {
+      // Javob va navbat birga: biri yozilib, ikkinchisi yozilmay qolsa — egasiga hech qachon yetmaydigan «berilgan» javob qoladi
+      db.exec('BEGIN IMMEDIATE');
+      let done: HelpRow;
+      try {
+        // Asosiy kalit (HUB_ADMIN_KEY) — shaxs emas: egasiga «Palantir jamoasi» deb boradi
+        done = help.answer(asked.id, who.id === 'kalit' ? null : who.name, body.text);
+        deliverHelp(done);
+        db.exec('COMMIT');
+      } catch (e) { db.exec('ROLLBACK'); throw e; }
+      team.log(who, 'yordam.javob', asked.clinicId, done.id);
+      return send(res, 200, { help: done });
+    } catch (e) { return helpFail(res, e); }
+  }
+  // Admin: javob klinikaga qayta (klinika navbat saqlanadigan 3 kundan ko'p o'chiq turgan bo'lsa). Yetib borganini klinika qayta yozmaydi
+  const resending = /^\/admin\/help\/([0-9a-f]{12})\/resend$/.exec(p);
+  if (resending && req.method === 'POST') {
+    const who = memberOf(req, res); if (!who) return;
+    const asked = help.get(resending[1]);
+    if (!asked || !mine(who, asked.clinicId)) return send(res, 404, { error: "So'rov topilmadi" });
+    if (!asked.answer) return send(res, 409, { error: 'Hali javob berilmagan' });
+    deliverHelp(asked);
+    team.log(who, 'yordam.qayta', asked.clinicId, asked.id);
+    return send(res, 200, { ok: true });
   }
   if (p === '/admin/diag' && req.method === 'GET') {
     const who = memberOf(req, res); if (!who) return;
@@ -835,6 +912,8 @@ async function watch(): Promise<void> {
     }
     const back = db.prepare('SELECT id, name FROM clinics WHERE alerted_at IS NOT NULL AND seen_at > alerted_at').all() as { id: string; name: string }[];
     for (const c of back) if (await alert(`✅ «${c.name}» yana aloqada.`)) db.prepare('UPDATE clinics SET alerted_at = NULL WHERE id = ?').run(c.id);
+    // Yordam so'rovi sotuvchiga yetmagan bo'lsa (Telegram ishlamagan, bot sozlanmagan edi) — qayta
+    if (cfg.botToken && cfg.alertChat) for (const h of help.unalerted()) await alertHelp(h);
   } finally {
     watching = false;
   }

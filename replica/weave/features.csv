@@ -84,3 +84,4 @@ Kamera: kelgan bemor to'lovsiz ketsa ogohlantirish,camera,should,no,yes,,,server
 Egasi Telegram'da ovoz bilan buyruq beradi,owner,should,no,yes,,,"server/bot.ts, server/stt.ts"
 Reklama filtri: tibbiy va'dalar mijozga o'zi ketmaydi,ai,must,no,yes,,,src/lib/compliance.ts
 Internetsiz klinika tarmog'i,platform,should,no,yes,,,server/lan.ts
+Yordam so'rash: egasi muammoni yozadi (panel yoki /yordam) → Palantir jamoasi javobi Telegram'iga,platform,should,no,yes,"replica-entrepreneur: «yordam javob bermaydi» — Kommo 92, Weave 39 sharh (fixes.md, F3)",,"server/help.ts, hub/help.ts, Sozlamalar → Yordam"

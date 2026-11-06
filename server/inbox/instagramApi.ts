@@ -13,6 +13,7 @@
 import { businesses, connections, inbox, type BusinessRow, type LeadRow } from '../db';
 import { env } from '../env';
 import { forgetInstagram } from '../forget';
+import { onHelpAnswer } from '../help';
 import { handleRelay, type RelayRequest } from '../remote';
 import { open, seal } from '../secret';
 import { isOurEcho, notifyOwner, onIncoming, onOwnerOutgoing, registerSender } from './core';
@@ -195,6 +196,8 @@ async function pullLoop(): Promise<void> {
           else if (e.kind === 'ig_entry') await onEntry(e.payload);
           else if (e.kind === 'ig_revoked') await onRevoked(e.payload);
           else if (e.kind === 'ig_delete') await onDelete(e.payload);
+          // Palantir jamoasi egasining yordam so'roviga javob berdi (help.ts)
+          else if (e.kind === 'help_answer') await onHelpAnswer(e.payload);
         } catch (err) {
           console.error(`[instagram] hub voqeasi (${e.kind}):`, (err as Error).message);
         }

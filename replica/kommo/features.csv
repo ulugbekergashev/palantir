@@ -83,3 +83,4 @@ Qo'ng'iroqda xodimga baho va «nima o'tkazib yuborildi»,calls,should,no,yes,,,"
 Ertalabki reja va kechki «kun qanday o'tdi» egasiga Telegram'da,owner,should,no,yes,,,"server/plan.ts, server/outcome.ts"
 Reklama filtri: tibbiy va'dalar mijozga o'zi ketmaydi,ai,must,no,yes,,,src/lib/compliance.ts
 Internetsiz klinika tarmog'i va kompyuter o'chib yonsa ham davom etish,platform,should,no,yes,,,"server/lan.ts, scripts/supervise.mjs"
+Yordam so'rash: egasi muammoni yozadi (panel yoki /yordam) → Palantir jamoasi javobi Telegram'iga,platform,should,no,yes,"replica-entrepreneur: «yordam javob bermaydi» — Kommo 92, Weave 39 sharh (fixes.md, F3)",,"server/help.ts, hub/help.ts, Sozlamalar → Yordam"

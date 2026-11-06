@@ -30,6 +30,7 @@ import { SilenceError, transcribe } from './stt';
 import { MAX_PHOTO_BYTES, describePhoto, photoMessage } from './vision';
 import { reviewCall } from './callreview';
 import { diagnostics, sendDiagnostics } from './diagnostics';
+import { HELP_TEXT_MAX, HELP_TEXT_MIN, HelpError, askHelp } from './help';
 import { toOgg } from './tts';
 import { phoneChanged } from './people';
 import { proofFor } from './personRules';
@@ -383,6 +384,23 @@ export function createBot(): BotService {
       await tg.sendDocument(String(ctx.chat.id), { source: Buffer.from(d.text), filename: d.name }, { caption: '🩺 Diagnostika — shu faylni sotuvchiga yuboring' });
     } catch (e) {
       await ctx.reply(`Diagnostika yuborilmadi: ${(e as Error).message}`);
+    }
+  });
+
+  // Yordam so'rash: egasi muammoni yozadi → Palantir jamoasiga (hub, diagnostika bilan); jamoaning javobi shu chatga keladi (help.ts)
+  bot.command('yordam', async ctx => {
+    const biz = ownerOf(ctx);
+    if (!biz) return;
+    const text = (ctx.payload ?? '').trim();
+    if (text.length < HELP_TEXT_MIN) {
+      return void await ctx.reply("Muammoni shu buyruq bilan yozing, masalan:\n/yordam Kechadan beri Instagram'dagi xabarlarga javob ketmayapti\n\nPalantir jamoasiga kompyuter holati va texnik jurnallar ham boradi (parol va kalitlarsiz). Javob shu yerga keladi.");
+    }
+    try {
+      await askHelp(biz, biz.profile.ownerName || null, text.slice(0, HELP_TEXT_MAX), true);
+      await ctx.reply("✅ Palantir jamoasiga yuborildi (kompyuter holati va texnik jurnallar bilan). Javob shu yerga keladi.");
+    } catch (e) {
+      await ctx.reply(e instanceof HelpError ? `Yuborilmadi: ${e.message}` : "Yuborilmadi — birozdan keyin qayta urining");
+      if (!(e instanceof HelpError)) console.error('[yordam] bot:', e);
     }
   });
 
@@ -743,6 +761,7 @@ export function createBot(): BotService {
                 { command: 'yangi', description: 'Yangi suhbat' },
                 ...(env.computerUse ? [{ command: 'toxta', description: "Kompyuterdagi ishni to'xtatish" }] : []),
                 ...(env.computerUse === 'browser' || env.computerUse === 'all' ? [{ command: 'brauzer', description: 'Saytga o\'zim kiraman (parol bilan)' }] : []),
+                { command: 'yordam', description: "Palantir jamoasidan yordam so'rash" },
                 { command: 'help', description: 'Nima qila olaman' },
               ]).catch(() => {});
               // Ulangan egalarga «Panel» tugmasi (hub manzili o'zgargan yoki masofadan kirish endi yoqilgan bo'lishi mumkin)

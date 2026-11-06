@@ -49,6 +49,7 @@ import { mountRequests } from './requests/routes';
 import { staff as staffStore, type StaffRow } from './requests/store';
 import { staffMay } from './access';
 import { mountTeamAccess } from './teamAccess';
+import { mountHelp } from './help';
 import { mountPhone } from './phone/routes';
 import { dashboard } from './analytics';
 import { funnel } from './funnel';
@@ -780,6 +781,7 @@ export function createApp(bot: BotService) {
   mountVoice(app, { asBiz, bad });
   mountRequests(app, { asBiz, bad, bot });
   mountTeamAccess(app, { asOwner, bad });
+  mountHelp(app, { asBiz, bad, fail, asker: req => { const s = sessionOf(req); return { support: !!s?.support, staffName: s?.staff?.name ?? null }; } });
   mountPhone(app, { asBiz, asOwner, bad, fail, clientKey });
   mountBrain(app, { asBiz, bad, fail });
   mountOrders(app, { asBiz, bad, fail, bot });

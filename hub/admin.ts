@@ -19,6 +19,9 @@
  * Kirish — har kishining o'z logini va paroli (hub/team.ts): kalit sahifa xotirasida, 12 soat. Login bo'sh qoldirilsa — parol
  * o'rniga asosiy kalit (HUB_ADMIN_KEY): birinchi asoschini ochish va favqulodda. Asoschi «Jamoa» (hisoblar: yangi, yangi parol,
  * yopish) va «Jurnal» (kim, qachon, qaysi klinikaga nima qildi) ni ko'radi; o'rnatuvchiga tasdiqlash, o'chirish va litsenziya yo'q.
+ *
+ * «Yordam so'rovlari» (help.ts): klinika egasi yozgan muammolar, javobsizlari tepada. Diagnostika so'rov bilan kelgan bo'lsa — shu yerda
+ * ochiladi. Javob egasining Telegramiga va paneliga boradi; bitta so'rovga bitta javob. Javob yozilayotganda ro'yxat yangilanmaydi.
  */
 
 export function adminPage(): string {
@@ -57,6 +60,10 @@ section h2{font-size:1.05rem;margin:0 0 8px}
 select{padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:inherit;font:inherit}
 .log li{display:block;padding:9px 12px;font-size:14px}.log small{color:var(--muted)}
 .off{opacity:.55}
+li.ask{display:block}.ask p{margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.ask textarea{display:block;width:100%;min-height:4.5em;margin:8px 0;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit;font:inherit;resize:vertical}
+.ask pre{max-height:20rem;overflow:auto;margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font:12px/1.4 ui-monospace,Consolas,monospace;white-space:pre-wrap}
+.ans{border-left:3px solid var(--ok);padding-left:10px;margin-top:8px}.ans small{color:var(--muted)}
 </style>
 <main>
 <h1>Palantir klinikalari</h1>
@@ -69,6 +76,7 @@ select{padding:9px 11px;border:1px solid var(--line);border-radius:10px;backgrou
 <div id="mcode" class="code" hidden></div>
 <ul id="members"></ul></section>
 <section id="audit" hidden><h2>Jurnal</h2><ul id="log" class="log"></ul></section>
+<section id="help" hidden><h2 id="helpTitle">Yordam so'rovlari</h2><ul id="helpList"></ul></section>
 <form id="new" hidden><input id="nm" placeholder="Kompyuter o'zi ulana olmasa: klinika nomi" maxlength="80" required><button>Yangi klinika</button></form>
 <div id="code" class="code" hidden></div>
 <div id="msg" role="status"></div>
@@ -111,7 +119,82 @@ async function load() {
   names = Object.fromEntries(clinics.map(c => [c.id, c.name]));
   $('list').replaceChildren(...clinics.map(c => row(c, c.machineId ? seen[c.machineId] : 1)));
   say(clinics.length ? '' : "Hali klinika yo'q");
+  loadHelp();
 }
+
+// ─── Yordam so'rovlari (klinika egalari yozgan) ───
+async function loadHelp() {
+  const r = await api('/admin/help').catch(() => null);
+  if (!r || !r.ok) return;
+  const { help } = await r.json();
+  const open = help.filter(h => !h.answer).length;
+  $('helpTitle').textContent = "Yordam so'rovlari" + (open ? ' — ' + open + ' ta javobsiz' : '');
+  $('helpList').replaceChildren(...help.map(askRow));
+  $('help').hidden = !help.length;
+}
+
+function askRow(h) {
+  const li = el('li', 'ask');
+  const head = el('div', 'who');
+  const where = h.clinicName + (h.businessName && h.businessName !== h.clinicName ? ' (' + h.businessName + ')' : '');
+  head.append(el('b', '', where), el('small', '', (h.by ? h.by + ' · ' : '') + ago(h.createdAt) + (h.diag ? ' · diagnostika bilan' : '')));
+  li.append(head, el('p', '', h.text));
+  if (h.diag) {
+    const show = el('button', 'second mini', 'Diagnostika');
+    show.onclick = async () => {
+      const shown = li.querySelector('pre');
+      if (shown) return shown.remove();
+      const x = await api('/admin/diag/' + h.clinicId + '/' + h.diag).catch(() => null);
+      show.after(el('pre', '', x && x.ok ? await x.text() : "Diagnostikani o'qib bo'lmadi"));
+    };
+    li.append(show);
+  }
+  if (h.answer) {
+    const a = el('div', 'ans');
+    a.append(el('small', '', 'Javob' + (h.answeredBy ? ' — ' + h.answeredBy : '') + ' · ' + ago(h.answeredAt)), el('p', '', h.answer));
+    // Klinika 3 kundan ko'p o'chiq turgan bo'lsa navbatdagi javob o'chadi — qayta yuboriladi (yetib borgani takrorlanmaydi)
+    const again = el('button', 'second mini', 'Qayta yuborish');
+    again.title = "Egasi javobni olmagan bo'lsa (klinika kompyuteri uzoq o'chiq turgan)";
+    again.onclick = async () => {
+      again.disabled = true;
+      const x = await api('/admin/help/' + h.id + '/resend', {}).catch(() => null);
+      const j = x ? await x.json().catch(() => ({})) : {};
+      say(x && x.ok ? "Qayta yuborildi — klinika kompyuteri yonganda egasiga yetadi" : (j.error || "Hub bilan aloqa yo'q"));
+      again.disabled = false;
+    };
+    li.append(a, again);
+    return li;
+  }
+  const text = el('textarea');
+  text.placeholder = "Javob — egasining Telegramiga va paneliga boradi";
+  text.maxLength = 2000;
+  text.setAttribute('aria-label', 'Javob: ' + where);
+  const send = el('button', '', 'Javob yuborish');
+  send.onclick = async () => {
+    const answer = text.value.trim();
+    if (!answer) return text.focus();
+    send.disabled = true;
+    try {
+      const x = await api('/admin/help/' + h.id + '/answer', { text: answer });
+      const j = await x.json().catch(() => ({}));
+      if (x.status === 401) return load();
+      // Boshqa jamoa a'zosi javob bergan (409) yoki so'rov yo'q (404) — ro'yxat yangilanadi, eski forma qolib ketmasin
+      if (x.status === 404 || x.status === 409) { text.value = ''; say(j.error || 'Xato: ' + x.status); return loadHelp(); }
+      if (!x.ok) return say(j.error || 'Xato: ' + x.status);
+      say("Javob yuborildi — egasining Telegramiga boradi");
+      text.value = '';
+      loadHelp();
+    } catch {
+      say("Hub bilan aloqa yo'q");
+    } finally {
+      send.disabled = false;
+    }
+  };
+  li.append(text, send);
+  return li;
+}
+/** Javob yozilayotgan yoki diagnostika ochiq bo'lsa — ro'yxat o'z-o'zidan yangilanmaydi (yozilgan matn yo'qolmasin) */
+const busyWithHelp = () => [...document.querySelectorAll('#help textarea')].some(t => t.value.trim() || t === document.activeElement) || !!document.querySelector('#help pre');
 
 function row(c, twins) {
   const li = el('li');
@@ -285,8 +368,9 @@ function showCode(name, code) {
 function signedOut() {
   store.set(null);
   me = null;
-  for (const id of ['new', 'code', 'bar', 'pwf', 'team', 'audit']) $(id).hidden = true;
+  for (const id of ['new', 'code', 'bar', 'pwf', 'team', 'audit', 'help']) $(id).hidden = true;
   $('list').replaceChildren();
+  $('helpList').replaceChildren();
   $('key').hidden = false;
 }
 
@@ -376,7 +460,7 @@ $('addm').onsubmit = async e => {
 const ACTION = {
   'kirish': 'Hubga kirdi', 'klinika.yaratildi': 'yangi klinika ochdi', 'panel.ochildi': 'klinika paneliga kirdi', 'panel.rad': 'panelga kirolmadi',
   'panel.javobsiz': 'panelga kirolmadi (klinika javob bermadi)', 'litsenziya.berildi': 'litsenziya berdi', 'klinika.tasdiqlandi': 'kompyuterni tasdiqladi',
-  'klinika.ochirildi': "yozuvni o'chirdi", 'zaxira.yuklandi': 'zaxirani yukladi', 'diagnostika.oqildi': "diagnostikani o'qidi",
+  'klinika.ochirildi': "yozuvni o'chirdi", 'zaxira.yuklandi': 'zaxirani yukladi', 'diagnostika.oqildi': "diagnostikani o'qidi", 'yordam.javob': "yordam so'roviga javob berdi", 'yordam.qayta': 'javobni qayta yubordi',
   'jamoa.qoshildi': "jamoaga qo'shdi", 'jamoa.parol': 'yangi parol berdi', 'jamoa.yopildi': 'hisobni yopdi', 'jamoa.ochildi': 'hisobni ochdi', 'parol.almashdi': "o'z parolini almashtirdi",
 };
 let names = {};
@@ -403,6 +487,6 @@ function showSecret(box, title, line) {
 }
 
 $('key').hidden = false;
-setInterval(() => { if (store.get() && document.visibilityState === 'visible' && !document.querySelector('.pick')) load(); }, 30000);
+setInterval(() => { if (store.get() && document.visibilityState === 'visible' && !document.querySelector('.pick') && !busyWithHelp()) load(); }, 30000);
 </script>`;
 }

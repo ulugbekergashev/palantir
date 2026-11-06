@@ -83,3 +83,4 @@ Not shippable yet: 14 must-have features are not done.
 - Egasi Telegram'da ovoz bilan buyruq beradi
 - Reklama filtri: tibbiy va'dalar mijozga o'zi ketmaydi
 - Internetsiz klinika tarmog'i
+- Yordam so'rash: egasi muammoni yozadi (panel yoki /yordam) → Palantir jamoasi javobi Telegram'iga
