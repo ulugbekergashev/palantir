@@ -12,7 +12,7 @@ import { copyText } from '../../lib/clipboard';
 
 const DAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
 const RINGS = [10, 15, 20, 30];
-const input = 'h-11 w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#8a909c] focus:border-glass/25';
+const input = 'h-11 w-full rounded-xl border border-glass/40 bg-glass/[0.03] px-3 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#8a909c] focus:border-glass/60';
 
 function Block({ icon, title, hint, children }: { icon: ReactNode; title: string; hint: string; children: ReactNode }) {
   return (

@@ -68,7 +68,7 @@ export function MemoryPanel({ notify, tick = 0 }: { notify: Notify; tick?: numbe
             ))}
           </ul>
         ) : <p className="rounded-xl border border-dashed border-glass/10 px-3 py-3 text-[13px] text-[#8a909c]">Hali fakt yo'q. Masalan: «Bosh shifokor — Dilshod aka», «Shanba kuni 15:00 gacha ishlaymiz».</p>}
-      <form onSubmit={add} className="flex items-center gap-2 rounded-xl border border-glass/10 bg-glass/[0.03] p-1 pl-3 focus-within:border-glass/25">
+      <form onSubmit={add} className="flex items-center gap-2 rounded-xl border border-glass/40 bg-glass/[0.03] p-1 pl-3 focus-within:border-glass/60">
         <label htmlFor="new-fact" className="sr-only">Eslab qolsin</label>
         <input id="new-fact" value={text} maxLength={MAX_FACT} onChange={e => setText(e.target.value)} placeholder="Eslab qolsin…" className="h-9 min-w-0 flex-1 bg-transparent text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f]" />
         <button type="submit" disabled={!text.trim() || busy === 'add'} aria-label="Xotiraga qo'shish" className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#ff9a3c] text-[#07080b] disabled:opacity-40">

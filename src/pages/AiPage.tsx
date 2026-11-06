@@ -144,7 +144,7 @@ export function AiPage({ biz, now, team, crew, notify, tick, onChanged }: { biz:
         )}
 
         {/* Ovoz noqulay bo'lsa — yozib so'rash */}
-        <form onSubmit={submit} className="mt-5 flex w-full max-w-2xl sm:mt-8 items-center gap-2 rounded-2xl border border-glass/10 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/25">
+        <form onSubmit={submit} className="mt-5 flex w-full max-w-2xl sm:mt-8 items-center gap-2 rounded-2xl border border-glass/40 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/60">
           <label htmlFor="ai-ask" className="sr-only">Palantir'ga yozing</label>
           <input id="ai-ask" value={typed} onChange={e => setTyped(e.target.value)} placeholder="Yoki yozing: «Akmalga ertaga qo‘ng‘iroq qilishni eslat»" className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f]" />
           <button type="submit" disabled={!typed.trim() || busyText} aria-label="Yuborish" className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#ff9a3c] text-[#06070a] transition-opacity disabled:opacity-40">

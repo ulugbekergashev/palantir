@@ -206,7 +206,7 @@ export function OrdersPanel({ member, notify, cameras = [], cameraId }: { member
         <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full" style={{ background: `radial-gradient(closest-side, ${HUE[member].glow}, transparent)` }} />
         <label htmlFor={`order-${member}`} className="relative block text-[17px] font-semibold text-[#f2f0ea]">{cameraId ? `«${camName}» uchun topshiriq` : `${name}ga topshiriq bering`}</label>
         <p className="relative mt-1 text-[13px] text-[#8a909c]">O'z so'zingiz bilan yozing — {name} qanday tushunganini ko'rsatadi, siz saqlaysiz. Keyin o'zi bajaradi va natijani Telegram'ga yuboradi.</p>
-        <div className="relative mt-4 flex flex-col gap-1 rounded-2xl border border-glass/10 bg-glass/[0.03] p-1.5 focus-within:border-glass/25">
+        <div className="relative mt-4 flex flex-col gap-1 rounded-2xl border border-glass/40 bg-glass/[0.03] p-1.5 focus-within:border-glass/60">
           <textarea id={`order-${member}`} value={text} onChange={e => { setText(e.target.value); setDraft(null); setQuestion(null); }} rows={2} maxLength={600}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void parse(); } }}
             placeholder={`Masalan: ${TEMPLATES[member][0]}`} className="min-h-14 w-full resize-none bg-transparent px-3 py-2 text-[15px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f]" />

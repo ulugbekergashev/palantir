@@ -165,7 +165,7 @@ export function AgentAsk({ member, placeholder, chips = [], onAnswered }: { memb
   };
   return (
     <div className="flex flex-col gap-3">
-      <form onSubmit={submit} className="flex items-center gap-2 rounded-2xl border border-glass/10 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/25">
+      <form onSubmit={submit} className="flex items-center gap-2 rounded-2xl border border-glass/40 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/60">
         <label htmlFor={`ask-${member}`} className="sr-only">{TEAM[member].name}dan so'rang</label>
         <input id={`ask-${member}`} value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder} className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f]" />
         <button type="submit" disabled={!q.trim() || busy} aria-label="So'rash" className="flex h-11 w-11 items-center justify-center rounded-xl text-[#07080b] transition-opacity disabled:opacity-40" style={{ background: HUE[member].a }}>

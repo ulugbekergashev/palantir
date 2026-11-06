@@ -13,8 +13,8 @@ import { shrink } from './Posts';
 
 type Campaign = AdsView['campaigns'][number];
 const ACCENT = HUE.target.a;
-const field = 'w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3.5 py-2.5 text-[14.5px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f] focus:border-glass/25';
-const small = 'w-24 rounded-lg border border-glass/10 bg-glass/[0.03] px-2.5 py-1.5 text-[14px] text-[#f2f0ea] outline-none focus:border-glass/25';
+const field = 'w-full rounded-xl border border-glass/40 bg-glass/[0.03] px-3.5 py-2.5 text-[14.5px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f] focus:border-glass/60';
+const small = 'w-24 rounded-lg border border-glass/40 bg-glass/[0.03] px-2.5 py-1.5 text-[14px] text-[#f2f0ea] outline-none focus:border-glass/60';
 const button = 'inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 text-[13.5px] font-semibold transition-opacity disabled:opacity-40';
 const ghost = `${button} border border-glass/10 text-[#c9cbd2] hover:bg-glass/5`;
 const spin = <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />;
@@ -88,7 +88,7 @@ function PlanEditor({ c, view, setView, notify }: { c: Campaign; view: AdsView; 
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3 text-[13.5px] text-[#c9cbd2]">
         <label className="flex flex-col gap-1">Jami byudjet, {cur}<input type="number" min={1} step="1" value={plan.budget ?? ''} onChange={e => set('budget', num(e.target.value))} className={small} /></label>
         <label className="flex flex-col gap-1">Kun<input type="number" min={1} max={30} value={plan.days} onChange={e => set('days', Number(e.target.value) || 1)} className={small} /></label>
-        <label className="flex flex-col gap-1">Yosh<span className="flex items-center gap-1"><input type="number" min={18} max={65} value={plan.ageMin} onChange={e => set('ageMin', Number(e.target.value) || 18)} className="w-16 rounded-lg border border-glass/10 bg-glass/[0.03] px-2 py-1.5 text-[#f2f0ea]" />–<input type="number" min={18} max={65} value={plan.ageMax} onChange={e => set('ageMax', Number(e.target.value) || 65)} className="w-16 rounded-lg border border-glass/10 bg-glass/[0.03] px-2 py-1.5 text-[#f2f0ea]" /></span></label>
+        <label className="flex flex-col gap-1">Yosh<span className="flex items-center gap-1"><input type="number" min={18} max={65} value={plan.ageMin} onChange={e => set('ageMin', Number(e.target.value) || 18)} className="w-16 rounded-lg border border-glass/40 bg-glass/[0.03] px-2 py-1.5 text-[#f2f0ea]" />–<input type="number" min={18} max={65} value={plan.ageMax} onChange={e => set('ageMax', Number(e.target.value) || 65)} className="w-16 rounded-lg border border-glass/40 bg-glass/[0.03] px-2 py-1.5 text-[#f2f0ea]" /></span></label>
         <label className="flex flex-col gap-1">Qayerga yozishadi
           <select value={plan.destination} onChange={e => set('destination', e.target.value as AdPlan['destination'])} className="rounded-lg border border-glass/10 bg-[#0b0c10] px-2 py-1.5 text-[#f2f0ea]">
             {(Object.keys(DEST) as AdPlan['destination'][]).map(d => <option key={d} value={d}>{DEST[d]}</option>)}

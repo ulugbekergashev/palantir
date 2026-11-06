@@ -15,6 +15,9 @@
   /* Ish yuzasi (sahifa foni) */
   --color-paper: #f6f4ef;
 
+  /* Kiritish maydoni chegarasi: oq va qog'oz fonida 3:1 dan past emas (WCAG 1.4.11) — maydon chegarasi ko'rinmasa, xodim uni topa olmaydi */
+  --color-line-input: #8f897e;
+
   /*
    * Brend — palantir cho'g'i (logo: #FF9A3C, #C2410C, #FFD9A0). Och fonda 600 dan boshlab ustidagi oq yozuv 4.5:1 dan past tushmaydi;
    * qorong'i panel (.night) o'z shkalasini oladi.
@@ -159,6 +162,7 @@
   --color-paper: #07080b;
   --color-white: #111319;
   --color-black: #f2f0ea;
+  --color-line-input: #6b7180;
 
   --color-slate-50: #0d0f14;
   --color-slate-100: #161920;

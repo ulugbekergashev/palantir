@@ -96,7 +96,7 @@ function AskCamera({ cameraId, notify, placeholder }: { cameraId?: string; notif
   };
   return (
     <div className="flex flex-col gap-3">
-      <form onSubmit={ask} className="flex items-center gap-2 rounded-2xl border border-glass/10 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/25">
+      <form onSubmit={ask} className="flex items-center gap-2 rounded-2xl border border-glass/40 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/60">
         <ScanEye className="h-5 w-5 shrink-0 text-[#fbd38d]" aria-hidden="true" />
         <label htmlFor={`ask-cam-${cameraId ?? 'all'}`} className="sr-only">Kameradan so'rang</label>
         <input id={`ask-cam-${cameraId ?? 'all'}`} value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder} className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f]" />
@@ -324,7 +324,7 @@ function Profile({ cam, notify, onSaved }: { cam: Camera; notify: Notify; onSave
     <Panel title="Bu kamera nimaga qaraydi">
       <textarea value={text} onChange={e => setText(e.target.value)} rows={4} maxLength={600} aria-label="Kamera tavsifi"
         placeholder="Masalan: Qabulxona va kassa. Ish vaqti 9:00–20:00, kassada administrator Dilnoza turadi. Kechasi hech kim bo'lmasligi kerak."
-        className="w-full resize-none rounded-xl border border-glass/10 bg-glass/[0.03] px-3 py-2.5 text-[14px] leading-relaxed text-[#f2f0ea] outline-none placeholder:text-[#7d838f] focus:border-glass/25" />
+        className="w-full resize-none rounded-xl border border-glass/40 bg-glass/[0.03] px-3 py-2.5 text-[14px] leading-relaxed text-[#f2f0ea] outline-none placeholder:text-[#7d838f] focus:border-glass/60" />
       <div className="mt-2 flex items-center gap-3">
         <p className="mr-auto text-[12px] text-[#7d838f]">Topshiriq va savollarda Kuzatuvchi shuni biladi.</p>
         <button type="button" disabled={!dirty || busy} onClick={() => { void save(); }} className="flex min-h-9 items-center gap-2 rounded-xl px-3.5 text-[13px] font-semibold text-[#07080b] disabled:opacity-40" style={{ background: ACCENT }}>

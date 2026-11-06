@@ -55,7 +55,7 @@ function PostImage({ id, alt }: { id: string; alt: string }) {
     : <span className="block aspect-[4/5] w-full animate-pulse rounded-xl bg-glass/[0.05] sm:w-44" aria-hidden="true" />;
 }
 
-const field = 'w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3.5 py-2.5 text-[14.5px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f] focus:border-glass/25';
+const field = 'w-full rounded-xl border border-glass/40 bg-glass/[0.03] px-3.5 py-2.5 text-[14.5px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f] focus:border-glass/60';
 const button = 'inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 text-[13.5px] font-semibold transition-opacity disabled:opacity-40';
 
 function NewPost({ picture, notify, onCreated }: { picture: Picture; notify: Notify; onCreated: () => void }) {

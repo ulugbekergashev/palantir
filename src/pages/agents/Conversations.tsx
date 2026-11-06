@@ -82,7 +82,7 @@ function ChatThread({ thread, notify, onChanged }: { thread: InboxThread; notify
         <div ref={end} />
       </div>
       {thread.lead.reachable ? (
-        <form onSubmit={send} className="m-3 flex items-end gap-2 rounded-2xl border border-glass/10 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/25">
+        <form onSubmit={send} className="m-3 flex items-end gap-2 rounded-2xl border border-glass/40 bg-glass/[0.03] p-1.5 pl-4 focus-within:border-glass/60">
           <label htmlFor="reply-box" className="sr-only">Mijozga yozish</label>
           <textarea id="reply-box" rows={1} value={text} onChange={e => setText(e.target.value)} placeholder={editing ? 'AI javobini tahrirlang…' : "O'zingiz yozing — suhbatni qo'lga olasiz"}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}

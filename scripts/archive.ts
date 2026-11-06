@@ -44,6 +44,18 @@ function walk(dir: string, base = ''): string[] {
  * server yonidagi yordamchi fayllar (C# ilgaklar), panel (dist) va kutubxonalar.
  */
 const SOURCE_ONLY = /^(src|hub|docs|android|\.github)\/|^(tsconfig\.json|vite\.config\.ts|index\.html|\.oxlintrc\.json|README\.md)$|^server\/.*\.tsx?$|^scripts\/(?!(supervise|update)\.mjs$)/;
+/**
+ * Ishchi papkalar — hech qaysi nashrga (manbali ham) bormaydi: replica/ — raqobatchilar tahlili va sharhlar,
+ * .claude/ — Claude Code skill'lari. Ular git'da turadi (bizga kerak), lekin klinikaning kompyuterida ularga joy yo'q.
+ */
+const NEVER_SHIPPED = /^(replica|\.claude)\//;
+
+/** Git'dagi fayl reliz arxiviga tushadimi: ishchi papkalar — hech qachon, manba kod — faqat manbali nashrda */
+export function shipsInRelease(file: string, compiled: boolean): boolean {
+  if (NEVER_SHIPPED.test(file)) return false;
+  return !compiled || !SOURCE_ONLY.test(file);
+}
+
 /** Eski nashrlarda bo'lgan, endi yo'q ildizlar: yangilovchi ildizni butunlay almashtiradi — ichida bitta belgi fayli qoladi, manbalar o'chadi */
 const DROPPED_ROOTS = ['src', 'hub', 'docs', 'android', '.github'];
 /** Eski yangilovchi va nazoratchi `tsx server/index.ts` ni ishga tushiradi — yig'ilgan serverga ko'prik */
@@ -54,7 +66,7 @@ export async function writeArchive(target: string, { version, modules, skip, ext
   if (compiled && !(process.env.PALANTIR_BUNDLED === '1' && existsSync(join(APP_DIR, 'server.mjs')))) await bundle(APP_DIR);
   const tracked = execFileSync('git', ['ls-files', '-z']).toString().split('\0').filter(f => f && existsSync(f));
   // arxivdagi nom → diskdagi fayl yoki tayyor matn
-  const entries = new Map<string, string | Buffer>(tracked.filter(f => (!skip || !f.startsWith(`${skip}/`)) && (!compiled || !SOURCE_ONLY.test(f))).map(f => [f, f]));
+  const entries = new Map<string, string | Buffer>(tracked.filter(f => (!skip || !f.startsWith(`${skip}/`)) && shipsInRelease(f, compiled)).map(f => [f, f]));
   const addDir = (dir: string, name: string) => { for (const rel of walk(dir)) entries.set(`${name}/${rel}`, join(dir, rel)); };
   addDir('dist', 'dist');
   addDir(join('public', 'models'), 'public/models');

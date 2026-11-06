@@ -123,7 +123,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 
 /** Kengligi o'zi belgilanadigan maydon (sana, saralash) */
 export const controlClass =
-  'h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:bg-slate-50 disabled:text-slate-500';
+  'h-10 rounded-xl border border-line-input bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:bg-slate-50 disabled:text-slate-500';
 
 export const inputClass = `w-full ${controlClass}`;
 

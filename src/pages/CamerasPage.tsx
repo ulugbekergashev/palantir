@@ -34,7 +34,7 @@ function Block({ title, hint, action, children }: { title: string; hint: string;
     </section>
   );
 }
-const field = 'h-11 w-full rounded-xl border border-glass/10 bg-glass/[0.03] px-3 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#8a909c] focus:border-glass/25';
+const field = 'h-11 w-full rounded-xl border border-glass/40 bg-glass/[0.03] px-3 text-[14px] text-[#f2f0ea] outline-none placeholder:text-[#8a909c] focus:border-glass/60';
 const label = 'flex flex-col gap-1.5 text-[12px] font-medium text-[#a3a9b5]';
 
 /**

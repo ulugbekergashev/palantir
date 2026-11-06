@@ -298,7 +298,7 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
             <button type="button" onClick={() => { void interviewAct('stop'); }} disabled={busy} className="rounded-full border border-glass/10 px-3 py-1 text-[12px] hover:bg-glass/5 disabled:opacity-40">To'xtatish</button>
           </div>
         )}
-        <form data-chat-form onSubmit={e => { e.preventDefault(); void submit(text); }} className="relative mx-4 mb-4 flex items-end gap-1.5 rounded-2xl border border-glass/10 bg-glass/[0.03] p-1.5 focus-within:border-glass/25 sm:mx-6 sm:mb-5">
+        <form data-chat-form onSubmit={e => { e.preventDefault(); void submit(text); }} className="relative mx-4 mb-4 flex items-end gap-1.5 rounded-2xl border border-glass/40 bg-glass/[0.03] p-1.5 focus-within:border-glass/60 sm:mx-6 sm:mb-5">
           <textarea ref={input} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey} rows={Math.min(6, Math.max(1, text.split('\n').length))}
             placeholder={rec ? 'Gapiring… tugatgach ■ ni bosing' : 'Yozing yoki gapiring…'} aria-label="Xabar" disabled={busy || !!rec}
             className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] text-[#f2f0ea] outline-none placeholder:text-[#7d838f]" />
