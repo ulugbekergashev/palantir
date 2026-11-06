@@ -69,6 +69,17 @@ console.log('\n# Javobdagi telefon, karta va hisob raqami (sof)');
   ok("bilimda yo'q telefon — egasiga", unknownNumber("+998 91 999 88 77 ga yozing", k) && unknownNumber('(71) 200-11-22', k));
   ok("bilimda yo'q karta yoki hisob raqami — egasiga", unknownNumber("To'lovni 8600 9999 8888 7777 kartaga o'tkazing", k)
     && unknownNumber('9860-1111-2222-3333', k) && unknownNumber('Hisob: 20208000900123456789', k));
+  // Kod ko'rigi (2026-11-06) topgan holatlar
+  ok("boshqa ajratgich yoki boshqa yozuvdagi raqam ham ushlanadi: / – · : , to'liq kenglik, arab raqamlari",
+    ['8600/9999/8888/7777', '90–999–88–77', '8600·9999·8888·7777', '8600:9999:8888:7777', '８６００９９９９８８８８７７７７', '٩٠ ٩٩٩ ٨٨ ٧٧']
+      .every(r => unknownNumber(r, k)));
+  ok("bilimdagi kartaning bir bo'lagi — bilimdagi raqam emas", unknownNumber('Karta 1234 5678', k) && unknownNumber('5678901', k));
+  ok("bilimdagi raqam boshqa ajratgich bilan — o'tadi", !unknownNumber('8600/1234/5678/9012', k) && !unknownNumber('90–123–45–67', k)
+    && !unknownNumber('+998 (90) 123-45-67', k));
+  ok("ish vaqti, narx oralig'i, gap oxiridagi nuqta, sana va soat — raqam emas",
+    ['Ish vaqti 9.00-18.00', '09.00 - 18.00', "Narx 150 000 - 200 000 so'm", 'Narx 150 000. 20 noyabr kuni keling',
+      '12.11.2026 14.30 da kutamiz', 'Dushanba 12.11 14.30', 'Tel 90 123 45 67 / 93 555 44 33']
+      .every(r => !unknownNumber(r, k)));
 }
 
 console.log('\n# Eslatma vaqti (sof)');

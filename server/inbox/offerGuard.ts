@@ -11,29 +11,45 @@ const MONEY = /(\d+(?:[.,]\d+)?)\s*(%|ming|mln|million|млн|тыс|минг|so
  * Javobda ma'lumotlarda (known) yo'q narx, foiz yoki chegirma/bepul/sovg'a so'zi bormi — bunday javob avtomatik ketmasligi kerak.
  * Yumshoq tekshiruv: son yoki so'z ma'lumotlarda biror joyda uchrasa — bor deb hisoblanadi
  */
-/** Raqam ko'rinishidagi bo'lak: raqamlar orasida bo'sh joy, chiziqcha, nuqta, qavs bo'lishi mumkin («+998 (90) 123-45-67», «8600 1234 5678 9012») */
-const NUMBER_RUN = /\+?\(?\d[\d\s\-().]*\d/g;
-/** Sana yoki yillar oralig'i — raqam emas: 12.11.2026, 12/11/26, 2026-11-12, 2025–2026 */
-const DATE_LIKE = /^(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{4}\s*[-–]\s*\d{4})$/;
+/**
+ * Raqamni bir xil ko'rinishga keltirish: to'liq kenglikdagi (８６００) va arab-hind (٩٠) raqamlari — oddiy raqam, apostroflar bitta.
+ * Model raqamni boshqa yozuvda bersa ham tekshiruvdan o'tib ketmasin.
+ */
+const foldDigits = (s: string) => s.normalize('NFKC')
+  .replace(/[٠-٩]/g, c => String(c.charCodeAt(0) - 0x0660))
+  .replace(/[۰-۹]/g, c => String(c.charCodeAt(0) - 0x06F0))
+  .replace(/[ʻʼ’‘`´]/g, "'");
+/**
+ * Raqam emas, lekin raqamlardan iborat bo'laklar — matndan uziladi (o'rniga chegara qo'yiladi), aks holda yonma-yon ikki son bitta
+ * uzun «raqam» bo'lib qoladi: gap va ro'yxat chegarasi («150 000. 20 noyabr»), oraliq («150 000 - 200 000», «90 123 45 67 / 93 …»),
+ * sana (12.11.2026, 2026-11-12), soat (9.00, 14:30), narx («200 000 so'm», «4,5 mln»)
+ */
+const NOT_A_NUMBER = [
+  /[.,;:]\s|\s[-–—−/|]\s/g,
+  /(?<!\d)\d{1,2}[./-]\d{1,2}[./-]\d{2,4}(?!\d)|(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)/g,
+  /(?<![\d.:])([01]?\d|2[0-3])[.:][0-5]\d(?![\d.:]?\d)/g,
+  /\d[\d\s.,]*\s*(?:so'm|сум|сўм|ming|минг|mln|млн|million|тыс|\$|usd|у\.е)/gi,
+];
+/** Raqam: guruhlar orasida bitta-ikkita ajratgich — bo'sh joy, chiziqcha, nuqta, slesh, ikki nuqta, nuqta-belgi, qavs («+998 (90) 123-45-67») */
+const NUMBER_RUN = /\+?\(?\d+(?:[\s\-–—−./:·•_()]{1,2}\d+)*/g;
 /** Telefon (7+ raqam), karta (16), hisob (20) — shundan qisqasi narx yoki soat */
 const MIN_DIGITS = 7;
-/** Bir raqamning ikki yozilishi orasidagi farq: davlat kodi (998) yoki boshidagi 0/8 */
-const PREFIX_SLACK = 3;
+/** Bitta telefonning yozilishlari bir xil bo'ladi: +998 90 123 45 67 = 90 123 45 67 = 8 90 123 45 67 */
+const canonical = (d: string) => (d.length === 12 && d.startsWith('998') ? d.slice(3) : d.length === 10 && d.startsWith('8') ? d.slice(1) : d);
 
-const digitRuns = (s: string, skipDates: boolean): string[] => [...s.matchAll(NUMBER_RUN)]
-  .map(m => m[0].trim())
-  .filter(run => !(skipDates && DATE_LIKE.test(run)))
-  .map(run => run.replace(/\D/g, ''))
-  .filter(d => d.length >= MIN_DIGITS);
+const numbersIn = (s: string): string[] => {
+  const text = NOT_A_NUMBER.reduce((t, re) => t.replace(re, ' | '), foldDigits(s));
+  return [...text.matchAll(NUMBER_RUN)].map(m => m[0].replace(/\D/g, '')).filter(d => d.length >= MIN_DIGITS).map(canonical);
+};
 
 /**
  * Javobda ma'lumotlarda (known) yo'q telefon, karta yoki hisob raqami bormi. Model raqamni o'ylab topsa (Kommo AI agentida bo'lgan:
- * mijozlar begona hisobga pul o'tkazgan), javob avtomatik ketmasligi kerak. Bir raqam boshqacha yozilsa ham («+998 90 123 45 67» va
- * «901234567») bitta deb hisoblanadi; mijozning o'zi aytgan raqami ham known ichida keladi.
+ * mijozlar begona hisobga pul o'tkazgan), javob avtomatik ketmasligi kerak. Raqam ma'lumotlardagisi bilan **aynan** bir xil bo'lishi
+ * kerak (yozilishi boshqa bo'lsa ham) — bilimdagi kartaning bir bo'lagi «bilimda bor» hisoblanmaydi.
  */
 export function unknownNumber(reply: string, known: string): boolean {
-  const knownRuns = digitRuns(known, false);
-  return digitRuns(reply, true).some(d => !knownRuns.some(k => k.includes(d) || (d.includes(k) && d.length - k.length <= PREFIX_SLACK)));
+  const allowed = new Set(numbersIn(known));
+  return numbersIn(reply).some(d => !allowed.has(d));
 }
 
 export function unsupportedOffer(reply: string, known: string): boolean {

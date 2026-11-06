@@ -47,7 +47,7 @@ So'rovlardan (o'z so'zlari bilan): qorong'i mavzu (Kommo'da 4 ta sharhda, masala
 
 | # | nima | o'lcham | skill | dalil | holat |
 | --- | --- | --- | --- | --- | --- |
-| F1 | Bilimda yo'q telefon / karta / hisob raqami — mijozga o'zi ketmaydi | S | replica-backend | 1-jadval, 8-qator | ✅ dd727b0 |
+| F1 | Bilimda yo'q telefon / karta / hisob raqami — mijozga o'zi ketmaydi | S | replica-backend | 1-jadval, 8-qator | ✅ dd727b0 + kod ko'rigi tuzatishi (ajratgichlar, oraliqlar, aniq moslik) |
 | F2 | Kiritish maydonlari chegarasi 3:1 (WCAG) | S | replica-design | `contrast.py`: 1.67:1 edi | ✅ 54d8385 |
 | F3 | «Yordam so'rash» tugmasi: panel va botdan → Palantir jamoasiga (Hub `/admin`), javob egasining Telegramiga | S–M | replica-build | Kommo 92 + Weave 39 sharh | taklif |
 | F4 | Mijozning ovozli xabari → matn → Qabulxona. Telefon raqami ovozdan olinmaydi (STT xato eshitsa — begona karta): qabul uchun «Raqamni yuborish» tugmasi | S–M | replica-build | Kommo matritsasi (Pro'da) | taklif — **egasi qarori**: har ovoz Gemini kalitidan pul |

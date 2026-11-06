@@ -203,6 +203,9 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
   const brain = replierBrain(biz);
   // Javobdagi narx va va'dalar shu matndan tekshiriladi (unsupportedOffer): profil, saqlangan faktlar, egasining bilimi, mijozning o'z gaplari
   const known = [profileText(biz), ...saved.map(n => n.text), brain ?? '', ...thread.map(m => m.text)].join('\n');
+  // Javobdagi telefon, karta va hisob raqami (unknownNumber): xuddi shu, lekin Palantir'ning o'zi yozgani hisobga olinmaydi (bir marta
+  // o'ylab topilgan raqam keyin «ma'lum» bo'lib qolmasin); mijozning Telegram'da yuborgan raqami (kontakt) — qo'shiladi
+  const knownNumbers = [profileText(biz), ...saved.map(n => n.text), brain ?? '', ...thread.filter(m => m.by !== 'palantir').map(m => m.text), lead.phone ?? ''].join('\n');
   // Ikki qism: biznesning o'zgarmaydigan ma'lumoti (profil, faktlar, bilim) — keshlanadi; shu biznesning keyingi xabarlarida
   // ko'rsatma bilan birga ~10% narxda o'qiladi. O'zgaradigani (vaqt, jadval, suhbat) — keyin, keshdan tashqarida
   const business = [
@@ -264,7 +267,7 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
     return { action: 'ask_owner', reply, question: '', booking: null, change: null, noteForOwner: "Javobda narx, chegirma yoki «bepul» degan gap bor, lekin u saqlangan ma'lumotlarda yo'q — tekshirib yuboring", ...about };
   }
   // Ma'lumotlarda yo'q telefon, karta yoki hisob raqami — avtomatik ketmaydi (model raqam o'ylab topsa, mijoz pulni begona hisobga o'tkazadi)
-  if (action === 'reply' && unknownNumber(reply, known)) {
+  if (action === 'reply' && unknownNumber(reply, knownNumbers)) {
     return { action: 'ask_owner', reply, question: '', booking: null, change: null, noteForOwner: "Javobda telefon, karta yoki hisob raqami bor, lekin u saqlangan ma'lumotlarda yo'q — raqamni tekshirib yuboring", ...about };
   }
   // Jadval olinmagan bo'lsa ham (CRM javob bermadi) klinikada «yozdik» degan javob o'zi ketmaydi
