@@ -57,7 +57,7 @@ try {
   console.log('\n# Ulash ustasi — admin parolisiz');
   await page.locator('#p-name').waitFor({ timeout: 15_000 });
   ok('usta parolsiz ochildi: birinchi qadam — klinika ma\'lumotlari', !(await page.getByText('Admin paroli').count()));
-  // Kompyuter Hub'ga o'zi ulanadi: «phub.» kodi so'ralmaydi (zaxira yo'l — «Kalitlar» maydoni)
+  // Kompyuter Hub'ga o'zi ulanadi: Hub kodi («palantir.») so'ralmaydi (zaxira yo'l — «Kalitlar» maydoni)
   ok("Hub ulanish kodi so'ralmaydi", !(await page.getByText('Palantir ulanish kodi').count()) && !(await page.locator('#hub-code').count()));
   ok('klinikani tanlash/qo\'shish yo\'q (profil bitta)', !(await page.getByRole('button', { name: /Yangi klinika/ }).count()));
   await page.locator('#p-name').fill('Shifo Dent');

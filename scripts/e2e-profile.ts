@@ -57,7 +57,7 @@ try {
   start('hub/server.ts', { PORT: String(HUB_PORT), HUB_DB: path.join(work, 'hub.db'), HUB_PUBLIC_URL: HUB, HUB_ADMIN_KEY: ADMIN_KEY, HUB_BACKUP_DIR: path.join(work, 'hub-zaxira') });
   ok('hub ishga tushdi', await up(`${HUB}/health`));
   const clinic = await (await fetch(`${HUB}/admin/clinics`, { method: 'POST', headers: admin, body: JSON.stringify({ name: 'Shifo Dent' }) })).json() as { clinicId: string; code: string };
-  ok('Hub: «Yangi klinika» — ulanish kodi berildi', clinic.code?.startsWith('phub.'));
+  ok('Hub: «Yangi klinika» — ulanish kodi berildi', clinic.code?.startsWith('palantir.'));
 
   start('server/index.ts', {
     PORT: String(PORT), LISTEN_HOST: '0.0.0.0', DATA_DIR: path.join(work, 'data'), ONE_PROFILE: '1', BOT_TOKEN: '123:CLINIC', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,

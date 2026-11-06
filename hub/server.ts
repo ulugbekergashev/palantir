@@ -148,8 +148,13 @@ const stateSecret = ((): string => {
 const team = createTeam(db, stateSecret, () => cfg.adminKey);
 
 const now = () => new Date().toISOString();
-/** Klinika ulanish kodi — ko'rinishi src/lib/hubCode.ts dagi bilan bir xil (hub alohida joylanadi, shuning uchun nusxa) */
-const makeHubCode = (url: string, clinicId: string, secret: string) => `phub.${Buffer.from(url.replace(/\/+$/, '')).toString('base64url')}.${clinicId}.${secret}`;
+/**
+ * Klinika ulanish kodi — ko'rinishi src/lib/hubCode.ts dagi bilan bir xil (hub alohida joylanadi, shuning uchun nusxa).
+ * «palantir.» bilan boshlanadi. 0.4.7 va undan eski Palantir faqat eski «phub.» ni o'qiydi: o'zi ulanishda u kod turini aytmaydi
+ * va eskisini oladi (aks holda kodni saqlay olmay, Hub'ga qayta-qayta yozilardi)
+ */
+const HUB_CODE_FORMAT = 2;
+const makeHubCode = (url: string, clinicId: string, secret: string, tag = 'palantir') => `${tag}.${Buffer.from(url.replace(/\/+$/, '')).toString('base64url')}.${clinicId}.${secret}`;
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const sameText = (a: string, b: string) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 const newId = () => randomBytes(5).toString('hex');
@@ -439,7 +444,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const fromIp = (registerHits.get(ip) ?? []).filter(t => t > Date.now() - 86_400_000);
     const today = Number((db.prepare('SELECT COUNT(*) AS n FROM clinics WHERE self = 1 AND created_at > ?').get(day) as { n: number }).n);
     if (fromIp.length >= cfg.registerPerIp || today >= cfg.registerPerDay) return send(res, 429, { error: "Bugun juda ko'p ulanish — ertaga yoki sotuvchidan Hub kodini so'rang" });
-    let body: { machineId?: unknown; name?: unknown };
+    let body: { machineId?: unknown; name?: unknown; codeFormat?: unknown };
     try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
     const machine = normalizeMachineId(String(body.machineId ?? ''));
     if (!machine) return send(res, 400, { error: "Kompyuter kodi noto'g'ri" });
@@ -449,7 +454,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     db.prepare('INSERT INTO clinics (id, name, key_hash, created_at, machine_id, self, approved) VALUES (?, ?, ?, ?, ?, 1, 0)').run(id, name, sha(secret), now(), machine);
     // Sotuvchi ro'yxatni kuzatib o'tirmasin. Kompyuter kodi xabarga yozilmaydi: tasdiqlash — o'rnatuvchi ekrandan aytgan kod bilan
     void alert(`🆕 Yangi kompyuter Hub'ga yozildi: «${name}». Siz o'rnatayotgan bo'lsa — o'rnatuvchidan ekrandagi kompyuter kodini so'rab, ${cfg.publicUrl}/admin da «Tasdiqlash va aktivlashtirish»ni bosing. Tanimasangiz — «O'chirish».`);
-    return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl, id, secret) });
+    return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl, id, secret, body.codeFormat === HUB_CODE_FORMAT ? 'palantir' : 'phub') });
   }
 
   // Jamoa (team.ts): shaxsiy kirish, o'z paroli, hisoblar (asoschi) va jurnal (asoschi)

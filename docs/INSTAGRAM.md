@@ -58,7 +58,7 @@ Instagram → Настройки → «Тип аккаунта» → **Проф�
 ```
 curl -X POST https://<адрес-хаба>/admin/clinics -H "Authorization: Bearer <HUB_ADMIN_KEY>" -d "{\"name\":\"Shifo Dent\"}"
 ```
-Ответ содержит `code` вида `phub.…` — показывается один раз. На ПК клиники: панель → «Ulash» → ключи → **Palantir Hub kodi** (проверяется сразу на хабе).
+Ответ содержит `code` вида `palantir.…` — показывается один раз. На ПК клиники: панель → «Ulash» → ключи → **Palantir Hub kodi** (проверяется сразу на хабе).
 
 ## Шаг 5. Подключить Instagram клиники
 Панель → «Ulanishlar» → Instagram → **«Instagram'ni rasmiy ulash»** → откроется Instagram → войти в аккаунт клиники → «Разрешить». Через несколько секунд в панели: «✓ @аккаунт», владельцу в Telegram: «📸 Instagram rasmiy ulandi».

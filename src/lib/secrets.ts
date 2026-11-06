@@ -6,7 +6,7 @@
 
 /** Server bo'yicha kalitlar: bitta kompyuterdagi hamma bizneslarga umumiy (avval faqat .env da turardi) */
 export type KeyName = 'BOT_TOKEN' | 'ANTHROPIC_API_KEY' | 'GEMINI_API_KEY' | 'GROQ_API_KEY' | 'VOICELAB_API_KEY' | 'SPEECHLAB_API_KEY' | 'ELEVENLABS_API_KEY' | 'TG_API_ID' | 'TG_API_HASH' | 'PALANTIR_HUB';
-import { parseHubCode } from './hubCode';
+import { looksLikeHubCode, parseHubCode } from './hubCode';
 
 export type LineKind = 'key' | 'rtsp' | 'crm' | 'instagram' | 'phone' | 'unknown';
 
@@ -21,7 +21,7 @@ export const KEYS: KeyInfo[] = [
   { name: 'ELEVENLABS_API_KEY', label: 'ElevenLabs kaliti', where: 'elevenlabs.io → Developers → API keys (zaxira video diktori; asosiysi — Gemini)' },
   { name: 'TG_API_ID', label: 'Telegram API ID', where: 'my.telegram.org → API development tools (shaxsiy Telegram)' },
   { name: 'TG_API_HASH', label: 'Telegram API hash', where: 'my.telegram.org → API development tools (shaxsiy Telegram)' },
-  { name: 'PALANTIR_HUB', label: 'Palantir Hub kodi', where: "Palantir Hub admini beradi (rasmiy Instagram: Meta xabarlarini klinikaga yetkazadi) — «phub.» bilan boshlanadi" },
+  { name: 'PALANTIR_HUB', label: 'Palantir Hub kodi', where: "Palantir Hub admini beradi (rasmiy Instagram: Meta xabarlarini klinikaga yetkazadi) — «palantir.» bilan boshlanadi" },
 ];
 export const keyInfo = (name: KeyName): KeyInfo => KEYS.find(k => k.name === name)!;
 export const isKeyName = (v: unknown): v is KeyName => KEYS.some(k => k.name === v);
@@ -61,7 +61,7 @@ export function classifyLine(raw: string): Classified | null {
   if (/^gsk_[A-Za-z0-9]+$/.test(line)) return key(line, 'GROQ_API_KEY', line.length >= MIN_LONG_KEY ? undefined : 'Groq kaliti chala: oxiri kesilib qolgan.');
   if (/^sl_(live|test)_\S+$/.test(line)) return key(line, 'SPEECHLAB_API_KEY');
   if (/^sk_[0-9a-f]+$/.test(line)) return key(line, 'ELEVENLABS_API_KEY', line.length === ELEVEN_LEN ? undefined : `ElevenLabs kaliti ${ELEVEN_LEN} belgi bo'ladi, bunda ${line.length} ta.`);
-  if (line.startsWith('phub.')) return key(line, 'PALANTIR_HUB', parseHubCode(line) ? undefined : 'Hub kodi chala yoki buzuq — hub adminidan butunlay nusxalab oling.');
+  if (looksLikeHubCode(line)) return key(line, 'PALANTIR_HUB', parseHubCode(line) ? undefined : 'Hub kodi chala yoki buzuq — hub adminidan butunlay nusxalab oling.');
   if (TG_HASH.test(line)) return key(line, 'TG_API_HASH');
   if (/^rtsps?:\/\//i.test(line)) {
     try {

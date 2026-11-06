@@ -306,12 +306,15 @@ try {
   ok('qayta yonganda ham ishlaydi', await up(`http://127.0.0.1:${NEW_PORT}/api/health`));
   await sleep(1500);
   ok("qayta yonganda ikkinchi marta ro'yxatdan o'tmaydi (saqlangan kod bilan)", (await mine()).length === 1, JSON.stringify(await mine()));
-  const register = (machineId: string) => fetch(`${HUB}/api/register`, { method: 'POST', body: JSON.stringify({ machineId, name: 'sinov' }) });
+  const register = (machineId: string, codeFormat?: number) => fetch(`${HUB}/api/register`, { method: 'POST', body: JSON.stringify({ machineId, name: 'sinov', codeFormat }) });
   ok("noto'g'ri kompyuter kodi — 400", (await register('xato')).status === 400);
   const regs: Response[] = [];
-  for (let i = 0; i < 3; i++) regs.push(await register('5555-6666-7777-8888'));
+  // Birinchisi — yangi Palantir (kod turini aytadi), ikkinchisi — 0.4.7 va undan eskisi (aytmaydi)
+  for (let i = 0; i < 3; i++) regs.push(await register('5555-6666-7777-8888', i === 0 ? 2 : undefined));
   ok("bir manzildan sutkada 3 tadan ko'p emas — keyingisi 429", regs.map(r => r.status).join() === '200,200,429', regs.map(r => r.status).join());
   const [a, b] = await Promise.all(regs.slice(0, 2).map(r => r.json() as Promise<{ clinicId: string; code: string }>));
+  ok("yangi Palantir «palantir.» kod oladi, eskisi — o'zi o'qiy oladigan «phub.»", a.code.startsWith('palantir.') && b.code.startsWith('phub.')
+    && parseHubCode(a.code)?.url === HUB && parseHubCode(b.code)?.url === HUB, `${a.code.split('.')[0]} / ${b.code.split('.')[0]}`);
   const fakeBackup = await fetch(`${HUB}/api/backup?day=2026-01-02`, {
     method: 'POST', headers: { authorization: `Bearer ${parseHubCode(a.code)!.key}` }, body: Buffer.concat([Buffer.from('PALANTIR-ZAXIRA-1\n'), Buffer.alloc(4096)]),
   });

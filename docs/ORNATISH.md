@@ -6,7 +6,7 @@ Bir klinika — bitta kompyuter — bitta bot. O'rnatish 30–40 daqiqa oladi (i
 **Bitta kompyuter — bitta ish.** O'rnatish shu kompyuterning yagona profilini o'zi yaratadi; ikkinchi klinika yoki boshqa ish shu kompyuterda
 ochilmaydi (litsenziya kompyuterga bog'langan). Tartib:
 
-1. Palantir Hub `/admin` → **«Yangi klinika»** → nomi → **ulanish kodi** (`phub.…`) bir marta ko'rsatiladi — nusxalab klinikaga bering.
+1. Palantir Hub `/admin` → **«Yangi klinika»** → nomi → **ulanish kodi** (`palantir.…`) bir marta ko'rsatiladi — nusxalab klinikaga bering.
 2. Klinika (yoki siz) exe'ni o'rnatadi. Oxirida ulash ustasi **parolsiz** ochiladi — 1-qadamda ulanish kodini qo'yadi.
 3. Kompyuter Hub ro'yxatida «sozlanmoqda» bo'lib chiqadi. **«Sozlash»** — panel egasidan so'ramasdan ochiladi: klinika ma'lumotlari, kalitlar,
    Instagram, CRM, kameralar — o'z kompyuteringizdan. Klinika kompyuterida ham shu: kirish sahifasidagi «Sozlashni davom ettirish».
@@ -39,7 +39,7 @@ Anketa serveri tunnel yoki proksi ortida tursa (cloudflared, nginx), uning `.env
 | **Claude API kaliti** | platform.claude.com → API keys. Hisobda mablag' bo'lsin | Yordamchining «miyasi». Kalitda oylik chegara (spend limit) qo'ying |
 | Gemini kaliti (ixtiyoriy, bepul) | aistudio.google.com | Ovozli xabarlarni matnga aylantiradi. Bo'lmasa ovoz o'chiq |
 | DentaCRM manzili, login, parol | Klinikadan | Qabullar, bemorlar, tushum |
-| Palantir Hub kodi (`phub.…`) va klinikaning **professional** Instagram akkaunti | Hub kodi — sizdan ([INSTAGRAM.md](INSTAGRAM.md), 4-qadam); akkaunt Meta ilovasida tester bo'lishi kerak | Direct'ga rasmiy yo'l bilan javob. Login-parol Palantir'ga berilmaydi |
+| Palantir Hub kodi (`palantir.…`) va klinikaning **professional** Instagram akkaunti | Hub kodi — sizdan ([INSTAGRAM.md](INSTAGRAM.md), 4-qadam); akkaunt Meta ilovasida tester bo'lishi kerak | Direct'ga rasmiy yo'l bilan javob. Login-parol Palantir'ga berilmaydi |
 | Kameralarning RTSP manzili (yoki HTTP/MJPEG manzili) | Kamerani o'rnatgan usta yoki videoregistrator sozlamalari. Kamera yo'q kabinetga — eski Android telefon («IP Webcam» ilovasi) | Kamera nazorati |
 
 | Uztelecom SIP: server manzili, login, parol, raqam (ixtiyoriy) | Klinika Uztelecom'dan oladi (yuridik shaxs) | Shahar raqamiga AI qabulxona javob beradi |
@@ -106,7 +106,7 @@ Zaxira nusxani fleshkaga olsangiz: unda baza va uni ochadigan kalit yonma-yon tu
 Panel: ish stolidagi «Palantir AI» yorlig'i. Usta: `http://localhost:3200/#/ulash` — egasiga topshirilguncha parolsiz (shu kompyuterdan yoki
 Hub → «Sozlash»), keyin — egasining login-paroli bilan. Chapda qadamlar va «klinikada o'tgan vaqt», har qadam tayyor bo'lsa yashil belgi oladi; qadamlarni istalgan tartibda bosish mumkin.
 
-1. **Klinika**: klinika nomi, soha, egasi, telefon, manzil, ish vaqti. Hub kodi so'ralmaydi — kompyuter Hub'ga o'zi ulanadi. Faqat u o'zi ulana olmasa (Hub ro'yxatdan o'tishni yopgan): Hub'da «Yangi klinika» → `phub.` kodini «Kalitlar» maydoniga qo'yasiz. Ixtiyoriy — **anketa kodi** va o'z serveringiz manzili → «Yuklash»: manzil, ish vaqti, narxlar, javoblar shu kompyuterga tushadi. Internet bo'lmasa — anketa sahifasidan yuklab olingan `.json` faylni tanlang.
+1. **Klinika**: klinika nomi, soha, egasi, telefon, manzil, ish vaqti. Hub kodi so'ralmaydi — kompyuter Hub'ga o'zi ulanadi. Faqat u o'zi ulana olmasa (Hub ro'yxatdan o'tishni yopgan): Hub'da «Yangi klinika» → `palantir.` kodini «Kalitlar» maydoniga qo'yasiz. Ixtiyoriy — **anketa kodi** va o'z serveringiz manzili → «Yuklash»: manzil, ish vaqti, narxlar, javoblar shu kompyuterga tushadi. Internet bo'lmasa — anketa sahifasidan yuklab olingan `.json` faylni tanlang.
 2. **Kalitlar**: bot tokeni, Claude va Gemini kalitlari, kamera `rtsp://` manzili, DentaCRM havolasi, Telegram raqami — **hammasini bitta maydonga** qo'ying. Usta har qatorning turini o'zi taniydi (AI'siz, qolip bo'yicha), kalitni haqiqiy xizmatda tekshiradi va shifrlab saqlaydi; qolganini o'z qadamiga o'tkazadi. Tanimagan qatorni (masalan, DentaCRM paroli) bir tugma bilan belgilaysiz. Server to'xtamaydi: bot shu zahoti yangi token bilan ulanadi.
 3. **Egasining Telegram'i**: havolani egasi **o'z telefonida** ochadi va «Start» bosadi — sahifa o'zi yangilanadi.
 4. **DentaCRM**: manzil va parol kalitlar maydonidan o'tgan bo'ladi, loginni yozasiz → «Ulash va tekshirish».
