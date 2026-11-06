@@ -76,6 +76,9 @@ export interface StationServers { lan: string[]; hub: string | null }
 /** Qabulxona: xodimlar (ulanmaganida — Telegram havolasi), so'rovlar nusxasi egasiga keladimi, bot ulanganmi */
 /** Kim kirgan (server/http.ts whoOf): egasi, Palantir jamoasi yoki klinika xodimi (huquqi bilan) */
 export interface Who { kind: 'owner' | 'support' | 'staff'; name: string; access: StaffAccess | null }
+/** Panel qayerdan ochiladi: klinika ichidagi kompyuterlardan (server/lan.ts) va istalgan joydan — Hub orqali */
+export interface PanelWhere { lan: string[]; hub: string | null }
+
 export interface AccessMember { id: string; name: string; linked: boolean; login: string | null; access: StaffAccess | null; seenAt: string | null }
 export interface TeamView { staff: (StaffMember & { link: string | null })[]; copyToOwner: boolean; bot: boolean }
 
@@ -223,8 +226,8 @@ export const api = {
   staff: () => call<TeamView>('/staff'),
   addStaff: (name: string) => call<TeamView>('/staff', { body: { name } }),
   removeStaff: (id: string) => call<TeamView>(`/staff/${id}`, { method: 'DELETE' }),
-  /** Xodimlarning panelga kirishi (faqat egasi): login va parol bir marta qaytadi */
-  teamAccess: () => call<{ members: AccessMember[] }>('/team-access'),
+  /** Xodimlarning panelga kirishi (faqat egasi): login va parol bir marta qaytadi; where — panel qayerdan ochiladi (klinika ichidan, Hub) */
+  teamAccess: () => call<{ members: AccessMember[]; where: PanelWhere }>('/team-access'),
   grantAccess: (id: string, access: StaffAccess, login?: string) => call<{ member: AccessMember; password?: string }>(`/team-access/${id}`, { body: { access, login } }),
   resetAccess: (id: string) => call<{ member: AccessMember; password: string }>(`/team-access/${id}/reset`, { body: {} }),
   revokeAccess: (id: string) => call<{ member: AccessMember }>(`/team-access/${id}`, { method: 'DELETE' }),

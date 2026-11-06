@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { session } from '../data/api';
 import { startVoice, type VoiceEvent, type VoiceSession } from './liveVoice';
+import { MIC_UNAVAILABLE } from './mic';
 
 export type VoiceMode = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking';
 export interface VoiceCard { id: number; kind: 'tasks' | 'done' | 'answer' | 'working' | 'booked' | 'request'; title: string; body?: string; items?: { title: string; when: string | null; late?: boolean }[] }
@@ -95,7 +96,9 @@ export function useVoice(kind: 'owner' | 'customer' = 'owner') {
     } catch (e) {
       bump(-1);
       setMode('idle');
-      setError((e as Error).name === 'NotAllowedError' ? 'Mikrofonga ruxsat bering (manzil satridagi belgi)' : 'Ovozli suhbat ochilmadi — Palantir telefon liniyasi ishlayaptimi?');
+      const name = (e as Error).name;
+      setError(name === MIC_UNAVAILABLE ? "Ovozli suhbat faqat server kompyuterining o'zida ishlaydi"
+        : name === 'NotAllowedError' ? 'Mikrofonga ruxsat bering (manzil satridagi belgi)' : 'Ovozli suhbat ochilmadi — Palantir telefon liniyasi ishlayaptimi?');
     }
   };
 

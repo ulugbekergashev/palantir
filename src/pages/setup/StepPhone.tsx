@@ -7,13 +7,14 @@ import { CheckCircle2, Copy, Loader2 } from 'lucide-react';
 import { api, type PhoneLine } from '../../data/api';
 import { Button, Card, Field, TextInput } from '../../components/ui';
 import { forwardCodes } from '../../lib/forwarding';
+import { copyText } from '../../lib/clipboard';
 
 type Notify = (text: string, error?: boolean) => void;
 
 function Codes({ number, notify }: { number: string; notify: Notify }) {
   const codes = forwardCodes(number, 15);
   if (!codes) return null;
-  const copy = (code: string) => { navigator.clipboard.writeText(code).then(() => notify('Nusxalandi'), () => notify(code)); };
+  const copy = (code: string) => { copyText(code).then(() => notify('Nusxalandi'), () => notify(code)); };
   return (
     <Card title="Klinika telefonidan yo'naltirish" description="Klinikaning mobil telefonida shu kodlarni bir marta tering va qo'ng'iroq tugmasini bosing. Mijozlar eski raqamga qo'ng'iroq qilaveradi: administrator 15 soniyada ko'tarmasa, band yoki o'chiq bo'lsa — AI javob beradi.">
       <ul className="divide-y divide-slate-100">

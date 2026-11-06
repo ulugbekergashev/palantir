@@ -7,7 +7,9 @@ import type { Express, Handler, Request, Response } from 'express';
 import { z } from 'zod';
 import { hashPassword } from './auth';
 import { businesses, type BusinessRow } from './db';
+import { lanAddresses } from './lan';
 import { newOwnerPassword } from './profile';
+import { remoteUrl } from './remote';
 import { staff, type StaffRow } from './requests/store';
 
 interface Deps {
@@ -23,7 +25,8 @@ const view = (s: StaffRow) => ({ id: s.id, name: s.name, linked: s.linked, login
 const loginFree = (login: string, self: string) => !businesses.byLogin(login) && (staff.byLogin(login)?.id ?? self) === self;
 
 export function mountTeamAccess(app: Express, { asOwner, bad }: Deps): void {
-  app.get('/api/team-access', asOwner((_req, res, biz) => { res.json({ members: staff.list(biz.id).map(view) }); }));
+  // where — xodim panelni qayerdan ochadi: klinika ichidagi manzil(lar) va Hub havolasi (istalgan joydan)
+  app.get('/api/team-access', asOwner((_req, res, biz) => { res.json({ members: staff.list(biz.id).map(view), where: { lan: lanAddresses(), hub: remoteUrl() } }); }));
 
   // Kirish berish (login bilan) yoki huquqni almashtirish (login yuborilmasa va kirishi bor bo'lsa — parol o'sha)
   app.post('/api/team-access/:id', asOwner((req, res, biz) => {

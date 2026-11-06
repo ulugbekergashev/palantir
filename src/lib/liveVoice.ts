@@ -4,6 +4,7 @@
  * va navbat bilan chalinadi; odam gapni bo'lsa, server «interrupt» yuboradi — chalinayotgan ovoz darhol to'xtaydi.
  * Aks-sadoni brauzerning o'zi tozalaydi (echoCancellation).
  */
+import { micStream } from './mic';
 
 export type Who = 'Siz' | 'Palantir' | 'Amal';
 export type VoiceEvent =
@@ -38,7 +39,7 @@ registerProcessor('palantir-mic', PalantirMic);`;
 
 /** kind: owner — egasining yordamchisi; customer — qabulxonani mijoz bo'lib sinash; wake — «quloq»: chaqiriqni kutadi (tgvoice/web_live.py) */
 export async function startVoice(token: string, on: (e: VoiceEvent) => void, kind: 'owner' | 'customer' | 'wake' = 'owner'): Promise<VoiceSession> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  const stream = await micStream({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   const micCtx = new AudioContext({ sampleRate: IN_RATE });
   const outCtx = new AudioContext({ sampleRate: OUT_RATE });
   // Sahifa o'zi ochgan (bosilmagan) ovoz konteksti to'xtab turadi — birinchi bosish yoki tugmada uyg'onadi

@@ -27,6 +27,7 @@
     "test:setup": "tsx scripts/e2e-setup.ts",
     "test:ui-setup": "tsx scripts/ui-setup.ts",
     "test:ui-profile": "tsx scripts/ui-profile.ts",
+    "test:ui-lan": "tsx scripts/ui-lan.ts",
     "test:ui-team": "tsx scripts/ui-team.ts",
     "test:ui-video": "tsx scripts/ui-video.ts",
     "test:work": "tsx scripts/e2e-work.ts",

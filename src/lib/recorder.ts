@@ -3,13 +3,15 @@
  * qabul qilmaydi — yozuv 16 kHz mono WAV'ga o'giriladi (hajmi ham kichik).
  */
 
+import { micStream } from './mic';
+
 export interface Recording {
   stop(): Promise<Blob>;
   cancel(): void;
 }
 
 export async function startRecording(): Promise<Recording> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+  const stream = await micStream({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
   const rec = new MediaRecorder(stream);
   const parts: Blob[] = [];
   rec.ondataavailable = e => { if (e.data.size) parts.push(e.data); };

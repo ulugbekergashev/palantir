@@ -5,6 +5,7 @@ import type { AutoReply, Business, LiveStatus, ReplyMode } from '../types';
 import { api } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { Button, ButtonLink, Card, Field, TextInput, controlClass } from '../components/ui';
+import { copyText } from '../lib/clipboard';
 
 /** Shaxsiy Telegram: raqam → kod → (bo'lsa) ikki bosqichli parol */
 export function TelegramLogin({ status, onStatus, notify }: { status: LiveStatus; onStatus: (s: LiveStatus) => void; notify: Notify }) {
@@ -317,7 +318,7 @@ export function TelegramBusiness({ status }: { status: LiveStatus }) {
 export function RemoteAccess({ status, notify }: { status: LiveStatus; notify: Notify }) {
   const r = status.remote;
   if (!r.url) return <p className="text-sm text-slate-500">Palantir Hub kodi kiritilmagan — panel faqat shu kompyuterda (va klinika tarmog'ida) ochiladi. Hub kodi: ulash ustasi → kalitlar.</p>;
-  const copy = async () => { await navigator.clipboard.writeText(r.url!).catch(() => {}); notify('Nusxalandi'); };
+  const copy = async () => { await copyText(r.url!).catch(() => {}); notify('Nusxalandi'); };
   return (
     <div className="space-y-3 text-sm text-slate-600">
       <p>{r.miniApp
@@ -335,7 +336,7 @@ export function RemoteAccess({ status, notify }: { status: LiveStatus; notify: N
 /** Mijozlar uchun havola: bosgan odam botga tushadi */
 export function ClientLink({ status, notify }: { status: LiveStatus; notify: Notify }) {
   if (!status.generalLink) return null;
-  const copy = async () => { await navigator.clipboard.writeText(status.generalLink!).catch(() => {}); notify('Nusxalandi'); };
+  const copy = async () => { await copyText(status.generalLink!).catch(() => {}); notify('Nusxalandi'); };
   return (
     <Card title="Mijozlar uchun havola" description="Instagram bio, reklama yoki vizitkaga qo'ying: bosgan odam botga tushadi, raqam yoki savol qoldiradi">
       <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-2 pl-3">

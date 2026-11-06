@@ -6,6 +6,7 @@ import { Button, Card, Field, TextInput } from '../../components/ui';
 import type { LiveStatus, SetupView } from '../../types';
 import { InstagramOfficial } from '../TelegramPage';
 import type { Routed } from './StepKeys';
+import { copyText } from '../../lib/clipboard';
 
 type Notify = (text: string, error?: boolean) => void;
 /** Holat tashqarida o'zgaradi (egasi telefonda bosadi, Instagram oynasida kiradi) — shuncha vaqtda bir yangilanadi */
@@ -39,7 +40,7 @@ export function StepOwner({ status, refresh, notify }: { status: LiveStatus; ref
   if (status.ownerLinked) return <Done title={`Egasi @${status.bot} bilan ulangan`}>Eslatmalar, ertalabki xulosa va mijozlarga javob takliflari egasining Telegram'iga keladi.</Done>;
   // Palantir jamoasi kirishida havola berilmaydi (u bilan jamoa o'zini egasi qilib ulay olardi)
   if (!status.linkUrl) return <Note>Egasini ulash havolasi faqat egasining o'z kirishida ko'rinadi: klinika kompyuterida yoki egasi o'z panelida — Sozlamalar → Telegram.</Note>;
-  const copy = () => { void navigator.clipboard?.writeText(status.linkUrl ?? '').then(() => notify('Havola nusxalandi'), () => {}); };
+  const copy = () => { void copyText(status.linkUrl ?? '').then(() => notify('Havola nusxalandi'), () => {}); };
   return (
     <Card title="Egasi o'z telefonida shu havolani ochsin" description="Havolani Telegram'da ochib «Start» bosadi — bot «Ulandi» deb javob beradi va bu sahifa o'zi yangilanadi. Havola bir martalik: boshqa odamga bermang.">
       <div className="flex flex-wrap items-center gap-2">

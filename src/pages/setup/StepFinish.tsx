@@ -5,6 +5,7 @@ import { api, session } from '../../data/api';
 import { Button, ButtonLink, Card, Field, TextInput } from '../../components/ui';
 import type { SetupView } from '../../types';
 import { loginFrom, stepState, visibleSteps, type StepState, type WizardFacts } from './wizard';
+import { copyText } from '../../lib/clipboard';
 
 type Notify = (text: string, error?: boolean) => void;
 const POLL_MS = 4_000;
@@ -135,7 +136,7 @@ Parol: ${done.password}`;
           Login va parolni yozib oldim
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button onClick={() => { void navigator.clipboard?.writeText(text).then(() => setCopied(true), () => {}); }}><Copy className="h-4 w-4" /> {copied ? 'Nusxalandi' : 'Nusxalash'}</Button>
+          <Button onClick={() => { void copyText(text).then(() => setCopied(true), () => {}); }}><Copy className="h-4 w-4" /> {copied ? 'Nusxalandi' : 'Nusxalash'}</Button>
           <Button variant="primary" onClick={finish} disabled={!saved}>Tayyor — kirish sahifasiga</Button>
         </div>
         <p className="mt-3 text-sm text-slate-500">Sizning kirishingiz tugadi. Keyin Palantir'dan bu klinikaga — Hub'dagi «Panelni ochish», egasi Telegram'da ruxsat beradi.</p>

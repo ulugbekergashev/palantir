@@ -7,6 +7,7 @@ import { Button, Card, EmptyState, Field, PageHeader, TextInput, controlClass, i
 import { prettyPhone } from '../lib/phone';
 import { when } from '../lib/text';
 import { REQUEST_KIND, requestKind, type RequestKindKey } from '../lib/requests';
+import { copyText } from '../lib/clipboard';
 
 const KIND = Object.fromEntries((Object.keys(REQUEST_KIND) as RequestKindKey[]).map(k => [k, requestKind(k, true)])) as Record<RequestKind, string>;
 const SOURCE: Record<RequestSource, string> = {
@@ -151,7 +152,7 @@ function TeamCard({ notify }: { notify: Notify }) {
   const onFail = useEffectEvent(fail);
   useEffect(() => { api.staff().then(setTeam).catch(onFail); const t = setInterval(() => { api.staff().then(setTeam).catch(() => {}); }, 15_000); return () => clearInterval(t); }, []);
   const add = () => { if (name.trim()) api.addStaff(name.trim()).then(t => { setTeam(t); setName(''); }).catch(fail); };
-  const copy = (link: string) => navigator.clipboard.writeText(link).then(() => notify('Havola nusxalandi — xodimga yuboring')).catch(() => notify(link));
+  const copy = (link: string) => copyText(link).then(() => notify('Havola nusxalandi — xodimga yuboring')).catch(() => notify(link));
   return (
     <Card title="Qabulxona xodimlari" description="Xodim havolani o'z Telegram'ida ochadi — shundan keyin so'rovlar unga tugmali karta bo'lib keladi: «Bajarildi», «Ko'tarmadi», natijani yozish. Yordamchi bilan faqat egasi gaplashadi.">
       {team === null ? <Loader2 className="h-5 w-5 animate-spin text-slate-400" /> : (

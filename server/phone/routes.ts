@@ -2,13 +2,12 @@
  * Panel: MicroSIP holati, ulash va uzish, raqam terish; qo'ng'iroq yozuvini tinglash va qayta tahlil.
  */
 import fs from 'node:fs';
-import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import express, { type Express, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { loginBlocked, loginFailed, loginOk } from '../auth';
 import type { BusinessRow } from '../db';
-import { env } from '../env';
+import { lanAddresses } from '../lan';
 import { remoteUrl } from '../remote';
 import { staff } from '../requests/store';
 import { RECORDINGS_DIR, connectPhone, dialFor, disconnectPhone, phoneStatus, review, stationEvent, stationRecording } from './index';
@@ -29,9 +28,7 @@ interface Deps {
 
 /** Boshqa kompyuter ulanishi mumkin bo'lgan manzillar: klinika tarmog'i (server hamma tarmoqda tinglasa) va Palantir Hub */
 function stationServers(): { lan: string[]; hub: string | null } {
-  const all = !env.listenHost || env.listenHost === '0.0.0.0' || env.listenHost === '::';
-  const lan = all ? Object.values(networkInterfaces()).flat().flatMap(i => (i && i.family === 'IPv4' && !i.internal ? [`http://${i.address}:${env.port}`] : [])) : [];
-  return { lan, hub: remoteUrl()?.replace(/\/$/, '') ?? null };
+  return { lan: lanAddresses(), hub: remoteUrl()?.replace(/\/$/, '') ?? null };
 }
 
 const EVENTS = ['incoming', 'answer', 'start', 'end', 'outgoing'] as const;

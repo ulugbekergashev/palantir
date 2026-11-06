@@ -9,6 +9,7 @@ import { iso } from '../src/lib/week';
 import { ask, resetConversation } from './agent';
 import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, loginOk, readToken, samePassword, verifyInitData } from './auth';
 import { CLIENT_HEADER, RELAY_HEADER, RELAY_SECRET, SUPPORT_HEADER, remoteUrl } from './remote';
+import { lanHost, lanMode, lanPeer } from './lan';
 import { activate, licenseStatus } from './license';
 import type { BotService } from './bot';
 import { costUsd } from './claude';
@@ -178,6 +179,13 @@ export function createApp(bot: BotService) {
       const host = (req.headers.host ?? '').replace(/:\d+$/, '').toLowerCase();
       if (host === 'localhost' || LOOPBACK.test(host) || host === '[::1]') return next();
       res.status(421).json({ error: "Bu manzil orqali ochib bo'lmaydi" });
+    });
+  } else if (lanMode()) {
+    // Klinika ichidagi tarmoq (lan.ts): faqat ichki tarmoqdan va shu kompyuterning o'z manzili/nomi bilan
+    app.use((req, res, next) => {
+      if (!lanPeer(req.socket.remoteAddress)) return res.status(403).json({ error: 'Panel faqat klinika ichidagi tarmoqdan ochiladi' });
+      if (!lanHost(req.headers.host)) return res.status(421).json({ error: "Bu manzil orqali ochib bo'lmaydi" });
+      next();
     });
   }
   app.use(express.json({ limit: '8mb' }));

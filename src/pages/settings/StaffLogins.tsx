@@ -2,14 +2,17 @@
  * Xodimlarning panelga kirishi (faqat egasi): «Qabulxona xodimlari» ro'yxatidagi odamga login, parol va huquq beriladi.
  * Qabulxona — faqat Qabulxona bo'limi; boshqaruvchi — hammasi, Sozlamalar va egasining kirish/kalitlaridan tashqari (server/access.ts).
  * Parol bir marta ko'rsatiladi; «Yangi parol» — eskisi va ochiq kirishlari bekor; «Yopish» — xodim darhol chiqadi.
+ * Yuqorida — xodim panelni qayerdan ochadi: klinika ichidagi kompyuterdan (server/lan.ts) va istalgan joydan (Hub); nusxalanadigan
+ * login-parol matniga ham manzil qo'shiladi.
  */
 import { useEffect, useState, type FormEvent } from 'react';
 import { Copy, KeyRound, Loader2, UserPlus } from 'lucide-react';
-import { api, type AccessMember } from '../../data/api';
+import { api, type AccessMember, type PanelWhere } from '../../data/api';
 import type { StaffAccess } from '../../types';
 import type { Notify } from '../../components/Artifacts';
 import { Button, Card, Field, TextInput } from '../../components/ui';
 import { loginFrom } from '../setup/wizard';
+import { copyText } from '../../lib/clipboard';
 
 const ACCESS: Record<StaffAccess, { name: string; hint: string }> = {
   reception: { name: 'Qabulxona', hint: "so'rovlar, yozishmalar, qo'ng'iroqlar, mijozlar" },
@@ -18,12 +21,16 @@ const ACCESS: Record<StaffAccess, { name: string; hint: string }> = {
 
 export function StaffLogins({ notify }: { notify: Notify }) {
   const [members, setMembers] = useState<AccessMember[] | null>(null);
+  const [where, setWhere] = useState<PanelWhere | null>(null);
   const [error, setError] = useState('');
   const [shown, setShown] = useState<{ name: string; login: string; password: string } | null>(null);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = () => api.teamAccess().then(r => { setMembers(r.members); setError(''); }).catch(e => setError((e as Error).message));
+  const load = () => api.teamAccess().then(r => { setMembers(r.members); setWhere(r.where); setError(''); }).catch(e => setError((e as Error).message));
+  /** Xodimga beriladigan manzil: klinika ichidagisi, bo'lmasa — Hub havolasi */
+  const address = where?.lan[0] ?? where?.hub ?? '';
+  const copy = (text: string) => { copyText(text).then(() => notify('Nusxalandi'), () => notify(text)); };
   useEffect(() => { void load(); }, []);
 
   const act = async (fn: () => Promise<{ member: AccessMember; password?: string }>) => {
@@ -49,12 +56,13 @@ export function StaffLogins({ notify }: { notify: Notify }) {
   return (
     <Card title="Xodimlar kirishi" description="Har xodim panelga o'z logini bilan kiradi va faqat o'ziga ochilgan bo'limni ko'radi. Parol bir marta ko'rsatiladi.">
       {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      {where && <Where where={where} copy={copy} />}
       {shown && (
         <div className="mb-4 rounded-xl bg-emerald-50 px-3.5 py-3 text-sm text-emerald-900">
           <p className="font-semibold">«{shown.name}» — panelga kirish</p>
           <p className="mt-1 font-mono" data-testid="staff-creds">login: {shown.login} · parol: {shown.password}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => { void navigator.clipboard?.writeText(`Palantir paneli\nLogin: ${shown.login}\nParol: ${shown.password}`).then(() => notify('Nusxalandi'), () => {}); }}><Copy className="h-4 w-4" /> Nusxalash</Button>
+            <Button size="sm" onClick={() => copy(`Palantir paneli${address ? `\nManzil: ${address}` : ''}\nLogin: ${shown.login}\nParol: ${shown.password}`)}><Copy className="h-4 w-4" /> Nusxalash</Button>
             <Button size="sm" onClick={() => setShown(null)}>Yopish</Button>
           </div>
           <p className="mt-2 text-xs text-emerald-800">Xodimga bering. Parol boshqa ko'rsatilmaydi — unutsa «Yangi parol».</p>
@@ -91,5 +99,31 @@ export function StaffLogins({ notify }: { notify: Notify }) {
         {ACCESS.reception.name}: {ACCESS.reception.hint}. {ACCESS.manager.name}: {ACCESS.manager.hint}. Pul yozuvlarini tasdiqlash, kalitlar va xodimlar — faqat sizda.
       </p>
     </Card>
+  );
+}
+
+/** Xodim panelni qayerdan ochadi */
+function Where({ where, copy }: { where: PanelWhere; copy: (text: string) => void }) {
+  return (
+    <div className="mb-4 space-y-1.5 rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-700" data-testid="panel-where">
+      <p className="font-semibold text-slate-800">Xodim panelni qayerdan ochadi</p>
+      {where.lan.map(url => (
+        <p key={url} className="flex flex-wrap items-center gap-2">
+          <span>Klinika ichidagi kompyuterdan (internetsiz):</span>
+          <span className="font-mono font-semibold text-slate-900">{url}</span>
+          <Button size="sm" onClick={() => copy(url)} aria-label={`${url} — nusxalash`}><Copy className="h-3.5 w-3.5" aria-hidden="true" /></Button>
+        </p>
+      ))}
+      {!where.lan.length && (
+        <p className="text-xs text-slate-500">Klinika ichidagi kompyuterlardan to'g'ridan-to'g'ri ochish hali yoqilmagan — o'rnatuvchi server kompyuterida install\Tarmoq.cmd ni bir marta ishga tushiradi.</p>
+      )}
+      {where.hub && (
+        <p className="flex flex-wrap items-center gap-2">
+          <span>Istalgan joydan (internet orqali):</span>
+          <span className="break-all font-mono text-slate-900">{where.hub}</span>
+          <Button size="sm" onClick={() => copy(where.hub!)} aria-label="Hub havolasi — nusxalash"><Copy className="h-3.5 w-3.5" aria-hidden="true" /></Button>
+        </p>
+      )}
+    </div>
   );
 }

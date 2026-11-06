@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { session } from '../data/api';
 import { startVoice, type VoiceEvent, type VoiceSession } from './liveVoice';
+import { MIC_UNAVAILABLE } from './mic';
 import { cardOf, liveVoices, type VoiceCard } from './useVoice';
 
 export type WakePhase = 'off' | 'starting' | 'listening' | 'live' | 'paused' | 'error';
@@ -102,6 +103,8 @@ export function useWake() {
     } catch (e) {
       release();
       setPhase('error');
+      // Mikrofon bu kompyuterda umuman yo'q (http orqali ochilgan boshqa kompyuter): qayta urinish befoyda
+      if ((e as Error).name === MIC_UNAVAILABLE) { fatal.current = true; setError("Quloq faqat server kompyuterining o'zida ishlaydi"); return; }
       setError((e as Error).name === 'NotAllowedError' ? 'Mikrofonga ruxsat bering' : 'Quloq ulanmadi — Palantir ovoz xizmati ishlayaptimi?');
       later(start, RETRY_MS);
     }

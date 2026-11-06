@@ -5,6 +5,7 @@ import { Button, Card, Field, TextInput } from '../../components/ui';
 import { cleanCode } from '../../lib/anketa';
 import type { AnketaImport, SetupView } from '../../types';
 import { loginFrom, newPassword } from './wizard';
+import { copyText } from '../../lib/clipboard';
 
 const SOURCE_KEY = 'palantir_anketa_source';
 const readSource = () => { try { return localStorage.getItem(SOURCE_KEY) ?? ''; } catch { return ''; } };
@@ -33,7 +34,7 @@ export function StepClinic({ list, selected, onSelect, onCreated, setup, onSetup
     } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
   };
 
-  const copy = (text: string) => { void navigator.clipboard?.writeText(text).then(() => notify('Nusxalandi'), () => {}); };
+  const copy = (text: string) => { void copyText(text).then(() => notify('Nusxalandi'), () => {}); };
 
   return (
     <div className="space-y-4">

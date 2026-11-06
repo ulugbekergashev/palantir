@@ -3,7 +3,7 @@
 #   Ornatish.cmd -Papka D:\Baza   - ma'lumotlar papkasi (standart C:\PalantirData; faqat birinchi o'rnatishda)
 #   Ornatish.cmd -Uninstall       - avtoyuklashdan olib tashlash va to'xtatish (ma'lumotlar o'chmaydi)
 #   (-Klinika / -Shaxsiy - eski nashrlardan; endi savol yo'q, e'tiborga olinmaydi)
-# Qadamlar: Node.js va ffmpeg -> kutubxonalar -> panelni yig'ish -> .env -> ovoz xizmati -> tekshiruv -> avtoyuklash -> ishga tushirish.
+# Qadamlar: Node.js va ffmpeg -> kutubxonalar -> panelni yig'ish -> .env -> klinika tarmog'i -> ovoz xizmati -> tekshiruv -> avtoyuklash -> ishga tushirish.
 # Avtoyuklash (administrator huquqi bilan): Windows vazifasi "Palantir" - kompyuter yonishi bilan shu foydalanuvchi nomidan, Windows'ga
 # kirmasdan va parol saqlamasdan (S4U) ishga tushadi; svet o'chib-yonsa ham. Huquq bo'lmasa - avtoyuklash papkasidagi yorliq (kirganda).
 # Exe (scripts\setup-exe.ts) runtime\ papkasida Node.js o'rnatgichi, ffmpeg va Python'ni beradi - o'rnatish internetsiz o'tadi.
@@ -219,7 +219,7 @@ if (-not $fresh) {
     '# Bot tokeni, Claude, Gemini, Telegram API kalitlari - panelda: http://localhost:3200/#/ulash (shifrlanib bazada turadi).',
     '# Shu yerga yozilsa ham ishlaydi, lekin paneldagisi ustun.',
     "PORT=$DefaultPort",
-    '# Faqat shu kompyuterdan ochiladi. Tarmoqdagi boshqa qurilmalarga ochish: 0.0.0.0 (panel shifrsiz - parol ochiq ketadi)',
+    '# Faqat shu kompyuterdan ochiladi. Klinika ichidagi tarmoqqa ochish: install\Tarmoq.cmd (ornatish ozi qiladi)',
     'LISTEN_HOST=127.0.0.1',
     "DATA_DIR=$data",
     "FFMPEG_PATH=$ffmpegPath",
@@ -241,6 +241,13 @@ $closed = (Protect-Path $dataDir $true) -and (Protect-Path (Join-Path $Root '.en
 $closed = (Protect-Path $Root $true) -and $closed
 if ($closed) { Note "Ma'lumotlar va dastur papkasi faqat shu foydalanuvchiga ochiq qilindi" }
 else { Warn "Papkalarni yopib bo'lmadi (disk buni qo'llamasligi mumkin). Boshqa Windows foydalanuvchilari kalitlar va bazani o'qiy oladi - papkalarni o'z profilingiz ichiga ko'chiring." }
+
+# --- 4a. Klinika ichidagi tarmoq ---------------------------------------------
+# Qabulxonadagi boshqa kompyuterlar panelni shu kompyuterning ichki manzili bilan ochadi (DentaLocal kabi, internetsiz):
+# LISTEN_HOST=0.0.0.0 va brandmauerda faqat ichki tarmoqqa qoida. Administrator huquqisiz - o'zgarmaydi (faqat shu kompyuter va Hub).
+Step '4a/7  Klinika ichidagi tarmoq'
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'tarmoq.ps1') -NoRestart
+if ($LASTEXITCODE -ne 0) { Warn "Panel boshqa kompyuterlarga ochilmadi - u faqat shu kompyuterdan va Hub havolasi orqali ochiladi. Keyinroq: install\Tarmoq.cmd (administrator sifatida)" }
 
 # --- 4b. Ovoz xizmati --------------------------------------------------------
 # Panel ovozi va "Quloq" - tgvoice (Python), administrator huquqisiz. Telefon liniyasi (WSL + Asterisk) bu yerda o'rnatilmaydi:

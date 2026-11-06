@@ -3,6 +3,7 @@ import { Copy, Loader2, Plus, Trash2 } from 'lucide-react';
 import { adminApi } from '../data/api';
 import { Button, Card, Field, TextInput } from '../components/ui';
 import type { AnketaView } from '../types';
+import { copyText } from '../lib/clipboard';
 
 const STATUS: Record<AnketaView['status'], { text: string; cls: string }> = {
   new: { text: 'ochilmagan', cls: 'bg-slate-100 text-slate-600' },
@@ -22,7 +23,7 @@ export function AnketaAdmin({ onError, onInfo }: { onError: (e: unknown) => void
   const link = (code: string) => `${window.location.origin}/#/anketa/${code}`;
   const copy = (a: AnketaView) => {
     const text = `Assalomu alaykum! Palantir'ni o'rnatishdan oldin shu anketani to'ldiring (10–15 daqiqa, telefondan ham bo'ladi):\n${link(a.code)}\nKod: ${a.code}`;
-    void navigator.clipboard?.writeText(text).then(() => onInfo('Xabar nusxalandi — egasiga Telegram\'da yuboring'), () => onInfo(link(a.code)));
+    void copyText(text).then(() => onInfo('Xabar nusxalandi — egasiga Telegram\'da yuboring'), () => onInfo(link(a.code)));
   };
   const create = async (e: FormEvent) => {
     e.preventDefault();

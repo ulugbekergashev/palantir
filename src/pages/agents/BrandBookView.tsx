@@ -12,6 +12,7 @@ import { NARRATORS } from '../../lib/narrators';
 import { LARGE_AA, TEXT_AA, contrast } from '../../lib/color';
 import { H, W, drawFrame, loadFonts } from '../../lib/videoRender';
 import { ACCENT, spin, useRun } from './Content';
+import { copyText } from '../../lib/clipboard';
 
 type Props = { b: BrandBook; setView: (v: ContentView) => void; notify: Notify };
 const head = (b: BrandBook) => ({ fontFamily: `"${b.font}", Manrope, sans-serif` });
@@ -21,7 +22,7 @@ const isFull = (b: BrandBook) => !!(b.essence || b.personas.length || b.hooks.le
 const unquote = (s: string) => s.replace(/^[«"“„']+|[»"”']+$/g, '').trim();
 
 async function copy(text: string, notify: Notify) {
-  try { await navigator.clipboard.writeText(text); notify('Nusxa olindi'); } catch { notify("Nusxa olib bo'lmadi — matnni belgilab oling", true); }
+  try { await copyText(text); notify('Nusxa olindi'); } catch { notify("Nusxa olib bo'lmadi — matnni belgilab oling", true); }
 }
 
 // ─── Qurilish bloklari ────────────────────────────────────────────────────────

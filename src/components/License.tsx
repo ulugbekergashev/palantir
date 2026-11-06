@@ -11,6 +11,7 @@ import { useState, type FormEvent } from 'react';
 import { Copy, KeyRound, Loader2, X } from 'lucide-react';
 import { api, type LicenseView } from '../data/api';
 import { Button } from './ui';
+import { copyText } from '../lib/clipboard';
 
 /** Shuncha kun qolganda eslatma yopilmaydi */
 const URGENT_DAYS = 3;
@@ -48,7 +49,7 @@ export function ActivationPanel({ license, onActivated, onClose }: { license: Li
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
-    await navigator.clipboard?.writeText(license.machineId).catch(() => {});
+    await copyText(license.machineId).catch(() => {});
     setCopied(true);
   };
   const submit = async (e: FormEvent) => {

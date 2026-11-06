@@ -147,7 +147,13 @@ Egasi tokenni yoki kalitni adashib botga (yoki panel suhbatiga) yozib yuborsa: b
 **Qabulxonadagi boshqa kompyuterlar (MicroSIP)** — har bir administrator kompyuterida o'z MicroSIP'i bo'lsa:
 1. Panel → Qabulxona → Qo'ng'iroqlar → «Qabulxonadagi boshqa kompyuterlar» → nomi (masalan «Qabulxona 2») va xodim → «Kompyuter qo'shish». Kod chiqadi (30 daqiqa, bir marta).
 2. O'sha kompyuterga Palantir papkasini (reliz zip) ko'chiring va **MicroSIP ishlatadigan foydalanuvchi nomidan** (administrator emas): `install\Stansiya.cmd -Server <manzil> -Code <kod>` — panel buyruqni tayyor ko'rsatadi. Palantir server u yerga o'rnatilmaydi: faqat kichik yordamchi (`%ProgramData%\Palantir-stansiya`), u MicroSIP'ni sozlaydi (bir necha soniyaga yopib-ochadi) va Windows yoqilganda o'zi ishga tushadi.
-3. Manzil: klinika tarmog'ida — server kompyuterining manzili (`.env`: `LISTEN_HOST=0.0.0.0`, brandmauerda port ochiq bo'lsin); tarmoq yopiq bo'lsa yoki kompyuter boshqa joyda — Palantir Hub manzili (internet orqali, yozuv 15 MB gacha).
+3. Manzil: klinika tarmog'ida — server kompyuterining ichki manzili (o'rnatgich tarmoqni o'zi ochadi; eski o'rnatishda bir marta `install\Tarmoq.cmd` administrator sifatida); tarmoq yopiq bo'lsa yoki kompyuter boshqa joyda — Palantir Hub manzili (internet orqali, yozuv 15 MB gacha).
+
+**Qabulxonadagi boshqa kompyuterlarda panel (brauzer)** — DentaLocal kabi, internetsiz:
+1. O'rnatgich (administrator sifatida) panelni klinika ichidagi tarmoqqa ochadi: `.env` da `LISTEN_HOST=0.0.0.0` va brandmauerda qoida — faqat Node.js, faqat panel porti, faqat ichki tarmoqdan. Eski o'rnatishda — bir marta `install\Tarmoq.cmd` (o'chirish: `install\Tarmoq.cmd -Off`).
+2. Manzil: panel → Sozlamalar → Xodimlar → «Xodim panelni qayerdan ochadi» (masalan `http://192.168.1.10:3200`). Routerda server kompyuteriga doimiy IP bering (DHCP rezervatsiya) — aks holda manzil o'zgarib qoladi.
+3. Har xodimga o'z logini: o'sha sahifada «Qabulxona sifatida kirsin» — «Nusxalash» login-parolni manzil bilan birga beradi.
+4. Boshqa kompyuterlarda mikrofon ishlamaydi (brauzer uni faqat https'da beradi): ovozli suhbat va «Quloq» — server kompyuterida, ovozli xabar — Hub havolasi orqali ham. Ulash ustasi va klinika kalitlari — faqat server kompyuterining o'zida.
 4. Tekshiruv: panelda kompyuter «aloqada»; shu kompyuterga qo'ng'iroq qilib ko'ring — Qo'ng'iroqlar ro'yxatida chiqadi, suhbat yozuvi bir necha soniyadan keyin keladi.
 - Bitta qo'ng'iroq bir nechta kompyuterda birdan jiringlasa (provayder hammaga beradi): kim ko'targan bo'lsa — o'sha kompyuterniki; boshqasida jiringlash to'xtagani «o'tkazib yuborildi» emas. Hech kim ko'tarmasagina — qabulxonaga «qayta qo'ng'iroq qiling» so'rovi.
 - Xodim biriktirilsa, u Telegram'da «📞 Kompyuterdan» bossa — raqam aynan o'zining kompyuterida teriladi.

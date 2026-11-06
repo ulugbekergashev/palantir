@@ -15,6 +15,7 @@ import { PalantirOrb } from '../components/PalantirOrb';
 import { takeAsk } from '../lib/ask';
 import { sectionFor } from '../lib/commands';
 import { startRecording, type Recording } from '../lib/recorder';
+import { MIC_UNAVAILABLE } from '../lib/mic';
 import { useVoice } from '../lib/useVoice';
 import { iso } from '../lib/week';
 import { scrollToEnd } from '../lib/scroll';
@@ -198,7 +199,7 @@ export function ChatPage({ status, notify, now }: { status: LiveStatus; notify: 
       try { await submit('', await rec.stop()); } catch { notify('Ovoz yozilmadi', true); }
       return;
     }
-    try { setRec(await startRecording()); } catch { notify('Mikrofonga ruxsat berilmadi', true); }
+    try { setRec(await startRecording()); } catch (e) { notify((e as Error).name === MIC_UNAVAILABLE ? (e as Error).message : 'Mikrofonga ruxsat berilmadi', true); }
   };
   const reset = async () => {
     await api.resetChat().catch(() => {});

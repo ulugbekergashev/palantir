@@ -9,7 +9,8 @@
 process.env.TZ = 'Asia/Tashkent';
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
-import { networkInterfaces, tmpdir } from 'node:os';
+import http from 'node:http';
+import { hostname, networkInterfaces, tmpdir } from 'node:os';
 import path from 'node:path';
 import { listen, OWNER, press, say, sent, sleep, stopProcess, tgServer, waitFor, type Sent } from './fakes';
 
@@ -38,6 +39,11 @@ async function until<T>(what: string, fn: () => Promise<T | undefined>, ms: numb
   return undefined;
 }
 const admin = { authorization: `Bearer ${ADMIN_KEY}` };
+/** Shu kompyuterdan, lekin boshqa Host nomi bilan (fetch Host sarlavhasini o'zgartirmaydi) — javob kodi */
+const withHost = (host: string, p = '/api/health') => new Promise<number>(done => {
+  const r = http.get({ host: '127.0.0.1', port: PORT, path: p, headers: { host } }, res => { res.resume(); done(res.statusCode ?? 0); });
+  r.on('error', () => done(0));
+});
 const post = (body: unknown, token?: string) => ({ method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
 const auth = (token: string) => ({ headers: { authorization: `Bearer ${token}` } });
 type Clinic = { id: string; online: boolean; status: { setup?: boolean; label?: string } | null };
@@ -118,6 +124,20 @@ try {
   ok("egasining telefonidan (Hub orqali) bot tokenini almashtirib bo'lmaydi — 403", (await fetch(`${R}/api/keys`, auth(owner.token!))).status === 403);
   const twice = await fetch(`${base}/api/handover`, post({}, owner.token));
   ok('qayta topshirib bo\'lmaydi — 400', twice.status === 400);
+
+  console.log('\n# Klinika ichidagi tarmoq (LISTEN_HOST=0.0.0.0, server/lan.ts)');
+  ok("begona sayt nomi bilan (DNS rebinding) — 421", await withHost('evil.example') === 421 && await withHost(`palantir.evil.example:${PORT}`) === 421);
+  ok("tashqi IP nomi bilan — 421", await withHost(`203.0.113.7:${PORT}`) === 421);
+  ok("ichki IP, localhost va kompyuter nomi bilan — ochiladi", await withHost(`192.168.1.10:${PORT}`) === 200 && await withHost(`localhost:${PORT}`) === 200
+    && await withHost(`${hostname()}:${PORT}`) === 200 && await withHost(`[::1]:${PORT}`) === 200);
+  const where = (await (await fetch(`${base}/api/team-access`, auth(owner.token!))).json() as { where: { lan: string[]; hub: string | null } }).where;
+  ok("Sozlamalar → Xodimlar kirishi: klinika ichidagi manzil(lar) va Hub havolasi", where.lan.every(u => new RegExp(`^http://\\d+\\.\\d+\\.\\d+\\.\\d+:${PORT}$`).test(u))
+    && where.hub?.startsWith(`${HUB}/c/`), JSON.stringify(where));
+  if (where.lan[0]) {
+    // Ko'rsatilgan manzilning o'zi ishlaydi: qabulxonadagi kompyuter shu bilan kiradi
+    const viaLan = await (await fetch(`${where.lan[0]}/api/login`, post({ login: 'shifodent', password: given.password }))).json() as { token?: string };
+    ok('ko\'rsatilgan ichki manzil bilan boshqa kompyuterdan kirildi', !!viaLan.token && (await fetch(`${where.lan[0]}/api/me`, auth(viaLan.token))).status === 200, where.lan[0]);
+  } else console.log("    (tarmoq manzili yo'q — boshqa kompyuterdan kirish sinovi o'tkazib yuborildi)");
 
   console.log('\n# Topshirilgandan keyin — faqat egasining ruxsati bilan');
   const after = await until('Hub: «sozlanmoqda» yo\'qoldi', async () => { const c = await hubClinic(clinic.clinicId); return c?.status && c.status.setup === false ? c : undefined; }, 10_000);

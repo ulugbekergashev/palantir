@@ -15,7 +15,7 @@ import { createSocket } from 'node:dgram';
 import { createServer as createTcp } from 'node:net';
 import { createServer, type IncomingMessage } from 'node:http';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { classifyLine, classifyText, containsSecret, maskSecret } from '../src/lib/secrets';
@@ -26,6 +26,7 @@ import { brandOf, candidatePaths, channelOf, channelUrl, parseProbeMatch, pickPr
 import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
 import { checkLicense, issueLicense, normalizeMachineId, signingKey } from '../hub/licenseKey';
 import { COMPILED_DEFINE } from './bundle';
+import { lanHost, lanPeer } from '../server/lan';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => {
@@ -149,6 +150,14 @@ console.log('\n# Litsenziya kaliti (sof)');
     rmSync(trialDir, { recursive: true, force: true });
   }
 }
+
+console.log('\n# Klinika ichidagi tarmoq (sof, server/lan.ts)');
+ok('ichki tarmoqdan: 192.168.x, 10.x, 172.16–31.x, shu kompyuter, IPv6 ichki va IPv4 ning IPv6 ko\'rinishi',
+  ['192.168.1.5', '10.0.0.7', '172.20.1.1', '127.0.0.1', '::1', '::ffff:192.168.1.5', 'fe80::1%12', 'fd12::5', '169.254.3.4'].every(lanPeer));
+ok("tashqi manzil va bo'sh — yo'q", !['8.8.8.8', '203.0.113.7', '172.32.0.1', '::ffff:8.8.8.8', '2001:db8::1', '', undefined, 'abc'].some(lanPeer));
+ok("Host: ichki IP, localhost, kompyuter nomi — ha; begona nom (DNS rebinding) va tashqi IP — yo'q",
+  ['192.168.1.10:3200', 'localhost:3200', 'localhost', '[::1]:3200', `${hostname()}:3200`, `${hostname().toUpperCase()}.local`].every(lanHost)
+  && !['evil.example', 'evil.example:3200', '8.8.8.8:3200', `${hostname()}.evil.example`, '', undefined].some(lanHost));
 
 console.log('\n# Kamera qidiruvi (sof)');
 const MATCH = `<?xml version="1.0"?><s:Envelope><s:Body><d:ProbeMatches><d:ProbeMatch><d:Scopes>onvif://www.onvif.org/name/HIKVISION%20DS-2CD1043G0-I onvif://www.onvif.org/hardware/DS-2CD1043G0-I</d:Scopes><d:XAddrs>http://192.168.1.64/onvif/device_service http://[fe80::1]/onvif/device_service</d:XAddrs></d:ProbeMatch></d:ProbeMatches></s:Body></s:Envelope>`;

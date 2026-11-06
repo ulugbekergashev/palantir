@@ -8,6 +8,7 @@ import { Eye, EyeOff, Loader2, Phone, PhoneForwarded, RefreshCw, Smartphone, Way
 import { api, type PhoneLine as Line } from '../../data/api';
 import { forwardCodes, type ForwardCode } from '../../lib/forwarding';
 import type { Notify } from '../../components/Artifacts';
+import { copyText } from '../../lib/clipboard';
 
 const DAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
 const RINGS = [10, 15, 20, 30];
@@ -255,7 +256,7 @@ function Forwarding({ number, notify }: { number: string; notify: Notify }) {
   const codes = forwardCodes(number, ring);
   if (!codes) return null;
   const copy = (code: string) => {
-    navigator.clipboard.writeText(code).then(() => notify('Nusxalandi'), () => notify(code));
+    copyText(code).then(() => notify('Nusxalandi'), () => notify(code));
   };
   const row = (c: ForwardCode, muted = false) => (
     <li key={c.code} className="flex items-center justify-between gap-3 border-b border-glass/[0.05] py-3 last:border-0">
