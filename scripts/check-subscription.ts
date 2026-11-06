@@ -12,7 +12,7 @@ delete process.env.ANTHROPIC_API_KEY;
 delete process.env.ANTHROPIC_AUTH_TOKEN;
 
 const { env } = await import('../server/env');
-const { childEnv, collectResult, textRequest, SubscriptionError, sessionKey, sessionOf } = await import('../server/subscription/engine');
+const { childEnv, collectResult, plainRequest, SubscriptionError, sessionKey, sessionOf } = await import('../server/subscription/engine');
 const { palantirTools, ToolGate } = await import('../server/subscription/tools');
 const { ownerToolDefs } = await import('../server/tools');
 const { friendlyError } = await import('../server/agent');
@@ -45,20 +45,29 @@ await check("bola jarayonga API kalit, token va soxta manzil o'tmaydi (aks holda
 });
 
 await check("asbobsiz bitta matnli so'rov obunaga o'tadi: ko'rsatma, matn va chuqurlik saqlanadi", () => {
-  const r = textRequest({ model: 'claude-opus-5-5', max_tokens: 100, system: [{ type: 'text', text: 'A' }, { type: 'text', text: 'B' }], output_config: { effort: 'low' }, messages: [{ role: 'user', content: [{ type: 'text', text: 'salom' }] }] });
-  assert.deepEqual(r, { model: 'claude-opus-5-5', system: 'A\n\nB', prompt: 'salom', effort: 'low' });
-  const s = textRequest({ model: 'm', max_tokens: 100, system: 'S', messages: [{ role: 'user', content: 'savol' }] });
-  assert.deepEqual(s, { model: 'm', system: 'S', prompt: 'savol', effort: undefined });
+  const r = plainRequest({ model: 'claude-opus-5-5', max_tokens: 100, system: [{ type: 'text', text: 'A' }, { type: 'text', text: 'B' }], output_config: { effort: 'low' }, messages: [{ role: 'user', content: [{ type: 'text', text: 'salom' }, { type: 'text', text: 'dunyo' }] }] });
+  assert.deepEqual(r, { model: 'claude-opus-5-5', system: 'A\n\nB', content: 'salom\n\ndunyo', schema: null, effort: 'low' });
+  const s = plainRequest({ model: 'm', max_tokens: 100, system: 'S', messages: [{ role: 'user', content: 'savol' }] });
+  assert.deepEqual(s, { model: 'm', system: 'S', content: 'savol', schema: null, effort: undefined });
 });
 
-await check("rasm, asbob yoki bir necha xabarli so'rov obunaga o'tmaydi (null)", () => {
-  assert.equal(textRequest({ model: 'm', max_tokens: 1, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'x' } }, { type: 'text', text: 'nima bor?' }] }] }), null);
-  assert.equal(textRequest({ model: 'm', max_tokens: 1, tools: [{ name: 't', input_schema: { type: 'object' } }], messages: [{ role: 'user', content: 'x' }] }), null);
-  assert.equal(textRequest({ model: 'm', max_tokens: 1, messages: [{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }, { role: 'user', content: 'c' }] }), null);
+await check("rasmli so'rov (kamera, rasmni ko'rish) obunaga bloklar bilan o'tadi, kesh belgisi olib tashlanadi", () => {
+  const image = { type: 'base64' as const, media_type: 'image/jpeg' as const, data: 'eA==' };
+  const r = plainRequest({ model: 'm', max_tokens: 1, messages: [{ role: 'user', content: [{ type: 'image', source: image }, { type: 'text', text: 'nima bor?', cache_control: { type: 'ephemeral' } }] }] });
+  assert.deepEqual(r?.content, [{ type: 'image', source: image }, { type: 'text', text: 'nima bor?' }]);
 });
 
-await check("JSON shakli talab qilingan so'rov obunaga o'tmaydi (obuna erkin matn qaytaradi — JSON.parse yiqiladi)", () => {
-  assert.equal(textRequest({ model: 'm', max_tokens: 1, output_config: { format: { type: 'json_schema', schema: { type: 'object' } } }, messages: [{ role: 'user', content: 'x' }] }), null);
+await check("JSON shakli so'ralgan so'rov (mijozga javob, Direktor) obunaga shakli bilan o'tadi", () => {
+  const schema = { type: 'object', properties: { reply: { type: 'string' } }, required: ['reply'], additionalProperties: false };
+  const r = plainRequest({ model: 'm', max_tokens: 1, output_config: { effort: 'low', format: { type: 'json_schema', schema } }, messages: [{ role: 'user', content: 'x' }] });
+  assert.deepEqual(r?.schema, schema);
+  assert.equal(r?.effort, 'low');
+});
+
+await check("asbobli, bir necha xabarli yoki hujjatli so'rov obunaga o'tmaydi (null — API kalit kerak)", () => {
+  assert.equal(plainRequest({ model: 'm', max_tokens: 1, tools: [{ name: 't', input_schema: { type: 'object' } }], messages: [{ role: 'user', content: 'x' }] }), null);
+  assert.equal(plainRequest({ model: 'm', max_tokens: 1, messages: [{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }, { role: 'user', content: 'c' }] }), null);
+  assert.equal(plainRequest({ model: 'm', max_tokens: 1, messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'x' } }] }] }), null);
 });
 
 const usage = { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 3, cache_creation_input_tokens: 2 };
@@ -67,6 +76,11 @@ const result = (over: Record<string, unknown>) => ({ type: 'result', subtype: 's
 await check("natija: matn, sessiya va tokenlar o'qiladi", () => {
   const r = collectResult([{ type: 'system', subtype: 'init', session_id: 'sess-1' }, result({})] as never);
   assert.deepEqual(r, { text: 'Tayyor', sessionId: 'sess-1', cut: false, refused: false, usage: { input: 10, output: 5, cacheRead: 3, cacheWrite: 2 } });
+});
+
+await check("JSON shakli so'ralganda SDK tekshirgan javob (structured) ham qaytadi", () => {
+  const r = collectResult([result({ result: '{"reply":"ok"}', structured_output: { reply: 'ok' } })] as never);
+  assert.deepEqual(r.structured, { reply: 'ok' });
 });
 
 await check('model rad etsa — refused belgisi', () => {
@@ -106,6 +120,13 @@ await check('egasiga tushunarli sabab: kirish, limit va qo\'llab-quvvatlanmaydig
   assert.match(friendlyError(new SubscriptionError('limit', 'x')), /limit/i);
   assert.match(friendlyError(new SubscriptionError('unsupported', 'x')), /API kalit/i);
   assert.match(friendlyError(new SubscriptionError('timeout', 'x')), /uzoq/i);
+});
+
+await check("mijozga javob obunada tayyorlanmasa — xodimga sababi aytiladi (limit, kirilmagan)", async () => {
+  const { whyNoReply } = await import('../server/inbox/core');
+  assert.match(whyNoReply(new SubscriptionError('limit', 'x')), /obunasining limiti/);
+  assert.match(whyNoReply(new SubscriptionError('auth', 'x')), /obunasiga kirilmagan/);
+  assert.match(whyNoReply(new Error('boom')), /javob tayyorlay olmadi/);
 });
 
 await check("darvoza: yopilgach asbob ishlamaydi, yopish ishlayotgan asbobni kutadi, chaqiruvlar sanaladi", async () => {

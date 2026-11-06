@@ -4,7 +4,7 @@ import { iso } from '../src/lib/week';
 import { type BusinessRow } from './db';
 import { aiUsage, type AiUsageRow } from './serviceStore';
 import { env } from './env';
-import { SubscriptionError, apiKeyPresent, subscriptionMessage, subscriptionOn, textRequest, type TokenUsage } from './subscription/engine';
+import { SubscriptionError, apiKeyPresent, plainRequest, subscriptionMessage, subscriptionOn, type TokenUsage } from './subscription/engine';
 
 let client: Anthropic | null = null;
 export const claude = () => (client ??= new Anthropic({ maxRetries: 2, timeout: 600_000 }));
@@ -27,12 +27,12 @@ type Params = Omit<Anthropic.Beta.MessageCreateParamsNonStreaming, 'betas' | 'fa
 
 /**
  * Modelga so'rov. Kunlik chegaradan oshsa — AiLimitError; aks holda so'rov va tokenlari biznes hisobiga yoziladi. betas — qo'shimcha beta sarlavhalar.
- * Obuna rejimida (AI_ENGINE=subscription) egasining asbobsiz matnli ishi obuna orqali ketadi; qolgani — API kalit bo'lsa API'da,
- * bo'lmasa egasiga tushunarli SubscriptionError
+ * Obuna rejimida (AI_ENGINE=subscription) asbobsiz ishlarning hammasi (matn, rasm, JSON — mijozga javob, kamera ham) obuna orqali
+ * ketadi; asbobli ish (kompyuterda ish) — API kalit bo'lsa API'da, bo'lmasa egasiga tushunarli SubscriptionError
  */
 export async function think(bizId: string, kind: AiKind, params: Params, betas: Anthropic.Beta.AnthropicBeta[] = []): Promise<Anthropic.Beta.BetaMessage> {
   if (subscriptionOn()) {
-    const req = kind === 'owner' ? textRequest(params) : null;
+    const req = kind === 'computer' ? null : plainRequest(params);
     if (req) return ask(bizId, kind, () => subscriptionMessage(req));
     if (!apiKeyPresent()) throw new SubscriptionError('unsupported', `Obunada ishlamaydigan so'rov (${kind}) — API kalit yo'q`);
   }

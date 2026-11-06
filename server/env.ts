@@ -99,9 +99,9 @@ export const env = {
   /** Faqat sinov uchun: soxta Telegram API manzili */
   telegramApiRoot: process.env.TELEGRAM_API_ROOT || undefined,
   /**
-   * AI qayerdan ishlaydi: api — ANTHROPIC_API_KEY (klinikalar); subscription — egasining o'z Claude obunasi Claude Agent SDK orqali
-   * (faqat o'z kompyuterida, o'zi uchun: kompyuterda `claude` ga kirilgan yoki CLAUDE_CODE_OAUTH_TOKEN). Obunada egasi bilan suhbat va
-   * asbobsiz matnli ishlar ketadi; rasm, kamera va mijozga javob — API kalit bilan (subscription/engine.ts)
+   * AI qayerdan ishlaydi: api — ANTHROPIC_API_KEY; subscription — shu kompyuterdagi Claude obunasi Claude Agent SDK orqali (egasi —
+   * o'zinikida, klinika — o'z sotib olgan obunasida; kompyuterda `claude` ga kirilgan yoki CLAUDE_CODE_OAUTH_TOKEN). Obunada hammasi
+   * ishlaydi (suhbat, mijozga javob, rasm, kamera), faqat kompyuterda ish va chuqur tahlil — API kalit bilan (subscription/engine.ts)
    */
   aiEngine: (process.env.AI_ENGINE === 'subscription' ? 'subscription' : 'api') as 'api' | 'subscription',
   /** Claude kaliti (yoki obuna) — yordamchining "miyasi" */

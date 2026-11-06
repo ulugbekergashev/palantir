@@ -1,7 +1,9 @@
 /**
- * Obuna dvigateli (AI_ENGINE=subscription): so'rov API kalit o'rniga egasining o'z Claude obunasiga Claude Agent SDK orqali ketadi.
- * Faqat egasining o'z kompyuterida, o'zi uchun: Anthropic qoidasi bo'yicha obunani boshqalarga (klinikalarga) berib bo'lmaydi —
- * ular API kalit bilan ishlaydi. Kirish: kompyuterda `claude` ga /login qilingan yoki CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`).
+ * Obuna dvigateli (AI_ENGINE=subscription): so'rov API kalit o'rniga shu kompyuterdagi Claude obunasiga Claude Agent SDK orqali ketadi.
+ * Har kim o'z obunasida: egasi o'zinikida, klinika o'zi sotib olgan obunasida (egasi o'z obunasini hech kimga bermaydi).
+ * Kirish: kompyuterda `claude` ga /login qilingan yoki CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`).
+ * Obunaga asbobsiz so'rovlarning hammasi o'tadi (matn, rasm, JSON javob — mijozga javob, kamera, Direktor ham), egasi bilan
+ * suhbat — Palantir asboblari bilan (owner.ts). API kalitsiz ishlamaydiganlari: kompyuterda ish va chuqur tahlil (Python).
  *
  * Agent SDK ichida Claude Code ishlaydi. Unga faqat Palantir'ning o'z ko'rsatmasi va asboblari beriladi: fayl, buyruq va boshqa
  * o'rnatilgan asboblar o'chiq (tools: []), kompyuterdagi Claude Code sozlamalari, CLAUDE.md va plaginlar o'qilmaydi (settingSources: []).
@@ -9,7 +11,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
-import { query, type EffortLevel, type McpSdkServerConfigWithInstance, type Options, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query, type EffortLevel, type McpSdkServerConfigWithInstance, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { env } from '../env';
 import { APP_VERSION } from '../version';
 
@@ -24,7 +26,7 @@ export class SubscriptionError extends Error {
 }
 
 export const subscriptionOn = (): boolean => env.aiEngine === 'subscription';
-/** Obuna rejimida ham API kalit bo'lsa — obunada yo'q ishlar (rasm, kamera, mijozga javob) shu kalit bilan ishlaydi */
+/** Obuna rejimida ham API kalit bo'lsa — obunada yo'q ishlar (kompyuterda ish, chuqur tahlil) shu kalit bilan ishlaydi */
 export const apiKeyPresent = (): boolean => !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
 
 /** Bitta so'rovning eng uzoq kutilishi: asboblar bilan ko'p qadamli ish ham shu vaqtga sig'adi */
@@ -41,40 +43,52 @@ export function childEnv(src: NodeJS.ProcessEnv): Record<string, string | undefi
   return { ...kept, CLAUDE_AGENT_SDK_CLIENT_APP: `palantir/${APP_VERSION}` };
 }
 
-// ─── Asbobsiz matnli so'rov ───────────────────────────────────────────────────
+// ─── Asbobsiz so'rov (matn, rasm, JSON javob) ─────────────────────────────────
 
 type MessageParams = Omit<Anthropic.Beta.MessageCreateParamsNonStreaming, 'betas' | 'fallbacks'>;
-export interface TextRequest { model: string; system: string; prompt: string; effort: EffortLevel | undefined }
+/** Obunaga ketadigan bloklar: matn va rasm (kesh belgilari olib tashlanadi — obuna o'zi keshlaydi) */
+export type PlainBlock = { type: 'text'; text: string } | { type: 'image'; source: Anthropic.Beta.BetaBase64ImageSource };
+/** schema — javob shu JSON shaklida qaytsin (mijozga javob, kamera, Direktor); null — erkin matn */
+export interface PlainRequest { model: string; system: string; content: string | PlainBlock[]; schema: Record<string, unknown> | null; effort: EffortLevel | undefined }
 
-const textOnly = (c: Anthropic.Beta.BetaMessageParam['content']): string | null => {
+/** Faqat matn bo'lsa — bitta satr; rasm bo'lsa — bloklar; boshqa blok (hujjat, asbob natijasi) — null */
+function plainContent(c: Anthropic.Beta.BetaMessageParam['content']): string | PlainBlock[] | null {
   if (typeof c === 'string') return c;
-  const texts: string[] = [];
+  const blocks: PlainBlock[] = [];
   for (const b of c) {
-    if (b.type !== 'text') return null;
-    texts.push(b.text);
+    if (b.type === 'text') blocks.push({ type: 'text', text: b.text });
+    else if (b.type === 'image' && b.source.type === 'base64') blocks.push({ type: 'image', source: b.source });
+    else return null;
   }
-  return texts.join('\n\n');
-};
+  const texts = blocks.flatMap(b => (b.type === 'text' ? [b.text] : []));
+  return texts.length === blocks.length ? texts.join('\n\n') : blocks;
+}
 
 /**
- * API so'rovi obunaga o'tadimi: faqat asbobsiz, rasmsiz, bitta egasi xabari (post matni, hujjat qoralamasi kabi).
- * Boshqasi (rasm, asboblar, bir necha xabar, JSON shakli — obuna erkin matn qaytaradi) — null: u API'da qoladi
+ * API so'rovi obunaga o'tadimi: asbobsiz, bitta foydalanuvchi xabari — matn, rasm, JSON shakli bo'lishi mumkin.
+ * Asboblar yoki bir necha xabarli so'rov (kompyuterda ish, chuqur tahlil) — null: u API kalit bilan ishlaydi
  */
-export function textRequest(p: MessageParams): TextRequest | null {
-  if (p.tools?.length || p.messages.length !== 1 || p.output_config?.format) return null;
+export function plainRequest(p: MessageParams): PlainRequest | null {
+  if (p.tools?.length || p.messages.length !== 1) return null;
   const [m] = p.messages;
   if (m.role !== 'user') return null;
-  const prompt = textOnly(m.content);
-  if (prompt === null) return null;
+  const content = plainContent(m.content);
+  if (content === null) return null;
   const system = typeof p.system === 'string' ? p.system : (p.system ?? []).map(b => b.text).join('\n\n');
-  return { model: p.model, system, prompt, effort: p.output_config?.effort ?? undefined };
+  const format = p.output_config?.format;
+  return { model: p.model, system, content, schema: format?.type === 'json_schema' ? format.schema : null, effort: p.output_config?.effort ?? undefined };
+}
+
+/** Rasmli so'rov SDK'ga oqim ko'rinishida beriladi (bitta xabar): satr ko'rinishidagi so'rovga rasm sig'maydi */
+async function* oneMessage(content: PlainBlock[]): AsyncGenerator<SDKUserMessage> {
+  yield { type: 'user', parent_tool_use_id: null, message: { role: 'user', content } };
 }
 
 // ─── Natija ───────────────────────────────────────────────────────────────────
 
 export interface TokenUsage { input: number; output: number; cacheRead: number; cacheWrite: number }
-/** cut — qadamlar tugadi (ish chala); refused — model so'rovni rad etdi */
-export interface TurnResult { text: string; sessionId: string; cut: boolean; refused: boolean; usage: TokenUsage }
+/** cut — qadamlar tugadi (ish chala); refused — model so'rovni rad etdi; structured — JSON shakli so'ralganda SDK tekshirgan javob */
+export interface TurnResult { text: string; sessionId: string; cut: boolean; refused: boolean; usage: TokenUsage; structured?: unknown }
 
 // Limit avval tekshiriladi: limit xabarida «OAuth» so'zi ham uchraydi
 const LIMIT_RE = /usage limit|rate limit|limit reached|hit your .*limit|\b429\b/i;
@@ -105,7 +119,8 @@ export function collectResult(msgs: readonly SDKMessage[]): TurnResult {
   if (res.subtype === 'error_max_turns') return { text: lastText(msgs), sessionId: res.session_id, cut: true, refused: false, usage };
   if (res.subtype !== 'success') throw fail(res.errors.join('; ') || res.subtype);
   if (res.is_error) throw fail(`${res.api_error_status ?? ''} ${res.result}`.trim());
-  return { text: res.result.trim() || lastText(msgs), sessionId: res.session_id, cut: false, refused: res.stop_reason === 'refusal', usage };
+  const structured = res.structured_output !== undefined ? { structured: res.structured_output } : {};
+  return { text: res.result.trim() || lastText(msgs), sessionId: res.session_id, cut: false, refused: res.stop_reason === 'refusal', usage, ...structured };
 }
 
 // ─── So'rov ───────────────────────────────────────────────────────────────────
@@ -125,6 +140,8 @@ export interface QueryOptions {
   onWebSearch?: () => void;
   /** Sessiya diskka yozilsinmi (davom ettiriladigan suhbat uchun kerak; bir martalik matnli so'rovda — yo'q) */
   persist: boolean;
+  /** Javob shu JSON shaklida qaytsin (SDK o'zi tekshiradi va noto'g'ri bo'lsa qayta so'raydi) */
+  schema?: Record<string, unknown>;
 }
 
 /** SDK sessiyalari saqlanadigan papka: egasining boshqa Claude Code loyihalari bilan aralashmasin */
@@ -140,6 +157,7 @@ function optionsFor(o: QueryOptions, abort: AbortController): Options {
   return {
     model: o.model,
     ...(o.effort ? { effort: o.effort } : {}),
+    ...(o.schema ? { outputFormat: { type: 'json_schema' as const, schema: o.schema } } : {}),
     maxTurns: o.maxTurns,
     abortController: abort,
     systemPrompt: o.system,
@@ -160,7 +178,7 @@ function optionsFor(o: QueryOptions, abort: AbortController): Options {
   };
 }
 
-export async function runQuery(prompt: string, o: QueryOptions): Promise<TurnResult> {
+export async function runQuery(prompt: string | AsyncIterable<SDKUserMessage>, o: QueryOptions): Promise<TurnResult> {
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
   const msgs: SDKMessage[] = [];
@@ -180,14 +198,23 @@ export async function runQuery(prompt: string, o: QueryOptions): Promise<TurnRes
   return collectResult(msgs);
 }
 
+/** JSON javobda SDK javobni shaklga moslab qayta so'rashi mumkin: bunga bir necha qadam kerak */
+const SCHEMA_TURNS = 3;
+
 /**
- * Asbobsiz matnli so'rov obuna orqali; javob API javobi ko'rinishida (chaqiruvchilar faqat content, stop_reason va usage'ni o'qiydi)
+ * Asbobsiz so'rov obuna orqali; javob API javobi ko'rinishida (chaqiruvchilar faqat content, stop_reason va usage'ni o'qiydi).
+ * JSON shakli so'ralgan bo'lsa — matn bloki SDK tekshirgan JSON (chaqiruvchi API'dagidek JSON.parse qiladi)
  */
-export async function subscriptionMessage(req: TextRequest): Promise<Anthropic.Beta.BetaMessage> {
-  const r = await runQuery(req.prompt, { system: req.system, model: req.model, effort: req.effort, maxTurns: 1, persist: false });
+export async function subscriptionMessage(req: PlainRequest): Promise<Anthropic.Beta.BetaMessage> {
+  const prompt = typeof req.content === 'string' ? req.content : oneMessage(req.content);
+  const r = await runQuery(prompt, {
+    system: req.system, model: req.model, effort: req.effort, persist: false,
+    maxTurns: req.schema ? SCHEMA_TURNS : 1, ...(req.schema ? { schema: req.schema } : {}),
+  });
+  const text = r.structured !== undefined ? JSON.stringify(r.structured) : r.text;
   const message = {
     id: `obuna_${r.sessionId}`, type: 'message', role: 'assistant', model: req.model,
-    content: [{ type: 'text', text: r.text, citations: null }],
+    content: [{ type: 'text', text, citations: null }],
     stop_reason: r.refused ? 'refusal' : r.cut ? 'max_tokens' : 'end_turn', stop_sequence: null,
     usage: { input_tokens: r.usage.input, output_tokens: r.usage.output, cache_read_input_tokens: r.usage.cacheRead, cache_creation_input_tokens: r.usage.cacheWrite },
   };

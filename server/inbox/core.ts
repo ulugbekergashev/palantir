@@ -21,6 +21,7 @@ import { cleanName, normPhone } from '../crm/logic';
 import { filterOptions, recordFix } from '../brain/index';
 import { ownerAnswered } from '../brain/learn';
 import { AiLimitError } from '../claude';
+import { SubscriptionError } from '../subscription/engine';
 import { bookForCustomer, bookingLine, changeLine, changeVisit, checkBooking, checkChange } from '../crm/reception';
 import { env } from '../env';
 import { decide, type Decision } from './replier';
@@ -210,6 +211,14 @@ const unanswered = (thread: InboxMessage[]) => {
   return thread.slice(i + 1);
 };
 
+/** AI javob tayyorlay olmadi: xodimga sababi (obuna limiti yoki kirilmagani — kutish yoki qayta kirish kerakligini bilsin) */
+export function whyNoReply(e: unknown): string {
+  if (e instanceof AiLimitError) return "Bugungi AI chegarasi tugadi — bu xabarga o'zingiz javob bering";
+  if (e instanceof SubscriptionError && e.reason === 'limit') return "Claude obunasining limiti tugadi — limit yangilanguncha o'zingiz javob bering";
+  if (e instanceof SubscriptionError && e.reason === 'auth') return "Claude obunasiga kirilmagan — Palantir javob tayyorlay olmadi, o'zingiz javob bering";
+  return "Palantir javob tayyorlay olmadi — o'zingiz javob bering";
+}
+
 async function handle(bizId: string, leadId: string): Promise<void> {
   const biz = businesses.byId(bizId);
   const lead = leads.get(bizId, leadId);
@@ -242,7 +251,7 @@ async function handle(bizId: string, leadId: string): Promise<void> {
     d = await decide(biz, lead, thread);
   } catch (e) {
     console.error('[mijozlar] javob tayyorlanmadi:', (e as Error).message);
-    await forward(biz, lead, fresh, e instanceof AiLimitError ? "Bugungi AI chegarasi tugadi — bu xabarga o'zingiz javob bering" : "Palantir javob tayyorlay olmadi — o'zingiz javob bering");
+    await forward(biz, lead, fresh, whyNoReply(e));
     return;
   }
   // Claude o'ylayotganda yana yozgan bo'lsa — navbatdagi ishlov hammasini birga ko'radi
