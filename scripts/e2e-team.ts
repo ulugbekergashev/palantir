@@ -65,7 +65,7 @@ try {
   ok("jamoani boshqarish, jurnal, zaxiralar — yo'q (403)", (await fetch(`${HUB}/admin/team`, post({ name: 'X', login: 'xxx' }, installer.token))).status === 403
     && (await get(`${HUB}/admin/audit`, installer.token)).status === 403 && (await get(`${HUB}/admin/backups`, installer.token)).status === 403);
   const clinic = await json<{ clinicId: string; code: string }>(fetch(`${HUB}/admin/clinics`, post({ name: 'Shifo Dent' }, installer.token)));
-  ok("o'rnatuvchi «Yangi klinika» ochdi", clinic.code?.startsWith('palantir.'));
+  ok("o'rnatuvchi «Yangi klinika» ochdi", clinic.code?.startsWith('palantirhub.'));
   ok("litsenziya va o'chirish — faqat asoschi (403)", (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/license`, post({}, installer.token))).status === 403
     && (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/delete`, post({}, installer.token))).status === 403);
 

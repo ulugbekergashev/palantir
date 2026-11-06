@@ -150,11 +150,11 @@ const team = createTeam(db, stateSecret, () => cfg.adminKey);
 const now = () => new Date().toISOString();
 /**
  * Klinika ulanish kodi — ko'rinishi src/lib/hubCode.ts dagi bilan bir xil (hub alohida joylanadi, shuning uchun nusxa).
- * «palantir.» bilan boshlanadi. 0.4.7 va undan eski Palantir faqat eski «phub.» ni o'qiydi: o'zi ulanishda u kod turini aytmaydi
+ * «palantirhub.» bilan boshlanadi. 0.4.7 va undan eski Palantir faqat eski «phub.» ni o'qiydi: o'zi ulanishda u kod turini aytmaydi
  * va eskisini oladi (aks holda kodni saqlay olmay, Hub'ga qayta-qayta yozilardi)
  */
 const HUB_CODE_FORMAT = 2;
-const makeHubCode = (url: string, clinicId: string, secret: string, tag = 'palantir') => `${tag}.${Buffer.from(url.replace(/\/+$/, '')).toString('base64url')}.${clinicId}.${secret}`;
+const makeHubCode = (url: string, clinicId: string, secret: string, tag = 'palantirhub') => `${tag}.${Buffer.from(url.replace(/\/+$/, '')).toString('base64url')}.${clinicId}.${secret}`;
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const sameText = (a: string, b: string) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 const newId = () => randomBytes(5).toString('hex');
@@ -454,7 +454,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     db.prepare('INSERT INTO clinics (id, name, key_hash, created_at, machine_id, self, approved) VALUES (?, ?, ?, ?, ?, 1, 0)').run(id, name, sha(secret), now(), machine);
     // Sotuvchi ro'yxatni kuzatib o'tirmasin. Kompyuter kodi xabarga yozilmaydi: tasdiqlash — o'rnatuvchi ekrandan aytgan kod bilan
     void alert(`🆕 Yangi kompyuter Hub'ga yozildi: «${name}». Siz o'rnatayotgan bo'lsa — o'rnatuvchidan ekrandagi kompyuter kodini so'rab, ${cfg.publicUrl}/admin da «Tasdiqlash va aktivlashtirish»ni bosing. Tanimasangiz — «O'chirish».`);
-    return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl, id, secret, body.codeFormat === HUB_CODE_FORMAT ? 'palantir' : 'phub') });
+    return send(res, 200, { clinicId: id, code: makeHubCode(cfg.publicUrl, id, secret, body.codeFormat === HUB_CODE_FORMAT ? 'palantirhub' : 'phub') });
   }
 
   // Jamoa (team.ts): shaxsiy kirish, o'z paroli, hisoblar (asoschi) va jurnal (asoschi)

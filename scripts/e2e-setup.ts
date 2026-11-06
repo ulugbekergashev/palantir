@@ -46,8 +46,8 @@ ok('Claude, Gemini, Groq kalitlari', classifyLine(CLAUDE)?.key === 'ANTHROPIC_AP
 ok('chala Gemini kaliti — xato', !!classifyLine('AIzaSyB7xK2')?.error);
 ok('Telegram API hash (32 hex)', classifyLine('0123456789abcdef0123456789abcdef')?.key === 'TG_API_HASH');
 const HUB_TAIL = `aHR0cHM6Ly9odWIuZXhhbXBsZS51eg.a1b2c3d4e5.${'k'.repeat(32)}`;
-ok("Palantir Hub kodi: «palantir.» va eski «phub.» — tanildi; chala kod — sababi bilan", [`palantir.${HUB_TAIL}`, `phub.${HUB_TAIL}`].every(c => classifyLine(c)?.key === 'PALANTIR_HUB' && !classifyLine(c)?.error)
-  && !!classifyLine('palantir.abc')?.error && !!classifyLine('phub.abc')?.error);
+ok("Palantir Hub kodi: «palantirhub.» va eski «phub.» — tanildi; chala kod — sababi bilan", [`palantirhub.${HUB_TAIL}`, `phub.${HUB_TAIL}`].every(c => classifyLine(c)?.key === 'PALANTIR_HUB' && !classifyLine(c)?.error)
+  && !!classifyLine('palantirhub.abc')?.error && !!classifyLine('phub.abc')?.error);
 ok('kamera, DentaCRM, Instagram, telefon', classifyLine('rtsp://admin:p@192.168.1.64:554/x')?.kind === 'rtsp' && classifyLine('https://shifo.dentacrm.uz')?.kind === 'crm'
   && classifyLine('instagram.com/shifodent')?.kind === 'instagram' && classifyLine('+998 90 123 45 67')?.kind === 'phone');
 ok('tanilmagan qator — unknown', classifyLine('Klinika2026!')?.kind === 'unknown');

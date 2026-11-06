@@ -21,7 +21,7 @@ async function join(): Promise<'done' | 'retry' | 'stop'> {
   try {
     r = await fetch(`${env.hubJoinUrl}/api/register`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      // codeFormat: 2 — «palantir.» kodni o'qiy olamiz (src/lib/hubCode.ts); aytilmasa Hub eski «phub.» ni beradi
+      // codeFormat: 2 — «palantirhub.» kodni o'qiy olamiz (src/lib/hubCode.ts); aytilmasa Hub eski «phub.» ni beradi
       body: JSON.stringify({ machineId: machineId(), name: hostname(), codeFormat: 2 }), signal: AbortSignal.timeout(15_000),
     });
   } catch {

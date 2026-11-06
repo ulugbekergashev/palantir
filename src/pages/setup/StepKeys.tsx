@@ -90,7 +90,7 @@ export function StepKeys({ keys, onKeys, onRouted, profile }: {
 
   const required = (keys ?? []).filter(k => k.required);
   // Klinika kompyuterida Hub ulanishi kalit emas: kompyuter o'zi ulanadi (server/hubJoin.ts). Jadvalda bo'lsa, egasi uni bilmasdan
-  // o'chirib qo'yishi mumkin — masofadan yordam, zaxira va rasmiy Instagram uziladi. Zaxira yo'l («palantir.» kodini maydonga qo'yish) qoladi
+  // o'chirib qo'yishi mumkin — masofadan yordam, zaxira va rasmiy Instagram uziladi. Zaxira yo'l («palantirhub.» kodini maydonga qo'yish) qoladi
   const rows = profile ? KEYS.filter(k => k.name !== 'PALANTIR_HUB') : KEYS;
   return (
     <div className="space-y-4">

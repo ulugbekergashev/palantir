@@ -220,6 +220,49 @@ try {
   ok("bir nechta biznes — qaysi biri so'raladi; har biznesda o'z egasining roziligi kerak", which.status === 409 && choice.businesses?.length === 2 && !!second
     && secondTry?.status === 403, JSON.stringify(choice));
 
+  console.log("\n# Yordam so'rash: egasi yozadi → jamoa /admin da javob beradi → egasining Telegramiga");
+  type HelpReq = { id: string; text: string; by: string | null; withDiag: boolean; answer: string | null; answeredBy: string | null };
+  type HubHelp = { id: string; clinicId: string; clinicName: string; text: string; diag: string | null; answer: string | null };
+  const askJson = (body: unknown, auth = owner) => ({ method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const helpView = async () => await (await viaHub('/api/help', { headers: owner })).json() as { hub: boolean; support: boolean; requests: HelpReq[] };
+  const hubHelp = async (key: Record<string, string> = admin) => (await (await fetch(`${HUB}/admin/help`, { headers: key })).json() as { help: HubHelp[] }).help;
+  const answerHelp = (id: string, text: string, key: Record<string, string> = admin) => fetch(`${HUB}/admin/help/${id}/answer`, { method: 'POST', headers: key, body: JSON.stringify({ text }) });
+  const empty = await helpView();
+  ok("panelda: Hub ulangan, hali so'rov yo'q", empty.hub && !empty.support && empty.requests.length === 0, JSON.stringify(empty));
+  ok("juda qisqa matn — 400", (await viaHub('/api/help', askJson({ text: 'ha' }))).status === 400);
+  ok("Palantir jamoasi panelga kirib o'zi so'rov yubora olmaydi — 403", (await viaHub('/api/help', askJson({ text: "Sinov so'rovi" }, { authorization: `Bearer ${fresh.token}` }))).status === 403);
+  mark = sent.length;
+  const asked = await viaHub('/api/help', askJson({ text: "Kechadan beri Instagram'ga javob ketmayapti", diag: true }));
+  const askedJson = await asked.json() as { request?: HelpReq; error?: string };
+  ok("egasi panelda yozdi — Hub qabul qildi", asked.status === 200 && !!askedJson.request?.id && askedJson.request.withDiag, JSON.stringify(askedJson));
+  const vendorHelp = await waitFor('jamoaga xabar', () => toVendor(mark, "yordam so'radi")[0], 10_000);
+  const vendorText = String(vendorHelp?.params.text ?? '');
+  ok("jamoaga Telegram'da: qaysi klinika, muammo matni va /admin havolasi", vendorText.includes('«Shifo Dent»') && vendorText.includes("Instagram'ga javob ketmayapti") && vendorText.includes(`${HUB}/admin`), vendorText);
+  ok('/admin/help kalitsiz — 401', (await fetch(`${HUB}/admin/help`)).status === 401);
+  const item = (await hubHelp()).find(h => h.id === askedJson.request?.id);
+  ok("/admin ro'yxatida: klinika nomi, matn va diagnostika fayli", !!item && item.clinicName === 'Shifo Dent' && item.clinicId === clinic.clinicId && item.text.includes('Instagram') && !!item.diag, JSON.stringify(item));
+  const helpDiag = item?.diag ? await (await fetch(`${HUB}/admin/diag/${clinic.clinicId}/${item.diag}`, { headers: admin })).text() : '';
+  ok("so'rov bilan kelgan diagnostika o'qiladi: holat bor, admin paroli yo'q", helpDiag.startsWith('Palantir diagnostika') && !helpDiag.includes('admin-pass-1'), helpDiag.slice(0, 60));
+  const installer = await (await fetch(`${HUB}/admin/team`, { method: 'POST', headers: admin, body: JSON.stringify({ name: 'Boshqa', login: 'boshqa', role: 'installer' }) })).json() as { password?: string };
+  const installerKey = { authorization: `Bearer ${(await (await fetch(`${HUB}/admin/login`, { method: 'POST', body: JSON.stringify({ login: 'boshqa', password: installer.password }) })).json() as { token?: string }).token}` };
+  ok("boshqa o'rnatuvchi bu klinikaning so'rovini ko'rmaydi va javob bera olmaydi", (await hubHelp(installerKey)).length === 0 && (await answerHelp(item!.id, 'Javob', installerKey)).status === 404);
+  ok('javob admin kalitisiz — 401', (await answerHelp(item!.id, 'Javob', { authorization: 'Bearer xato' })).status === 401);
+  mark = sent.length;
+  ok('jamoa /admin da javob yozdi', (await answerHelp(item!.id, 'Tekshirdik: Instagram tokeni yangilandi, endi javob ketadi')).status === 200);
+  const toldAnswer = await waitFor('javob egasiga', () => toOwner(mark, 'Tekshirdik'), 15_000);
+  ok("javob egasining Telegramiga keldi — so'rovi bilan birga", String(toldAnswer?.params.text ?? '').includes("Instagram'ga javob ketmayapti"), String(toldAnswer?.params.text ?? ''));
+  const shown = (await helpView()).requests.find(r => r.id === item!.id);
+  ok('panelda: so\'rov va jamoaning javobi', !!shown?.answer?.includes('Tekshirdik') && shown.withDiag && !!shown.answeredBy, JSON.stringify(shown));
+  ok("bitta so'rovga ikkinchi javob — 409", (await answerHelp(item!.id, 'Yana javob')).status === 409);
+  mark = sent.length;
+  say(OWNER, '/yordam');
+  ok("botda /yordam matnsiz — qanday yozishni aytadi, hech narsa yubormaydi", !!(await waitFor('yordam ko\'rsatma', () => toOwner(mark, '/yordam '), 10_000)) && !toVendor(mark, "yordam so'radi").length);
+  mark = sent.length;
+  say(OWNER, "/yordam Kamera rasmi ko'rinmayapti");
+  ok("botda /yordam matn bilan — egasiga «yuborildi», jamoaga xabar", !!(await waitFor('yordam bot', () => toOwner(mark, 'yuborildi'), 15_000))
+    && !!(await waitFor('jamoaga bot so\'rovi', () => toVendor(mark, 'Kamera rasmi')[0], 10_000)));
+  ok("bot so'rovi panelda ham ko'rinadi", (await helpView()).requests.some(r => r.text.includes('Kamera rasmi') && r.withDiag));
+
   console.log('\n# Litsenziya: kalitsiz muddat');
   type LicenseView = { activated: boolean; machineId: string; daysLeft: number; blocked: boolean };
   const lic = async () => ((await (await fetch(`${base}/api/license`)).json()) as { license: LicenseView }).license;
@@ -313,7 +356,7 @@ try {
   for (let i = 0; i < 3; i++) regs.push(await register('5555-6666-7777-8888', i === 0 ? 2 : undefined));
   ok("bir manzildan sutkada 3 tadan ko'p emas — keyingisi 429", regs.map(r => r.status).join() === '200,200,429', regs.map(r => r.status).join());
   const [a, b] = await Promise.all(regs.slice(0, 2).map(r => r.json() as Promise<{ clinicId: string; code: string }>));
-  ok("yangi Palantir «palantir.» kod oladi, eskisi — o'zi o'qiy oladigan «phub.»", a.code.startsWith('palantir.') && b.code.startsWith('phub.')
+  ok("yangi Palantir «palantirhub.» kod oladi, eskisi — o'zi o'qiy oladigan «phub.»", a.code.startsWith('palantirhub.') && b.code.startsWith('phub.')
     && parseHubCode(a.code)?.url === HUB && parseHubCode(b.code)?.url === HUB, `${a.code.split('.')[0]} / ${b.code.split('.')[0]}`);
   const fakeBackup = await fetch(`${HUB}/api/backup?day=2026-01-02`, {
     method: 'POST', headers: { authorization: `Bearer ${parseHubCode(a.code)!.key}` }, body: Buffer.concat([Buffer.from('PALANTIR-ZAXIRA-1\n'), Buffer.alloc(4096)]),

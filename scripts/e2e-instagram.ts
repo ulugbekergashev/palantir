@@ -36,9 +36,9 @@ const parts = splitForInstagram(long);
 ok("1000 baytdan uzun javob — bo'laklarga, har biri ≤ 1000 bayt, matn yo'qolmaydi", parts.length >= 3 && parts.every(p => Buffer.byteLength(p) <= 1000) && parts.join('').replace(/\s/g, '').length === long.replace(/\s/g, '').length);
 ok("o'zbekcha harflar va emoji bo'linmaydi", splitForInstagram("O'zbekiston 😀 ".repeat(120)).every(p => !p.includes('�') && Buffer.byteLength(p) <= 1000));
 const code = makeHubCode('https://hub.example.uz/', 'a1b2c3d4e5', 'S'.repeat(32));
-ok('hub kodi: manzil va kalit bitta qatorda; buzuq kod — rad', parseHubCode(code)?.url === 'https://hub.example.uz' && parseHubCode(code)?.key === `a1b2c3d4e5.${'S'.repeat(32)}` && parseHubCode('palantir.xx.yy') === null && parseHubCode(`${code}x.y`) === null);
-ok("hub kodi «palantir.» bilan boshlanadi; klinikalarda saqlangan eski «phub.» kod ham o'qiladi, boshqa bosh — yo'q", code.startsWith('palantir.')
-  && parseHubCode(code.replace(/^palantir\./, 'phub.'))?.key === `a1b2c3d4e5.${'S'.repeat(32)}` && parseHubCode(code.replace(/^palantir\./, 'hub.')) === null);
+ok('hub kodi: manzil va kalit bitta qatorda; buzuq kod — rad', parseHubCode(code)?.url === 'https://hub.example.uz' && parseHubCode(code)?.key === `a1b2c3d4e5.${'S'.repeat(32)}` && parseHubCode('palantirhub.xx.yy') === null && parseHubCode(`${code}x.y`) === null);
+ok("hub kodi «palantirhub.» bilan boshlanadi; klinikalarda saqlangan eski «phub.» kod ham o'qiladi, boshqa bosh — yo'q", code.startsWith('palantirhub.')
+  && parseHubCode(code.replace(/^palantirhub\./, 'phub.'))?.key === `a1b2c3d4e5.${'S'.repeat(32)}` && parseHubCode(code.replace(/^palantirhub\./, 'hub.')) === null);
 
 // ─── Soxta Meta ───────────────────────────────────────────────────────────────
 const meta = { authorize: [] as URLSearchParams[], tokenForms: [] as URLSearchParams[], subscribed: [] as string[], sentMsgs: [] as { auth: string; body: Record<string, any> }[], refreshed: 0 };
@@ -112,7 +112,7 @@ try {
   console.log('\n# Hub: klinika kodi va webhook tasdig\'i');
   ok("admin kalitsiz klinika ochilmaydi", (await fetch(`${HUB}/admin/clinics`, { method: 'POST', body: '{}' })).status === 401);
   const clinic = await (await fetch(`${HUB}/admin/clinics`, { method: 'POST', headers: { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' }, body: JSON.stringify({ name: 'Shifo Dent' }) })).json() as { code: string };
-  ok('klinika kodi: «palantir.» va hub manzili ichida', clinic.code.startsWith('palantir.') && parseHubCode(clinic.code)?.url === HUB);
+  ok('klinika kodi: «palantirhub.» va hub manzili ichida', clinic.code.startsWith('palantirhub.') && parseHubCode(clinic.code)?.url === HUB);
   const verify = await fetch(`${HUB}/ig/webhook?hub.mode=subscribe&hub.verify_token=verify-me&hub.challenge=4242`);
   ok("Meta webhook tasdig'i: challenge qaytdi; noto'g'ri token — 403", (await verify.text()) === '4242' && (await fetch(`${HUB}/ig/webhook?hub.mode=subscribe&hub.verify_token=xato&hub.challenge=1`)).status === 403);
 

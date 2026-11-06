@@ -1,11 +1,11 @@
 /**
- * Palantir Hub ulanish kodi: hub manzili va klinika kaliti bitta qatorda — «palantir.<manzil base64url>.<klinika id>.<maxfiy qism>».
+ * Palantir Hub ulanish kodi: hub manzili va klinika kaliti bitta qatorda — «palantirhub.<manzil base64url>.<klinika id>.<maxfiy qism>».
  * Kompyuter uni Hub'dan o'zi oladi (server/hubJoin.ts); faqat o'zi ulana olmaganda Hub admini beradi va u «Kalitlar» maydoniga qo'yiladi.
  * Eski kodlar «phub.» bilan boshlanardi — ular o'rnatilgan klinikalarda saqlanib turibdi, shuning uchun ham o'qiladi.
  */
 export interface HubCode { url: string; clinicId: string; key: string }
 
-export const HUB_CODE_TAG = 'palantir';
+export const HUB_CODE_TAG = 'palantirhub';
 const LEGACY_TAG = 'phub';
 const TAGS = [HUB_CODE_TAG, LEGACY_TAG];
 

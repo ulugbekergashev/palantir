@@ -4,7 +4,7 @@
  * manzil, ish vaqti — masofadan ham to'ldiriladi) va ixtiyoriy anketa.
  *
  * Hub ulanish kodi bu yerda so'ralmaydi: kompyuter Hub'ga o'zi yoziladi (server/hubJoin.ts), sotuvchi uni Hub'da ekrandagi
- * kompyuter kodi bilan tasdiqlaydi va o'sha bosishda litsenziya beradi. O'zi ulana olmagan kamdan-kam holatda «palantir.» kodi
+ * kompyuter kodi bilan tasdiqlaydi va o'sha bosishda litsenziya beradi. O'zi ulana olmagan kamdan-kam holatda «palantirhub.» kodi
  * «Kalitlar» maydoniga qo'yiladi (src/lib/secrets.ts uni taniydi).
  */
 import { useEffect, useState, type FormEvent } from 'react';

@@ -21,7 +21,7 @@ export const KEYS: KeyInfo[] = [
   { name: 'ELEVENLABS_API_KEY', label: 'ElevenLabs kaliti', where: 'elevenlabs.io → Developers → API keys (zaxira video diktori; asosiysi — Gemini)' },
   { name: 'TG_API_ID', label: 'Telegram API ID', where: 'my.telegram.org → API development tools (shaxsiy Telegram)' },
   { name: 'TG_API_HASH', label: 'Telegram API hash', where: 'my.telegram.org → API development tools (shaxsiy Telegram)' },
-  { name: 'PALANTIR_HUB', label: 'Palantir Hub kodi', where: "Palantir Hub admini beradi (rasmiy Instagram: Meta xabarlarini klinikaga yetkazadi) — «palantir.» bilan boshlanadi" },
+  { name: 'PALANTIR_HUB', label: 'Palantir Hub kodi', where: "Palantir Hub admini beradi (rasmiy Instagram: Meta xabarlarini klinikaga yetkazadi) — «palantirhub.» bilan boshlanadi" },
 ];
 export const keyInfo = (name: KeyName): KeyInfo => KEYS.find(k => k.name === name)!;
 export const isKeyName = (v: unknown): v is KeyName => KEYS.some(k => k.name === v);
