@@ -25,6 +25,7 @@ import { setAboutLine } from '../server/setup/about';
 import { brandOf, candidatePaths, channelOf, channelUrl, parseProbeMatch, pickProfile, withCredentials, wsSecurity } from '../server/camera/discover';
 import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, waitFor, type Sent } from './fakes';
 import { checkLicense, issueLicense, normalizeMachineId, signingKey } from '../hub/licenseKey';
+import { COMPILED_DEFINE } from './bundle';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => {
@@ -93,6 +94,16 @@ console.log('\n# Litsenziya kaliti (sof)');
   const testServer = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: '3', LICENSE_MACHINE_ID: id }), bad = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: 'abc' });
   const real = envOf({ DOTENV: '0', LICENSE_GRACE_DAYS: 'haqiqiy' });
   ok("sinov serverida olinadi; noto'g'risi — 14; «haqiqiy» — haqiqiy qoida", testServer[0] === 3 && testServer[1] === id && bad[0] === 14 && real[0] === null, JSON.stringify([testServer, bad, real]));
+  // Klinikadagi yig'ilgan nashr: .env emas, tizim o'zgaruvchilari bilan ham (DOTENV=0 + o'z ochiq kaliti + boshqa kompyuter kodi) olinmaydi
+  const { build } = await import('esbuild');
+  const probe = join(envDir, 'env-yigilgan.mjs');
+  await build({
+    stdin: { contents: `import { env } from './server/env.ts'; console.log(JSON.stringify([env.licenseGraceDays, env.licenseMachineId, env.licensePublicKey]));`, resolveDir: resolve('.'), loader: 'ts' },
+    outfile: probe, bundle: true, platform: 'node', format: 'esm', target: 'node24', packages: 'external', define: COMPILED_DEFINE, logLevel: 'warning',
+  });
+  const compiledRun = execFileSync(process.execPath, ['--no-warnings', probe],
+    { cwd: envDir, env: { ...process.env, DOTENV: '0', LICENSE_PUBLIC_KEY: otherPub, LICENSE_MACHINE_ID: id, LICENSE_GRACE_DAYS: '9999' }, encoding: 'utf8' }).trim().split('\n').at(-1);
+  ok("yig'ilgan nashrda tizim o'zgaruvchilari (DOTENV=0, o'z ochiq kaliti, boshqa kompyuter kodi, muddat) ham hisobga olinmaydi", compiledRun === JSON.stringify([null, '', '']), compiledRun);
   rmSync(envDir, { recursive: true, force: true });
   // Haqiqiy qoida (LICENSE_GRACE_DAYS=haqiqiy): har qadam alohida jarayon — server qayta ishga tushgandek
   type Lic = { activated: boolean; daysLeft: number; blocked: boolean };

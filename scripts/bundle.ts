@@ -35,6 +35,9 @@ export const COMPILED_SCRIPTS: Record<string, string> = {
   'camera:model': 'node --no-warnings app/camera-model.mjs',
 };
 
+/** Yig'ilgan nashr belgisi (server/env.ts): litsenziyaning sinov sozlamalari (DOTENV=0 + LICENSE_*) unda o'chiq */
+export const COMPILED_DEFINE: Record<string, string> = { __PALANTIR_COMPILED__: 'true' };
+
 export async function bundle(outDir = APP_DIR): Promise<void> {
   // esbuild — dasturchi kutubxonasi: CI'da npm prune'dan oldin chaqiriladi (keyin PALANTIR_BUNDLED=1 bilan tayyori olinadi)
   const { build } = await import('esbuild');
@@ -49,6 +52,7 @@ export async function bundle(outDir = APP_DIR): Promise<void> {
     target: 'node24',
     // Kutubxonalar yonidagi node_modules'dan olinadi (o'rnatgich va yangilovchi ularni alohida qo'yadi)
     packages: 'external',
+    define: COMPILED_DEFINE,
     minify: true,
     // Xato matnlari va instanceof tekshiruvlari sinf/funksiya nomiga tayanadi — nomlar saqlanadi, qolgani siqiladi
     keepNames: true,

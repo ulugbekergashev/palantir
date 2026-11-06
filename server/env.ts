@@ -6,8 +6,15 @@ import { join, resolve } from 'node:path';
 // DOTENV=0 — o'qilmaydi: sinov serverlari haqiqiy kalitlarni olmasin (Windows'da bo'sh qiymatli o'zgaruvchi umuman yo'q hisoblanadi —
 // «VOICELAB_API_KEY: ''» berilsa ham .env dagisi o'qilib qolardi)
 if (process.env.DOTENV !== '0' && existsSync('.env')) process.loadEnvFile('.env');
-/** Sinov serveri (.env o'qilmadi; .env dagi DOTENV=0 bunga ta'sir qilmaydi — u yuqorida o'qiladi): litsenziyaning sinov sozlamalari faqat shunda */
-const testRun = process.env.DOTENV === '0';
+/** Klinikaga boradigan yig'ilgan nashrda esbuild bu nomni «true» bilan almashtiradi (scripts/bundle.ts, COMPILED_DEFINE); manba kodda — yo'q */
+declare const __PALANTIR_COMPILED__: boolean | undefined;
+const compiled = typeof __PALANTIR_COMPILED__ !== 'undefined' && __PALANTIR_COMPILED__ === true;
+/**
+ * Sinov serveri (.env o'qilmadi; .env dagi DOTENV=0 bunga ta'sir qilmaydi — u yuqorida o'qiladi): litsenziyaning sinov sozlamalari faqat shunda.
+ * Yig'ilgan nashrda — hech qachon: klinika kompyuterida tizim o'zgaruvchisi DOTENV=0 qo'yib, o'z ochiq kaliti (LICENSE_PUBLIC_KEY) yoki
+ * boshqa kompyuter kodi (LICENSE_MACHINE_ID) bilan litsenziyani chetlab bo'lmasin
+ */
+const testRun = !compiled && process.env.DOTENV === '0';
 
 const dataDir = resolve(process.env.DATA_DIR || 'data');
 mkdirSync(dataDir, { recursive: true });
