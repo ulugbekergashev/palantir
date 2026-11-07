@@ -23,6 +23,14 @@ export const STEPS: StepInfo[] = [
   { key: 'done', title: 'Tayyor', lead: "Klinikadan ketishdan oldin oxirgi ko'rinish." },
 ];
 
+/** Qadam havolasi: panel ustani kerakli qadamda ochadi (Sozlamalar → «AI va ovoz» → #/ulash/keys); joriy qadam ham shu yerda turadi */
+export const stepHref = (key: StepKey): string => `#/ulash/${key}`;
+/** «#/ulash/keys» → 'keys'; qadamsiz yoki noma'lum bo'lsa — null (usta birinchi qadamdan ochiladi) */
+export function stepFromHash(hash: string): StepKey | null {
+  const key = /^#\/ulash\/([a-z]+)\/?$/.exec(hash)?.[1];
+  return STEPS.find(s => s.key === key)?.key ?? null;
+}
+
 /** Shu serverdagi qadamlar: shaxsiy Telegram keyinga qoldirilgan bo'lsa (TG_PERSONAL) uning qadami ko'rinmaydi */
 export const visibleSteps = (s: LiveStatus | null): StepInfo[] => STEPS.filter(x => x.key !== 'tg' || !!s?.telegramUser.enabled);
 

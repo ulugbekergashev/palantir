@@ -19,7 +19,8 @@ import { StepDone, StepGaps } from './StepFinish';
 import { StepKeys, emptyRouted, type Routed } from './StepKeys';
 import { StepPhone } from './StepPhone';
 import { StepProfile } from './StepProfile';
-import { clock, stepState, visibleSteps, type StepKey, type StepState, type WizardFacts } from './wizard';
+import { hrefOf } from '../../lib/nav';
+import { clock, stepFromHash, stepHref, stepState, visibleSteps, type StepKey, type StepState, type WizardFacts } from './wizard';
 
 const BIZ_KEY = 'palantir_setup_biz', T0_KEY = 'palantir_setup_t0';
 /** O'rnatish o'zi yaratgan profilning nomi (server/profile.ts DEFAULT_NAME): o'zgartirilmagan bo'lsa «Klinika» qadami tayyor emas */
@@ -32,6 +33,8 @@ const DOT: Record<StepState, string> = {
 };
 
 type Notify = (text: string, error?: boolean) => void;
+/** Usta havoladagi qadamdan ochiladi (#/ulash/keys), qadamsiz bo'lsa — birinchisidan */
+const firstStep = (): StepKey => stepFromHash(window.location.hash) ?? 'clinic';
 
 export function SetupWizard() {
   useFontsReady();
@@ -54,9 +57,13 @@ function Centered({ children }: { children: ReactNode }) {
   return <div className="flex min-h-screen items-center justify-center p-4">{children}</div>;
 }
 
-/** Ustaning ko'rinishi: chapda qadamlar va vaqt, o'ngda joriy qadam, pastda «Orqaga / Davom etish» */
-function Shell({ label, facts, stepKey, onStep, onLogout, children, toast }: {
+/**
+ * Ustaning ko'rinishi: chapda qadamlar va vaqt, o'ngda joriy qadam, pastda «Orqaga / Davom etish».
+ * back — panelga qaytish (usta panel oynasida ochiladi, brauzerning «orqaga» tugmasi ko'rinmasligi mumkin)
+ */
+function Shell({ label, facts, stepKey, onStep, onLogout, back, children, toast }: {
   label: string | null; facts: WizardFacts; stepKey: StepKey; onStep: (k: StepKey) => void; onLogout: () => void;
+  back: { href: string; label: string };
   children: (current: StepKey, go: (i: number) => void, elapsed: string) => ReactNode; toast: { text: string; error?: boolean } | null;
 }) {
   const [t0] = useState(() => Number(read(T0_KEY)) || (write(T0_KEY, String(Date.now())), Date.now()));
@@ -65,13 +72,22 @@ function Shell({ label, facts, stepKey, onStep, onLogout, children, toast }: {
   const steps = visibleSteps(facts.status);
   const step = Math.max(0, steps.findIndex(s => s.key === stepKey));
   const current = steps[step];
-  const go = (i: number) => { onStep(steps[Math.max(0, Math.min(steps.length - 1, i))].key); window.scrollTo(0, 0); };
+  const go = (i: number) => {
+    const key = steps[Math.max(0, Math.min(steps.length - 1, i))].key;
+    onStep(key);
+    // Qadam havolada turadi (sahifa yangilansa shu qadamda qoladi); tarixga yozilmaydi — «orqaga» panelga qaytaradi
+    window.history.replaceState(null, '', stepHref(key));
+    window.scrollTo(0, 0);
+  };
   const st = stepState(current.key, facts);
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[17rem_minmax(0,1fr)]">
       <aside className="bg-ink-950 text-ink-200 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:gap-5 lg:overflow-y-auto lg:p-5" aria-label="Qadamlar">
         <div className="flex items-center justify-between gap-3 px-4 pt-4 lg:p-0"><Logo subtitle="Ulash ustasi" tone="ink" /></div>
+        <a href={back.href} className="mx-4 mt-3 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-ink-300 no-underline hover:bg-ink-800 hover:text-white lg:mx-0 lg:mt-0">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> {back.label}
+        </a>
         {label && <p className="mx-4 mt-3 rounded-xl bg-ink-800 px-3 py-2 text-sm lg:mx-0 lg:mt-0"><span className="block text-[11px] font-semibold uppercase tracking-wider text-ink-400">Klinika</span>{label}</p>}
         <ol className="flex gap-1 overflow-x-auto px-3 py-3 lg:flex-col lg:p-0">
           {steps.map((s, i) => {
@@ -164,7 +180,7 @@ function ProfileWizard({ phase, onPhase }: { phase: ProfilePhase; onPhase: () =>
   const notify = useCallback<Notify>((text, error = false) => setToast({ text, error }), [setToast]);
   const [authed, setAuthed] = useState(() => !!session.token());
   const [authError, setAuthError] = useState('');
-  const [stepKey, setStepKey] = useState<StepKey>('clinic');
+  const [stepKey, setStepKey] = useState<StepKey>(firstStep);
   const [keys, setKeys] = useState<KeyView[] | null>(null);
   const [ready, setReady] = useState(false);
   const cab = useCabinet(notify);
@@ -204,7 +220,7 @@ function ProfileWizard({ phase, onPhase }: { phase: ProfilePhase; onPhase: () =>
   const facts: WizardFacts = { hasBiz: !!phase.name && phase.name !== DEFAULT_NAME, status: cab.status, setup: cab.setup, keys, cameras: cab.cameras, phone: cab.phone, profile: true };
   const logout = () => { session.set(null); window.location.hash = '#/'; window.location.reload(); };
   return (
-    <Shell label={phase.name} facts={facts} stepKey={stepKey} onStep={setStepKey} onLogout={logout} toast={toast}>
+    <Shell label={phase.name} facts={facts} stepKey={stepKey} onStep={setStepKey} onLogout={logout} back={{ href: hrefOf('sozlamalar'), label: 'Panelga qaytish' }} toast={toast}>
       {(key, go, elapsed) => !ready || !cab.status || !cab.setup ? loading
         : key === 'clinic' ? <StepProfile onPhase={onPhase} setup={cab.setup} onSetup={cab.setSetup} notify={notify} />
         : key === 'keys' ? <StepKeys profile keys={keys} onKeys={k => { setKeys(k); refresh().catch(() => {}); }} onRouted={cab.setRouted} />
@@ -242,7 +258,7 @@ function AdminWizard() {
   const [toast, setToast] = useToast();
   const notify = useCallback<Notify>((text, error = false) => setToast({ text, error }), [setToast]);
   // Qadam kaliti bilan: serverda o'chiq qadam ro'yxatdan chiqsa ham joriy qadam siljimaydi
-  const [stepKey, setStepKey] = useState<StepKey>('clinic');
+  const [stepKey, setStepKey] = useState<StepKey>(firstStep);
   const [list, setList] = useState<AdminBusiness[] | null>(null);
   const [bizId, setBizId] = useState<string | null>(() => read(BIZ_KEY));
   /** Qaysi klinika kabinetiga kirilgan: boshqasi tanlansa, kirish tugaguncha «kirilmagan» */
@@ -294,7 +310,7 @@ function AdminWizard() {
   const ready = entered && cab.status && cab.setup;
   const label = list && bizId ? list.find(b => b.id === bizId)?.name ?? '…' : null;
   return (
-    <Shell label={label} facts={facts} stepKey={stepKey} onStep={setStepKey} onLogout={() => { session.setAdmin(null); setAuthed(false); }} toast={toast}>
+    <Shell label={label} facts={facts} stepKey={stepKey} onStep={setStepKey} onLogout={() => { session.setAdmin(null); setAuthed(false); }} back={{ href: '#/admin', label: 'Admin paneliga' }} toast={toast}>
       {(key, go, elapsed) => {
         const needsBiz = key !== 'clinic' && key !== 'keys' && key !== 'done';
         if (needsBiz && !bizId) return <p className="rounded-xl bg-slate-100 px-3.5 py-2.5 text-sm text-slate-600">Avval «Klinika» qadamida klinikani tanlang yoki qo'shing.</p>;

@@ -12,6 +12,7 @@ import type { Notify } from '../../components/Artifacts';
 import { isClinic } from '../../data/industries';
 import { hrefOf } from '../../lib/nav';
 import { DentaCrm } from '../DentaCrmSection';
+import { stepHref } from '../setup/wizard';
 import { AccountCard } from './AccountCard';
 import { LiveCheckCard } from './LiveCheck';
 import { ClientLink, Instagram, InstagramOfficial, OwnerBot, RemoteAccess, ReplyModeCard, SettingsCard, TelegramBusiness, TelegramLogin } from '../TelegramPage';
@@ -63,7 +64,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
     { id: 'telefon', name: 'Telefon liniyasi', icon: Phone, tone: line?.status.trunk === 'registered' ? 'on' : line?.status.trunk === 'failed' ? 'warn' : 'off', state: line ? (line.status.trunk === 'registered' ? 'raqam ulangan' : line.status.trunk === 'failed' ? 'raqam ulanmadi' : line.status.asterisk ? 'raqam kiritilmagan' : 'telefon xizmati o‘chiq') : '…' },
     { id: 'xodimlar', name: 'Xodimlar', icon: Users, tone: 'on', state: 'panelga kirish va huquqlar' },
     { id: 'kameralar', name: 'Kameralar', icon: CameraIcon, tone: cameras ? 'on' : 'off', state: cameras == null ? '…' : cameras ? `${cameras} ta kamera` : "kamera yo'q", href: hrefOf('kuzatuvchi', 'ulash') },
-    { id: 'ai', name: 'AI va ovoz', icon: Sparkles, tone: status.ai ? (status.voice ? 'on' : 'warn') : 'warn', state: status.ai ? (status.voice ? 'ishlayapti' : 'ovozli xabar o‘chiq') : 'AI kaliti yo‘q', href: '#/ulash' },
+    { id: 'ai', name: 'AI va ovoz', icon: Sparkles, tone: status.ai ? (status.voice ? 'on' : 'warn') : 'warn', state: status.ai ? (status.voice ? 'ishlayapti' : 'ovozli xabar o‘chiq') : 'AI kaliti yo‘q', href: stepHref('keys') },
     { id: 'yordam', name: 'Yordam', icon: LifeBuoy, tone: help?.hub ? 'on' : 'off', state: !help ? '…' : !help.hub ? 'Hub ulanmagan' : waiting ? `${waiting} ta javob kutilmoqda` : 'Palantir jamoasiga yozish' },
   ];
   const active = tiles.some(t => t.id === tab && !t.href) ? tab! : 'asosiy';

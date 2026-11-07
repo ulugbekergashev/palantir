@@ -384,7 +384,7 @@ export function ContentVideoTab({ view, setView, notify }: Props) {
         ) : (
           <form onSubmit={make} className="space-y-3">
             <p className="text-[13.5px] leading-relaxed text-[#a3a9b5]">9:16, 20–35 soniya: Kontent-meyker ssenariy yozadi, diktor ({view.voiceBy === 'elevenlabs' ? 'ElevenLabs' : <>brend-bukdagi ovoz — <b className="text-[#e4e3de]">{book.narrator}</b></>}) o'qiydi, video brendingiz uslubida — kinetik matn, so'zma-so'z subtitr, sahna o'tishlari bilan shu kompyuterda mp4 bo'lib yig'iladi.</p>
-            {!view.voice && <p className="rounded-xl bg-[#f5b454]/10 p-3 text-[13px] text-[#fde2b0]">Ovoz uchun Gemini kaliti kerak: <a href="#/ulash" className="font-semibold underline">Ulash → Kalitlar</a> → «Gemini kaliti» (aistudio.google.com, bepul ochiladi). Kalitsiz ham ssenariy yoziladi.</p>}
+            {!view.voice && <p className="rounded-xl bg-[#f5b454]/10 p-3 text-[13px] text-[#fde2b0]">Ovoz uchun Gemini kaliti kerak: <a href="#/ulash/keys" className="font-semibold underline">Ulash → Kalitlar</a> → «Gemini kaliti» (aistudio.google.com, bepul ochiladi). Kalitsiz ham ssenariy yoziladi.</p>}
             <div className="flex flex-wrap gap-2">
               <input value={topic} onChange={e => setTopic(e.target.value)} maxLength={600} placeholder="Mavzu: masalan, AI xodim — bu chatbot emas" aria-label="Video mavzusi" className={`${field} min-w-0 flex-1 basis-72`} />
               <button type="submit" disabled={topic.trim().length < 5 || !!busy || view.busy} className={primary} style={{ background: ACCENT }}>{busy === 'make' ? spin : <Clapperboard className="h-4 w-4" aria-hidden="true" />} {busy === 'make' ? 'Yozyapti…' : 'Video tayyorlash'}</button>

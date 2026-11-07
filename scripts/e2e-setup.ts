@@ -27,6 +27,7 @@ import { OWNER, json, listen, press, readBody, say, sent, sleep, tgServer, waitF
 import { checkLicense, issueLicense, normalizeMachineId, signingKey } from '../hub/licenseKey';
 import { COMPILED_DEFINE } from './bundle';
 import { lanHost, lanPeer } from '../server/lan';
+import { stepFromHash, stepHref } from '../src/pages/setup/wizard';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => {
@@ -51,6 +52,8 @@ ok("Palantir Hub kodi: «palantirhub.» va eski «phub.» — tanildi; chala kod
 ok('kamera, DentaCRM, Instagram, telefon', classifyLine('rtsp://admin:p@192.168.1.64:554/x')?.kind === 'rtsp' && classifyLine('https://shifo.dentacrm.uz')?.kind === 'crm'
   && classifyLine('instagram.com/shifodent')?.kind === 'instagram' && classifyLine('+998 90 123 45 67')?.kind === 'phone');
 ok('tanilmagan qator — unknown', classifyLine('Klinika2026!')?.kind === 'unknown');
+ok("ulash ustasi havoladagi qadamdan ochiladi (#/ulash/keys); qadamsiz yoki noma'lum — birinchisidan",
+  stepFromHash(stepHref('keys')) === 'keys' && stepFromHash('#/ulash/gaps/') === 'gaps' && stepFromHash('#/ulash') === null && stepFromHash('#/ulash/xato') === null && stepFromHash('#/sozlamalar/keys') === null);
 ok('ichki tarmoqdagi oflayn DentaCRM manzili ham taniladi', classifyLine('http://192.168.1.10:3001')?.kind === 'crm');
 ok("bir nechta qator: bo'sh va takror tashlanadi", classifyText(`${BOT}\n\n${BOT}\n${CLAUDE}`).length === 2);
 ok("ko'rsatishda yashiriladi: bot raqami va oxirgi 4 belgi", maskSecret(BOT) === '7412589630:••••K0eQ' && maskSecret(CLAUDE) === '••••E5gU' && maskSecret('rtsp://admin:parol@1.2.3.4/x') === 'rtsp://admin:••••@1.2.3.4/x', maskSecret(BOT));
