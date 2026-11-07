@@ -94,7 +94,7 @@ function Node-Major {
 
 function Read-EnvValue([string]$name) {
   if (-not (Test-Path '.env')) { return '' }
-  # Oxirgi bo'sh bo'lmagan qiymat: shablondagi bo'sh «FFMPEG_PATH=» qatori «yo'q» deb o'qilib, har yangilanishda qator qayta qo'shilardi
+  # Oxirgi bo'sh bo'lmagan qiymat: shablondagi bo'sh "FFMPEG_PATH=" qatori "yo'q" deb o'qilib, har yangilanishda qator qayta qo'shilardi
   $values = @(Get-Content '.env' | Where-Object { $_ -match "^\s*$name\s*=" } | ForEach-Object { ($_ -replace "^\s*$name\s*=", '').Trim() } | Where-Object { $_ })
   if (-not $values.Count) { return '' }
   return $values[-1]
