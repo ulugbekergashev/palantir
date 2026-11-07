@@ -201,7 +201,8 @@ function customerTests(): void {
 
 // ─── Stendning o'zi: haqiqiy server, dunyo — stend yo'llari orqali ───────────
 
-const PORT = 3240;
+/** 3240 — USB/IP (usbipd, WSL) porti ham: u band bo'lsa STEND_TEST_PORT bilan boshqasi */
+const PORT = Number(process.env.STEND_TEST_PORT) || 3240;
 const WORLD = `http://127.0.0.1:${PORT + 1}`;
 const pause = (ms: number) => new Promise(r => setTimeout(r, ms));
 const world = async (path: string, body?: unknown): Promise<{ status: number; json: Json }> => {
