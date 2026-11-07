@@ -6,6 +6,8 @@
  *   HUB_OPERATOR va bor bo'lsa — HUB_CONTACT_EMAIL, IG_APP_ID, IG_APP_SECRET, HUB_BOT_TOKEN, HUB_ALERT_CHAT. Oxirida /health kutiladi.
  * Sirlar (admin kaliti, webhook tasdiq tokeni) va server manzili bir marta yoziladi — shu kompyuterda ~/.palantir/hub.env (0600):
  *   HUB_SSH=opc@<IP>, HUB_SSH_KEY (standart ~/.palantir/oracle-hub), HUB_DOMAIN (standart <IP>.sslip.io — domen sotib olmasdan HTTPS).
+ *   Bir marta berilgan ixtiyoriy qiymatlar (sotuvchi boti, Meta kalitlari, aloqa manzili) ham shu faylda qoladi: server sozlamasi har
+ *   joylashda qaytadan yoziladi — saqlanmasa, keyingi joylashda jimgina tushib qolardi (sotuvchiga Telegram xabari to'xtardi).
  * Kerak: ssh va scp (Git Bash'dagisi). Ixtiyoriy qiymatlar — muhitdan: HUB_SSH=opc@1.2.3.4 HUB_CONTACT_EMAIL=… npm run hub:deploy
  */
 import { execFileSync } from 'node:child_process';
@@ -25,13 +27,14 @@ const LICENSE_KEY_FILE = join(homedir(), '.palantir', 'litsenziya.pem');
 const SECRETS = join(homedir(), '.palantir', 'hub.env');
 const UPLOAD = '/tmp/palantir-hub-upload';
 const step = (s: string) => console.log(`\n== ${s}`);
+const OPTIONAL = ['HUB_CONTACT_EMAIL', 'IG_APP_ID', 'IG_APP_SECRET', 'HUB_BOT_TOKEN', 'HUB_ALERT_CHAT'];
 
 function secrets(): Record<string, string> {
   const saved: Record<string, string> = {};
   if (existsSync(SECRETS)) for (const line of readFileSync(SECRETS, 'utf8').split('\n')) { const i = line.indexOf('='); if (i > 0) saved[line.slice(0, i)] = line.slice(i + 1).trim(); }
   saved.HUB_ADMIN_KEY ||= randomBytes(24).toString('base64url');
   saved.HUB_VERIFY_TOKEN ||= randomBytes(18).toString('base64url');
-  for (const k of ['HUB_SSH', 'HUB_SSH_KEY', 'HUB_DOMAIN']) if (process.env[k]) saved[k] = process.env[k]!;
+  for (const k of ['HUB_SSH', 'HUB_SSH_KEY', 'HUB_DOMAIN', 'HUB_OPERATOR', ...OPTIONAL]) if (process.env[k]) saved[k] = process.env[k]!;
   mkdirSync(join(homedir(), '.palantir'), { recursive: true, mode: 0o700 });
   writeFileSync(SECRETS, Object.entries(saved).map(([k, v]) => `${k}=${v}`).join('\n') + '\n', { mode: 0o600 });
   chmodSync(SECRETS, 0o600);
@@ -56,9 +59,9 @@ execFileSync('scp', [...sshOpts, ...FILES.map(f => join(HUB_DIR, f)), `${target}
 step("O'zgaruvchilar");
 const vars: Record<string, string> = {
   PORT: '3400', HUB_DB: '/var/lib/palantir-hub/hub.db', HUB_PUBLIC_URL: publicUrl, HUB_TRUST_PROXY: '1',
-  HUB_VERIFY_TOKEN: s.HUB_VERIFY_TOKEN, HUB_ADMIN_KEY: s.HUB_ADMIN_KEY, HUB_OPERATOR: process.env.HUB_OPERATOR || s.HUB_OPERATOR || 'Palantir',
+  HUB_VERIFY_TOKEN: s.HUB_VERIFY_TOKEN, HUB_ADMIN_KEY: s.HUB_ADMIN_KEY, HUB_OPERATOR: s.HUB_OPERATOR || 'Palantir',
 };
-for (const k of ['HUB_CONTACT_EMAIL', 'IG_APP_ID', 'IG_APP_SECRET', 'HUB_BOT_TOKEN', 'HUB_ALERT_CHAT']) { const v = process.env[k] || s[k]; if (v) vars[k] = v; }
+for (const k of OPTIONAL) if (s[k]) vars[k] = s[k];
 // Muhit faylida qiymat bitta qatorda bo'lishi kerak — PEM emas, PKCS8 DER base64
 if (existsSync(LICENSE_KEY_FILE)) vars.LICENSE_SIGNING_KEY = createPrivateKey(readFileSync(LICENSE_KEY_FILE, 'utf8')).export({ type: 'pkcs8', format: 'der' }).toString('base64');
 // Sirlar buyruq qatoriga emas, stdin orqali (serverdagi jarayonlar ro'yxatida ko'rinmasin)
@@ -83,4 +86,4 @@ Tayyor: ${publicUrl}
   Klinika kodi: curl -X POST ${publicUrl}/admin/clinics -H "Authorization: Bearer $(grep HUB_ADMIN_KEY ${SECRETS} | cut -d= -f2)" -d '{"name":"Klinika"}'
   Meta ilovasi (docs/INSTAGRAM.md): OAuth ${publicUrl}/ig/callback · webhook ${publicUrl}/ig/webhook (token — HUB_VERIFY_TOKEN)
     deauthorize ${publicUrl}/ig/deauthorize · data deletion ${publicUrl}/ig/data-deletion · ${publicUrl}/privacy · ${publicUrl}/terms · ${publicUrl}/data-deletion
-${health.legal ? '' : '  ! HUB_CONTACT_EMAIL berilmagan — Meta maxfiylik siyosatini aloqa manzilisiz qabul qilmaydi: HUB_CONTACT_EMAIL=… npm run hub:deploy\n'}${health.instagram ? '' : "  ! Meta ilovasi kalitlari (IG_APP_ID, IG_APP_SECRET) hali yo'q — Instagram'siz ishlaydi (nazorat, zaxira, masofadan kirish)\n"}`);
+${vars.HUB_BOT_TOKEN && vars.HUB_ALERT_CHAT ? '' : "  ! HUB_BOT_TOKEN va HUB_ALERT_CHAT berilmagan — yangi kompyuter yozilsa yoki klinika aloqadan chiqsa sotuvchiga Telegram xabari kelmaydi: HUB_BOT_TOKEN=… HUB_ALERT_CHAT=… npm run hub:deploy (bir marta — keyin eslab qoladi)\n"}${health.legal ? '' : '  ! HUB_CONTACT_EMAIL berilmagan — Meta maxfiylik siyosatini aloqa manzilisiz qabul qilmaydi: HUB_CONTACT_EMAIL=… npm run hub:deploy\n'}${health.instagram ? '' : "  ! Meta ilovasi kalitlari (IG_APP_ID, IG_APP_SECRET) hali yo'q — Instagram'siz ishlaydi (nazorat, zaxira, masofadan kirish)\n"}`);
