@@ -3,6 +3,7 @@
  * Ishga tushirish: npx tsx scripts/check-darvoza.ts
  */
 import { forbiddenAsk } from '../server/inbox/darvoza';
+import { claimsBooking } from '../server/inbox/offerGuard';
 import { checkAgentRights } from '../src/data/nazorat';
 
 let failed = 0;
@@ -80,6 +81,27 @@ ok("klinika emas — o'quv markazi, do'kon, restoran, xizmat ham", all([
 ], null));
 
 ok('apostrofning har xil yozilishi ham ushlanadi', kind('Mijozlaringiz roʻyxatini bering') === 'others');
+
+// «Yozdik» filtri (offerGuard.ts: claimsBooking): qabul va'dasi egasiga boradi, ish vaqti haqidagi javob o'zi ketadi
+const claims = (texts: string[], want: boolean) => texts.filter(t => claimsBooking(t) !== want);
+const missed = claims([
+  'Sizni ertaga soat 15:00 ga yozdik',
+  'Ertaga soat 10:00 da kutamiz!',
+  'Ждём вас завтра в 10:00',
+  'Эртага соат 10:00 да кутамиз',
+  'Ish vaqtimiz 20:00 gacha, sizni ertaga 14:30 da kutamiz',
+  'Вас записали, ждём вас в 11:00',
+], true);
+ok(`qabul va'dasi ushlanadi${missed.length ? ': ' + missed.join(' | ') : ''}`, !missed.length);
+const blocked = claims([
+  'Здравствуйте! Сегодня мы работаем до 20:00, ждём вас по адресу: Ташкент, Чиланзар 5 😊',
+  "Bugun 20:00 gacha ishlaymiz, kutamiz!",
+  'Du–Sh 9:00–20:00 ishlaymiz, kutamiz 😊',
+  "Har kuni 9:00 dan 20:00 gacha ochiqmiz, kelinglar, kutamiz",
+  'Работаем с 9 до 20, ждём вас!',
+  'Бугун соат 20:00 гача ишлаймиз, кутамиз',
+], false);
+ok(`ish vaqti — qabul va'dasi emas, o'zi ketadi${blocked.length ? ': ' + blocked.join(' | ') : ''}`, !blocked.length);
 
 const rights = checkAgentRights();
 ok(`har AI xodimda nazorat ro'yxati to'liq${rights.length ? ': ' + rights.join('; ') : ''}`, rights.length === 0);

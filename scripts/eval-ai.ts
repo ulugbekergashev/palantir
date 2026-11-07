@@ -7,6 +7,8 @@
  *   npm run eval:ai -- --yes --model claude-sonnet-5-5 --compare eval-natijalar/<oldingi>.json
  *   --only vazifa,m-narx-uz (toifa yoki holat) · --repeat 3 (barqarorlik) · --parallel 4 · --web (internet qidiruvi)
  *   --effort-owner low|medium|high · --effort-customer low|medium|high
+ * Klinika kabi obunada (pulsiz, obuna limitidan): AI_ENGINE=subscription ANTHROPIC_API_KEY= npm run eval:ai -- --yes --only mijoz-narx,…
+ *   (bo'sh kalit .env dagini bosib ketadi — pullik API'ga hech narsa ketmaydi; asbobli egasi holatlari obunada boshqa yo'ldan o'tadi)
  * .env dan faqat ANTHROPIC_*, AI_MODEL va AI_EFFORT_* o'qiladi: bot, hub, telefon ulanmaydi. Vaqtinchalik baza (haqiqiysiga
  * tegilmaydi), soxta DentaCRM shu jarayonda. Natija: eval-natijalar/ (gitga kirmaydi).
  */
@@ -190,7 +192,7 @@ async function runCase(c: Case): Promise<Run> {
       const d = await decide(biz, leads.get(biz.id, lead.id)!, inbox.thread(biz.id, lead.id, 30));
       const { request: q, booking: b, change: ch } = d;
       result = {
-        kind: 'customer', action: d.action, reply: d.reply,
+        kind: 'customer', action: d.action, reply: d.reply, question: d.question,
         request: q && { kind: q.kind, phone: q.phone, dueAt: q.dueAt, summary: q.summary }, booking: b && { doctorId: b.doctorId, date: b.date, time: b.time },
         change: ch && { kind: ch.kind, appointmentId: ch.appointmentId, date: ch.date, time: ch.time },
       };
@@ -210,7 +212,7 @@ function shown(r: Result): string[] {
   if (r.kind === 'owner') return [...lines, `asboblar: ${r.calls.map(x => x.name).join(', ') || "yo'q"}`];
   const { request: q, booking: b } = r;
   const ch = r.change;
-  return [...lines, `tur: ${r.action} · so'rov: ${q ? `${q.kind} ${q.phone}` : "yo'q"}${b ? ` · qabul: ${b.doctorId} ${b.date} ${b.time}` : ''}${ch ? ` · o'zgarish: ${ch.kind} ${ch.appointmentId} ${ch.date} ${ch.time}` : ''}`];
+  return [...lines, `tur: ${r.action} · so'rov: ${q ? `${q.kind} ${q.phone}` : "yo'q"}${b ? ` · qabul: ${b.doctorId} ${b.date} ${b.time}` : ''}${ch ? ` · o'zgarish: ${ch.kind} ${ch.appointmentId} ${ch.date} ${ch.time}` : ''}${r.question ? ` · egasiga savol: «${r.question}»` : ''}`];
 }
 
 const runs = new Map<string, Run[]>(cases.map(c => [c.id, []]));

@@ -38,6 +38,7 @@
     "test:marketolog": "tsx scripts/e2e-marketolog.ts",
     "test:subscription": "tsx scripts/check-subscription.ts",
     "live:subscription": "tsx scripts/live-subscription.ts",
+    "live:learn": "tsx scripts/live-learn.ts",
     "test:content": "tsx scripts/check-content.ts",
     "test:crew": "tsx scripts/check-crew.ts",
     "test:brend": "tsx scripts/check-brend.ts",

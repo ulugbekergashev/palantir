@@ -10,7 +10,7 @@
 import type { InboxMessage, LeadChannel, RequestKind } from '../../src/types';
 import { isClinic } from '../../src/data/industries';
 import { forbiddenAsk } from './darvoza';
-import { unknownNumber, unsupportedOffer } from './offerGuard';
+import { claimsBooking, unknownNumber, unsupportedOffer } from './offerGuard';
 import { DAYS, stamp, weekday } from '../../src/lib/week';
 import { profileText, think } from '../claude';
 import { crmConnected } from '../crm/index';
@@ -123,20 +123,6 @@ const NO_VISITS_RULE = /\n- You cannot change or cancel[^\n]*/;
 function clinicRules(withVisits: boolean, verify: boolean): string {
   if (withVisits) return CLINIC_RULES.replace(NO_VISITS_RULE, '') + CHANGE_RULES;
   return verify ? CLINIC_RULES.replace(NO_VISITS_RULE, VERIFY_RULE) : CLINIC_RULES;
-}
-
-/** Qabul yozilgani haqidagi gap (lotin, kirill, ruscha): bunday javob faqat «book» amali bilan, qabul haqiqatan yozilgach ketishi mumkin */
-const CLAIM_LATIN = /yozib qo'y|yozdik|yozdim|yozildi|yozib oldi|ro'yxatga ol|ro'yxatdan o'tkaz|band qildi|bron qil|navbat(ga)? (ol|qo'y)|navbatingiz|tasdiqlandi|tasdiqladi|qabulingiz tasdiq|belgilandi|belgiladi|belgilab qo'y|qo'shdik|qo'shib qo'y|zapisal/;
-const CLAIM_CYRILLIC = /ёзиб қўй|ёзиб қўя|ёздик|ёздим|ёзилди|рўйхатга ол|банд қилди|брон қил|тасдиқланди|тасдиқлади|белгиланди|записал|записан|запись (подтвержд|оформлен|принят)|бронь оформ|забронир/;
-const CLAIM_WORDS = new RegExp(`${CLAIM_LATIN.source}|${CLAIM_CYRILLIC.source}`);
-/** «Soat 10:00 da kutamiz» — yozdik demasa ham, va'da */
-const AWAITS = /kutamiz|kutib qolamiz|кутамиз|кутиб қоламиз|жд[её]м вас|вас жд[её]м/;
-/** Aniq vaqt: "10:00", "15.30", "soat 10", "в 10" */
-const CLOCK = /(^|\D)([01]?\d|2[0-3])[:.][0-5]\d(\D|$)|(soat|соат)\s*\d{1,2}|(^|\s)в\s*\d{1,2}(\D|$)/;
-function claimsBooking(reply: string): boolean {
-  // o', g' har xil apostrof bilan yoziladi — bittasiga keltiriladi
-  const t = reply.toLowerCase().replace(/[ʻʼ’‘`´ʹ′]/g, "'");
-  return CLAIM_WORDS.test(t) || (AWAITS.test(t) && CLOCK.test(t));
 }
 
 /** Bemorning qabullari berilganda: ko'chirish va bekor qilish amallari */

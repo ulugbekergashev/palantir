@@ -52,6 +52,26 @@ export function unknownNumber(reply: string, known: string): boolean {
   return numbersIn(reply).some(d => !allowed.has(d));
 }
 
+/** Qabul yozilgani haqidagi gap (lotin, kirill, ruscha): bunday javob faqat «book» amali bilan, qabul haqiqatan yozilgach ketishi mumkin */
+const CLAIM_LATIN = /yozib qo'y|yozdik|yozdim|yozildi|yozib oldi|ro'yxatga ol|ro'yxatdan o'tkaz|band qildi|bron qil|navbat(ga)? (ol|qo'y)|navbatingiz|tasdiqlandi|tasdiqladi|qabulingiz tasdiq|belgilandi|belgiladi|belgilab qo'y|qo'shdik|qo'shib qo'y|zapisal/;
+const CLAIM_CYRILLIC = /ёзиб қўй|ёзиб қўя|ёздик|ёздим|ёзилди|рўйхатга ол|банд қилди|брон қил|тасдиқланди|тасдиқлади|белгиланди|записал|записан|запись (подтвержд|оформлен|принят)|бронь оформ|забронир/;
+const CLAIM_WORDS = new RegExp(`${CLAIM_LATIN.source}|${CLAIM_CYRILLIC.source}`);
+/** «Soat 10:00 da kutamiz» — yozdik demasa ham, va'da */
+const AWAITS = /kutamiz|kutib qolamiz|кутамиз|кутиб қоламиз|жд[её]м вас|вас жд[её]м/;
+/** Aniq vaqt: "10:00", "15.30", "soat 10", "в 10" */
+const CLOCK = /(^|\D)([01]?\d|2[0-3])[:.][0-5]\d(\D|$)|(soat|соат)\s*\d{1,2}|(^|\s)в\s*\d{1,2}(\D|$)/;
+/**
+ * Ish vaqti — qabul va'dasi emas: «20:00 gacha», «до 20:00», «9:00–20:00», «9:00 dan 20:00 gacha», «с 9 до 20». Soat tekshiruvidan oldin
+ * olib tashlanadi: «Bugun 20:00 gacha ishlaymiz, kutamiz» o'zi ketadi, «Ertaga 10:00 da kutamiz» esa egasiga boradi (jonli sinovda topilgan)
+ */
+const HHMM = String.raw`\d{1,2}(?:[:.][0-5]\d)?`;
+const HOURS = new RegExp(String.raw`${HHMM}\s*(?:[-–—]|dan|дан|до)\s*${HHMM}|(?:до|по)\s+${HHMM}|${HHMM}\s*(?:gacha|гача)`, 'g');
+export function claimsBooking(reply: string): boolean {
+  // o', g' har xil apostrof bilan yoziladi — bittasiga keltiriladi
+  const t = reply.toLowerCase().replace(/[ʻʼ’‘`´ʹ′]/g, "'");
+  return CLAIM_WORDS.test(t) || (AWAITS.test(t) && CLOCK.test(t.replace(HOURS, ' ')));
+}
+
 export function unsupportedOffer(reply: string, known: string): boolean {
   const norm = (s: string) => joinThousands(s.toLowerCase().replace(/[ʻʼ’‘`´]/g, "'"));
   const r = norm(reply), k = norm(known);
