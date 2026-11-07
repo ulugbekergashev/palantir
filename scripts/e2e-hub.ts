@@ -6,6 +6,7 @@
  *   Diagnostika: admin panelidan hubga — holat va jurnallar, kalitlarsiz.
  *   Palantir jamoasi: hubdagi «Panelni ochish» — egasining roziligi bilan (Telegram'da ✅/✖️ yoki doimiy ruxsat), har kirish egasiga
  *   aytiladi va yopiladi, soxtalashtirib bo'lmaydi. O'zi ulangan kompyuter — sotuvchi kompyuter kodi bilan tasdiqlaguncha karantinda.
+ *   Ulangan kompyuterga qo'lda boshqa Hub kodi qo'yilmaydi (Hub'da shu kompyuterning ikkinchi yozuvi ochilmaydi).
  *   Yordam so'rash: egasi panelda yoki botda (/yordam) yozadi → sotuvchiga Telegram'da → /admin da javob → egasining Telegramiga va panelga.
  * Haqiqiy hub va Palantir jarayonlari, soxta Telegram (sotuvchining boti ham, klinika boti ham — bitta soxta server).
  */
@@ -18,7 +19,7 @@ import path from 'node:path';
 import { unzipSync } from 'fflate';
 import { SCHEMA_VERSION } from '../server/migrate';
 import { unseal } from '../server/offsiteCrypto';
-import { parseHubCode } from '../src/lib/hubCode';
+import { makeHubCode, parseHubCode } from '../src/lib/hubCode';
 import { OWNER, listen, press, say, sent, sleep, tgServer, waitFor, stopProcess, type Sent } from './fakes';
 
 const results: boolean[] = [];
@@ -58,7 +59,7 @@ const button = (s: Sent | undefined, code: string) => buttons(s).find(b => b.cal
 const toVendor = (mark: number, needle: string) => sent.slice(mark).filter(s => s.method === 'sendMessage' && Number(s.params.chat_id) === ALERT_CHAT && String(s.params.text).includes(needle));
 
 try {
-  start('hub/server.ts', {
+  const hubProc = start('hub/server.ts', {
     PORT: String(HUB_PORT), HUB_DB: path.join(work, 'hub.db'), HUB_PUBLIC_URL: HUB, HUB_ADMIN_KEY: 'hub-admin-sinov-kaliti-0123456789',
     HUB_BOT_TOKEN: '777:HUB', HUB_ALERT_CHAT: String(ALERT_CHAT), HUB_TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, HUB_OFFLINE_MS: '2500', HUB_WATCH_MS: '300',
     HUB_BACKUP_DIR: path.join(work, 'hub-zaxira'),
@@ -388,6 +389,28 @@ try {
   const delApproved = await fetch(`${HUB}/admin/clinics/${a.clinicId}/delete`, { method: 'POST', headers: admin });
   const delFake = await fetch(`${HUB}/admin/clinics/${b.clinicId}/delete`, { method: 'POST', headers: admin });
   ok("tasdiqlangan yozuv o'chirilmaydi, tasdiqlanmagani o'chadi", delApproved.status === 409 && delFake.status === 200 && !(await adminList()).some(c => c.id === b.clinicId));
+
+  console.log("\n# Ulangan kompyuterga qo'lda Hub kodi: Hub'da ikkinchi yozuv ochilmaydi");
+  const SPARE_PORT = 3289, S = `http://127.0.0.1:${SPARE_PORT}`;
+  // Kompyuterdagi kod hozirgina o'chirilgan yozuvniki (b) — Hub uni endi tanimaydi
+  start('server/index.ts', { ...newcomerEnv, PORT: String(SPARE_PORT), DATA_DIR: path.join(work, 'data-takror'), HUB_URL: '', PALANTIR_HUB: b.code, LICENSE_MACHINE_ID: '7777-8888-9999-0000' });
+  ok('uchinchi Palantir ishga tushdi', await up(`${S}/api/health`));
+  const spareAdmin = { 'content-type': 'application/json', authorization: `Bearer ${(await (await fetch(`${S}/api/admin/login`, json({ password: 'admin-pass-1' }))).json() as { token: string }).token}` };
+  const vendorCode = async (name: string) => (await (await fetch(`${HUB}/admin/clinics`, { method: 'POST', headers: admin, body: JSON.stringify({ name }) })).json() as { code: string }).code;
+  const putHub = async (value: string, force = false) => {
+    const r = await fetch(`${S}/api/admin/keys/PALANTIR_HUB`, { method: 'PUT', headers: spareAdmin, body: JSON.stringify({ value, force }) });
+    return { status: r.status, ...await r.json() as { error?: string; canForce?: boolean } };
+  };
+  const firstCode = await vendorCode('Zaxira kod'), secondCode = await vendorCode('Takror kod');
+  ok("joriy kodni Hub tanimaydi (yozuv o'chirilgan) — sotuvchi bergan kod qabul qilinadi", (await putHub(firstCode)).status === 200);
+  const dup = await putHub(secondCode), dupForced = await putHub(secondCode, true);
+  ok("ulangan kompyuterga boshqa kod — rad etiladi, «baribir saqlash» ham yo'q", dup.status === 400 && !!dup.error?.includes('allaqachon ulangan') && dup.canForce === false && dupForced.status === 400, dup.error);
+  ok("o'sha kodni qayta qo'yish — xato emas", (await putHub(firstCode)).status === 200);
+  await stopProcess(hubProc);
+  const offlineDup = await putHub(secondCode);
+  ok("Hub javob bermasa ham boshqa kod rad etiladi — aloqa yo'qligi aytiladi", offlineDup.status === 400 && !!offlineDup.error?.includes('javob bermayapti'), offlineDup.error);
+  const elsewhere = await putHub(makeHubCode('http://127.0.0.1:9', 'abcdef1234', 'k'.repeat(32)));
+  ok("Hub boshqa manzilga ko'chgan bo'lsa — yangi manzildagi kod to'xtatilmaydi (faqat o'sha Hub tekshiriladi)", elsewhere.status === 400 && elsewhere.canForce === true && !elsewhere.error?.includes('allaqachon'), elsewhere.error);
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

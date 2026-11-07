@@ -162,12 +162,28 @@ export async function checkKey(name: KeyName, value: string): Promise<KeyCheck> 
   }
 }
 
+const HUB_JOINED = "Bu kompyuter Palantir Hub'ga allaqachon ulangan — kod kerak emas: yangisi Hub'da shu kompyuterning ikkinchi yozuvini ochardi.";
+
+/**
+ * Bitta kompyuter — Hub'da bitta yozuv. Joriy kod Hub'da ishlayotgan bo'lsa, qo'lda qo'yilgan boshqa kod qabul qilinmaydi
+ * (tasdiqlangan yozuvni Hub'dan o'chirib bo'lmaydi — ikkinchisi abadiy takror bo'lib qolardi). Almashtirish mumkin: o'sha kod;
+ * joriy kodni Hub tanimaydi (yozuv o'chirilgan); joriy Hub javob bermaydi va yangi kod boshqa manzildagi Hub'niki (Hub ko'chgan)
+ */
+async function hubReplaceError(value: string): Promise<string | null> {
+  const cur = env.hub, next = parseHubCode(value);
+  if (!cur || !next || next.key === cur.key) return null;
+  const r = await call(`${cur.url}/api/ping`, { headers: { authorization: `Bearer ${cur.key}` } }).catch(() => null);
+  if (r?.status === 401 || r?.status === 403) return null;
+  if (r?.ok) return `${HUB_JOINED} Hali tasdiqlanmagan bo'lsa — Hub /admin da «Tasdiqlash va aktivlashtirish»ni bosing.`;
+  return next.url === cur.url ? `${HUB_JOINED} Hozir Hub javob bermayapti: internet tiklansa o'zi ishlaydi.` : null;
+}
+
 export type SetResult = { ok: true; key: KeyView; check: KeyCheck } | { ok: false; error: string; canForce: boolean };
 
 /** Kalitni tekshiradi va saqlaydi. force — tekshirib bo'lmagan (internet, xizmat band) yoki mablag'i yo'q kalitni baribir saqlash */
 export async function setKey(name: KeyName, raw: string, force = false): Promise<SetResult> {
   const value = raw.trim();
-  const bad = keyFormatError(name, value);
+  const bad = keyFormatError(name, value) ?? (name === 'PALANTIR_HUB' ? await hubReplaceError(value) : null);
   if (bad) return { ok: false, error: bad, canForce: false };
   const check = await checkKey(name, value);
   if (!check.ok && !(force && check.canForce)) return { ok: false, error: check.error, canForce: check.canForce };
