@@ -2,6 +2,9 @@
  * Hub qorovuli (GitHub Actions, har 30 daqiqada — .github/workflows/hub-watchdog.yml): Oracle bepul serverni «bo'sh turibdi»
  * deb to'xtatib qo'yishi mumkin (Always Free qoidasi) — to'xtatilgan serverni qayta yoqish esa ruxsat etilgan.
  *   /health javob bersa — hech narsa qilinmaydi. Javob bermasa — Oracle API: server holati; STOPPED bo'lsa — START va /health kutiladi.
+ *   RUNNING, lekin javob yo'q (server qotgan: xotira to'lgan — SSH ham javob bermaydi) — bir oz kutib yana tekshiriladi (joylash yoki
+ *   bir zumlik uzilish bo'lishi mumkin), yana javob yo'q bo'lsa — SOFTRESET (Oracle avval tizimni o'chirishni so'raydi, 15 daqiqada
+ *   o'chmasa — o'zi o'chirib yoqadi). Boshqa holat (STARTING, STOPPING…) — kutiladi, keyingi tekshiruvda yana qaraladi.
  * Email yuborilmaydi (egasi so'ragan): ish hech qachon «yiqilmaydi», natija — Actions jurnalida (::warning::).
  * Muhit: HUB_URL, OCI_REGION, OCI_TENANCY, OCI_USER, OCI_FINGERPRINT, HUB_INSTANCE_ID — ochiq identifikatorlar; OCI_PRIVATE_KEY — sir.
  * --holat — Hub sog' bo'lsa ham server holatini Oracle'dan so'raydi (Actions shunday ishga tushiradi: kalit har safar tekshiriladi,
@@ -10,9 +13,15 @@
  */
 import { createHash, createSign } from 'node:crypto';
 
-const HEALTH_TRIES = 3, HEALTH_GAP_MS = 10_000, HEALTH_TIMEOUT_MS = 20_000;
+/** Vaqtlar — sinovda (scripts/check-watchdog.ts) WATCHDOG_MS_SCALE bilan qisqartiriladi */
+const SCALE = Number(process.env.WATCHDOG_MS_SCALE) || 1;
+const HEALTH_TRIES = 3, HEALTH_GAP_MS = 10_000 * SCALE, HEALTH_TIMEOUT_MS = 20_000 * SCALE;
 /** Yoqilgandan keyin: server RUNNING bo'lishini va Hub javob berishini shuncha kutamiz */
-const START_WAIT_MS = 6 * 60_000, POLL_MS = 10_000;
+const START_WAIT_MS = 6 * 60_000 * SCALE, POLL_MS = 10_000 * SCALE;
+/** Yoqiq server javob bermasa: qayta yoqishdan oldin shuncha kutib yana tekshiriladi */
+const RECHECK_MS = 2 * 60_000 * SCALE;
+/** SOFTRESET: Oracle tizim o'chishini 15 daqiqagacha kutadi, keyin yoqadi */
+const RESET_WAIT_MS = 20 * 60_000 * SCALE;
 
 const need = (k: string): string => {
   const v = process.env[k];
@@ -48,7 +57,8 @@ async function oci(method: 'GET' | 'POST', path: string): Promise<Record<string,
 
 /** Oracle API so'rovi: HTTP Signature (rsa-sha256) — https://docs.oracle.com/iaas/Content/API/Concepts/signingrequests.htm */
 async function ociOnce(method: 'GET' | 'POST', path: string): Promise<Record<string, unknown>> {
-  const url = new URL(`https://iaas.${need('OCI_REGION')}.oraclecloud.com/20160918${path}`);
+  // OCI_API_URL — faqat sinov uchun (soxta Oracle API)
+  const url = new URL(`${process.env.OCI_API_URL || `https://iaas.${need('OCI_REGION')}.oraclecloud.com`}/20160918${path}`);
   const body = method === 'POST' ? '' : undefined;
   const headers: Record<string, string> = { date: new Date().toUTCString(), host: url.host };
   const signed = ['(request-target)', 'date', 'host'];
@@ -82,19 +92,36 @@ async function main(): Promise<void> {
   }
   const state = await stateOf(id);
   console.log(`Hub javob bermayapti; Oracle: server holati — ${state}`);
-  if (state !== 'STOPPED') {
-    warn(`Hub javob bermayapti, server holati ${state} — yoqish kerak emas (tarmoq yoki xizmat muammosi bo'lishi mumkin)`);
+  if (state === 'STOPPED') {
+    await oci('POST', `/instances/${id}?action=START`);
+    console.log('Yoqish buyrug\'i berildi');
+    await backUp(hub, id, START_WAIT_MS, 'Oracle serverni to\'xtatgan edi — qayta yoqildi, Hub ishlayapti');
     return;
   }
-  await oci('POST', `/instances/${id}?action=START`);
-  console.log('Yoqish buyrug\'i berildi');
-  for (const end = Date.now() + START_WAIT_MS; Date.now() < end; await sleep(POLL_MS)) {
+  if (state !== 'RUNNING') {
+    warn(`Hub javob bermayapti, server holati ${state} — o'tish holati, keyingi tekshiruvda yana qaraladi`);
+    return;
+  }
+  // Yoqiq, lekin javob yo'q: joylash (xizmat qayta yoqilyapti) yoki bir zumlik uzilish bo'lishi mumkin — shoshilmaymiz
+  await sleep(RECHECK_MS);
+  if (await healthy(hub)) {
+    console.log('Hub qayta javob berdi — qayta yoqish kerak emas');
+    return;
+  }
+  await oci('POST', `/instances/${id}?action=SOFTRESET`);
+  console.log('Server qotgan (yoqiq, lekin javob bermaydi) — qayta yoqish (SOFTRESET) buyrug\'i berildi');
+  await backUp(hub, id, RESET_WAIT_MS, 'Server qotib qolgan edi — qayta yoqildi, Hub ishlayapti');
+}
+
+/** Yoqish yoki qayta yoqishdan keyin: server RUNNING va Hub javob berguncha kutiladi */
+async function backUp(hub: string, id: string, waitMs: number, done: string): Promise<void> {
+  for (const end = Date.now() + waitMs; Date.now() < end; await sleep(POLL_MS)) {
     if ((await stateOf(id)) === 'RUNNING' && await healthy(hub)) {
-      warn('Oracle serverni to\'xtatgan edi — qayta yoqildi, Hub ishlayapti');
+      warn(done);
       return;
     }
   }
-  warn(`Server yoqildi, lekin Hub ${START_WAIT_MS / 60_000} daqiqada javob bermadi — keyingi tekshiruvda yana qaraladi`);
+  warn(`Server yoqildi, lekin Hub ${Math.round(waitMs / 60_000)} daqiqada javob bermadi — keyingi tekshiruvda yana qaraladi`);
 }
 
 // Ish yiqilmaydi: GitHub muvaffaqiyatsiz ish haqida email yuborardi

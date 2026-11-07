@@ -1,4 +1,5 @@
-# Hub qorovuli: har 30 daqiqada Hub'ni tekshiradi; Oracle bepul serverni «bo'sh» deb to'xtatgan bo'lsa — qayta yoqadi
+# Hub qorovuli: har 30 daqiqada Hub'ni tekshiradi; Oracle bepul serverni «bo'sh» deb to'xtatgan bo'lsa — yoqadi,
+# server yoqiq, lekin qotgan bo'lsa (javob yo'q) — qayta yoqadi (SOFTRESET, 20 daqiqagacha kutadi)
 # (scripts/hub-watchdog.ts). Email yuborilmaydi: ish yiqilmaydi, natija — Actions jurnalida.
 # Identifikatorlar ochiq (maxfiy emas); kalit — repo siri OCI_PRIVATE_KEY (Settings → Secrets and variables → Actions).
 name: Hub qorovuli
@@ -18,7 +19,7 @@ concurrency:
 jobs:
   watch:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:

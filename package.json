@@ -42,6 +42,7 @@
     "test:content": "tsx scripts/check-content.ts",
     "test:crew": "tsx scripts/check-crew.ts",
     "test:strangers": "tsx scripts/check-strangers.ts",
+    "test:watchdog": "tsx scripts/check-watchdog.ts",
     "test:brend": "tsx scripts/check-brend.ts",
     "test:video": "tsx scripts/check-video.ts",
     "live:content": "tsx scripts/live-content.ts",
