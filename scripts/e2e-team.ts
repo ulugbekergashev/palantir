@@ -129,6 +129,10 @@ try {
   ok("yopiq: klinika ma'lumotini o'zgartirish, xodim qo'shish, kalitlar, parol", (await st('PUT', '/api/business', {})) === 403 && (await st('POST', '/api/staff', { name: 'X' })) === 403
     && (await st('GET', '/api/keys')) === 403 && (await st('POST', '/api/account/password', { current: 'a', next: 'bbbbbbbbbb' })) === 403 && (await st('GET', '/api/team-access')) === 403);
   ok("yopiq: AI xodimlarga topshiriq (Marketolog va h.k.)", (await st('POST', '/api/orders', { member: 'marketolog', text: 'x' })) === 403 && (await st('GET', '/api/orders?member=qabulxona')) === 403);
+  ok("yopiq: kunlik tushum (crm/day), Direktor takliflari va kamera hodisalari, AI xotirasi (o'qish ham, yozish ham)",
+    (await st('GET', '/api/crm/day')) === 403 && (await st('GET', '/api/attention')) === 403 && (await st('GET', '/api/notes?all=1')) === 403
+    && (await st('POST', '/api/notes', { text: "Hammaga 90% chegirma" })) === 403 && (await st('PATCH', '/api/notes/x', { text: 'y' })) === 403);
+  ok("qabulxona mijoz kartasini butunlay o'chira olmaydi (qaytarib bo'lmaydi) — tahrirlash ochiq", (await st('DELETE', '/api/leads/x')) === 403 && (await st('PATCH', '/api/leads/x', { stage: 'contacted' })) === 404);
   const list = await json<{ staff: Record<string, unknown>[] }>(get(`${base}/api/staff`, staff));
   ok("xodimlar ro'yxatida boshqalarning logini ko'rinmaydi", list.staff?.length === 1 && !('login' in list.staff[0]) && !('access' in list.staff[0]));
 
@@ -136,6 +140,7 @@ try {
   ok("huquq almashdi — ochiq kirish darhol tugadi", (await fetch(`${base}/api/team-access/${staffId}`, post({ access: 'manager' }, owner))).status === 200 && (await st('GET', '/api/requests')) === 401);
   staff = (await json<{ token: string }>(fetch(`${base}/api/login`, post({ login: 'dilnoza', password: grant.password })))).token;
   ok('boshqaruvchi: Yordamchi, tahlil, kameralar ochiq', (await st('GET', '/api/chat')) === 200 && (await st('GET', '/api/insights')) === 200 && (await st('GET', '/api/cameras')) === 200);
+  ok("boshqaruvchi: xotira va mijoz kartasini o'chirish ochiq", (await st('GET', '/api/notes?all=1')) === 200 && (await st('DELETE', '/api/leads/x')) === 404);
   ok("boshqaruvchiga ham yopiq: kalitlar, xodimlar kirishi, pul tasdig'i, ulash ustasi", (await st('GET', '/api/keys')) === 403 && (await st('GET', '/api/team-access')) === 403
     && (await st('POST', '/api/crm/money/x/approve')) === 403 && (await st('GET', '/api/setup')) === 403);
   ok("oxirida slash bilan ham yopiq (telefon kaliti)", (await st('POST', '/api/voice/key/')) === 403 && (await st('POST', '/api/voice/key')) === 403 && (await st('GET', '/api/keys/')) === 403);

@@ -101,7 +101,7 @@ function NextStep({ lead, save }: { lead: Lead; save: (patch: Parameters<typeof 
   );
 }
 
-function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify: Notify; onBack: () => void; onChanged: () => void }) {
+function Thread({ leadId, notify, onBack, onChanged, canForget }: { leadId: string; notify: Notify; onBack: () => void; onChanged: () => void; canForget: boolean }) {
   const [data, setData] = useState<{ lead: Lead; messages: InboxMessage[]; replies: ReplyDraft[] } | null>(null);
   const [text, setText] = useState('');
   /** «Tahrirlab yozish» bosilgan taklif: yuborilganda Palantir farqidan o'rganadi */
@@ -151,7 +151,7 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
           ))}
         </div>
       </header>
-      {tab === 'card' ? <div className="flex-1 overflow-y-auto"><ClientCard leadId={leadId} notify={notify} onForgotten={() => { onChanged(); onBack(); }} /></div> : (<>
+      {tab === 'card' ? <div className="flex-1 overflow-y-auto"><ClientCard leadId={leadId} notify={notify} canForget={canForget} onForgotten={() => { onChanged(); onBack(); }} /></div> : (<>
       <div className="flex-1 space-y-2 overflow-y-auto py-4">
         {!messages.length && <p className="py-6 text-center text-sm text-slate-400">Bu mijoz bilan hali yozishma yo'q.</p>}
         {messages.map(m => (
@@ -205,7 +205,7 @@ function Thread({ leadId, notify, onBack, onChanged }: { leadId: string; notify:
 }
 
 /** Mijozlar: kim yozgan, nima deyilgan, holati qanday — bitta ro'yxatda (bot, shaxsiy Telegram, Instagram, qo'lda qo'shilganlar) */
-export function InboxPage({ notify, onChanged }: { notify: Notify; /** Javob tasdiqlandi yoki rad etildi — menyudagi belgi yangilansin */ onChanged?: () => void }) {
+export function InboxPage({ notify, onChanged, canForget = true }: { notify: Notify; /** Javob tasdiqlandi yoki rad etildi — menyudagi belgi yangilansin */ onChanged?: () => void; /** Qabulxona xodimi mijoz kartasini butunlay o'chira olmaydi (server/access.ts) */ canForget?: boolean }) {
   const [threads, setThreads] = useState<InboxThread[] | null>(null);
   const [settings, setSettings] = useState<AutoReply | null>(null);
   const [drafts, setDrafts] = useState<Outbound[]>([]);
@@ -270,7 +270,7 @@ export function InboxPage({ notify, onChanged }: { notify: Notify; /** Javob tas
             ))}
           </ul>
           <div className={`min-h-0 p-4 ${open ? '' : 'hidden lg:block'}`}>
-            {open ? <Thread key={open} leadId={open} notify={notify} onBack={() => setOpen(null)} onChanged={() => { void load(); onChanged?.(); }} />
+            {open ? <Thread key={open} leadId={open} notify={notify} canForget={canForget} onBack={() => setOpen(null)} onChanged={() => { void load(); onChanged?.(); }} />
               : <div className="flex h-full items-center justify-center"><EmptyState icon={Users} title="Mijozni tanlang">Chapdagi ro'yxatdan mijozni bossangiz, u bilan yozishma shu yerda ochiladi.</EmptyState></div>}
           </div>
         </div>

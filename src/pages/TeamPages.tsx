@@ -68,7 +68,7 @@ export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now
         <div className="agent-body">
           {active === 'sorovlar' && <RequestsPage notify={notify} onChanged={() => { reload(); onChanged(); }} />}
           {active === 'qongiroqlar' && <CallsPage notify={notify} />}
-          {active === 'yozishmalar' && <InboxPage notify={notify} onChanged={onChanged} />}
+          {active === 'yozishmalar' && <InboxPage notify={notify} onChanged={onChanged} canForget={!limited} />}
         </div>
       )}
     </div>

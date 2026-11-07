@@ -79,7 +79,7 @@ function Forget({ leadId, name, notify, onDone }: { leadId: string; name: string
   );
 }
 
-export function ClientCard({ leadId, notify, onForgotten }: { leadId: string; notify: Notify; /** Karta o'chirildi — ro'yxat yangilansin, suhbat yopilsin */ onForgotten: () => void }) {
+export function ClientCard({ leadId, notify, onForgotten, canForget = true }: { leadId: string; notify: Notify; /** Karta o'chirildi — ro'yxat yangilansin, suhbat yopilsin */ onForgotten: () => void; /** Qabulxona xodimiga «Ma'lumotni o'chirish» ko'rsatilmaydi */ canForget?: boolean }) {
   // Boshqa mijoz ochilganda eski karta ko'rinmaydi: karta qaysi mijozniki ekani bilan saqlanadi
   const [loaded, setLoaded] = useState<{ leadId: string; card: ClientCardView } | null>(null);
   const card = loaded?.leadId === leadId ? loaded.card : null;
@@ -158,7 +158,7 @@ export function ClientCard({ leadId, notify, onForgotten }: { leadId: string; no
         {!card.calls.length ? <p className="text-sm text-slate-500">Qo'ng'iroq bo'lmagan.</p> : <ul className="divide-y divide-slate-100">{card.calls.map(c => <CallRow key={c.id} c={c} notify={notify} />)}</ul>}
       </Block>
 
-      <Forget leadId={leadId} name={card.lead.name || (card.lead.phone ? prettyPhone(card.lead.phone) : 'Mijoz')} notify={notify} onDone={onForgotten} />
+      {canForget && <Forget leadId={leadId} name={card.lead.name || (card.lead.phone ? prettyPhone(card.lead.phone) : 'Mijoz')} notify={notify} onDone={onForgotten} />}
     </div>
   );
 }
