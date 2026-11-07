@@ -14,6 +14,7 @@ process.env.TZ = 'Asia/Tashkent';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { unzipSync } from 'fflate';
@@ -146,6 +147,24 @@ try {
   const localOk = (await fetch(`${base}/api/login`, json({ login: 'shifo', password: 'secret12' }))).status;
   ok("masofadan parol taxmin qilish — 8 tadan keyin 429, soxta X-Forwarded-For yordam bermaydi (klinikadagi kirishga tegmaydi)", tries.slice(0, 8).every(c => c === 401) && tries[8] === 429 && localOk === 200, tries.join(','));
   ok("noma'lum klinika — 404", (await fetch(`${HUB}/c/0000000000/api/health`)).status === 404);
+  // Kirishdan oldin (parol klinikada tekshiriladi) so'rov tanasi hub xotirasida turadi: katta va sekin tanalar bilan uni to'ldirib bo'lmasin
+  /** Tanasining 1 KB i yuborilib, qolgani «kelayotgan» so'rov: 3 soniyada javob bo'lmasa — status 0 (hub kutib turibdi) */
+  const slowPost = (declared: number) => new Promise<{ status: number; req: http.ClientRequest }>(done => {
+    const req = http.request(`${R}/api/chat/file?name=x.bin`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'content-length': String(declared) } });
+    req.on('response', r => { r.resume(); done({ status: r.statusCode ?? 0, req }); });
+    req.on('error', () => { /* sinov o'zi uzadi */ });
+    req.write(Buffer.alloc(1024));
+    setTimeout(() => done({ status: 0, req }), 3000);
+  });
+  const huge = await slowPost(16 * 1_048_576);
+  huge.req.destroy();
+  ok("15 MB dan katta tana — tanasi o'qilmasdan darhol 413", huge.status === 413, String(huge.status));
+  const held = await Promise.all([slowPost(10 * 1_048_576), slowPost(10 * 1_048_576)]);
+  const third = await slowPost(10 * 1_048_576);
+  ok("bitta manzildan bir vaqtda 24 MB dan ko'p tana — darhol 503 (oldingilari kutib turibdi)", held.every(h => h.status === 0) && third.status === 503, [...held.map(h => h.status), third.status].join(','));
+  for (const h of [...held, third]) h.req.destroy();
+  const freed = await until("joy bo'shadi", async () => (await viaHub('/api/chat', json({ text: 'salom' }))).status === 401 || undefined, 5_000);
+  ok("ulanish uzilgach joy bo'shaydi — keyingi so'rov odatdagidek (401)", !!freed);
 
   console.log("\n# Palantir jamoasi: hubdagi «Panelni ochish» — egasining roziligi bilan");
   const panel = (body: unknown = {}, key = 'hub-admin-sinov-kaliti-0123456789') =>

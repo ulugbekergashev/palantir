@@ -202,6 +202,27 @@ const RELAY_REQUEST_HEADERS = ['content-type', 'authorization', 'accept', 'accep
 const RELAY_ANSWER_HEADERS = ['content-type', 'cache-control', 'etag', 'content-disposition', 'last-modified'];
 /** Bir manzildan daqiqasiga (panel ochilganda o'nlab fayl va so'rov) */
 const RELAY_PER_MINUTE = 600;
+/**
+ * Telefondan kelgan so'rov tanasi kirish tekshirilguncha (parol va token klinikada tekshiriladi) hub xotirasida turadi: klinika uni
+ * olib javob berguncha. Kichik server (Oracle Free) katta va sekin tanalar bilan to'lib, hamma klinikaning masofaviy kirishi
+ * to'xtamasin — bir vaqtda xotirada turadigani hammasi va bitta manzildan chegaralangan (oshsa — 503, keyinroq qayta)
+ */
+const RELAY_BYTES_TOTAL = 96 * 1_048_576, RELAY_BYTES_PER_IP = 24 * 1_048_576;
+let relayBytes = 0;
+const relayBytesByIp = new Map<string, number>();
+function holdRelayBytes(ip: string, n: number): boolean {
+  const mine = relayBytesByIp.get(ip) ?? 0;
+  if (relayBytes + n > RELAY_BYTES_TOTAL || mine + n > RELAY_BYTES_PER_IP) return false;
+  relayBytes += n;
+  relayBytesByIp.set(ip, mine + n);
+  return true;
+}
+function releaseRelayBytes(ip: string, n: number): void {
+  relayBytes = Math.max(0, relayBytes - n);
+  const left = (relayBytesByIp.get(ip) ?? 0) - n;
+  if (left > 0) relayBytesByIp.set(ip, left);
+  else relayBytesByIp.delete(ip);
+}
 const relayHits = new Map<string, { n: number; until: number }>();
 /** O'zi ulanishlar: manzil → oxirgi sutkadagi paytlari */
 const registerHits = new Map<string, number[]>();
@@ -261,9 +282,20 @@ async function relay(req: IncomingMessage, res: ServerResponse, clinicId: string
   if (!clinicOnline(clinicId, clinic.seen_at)) {
     return html ? send(res, 503, offlinePage(clinic.name), 'text/html') : send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
   }
-  const raw = req.method === 'GET' || req.method === 'HEAD' ? Buffer.alloc(0) : await readRaw(req, RELAY_MAX_REQUEST);
-  if (!raw) return send(res, 413, { error: 'Juda katta' });
-  const answer = await dispatch(clinicId, { method: String(req.method), path, headers: pick(req.headers, RELAY_REQUEST_HEADERS), body: raw.toString('base64'), ip });
+  const bodyless = req.method === 'GET' || req.method === 'HEAD';
+  // Aytilgan hajm katta — tana o'qilmaydi; aytilmagan (chunked) — eng kattasi uchun joy olinadi
+  const declared = Number(req.headers['content-length']);
+  const reserve = bodyless ? 0 : Number.isSafeInteger(declared) && declared >= 0 ? declared : RELAY_MAX_REQUEST;
+  if (reserve > RELAY_MAX_REQUEST) { res.setHeader('connection', 'close'); return send(res, 413, { error: 'Juda katta' }); }
+  if (!holdRelayBytes(ip, reserve)) { res.setHeader('connection', 'close'); return send(res, 503, { error: "Hub hozir band — birozdan keyin qayta urining" }); }
+  let answer: RelayAnswer | null;
+  try {
+    const raw = bodyless ? Buffer.alloc(0) : await readRaw(req, reserve);
+    if (!raw) return send(res, 413, { error: 'Juda katta' });
+    answer = await dispatch(clinicId, { method: String(req.method), path, headers: pick(req.headers, RELAY_REQUEST_HEADERS), body: raw.toString('base64'), ip });
+  } finally {
+    releaseRelayBytes(ip, reserve);
+  }
   if (!answer) {
     return html ? send(res, 504, offlinePage(clinic.name), 'text/html') : send(res, 504, { error: 'Klinika kompyuteri javob bermadi' });
   }
@@ -290,6 +322,8 @@ function readRaw(req: IncomingMessage, max = MAX_BODY): Promise<Buffer | null> {
     req.on('data', (c: Buffer) => { size += c.length; if (size <= max) chunks.push(c); });
     req.on('end', () => ok(size > max ? null : Buffer.concat(chunks)));
     req.on('error', () => ok(null));
+    // Telefon tana oxirigacha yubormay uzib qo'ydi: kutish shu yerda tugaydi (aks holda u uchun olingan joy hech qachon bo'shamasdi)
+    req.on('close', () => ok(null));
   });
 }
 const bearer = (req: IncomingMessage) => (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
