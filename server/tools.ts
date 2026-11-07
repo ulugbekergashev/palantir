@@ -34,7 +34,7 @@ import { MARKETING_DEFS, marketingEnabled } from './marketing/tools';
 import { CONTENT_DEFS } from './content/tools';
 import { ADS_DEFS } from './ads/tools';
 import { NUMBER_DEFS } from './numbersTools';
-import { ToolError, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
+import { ToolError, assertOwnNumbers, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
 import { TEAM_NAME, crewHas, type CrewMember } from '../src/lib/crew';
 import { events } from './orders/store';
 import { DOC_KINDS } from './docs/playbooks';
@@ -51,6 +51,9 @@ const clean = (s: string | null | undefined) => (s?.trim() ? s.trim() : null);
 /** Bitta gapda qo'shiladigan mijozlar chegarasi (internetdan qidirib qo'shganda ham) */
 const MAX_LEADS_PER_TURN = 20;
 
+/** Allaqachon bilimda bor matn (profil, faktlar, faol sahifalar): undagi raqam va havola qayta yozilsa, egasi uni qayta aytishi shart emas */
+const knownText = (ctx: ToolCtx): string => [JSON.stringify((businesses.byId(ctx.biz.id) ?? ctx.biz).profile), ...notes.all(ctx.biz.id).map(n => n.text),
+  ...knowledge.list(ctx.biz.id, 'page').filter(p => p.status === 'active').map(p => `${p.question}\n${p.answer}`)].join('\n');
 const taskView = (t: Task) => ({ id: t.id, title: t.title, due_at: t.dueAt, status: t.status, notes: t.notes, ...(t.leadId ? { customer_id: t.leadId } : {}), ...(t.callTo ? { phone_call: true } : t.spoken ? { voice_message: true } : {}) });
 const leadView = (l: ReturnType<typeof leads.list>[number]) => ({
   id: l.id, name: l.name, phone: l.phone, username: l.username, stage: l.stage, note: l.note, source: l.source,
@@ -80,6 +83,8 @@ const DEFS = {
     }),
     run: (i, ctx) => {
       if (i.call && !i.due_at) throw new ToolError("Qo'ng'iroq uchun vaqt kerak — egasidan qachon qo'ng'iroq qilishni so'ra");
+      // Qo'ng'iroq raqami egasining o'z gapidan: begona matn (mijoz xabari, sahifa) egasining raqamini almashtirib, eslatmani begonaga o'qitmasin
+      if (i.phone) assertOwnNumbers(ctx, i.phone, ctx.biz.ownerPhone ?? '');
       let callTo: string | null = null, callNote: string | undefined;
       if (i.call && !callsEnabled() && tgCallEnabled()) {
         callNote = "At due_at Palantir calls the owner through Telegram (an AI voice in Uzbek): it says the reminder and can mark it done or move it. The Telegram reminder comes as well. No phone number is needed.";
@@ -289,6 +294,7 @@ It takes a minute or two. Afterwards tell the owner in one or two sentences what
     run: (i, ctx) => {
       // Saqlangan fakt har bir keyingi suhbatga kiradi — begona matn (rasmdagi yozuv, mijozning xabari) shu yo'l bilan doimiy ko'rsatmaga aylanmasin
       assertOwnWords(ctx);
+      assertOwnNumbers(ctx, i.fact, knownText(ctx));
       return { saved: notes.add(ctx.biz.id, i.fact, { kind: i.kind, tags: i.tags, by: 'Siz (suhbatda)', source: 'suhbat' }) };
     },
   }),
@@ -308,6 +314,7 @@ It takes a minute or two. Afterwards tell the owner in one or two sentences what
     run: (i, ctx) => {
       // Narxlar modelning tizim ko'rsatmasida turadi — begona matn shu yo'l bilan narxga aylanmasin
       assertOwnWords(ctx);
+      assertOwnNumbers(ctx, i.items.map(x => x.name).join('\n'), knownText(ctx));
       // ctx.biz — suhbat boshidagi nusxa: profil shu orada panelda o'zgargan bo'lishi mumkin
       const fresh = businesses.byId(ctx.biz.id) ?? ctx.biz;
       const merged = mergeOfferings(fresh.profile.offerings, i.items, () => newId(8));
@@ -346,6 +353,7 @@ It takes a minute or two. Afterwards tell the owner in one or two sentences what
     run: (i, ctx) => {
       // Sahifa mijozlarga javobda ishlatiladi — begona matn shu yo'l bilan tasdiqlangan bilimga aylanmasin
       assertOwnWords(ctx);
+      assertOwnNumbers(ctx, `${i.title}\n${i.text}`, knownText(ctx));
       const pages = knowledge.list(ctx.biz.id, 'page').filter(p => p.status === 'active');
       const old = i.page_id ? pages.find(p => p.id === i.page_id) : null;
       if (i.page_id && !old) throw new ToolError(`Topilmadi: ${i.page_id}`);
@@ -458,6 +466,13 @@ function journal(name: string, input: unknown, ctx: ToolCtx): void {
   } catch (e) { console.error('[asbob] jurnal:', (e as Error).message); }
 }
 
+/**
+ * Natijasida begona matn bo'lmaydigan asboblar: egasi yoki model hozir yozgani (vazifa, fakt, sahifa, hujjat, qoralama) va tizim ma'lumoti
+ * (bo'sh vaqtlar, raqamlar). Qolgan hammasi — mijoz ismi, izohi, yozishmasi, CRM'dagi bemor, kamera, internet, kompyuterdagi sahifa —
+ * begona matn: chaqirilgach shu javobda bilimga yozish yopiladi (toolkit.ts: assertOwnWords). Yangi asbob — standart bo'yicha begona
+ */
+const OWN_DATA_TOOLS = new Set(['create_task', 'remember', 'forget', 'save_prices', 'read_page', 'write_page', 'create_document', 'draft_followup', 'free_slots', 'business_numbers', 'computer_stop']);
+
 export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promise<ToolOutcome> {
   // Klinika asboblari faqat DentaCRM ulangan biznesda ishlaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin)
   if (isCrmTool(name) && !crmConnected(ctx.biz.id)) return { content: "DentaCRM ulanmagan — egasi panel → Ulanishlar'da ulashi kerak", isError: true };
@@ -474,6 +489,8 @@ export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promi
   }
   try {
     const out = { content: JSON.stringify(await d.run(parsed.data, ctx)), isError: false };
+    // Belgi natijadan keyin: asbobning o'zi (reklama, kompyuter) shu gapda avval begona matn o'qilganmi — shuni tekshiradi
+    if (!OWN_DATA_TOOLS.has(name)) ctx.readStrangers = true;
     journal(name, parsed.data, ctx);
     return out;
   } catch (e) {
