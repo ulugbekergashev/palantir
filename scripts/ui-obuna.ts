@@ -77,7 +77,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
   page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(`console: ${m.text()}`); });
-  // Sozlamalar → «AI va ovoz» shu havolani ochadi: usta darhol «Kalitlar» qadamida (Claude obunasi shu yerda)
+  // Sozlamalar → «Claude va kalitlar» shu havolani ochadi: usta darhol «Kalitlar» qadamida (Claude obunasi shu yerda)
   await page.goto(`${base}/#/ulash/keys`);
   const card = page.getByTestId('claude-obuna');
   ok('havola bilan usta darhol «Kalitlar» qadamida ochildi', await card.waitFor({ timeout: 10_000 }).then(() => true, () => false)
@@ -107,8 +107,8 @@ try {
   await page.locator('aside').getByRole('button', { name: 'Klinika', exact: true }).click();
   ok('joriy qadam havolada turadi (sahifa yangilansa shu qadamda qoladi)', await page.evaluate(() => location.hash) === '#/ulash/clinic');
   await page.getByRole('link', { name: 'Panelga qaytish' }).click();
-  const aiTile = page.getByRole('link', { name: /AI va ovoz/ });
-  ok('«Panelga qaytish» → Sozlamalar; «AI va ovoz» ustani «Kalitlar» qadamida ochadi',
+  const aiTile = page.getByRole('link', { name: /Claude va kalitlar/ });
+  ok('«Panelga qaytish» → Sozlamalar; «Claude va kalitlar» ustani «Kalitlar» qadamida ochadi',
     await aiTile.waitFor({ timeout: 10_000 }).then(() => true, () => false) && await aiTile.getAttribute('href') === '#/ulash/keys', await page.evaluate(() => location.hash));
 
   console.log('\n# Server qayta yoqildi — tanlov saqlangan');
@@ -130,7 +130,7 @@ try {
   fake({ loggedIn: false, mode: 'fail' });
   await call('/keys/obuna/kirish', {});
   ok('Claude rad etsa — sababi ko\'rinadi', await until(async () => /403/.test((await status()).login?.error ?? '')), (await status()).login?.error ?? '');
-  // Egasining yo'li: Sozlamalar → «AI va ovoz» (sahifa shu yerda qolgan)
+  // Egasining yo'li: Sozlamalar → «Claude va kalitlar» (sahifa shu yerda qolgan)
   await page.reload();
   await aiTile.click();
   ok('panelda «Kirilmadi: …» va qayta kirish tugmasi', await card.getByRole('alert').filter({ hasText: 'Kirilmadi:' }).waitFor({ timeout: 10_000 }).then(() => true, () => false)

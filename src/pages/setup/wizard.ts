@@ -23,7 +23,7 @@ export const STEPS: StepInfo[] = [
   { key: 'done', title: 'Tayyor', lead: "Klinikadan ketishdan oldin oxirgi ko'rinish." },
 ];
 
-/** Qadam havolasi: panel ustani kerakli qadamda ochadi (Sozlamalar → «AI va ovoz» → #/ulash/keys); joriy qadam ham shu yerda turadi */
+/** Qadam havolasi: panel ustani kerakli qadamda ochadi (Sozlamalar → «Claude va kalitlar» → #/ulash/keys); joriy qadam ham shu yerda turadi */
 export const stepHref = (key: StepKey): string => `#/ulash/${key}`;
 /** «#/ulash/keys» → 'keys'; qadamsiz yoki noma'lum bo'lsa — null (usta birinchi qadamdan ochiladi) */
 export function stepFromHash(hash: string): StepKey | null {
