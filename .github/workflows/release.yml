@@ -1,6 +1,8 @@
 # Reliz: «v<nashr>» tegi qo'yilganda (package.json dagi nashr bilan bir xil) — Windows'da sinov, yig'ish, imzo va GitHub Release.
 # Klinikalardagi yangilovchi (scripts/update.mjs) releases/latest/download/manifest.json dan oladi va imzoni tekshiradi.
 # Imzo kaliti: repo sozlamalari → Secrets → RELEASE_SIGNING_KEY (Ed25519, PEM). Ochiq qismi scripts/update.mjs ichida.
+# «v<nashr>-yengil» tegi — kutubxonalarsiz (node_modules'siz) reliz: klinikadagi kutubxonalar qoladi. Eski yangilovchi (0.4.5 gacha,
+# fflate xatosi) katta arxivni ocholmaydi — bunday klinikalar avval yengil reliz bilan yangi yangilovchini oladi, keyin to'liq relizni.
 name: Reliz
 
 on:
@@ -22,7 +24,7 @@ jobs:
           cache: npm
       - name: Teg package.json dagi nashrga mos
         shell: bash
-        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+        run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME%-yengil}"
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
@@ -37,7 +39,10 @@ jobs:
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
           PALANTIR_BUNDLED: "1"
-        run: node --no-warnings --import tsx scripts/release.ts --out reliz --with-node-modules
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-yengil ]]; then modules=(); else modules=(--with-node-modules); fi
+          node --no-warnings --import tsx scripts/release.ts --out reliz "${modules[@]}"
       - name: GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
