@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Palantir Hub serverini sozlash — Oracle Linux 9 (RHEL oilasi), x86_64 yoki arm64. scripts/deploy-hub.ts yuklab, root sifatida
-# chaqiradi:  setup-server.sh <domen>   (fayllar shu skript yonida: server.ts, admin.ts, legal.ts, package.json; sozlama — /etc/palantir-hub.env)
+# chaqiradi:  setup-server.sh <domen>   (fayllar shu skript yonida: hub/*.ts, package.json; sozlama — /etc/palantir-hub.env)
 # Qayta ishga tushirish xavfsiz: bor narsa qayta o'rnatilmaydi, faqat hub fayllari yangilanadi va xizmat qayta yoqiladi.
+#   Yangilashdan oldin baza ($DATA/zaxira) va eski kod ($APP.prev) nusxalanadi; yangi Hub /health ga javob bermasa — ikkalasi qaytariladi.
 #   swap 2 GB (bepul server xotirasi 0.5–1 GB) · Node.js 24 (nodejs.org, SHA-256 tekshiriladi) · Caddy (HTTPS, Let's Encrypt avtomatik)
 #   · palantir-hub foydalanuvchisi va xizmati (3400-port tashqaridan yopiq — faqat Caddy orqali) · firewalld: http, https
 set -euo pipefail
@@ -79,8 +80,18 @@ EOF
 
 step 'Hub'
 id palantir-hub >/dev/null 2>&1 || useradd --system --home-dir "$DATA" --shell /sbin/nologin palantir-hub
-mkdir -p "$APP" "$DATA"
-install -m 644 "$SRC"/server.ts "$SRC"/admin.ts "$SRC"/legal.ts "$SRC"/licenseKey.ts "$SRC"/package.json "$APP"/
+mkdir -p "$APP" "$DATA/zaxira"
+# Baza nusxasi xizmat to'xtagan holda olinadi (WAL fayllari bilan birga — nusxa butun bo'lsin)
+systemctl stop palantir-hub 2>/dev/null || true
+STAMP=$(date +%Y%m%d-%H%M%S)
+for f in hub.db hub.db-wal hub.db-shm; do
+  if [ -f "$DATA/$f" ]; then cp -p "$DATA/$f" "$DATA/zaxira/$f.$STAMP"; fi
+done
+find "$DATA/zaxira" -name 'hub.db*' -mtime +60 -delete
+rm -rf "$APP.prev"
+if [ -f "$APP/server.ts" ]; then cp -a "$APP" "$APP.prev"; fi
+# Papkadagi hamma .ts — yangi fayl qo'shilsa ham (team.ts, help.ts) o'rnatiladi
+install -m 644 "$SRC"/*.ts "$SRC"/package.json "$APP"/
 chown -R palantir-hub:palantir-hub "$DATA" && chmod 750 "$DATA"
 test -f /etc/palantir-hub.env || { echo '/etc/palantir-hub.env yo'"'"'q' >&2; exit 1; }
 chmod 600 /etc/palantir-hub.env
@@ -121,3 +132,27 @@ systemctl restart palantir-hub
 systemctl restart caddy
 sleep 2
 systemctl --no-pager --lines=0 status palantir-hub caddy | grep -E '^●|Active:'
+
+step "Hub javob beryaptimi"
+PORT=$(sed -n 's/^PORT=//p' /etc/palantir-hub.env); PORT=${PORT:-3400}
+healthy=''
+for _ in $(seq 1 20); do
+  if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/health"; then healthy=1; break; fi
+  sleep 2
+done
+if [ -z "$healthy" ]; then
+  journalctl -u palantir-hub -n 40 --no-pager >&2 || true
+  if [ -d "$APP.prev" ]; then
+    systemctl stop palantir-hub
+    rm -rf "$APP" && mv "$APP.prev" "$APP"
+    rm -f "$DATA"/hub.db-wal "$DATA"/hub.db-shm
+    for f in hub.db hub.db-wal hub.db-shm; do
+      if [ -f "$DATA/zaxira/$f.$STAMP" ]; then cp -p "$DATA/zaxira/$f.$STAMP" "$DATA/$f"; fi
+    done
+    chown -R palantir-hub:palantir-hub "$DATA"
+    systemctl start palantir-hub
+    echo "Yangi Hub ishga tushmadi — eski kod va baza ($STAMP) qaytarildi" >&2
+  fi
+  exit 1
+fi
+echo "ok (baza nusxasi: $DATA/zaxira/hub.db.$STAMP)"

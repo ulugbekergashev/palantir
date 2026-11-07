@@ -10,12 +10,16 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createPrivateKey, randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const HUB_DIR = resolve('hub');
-const FILES = ['server.ts', 'admin.ts', 'team.ts', 'legal.ts', 'licenseKey.ts', 'package.json', 'setup-server.sh'];
+/**
+ * hub/ dagi hamma kod (.ts), package.json va sozlash skripti. Ro'yxat qo'lda yozilmaydi: avval team.ts va help.ts unda yo'q edi —
+ * joylansa server yangi faylni topolmay yiqilardi
+ */
+const FILES = readdirSync(HUB_DIR).filter(f => f.endsWith('.ts') || f === 'package.json' || f === 'setup-server.sh');
 /** Litsenziya imzolovchi kalit (npm run kalit ham shuni ishlatadi): bo'lsa — Hub'ga ham beriladi (bir bosishda aktivlashtirish) */
 const LICENSE_KEY_FILE = join(homedir(), '.palantir', 'litsenziya.pem');
 const SECRETS = join(homedir(), '.palantir', 'hub.env');
