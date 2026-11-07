@@ -61,7 +61,7 @@ function update(channel: string): Promise<{ code: number | null; out: string }> 
   return new Promise(done => {
     const p = spawn(process.execPath, ['scripts/update.mjs'], {
       cwd: APP, stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, DOTENV: '', UPDATE_URL: `${base}/${channel}`, UPDATE_PUBLIC_KEY: PUBLIC, UPDATE_HEALTHY_MS: '25000', UPDATE_PREFLIGHT_MS: '60000' },
+      env: { ...process.env, DOTENV: '', HUB_AUTO: '0', PALANTIR_HUB: '', UPDATE_URL: `${base}/${channel}`, UPDATE_PUBLIC_KEY: PUBLIC, UPDATE_HEALTHY_MS: '25000', UPDATE_PREFLIGHT_MS: '60000' },
     });
     let out = '';
     p.stdout.on('data', d => { out += d; });
@@ -101,7 +101,7 @@ try {
   mkdirSync(join(APP, 'tgvoice', '.venv'), { recursive: true });
   writeFileSync(join(APP, 'tgvoice', '.venv', 'belgi.txt'), 'venv');
   writeFileSync(join(APP, 'tgvoice', 'asterisk', 'pjsip_shahar.conf'), '; shahar raqami');
-  spawn(process.execPath, ['scripts/supervise.mjs'], { cwd: APP, stdio: 'ignore', env: { ...process.env, DOTENV: '' } });
+  spawn(process.execPath, ['scripts/supervise.mjs'], { cwd: APP, stdio: 'ignore', env: { ...process.env, DOTENV: '', HUB_AUTO: '0', PALANTIR_HUB: '' } });
   ok("o'rnatilgan nusxa ishlayapti: 9.0.0", (await until('9.0.0', async () => (await appHealth())?.version === '9.0.0', 60_000)));
   const adminLogin = await (await fetch(`http://127.0.0.1:${PORT}/api/admin/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: 'admin-pass-1' }) })).json() as { token: string };
   await fetch(`http://127.0.0.1:${PORT}/api/admin/businesses`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${adminLogin.token}` }, body: JSON.stringify({ name: 'Yangilash Dent', industry: 'stomatologiya', login: 'yangilash', password: 'secret12' }) });
