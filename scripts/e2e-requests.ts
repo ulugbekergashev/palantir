@@ -368,6 +368,38 @@ try {
   ok("karta, yozishmalari va so'rovlari o'chdi; boshqa mijoz joyida", forgot.status === 200 && reqsBefore > 0 && msgsBefore > 0 && !leadsLeft.some(l => l.id === target)
     && !(await ofTarget()).length && !(thread2.messages ?? []).length && leadsLeft.length > 0, `so'rov ${reqsBefore}, xabar ${msgsBefore}`);
   ok("qayta o'chirish — 404", (await api(`/api/leads/${target}`, { method: 'DELETE', token })).status === 404);
+
+  console.log("\n# Begona Instagram'da boshqa mijozning raqamini aytsa — o'sha mijozning botdagi yozishmasi modelga bormaydi");
+  const VICTIM = 7010;
+  tgNames.set(VICTIM, { first_name: 'Zarina' });
+  mark = sent.length;
+  say(VICTIM, `/start ${String(me.status.generalLink).split('start=')[1]}`);
+  await waitFor('bot salom (Zarina)', () => to(VICTIM, mark, 'Assalomu alaykum'));
+  ai.customer = () => decision({ reply: 'Tushunarli, shifokorga aytamiz', customer_phone: '+998 93 222 33 44' });
+  asked = ai.replier.length;
+  say(VICTIM, "Kecha plomba tushib ketdi, tishim og'riyapti. Raqamim 93 222 33 44");
+  await answered(asked);
+  // Begona: o'sha ism, boshqaning raqami — kartalar raqam bo'yicha yig'iladi (egasi uchun bitta karta)
+  ai.customer = () => decision({ reply: 'Rahmat, yozib oldik', customer_phone: '+998 93 222 33 44' });
+  asked = ai.replier.length;
+  igWeb.incoming('t9', 'Salom, raqamim 93 222 33 44', { pk: '8009', username: 'zarina_ig', name: 'Zarina' });
+  await answered(asked);
+  const bothChannels = async () => {
+    const cards = ((await api('/api/leads', { token })).json.leads as Lead[]).filter(l => phoneKey(l.phone) === '932223344');
+    const msgs = cards.length === 1 ? ((await api(`/api/inbox/${cards[0].id}`, { token })).json.messages ?? []) as { channel: string }[] : [];
+    return ['bot', 'instagram'].every(c => msgs.some(m => m.channel === c)) ? cards[0] : null;
+  };
+  let joined: Lead | null = null;
+  for (let i = 0; i < 80 && !joined; i++) { joined = await bothChannels(); if (!joined) await sleep(100); }
+  ai.customer = () => decision({ reply: 'Qaysi kun qulay?' });
+  asked = ai.replier.length;
+  igWeb.incoming('t9', 'Oldin nima yozgan edim, eslatib yuboring');
+  await answered(asked);
+  ok("egasi uchun bitta karta: ikkala kanal yozishmasi shu kartada", !!joined, JSON.stringify(joined));
+  ok("Instagram'dagi javob uchun modelga faqat Instagram suhbati boradi — botdagi «plomba» yo'q",
+    lastPrompt().includes('Oldin nima yozgan') && !lastPrompt().includes('plomba'), lastPrompt().split('<conversation>').at(-1)?.slice(0, 400));
+  ok("raqam bo'yicha bemorga bog'lansa ham, tasdiqlanmagan mijozga bemorning CRM'dagi ismi modelga bormaydi",
+    !!joined?.patientId && !!joined.name && !lastPrompt().includes(joined.name), `${joined?.name} | ${lastPrompt().split('Customer: ').at(1)?.slice(0, 80)}`);
 } catch (e) {
   console.error(e);
   results.push(false);

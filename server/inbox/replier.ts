@@ -178,20 +178,25 @@ function requestOf(j: Record<string, string>): Decision['request'] {
 export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessage[]): Promise<Decision> {
   const now = new Date();
   const saved = notes.list(biz.id);
-  const who = inline([lead.name, lead.username && `@${lead.username}`, lead.phone].filter(Boolean).join(', '), 160) || 'unknown';
   // Klinika: shifokorlar va bo'sh vaqtlar CRM'dan (CRM javob bermasa — qabulsiz, oddiy javob beruvchi)
   const schedule = await scheduleText(biz.id);
   // Bemorga bog'langan va raqami tasdiqlangan mijoz (people.ts: patientTrusted): uning yaqin qabullari — ko'chirish va bekor qilishni
   // o'zi hal qiladi. Kim yozgani — oxirgi kirgan xabarning kanali (bitta kartada bot ham, Instagram ham bo'lishi mumkin)
   const channel = thread.filter(m => m.direction === 'in').at(-1)?.channel ?? lead.channel;
-  const visits = schedule && await patientTrusted(biz, lead, channel) ? await upcomingVisits(biz.id, lead.patientId!) : [];
+  // Faqat shu kanaldagi suhbat: kartalar yozishmada aytilgan (tasdiqlanmagan) raqam bo'yicha ham yig'iladi (people.ts: mergeByPhone).
+  // Begona Instagram'da boshqa bemorning raqamini aytsa, o'sha bemorning botdagi yozishmasi unga javob tayyorlayotgan modelga tushmasin
+  const talk = thread.filter(m => m.channel === channel);
+  const trusted = lead.patientId ? await patientTrusted(biz, lead, channel) : false;
+  // Bemorga raqam bo'yicha bog'langan, lekin raqami tasdiqlanmagan kartada ism — DentaCRM'dagi bemorniki: model uni begonaga aytib qo'ymasin
+  const who = inline([lead.patientId && !trusted ? null : lead.name, lead.username && `@${lead.username}`, lead.phone].filter(Boolean).join(', '), 160) || 'unknown';
+  const visits = schedule && trusted ? await upcomingVisits(biz.id, lead.patientId!) : [];
   const verify = !!schedule && channel === 'bot' && !phoneVerified(lead);
   const brain = replierBrain(biz);
   // Javobdagi narx va va'dalar shu matndan tekshiriladi (unsupportedOffer): profil, saqlangan faktlar, egasining bilimi, mijozning o'z gaplari
-  const known = [profileText(biz), ...saved.map(n => n.text), brain ?? '', ...thread.map(m => m.text)].join('\n');
+  const known = [profileText(biz), ...saved.map(n => n.text), brain ?? '', ...talk.map(m => m.text)].join('\n');
   // Javobdagi telefon, karta va hisob raqami (unknownNumber): xuddi shu, lekin Palantir'ning o'zi yozgani hisobga olinmaydi (bir marta
   // o'ylab topilgan raqam keyin «ma'lum» bo'lib qolmasin); mijozning Telegram'da yuborgan raqami (kontakt) — qo'shiladi
-  const knownNumbers = [profileText(biz), ...saved.map(n => n.text), brain ?? '', ...thread.filter(m => m.by !== 'palantir').map(m => m.text), lead.phone ?? ''].join('\n');
+  const knownNumbers = [profileText(biz), ...saved.map(n => n.text), brain ?? '', ...talk.filter(m => m.by !== 'palantir').map(m => m.text), lead.phone ?? ''].join('\n');
   // Ikki qism: biznesning o'zgarmaydigan ma'lumoti (profil, faktlar, bilim) — keshlanadi; shu biznesning keyingi xabarlarida
   // ko'rsatma bilan birga ~10% narxda o'qiladi. O'zgaradigani (vaqt, jadval, suhbat) — keyin, keshdan tashqarida
   const business = [
@@ -203,7 +208,7 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
     `Now: ${stamp(now).replace('T', ' ')} (${DAYS.uz[weekday(now)]}). Channel: ${CHANNEL_NAME[lead.channel]}. Customer: ${who}.`,
     schedule ? `<clinic_schedule>\n${schedule}\n</clinic_schedule>` : '',
     visits.length ? `<customer_appointments>\n${visitsText(visits)}\n</customer_appointments>` : '',
-    `<conversation>\n${transcript(thread)}\n</conversation>`,
+    `<conversation>\n${transcript(talk)}\n</conversation>`,
     "Decide how to answer the customer's latest message(s).",
   ].filter(Boolean).join('\n\n');
 
@@ -244,7 +249,7 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
     };
   }
   // Darvoza: boshqa mijozlar, xodimlarning shaxsiy ma'lumoti, ichki raqamlar yoki pulni qaytarish/o'tkazish so'ralsa — javob o'zi ketmaydi
-  const forbidden = action === 'reply' ? forbiddenAsk(latestFromCustomer(thread)) : null;
+  const forbidden = action === 'reply' ? forbiddenAsk(latestFromCustomer(talk)) : null;
   if (forbidden) {
     return { action: 'ask_owner', reply, question: '', booking: null, change: null, noteForOwner: forbidden.note, ...about };
   }
