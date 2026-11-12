@@ -80,3 +80,22 @@ Holat ustuni: «—» — tuzatilmagan.
 1. Aniq xatolar: A1–A8, C1 (telefon xizmati o'rnatgichda), C4.
 2. Egasi qaroridan keyin: B1 (Qabulxona asosiy), B2 (javob rejimi ustada), B3 (bitta nom), bosh ekran = AI administrator, B5–B7.
 3. Usta tartibi (C2, C3, C5), matnlar (C6, C7, B10), dublikatlar (C9, B4, B8, B9), qolganlari.
+
+## Qayta tekshiruv — 2026-11-13
+
+Hamma band kod bilan qayta solishtirildi (uch o'quvchi + qo'lda: A1, A7, telefon dialplani, liniya sozlamasi). Hech biri hali tuzatilmagan.
+
+- **To'liq tasdiqlandi:** A1–A7, A10–A12, A14, B1–B3, B6–B10, C1–C8, C10, D1–D8.
+- **Qisman:** A8 — egasiga har xabarda aytiladi (Telegram ulangan bo'lsa), yo'g'i — bitta ogohlantirish va Hub'ga xabar. A9 — topshiriqni
+  Yordamchi, javob beruvchi va kamera o'qiydi; kontent, reklama, tahlil, marketing — o'qimaydi. A13 — ikkinchi yarmi (ustadagi namuna)
+  klinika nashrida tekshirilmadi. B4, C9 — ayrim qatorlar ochilmadi. B5 — Direktor kuniga bir marta va 14 kunda 3 tadan kam murojaatda
+  modelni chaqirmaydi: sarf yozilganidan kichik, asl bo'shliq — ogohlantirish yo'qligi (A8).
+- **Yangi (audit o'tkazib yuborgan):** `server/phone/index.ts:302` — telefonda qabulga yozilgan bemor ham faqat «bog'lanildi»ga o'tadi,
+  A1 bilan birga tuzatiladi.
+- **A7:** 2026-11-07 dagi `4016b49` dan keyin ham ochiq — `server/access.ts` da `team/day` va `tasks` qabulxonaga ruxsat etilgan.
+- **Yo'l o'zgargan:** `src/pages/setup/secrets.ts` → `src/lib/secrets.ts`; `Dashboard.tsx` → `src/pages/dashboard/Dashboard.tsx`.
+- **C1 kengaytmasi (telefon):** exe WSL/Asterisk'ni o'rnatmaydi; `Telefon.cmd` — joyda, qayta yuklash bilan, ikki marta; tarmoq rejimi
+  (mirrored) faqat Windows 11 da, skript tekshirmaydi; `[ai]` konteksti avval ko'taradi, AI ulanmasa uzadi (`extensions.conf`);
+  liniya shakli faqat login/parol + UDP, keepalive va NAT sozlamalarisiz (`server/voice/line.ts`); Uztelecom shakli ustada yo'q.
+
+Ish tartibi — `docs/ISH-REJASI.md`.
