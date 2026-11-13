@@ -13,6 +13,7 @@ import { iso } from '../lib/week';
 import { hrefOf, type Area } from '../lib/nav';
 import { som } from '../lib/text';
 import { CREW, isCore, type CrewMember } from '../lib/crew';
+import { receptionStatus, type ReplyMode } from '../lib/receptionStatus';
 
 export type Member = CrewMember;
 
@@ -110,11 +111,12 @@ function contentState(c: ContentView | null, instagram: string | null): MemberSt
 }
 
 /** tick — biror ish bajarilganda (so'rov yopildi, vazifa qo'shildi) darhol yangilash uchun; clinic — DentaCRM bilan ishlaydigan soha */
-export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Member, MemberState> | null {
+/** replyMode — mijozlarga javob rejimi (biz.autoReply): Qabulxona «navbatchilikda»mi yoki javoblarni egasi tasdiqlaydimi */
+export function useTeam(status: LiveStatus, tick = 0, clinic = false, replyMode: ReplyMode = 'draft'): Record<Member, MemberState> | null {
   const [team, setTeam] = useState<Record<Member, MemberState> | null>(null);
   const crm = !!status.crm?.account;
   const meta = status.metaAi;
-  // Qabulxona navbatchilikda — mijoz yozadigan yoki qo'ng'iroq qiladigan kamida bitta kanal ulangan bo'lsa
+  // Mijoz yozadigan kanal (bot, Telegram Business, Instagram); telefon liniyasi — alohida (api.phoneLine)
   const reachable = !!(status.bot || status.telegramBusiness?.account || status.instagram?.account || status.instagramApi?.account);
   const ownerLinked = !!status.ownerLinked;
   const igAccount = status.instagram?.account ?? null;
@@ -126,6 +128,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
       const contentP = api.content().catch(() => null);
       const adsP = api.ads().catch(() => null);
       const directorP = api.director().catch(() => null);
+      const lineP = api.phoneLine().then(r => r.line.status.trunk === 'registered').catch(() => false);
       const [requests, calls, tasks, cameras, day, att, reports] = await Promise.all([
         api.requests('open').catch(() => null), api.calls().catch(() => null), api.tasks('open').catch(() => null),
         api.cameras().catch(() => null), crm ? api.crmDay().then(r => r.day).catch(() => null) : Promise.resolve(null),
@@ -134,6 +137,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
       const content = await contentP;
       const ads = await adsP;
       const director = await directorP;
+      const phoneOn = await lineP;
       if (stale) return;
       const callsToday = calls?.calls.filter(c => c.startedAt.slice(0, 10) === today) ?? [];
       const talking = calls?.calls.some(c => c.status === 'talking' || c.status === 'ringing') ?? false;
@@ -145,12 +149,11 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
       // Nishon — bosh ekrandagi «Sizni kutyapti»dagi shu xodimning bandlari: hamma joyda bir xil son (jami = bosh ekrandagi)
       const waiting = (m: Member) => att?.items.filter(i => i.member === m).length ?? 0;
       const reception = waiting('qabulxona');
+      const desk = receptionStatus({ talking, text: reachable, phone: phoneOn, mode: replyMode });
       setTeam({
         direktor: directorState(director),
         qabulxona: {
-          on: talking || reachable, live: talking, badge: reception,
-          status: talking ? 'Hozir qo‘ng‘iroqda' : reachable ? 'Navbatchilikda' : 'Kanal ulanmagan',
-          next: reachable ? null : { label: 'Telegram yoki Instagram’ni ulash', href: hrefOf('sozlamalar', 'telegram') },
+          on: desk.on, live: talking, badge: reception, status: desk.status, next: desk.next,
           detail: `Bugun ${callsToday.length} qo‘ng‘iroq${reception ? ` · ${reception} ta ish sizni kutyapti` : requests?.open ? ` · ${requests.open} so‘rov` : ''}`,
         },
         yordamchi: {
@@ -187,6 +190,6 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false): Record<Me
     void load();
     const t = setInterval(() => { void load(); }, 30_000);
     return () => { stale = true; clearInterval(t); };
-  }, [crm, clinic, reachable, ownerLinked, igAccount, meta?.connected, meta?.problem, meta?.usedToday, meta?.dailyLimit, tick]);
+  }, [crm, clinic, reachable, ownerLinked, igAccount, meta?.connected, meta?.problem, meta?.usedToday, meta?.dailyLimit, tick, replyMode]);
   return team;
 }

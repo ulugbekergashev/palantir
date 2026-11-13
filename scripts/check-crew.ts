@@ -269,6 +269,26 @@ console.log("\n# Ish paydo bo'lishi bilan xodim jamoada (panel ochilishini kutma
   });
 }
 
+console.log("\n# Qabulxona kartasi: telefon liniyasi va javob rejimi (A5)");
+{
+  const { receptionStatus } = await import('../src/lib/receptionStatus');
+  check("faqat telefon liniyasi ulangan — «Kanal ulanmagan» emas, telefonda navbatchi", () => {
+    const s = receptionStatus({ talking: false, text: false, phone: true, mode: 'draft' });
+    assert.ok(s.on && s.status.startsWith('Telefonda navbatchi'), s.status);
+  });
+  check("bot bor, lekin «tasdiqlayman» — «Navbatchilikda» emas, rejimni yoqish havolasi bilan", () => {
+    const s = receptionStatus({ talking: false, text: true, phone: false, mode: 'draft' });
+    assert.equal(s.status, 'Javoblarni siz tasdiqlaysiz');
+    assert.match(s.next?.href ?? '', /sozlamalar\/asosiy/);
+  });
+  check("«o'zi javob bersin» — Navbatchilikda; hech narsa ulanmagan — «Kanal ulanmagan»; javob o'chiq — o'chiq", () => {
+    assert.equal(receptionStatus({ talking: false, text: true, phone: false, mode: 'auto' }).status, 'Navbatchilikda');
+    assert.equal(receptionStatus({ talking: false, text: false, phone: false, mode: 'auto' }).status, 'Kanal ulanmagan');
+    const off = receptionStatus({ talking: false, text: true, phone: false, mode: 'off' });
+    assert.ok(!off.on && off.status === 'Javob berish o‘chiq');
+  });
+}
+
 console.log("\n# Direktor: ertalabki xabar qayta yuborilsa (internet uzilgan) — Direktor qismi tushib qolmaydi (A13)");
 {
   const { directorRuns, directorMoves } = await import('../server/director/store');

@@ -91,7 +91,7 @@ export default function LiveApp() {
   const closed = !allowed.includes(route.area);
   const home = isMember(route.area) && allowed.includes('xodimlar') ? 'xodimlar' : allowed[0];
   useEffect(() => { if (closed) window.location.hash = hrefOf(home); }, [closed, home]);
-  const team = useTeam(status ?? ({ crm: { account: null } } as unknown as LiveStatus), tick, !!biz && isClinic(biz.industry, !!status?.crm.account));
+  const team = useTeam(status ?? ({ crm: { account: null } } as unknown as LiveStatus), tick, !!biz && isClinic(biz.industry, !!status?.crm.account), biz?.autoReply?.mode ?? 'draft');
   const wake = useWake();
   // «Quloq» ishlay olmasa (model o'rnatilmagan, mikrofon yo'q) — egasi bilsin
   useEffect(() => { if (wake.phase === 'error' && wake.error) setToast({ text: `Quloq: ${wake.error}`, error: true }); }, [wake.phase, wake.error, setToast]);
