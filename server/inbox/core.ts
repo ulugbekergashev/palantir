@@ -26,7 +26,7 @@ import { bookForCustomer, bookingLine, changeLine, changeVisit, checkBooking, ch
 import { env } from '../env';
 import { decide, type Decision } from './replier';
 import { phoneChanged } from '../people';
-import { deliverToTeam, editTeamCards, openRequest } from '../requests/index';
+import { deliverToTeam, editTeamCards, openRequest, settleByBooking } from '../requests/index';
 import { replyCards } from '../requests/store';
 import { crewWorks } from '../../src/lib/crew';
 import { awaitingReply, holdLine } from './hold';
@@ -348,6 +348,8 @@ async function handle(bizId: string, leadId: string): Promise<void> {
 function linkBooked(biz: BusinessRow, lead: LeadRow, patientId: string): void {
   if (!leads.get(biz.id, lead.id)?.patientId) leads.setPatient(biz.id, lead.id, patientId);
   leads.update(biz.id, lead.id, { stage: 'won' });
+  // Shu bemorning qabulni kutayotgan so'rovlari (yozilish, qayta qo'ng'iroq) maqsadiga yetdi — o'zi yopiladi (G1)
+  void settleByBooking(biz, lead.id, "Qabulga yozildi (yozishmada)").catch(e => console.error("[so'rov] yopilmadi:", (e as Error).message));
 }
 
 /** Keyingi qadam vaqti: N kundan keyin soat 10:00 (mahalliy) */

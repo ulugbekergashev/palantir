@@ -18,7 +18,7 @@ import { normPhone } from '../crm/logic';
 import { env, voiceEnabled } from '../env';
 import { notifyOwner } from '../inbox/core';
 import { leadForPhone } from '../people';
-import { addResult, noAnswer, nudgeRequest, openRequest, setDialer } from '../requests/index';
+import { addResult, closeRequest, noAnswer, nudgeRequest, openRequest, setDialer, settleByBooking } from '../requests/index';
 import { requests } from '../requests/store';
 import { SilenceError } from '../stt';
 import { analyseCall } from './analysis';
@@ -185,6 +185,8 @@ async function sweep(): Promise<void> {
 const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 const hhmm = (t: number) => new Date(t).toLocaleTimeString('uz', { hour: '2-digit', minute: '2-digit', hour12: false });
 const BY = "MicroSIP (qo'ng'iroq)";
+/** «Qayta qo'ng'iroq» so'rovi: mijoz bilan shuncha soniya gaplashilgan bo'lsa — bajarildi (darhol uzilgani sanalmaydi) */
+const CALLBACK_TALK_SEC = 5;
 
 async function finished(bizId: string, c: PhoneCallRow): Promise<void> {
   const biz = businesses.byId(bizId);
@@ -215,7 +217,12 @@ async function finished(bizId: string, c: PhoneCallRow): Promise<void> {
   }
   if (c.state !== 'ended') return;
   const sec = c.answeredAt && c.endedAt ? Math.round((c.endedAt - c.answeredAt) / 1000) : 0;
-  if (linked?.status === 'open') await addResult(biz, linked.id, `📞 ${c.direction === 'out' ? "Qo'ng'iroq qilindi" : "Mijoz qo'ng'iroq qildi"} (${hhmm(c.startedAt)}, ${mmss(sec)})`, BY).catch(() => {});
+  if (linked?.status === 'open') {
+    const line = `📞 ${c.direction === 'out' ? "Qo'ng'iroq qilindi" : "Mijoz qo'ng'iroq qildi"} (${hhmm(c.startedAt)}, ${mmss(sec)})`;
+    // Qayta qo'ng'iroq so'rovi maqsadiga yetdi — mijoz bilan gaplashildi: o'zi yopiladi (G1). Yana ish kerak bo'lsa — yozuv tahlili yangi so'rov ochadi
+    const talked = linked.kind === 'callback' && !!c.answeredAt && sec >= CALLBACK_TALK_SEC;
+    await (talked ? closeRequest(biz, linked.id, 'done', BY, [linked.result, line].filter(Boolean).join(' · ')) : addResult(biz, linked.id, line, BY)).catch(() => {});
+  }
   if (c.answeredAt && c.endedAt) void attachRecording(biz, c, sec);
 }
 
@@ -304,7 +311,10 @@ export async function review(bizId: string, callId: string): Promise<void> {
     });
   }
   const linked = c.requestId ? requests.get(bizId, c.requestId) : undefined;
-  if (linked?.status === 'open') await addResult(biz, linked.id, a.summary, BY).catch(() => {});
+  // Xulosa — ochiq so'rovga yoki shu qo'ng'iroq o'zi yopgan so'rovga (finished: «qayta qo'ng'iroq» bajarildi)
+  if (linked && (linked.status === 'open' || linked.doneBy === BY)) await addResult(biz, linked.id, a.summary, BY).catch(() => {});
+  // Qo'ng'iroqda qabulga yozildi — shu bemorning qabulni kutayotgan so'rovlari o'zi yopiladi (yangi so'rov ochilishidan oldin: uni yopib qo'ymasin)
+  if (a.outcome === 'booked' && lead) await settleByBooking(biz, lead.id, "Qabulga yozildi (qo'ng'iroqda)").catch(() => 0);
   // Qo'ng'iroqdan keyin ham xodim qilishi kerak bo'lgan ish — so'rov (mavjud bo'lsa — yangilanadi)
   if (request && lead) await openRequest(biz, lead.id, { kind: request.kind, phone: c.phone, summary: request.summary, dueAt: request.dueAt, source: 'call', quote: a.wants });
   const who = lead?.name || a.customerName || prettyPhone(c.phone);

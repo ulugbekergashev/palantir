@@ -266,6 +266,11 @@ export async function crmReceptionTests(h: Harness): Promise<void> {
   say(C1, 'ok');
   await sleep(1200);
   ok('bemor «ok» desa — qabul taklifi o\'z kuchida qoladi', !after(mark, OWNER, s => s.method === 'editMessageText') && ai.replier.length > okCalls);
+  // Qabulni kutayotgan so'rovlar (xodim qo'ng'iroq qilsin / yozilish) — qabul CRM'ga yozilgach o'zi yopiladi (G1); shikoyat — qoladi
+  const valiLead = ((await api('/api/leads', { token })).json.leads as { id: string; phone: string | null }[]).find(l => (l.phone ?? '').replace(/\D/g, '').endsWith('932223344'))!;
+  const wantBook = (await api('/api/requests', { token, body: { kind: 'booking', leadId: valiLead.id, summary: 'Qabulga yozish' } })).json.request as { id: string };
+  const wantCall = (await api('/api/requests', { token, body: { kind: 'callback', leadId: valiLead.id, summary: "Qo'ng'iroq qilish" } })).json.request as { id: string };
+  const complaint = (await api('/api/requests', { token, body: { kind: 'complaint', leadId: valiLead.id, summary: 'Kutib qoldim' } })).json.request as { id: string };
   const replierCalls = ai.replier.length;
   mark = sent.length;
   press(OWNER, approve, proposal!.id!);
@@ -281,6 +286,10 @@ export async function crmReceptionTests(h: Harness): Promise<void> {
     .find(l => (l.phone ?? '').replace(/\D/g, '').endsWith(phone));
   const vali = await stageOf('932223344');
   ok("egasi tasdiqlagan qabul — bemor «Mijoz bo'ldi», keyingi qadam yo'q", vali?.stage === 'won' && !vali.nextAt, JSON.stringify(vali));
+  const reqs = (await api('/api/requests?which=all', { token })).json.requests as { id: string; status: string; result: string | null }[];
+  const st = (id: string) => reqs.find(r => r.id === id);
+  ok("qabul yozildi — shu bemorning «yozilish» va «qo'ng'iroq» so'rovlari o'zi yopildi, shikoyat ochiq qoldi", st(wantBook.id)?.status === 'done' && st(wantCall.id)?.status === 'done'
+    && !!st(wantBook.id)?.result?.includes('Qabulga yozildi') && st(complaint.id)?.status === 'open', JSON.stringify([st(wantBook.id), st(wantCall.id), st(complaint.id)]));
   mark = sent.length;
   press(OWNER, approve, proposal!.id!);
   await waitFor('ikkinchi bosish', () => sent.slice(mark).find(s => s.method === 'answerCallbackQuery'));

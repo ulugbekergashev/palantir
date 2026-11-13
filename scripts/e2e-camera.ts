@@ -174,11 +174,12 @@ export async function cameraApiTests(h: Harness): Promise<void> {
   await api('/api/crew', { token, body: { member: 'qabulxona', on: true } });
   ok("ovoz: Qabulxona qaytdi — jadval yana keladi", (await api('/api/voice/slots', { token: key })).status === 200);
 
-  // Telefon AI qo'ng'iroq qiluvchini taniydi va qabulini o'zi ko'chiradi/bekor qiladi (boshqa sinovlarga tegmaslik uchun — alohida bemor va kun)
+  // Telefon AI qo'ng'iroq qiluvchini taniydi va qabulini o'zi ko'chiradi/bekor qiladi (boshqa sinovlarga tegmaslik uchun — alohida bemor va vaqt:
+  // d1 ning D4 11:00 va D5 11:00 vaqtlari e2e-crm.ts dagi Lolaning qabullariga band — u yerga qo'yilsa «kuniga 2 ta qabul» va F3 yiqiladi)
   const in4 = iso(new Date(Date.now() + 4 * 86_400_000)), in5 = iso(new Date(Date.now() + 5 * 86_400_000));
   crm.appointments.push(
     { id: 'tv1', patientId: 'f7', patientName: 'Bemor7 Test7', doctorId: 'd1', doctorName: 'Rustam Rustamov', type: "Ko'rik", date: in4, time: '10:00', duration: 30, status: 'Confirmed', notes: null, clinicId: 'c1', reminderSent: false },
-    { id: 'tv2', patientId: 'f8', patientName: 'Bemor8 Test8', doctorId: 'd1', doctorName: 'Rustam Rustamov', type: "Ko'rik", date: in4, time: '11:00', duration: 30, status: 'Pending', notes: null, clinicId: 'c1', reminderSent: false },
+    { id: 'tv2', patientId: 'f8', patientName: 'Bemor8 Test8', doctorId: 'd1', doctorName: 'Rustam Rustamov', type: "Ko'rik", date: in4, time: '15:30', duration: 30, status: 'Pending', notes: null, clinicId: 'c1', reminderSent: false },
   );
   const who = await api('/api/voice/caller?phone=%2B998701000007', { token: key });
   const me = who.json.patients?.[0];
@@ -188,7 +189,7 @@ export async function cameraApiTests(h: Harness): Promise<void> {
   ok('telefon: kalitsiz — 401', (await api('/api/voice/caller?phone=998701000007')).status === 401);
   const foreign = await api('/api/voice/visit', { token: key, body: { phone: '+998701000007', appointmentId: 'tv2', kind: 'cancel' } });
   ok("telefon: boshqa bemorning qabuliga tegib bo'lmaydi — administratorga", foreign.status === 409 && foreign.json.code === 'handoff' && crm.appointments.find(a => a.id === 'tv2')?.status === 'Pending', JSON.stringify(foreign.json));
-  const taken = await api('/api/voice/visit', { token: key, body: { phone: '+998701000007', appointmentId: 'tv1', kind: 'move', date: in4, time: '11:00' } });
+  const taken = await api('/api/voice/visit', { token: key, body: { phone: '+998701000007', appointmentId: 'tv1', kind: 'move', date: in4, time: '15:30' } });
   ok("telefon: band vaqtga ko'chirilmaydi, boshqa bemor ismi aytilmaydi", taken.status === 409 && taken.json.code === 'unavailable' && !JSON.stringify(taken.json).includes('Bemor8'), JSON.stringify(taken.json));
   const moved = await api('/api/voice/visit', { token: key, body: { phone: '998701000007', appointmentId: 'tv1', kind: 'move', date: in5, time: '14:00' } });
   const tv1 = crm.appointments.find(a => a.id === 'tv1');

@@ -33,6 +33,8 @@ export interface AttentionItem {
 
 const DAY_MS = 86_400_000;
 const LIMIT = 30;
+/** Ochiq so'rovlar shundan o'qiladi (eng yangi LIMIT tasi ko'rsatiladi) */
+const OPEN_SCAN = 500;
 const ORDER: AttentionKind[] = ['message', 'director', 'camera', 'request', 'reply', 'task', 'order'];
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -45,7 +47,8 @@ export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
   for (const e of events.unseen(biz.id, new Date(now.getTime() - DAY_MS).toISOString())) {
     items.push({ key: `camera:${e.id}`, kind: 'camera', member: e.member, refId: e.id, title: e.title, body: e.body, at: e.at, phone: null, urgent: e.level === 'crit' });
   }
-  const open = requests.list(biz.id, 'open', LIMIT);
+  // Eng yangilari: ochiq so'rov ko'p bo'lsa (eskilari yopilmay qolgan), yangisi ro'yxatdan chiqib ketmasin (G1)
+  const open = requests.list(biz.id, 'open', OPEN_SCAN).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, LIMIT);
   for (const r of open) {
     const lead = r.leadId ? leads.get(biz.id, r.leadId) : null;
     const who = r.name ?? lead?.name ?? lead?.username ?? 'Mijoz';

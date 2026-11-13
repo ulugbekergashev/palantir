@@ -220,6 +220,21 @@ export async function closeRequest(biz: BusinessRow, id: string, status: 'done' 
   return requests.get(biz.id, id)!;
 }
 
+/** Qabul CRM'ga yozilganda maqsadiga yetgan so'rovlar: yozilish va qayta qo'ng'iroq (o'zgartirish, shikoyat, boshqa — ochiq qoladi) */
+const DONE_BY_BOOKING: RequestKind[] = ['booking', 'callback'];
+/**
+ * Qabul CRM'ga yozildi (yozishmada — AI yoki egasi tasdig'i bilan): shu bemorning qabulni kutayotgan so'rovlari o'zi yopiladi —
+ * xodim ularni tugma bilan yopishni unutsa, «ochiq» bo'lib eslatma va «Sizni kutyapti»da abadiy qolardi. Kartalar ham yangilanadi
+ */
+export async function settleByBooking(biz: BusinessRow, leadId: string, line: string): Promise<number> {
+  let n = 0;
+  for (const r of requests.openFor(biz.id, leadId).filter(x => DONE_BY_BOOKING.includes(x.kind))) {
+    const result = [r.result, `✅ ${line}`].filter(Boolean).join(' · ');
+    if (await closeRequest(biz, r.id, 'done', 'Palantir', result).then(() => true, () => false)) n++;
+  }
+  return n;
+}
+
 /** Ko'tarmadi: urinish yoziladi; uchinchigacha — yarim soatdan keyin yana eslatiladi */
 export async function noAnswer(biz: BusinessRow, id: string, by: string, now = new Date()): Promise<LeadRequest> {
   const r = requests.get(biz.id, id);
