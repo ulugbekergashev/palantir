@@ -6,7 +6,8 @@
  * Telefon liniyasi (tgvoice/sip_live.py — Asterisk WSL'da ↔ Gemini Live) sozlangan bo'lsa (.env: SIP_OWNER_PASSWORD va TG_CALL_PYTHON),
  * u ham shu yerda yoqiladi va kuzatiladi: AI qabulxona kechasi ham, qarovsiz ishlaydi. Jurnali — DATA_DIR\logs\telefon.log
  * Oddiy Node skripti (tsx kerak emas): server buzilgan bo'lsa ham nazoratchi ishlaydi va sababini jurnalga yozadi.
- * Yangilash: har kecha UPDATE_HOUR da (standart 3:00) yangilovchi (scripts/update.mjs) alohida jarayonda ishga tushadi — yangi nashr
+ * Yangilash: har kecha UPDATE_HOUR da (standart 3:00; kompyuter o'sha payt o'chiq bo'lgan bo'lsa — yonganidan 5 daqiqa keyin)
+ * yangilovchi (scripts/update.mjs) alohida jarayonda ishga tushadi — yangi nashr
  * bo'lsa u nazoratchini o'zi to'xtatib, fayllarni almashtirib, qayta yoqadi. Dasturchi nusxasida (.git bor) va UPDATE_AUTO=0 da — o'chiq.
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -162,12 +163,28 @@ setInterval(() => { if (existsSync(STOP_FILE)) void stop("«stop» buyrug'i"); }
 const UPDATE_HOUR = process.env.UPDATE_HOUR ? Number(process.env.UPDATE_HOUR) : 3;
 const UPDATE_AUTO = process.env.UPDATE_AUTO !== '0' && !existsSync(join(ROOT, '.git'));
 const UPDATE_STAMP = join(DATA, 'yangilash', 'tekshirildi.txt');
-/** Kuniga bir marta, belgilangan soatda: yangilovchi nazoratchidan mustaqil (detached) — u nazoratchini to'xtatganda o'zi tirik qoladi */
+/**
+ * Kechasi o'chiriladigan kompyuter UPDATE_HOUR ni hech qachon ko'rmaydi: oxirgi tekshiruvdan shuncha o'tgan bo'lsa — kompyuter
+ * yonganidan UPDATE_BOOT_DELAY_MS keyin tekshiriladi (kunduzi ishlab turgan kompyuterda 3:00 dagi tekshiruv bilan ustma-ust tushmasin — 24,5 soat)
+ */
+const UPDATE_MISSED_MS = 24.5 * 3600_000;
+const UPDATE_BOOT_DELAY_MS = 5 * 60_000;
+const SUPERVISOR_STARTED = Date.now();
+/** Tekshirish vaqti keldimi: belgilangan soatda kuniga bir marta yoki tekshiruv o'tkazib yuborilgan bo'lsa (sof hisob) */
+const updateDue = ({ now, lastDay, lastAt, startedAt }) => {
+  const two = n => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+  if (now.getHours() === UPDATE_HOUR) return lastDay !== today;
+  return now.getTime() - startedAt >= UPDATE_BOOT_DELAY_MS && now.getTime() - lastAt > UPDATE_MISSED_MS;
+};
+/** Kuniga bir marta, belgilangan soatda (yoki o'tkazib yuborilgan bo'lsa — yonganda): yangilovchi nazoratchidan mustaqil (detached) — u nazoratchini to'xtatganda o'zi tirik qoladi */
 function maybeUpdate() {
   const now = new Date(), two = n => String(n).padStart(2, '0');
   const today = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
-  if (stopping || now.getHours() !== UPDATE_HOUR) return;
-  try { if (readFileSync(UPDATE_STAMP, 'utf8').trim() === today) return; } catch { /* hali tekshirilmagan */ }
+  if (stopping) return;
+  let lastDay = '', lastAt = 0;
+  try { lastDay = readFileSync(UPDATE_STAMP, 'utf8').trim(); lastAt = statSync(UPDATE_STAMP).mtimeMs; } catch { /* hali tekshirilmagan */ }
+  if (!updateDue({ now, lastDay, lastAt, startedAt: SUPERVISOR_STARTED })) return;
   mkdirSync(dirname(UPDATE_STAMP), { recursive: true });
   writeFileSync(UPDATE_STAMP, today);
   log('yangi nashr tekshirilmoqda (scripts/update.mjs, jurnali: logs/yangilash.log)');
