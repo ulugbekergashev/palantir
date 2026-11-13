@@ -26,7 +26,7 @@ Holat ustuni: «—» — tuzatilmagan.
 | A11 | «Qabulxonaga ayting / Qabulxona qo'ng'iroq qilsin» deyiladi, lekin xabar faqat egasiga boradi | `server/orders/run.ts:107`; `server/botButtons.ts:239-246` | ✅ (keyingi commit) odamga tegishli gaplar — «Administratorga ayting», «Administrator qo'ng'iroq qilib» |
 | A12 | Javob qoralamalari hech qachon eskirmaydi — ertalab bir necha kunlik eskilari ham «N ta javob» deb sanaladi | `server/db.ts:567`; `server/plan.ts:92` | ✅ (keyingi commit) 48 soatdan eski taklif eskiradi (karta «⌛ Eskirdi»), bemor javobsiz bo'lsa — «javob kutyapti» |
 | A13 | Ertalabki xabar qayta yuborilganda Direktor qismi tushib qoladi; ustadagi namuna Direktorsiz (haqiqiysidan farq qiladi) | `server/director/telegram.ts:16`; `server/setup/routes.ts:150` | ✅ (keyingi commit) qayta yuborilganda hisobot saqlangan tahlildan yig'iladi; ustadagi namuna — admin yo'li, klinika nashrida yopiq (tegilmadi) |
-| A14 | Kanallar nazoratida tungi sukut yo'q (tunda o'chiriladigan kamera — har kecha ogohlantirish); Telegram'i ulanmagan biznes umuman tekshirilmaydi | `server/monitor.ts:57-84`, `:61` | qisman (keyingi commit): Telegramsiz biznes ham tekshiriladi (Hub ko'radi); tungi sukut — hali yo'q |
+| A14 | Kanallar nazoratida tungi sukut yo'q (tunda o'chiriladigan kamera — har kecha ogohlantirish); Telegram'i ulanmagan biznes umuman tekshirilmaydi | `server/monitor.ts:57-84`, `:61` | ✅ Telegramsiz biznes ham tekshiriladi (015046c); tungi sukut — keyingi commit (REQUEST_HOURS dan tashqarida egasiga aytilmaydi, ertalab davom etsa — aytiladi) |
 
 ## B. Tuzilma — A yo'liga teskari (egasining qarori kerak)
 

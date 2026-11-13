@@ -13,6 +13,7 @@ import { notifyOwner } from './inbox/core';
 import { hubProblem } from './inbox/instagramApi';
 import { phoneProblem } from './phone/index';
 import { lineChecks } from './voice/line';
+import { isNight, type DayHours } from './requests/timing';
 
 sql.exec(`CREATE TABLE IF NOT EXISTS channel_health (
   business_id TEXT NOT NULL, key TEXT NOT NULL, label TEXT NOT NULL, problem TEXT NOT NULL, since TEXT NOT NULL, notified_at TEXT,
@@ -53,6 +54,14 @@ async function checks(biz: BusinessRow, now: number, disk: string | null): Promi
 }
 
 interface State { key: string; label: string; problem: string; since: string; notifiedAt: string | null }
+
+/**
+ * Egasiga aytish vaqti keldimi: muammo kutish vaqtidan (GRACE) uzoq davom etgan, hali aytilmagan va hozir kunduz (REQUEST_HOURS —
+ * so'rovlar eslatmasi bilan bir xil). Tunda aytilmaydi (tunda o'chiriladigan kamera har kecha bezovta qilmasin): ertalab ham davom
+ * etsa — o'shanda; tun bo'yi tiklangan bo'lsa — umuman aytilmaydi. Panel va Hub tunda ham ko'radi (channel_health)
+ */
+export const notifyDue = (s: { since: string; notifiedAt: string | null }, now: number, hours: DayHours = env.requestHours): boolean =>
+  !s.notifiedAt && now - Date.parse(s.since) >= GRACE_MS && !isNight(new Date(now), hours);
 const stateOf = (bizId: string) => sql.many('SELECT * FROM channel_health WHERE business_id = ?',
   (r): State => ({ key: String(r.key), label: String(r.label), problem: String(r.problem), since: String(r.since), notifiedAt: sql.str(r.notified_at) }), bizId);
 
@@ -76,7 +85,7 @@ export async function monitorOnce(now = Date.now()): Promise<void> {
         sql.run('INSERT INTO channel_health (business_id, key, label, problem, since) VALUES (?, ?, ?, ?, ?)', biz.id, c.key, c.label, c.problem, new Date(now).toISOString());
         continue;
       }
-      if (!was.notifiedAt && now - Date.parse(was.since) >= GRACE_MS) {
+      if (notifyDue(was, now)) {
         const sent = await notifyOwner(biz, `⚠️ <b>${esc(c.label)}</b>: ${esc(c.problem)}\n<i>Panel → Ulanishlar. Tiklanganda yana aytaman.</i>`).catch(() => null);
         if (sent !== null) sql.run('UPDATE channel_health SET notified_at = ?, problem = ? WHERE business_id = ? AND key = ?', new Date(now).toISOString(), c.problem, biz.id, c.key);
       }
