@@ -164,6 +164,14 @@ export async function cameraApiTests(h: Harness): Promise<void> {
   ok("ovoz: bo'sh vaqtlar matni keladi", slots.status === 200 && typeof slots.json.schedule === 'string' && slots.json.schedule.length > 20, JSON.stringify(slots.json).slice(0, 160));
   const noName = await api('/api/voice/book', { token: key, body: { doctorId: 'd1', date: '2026-10-12', time: '10:00', name: 'Bobur', phone: '901234567' } });
   ok("ovoz: familiyasiz qabulga yozilmaydi", noName.status === 409 && noName.json.code === 'unavailable' && !JSON.stringify(noName.json).includes('Bemor'), JSON.stringify(noName.json));
+  // Qabulxona jamoadan olib tashlangan: telefondagi AI qabul yozmaydi va jadvalni olmaydi — odamga o'tkazadi (handoff)
+  await api('/api/crew', { token, body: { member: 'qabulxona', on: false } });
+  const offSlots = await api('/api/voice/slots', { token: key });
+  const offBook = await api('/api/voice/book', { token: key, body: { doctorId: 'd1', date: '2026-10-12', time: '10:00', name: 'Bobur Karimov', phone: '901234567' } });
+  ok("ovoz: Qabulxona olib tashlangan — jadval va qabul yo'q (handoff)", offSlots.status === 409 && offSlots.json.code === 'handoff' && offBook.status === 409 && offBook.json.code === 'handoff',
+    `${offSlots.status} ${offSlots.json.code} / ${offBook.status} ${offBook.json.code}`);
+  await api('/api/crew', { token, body: { member: 'qabulxona', on: true } });
+  ok("ovoz: Qabulxona qaytdi — jadval yana keladi", (await api('/api/voice/slots', { token: key })).status === 200);
   const call = await api('/api/voice/calls', { token: key, body: { phone: '+998901234567', name: 'Bobur Karimov', startedAt: '2020-01-01T10:00:00+05:00', durationSec: 24, outcome: "Narx so'radi", transcript: [{ who: 'ai', text: 'Assalomu alaykum' }, { who: 'caller', text: 'Implant qancha?' }] } });
   ok("ovoz: tugagan qo'ng'iroq saqlanadi", call.status === 200 && !!call.json.call?.id, JSON.stringify(call.json));
   ok("ovoz: buzuq qo'ng'iroq — 400", (await api('/api/voice/calls', { token: key, body: { phone: '', durationSec: -1, outcome: '', transcript: 'x' } })).status === 400);

@@ -19,6 +19,7 @@ import { newVoiceKey, voiceKeyOwner } from './agentKey';
 import { applyLine, connectZadarma, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk, transferNow } from './line';
 import { adoptVoiceKey } from './serviceEnv';
 import { ZadarmaError } from './zadarma';
+import { crewWorks } from '../../src/lib/crew';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -155,6 +156,8 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   }));
 
   app.get('/api/voice/slots', asAgent(async (_req, res, biz) => {
+    // Qabulxona jamoadan olib tashlangan: telefondagi AI qabul yozmaydi — odamga o'tkazadi (so'rov va qo'ng'iroq yozuvi qoladi)
+    if (!crewWorks(biz, 'qabulxona')) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
     const schedule = await scheduleText(biz.id);
     if (!schedule) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
     res.json({ schedule });
@@ -167,6 +170,7 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   app.post('/api/voice/book', asAgent(async (req, res, biz) => {
     const p = BookSchema.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
+    if (!crewWorks(biz, 'qabulxona')) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
     const phone = normPhone(p.data.phone);
     const midnight = new Date();
     midnight.setHours(0, 0, 0, 0);
