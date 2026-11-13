@@ -377,6 +377,8 @@ type Msg = { role: 'user' | 'assistant'; content: string | Block[] };
 export const ai = {
   /** Ssenariy sinovlarida: mijozga javob bilimdan chiqariladi (smartDecision) */
   smart: false,
+  /** Sinov: kalit rad etilgandek — har so'rovga 401 (Claude ishlamay qolgani — kanallar nazorati, monitor.ts) */
+  reject: false,
   calls: 0,
   /** Jonli tekshiruvning «AI ishlayaptimi» so'rovlari */
   liveProbes: 0,
@@ -638,6 +640,7 @@ async function filesApi(req: IncomingMessage, res: ServerResponse): Promise<void
 
 export const aiServer = patient(createServer(async (req, res) => {
   if (req.url?.startsWith('/v1/files')) return filesApi(req, res);
+  if (ai.reject) { await readBody(req); return json(res, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }, 401); }
   const body = JSON.parse((await readBody(req)).toString()) as { system: string; messages: Msg[]; tools: Block[]; thinking: unknown; model: string };
   ai.calls++;
   const beta = String(req.headers['anthropic-beta'] ?? '');

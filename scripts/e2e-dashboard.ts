@@ -19,7 +19,7 @@ import { chromium } from 'playwright-core';
 import type { DashboardView, FunnelView } from '../src/lib/dashboard';
 import { iso } from '../src/lib/week';
 import { CRM_LOGIN, crm, crmServer } from './fakeCrm';
-import { OWNER, aiServer, listen, say, sent, sleep, tgServer, waitFor, stopProcess } from './fakes';
+import { OWNER, ai, aiServer, listen, say, sent, sleep, tgServer, waitFor, stopProcess } from './fakes';
 import { chromePath } from './chrome';
 
 const CHROME = chromePath();
@@ -217,6 +217,17 @@ try {
   m0 = sent.length;
   const cam = await waitFor('kamera', () => toOwnerAfter(m0, 'Kamera «Kassa»'), 15_000);
   ok("IP kameradan 10 daqiqa kadr yo'q — «⚠️ Kamera «Kassa»: kadr kelmayapti»", !!cam && String(cam.params.text).includes('kadr kelmayapti'), String(cam?.params.text ?? ''));
+
+  // Claude ishlamay qoldi (kalit rad etildi, obunadan chiqib ketgan): bemorlarga javob to'xtaydi — egasi bir marta biladi, Hub ham ko'radi
+  ai.reject = true;
+  m0 = sent.length;
+  say(OWNER, 'Bugun nima bor?');
+  const aiDown = await waitFor('AI ishlamayapti', () => toOwnerAfter(m0, '⚠️ <b>Claude (AI)</b>'), 15_000);
+  ok("Claude kaliti rad etildi — kutish vaqtidan keyin egasiga «⚠️ Claude (AI)», sababi bilan", !!aiDown && String(aiDown.params.text).includes('rad etildi'), String(aiDown?.params.text ?? ''));
+  ai.reject = false;
+  m0 = sent.length;
+  say(OWNER, 'Salom');
+  ok("AI yana javob berdi — «✅ Claude (AI) yana ishlayapti»", !!(await waitFor('AI tiklandi', () => toOwnerAfter(m0, '✅ <b>Claude (AI)</b> yana ishlayapti'), 15_000)));
 } catch (e) {
   console.error(e);
   results.push(false);

@@ -51,12 +51,40 @@ export async function thinkStream(bizId: string, kind: AiKind, params: Params): 
 const ask = (bizId: string, kind: AiKind, send: () => Promise<Anthropic.Beta.BetaMessage>): Promise<Anthropic.Beta.BetaMessage> =>
   metered(bizId, kind, send, ({ usage: u }) => ({ input: u.input_tokens, output: u.output_tokens, cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0 }));
 
+/**
+ * AI ishlamay qolgani (kanallar nazorati — monitor.ts): obunadan chiqib ketish, limit, rad etilgan kalit, tugagan mablag', bemorlarga
+ * javobning kunlik chegarasi. Har AI so'rovida yangilanadi: muvaffaqiyatli javob — tiklandi. kind — faqat shu ish turi
+ * muvaffaqiyatli bo'lganda tiklanadi (kunlik chegara ish turi bo'yicha); null — istalgan muvaffaqiyatli javob
+ */
+const aiTrouble = new Map<string, { problem: string; kind: AiKind | null }>();
+export const aiProblem = (bizId: string): string | null => aiTrouble.get(bizId)?.problem ?? null;
+const SETTINGS_HINT = 'Panel → Sozlamalar → Claude va kalitlar';
+function troubleOf(e: unknown): string | null {
+  if (e instanceof SubscriptionError && e.reason === 'auth') return `Claude obunasiga kirilmagan yoki kirish eskirgan — bemorlarga javob to'xtadi. ${SETTINGS_HINT}`;
+  if (e instanceof SubscriptionError && e.reason === 'limit') return "Claude obunasining limiti tugadi — limit yangilanguncha bemorlarga javob yo'q";
+  if (e instanceof Anthropic.APIError && (e.status === 401 || e.status === 403)) return `Claude kaliti rad etildi — bemorlarga javob to'xtadi. ${SETTINGS_HINT}`;
+  if (e instanceof Anthropic.APIError && /credit balance/i.test(e.message)) return "Claude hisobida mablag' tugadi — bemorlarga javob to'xtadi";
+  return null;
+}
+
 /** Kunlik chegara va hisob: chegaradan oshsa — AiLimitError (so'rov yuborilmaydi); javobdan keyin tokenlar biznes hisobiga yoziladi */
 export async function metered<T>(bizId: string, kind: AiKind, send: () => Promise<T>, usageOf: (res: T) => TokenUsage): Promise<T> {
   const day = iso(new Date()), limit = DAILY[kind]();
-  if (aiUsage.calls(bizId, day, kind) >= limit) throw new AiLimitError(kind, limit);
+  if (aiUsage.calls(bizId, day, kind) >= limit) {
+    if (kind === 'customer') aiTrouble.set(bizId, { problem: `Bemorlarga javobning bugungi chegarasi (${limit}) tugadi — ertagacha o'zingiz javob bering`, kind });
+    throw new AiLimitError(kind, limit);
+  }
   aiUsage.hit(bizId, day, kind);
-  const res = await send();
+  let res: T;
+  try {
+    res = await send();
+  } catch (e) {
+    const problem = troubleOf(e);
+    if (problem) aiTrouble.set(bizId, { problem, kind: null });
+    throw e;
+  }
+  const was = aiTrouble.get(bizId);
+  if (was && (was.kind === null || was.kind === kind)) aiTrouble.delete(bizId);
   // Hisob yozilmasa ham (disk to'lgan) pulli javob yo'qolmasin
   try {
     aiUsage.tokens(bizId, day, kind, usageOf(res));

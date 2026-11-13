@@ -5,6 +5,7 @@
  */
 import { iso } from '../src/lib/week';
 import { businesses, cameras, connections, sql, type BusinessRow } from './db';
+import { aiProblem } from './claude';
 import { crmConnected, crmStatus, withCrm } from './crm/index';
 import { diskProblem } from './disk';
 import { env } from './env';
@@ -31,7 +32,8 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 /** Biznesning hozirgi holati (har kanal: muammo yoki null) */
 async function checks(biz: BusinessRow, now: number, disk: string | null): Promise<Check[]> {
-  const out: Check[] = [{ key: 'disk', label: 'Kompyuter diski', problem: disk }];
+  // AI (Claude) — bemorlarga javob beradigan miya: obuna, kalit yoki chegara ishlamay qolsa egasi bir marta biladi, Hub ham ko'radi
+  const out: Check[] = [{ key: 'disk', label: 'Kompyuter diski', problem: disk }, { key: 'ai', label: 'Claude (AI)', problem: aiProblem(biz.id) }];
   if (crmConnected(biz.id)) {
     // Yengil so'rov: bugungi qabullar (kesh yo'q) — CRM javob bermasa yoki kirishni rad etsa, withCrm muammoni belgilaydi
     await Promise.race([withCrm(biz.id, crm => crm.appointments(iso(new Date(now)))).catch(() => null), new Promise(r => setTimeout(r, CRM_PROBE_MS).unref())]);
@@ -58,7 +60,8 @@ export async function monitorOnce(now = Date.now()): Promise<void> {
   // Bitta kompyuter — bitta disk: har tekshiruvda bir marta o'lchanadi, har biznes egasiga o'z kanallari qatorida aytiladi
   const disk = diskProblem(env.dataDir, env.diskMinFreeMb);
   for (const biz of businesses.all()) {
-    if (!biz.active || !biz.ownerChatId) continue;
+    // Telegram'i ulanmagan biznes ham tekshiriladi: muammo panelda va Hub'da ko'rinadi (heartbeat.ts), egasi ulanganda unga aytiladi
+    if (!biz.active) continue;
     const prev = new Map(stateOf(biz.id).map(s => [s.key, s]));
     for (const c of await checks(biz, now, disk)) {
       const was = prev.get(c.key);
