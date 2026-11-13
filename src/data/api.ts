@@ -27,7 +27,7 @@ import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 export type RequestView = LeadRequest & { lead: Lead | null };
 /** «Sizni kutyapti» qatori (server/attention.ts) */
 export interface AttentionItem {
-  key: string; kind: 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order'; member: EventMember | 'direktor'; refId: string;
+  key: string; kind: 'message' | 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order'; member: EventMember | 'direktor'; refId: string;
   title: string; body: string; at: string; phone: string | null; urgent: boolean;
 }
 /** Talab tahlili (server/insights/analyze.ts): sonlar bandlardan kodda sanalgan */
@@ -202,6 +202,8 @@ export const api = {
   setCameraProfile: (id: string, profile: string) => call<{ camera: Camera }>(`/cameras/${id}/profile`, { method: 'PUT', body: { profile } }),
   // ─── «Sizni kutyapti»: hamma xodimdan egasining qarorini kutayotganlar (server/attention.ts) ───
   attention: () => call<{ items: AttentionItem[] }>('/attention'),
+  /** «Javob kerak emas»: javob kutayotgan bemor ro'yxatdan olinadi (server/attention.ts) */
+  dismissWaiting: (leadId: string) => call<{ ok: true }>(`/attention/waiting/${leadId}/dismiss`, { body: {} }),
   teamDay: () => call<TeamDay>('/team/day'),
   insights: (days: number) => call<{ insights: Insights | null; running: boolean }>(`/insights?days=${days}`),
   runInsights: (days: number) => call<{ insights: Insights }>('/insights', { body: { days } }),

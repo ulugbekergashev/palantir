@@ -4,7 +4,7 @@
  * ro'yxatdan darhol tushadi; ro'yxat har 30 soniyada yangilanadi. Bo'sh bo'lsa — «hammasi joyida».
  */
 import { useEffect, useState } from 'react';
-import { Camera, Check, Compass, CircleCheck, Clock, ExternalLink, Headset, Loader2, Phone, Send, Sparkles, X, type LucideIcon } from 'lucide-react';
+import { Camera, Check, Compass, CircleCheck, Clock, ExternalLink, Headset, Loader2, MessageCircle, Phone, Send, Sparkles, X, type LucideIcon } from 'lucide-react';
 import { api, type AttentionItem } from '../data/api';
 import { iso, addDays } from '../lib/week';
 import { hrefOf, type Area } from '../lib/nav';
@@ -12,8 +12,9 @@ import { HUE, ago } from './agent';
 import type { Notify } from './Artifacts';
 
 const POLL_MS = 30_000;
-const ICON: Record<AttentionItem['kind'], LucideIcon> = { director: Compass, camera: Camera, request: Headset, reply: Send, task: Clock, order: Sparkles };
+const ICON: Record<AttentionItem['kind'], LucideIcon> = { message: MessageCircle, director: Compass, camera: Camera, request: Headset, reply: Send, task: Clock, order: Sparkles };
 const WHERE: Record<AttentionItem['kind'], (i: AttentionItem) => string> = {
+  message: () => hrefOf('qabulxona', 'yozishmalar'),
   director: () => hrefOf('direktor'),
   camera: () => hrefOf('kuzatuvchi', 'jurnal'),
   request: () => hrefOf('qabulxona', 'sorovlar'),
@@ -51,6 +52,7 @@ function Item({ it, onDone, notify }: { it: AttentionItem; onDone: (key: string)
         </div>
       </div>
       <div className="flex flex-wrap gap-2 pl-12">
+        {it.kind === 'message' && button('dismiss', 'Javob kerak emas', X, () => api.dismissWaiting(it.refId), 'Olib tashlandi')}
         {it.kind === 'director' && [
           button('approve', it.title.includes('sizga') ? "Vazifamga qo'sh" : 'Topshirish', Check, () => api.directorDecide(it.refId, 'approve'), 'Topshirildi', true),
           button('decline', 'Kerak emas', X, () => api.directorDecide(it.refId, 'decline'), 'Yopildi'),

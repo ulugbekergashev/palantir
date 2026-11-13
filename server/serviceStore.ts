@@ -20,6 +20,22 @@ export const notices = {
   remove: (id: number) => run('DELETE FROM owner_notices WHERE id = ?', id),
 };
 
+// ─── Javob kutayotgan bemorlar ───────────────────────────────────────────────
+sql.exec('CREATE TABLE IF NOT EXISTS waiting_leads (business_id TEXT NOT NULL, lead_id TEXT NOT NULL, note TEXT, since TEXT NOT NULL, PRIMARY KEY (business_id, lead_id))');
+
+/**
+ * AI javob bermay egasiga uzatgan suhbatlar (egasining javobi kerak): panelda «Sizni kutyapti» shulardan (attention.ts).
+ * Telegram ulanmagan bo'lsa ham bemor yo'qolmasin. Suhbatga javob yozilgach yoki egasi «kerak emas» desa — ro'yxatdan tushadi.
+ * since — birinchi javobsiz qolgan payt (keyingi uzatishlar uni yangilamaydi)
+ */
+export const waiting = {
+  mark: (businessId: string, leadId: string, note: string | null) =>
+    run('INSERT INTO waiting_leads (business_id, lead_id, note, since) VALUES (?, ?, ?, ?) ON CONFLICT(business_id, lead_id) DO UPDATE SET note = excluded.note', businessId, leadId, note, nowIso()),
+  list: (businessId: string, limit = 50) => many('SELECT * FROM waiting_leads WHERE business_id = ? ORDER BY since DESC LIMIT ?',
+    r => ({ leadId: String(r.lead_id), note: r.note === null ? null : String(r.note), since: String(r.since) }), businessId, limit),
+  remove: (businessId: string, leadId: string) => run('DELETE FROM waiting_leads WHERE business_id = ? AND lead_id = ?', businessId, leadId),
+};
+
 // ─── AI xarajati ─────────────────────────────────────────────────────────────
 sql.exec(`
 CREATE TABLE IF NOT EXISTS ai_usage (

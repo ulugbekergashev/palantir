@@ -235,6 +235,35 @@ try {
   await waitFor('tasdiq', () => after(mark, OWNER, has('yuborildi')));
   leads = (await api('/api/leads', { token })).json.leads;
   ok("mijoz holati: «bog'lanildi»", leads.some(l => l.phone === '+998911112233' && l.reachable && l.stage === 'contacted'));
+  type Waiting = { kind: string; refId: string; title: string; body: string };
+  const waitingOf = async (t: string) => ((await api('/api/attention', { token: t })).json.items as Waiting[]).filter(i => i.kind === 'message');
+  ok("egasi javob bergan savol «Sizni kutyapti»da qolmaydi", !(await waitingOf(token)).some(i => i.body.includes('Stol narxi')));
+
+  console.log("\n# AI javob bermadi va egasi Telegram'ga ulanmagan: bemor savoli yo'qolmaydi");
+  const LONELY = 7301;
+  const otherBiz = ((await api('/api/admin/businesses', { token: admin })).json.businesses as { id: string; login: string }[]).find(b => b.login === 'boshqa')!.id;
+  // AI javob bermaydigan holat (obuna uzilgan, xato, o'chiq) — rejim «o'chiq» bilan bir xil yo'l: xabar egasiga uzatiladi.
+  // («Tasdiqlayman»da AI javob taklifi panelda «Mijozga javob tayyor» bo'lib turadi — u yo'qolmaydi)
+  await api('/api/business/auto-reply', { method: 'PUT', token: otherToken, body: { mode: 'off', contacts: false, delayMin: 2 } });
+  mark = sent.length;
+  say(LONELY, `/start l-${otherBiz}`);
+  await waitFor('salom (ikkinchi biznes)', () => after(mark, LONELY, () => true));
+  say(LONELY, 'Divan bormi?');
+  const waitingItem = await (async () => {
+    for (let i = 0; i < 80; i++) {
+      const found = (await waitingOf(otherToken)).find(w => w.body.includes('Divan bormi'));
+      if (found) return found;
+      await sleep(100);
+    }
+    return undefined;
+  })();
+  ok("egasi ulanmagan: savol panelda «Sizni kutyapti»da — «javob kutyapti»", !!waitingItem && waitingItem.title.includes('javob kutyapti'), JSON.stringify(waitingItem));
+  ok("birinchi biznes uni ko'rmaydi", !(await waitingOf(token)).some(w => w.body.includes('Divan bormi')));
+  ok("«Javob kerak emas» — ro'yxatdan tushdi", (await api(`/api/attention/waiting/${waitingItem?.refId}/dismiss`, { token: otherToken, body: {} })).status === 200
+    && !(await waitingOf(otherToken)).some(w => w.body.includes('Divan bormi')));
+  // Keyingi tekshiruvlar ikkinchi biznesni bo'sh deb biladi
+  if (waitingItem) await api(`/api/leads/${waitingItem.refId}`, { method: 'DELETE', token: otherToken });
+  await api('/api/business/auto-reply', { method: 'PUT', token: otherToken, body: { mode: 'draft', contacts: false, delayMin: 2 } });
 
   mark = sent.length;
   say(OWNER, 'Bu sekin ish');

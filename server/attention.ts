@@ -1,6 +1,6 @@
 /**
  * «Sizni kutyapti» — hamma AI xodimdan egasining qarorini kutayotgan narsalar bitta ro'yxatda (bosh ekran):
- *   Qabulxona — tasdiq kutayotgan AI javoblari va ochiq so'rovlar (qayta qo'ng'iroq, yozilish, shikoyat);
+ *   Qabulxona — javob kutayotgan bemorlar (AI javob bermay egasiga uzatgan), tasdiq kutayotgan AI javoblari va ochiq so'rovlar;
  *   Kuzatuvchi — egasi hali ko'rmagan kamera hodisalari (oxirgi sutka);
  *   Yordamchi — muddati o'tgan ishlar; har xodim — bajarilmay qolgan topshiriqlar.
  *   Direktor — tasdiq kutayotgan takliflar.
@@ -9,7 +9,8 @@
 import type { Express, Request, Response } from 'express';
 import type { EventMember } from '../src/types';
 import { dueLabel, stamp } from '../src/lib/week';
-import { leads, replies, tasks, type BusinessRow } from './db';
+import { inbox, leads, replies, tasks, type BusinessRow } from './db';
+import { waiting } from './serviceStore';
 import { requests } from './requests/store';
 import { events, orders } from './orders/store';
 import { requestKind } from '../src/lib/requests';
@@ -19,7 +20,7 @@ import { MEMBER_NAME } from './director/logic';
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps { asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler }
 
-export type AttentionKind = 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order';
+export type AttentionKind = 'message' | 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order';
 export interface AttentionItem {
   /** Ro'yxat kaliti: tur va manba id */
   key: string; kind: AttentionKind; member: EventMember | 'direktor';
@@ -31,7 +32,7 @@ export interface AttentionItem {
 
 const DAY_MS = 86_400_000;
 const LIMIT = 30;
-const ORDER: AttentionKind[] = ['director', 'camera', 'request', 'reply', 'task', 'order'];
+const ORDER: AttentionKind[] = ['message', 'director', 'camera', 'request', 'reply', 'task', 'order'];
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
@@ -43,10 +44,23 @@ export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
   for (const e of events.unseen(biz.id, new Date(now.getTime() - DAY_MS).toISOString())) {
     items.push({ key: `camera:${e.id}`, kind: 'camera', member: e.member, refId: e.id, title: e.title, body: e.body, at: e.at, phone: null, urgent: e.level === 'crit' });
   }
-  for (const r of requests.list(biz.id, 'open', LIMIT)) {
+  const open = requests.list(biz.id, 'open', LIMIT);
+  for (const r of open) {
     const lead = r.leadId ? leads.get(biz.id, r.leadId) : null;
     const who = r.name ?? lead?.name ?? lead?.username ?? 'Mijoz';
     items.push({ key: `request:${r.id}`, kind: 'request', member: 'qabulxona', refId: r.id, title: `${requestKind(r.kind)} · ${who}`, body: cut(r.summary + (r.whenText ? ` · ${r.whenText}` : ''), 240), at: r.createdAt, phone: r.phone ?? lead?.phone ?? null, urgent: r.kind === 'complaint' });
+  }
+  // Bemor javob kutyapti: AI javob bermay egasiga uzatgan suhbatlar (inbox/core.ts: forward) — Telegram ulanmagan bo'lsa ham shu yerda
+  const requested = new Set(open.map(r => r.leadId).filter(Boolean));
+  for (const w of waiting.list(biz.id, LIMIT)) {
+    const lead = leads.get(biz.id, w.leadId);
+    const last = lead ? inbox.last(biz.id, lead.id) : undefined;
+    // Javob yozildi (egasi, xodim yoki Palantir) yoki karta o'chirildi — kutish tugadi
+    if (!lead || !last || last.direction !== 'in') { waiting.remove(biz.id, w.leadId); continue; }
+    // Javob taklifi yoki ochiq so'rov bor — bemor o'sha qatorda turibdi (ikki marta ko'rsatilmaydi)
+    if (replies.countPending(biz.id, lead.id) || requested.has(lead.id)) continue;
+    const who = lead.name ?? (lead.username ? `@${lead.username}` : null) ?? lead.phone ?? 'Mijoz';
+    items.push({ key: `message:${lead.id}`, kind: 'message', member: 'qabulxona', refId: lead.id, title: `${who} javob kutyapti`, body: cut(`«${last.text}»${w.note ? ` — ${w.note}` : ''}`, 280), at: w.since, phone: lead.phone, urgent: false });
   }
   for (const r of replies.pendingList(biz.id, LIMIT)) {
     const lead = leads.get(biz.id, r.leadId);
@@ -68,6 +82,11 @@ export function mountAttention(app: Express, { asBiz }: Deps): void {
   app.get('/api/attention', asBiz((_req, res, biz) => { res.json({ items: attention(biz) }); }));
   app.post('/api/agents/events/:id/seen', asBiz((req, res, biz) => {
     if (!events.see(biz.id, String(req.params.id))) return res.status(404).json({ error: 'Topilmadi' });
+    res.json({ ok: true });
+  }));
+  // «Javob kerak emas»: bemorga boshqa joyda (telefonda, ilovada) javob berilgan yoki javob shart emas
+  app.post('/api/attention/waiting/:leadId/dismiss', asBiz((req, res, biz) => {
+    waiting.remove(biz.id, String(req.params.leadId));
     res.json({ ok: true });
   }));
 }

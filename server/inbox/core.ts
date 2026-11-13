@@ -16,7 +16,7 @@ import type { AutoReply, InboxMessage, LeadChannel, ReplyBooking } from '../../s
 import { check } from '../../src/lib/compliance';
 import { iso } from '../../src/lib/week';
 import { businesses, inbox, leads, relays, replies, type BusinessRow, type ChannelPerson, type LeadRow, type ReplyRow } from '../db';
-import { notices, settings as store } from '../serviceStore';
+import { notices, settings as store, waiting } from '../serviceStore';
 import { cleanName, normPhone } from '../crm/logic';
 import { filterOptions, recordFix } from '../brain/index';
 import { ownerAnswered } from '../brain/learn';
@@ -239,7 +239,8 @@ async function handle(bizId: string, leadId: string): Promise<void> {
 
   if (settings.mode === 'off' || !env.aiEnabled) {
     // Bot suhbatini egasi boshqa joyda ko'rmaydi — shunchaki yetkaziladi
-    if (lead.channel === 'bot') await forward(biz, lead, fresh, null);
+    // AI o'chiq: bot suhbatiga faqat odam javob beradi — egasining javobi kerak
+    if (lead.channel === 'bot') await forward(biz, lead, fresh, null, true);
     return;
   }
   // Bitta suhbat butun biznesning kunlik AI hisobini yeb qo'ymasin (spam yoki bot bilan «o'ynash»): chegaradan keyin xabar egasiga AI'siz yetkaziladi
@@ -500,8 +501,14 @@ const REPLY_HINT = "<i>↩️ O'zingiz yozmoqchi bo'lsangiz — shu xabarga «Re
 // Karta Telegram chegarasiga (4096 belgi) sig'ishi shart: sig'masa egasi taklifni umuman ko'rmaydi
 const quotes = (fresh: InboxMessage[]) => fresh.slice(-5).map(m => `«${esc(cut(m.text, 400))}»`).join('\n');
 
-async function forward(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], note: string | null): Promise<void> {
-  if (!owner || !fresh.length) return;
+/**
+ * Mijoz xabari jamoaga (xodimlar va egasi). waitAnswer — egasining javobi kerak (AI javob bermadi): panelda «Sizni kutyapti»da turadi
+ * (attention.ts) — Telegram ulanmagan bo'lsa ham bemor yo'qolmasin. Hech kimga yetmasa — navbatga: egasi ulanganda yetkaziladi
+ */
+async function forward(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], note: string | null, waitAnswer = note !== null): Promise<void> {
+  if (!fresh.length) return;
+  if (waitAnswer) waiting.mark(biz.id, lead.id, note);
+  if (!owner) return;
   const body = [`💬 <b>${who(lead)}</b> · ${CHANNEL_LABEL[lead.channel]}`, quotes(fresh), note ? `\nℹ️ ${esc(note)}` : ''];
   let sentTo: { chatId: string; messageId: number }[];
   try {
@@ -511,6 +518,11 @@ async function forward(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], n
     // Telegram hozir javob bermadi: mijozning xabari egasiga yetmay qolmasin — navbatga (javobni panelda beradi)
     console.error('[mijozlar] egasiga yetkazilmadi, navbatga qo\'yildi:', (e as Error).message);
     notices.add(biz.id, [...body, '', '<i>Javob berish: panel → Mijozlar.</i>'].join('\n'));
+    return;
+  }
+  // Hech kimga yetmadi (egasi botga hali ulanmagan, xodim yo'q): navbatda kutadi — egasi ulanganda yuboriladi (scheduler.ts)
+  if (!sentTo.length) {
+    if (waitAnswer) notices.add(biz.id, [...body, '', '<i>Javob berish: panel → Mijozlar.</i>'].join('\n'));
     return;
   }
   for (const c of sentTo) relays.add(c.chatId, c.messageId, lead.id);
