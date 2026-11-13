@@ -398,6 +398,31 @@ try {
   ok("egasi uchun bitta karta: ikkala kanal yozishmasi shu kartada", !!joined, JSON.stringify(joined));
   ok("Instagram'dagi javob uchun modelga faqat Instagram suhbati boradi — botdagi «plomba» yo'q",
     lastPrompt().includes('Oldin nima yozgan') && !lastPrompt().includes('plomba'), lastPrompt().split('<conversation>').at(-1)?.slice(0, 400));
+  console.log("\n# 2 kun tasdiqlanmagan javob taklifi eskiradi — bemor «javob kutyapti»ga o'tadi");
+  type Att = { kind: string; refId: string };
+  const attention = async () => (await api('/api/attention', { token })).json.items as Att[];
+  const pend = await (async () => {
+    for (let i = 0; i < 50; i++) {
+      const p = (await attention()).find(a => a.kind === 'reply');
+      if (p) return p;
+      await sleep(100);
+    }
+    return undefined;
+  })();
+  const oldDb = new DatabaseSync(join(dataDir, 'palantir.db'));
+  oldDb.exec('PRAGMA busy_timeout = 5000');
+  const leadOfReply = (oldDb.prepare('SELECT lead_id FROM replies WHERE id = ?').get(pend?.refId ?? '') as { lead_id?: string } | undefined)?.lead_id;
+  oldDb.prepare('UPDATE replies SET created_at = ? WHERE id = ?').run(new Date(Date.now() - 3 * 86_400_000).toISOString(), pend?.refId ?? '');
+  let expired = false;
+  for (let i = 0; i < 60 && !expired; i++) {
+    expired = (oldDb.prepare('SELECT status FROM replies WHERE id = ?').get(pend?.refId ?? '') as { status?: string } | undefined)?.status === 'obsolete';
+    if (!expired) await sleep(100);
+  }
+  oldDb.close();
+  const after2 = await attention();
+  ok("eskirgan taklif «Mijozga javob tayyor» sifatida sanalmaydi", !!pend && expired && !after2.some(a => a.refId === pend.refId), pend?.refId);
+  ok("bemor hali javobsiz — «javob kutyapti»da (yo'qolmadi)", !!leadOfReply && after2.some(a => a.kind === 'message' && a.refId === leadOfReply), JSON.stringify(after2.map(a => a.kind)));
+
   ok("raqam bo'yicha bemorga bog'lansa ham, tasdiqlanmagan mijozga bemorning CRM'dagi ismi modelga bormaydi",
     !!joined?.patientId && !!joined.name && !lastPrompt().includes(joined.name), `${joined?.name} | ${lastPrompt().split('Customer: ').at(1)?.slice(0, 80)}`);
 } catch (e) {

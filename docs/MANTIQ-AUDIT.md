@@ -24,7 +24,7 @@ Holat ustuni: «—» — tuzatilmagan.
 | A9 | Direktor tasdiqlangan taklifni Kontent-meyker, Targetolog, Tahlilchi, Marketologga «topshiradi», lekin ularning fon ishlari topshiriqni o'qimaydi; natija baribir o'lchanadi | `server/director/index.ts:71,207`; o'qiydiganlar faqat `agent.ts:125,146`, `brain/index.ts:104,252`, `orders/look.ts:31` | — |
 | A10 | Kuzatuvchi olinmagan bo'lsa ham Yordamchi kamera nomuvofiqliklarini aytadi; Sozlamalar → Kameralar izohsiz «AI xodimlar»ga qaytaradi | `server/crm/tools.ts:71`; `src/LiveApp.tsx:91-93`; `src/pages/settings/SettingsHub.tsx:66` | — |
 | A11 | «Qabulxonaga ayting / Qabulxona qo'ng'iroq qilsin» deyiladi, lekin xabar faqat egasiga boradi | `server/orders/run.ts:107`; `server/botButtons.ts:239-246` | — |
-| A12 | Javob qoralamalari hech qachon eskirmaydi — ertalab bir necha kunlik eskilari ham «N ta javob» deb sanaladi | `server/db.ts:567`; `server/plan.ts:92` | — |
+| A12 | Javob qoralamalari hech qachon eskirmaydi — ertalab bir necha kunlik eskilari ham «N ta javob» deb sanaladi | `server/db.ts:567`; `server/plan.ts:92` | ✅ (keyingi commit) 48 soatdan eski taklif eskiradi (karta «⌛ Eskirdi»), bemor javobsiz bo'lsa — «javob kutyapti» |
 | A13 | Ertalabki xabar qayta yuborilganda Direktor qismi tushib qoladi; ustadagi namuna Direktorsiz (haqiqiysidan farq qiladi) | `server/director/telegram.ts:16`; `server/setup/routes.ts:150` | — |
 | A14 | Kanallar nazoratida tungi sukut yo'q (tunda o'chiriladigan kamera — har kecha ogohlantirish); Telegram'i ulanmagan biznes umuman tekshirilmaydi | `server/monitor.ts:57-84`, `:61` | qisman (keyingi commit): Telegramsiz biznes ham tekshiriladi (Hub ko'radi); tungi sukut — hali yo'q |
 

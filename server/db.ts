@@ -564,6 +564,8 @@ export const replies = {
   /** Egasining tasdig'ini kutayotgan javoblar (bosh ekran: «Sizni kutyapti»), yangisi tepada */
   pendingList: (businessId: string, limit = 20) =>
     many("SELECT * FROM replies WHERE business_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT ?", toReply, businessId, limit),
+  /** Shu paytdan oldin yaratilib, hali tasdiqlanmagan takliflar — hamma biznes (eskirish uchun, inbox/core.ts expireStale) */
+  pendingBefore: (beforeIso: string) => many("SELECT * FROM replies WHERE status = 'pending' AND created_at < ? ORDER BY created_at LIMIT 200", toReply, beforeIso),
   pendingTotal: (businessId: string) =>
     Number((db.prepare("SELECT COUNT(*) n FROM replies WHERE business_id = ? AND status = 'pending'").get(businessId) as Raw).n),
   countPending: (businessId: string, leadId: string) =>

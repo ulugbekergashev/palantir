@@ -607,6 +607,25 @@ async function flush(r: ReplyRow): Promise<void> {
 
 export async function flushDue(): Promise<void> {
   for (const r of replies.due(new Date().toISOString())) await flush(r).catch(e => console.error('[mijozlar] yuborilmadi:', (e as Error).message));
+  await expireStale().catch(e => console.error('[mijozlar] eski takliflar:', (e as Error).message));
+}
+
+/** Egasi shuncha vaqt tasdiqlamagan javob taklifi eskiradi: kunlar o'tib yuborilgan «ha, ertaga ishlaymiz» noto'g'ri bo'ladi */
+const REPLY_STALE_MS = 48 * 3_600_000;
+/**
+ * Eskirgan takliflar: ertalabki «N ta javob tayyor» va «Sizni kutyapti»da sanalmaydi, kartasida «eskirdi» deyiladi. Bemor hali
+ * javobsiz bo'lsa — «javob kutyapti» ga o'tadi (yo'qolib ketmaydi)
+ */
+export async function expireStale(now = Date.now()): Promise<number> {
+  let n = 0;
+  for (const r of replies.pendingBefore(new Date(now - REPLY_STALE_MS).toISOString())) {
+    const biz = businesses.byId(r.businessId);
+    if (!biz || !replies.move(biz.id, r.id, ['pending'], 'obsolete')) continue;
+    n++;
+    await settleCard(biz, r, "⌛ Eskirdi — 2 kun tasdiqlanmadi. Bemorga yozish kerak bo'lsa — o'zingiz yozing");
+    if (inbox.last(biz.id, r.leadId)?.direction === 'in') waiting.mark(biz.id, r.leadId, "Javob taklifi 2 kun tasdiqlanmay eskirdi");
+  }
+  return n;
 }
 
 /** Egasi «Yuborish» ni bosdi (Telegram yoki panel) */
