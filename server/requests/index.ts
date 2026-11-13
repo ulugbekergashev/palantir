@@ -46,10 +46,15 @@ const firstRemind = (kind: RequestKind, dueAt: string | null, now: Date) => firs
 // ─── Kimga boradi ────────────────────────────────────────────────────────────
 
 interface Recipient { chatId: string; name: string }
-function recipients(biz: BusinessRow): Recipient[] {
+/**
+ * Kartani kim oladi: qabulxona xodimlari va egasi (xodim bo'lsa — nusxa sozlamasi bo'yicha). Shikoyat — faqat egasiga (nusxa
+ * o'chirilgan bo'lsa ham): u qabulxona xodimining o'zi haqida bo'lishi mumkin. Egasi Telegram'ga ulanmagan bo'lsa — xodimlarga (yo'qolmasin)
+ */
+function recipients(biz: BusinessRow, kind?: RequestKind): Recipient[] {
   const team = staff.linked(biz.id).map((s: StaffRow) => ({ chatId: s.chatId!, name: s.name }));
-  const owner = biz.ownerChatId && (!team.length || biz.profile.requestsCopy !== false) ? [{ chatId: biz.ownerChatId, name: biz.profile.ownerName || 'Egasi' }] : [];
-  return [...team, ...owner];
+  const ownerTo = biz.ownerChatId ? [{ chatId: biz.ownerChatId, name: biz.profile.ownerName || 'Egasi' }] : [];
+  if (kind === 'complaint' && ownerTo.length) return ownerTo;
+  return [...team, ...(!team.length || biz.profile.requestsCopy !== false ? ownerTo : [])];
 }
 
 /** Telegram chat — shu biznesning egasi yoki xodimi bo'lsa, uning ismi (tugma bosgan, kartaga yozgan) */
@@ -107,7 +112,7 @@ async function sendCards(biz: BusinessRow, r: LeadRequest, head = '', silent = f
   const lead = r.leadId ? leads.get(biz.id, r.leadId) : undefined;
   const html = requestHtml(r, lead, head);
   let sent = 0;
-  for (const to of recipients(biz)) {
+  for (const to of recipients(biz, r.kind)) {
     try {
       const id = await outlet.send(to.chatId, html, keyboard(r, lead), silent);
       requestCards.add(r.id, to.chatId, id);

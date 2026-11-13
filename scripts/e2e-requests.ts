@@ -398,6 +398,18 @@ try {
   ok("egasi uchun bitta karta: ikkala kanal yozishmasi shu kartada", !!joined, JSON.stringify(joined));
   ok("Instagram'dagi javob uchun modelga faqat Instagram suhbati boradi — botdagi «plomba» yo'q",
     lastPrompt().includes('Oldin nima yozgan') && !lastPrompt().includes('plomba'), lastPrompt().split('<conversation>').at(-1)?.slice(0, 400));
+  console.log("\n# Shikoyat — egasiga (nusxa o'chirilgan bo'lsa ham), xodimlarga emas");
+  await api('/api/staff/copy', { method: 'PUT', token, body: { copyToOwner: false } });
+  mark = sent.length;
+  const plain = await api('/api/requests', { token, body: { kind: 'callback', phone: '+998 90 111 22 33', summary: 'Narx haqida qayta qo\'ng\'iroq' } });
+  const complaint = await api('/api/requests', { token, body: { kind: 'complaint', phone: '+998 90 444 55 66', summary: "Administrator qo'pol gapirdi" } });
+  await sleep(800);
+  const cardsTo = (chat: number, needle: string) => sent.slice(mark).filter(s => s.method === 'sendMessage' && Number(s.params.chat_id) === chat && textOf(s).includes(needle)).length;
+  ok("oddiy so'rov — xodimga (nusxa o'chiq: egasiga emas)", plain.status === 200 && cardsTo(STAFF, 'Narx haqida') === 1 && cardsTo(OWNER, 'Narx haqida') === 0);
+  ok("shikoyat — egasiga, xodimga emas (shikoyat uning o'zi haqida bo'lishi mumkin)", complaint.status === 200 && cardsTo(OWNER, "qo'pol gapirdi") === 1 && cardsTo(STAFF, "qo'pol gapirdi") === 0,
+    `egasi ${cardsTo(OWNER, "qo'pol gapirdi")}, xodim ${cardsTo(STAFF, "qo'pol gapirdi")}`);
+  await api('/api/staff/copy', { method: 'PUT', token, body: { copyToOwner: true } });
+
   console.log("\n# 2 kun tasdiqlanmagan javob taklifi eskiradi — bemor «javob kutyapti»ga o'tadi");
   type Att = { kind: string; refId: string };
   const attention = async () => (await api('/api/attention', { token })).json.items as Att[];
