@@ -12,7 +12,7 @@
  */
 import type { Telegram } from 'telegraf';
 import { businesses, connections, type BusinessRow, type LeadRow } from '../db';
-import { notifyOwner, onIncoming, onOwnerOutgoing, registerSender, replySettings } from './core';
+import { notifyOwner, onIncoming, onOwnerOutgoing, registerSender } from './core';
 
 const KIND = 'tg_business';
 /** Bot olishi kerak bo'lgan yangilanishlar (bot.ts: allowedUpdates) — Telegraf 4.16 turlarida yo'q */
@@ -67,7 +67,9 @@ export function onBusinessMessage(m: BusinessMessage): void {
   if (!m.business_connection_id || m.chat.type !== 'private' || m.sender_business_bot) return;
   const conn = connections.byAccount(KIND, m.business_connection_id);
   const biz = conn && businesses.byId(conn.businessId);
-  if (!conn || !biz?.active || replySettings(biz).mode === 'off') return;
+  // Javob rejimi «o'chiq» bo'lsa ham xabar saqlanadi (mijozlar ro'yxati va yozishma) — faqat AI javob tayyorlamaydi (core.ts).
+  // Qaysi chatlar botga ko'rinishini egasi Telegram Business sozlamasida o'zi tanlagan
+  if (!conn || !biz?.active) return;
   const text = textOf(m);
   if (!text) return;
   const extId = `${m.chat.id}:${m.message_id}`;

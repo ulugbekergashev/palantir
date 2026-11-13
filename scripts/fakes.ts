@@ -127,6 +127,8 @@ export const say = (from: number, text: string, replyTo?: number) => {
   const cmd = text.match(/^\/\w+/)?.[0];
   return push({ from: user(from), chat: chat(from), text, ...(cmd ? { entities: [{ type: 'bot_command', offset: 0, length: cmd.length }] } : {}), ...(replyTo ? { reply_to_message: { message_id: replyTo, date: 0, chat: chat(from) } } : {}) });
 };
+/** Istalgan turdagi xabar (stiker, lokatsiya, video…): fields — Telegram message maydonlari */
+export const sendRaw = (from: number, fields: Record<string, unknown>) => push({ from: user(from), chat: chat(from), ...fields });
 export const sendPhoto = (from: number, caption = '') => push({
   from: user(from), chat: chat(from), ...(caption ? { caption } : {}),
   photo: [{ file_id: 'ph-small', file_unique_id: 'ps', width: 90, height: 90, file_size: 900 }, { file_id: 'ph-large', file_unique_id: 'pl', width: 1280, height: 960, file_size: 180_000 }],

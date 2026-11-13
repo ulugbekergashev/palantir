@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Business } from '../src/types';
 import { iso, stamp } from '../src/lib/week';
-import { CUSTOMER, OWNER, TG_SESSION, VOICE_BYTES, addedToChannel, ai, aiServer, igWeb, igWebServer, listen, press, say, sendAudio, sendDocument, sendPhoto, sendVoice, sent, shareContact, sleep, speechlab, speechlabServer, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, type Sent, stopProcess } from './fakes';
+import { CUSTOMER, OWNER, TG_SESSION, VOICE_BYTES, addedToChannel, ai, aiServer, igWeb, igWebServer, listen, press, say, sendAudio, sendDocument, sendPhoto, sendRaw, sendVoice, sent, shareContact, sleep, speechlab, speechlabServer, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, type Sent, stopProcess } from './fakes';
 import { crm, crmServer } from './fakeCrm';
 import { crmConnectTests, crmLogicTests, crmReceptionTests, crmToolTests, type Harness } from './e2e-crm';
 import { cameraAccuracyTests, cameraApiTests, cameraLogicTests, cameraToolTests, commandTests, journalTests } from './e2e-camera';
@@ -238,6 +238,27 @@ try {
   type Waiting = { kind: string; refId: string; title: string; body: string };
   const waitingOf = async (t: string) => ((await api('/api/attention', { token: t })).json.items as Waiting[]).filter(i => i.kind === 'message');
   ok("egasi javob bergan savol «Sizni kutyapti»da qolmaydi", !(await waitingOf(token)).some(i => i.body.includes('Stol narxi')));
+
+  console.log('\n# Havolasiz kelgan bemor, stiker va lokatsiya (E2, E3)');
+  const STRANGER = 7401;
+  const boshqaId = ((await api('/api/admin/businesses', { token: admin })).json.businesses as { id: string; login: string }[]).find(b => b.login === 'boshqa')!.id;
+  mark = sent.length;
+  say(STRANGER, '/start');
+  ok("bir nechta biznes: havolasiz odam qaysi biznesniki — noma'lum, mijoz kartasi ochilmaydi", !!(await waitFor('umumiy javob', () => after(mark, STRANGER, has('Palantir')))));
+  await api(`/api/admin/businesses/${boshqaId}`, { method: 'PATCH', token: admin, body: { active: false } });
+  mark = sent.length;
+  say(STRANGER, '/start');
+  const strangerHello = await waitFor('havolasiz salom', () => after(mark, STRANGER, has('Mebel Uyi')));
+  ok('yagona klinika: havolasiz bemorga klinikaning salomi va raqam tugmasi (E2)', !!strangerHello && JSON.stringify(strangerHello.params.reply_markup ?? '').includes('request_contact'), strangerHello && textOf(strangerHello).slice(0, 80));
+  mark = sent.length;
+  sendRaw(STRANGER, { sticker: { file_id: 'st1', file_unique_id: 'st1', type: 'regular', width: 512, height: 512, is_animated: false, is_video: false, emoji: '🦷' } });
+  sendRaw(STRANGER, { location: { latitude: 41.31, longitude: 69.28 } });
+  const copies = await waitFor('nusxalar egasiga', () => (sent.slice(mark).filter(s => s.method === 'copyMessage' && Number(s.params.chat_id) === OWNER).length >= 2 ? true : undefined));
+  const strangerLead = ((await api('/api/leads', { token })).json.leads as { id: string; source: string | null }[]).find(l => l.source === 'Telegram (havolasiz)');
+  ok("stiker va lokatsiya jim yo'qolmaydi — egasiga asl nusxasi (E3)", !!copies);
+  ok('havolasiz bemor mijozlar ro\'yxatida, manbasi bilan', !!strangerLead);
+  await api(`/api/admin/businesses/${boshqaId}`, { method: 'PATCH', token: admin, body: { active: true } });
+  if (strangerLead) await api(`/api/leads/${strangerLead.id}`, { method: 'DELETE', token });
 
   console.log("\n# AI javob bermadi va egasi Telegram'ga ulanmagan: bemor savoli yo'qolmaydi");
   const LONELY = 7301;
@@ -465,11 +486,16 @@ try {
   tgUser.incoming(TG_SESSION, '6004', 'Chegirma bormi?', { name: 'Jamshid' });
   ok("o'zi rejimida ham bilmagan narsasini egasidan so'raydi", await waitFor('karta', () => after(mark, OWNER, s => has('Jamshid')(s) && buttons(s).length === 2)));
   await sleep(2000);
-  ok('...va o\'zicha yubormaydi', !tgUser.sent.some(m => m.to.userId === '6004'));
+  // Bemorga javob o'rniga faqat «xodimga yetkazildi» boradi — u jim qolmaydi (E1)
+  const onlyHold = (userId: string) => { const got = tgUser.sent.filter(m => m.to.userId === userId); return got.length === 1 && got[0].text.includes('yetkazildi') && !got[0].text.includes('103'); };
+  ok("...va javobni o'zicha yubormaydi — bemorga faqat «xodimga yetkazildi» (E1)", onlyHold('6004'), JSON.stringify(tgUser.sent.filter(m => m.to.userId === '6004').map(m => m.text)));
   mark = sent.length;
   tgUser.incoming(TG_SESSION, '6005', 'Eng arzon stol qaysi?', { name: 'Rustam' });
   const flagged = await waitFor('filtr', () => after(mark, OWNER, has('Rustam')));
-  ok("reklama filtriga tushgan javob — o'zi yubormaydi, egasiga", flagged && textOf(flagged).includes('filtr') && !tgUser.sent.some(m => m.to.userId === '6005'));
+  ok("reklama filtriga tushgan javob — o'zi yubormaydi, egasiga; bemorga «yetkazildi»", flagged && textOf(flagged).includes('filtr') && !!(await waitFor('yetkazildi', () => (onlyHold('6005') ? true : undefined))));
+  tgUser.incoming(TG_SESSION, '6006', "Chegirma bormi? Tishim qattiq shishib ketdi", { name: 'Laylo' });
+  const urgentHold = await waitFor('103', () => tgUser.sent.find(m => m.to.userId === '6006'));
+  ok("shoshilinch belgi (shishib ketdi) — «yetkazildi» bilan 103 eslatiladi (E1)", !!urgentHold?.text.includes('103') && urgentHold.text.includes('yetkazildi'), urgentHold?.text);
 
   console.log('\n# Shaxsiy Telegram: egasining topshirig\'i va panel');
   const fu2 = await api('/api/chat', { token, body: { text: 'Oxirgi hafta yozgan mijozlarga rahmat xabarini tayyorla' } });

@@ -52,6 +52,17 @@ export async function businessTests(h: Harness): Promise<void> {
   const own = await (async () => { for (let i = 0; i < 40; i++) { const m = await thread(); if (m.some(x => x.by === 'owner')) return m; await new Promise(r => setTimeout(r, 100)); } return thread(); })();
   ok("botning aks-sadosi qayta yozilmadi; egasining telefondan yozgani — «egasi» bo'lib yozishmada", own.filter(m => m.text.includes('10:00')).length === 1 && own.some(m => m.by === 'owner' && m.text.includes('Chilonzor')));
 
+  // E12: javob rejimi «o'chiq» — AI javob tayyorlamaydi, lekin xabar yo'qolmaydi (mijozlar ro'yxati va yozishmada)
+  await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'off', contacts: false, delayMin: 1 } });
+  mark = sent.length;
+  const asked = ai.requests.length;
+  businessMessage({ connectionId: 'bc-1', chatId: CUSTOMER, fromId: CUSTOMER, name: 'Jamshid', text: 'Narxlar ro\'yxatini yuborasizmi?' });
+  const stored = await (async () => { for (let i = 0; i < 40; i++) { const m = await thread(); if (m.some(x => x.text.includes('Narxlar ro'))) return true; await new Promise(r => setTimeout(r, 100)); } return false; })();
+  await new Promise(r => setTimeout(r, 2500));
+  const aiSaw = ai.requests.slice(asked).some(q => JSON.stringify(q.messages).includes('Narxlar ro'));
+  ok("rejim «o'chiq»: Business xabari baribir saqlanadi, AI javob tayyorlamaydi, egasiga karta yo'q (E12)", stored && !aiSaw && !to(OWNER, mark, 'Narxlar'));
+  await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'draft', contacts: false, delayMin: 1 } });
+
   mark = sent.length;
   businessConnection({ id: 'bc-1', userId: OWNER, canReply: false });
   ok("«javob berish» ruxsati olib tashlandi — panelda ko'rinadi, egasiga aytildi", !!(await waitFor('ruxsatsiz', () => to(OWNER, mark, 'ruxsati yo'))) && !(await status()).telegramBusiness.canReply);

@@ -220,6 +220,32 @@ export function whyNoReply(e: unknown): string {
   return "Palantir javob tayyorlay olmadi — o'zingiz javob bering";
 }
 
+/** «O'zi javob bersin»da AI javob bermagan bemorga «yetkazildi» — shu suhbatga ko'pi bilan shuncha vaqtda bir marta */
+const HOLD_EVERY_MS = 3600_000;
+const held = new Map<string, number>();
+/** Shoshilinch belgilar (bemor matnida): «yetkazildi» bilan birga 103 eslatiladi */
+const URGENT = /qon\s*(ket|to'xta|oqa)|kuchli og'ri|chidab bo'lma|shish(ib|gan|di)|isitma|harorat|nafas|hushdan|кров|сильн\S* бол|не могу терпеть|опух|отек|отёк|температур|задыха/i;
+const foldApostrophe = (s: string) => s.replace(/[ʻʼ’‘`´]/g, "'");
+
+/**
+ * «O'zi javob bersin» rejimida bemor javobni darhol kutadi: AI javob bermagan bo'lsa (bilmaydi, xato, limit, egasining tasdig'i kerak)
+ * bemor jim qolmasin — xodimga yetkazilgani aytiladi (shoshilinch holatda — 103). Boshqa rejimlarda bot o'zi aytadi (bot.ts)
+ */
+async function holdCustomer(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], mode: AutoReply['mode']): Promise<void> {
+  if (mode !== 'auto' || !fresh.length) return;
+  // Instagram «so'rovlar» papkasidagi odam: unga yozish so'rovni qabul qiladi — buni egasi hal qilsin
+  if (lead.channel === 'instagram' && lead.source?.includes("so'rov")) return;
+  if (Date.now() - (held.get(lead.id) ?? 0) < HOLD_EVERY_MS) return;
+  held.set(lead.id, Date.now());
+  const urgent = fresh.some(m => URGENT.test(foldApostrophe(m.text)));
+  const text = [
+    `Xabaringiz «${biz.profile.name}» xodimiga yetkazildi ✅ Tez orada javob beramiz.`,
+    'Сообщение передано сотруднику, скоро ответим.',
+    ...(urgent ? ['', "⚠️ Holat og'ir bo'lsa (qon to'xtamayapti, yuz shishib ketdi, nafas qiyin) — darhol 103 ga qo'ng'iroq qiling.", 'Если состояние тяжёлое — сразу звоните 103.'] : []),
+  ].join('\n');
+  await sendToLead(biz, lead, text, 'palantir').catch(e => console.error('[mijozlar] «yetkazildi» yuborilmadi:', (e as Error).message));
+}
+
 async function handle(bizId: string, leadId: string): Promise<void> {
   const biz = businesses.byId(bizId);
   const lead = leads.get(bizId, leadId);
@@ -246,6 +272,7 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   // Bitta suhbat butun biznesning kunlik AI hisobini yeb qo'ymasin (spam yoki bot bilan «o'ynash»): chegaradan keyin xabar egasiga AI'siz yetkaziladi
   if (!leadAiAllowed(lead.id)) {
     await forward(biz, lead, fresh, `Bu suhbatda bugun ${MAX_AI_PER_LEAD_DAY} ta javob tayyorlandi — chegara. Javobni o'zingiz bering`);
+    await holdCustomer(biz, lead, fresh, mode);
     return;
   }
   let d: Decision;
@@ -254,6 +281,7 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   } catch (e) {
     console.error('[mijozlar] javob tayyorlanmadi:', (e as Error).message);
     await forward(biz, lead, fresh, whyNoReply(e));
+    await holdCustomer(biz, lead, fresh, mode);
     return;
   }
   // Claude o'ylayotganda yana yozgan bo'lsa — navbatdagi ishlov hammasini birga ko'radi
@@ -267,27 +295,33 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   // Yangi javob yoki yangi qabul taklifi bo'lsa — eski qabul taklifi ham eskiradi
   if (d.action !== 'ignore') await supersede(biz, lead, 'Yangi xabar keldi — pastda yangi taklif');
 
+  // Qabul oqimi bemorga yozmagan bo'lsa (egasining tasdig'iga ketdi, CRM rad etdi, xato) — suhbatning oxiri hali o'sha kiruvchi xabar
+  const holdIfSilent = () => (inbox.last(bizId, leadId)?.id === last.id ? holdCustomer(biz, lead, fresh, mode) : Promise.resolve());
   if (d.action === 'book' && d.booking) {
     try {
-      return await receive(biz, lead, fresh, d, mode);
+      await receive(biz, lead, fresh, d, mode);
     } catch (e) {
       // Kutilmagan xato (masalan, Telegram kartani qabul qilmadi): bemorning xabari javobsiz yo'qolmasin
       console.error('[mijozlar] qabul:', (e as Error).message);
-      return forward(biz, lead, fresh, "Palantir qabulni oxiriga yetkaza olmadi — CRM'ni tekshirib, o'zingiz javob bering");
+      await forward(biz, lead, fresh, "Palantir qabulni oxiriga yetkaza olmadi — CRM'ni tekshirib, o'zingiz javob bering");
     }
+    return holdIfSilent();
   }
   if ((d.action === 'reschedule' || d.action === 'cancel_visit') && d.change) {
     try {
-      return await changeFlow(biz, lead, fresh, d, mode);
+      await changeFlow(biz, lead, fresh, d, mode);
     } catch (e) {
       console.error("[mijozlar] qabulni o'zgartirish:", (e as Error).message);
-      return forward(biz, lead, fresh, "Palantir qabulni o'zgartira olmadi — CRM'ni tekshirib, o'zingiz javob bering");
+      await forward(biz, lead, fresh, "Palantir qabulni o'zgartira olmadi — CRM'ni tekshirib, o'zingiz javob bering");
     }
+    return holdIfSilent();
   }
   if (d.action === 'ignore' || !d.reply) {
     // Javob matni yo'q, lekin egasiga aytadigan gap bor (model javob yozishdan bosh tortdi) — hamma kanalda yetkaziladi, xabar javobsiz yo'qolmasin
     if (d.action !== 'ignore' && d.noteForOwner) await forward(biz, lead, fresh, d.noteForOwner);
     else if (lead.channel === 'bot') await forward(biz, lead, fresh, null);
+    // «rahmat», «ok» kabi javob kerak bo'lmagan xabar — bemorga ham hech narsa yozilmaydi
+    if (d.action !== 'ignore') await holdCustomer(biz, lead, fresh, mode);
     return;
   }
   const clean = isClean(biz, d.reply);
@@ -301,6 +335,8 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   const note = !clean ? "Javob taklifida reklama filtriga tushadigan so'z bor — tekshirib yuboring" : d.noteForOwner || null;
   const r = replies.create(bizId, { leadId, channel: lead.channel, text: d.reply, status: 'pending', note, dueAt: null, question: d.action === 'ask_owner' ? d.question : null });
   await card(biz, lead, fresh, r);
+  // Javob egasining tasdig'ini kutadi (bilmagan narsasi, filtrga tushgan so'z) — bemorga hozircha «yetkazildi»
+  await holdCustomer(biz, lead, fresh, mode);
 }
 
 /** Qabul yozilgan bemor — mijoz kartasi unga bog'lanadi (oldin boshqa bemorga bog'langan bo'lsa — tegilmaydi) */

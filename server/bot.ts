@@ -35,7 +35,7 @@ import { toOgg } from './tts';
 import { phoneChanged } from './people';
 import { proofFor } from './personRules';
 import { setTeamOutlet } from './requests/index';
-import { replyCards } from './requests/store';
+import { replyCards, staff } from './requests/store';
 import { linkStaff, listOpen, requestReply, staffText, teamOutlet } from './requests/telegram';
 import { MAX_LOOK_CAMERAS, lookAt, lookRequest, shotCaption } from './camera/ask';
 import { events } from './orders/store';
@@ -220,14 +220,33 @@ export function createBot(): BotService {
   /** Mijozga "yetkazildi" javobi soatiga bir marta (har xabarga emas) */
   const acked = new Map<string, number>();
 
-  async function leadStart(ctx: Context, bizId: string) {
+  /**
+   * Havolasiz kelgan odam (botni qidiruvdan topgan, @nom bilan yozgan): o'rnatishda bitta faol biznes bo'lsa — o'sha klinikaning
+   * mijozi. Bir nechta biznes bo'lsa qaysiniki ekani noma'lum — eski javob qoladi
+   */
+  const NO_LINK_SOURCE = 'Telegram (havolasiz)';
+  const soleBusiness = (): BusinessRow | undefined => {
+    const active = businesses.all().filter(x => x.active);
+    return active.length === 1 ? active[0] : undefined;
+  };
+  /** Bu odam shu botdagi mijoz kartasi; havolasiz kelgan bo'lsa (yagona biznesda) — karta ochiladi. Egasi va xodim — mijoz emas */
+  const customerLead = (ctx: Context): LeadRow | undefined => {
+    const from = ctx.from;
+    if (!from || ownerOf(ctx) || staff.byChat(String(ctx.chat!.id))) return undefined;
+    const lead = leads.latestForUser(String(from.id));
+    if (lead) return lead;
+    const sole = soleBusiness();
+    return sole ? leads.fromTelegram(sole.id, String(from.id), [from.first_name, from.last_name].filter(Boolean).join(' ') || null, from.username ?? null, NO_LINK_SOURCE, null) : undefined;
+  };
+
+  async function leadStart(ctx: Context, bizId: string, source = 'Telegram havola') {
     const biz = businesses.byId(bizId);
     if (!biz || !biz.active) {
       await ctx.reply('Havola eskirgan. / Ссылка устарела.');
       return;
     }
     const from = ctx.from!;
-    leads.fromTelegram(biz.id, String(from.id), [from.first_name, from.last_name].filter(Boolean).join(' ') || null, from.username ?? null, 'Telegram havola', null);
+    leads.fromTelegram(biz.id, String(from.id), [from.first_name, from.last_name].filter(Boolean).join(' ') || null, from.username ?? null, source, null);
     await ctx.reply([
       `Assalomu alaykum! 👋 «${biz.profile.name}» bilan bog'lanish uchun telefon raqamingizni yuboring yoki savolingizni shu yerga yozing.`,
       '',
@@ -246,6 +265,16 @@ export function createBot(): BotService {
     }
   }
 
+  /** Mijoz yuborgan matnsiz xabar turi — suhbat tarixida va panelda shu ko'rinadi (asl nusxasi egasiga boradi) */
+  const mediaLabel = (ctx: Context): string => {
+    const m = (ctx.message ?? {}) as Record<string, unknown>;
+    const caption = typeof m.caption === 'string' && m.caption.trim() ? ` ${m.caption.trim().slice(0, 500)}` : '';
+    const sticker = m.sticker as { emoji?: string } | undefined;
+    const kind = m.photo ? 'rasm' : m.video ? 'video' : m.video_note ? 'dumaloq video' : m.voice ? 'ovozli xabar' : m.audio ? 'audio'
+      : m.animation ? 'GIF' : sticker ? `stiker${sticker.emoji ? ` ${sticker.emoji}` : ''}` : m.location || m.venue ? 'lokatsiya' : m.document ? 'fayl' : 'xabar';
+    return `[${kind}]${caption}`;
+  };
+
   async function customerMessage(ctx: Context, lead: LeadRow, text: string | null) {
     const biz = businesses.byId(lead.businessId);
     if (!biz?.active) return;
@@ -258,7 +287,7 @@ export function createBot(): BotService {
       });
     } else {
       // Rasm yoki fayl: egasiga asl nusxasi (Palantir rasmni o'qimaydi)
-      inbox.add(biz.id, { leadId: lead.id, channel: 'bot', direction: 'in', by: 'customer', text: '[rasm yoki fayl]', extId: `b${ctx.message!.message_id}` });
+      inbox.add(biz.id, { leadId: lead.id, channel: 'bot', direction: 'in', by: 'customer', text: mediaLabel(ctx), extId: `b${ctx.message!.message_id}` });
       const who = `${esc(personName(lead))}${lead.username && lead.name ? ` (@${esc(lead.username)})` : ''}${lead.phone ? ` · ${esc(lead.phone)}` : ''}`;
       await toOwner(biz, lead, `💬 <b>${who}</b> yubordi:`, { chat: ctx.chat!.id, message: ctx.message!.message_id });
     }
@@ -293,6 +322,9 @@ export function createBot(): BotService {
       return leadStart(ctx, bizId);
     }
     const biz = ownerOf(ctx);
+    // Havolasiz kelgan bemor: klinika uni ko'rsin, bemor «biznes egasi bo'lsangiz…» degan begona gapni olmasin
+    const sole = biz || staff.byChat(String(ctx.chat.id)) ? undefined : soleBusiness();
+    if (sole) return leadStart(ctx, sole.id, NO_LINK_SOURCE);
     await ctx.reply(biz
       ? `«${biz.profile.name}» ulangan.\n\n${helpFor(biz)}`
       : "Assalomu alaykum! Bu Palantir — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz, paneldagi «Telegramni ulash» havolasini bosing.");
@@ -300,6 +332,8 @@ export function createBot(): BotService {
 
   bot.help(async ctx => {
     const biz = ownerOf(ctx);
+    const sole = biz || staff.byChat(String(ctx.chat.id)) ? undefined : soleBusiness();
+    if (sole) return ctx.reply(`«${sole.profile.name}» bilan bog'lanish uchun savolingizni shu yerga yozing.\nНапишите ваш вопрос здесь.`);
     await ctx.reply(biz ? helpFor(biz) : 'Bu Palantir — biznes uchun AI yordamchi. Ulanish: panel → «Telegram».');
   });
 
@@ -458,11 +492,7 @@ export function createBot(): BotService {
   bot.on(message('voice'), async ctx => {
     if (ctx.chat.type !== 'private') return;
     const biz = ownerOf(ctx);
-    if (!biz) {
-      const lead = leads.latestForUser(String(ctx.from.id));
-      if (lead) await customerMessage(ctx, lead, null);
-      return;
-    }
+    if (!biz) return customerVoice(ctx);
     if (!voiceEnabled()) return ctx.reply("Ovozli xabar hozircha o'chiq (serverda ovoz xizmati kaliti yo'q). Matn bilan yozing.");
     const voice = ctx.message.voice;
     if (voice.duration > 300) return ctx.reply('Ovozli xabar 5 daqiqadan oshmasin.');
@@ -519,17 +549,37 @@ export function createBot(): BotService {
     }
     // Qabulxona xodimi: yordamchi bilan gaplashmaydi, faqat so'rovlar
     if (await staffText(ctx, text)) return;
-    const lead = leads.latestForUser(String(ctx.from.id));
+    const lead = customerLead(ctx);
     if (lead) return customerMessage(ctx, lead, text);
     await ctx.reply("Assalomu alaykum! Bu Palantir — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz, paneldagi «Telegramni ulash» havolasini bosing.");
   });
 
-  // Mijoz rasm yoki fayl yuborsa — egasiga nusxasi
+  // Mijoz rasm, video, stiker, lokatsiya yoki fayl yuborsa — egasiga asl nusxasi (jim yo'qolmaydi)
   const forwardMedia = async (ctx: Context) => {
-    if (ctx.chat?.type !== 'private' || ownerOf(ctx) || !ctx.from) return;
-    const lead = leads.latestForUser(String(ctx.from.id));
+    if (ctx.chat?.type !== 'private' || !ctx.from) return;
+    const lead = customerLead(ctx);
     if (lead) await customerMessage(ctx, lead, null);
   };
+  /** Bemorning ovozli xabari matnga aylanadi — AI unga ham javob beradi. Ovoz xizmati yo'q yoki tanilmasa — asl nusxasi egasiga */
+  const CUSTOMER_VOICE_MAX_SEC = 120;
+  async function customerVoice(ctx: Context) {
+    const lead = customerLead(ctx);
+    const voice = ctx.message && 'voice' in ctx.message ? ctx.message.voice : undefined;
+    if (!lead || !voice) return;
+    const biz = businesses.byId(lead.businessId);
+    if (!biz?.active || !voiceEnabled() || voice.duration > CUSTOMER_VOICE_MAX_SEC) return customerMessage(ctx, lead, null);
+    detach('mijoz ovozi', async () => {
+      try {
+        const res = await fetch(await tg.getFileLink(voice.file_id), { signal: AbortSignal.timeout(20_000) });
+        if (!res.ok) throw new Error(`fayl yuklanmadi (${res.status})`);
+        const text = await transcribe(Buffer.from(await res.arrayBuffer()), voice.mime_type || 'audio/ogg', langOf(biz), [biz.profile.name]);
+        return customerMessage(ctx, lead, `🎙 ${text}`);
+      } catch (e) {
+        if (!(e instanceof SilenceError)) console.error('[mijoz ovozi]', (e as Error).message);
+        return customerMessage(ctx, lead, null);
+      }
+    });
+  }
   /** Kuniga ko'riladigan rasmlar soni cheklangan: har bir rasm — ikkita AI so'rovi (egasining hisobidan) */
   const photoDays = new Map<string, { day: string; count: number }>();
   const photoAllowed = (bizId: string): boolean => {
@@ -562,6 +612,12 @@ export function createBot(): BotService {
       }
       await handleOwner(ctx, biz, photoMessage(caption, seen), false, { display: `📷 ${caption || 'Rasm'}`, photo: true });
     });
+  });
+  // Video, dumaloq video, GIF, stiker, lokatsiya: mijozdan — egasiga nusxasi; egasiga — nima qila olishi aytiladi
+  bot.on([message('video'), message('video_note'), message('animation'), message('sticker'), message('location')], async ctx => {
+    if (ctx.chat.type !== 'private') return;
+    if (ownerOf(ctx)) return ctx.reply("Bunday xabarni o'qiy olmayman — matn, ovozli xabar, rasm yoki fayl yuboring.");
+    return forwardMedia(ctx);
   });
   // ─── Qo'ng'iroq yozuvi: egasi audio tashladi → matn (kim nima dedi) va tahlil ─────
   /** Telegram bot yuklab beradigan fayl chegarasi */
