@@ -120,7 +120,8 @@ export async function orderApiTests(h: Harness): Promise<void> {
   await api('/api/chat', { token, body: { text: 'Kanalga post tayyorla' } });
   const without = lastOwnerReq();
   ok("Kontent-meyker jamoada yo'q — Yordamchida uning asboblari yo'q, ko'rsatmada «jamoaga oling» deyiladi",
-    !toolNames(without).some(n => n.startsWith('content_') || n === 'draft_post') && toolNames(without).includes('create_task') && /Not hired[^\n]*Kontent-meyker/.test(without?.system ?? '') && without!.system.includes("+ Xodim qo'shish"), toolNames(without).join(','));
+    // Brend-buk — hammaniki (Kontent-meykersiz ham Yordamchida bor); qolgan kontent asboblari yo'q
+    !toolNames(without).some(n => (n.startsWith('content_') && n !== 'content_brand_book') || n === 'draft_post') && toolNames(without).includes('create_task') && toolNames(without).includes('content_brand_book') && /Not hired[^\n]*Kontent-meyker/.test(without?.system ?? '') && without!.system.includes("+ Xodim qo'shish"), toolNames(without).join(','));
   await api('/api/crew', { token, body: { member: 'kontent', on: true } });
   await api('/api/chat', { token, body: { text: 'Kanalga post tayyorla' } });
   const withK = lastOwnerReq();

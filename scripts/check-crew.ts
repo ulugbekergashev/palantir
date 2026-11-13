@@ -115,6 +115,11 @@ console.log("\n# Asboblar xodim bo'yicha (3-bosqich)");
     const k = ownerToolDefs(false, ['kontent']).map(([n]) => n);
     assert.ok(k.includes('content_plan') && !k.includes('create_task') && !k.includes('ads_plan'));
   });
+  check("brend-buk — hammaniki: Kontent-meykersiz ham Yordamchida bor, Kontent-meyker topshirig'ida ham", () => {
+    assert.equal(toolOwner('content_brand_book'), null);
+    assert.ok(ownerToolDefs(false, ['base']).some(([n]) => n === 'content_brand_book'), 'Yordamchi (Kontent-meyker olinmagan)');
+    assert.ok(ownerToolDefs(false, ['kontent']).some(([n]) => n === 'content_brand_book'), "Kontent-meyker o'z topshirig'ida video uchun brend-buk yoza oladi");
+  });
   const biz = businesses.create(`jamoa${Date.now()}`, 'x', { name: 'J', ownerName: 'X', industry: '', phone: '', address: '', contentLang: 'uz', brand: { primary: '#000', accent: '#111' }, offerings: [], team: [] } as never);
   businesses.update(biz.id, { crew: JSON.stringify({ hired: ['direktor', 'yordamchi'], dismissed: [] }) });
   const b = businesses.byId(biz.id)!;
@@ -229,6 +234,12 @@ console.log("\n# Ish paydo bo'lishi bilan xodim jamoada (panel ochilishini kutma
     const old = mk(null);
     assert.equal(crewFromData(old), old);
     assert.equal(businesses.byId(old.id)!.crew, null);
+  });
+  const { brandStore } = await import('../server/content/brand');
+  check("Miya → Brend'da brend-buk to'ldirildi — Kontent-meyker o'zi jamoaga qo'shilmaydi", () => {
+    const b = mk(JSON.stringify({ hired: [], dismissed: [] }));
+    brandStore.save(b.id, {} as never, null);
+    assert.ok(!crewHas(crewFromData(b), 'kontent'));
   });
 }
 

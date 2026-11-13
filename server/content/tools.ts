@@ -67,26 +67,6 @@ export const CONTENT_DEFS = {
     },
   }),
 
-  content_brand_book: def({
-    description: "Write (or rewrite) the brand book the Kontent-meyker follows: positioning, voice rules, banned words, colors, visual motif, content pillars. Use when the owner asks for a brand book / brand identity / «brend-buk», or wants posts and videos «in our own style». Pass what the owner told you in their words; anything not said is inferred from the business profile. whose=personal when it is the owner's personal brand (themselves as a founder/expert), company otherwise. Takes up to a minute. After it, point the owner to panel → Miya → Brend to see colors and edit — the whole team writes in this voice.",
-    input: z.object({
-      whose: z.enum(['company', 'personal']),
-      what: z.string().max(600).optional().describe('What they do, in their words'),
-      audience: z.string().max(600).optional(),
-      values: z.string().max(600).optional(),
-      tone: z.string().max(600).optional(),
-      avoid: z.string().max(600).optional(),
-      look: z.string().max(600).optional().describe('Color or style wishes'),
-    }),
-    run: async (i, ctx) => guarded(async () => {
-      // Brend-buk keyingi hamma postlar ovozini belgilaydi: faqat egasining o'z gapidan (rasm, mijoz matni yoki jadvaldan emas)
-      assertOwnWords(ctx);
-      const b = await makeBrandBook(ctx.biz, i, contentStore.settings(ctx.biz.id).lang);
-      const book = b.book!;
-      return { name: book.name, positioning: book.positioning, voice: book.voice, pillars: book.pillars.map(p => `${p.name} ${p.share}%`), motif: book.motif };
-    }),
-  }),
-
   content_plan: def({
     description: `Make a content plan: ${PLAN_MIN}-${PLAN_MAX} post/video topics spread over the brand book's pillars (e.g. «25 ta post rejasi», «kontent strategiya»). If there is no brand book yet, one is written first from the business profile — say so and suggest refining it. It also uses the Marketolog's recent Meta AI research, if there is any. Topics appear in panel → Marketing → Kontent-meyker → Reja, each with «Telegram», «Instagram» and «Video» buttons. Takes up to two minutes.`,
     input: z.object({
@@ -113,6 +93,32 @@ export const CONTENT_DEFS = {
         voice: v.status === 'voiced' ? `tayyor (${Math.round(v.duration)} s)` : `yo'q: ${v.error ?? 'kalit kerak'}`,
         note: 'Videoni panelda yig\'ib yuklab olish: Marketing → Kontent-meyker → Video',
       };
+    }),
+  }),
+};
+
+/**
+ * Brend-buk — hammaniki (Kontent-meykerga bog'lanmagan): Yordamchi ham yozadi, Kontent-meyker o'z topshirig'ida video uchun ham.
+ * Brend-buk to'ldirilishi Kontent-meykerni jamoaga qo'shmaydi (server/crew.ts)
+ */
+export const BRAND_DEFS = {
+  content_brand_book: def({
+    description: "Write (or rewrite) the brand book the Kontent-meyker follows: positioning, voice rules, banned words, colors, visual motif, content pillars. Use when the owner asks for a brand book / brand identity / «brend-buk», or wants posts and videos «in our own style». Pass what the owner told you in their words; anything not said is inferred from the business profile. whose=personal when it is the owner's personal brand (themselves as a founder/expert), company otherwise. Takes up to a minute. After it, point the owner to panel → Miya → Brend to see colors and edit — the whole team writes in this voice.",
+    input: z.object({
+      whose: z.enum(['company', 'personal']),
+      what: z.string().max(600).optional().describe('What they do, in their words'),
+      audience: z.string().max(600).optional(),
+      values: z.string().max(600).optional(),
+      tone: z.string().max(600).optional(),
+      avoid: z.string().max(600).optional(),
+      look: z.string().max(600).optional().describe('Color or style wishes'),
+    }),
+    run: async (i, ctx) => guarded(async () => {
+      // Brend-buk keyingi hamma postlar ovozini belgilaydi: faqat egasining o'z gapidan (rasm, mijoz matni yoki jadvaldan emas)
+      assertOwnWords(ctx);
+      const b = await makeBrandBook(ctx.biz, i, contentStore.settings(ctx.biz.id).lang);
+      const book = b.book!;
+      return { name: book.name, positioning: book.positioning, voice: book.voice, pillars: book.pillars.map(p => `${p.name} ${p.share}%`), motif: book.motif };
     }),
   }),
 };

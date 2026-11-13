@@ -37,7 +37,8 @@ function signals(biz: BusinessRow, status?: LiveStatus): CrewSignals {
     metaAi: !!status?.metaAi.connected,
     marketingPosts: has('marketing_posts') ? 1 : 0,
     content: !!content.channelTitle || contentStore.sources(biz.id).length > 0 || contentStore.drafts(biz.id).length > 0
-      || has('content_brand') || has('content_plan') || has('content_videos'),
+      // Brend-buk (Miya → Brend) — butun jamoaniki: uni to'ldirish Kontent-meykerni o'zi yollamaydi
+      || has('content_plan') || has('content_videos'),
     ads: !!adsStore.connection(biz.id) || adsStore.campaigns(biz.id).length > 0,
   };
 }

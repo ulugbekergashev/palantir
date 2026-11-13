@@ -104,11 +104,11 @@ export function knowledgeBlocks(b: BusinessRow): string[] {
 const ROLE: Record<CrewMember, string> = {
   direktor: 'reads the numbers every morning and proposes tasks to the team',
   qabulxona: 'answers customers in Telegram, Instagram and by phone, and writes every message to a customer — follow-ups too (draft_followup)',
-  yordamchi: "the owner's personal assistant: tasks, reminders, customers, documents, memory",
+  yordamchi: "the owner's personal assistant: tasks, reminders, customers, documents, memory, the brand book (content_brand_book)",
   kuzatuvchi: 'watches the cameras (camera_day, look_camera)',
   tahlilchi: 'numbers and reports',
   marketolog: "market research through the owner's Meta AI (meta_ai): competitors, the business's Instagram, what works",
-  kontent: 'makes all content: Telegram channel posts, Instagram posts with a picture, the content plan, the brand book, short videos',
+  kontent: 'makes all content: Telegram channel posts, Instagram posts with a picture, the content plan, short videos (in the brand book voice)',
   target: 'runs Meta ads: campaign plans, launch after the owner approves, spend limits',
 };
 /** Yordamchi bajara oladigan mutaxassislar ishi (jamoada bo'lsa — asboblari bor) */
