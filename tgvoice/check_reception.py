@@ -37,6 +37,17 @@ def first_slot(schedule: str) -> tuple[str, str, str] | None:
     return None
 
 
+def slot_for(schedule: str, doctor_name: str, not_date: str, not_time: str) -> tuple[str, str] | None:
+    """Shu shifokorning jadvaldagi (hozirgi qabul vaqtidan boshqa) birinchi bo'sh vaqti: (sana, vaqt)"""
+    mine = False
+    for line in schedule.splitlines():
+        if line.startswith('- doctor_id'):
+            mine = doctor_name in line
+        elif mine and (m := re.match(r'\s+(\d{4}-\d{2}-\d{2}) \([^)]*\): (\d{2}:\d{2})', line)) and (m.group(1), m.group(2)) != (not_date, not_time):
+            return m.group(1), m.group(2)
+    return None
+
+
 async def main():
     desk = Desk(CALLER)
     system, tools = await desk.prompt()
@@ -72,6 +83,25 @@ async def main():
         ok("hisobot Palantir'ga yetdi (panel «Qo'ng'iroqlar» va egasiga xabar)", True)
     except Exception as e:
         ok("hisobot Palantir'ga yetdi", False, f'{type(e).__name__}: {e}')
+
+    # Bazadagi bemor qo'ng'iroq qildi: AI uni taniydi va qabulini o'zi ko'chiradi (administratorga topshirmaydi)
+    ok("yangi raqam: bemor bloki va ko'chirish asboblari yo'q", 'appointment_id' not in system and 'cancel_visit' not in names, str(names))
+    known = Desk(TAKEN)
+    ksystem, ktools = await known.prompt()
+    knames = [f.name for f in ktools[0].function_declarations]
+    visits = [v for p in known.patients for v in p.get('visits') or []]
+    ok("tanish raqam: bemor va uning qabuli ko'rsatmada, ko'chirish va bekor qilish asboblari bor",
+       bool(visits) and visits[0]['id'] in ksystem and 'reschedule_visit' in knames and 'cancel_visit' in knames, f"{knames} {known.patients}")
+    ok("ko'rsatma: ismini darhol aytmaydi, avval tasdiqlatadi", 'Kim bilan gaplashyapman' in ksystem)
+    if visits:
+        visit = visits[0]
+        foreign = await desk.tool('cancel_visit', {'appointment_id': visit['id']})
+        ok("boshqa raqamdan qo'ng'iroq qilgan odam bu qabulga tega olmaydi", 'error' in foreign, str(foreign))
+        target = slot_for(ksystem, visit['doctor'], visit['date'], visit['time'])
+        moved = await known.tool('reschedule_visit', {'appointment_id': visit['id'], 'date': target[0], 'time': target[1]}) if target else {}
+        ok("bemor o'z qabulini ko'chirdi (DentaCRM'da)", 'changed' in moved, f"{target} {moved}")
+        ok("hisobot natijasida «Qabul o'zgardi»", "Qabul o'zgardi" in known.outcome(), known.outcome())
+        await known.gateway.close()
     await desk.gateway.close()
 
 

@@ -9,7 +9,8 @@ import { z } from 'zod';
 import { knowledgeText } from '../brain/index';
 import { CrmError } from '../crm/dentacrm';
 import { normPhone } from '../crm/logic';
-import { bookForCustomer, bookingLine, checkBooking, scheduleText } from '../crm/reception';
+import { bookForCustomer, bookingLine, changeLine, changeVisit, checkBooking, checkChange, patientsByPhone, scheduleText, upcomingVisits } from '../crm/reception';
+import { crmConnected } from '../crm/index';
 import { businesses, calls, voiceBookings, voiceKeys, type BusinessRow } from '../db';
 import { env } from '../env';
 import { notifyOwner } from '../inbox/core';
@@ -66,6 +67,15 @@ const RequestSchema = z.object({
   phone: need(24), name: cut(80).nullable().optional(), kind: z.enum(['callback', 'booking', 'change', 'complaint', 'other']).default('callback'),
   summary: need(400), when: cut(120).nullable().optional(), dueAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/).nullable().optional(),
 });
+const VisitSchema = z.object({
+  phone: need(24), appointmentId: need(60), kind: z.enum(['move', 'cancel']),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+});
+/** Bitta raqam bir kunda shuncha marta qabulini o'zgartira oladi (telefonda — yozishmadagi bilan bir xil chegara) */
+const CHANGES_PER_PHONE_DAY = 2;
+const phoneChanges = new Map<string, number[]>();
+const NOT_HIS = "Bu qabul shu raqamdagi bemorniki emas — administratorga uzating.";
+const CANT_CHANGE = "Bu o'zgarishni qilib bo'lmadi. Boshqa vaqt taklif qiling yoki administratorga uzating.";
 /** Agent soatiga shuncha so'rov ochadi (adashgan agent qabulxonani to'ldirmasin) */
 const REQUESTS_PER_HOUR = 30;
 const agentRequests = new Map<string, number[]>();
@@ -189,6 +199,50 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
       res.json({ booked: bookingLine({ ...ask, doctorName: ready.doctorName }) });
     } catch (e) {
       if (e instanceof CrmError) return res.status(409).json({ error: UNAVAILABLE, code: 'unavailable' });
+      throw e;
+    }
+  }));
+
+  // Agent: qo'ng'iroq qilgan raqam kimniki — shu raqamdagi bemor(lar) va ularning yaqin qabullari (faqat shu raqamniki).
+  // AI bu bilan bemorni taniydi; qabul haqida gapirishdan oldin ismini so'rab tasdiqlatadi (reception.py)
+  app.get('/api/voice/caller', asAgent(async (req, res, biz) => {
+    const phone = normPhone(String(req.query.phone ?? ''));
+    if (!phone || !crewWorks(biz, 'qabulxona') || !crmConnected(biz.id)) return res.json({ patients: [] });
+    try {
+      const found = await patientsByPhone(biz.id, phone);
+      const patients = await Promise.all(found.map(async p => ({
+        name: `${p.firstName} ${p.lastName}`.trim(),
+        visits: (await upcomingVisits(biz.id, p.id)).slice(0, 3).map(v => ({ id: v.id, date: v.date, time: v.time, doctor: v.doctorName, confirmed: v.status === 'Confirmed' })),
+      })));
+      res.json({ patients });
+    } catch (e) {
+      if (e instanceof CrmError) return res.json({ patients: [] });
+      throw e;
+    }
+  }));
+
+  // Agent: qo'ng'iroq qilgan bemor o'z qabulini ko'chiradi yoki bekor qiladi. Qabul shu raqamdagi bemorniki ekani server tomonda tekshiriladi
+  app.post('/api/voice/visit', asAgent(async (req, res, biz) => {
+    const p = VisitSchema.safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    if (!crewWorks(biz, 'qabulxona')) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
+    const phone = normPhone(p.data.phone);
+    const recent = (phoneChanges.get(`${biz.id}:${phone}`) ?? []).filter(t => t > Date.now() - DAY_MS);
+    if (!phone || recent.length >= CHANGES_PER_PHONE_DAY) return res.status(429).json({ error: LIMIT, code: 'limit' });
+    try {
+      let ownerId: string | null = null;
+      for (const patient of await patientsByPhone(biz.id, phone)) {
+        if ((await upcomingVisits(biz.id, patient.id)).some(v => v.id === p.data.appointmentId)) { ownerId = patient.id; break; }
+      }
+      if (!ownerId) return res.status(409).json({ error: NOT_HIS, code: 'handoff' });
+      const ready = await checkChange(biz, ownerId, { kind: p.data.kind, appointmentId: p.data.appointmentId, date: p.data.date, time: p.data.time });
+      // Sabab agentga aytilmaydi: «band» xabarida boshqa bemorning ismi bo'lishi mumkin
+      if ('problem' in ready) return res.status(409).json({ error: CANT_CHANGE, code: 'unavailable' });
+      await changeVisit(biz, ownerId, ready.change);
+      phoneChanges.set(`${biz.id}:${phone}`, [...recent, Date.now()]);
+      res.json({ changed: changeLine(ready.change) });
+    } catch (e) {
+      if (e instanceof CrmError) return res.status(409).json({ error: CANT_CHANGE, code: 'unavailable' });
       throw e;
     }
   }));

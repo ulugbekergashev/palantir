@@ -7,6 +7,7 @@ import type { Appointment } from '../server/crm/logic';
 
 import type { Harness } from './e2e-crm';
 import { ai, sleep } from './fakes';
+import { crm } from './fakeCrm';
 import { sectionFor } from '../src/lib/commands';
 import { buildJournal } from '../src/lib/journal';
 import { iso } from '../src/lib/week';
@@ -172,6 +173,30 @@ export async function cameraApiTests(h: Harness): Promise<void> {
     `${offSlots.status} ${offSlots.json.code} / ${offBook.status} ${offBook.json.code}`);
   await api('/api/crew', { token, body: { member: 'qabulxona', on: true } });
   ok("ovoz: Qabulxona qaytdi — jadval yana keladi", (await api('/api/voice/slots', { token: key })).status === 200);
+
+  // Telefon AI qo'ng'iroq qiluvchini taniydi va qabulini o'zi ko'chiradi/bekor qiladi (boshqa sinovlarga tegmaslik uchun — alohida bemor va kun)
+  const in4 = iso(new Date(Date.now() + 4 * 86_400_000)), in5 = iso(new Date(Date.now() + 5 * 86_400_000));
+  crm.appointments.push(
+    { id: 'tv1', patientId: 'f7', patientName: 'Bemor7 Test7', doctorId: 'd1', doctorName: 'Rustam Rustamov', type: "Ko'rik", date: in4, time: '10:00', duration: 30, status: 'Confirmed', notes: null, clinicId: 'c1', reminderSent: false },
+    { id: 'tv2', patientId: 'f8', patientName: 'Bemor8 Test8', doctorId: 'd1', doctorName: 'Rustam Rustamov', type: "Ko'rik", date: in4, time: '11:00', duration: 30, status: 'Pending', notes: null, clinicId: 'c1', reminderSent: false },
+  );
+  const who = await api('/api/voice/caller?phone=%2B998701000007', { token: key });
+  const me = who.json.patients?.[0];
+  ok("telefon: qo'ng'iroq qiluvchi taniladi — ismi va yaqin qabuli (faqat o'ziniki)", me?.name === 'Bemor7 Test7' && me.visits?.[0]?.id === 'tv1' && me.visits[0].time === '10:00' && me.visits[0].confirmed === true
+    && !JSON.stringify(who.json).includes('tv2'), JSON.stringify(who.json));
+  ok("telefon: bazada yo'q raqam — bo'sh ro'yxat", ((await api('/api/voice/caller?phone=998935550099', { token: key })).json.patients ?? ['x']).length === 0);
+  ok('telefon: kalitsiz — 401', (await api('/api/voice/caller?phone=998701000007')).status === 401);
+  const foreign = await api('/api/voice/visit', { token: key, body: { phone: '+998701000007', appointmentId: 'tv2', kind: 'cancel' } });
+  ok("telefon: boshqa bemorning qabuliga tegib bo'lmaydi — administratorga", foreign.status === 409 && foreign.json.code === 'handoff' && crm.appointments.find(a => a.id === 'tv2')?.status === 'Pending', JSON.stringify(foreign.json));
+  const taken = await api('/api/voice/visit', { token: key, body: { phone: '+998701000007', appointmentId: 'tv1', kind: 'move', date: in4, time: '11:00' } });
+  ok("telefon: band vaqtga ko'chirilmaydi, boshqa bemor ismi aytilmaydi", taken.status === 409 && taken.json.code === 'unavailable' && !JSON.stringify(taken.json).includes('Bemor8'), JSON.stringify(taken.json));
+  const moved = await api('/api/voice/visit', { token: key, body: { phone: '998701000007', appointmentId: 'tv1', kind: 'move', date: in5, time: '14:00' } });
+  const tv1 = crm.appointments.find(a => a.id === 'tv1');
+  ok("telefon: bemor o'z qabulini ko'chirdi — DentaCRM'da yangi kun va vaqt", moved.status === 200 && tv1?.date === in5 && tv1.time === '14:00' && String(moved.json.changed).includes('14:00'), JSON.stringify(moved.json));
+  const cancelled = await api('/api/voice/visit', { token: key, body: { phone: '+998701000007', appointmentId: 'tv1', kind: 'cancel' } });
+  ok("telefon: bekor qildi — DentaCRM'da «Cancelled»", cancelled.status === 200 && crm.appointments.find(a => a.id === 'tv1')?.status === 'Cancelled', JSON.stringify(cancelled.json));
+  const third = await api('/api/voice/visit', { token: key, body: { phone: '+998701000007', appointmentId: 'tv1', kind: 'cancel' } });
+  ok("telefon: bir raqam kuniga 2 martadan ko'p o'zgartira olmaydi", third.status === 429, String(third.status));
   const call = await api('/api/voice/calls', { token: key, body: { phone: '+998901234567', name: 'Bobur Karimov', startedAt: '2020-01-01T10:00:00+05:00', durationSec: 24, outcome: "Narx so'radi", transcript: [{ who: 'ai', text: 'Assalomu alaykum' }, { who: 'caller', text: 'Implant qancha?' }] } });
   ok("ovoz: tugagan qo'ng'iroq saqlanadi", call.status === 200 && !!call.json.call?.id, JSON.stringify(call.json));
   ok("ovoz: buzuq qo'ng'iroq — 400", (await api('/api/voice/calls', { token: key, body: { phone: '', durationSec: -1, outcome: '', transcript: 'x' } })).status === 400);

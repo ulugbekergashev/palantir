@@ -218,6 +218,21 @@ export const changeVisit = (biz: BusinessRow, patientId: string, c: VisitChange)
   schedules.delete(biz.id);
 });
 
+/** Bir telefonda oila a'zolari ham bo'ladi — shundan ko'pi olinmaydi */
+const MAX_PHONE_PATIENTS = 4;
+const tailOf = (raw: string | null) => (raw ?? '').replace(/\D/g, '').slice(-9);
+
+/**
+ * Shu telefon (asosiy yoki qo'shimcha raqami) yozilgan bemorlar — telefon AI qo'ng'iroq qiluvchini tanishi uchun.
+ * CRM javob bermasa — CrmError
+ */
+export async function patientsByPhone(bizId: string, phone: string): Promise<Patient[]> {
+  const tail = tailOf(normPhone(phone));
+  if (tail.length < 9) return [];
+  const all = await withCrm(bizId, crm => crm.patients());
+  return all.filter(p => tailOf(p.phone) === tail || tailOf(p.secondaryPhone) === tail).slice(0, MAX_PHONE_PATIENTS);
+}
+
 /** Egasiga qator: «Rustam Rustamov: 2026-10-20 15:00 → 2026-10-22 11:00» yoki «… — bekor qilinadi» */
 export const changeLine = (c: VisitChange): string => (c.kind === 'move' ? `${c.doctorName}: ${c.from} → ${c.date} ${c.time}` : `${c.doctorName}, ${c.from} — bekor qilinadi`);
 

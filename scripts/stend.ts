@@ -594,7 +594,12 @@ async function main(): Promise<void> {
       VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', GEMINI_API_KEY: 'stend', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, GROQ_API_KEY: '', GROQ_STT_URL: `http://127.0.0.1:${sttPort}/groq`, CRM_ALLOW_PRIVATE: '1',
       // Ertalabki xulosa odatda 08:00 da keladi — stendda ishga tushgan soatda bir marta keladi
       MORNING_HOUR: String(now.getHours()),
-      ...(realModel ? {} : { ANTHROPIC_API_KEY: 'stend-kalit', ANTHROPIC_AUTH_TOKEN: '', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, WEB_SEARCH: '0' }),
+      // Sinov serveri: .env o'qilmaydi va litsenziya kalitsiz ishlaydi (yangi o'rnatish kalitsiz yopiq — stend yonmay qolardi).
+      // Haqiqiy model tanlangan bo'lsa kaliti shu yerdan beriladi
+      DOTENV: '0',
+      ...(realModel
+        ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || fileEnv.ANTHROPIC_API_KEY || '' }
+        : { ANTHROPIC_API_KEY: 'stend-kalit', ANTHROPIC_AUTH_TOKEN: '', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, WEB_SEARCH: '0' }),
     },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
