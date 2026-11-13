@@ -54,7 +54,8 @@ export function stepState(key: StepKey, f: WizardFacts): StepState {
     case 'keys': {
       if (!f.keys) return '';
       const required = f.keys.filter(k => k.required);
-      if (required.every(k => k.source)) return 'ok';
+      // Claude kaliti obuna yo'li bor joyda majburiy emas — AI'ning o'zi ishlashi kerak (obunaga kirilgan yoki kalit berilgan)
+      if (required.every(k => k.source) && s?.ai !== false) return 'ok';
       return f.keys.some(k => k.source) ? 'warn' : '';
     }
     case 'owner': return s?.ownerLinked ? 'ok' : '';

@@ -9,6 +9,7 @@ import type { KeyCheck, KeyView } from '../src/types';
 import { settings } from './serviceStore';
 import { env } from './env';
 import { open, seal } from './secret';
+import { claudeCommand } from './subscription/cli';
 import { parseHubCode } from '../src/lib/hubCode';
 
 
@@ -57,8 +58,11 @@ async function changed(name: KeyName): Promise<void> {
   }
 }
 
-/** AI obuna orqali ishlasa (subscription/login.ts) Claude kaliti majburiy emas */
-const requiredNow = (k: (typeof KEYS)[number]): boolean => !!k.required && !(k.name === 'ANTHROPIC_API_KEY' && env.aiEngine === 'subscription');
+/**
+ * Claude kaliti majburiy emas: AI obuna orqali ishlayapti (subscription/login.ts) yoki bu kompyuterda obuna yo'li bor (Claude Code
+ * Palantir bilan keladi) — klinika avval o'z obunasiga kiradi, pullik kalit — ikkinchi yo'l
+ */
+const requiredNow = (k: (typeof KEYS)[number]): boolean => !!k.required && !(k.name === 'ANTHROPIC_API_KEY' && (env.aiEngine === 'subscription' || !!claudeCommand()));
 
 export function keyList(): KeyView[] {
   return KEYS.map(k => {

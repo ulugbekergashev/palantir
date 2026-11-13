@@ -7,13 +7,13 @@
  * Kirilgach AI o'zi obunaga o'tadi. Tanlov bazada saqlanadi va .env dagi AI_ENGINE dan ustun (kalitlar kabi: keys.ts).
  */
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
 import type { AiEngine, ObunaLogin, ObunaStatus } from '../../src/types';
 import { env } from '../env';
 import { settings } from '../serviceStore';
 import { apiKeyPresent, childEnv } from './engine';
+import { claudeCommand } from './cli';
+
+export { claudeCommand };
 
 const ENGINE_SETTING = 'ai_engine';
 /** Kirish oynasi shuncha kutadi (egasi parolini eslab, telefoniga kelgan kodni kiritguncha) */
@@ -22,18 +22,6 @@ const STATUS_TIMEOUT_MS = 20_000;
 /** Holat qisqa vaqt eslab qolinadi: sahifa har ochilganda dastur qayta ishga tushmasin */
 const STATUS_CACHE_MS = 10_000;
 
-/** Claude Code dasturi: CLAUDE_BIN (sinovda — soxta .mjs) yoki Agent SDK bilan kelgan claude.exe. Topilmasa — null */
-export function claudeCommand(): { cmd: string; args: string[] } | null {
-  const custom = process.env.CLAUDE_BIN?.trim();
-  if (custom) return /\.m?js$/i.test(custom) ? { cmd: process.execPath, args: [custom] } : { cmd: custom, args: [] };
-  try {
-    const pkg = createRequire(import.meta.url).resolve(`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/package.json`);
-    const bin = join(dirname(pkg), process.platform === 'win32' ? 'claude.exe' : 'claude');
-    return existsSync(bin) ? { cmd: bin, args: [] } : null;
-  } catch {
-    return null;
-  }
-}
 
 const aiEnabledNow = (): boolean =>
   !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || env.aiEngine === 'subscription') && process.env.AI_DISABLED !== '1';

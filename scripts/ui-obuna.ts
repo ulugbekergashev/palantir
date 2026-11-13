@@ -67,7 +67,8 @@ try {
   console.log('\n# Holat: kalit ham, obuna ham yo\'q');
   const s0 = await status();
   ok("Claude dasturi topildi, kirilmagan, AI API yo'lida", s0.available && !s0.loggedIn && s0.engine === 'api' && !s0.apiKey, JSON.stringify(s0));
-  ok('Claude kaliti hozircha majburiy, AI o\'chiq', await claudeKeyRequired() === true && await aiOn() === false);
+  // Obuna yo'li bor (Claude Code Palantir bilan keladi): pullik kalit majburiy deb ko'rsatilmaydi — avval obunaga kiriladi (C4)
+  ok("Claude kaliti majburiy emas (obuna yo'li bor), AI hali o'chiq", await claudeKeyRequired() === false && await aiOn() === false);
   const early = await call<{ error: string }>('/keys/obuna/engine', { engine: 'subscription' });
   ok("kirmasdan obunaga o'tib bo'lmaydi", early.status === 400 && /kiring/.test(early.json.error), JSON.stringify(early));
   const noLogin = await call<{ error: string }>('/keys/obuna/kod', { code: 'goodcode#state1' });

@@ -98,6 +98,9 @@ export function StepKeys({ keys, onKeys, onRouted, profile }: {
   const rows = profile ? KEYS.filter(k => k.name !== 'PALANTIR_HUB') : KEYS;
   return (
     <div className="space-y-4">
+      {/* Klinika avval o'z Claude obunasiga kiradi; pullik kalit — ikkinchi yo'l (pastdagi maydonga) */}
+      {profile && <ClaudeObuna onChange={refreshKeys} />}
+
       <Card>
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold text-slate-600">Nimani topgan bo'lsangiz, shu yerga qo'ying — har biri yangi qatorda</span>
@@ -116,8 +119,6 @@ export function StepKeys({ keys, onKeys, onRouted, profile }: {
           <p className="flex items-center gap-1.5 text-xs text-slate-500"><Lock className="h-3.5 w-3.5" aria-hidden="true" /> Turi qolip bo'yicha aniqlanadi — kalit AI'ga yuborilmaydi. Saqlanganlari shifrlanib faqat klinika kompyuterida turadi.</p>
         </div>
       </Card>
-
-      {profile && <ClaudeObuna onChange={refreshKeys} />}
 
       {lines.length > 0 && (
         <ul className="space-y-2" aria-live="polite">
