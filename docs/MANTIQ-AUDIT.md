@@ -99,3 +99,100 @@ Hamma band kod bilan qayta solishtirildi (uch o'quvchi + qo'lda: A1, A7, telefon
   liniya shakli faqat login/parol + UDP, keepalive va NAT sozlamalarisiz (`server/voice/line.ts`); Uztelecom shakli ustada yo'q.
 
 Ish tartibi — `docs/ISH-REJASI.md`.
+
+## Chuqur audit — 2026-11-13 (ikkinchi to'lqin)
+
+Olti yo'nalish: bemor suhbati (matn), DentaCRM va telefon, holatlar va raqamlar, sotuvchi ishi (Hub, litsenziya, yangilanish, zaxira),
+yangi klinika kabi jonli ishga tushirish (headless, soxta xizmatlar, 139 surat — `D:\palantir-sinov-tmp\audit-ui\shots`), birinchi auditni
+inkor qilishga urinish. ✔ — qo'lda kodda qayta tekshirilgan. Yuqoridagi bandlar takrorlanmagan.
+
+**Birinchi auditga tuzatishlar (inkor qiluvchi tekshiruv):**
+- D4 — **noto'g'ri:** eski manzillar ishlaydi, «Xodim qo'shish» to'g'ri joyga olib boradi. Olib tashlansin.
+- A1 — bemor «ertasi» emas, odatda **ikkinchi tongda** «unutilgan»ga tushadi (`idleDays` to'liq 24 soat, reja 08:00 da).
+- B1 — Qabulxona jamoada ko'rinmasa ham fonda **ishlaydi** (`works()` = «egasi olib tashlamagan»); muammo — ko'rinish va egalik, javob emas.
+- A7 — xodim tokeni bilan egasining vazifalarini **o'zgartira ham oladi** (POST/PATCH `/api/tasks`), faqat o'qish emas.
+- A8 — limit tugasa egasi har bemor kartasida sababini oladi; yo'q narsa — oldindan ogohlantirish, Hub, panel. «O'zi javob bersin»da bemor tunda hech narsa olmaydi (E1) — shuning uchun KATTA.
+
+### E. Bemor suhbati (matn kanallari)
+
+| # | muammo | dalil | jiddiylik |
+| --- | --- | --- | --- |
+| E1 | «O'zi javob bersin» rejimida AI javob bermasa (bilmaydi, shikoyat, shoshilinch og'riq/qon, limit, xodim yaqinda yozgan) — bemor **hech narsa olmaydi**, «yetkazildi» ham. Instagram va Telegram Business'da «yetkazildi» umuman yo'q | `server/bot.ts:266` ✔; `server/inbox/core.ts:292,300,232-235,252-255` | KATTA |
+| E2 ✔ | Botni havolasiz topib Start bosgan bemorga «Bu Palantir — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz…» — klinika bu odamni ko'rmaydi | `server/bot.ts:295-298`, `:522-524` | KATTA |
+| E3 ✔ | Botda matndan keyin rasm kelsa tayyor javob tashlanadi, karta chiqmaydi; video, dumaloq video, stiker, lokatsiya — ishlovchi yo'q, jim tashlanadi; bemor ovozi o'qilmaydi | `server/bot.ts:259-261,431-611`; `server/inbox/core.ts:258` | KATTA |
+| E4 | Kompyuter o'chiq paytda kelgan xabar ertalab «hozir» deb javoblanadi (23:50 «bugun bormi?» → ertangi kun); rejalashtirilgan va 2 kunlik kartadagi javob ham yoshi tekshirilmay ketadi | `server/bot.ts:254-258`; `inbox/telegramBusiness.ts:79`; `inbox/instagramApi.ts:136`; `core.ts:574-598` | O'RTA |
+| E5 | Kechikkan avto-javob yangi savolni «javob berilgan» qilib yutadi (2 daqiqa kechikish ichida bemor yana yozsa) | `core.ts:183-193,209-212,227-228`; `env.ts:225` | O'RTA |
+| E6 | Yozishmada aytilgan, tasdiqlanmagan raqam ikki odamni bitta kartaga qaytarib bo'lmaydigan qilib qo'shadi; bir so'zli ism doim «mos»; javob oxirgi kanalga ketadi (boshqa odamga) | `core.ts:102,319,324,566`; `server/people.ts:37-58`; `server/personRules.ts:16` | O'RTA |
+| E7 | Narx himoyasi: bemor aytgan raqam «ma'lum» hisoblanadi («50% chegirma qilasizmi?» → o'tadi); «2 mln» da faqat «2» qidiriladi; «3,5 mln» va klinika raqami boshqa yozilsa — yolg'on ushlanadi | `inbox/replier.ts:196`; `inbox/offerGuard.ts:9,79`; `src/lib/compliance.ts:28,39` | O'RTA |
+| E8 | Kod darajasida faqat narx/chegirma/raqam ushlanadi — ish vaqti, manzil, shifokor kabi faktlar tekshirilmaydi (jonli sinovda soxta model bo'sh ish vaqtini o'zi yubordi; haqiqiy Claude'da sinalmagan) | jonli: `audit-ui/texts-s5b.txt:153`, surat `55-qabulxona-ikkinchi-bemor.png` | O'RTA |
+| E9 | Narx yangilansa eski «eslab qolingan» narx bilimda qoladi; «Eslab qolaymi?» 24 soat ichidagi istalgan javobni eski savolga juftlaydi | `server/brain/index.ts:43-52`; `brain/logic.ts:72`; `db.ts:581-586`; `brain/learn.ts:36-41` | O'RTA |
+| E10 | «Yozmang» degan bemorga ham qayta yozish tayyorlanadi (rad etish belgisi yo'q) | `core.ts:321`; `plan.ts:103` | KICHIK |
+| E11 | Tahrirlangan xabar o'qilmaydi; betaraf javob faqat o'zbekcha; «yetkazildi» xaritasi qayta yoqilganda takrorlanadi; rasmiy Instagram'da uzun javob bo'laklari «egasi yozdi» deb olinib AI 2 soat qoralamaga o'tadi | `bot.ts:221,770`; `core.ts:337`; `instagramApi.ts:65-69,129` | KICHIK |
+| E12 ✔ | Javob rejimi «o'chiq» bo'lsa Telegram Business xabari **umuman saqlanmaydi** (izoh «xabarlar saqlanaveradi» deydi) | `inbox/telegramBusiness.ts:70`; `core.ts:68` | O'RTA |
+| E13 | Egasining shaxsiy Telegram'iga (Business) yozgan har kim «bemor» bo'ladi; egasi yoki xodim bemor havolasini bossa ham karta ochiladi | `telegramBusiness.ts:79`; `bot.ts:230` | O'RTA |
+
+### F. DentaCRM va telefon
+
+| # | muammo | dalil | jiddiylik |
+| --- | --- | --- | --- |
+| F1 ✔ | **Ta'tildagi shifokorga yozadi:** DentaCRM holati `'On Leave'`, Palantir mavjud bo'lmagan `'Inactive'` ni tekshiradi | `server/crm/reception.ts:35`; `dentalocal/types.ts:37` | KATTA |
+| F2 ✔ | **DentaCRM oynasi yopilsa uning serveri ham o'chadi** → kechasi qabulga yozish to'xtaydi, har kech «⚠️ DentaCRM» | `dentalocal/electron/main.ts:692-695`; `server/crm/reception.ts:66-69` | KATTA |
+| F3 ✔ | Bekor qilingan kunga qayta yozilsa: DentaCRM eski qatorni tiriltirib yozadi, Palantir «Yozilmadi» deydi — CRM'da qabul bor, bemor bilmaydi | `dentalocal/backend/server.ts:1331-1346`; `server/crm/dentacrm.ts:373-376` | KATTA |
+| F4 | Gemini ishlamasa (kvota, kalit) qo'ng'iroq ko'tarilib jim uziladi — so'rov yo'q, hech kim bilmaydi; nazorat faqat port ochiqligini ko'radi | `tgvoice/sip_live.py:375-376`; `call_live.py:533-542`; `server/voice/line.ts:98-102` | KATTA |
+| F5 ✔ | Shifokor tushlik vaqti o'qilmaydi — bo'sh deb taklif qilinadi, DentaCRM 409 qaytaradi | `server/crm/logic.ts:158-181`; `dentalocal/backend/doctorSchedule.ts:37` | O'RTA |
+| F6 | Telefonda CRM javobi noma'lum bo'lsa AI boshqa vaqtga yana yozadi (ikki qabul); chatda to'g'ri | `server/voice/routes.ts:32,186-188`; chat — `core.ts:407-408` | O'RTA |
+| F7 | Telefon AI chat qoidalariga bo'ysunmaydi: javob rejimi, kod darajasidagi filtrlar, umumiy chegaralar, bilim (narxsiz xizmatlar, tuzatishlar), ko'chirish/bekor qilish — hammasi farq qiladi | `routes.ts:167-185`; `replier.ts:252-267`; `core.ts:345-348`; `brain/index.ts:239-262` | O'RTA |
+| F8 | Telefondagi qabul va suhbat bemor kartasiga bog'lanmaydi (`lead_id` siz) | `voice/routes.ts:183,215`; `db.ts:767-771` | O'RTA |
+| F9 | Qaytgan bemor ism yozilishi sababli topilmaydi (Valiyev/Valiev/Валиев) → dublikat bemor | `server/crm/logic.ts:250-256` | O'RTA |
+| F10 | 4 daqiqada qo'ng'iroq ogohlantirishsiz uziladi, so'rov ochilmaydi | `sip_live.py:51`; `call_live.py:550-552` | O'RTA |
+| F11 | DentaCRM logini roli tekshirilmaydi (shifokor logini → faqat o'z bemorlari → dublikatlar); 403 «parol o'zgargan» deb ko'rsatiladi | `server/crm/index.ts:42-44`; `dentacrm.ts:245-250` | O'RTA |
+| F12 | Yashirin raqamdan so'rov «So'rovlar»ga tushmaydi; administrator o'zi ko'targan qo'ng'iroq iz qoldirmaydi; MicroSIP bahosi xodimga bog'lanmaydi; umumiy telefon eng eski kartaga yoziladi; odam suhbatlari ogohlantirishsiz yoziladi | `reception.py:248`; `extensions.conf:81-85`; `phone/index.ts:301,315`; `people.ts:113-114` | KICHIK |
+
+### G. Holatlar va raqamlar
+
+| # | muammo | dalil | jiddiylik |
+| --- | --- | --- | --- |
+| G1 ✔ | **So'rovlar o'zi hech qachon yopilmaydi:** AI qabulga yozsa ham, xodim qo'ng'iroq qilsa ham — faqat tugma bilan. 3 eslatmadan keyin jim, abadiy «ochiq»; «Sizni kutyapti» eng **eski** 30 tasini oladi — yangisi ko'rinmay qoladi | `closeRequest` faqat tugmalardan; `phone/index.ts:218`; `requests/timing.ts:11`; `requests/store.ts:59-62`; `attention.ts:46` | KATTA |
+| G2 | **Direktor har kuni «kelganlar va tushum kamaydi» deydi:** oxirgi 7 kun bemorlari hali kelib ulgurmagan, oldingi 7 kunnikiga qo'shimcha 7 kun berilgan | `server/funnel.ts:93,98`; `director/index.ts:56` | KATTA |
+| G3 | Bosqichdan avtomatik chiqish yo'q: kelgan/to'lagan bemor «unutilgan»; `lost` bemor yana yozsa qaytmaydi; follow-up soni chegarasiz (A1 ning umumiy holi) | `core.ts:109`; `phone/index.ts:302`; `db.ts:405-409` | KATTA |
+| G4 ✔ | Doimiy ko'rsatmalar jami 3000 belgidan oshsa **yangilari jim tashlanadi** (eskisi birinchi); Direktorning har tasdiqlangan taklifi ko'rsatma qo'shadi va o'chmaydi | `server/orders/store.ts:70-72` | O'RTA |
+| G5 | Direktor qarori CRM uzilsa abadiy «topshirildi»; eski takliflar faqat yangi tahlilda yopiladi | `director/index.ts:152,182` | O'RTA |
+| G6 | «Javobsiz» soni faqat kunning birinchi xabariga qaraydi; «Qabulga yozildi» KPI va voronkada ikki xil son; xodim panelda yopgan so'rov egasiga yoziladi | `analytics.ts:97,102,117,120,142`; `funnel.ts:45,92`; `requests/routes.ts:33` | O'RTA |
+| G7 | «Bugun N qo'ng'iroq» UTC bo'yicha — 00:00–05:00 dagi tungi qo'ng'iroqlar sanalmaydi | `src/components/team.tsx:138`; `TeamPages.tsx:56` | O'RTA |
+| G8 | «Sizni kutyapti» to'liq emas: mijozga xabar qoralamalari, kontent, reklama rejalari yo'q; chiqarilgan xodimning «Bajarilmadi» topshirig'i abadiy turadi | `attention.ts:60`; `plan.ts:79`; `db.ts:636` | O'RTA |
+| G9 | Jonli sinov: Qabulxona «2 javob berildi», Tahlilchi o'sha payt «Murojaat 0» (7 kun). Sababi aniqlanmagan — ehtimol «7 kun» bugunni kiritmaydi; tuzatishdan oldin aniqlash kerak | surat `56-tahlilchi.png`, `55-qabulxona-ikkinchi-bemor.png` | O'RTA |
+| G10 | Vaqt: reklama ogohlantirishi 05:00 da takrorlanadi (UTC kun); haftalik yakun faqat dushanba 08–12 (kompyuter o'chiq bo'lsa yo'qoladi); 09:00 topshirig'i 09:31 da yoqilsa o'tkaziladi; «7 kun» ikki xil | `ads/campaigns.ts:349`; `scheduler.ts:107`; `orders/logic.ts`; `lib/dashboard.ts:26` / `crm/report.ts:28` | KICHIK |
+
+### H. Sotuvchi ishi (Hub, litsenziya, yangilanish, zaxira)
+
+| # | muammo | dalil | jiddiylik |
+| --- | --- | --- | --- |
+| H1 ✔ | **Yomon reliz bir kechada hamma klinikaga boradi;** orqaga qaytish faqat «server yonmadi»ni ushlaydi — `/api/health` doim `ok: true`, bot/AI/telefon tekshirilmaydi. Python, `runtime\`, WSL/Asterisk yangilanmaydi | `scripts/update.mjs:39,121`; `server/http.ts:268` | KATTA |
+| H2 ✔ | **Kechasi o'chiriladigan kompyuter hech qachon yangilanmaydi** — faqat soat 03:00 da tekshiradi, o'tkazilgan kun qayta urinilmaydi | `scripts/supervise.mjs:169` | KATTA |
+| H3 | Hub — bitta bepul server, manzil IP ichida (`92-5-56-138.sslip.io`), har klinikaga yozilgan va masofadan almashtirib bo'lmaydi; IP o'zgarsa hamma klinikada Instagram, masofa, yordam, tashqi zaxira to'xtaydi; Hub o'chsa sizga xabar kelmaydi; `hub.db` nusxasi o'sha diskda | `server/env.ts:45`; `hub/server.ts:163`; `server/keys.ts:172-178`; `scripts/hub-watchdog.ts:8` | KATTA |
+| H4 | Hub muammolarni yig'adi (zaxira rad etildi, disk, eski nashr), lekin ko'rsatmaydi; «aloqa yo'q» xabari kechqurun o'chiriladigan har klinikadan kuniga 2 ta — shovqin | `hub/server.ts:406,687,693`; `hub/admin.ts:211` | O'RTA |
+| H5 | Ma'lumotni tiklash sizning kompyuteringizdagi bitta kalit faylga bog'liq (`~/.palantir/zaxira-kaliti.pem`); zaxirada Claude kirishi, `.env`, SIP yo'q | `server/offsiteCrypto.ts:2-3`; `scripts/restore-backup.ts:19`; `server/backup.ts:28-32` | O'RTA |
+| H6 | Litsenziya muddatsiz — «oylik qo'llab-quvvatlash» kodda yo'q: to'lamagan klinikada yangilanish, Hub, yordam ishlayveradi; tasdiqlangan klinikani Hub'da to'xtatib bo'lmaydi (**egasi qarori**) | `hub/licenseKey.ts:4`; `server/license.ts:174`; `hub/server.ts:657` | O'RTA |
+| H7 | Windows qayta o'rnatilsa yoki kompyuter almashsa — Hub'da «Aktivlashtirish» abadiy 409; yozuvni o'chirib/tuzatib bo'lmaydi | `hub/server.ts:619,643-644,657` | O'RTA |
+| H8 | Har o'rnatish asoschini real vaqtda kutadi (tasdiq faqat asoschida, kalitsiz 0 kun); o'rnatuvchi o'zi ulangan klinikani ko'rmaydi; `ORNATISH.md` o'ziga zid | `hub/server.ts:516,605,634,673`; `docs/ORNATISH.md:9,109` | O'RTA |
+| H9 | Egasi telefonini (Telegram) va parolini yo'qotsa yoki klinika sotilsa — chiqish yo'li yo'q | `server/passwordReset.ts:26-31`; `server/profile.ts:74` | O'RTA |
+| H10 | Qo'lda yoqilgan Palantir Windows'dan chiqilganda o'chadi (foydalanuvchi seansida); kirmasdan yonganda telefon va Claude kirishi ishlashi sinalmagan | `install/palantir-fon.vbs:11`; `install/ornatish.ps1:44` | O'RTA |
+
+### I. Jonli ishga tushirib ko'rilgan (yangi klinika ko'zi bilan)
+
+| # | muammo | surat (`D:\palantir-sinov-tmp\audit-ui\shots\`) | jiddiylik |
+| --- | --- | --- | --- |
+| I1 | Bilimsiz holda ham «Egasiga topshirish» va «o'zi javob bersin» ochiq (narx 0, savollar 0/13, manzil va ish vaqti bo'sh) — ogohlantirishsiz | `19-tayyor.png`, `52-javob-rejimi-ozgartirish.png` | O'RTA |
+| I2 | Tayyorlikning to'rt xil hisobi bir vaqtda: usta 4/8 (yonida 9 qadam), Sozlamalar 2/4, Miya 0/13, «4 bo'shliq, 13 javobsiz» | `19-tayyor.png` | O'RTA |
+| I3 | Qabulxona xodimi boshqa xodimlarning Telegram ulash havolalarini ko'radi (`/api/staff` → `link`) — havolani ochgan odam bemor kartalarini olishi mumkin | `73-xodim-komp-qabulxona-sorovlar.png` | O'RTA (xavfsizlik) |
+| I4 | Javob rejimini «o'zgartirish» havolasi Telegram sozlamalariga olib boradi; rejim ikki joyda, ikki xil ko'rinishda | `52-javob-rejimi-ozgartirish.png` | O'RTA |
+| I5 | Xodimga egasining tugmalari ko'rinadi va jim ishlamaydi (javob rejimi — 403, Instagram ulash, ovoz kaliti, Nazorat bloki, «siz tasdiqlab yuborasiz»); «AI bilmagan savollar» bo'sh (403) | `80-xodim-javob-rejimini-bosdi.png` | O'RTA |
+| I6 | Bosh ekran tasdiq kutayotgan javobni «hali javobsiz» deydi | `41-bosh-ekran-bemor-yozdi.png` | KICHIK |
+| I7 | Usta: «!» birinchi soniyadan; saqlamasdan «Davom etish» jim o'tadi; «Yangi biznes», «o'quv markaz, IT, do'kon» — klinikaga begona | `05-usta-birinchi-qadam.png`, `10-klinika-saqlamasdan-davom.png` | KICHIK |
+| I8 | Telefonda: varaqlar kesiladi (surish bildirilmaydi), Sozlamalar va Miya «Ko'proq» ichida; butun sahifa yonga surilmaydi ✅ | `60-tel-qabulxona-oyna.png`, `87-tel-koproq-oyna.png` | KICHIK |
+| I9 | Xodim logini brauzerning `prompt()` oynasida; xodim `#/admin` ochsa «Admin paroli» shakli; telefon ulanmagan bo'lsa ham «Bugun 0 qo'ng'iroq» | `71-xodim-login-berildi.png` | KICHIK |
+
+Jonli sinovda to'g'ri ishlagani: belgi va hisoblagichlar mos (bosh ekran, menyu, «Sizni kutyapti»); kutilmagan sahifa xatosi yo'q;
+telefonda 17 sahifaning birortasi yonga surilmaydi. Tekshirilib to'g'ri chiqqanlar: boshqa bemorning qabulini ko'chirib/bekor qilib
+bo'lmaydi; chat va telefon bir vaqtni ikki marta ololmaydi; CRM yozmaguncha «yozdik» ketmaydi; takror webhook ikki marta ishlanmaydi;
+litsenziya oflayn tekshiriladi; yangilovchi imzo, sha256 va baza nusxasini tekshiradi.

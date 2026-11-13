@@ -29,6 +29,28 @@ Maqsad: kelasi hafta o'rnatilgan klinika birinchi bemoriga to'g'ri javob bersin 
 | 13 | C4 | Ustada avval Claude obunasi, kalit — ikkinchi yo'l (kaliti bor eski o'rnatish o'zgarmaydi) | K–O' |
 | 14 | A5 | Qabulxona kartasi telefon liniyasini va javob rejimini ko'rsatadi | O' |
 
+### 1b. Chuqur auditdan qo'shilganlar (2026-11-13, `MANTIQ-AUDIT.md` E–I) — klinikaga borishdan oldin
+
+| tartib | band | nima qilinadi | hajm |
+| --- | --- | --- | --- |
+| 15 | F1 | Ta'tildagi shifokorga yozmaslik: `status === 'Active'` | K |
+| 16 | F3 | Bekor qilingan kunga qayta yozish: `existed` faqat bekor qilinmagan qatorlar bo'yicha | K |
+| 17 | F5 | Shifokor tushligi bo'sh vaqtdan chiqariladi | K |
+| 18 | G1 | So'rov qabul yozilganda / qo'ng'iroq ko'tarilganda o'zi yopiladi; «Sizni kutyapti»da yangisi birinchi | O' |
+| 19 | G3 | Bosqichlar: CRM'da kelgan → «mijoz bo'ldi»; yopilgan bemor yana yozsa → qaytadi (A1 bilan birga) | O' |
+| 20 | E1 | «O'zi javob bersin»da AI javob bermasa — bemorga bir marta «xodim javob beradi»; shoshilinch holatda 103 qatori | K–O' |
+| 21 | E2, E3 | Havolasiz kelgan bemor — shu klinika mijozi; rasm/video/stiker/lokatsiya/ovoz — jim tashlanmaydi | O' |
+| 22 | E12 | Rejim «o'chiq» bo'lsa ham Telegram Business xabari saqlanadi | K |
+| 23 | H2 | O'tkazib yuborilgan yangilanish — kompyuter yonganda | K |
+| 24 | H1 | `/api/health` bot va AI holatini ham bildiradi; yangilovchi shunga qaraydi | K–O' |
+| 25 | G2 | Direktor voronkasi: ikkala davrga bir xil «yetilish» muddati | K |
+| 26 | G4 | Doimiy ko'rsatmalar chegarasi: yangisi tashlanmaydi, tekshirilgan Direktor qarori o'chadi | K |
+| 27 | I3 | Xodimga boshqa xodimlarning Telegram havolalari berilmaydi | K |
+| 28 | F2 | **DentaCRM oynasi yopilsa server o'chadi** — dentalocal tomonida fon xizmati (alohida loyiha, egasi bilan) | O', dentalocal |
+
+Telefon bosqichiga qo'shiladi: F4 (Gemini ishlamasa — T1 bilan bir xil), F6–F8, F10. Egasi qarori kerak: H3 (o'z domeni), H6 (to'lanmagan
+qo'llab-quvvatlash nimani to'xtatadi), H1 (avval 2–3 pilot klinikaga reliz).
+
 ## 2-bosqich. Telefon (Uztelecom + Zadarma)
 
 Hozirgi holat (kodda tekshirilgan): exe telefon xizmatini (WSL + Asterisk) o'rnatmaydi — joyda `Telefon.cmd`, qayta yuklash, yana
