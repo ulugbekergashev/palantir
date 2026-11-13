@@ -15,7 +15,7 @@ import { askFrame, suggestZones } from './look';
 import { MIN_LOOK_EVERY, conditionHolds, countIn, inWindow } from './logic';
 import { parseOrder } from './parse';
 import { runLook, runScheduled } from './run';
-import { EVENTS_PAGE, MAX_ORDERS, events, orders } from './store';
+import { EVENTS_PAGE, MAX_ORDERS, STANDING_LIMIT, events, orders } from './store';
 import { forgetWatchCache, frameState } from './watch';
 
 type Handler = (req: Request, res: Response) => unknown;
@@ -70,6 +70,9 @@ export function mountOrders(app: Express, { asBiz, bad, fail, bot }: Deps): void
     if (!p.success) return bad(res, p.error);
     const { member, text, spec, summary } = p.data;
     if (orders.count(biz.id, member) >= MAX_ORDERS) return res.status(400).json({ error: `Bitta xodimga ${MAX_ORDERS} tadan ko'p topshiriq berilmaydi` });
+    if (spec.kind === 'standing' && !orders.standingFits(biz.id, member as OrderMember, text)) {
+      return res.status(400).json({ error: `Doimiy ko'rsatmalar to'ldi (jami ${STANDING_LIMIT} belgigacha) — keraksizini o'chiring yoki qisqartiring, aks holda eskisi e'tiborga olinmay qoladi` });
+    }
     const camOnly = spec.kind === 'watch' || spec.kind === 'look';
     if (camOnly && member !== 'kuzatuvchi') return res.status(400).json({ error: 'Kamera topshirig\'i faqat Kuzatuvchiga' });
     if (camOnly && spec.cameraId) {

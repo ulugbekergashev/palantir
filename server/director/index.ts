@@ -6,7 +6,7 @@
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import { addDays, iso } from '../../src/lib/week';
-import { periodDays, previousPeriod } from '../../src/lib/dashboard';
+import { daysIn, periodDays, previousPeriod } from '../../src/lib/dashboard';
 import type { OrderMember } from '../../src/types';
 import { resetConversation } from '../agent';
 import { dashboard } from '../analytics';
@@ -53,7 +53,9 @@ export async function readNumbers(biz: BusinessRow, now = new Date()): Promise<N
   };
   if (crmConnected(biz.id)) {
     try {
-      const [cur, prev] = await Promise.all([funnel(biz, period, now), funnel(biz, previousPeriod(period), now)]);
+      // Kelganlar va tushum murojaatdan keyin «yetiladi»: oldingi hafta bemorlariga bugungacha 7 kun ko'proq vaqt tekkan — har kuni
+      // «kamaydi» chiqardi (G2). Oldingi davr xuddi shuncha yetilgan holatda — bir davr oldingi «bugun» bilan — o'lchanadi
+      const [cur, prev] = await Promise.all([funnel(biz, period, now), funnel(biz, previousPeriod(period), addDays(now, -daysIn(period)))]);
       if (cur.came && prev.came) n.came = pair(cur.came.total, prev.came.total);
       if (cur.revenue && prev.revenue) n.revenue = pair(cur.revenue.total, prev.revenue.total);
     } catch (e) {
@@ -158,6 +160,11 @@ function checkDue(biz: BusinessRow, numbers: Numbers, day: string): CheckedMove[
     if (after === undefined) return [];
     const v = verdict(m.metric, m.baseline, after);
     if (!directorMoves.checked(biz.id, m.id, after, v.verdict)) return [];
+    // Natija bermagan topshiriq doimiy ko'rsatmalar orasida qolib ketmasin (har mijoz javobiga qo'shiladi, joyni egallaydi):
+    // yaxshilangan bo'lsa — ishlayveradi, aks holda o'chiriladi (egasi panelda qayta yoqishi mumkin)
+    if (m.orderId && v.verdict !== 'yaxshi' && orders.setActive(biz.id, m.orderId, false)) {
+      events.add(biz.id, { member: m.member as OrderMember, orderId: m.orderId, level: 'info', title: "Direktor topshirig'i to'xtatildi", body: `${m.task} — natija bermadi (${fmt(m.metric, m.baseline)} → ${fmt(m.metric, after)})`, cameraId: null });
+    }
     const note = m.memoryId ? notes.all(biz.id).find(n => n.id === m.memoryId) : undefined;
     if (note && m.memoryId) {
       const mark = v.verdict === 'yaxshi' ? 'yaxshilandi' : v.verdict === 'yomon' ? 'yomonlashdi' : "o'zgarmadi";
@@ -203,6 +210,7 @@ export function approveMove(biz: BusinessRow, id: string, now = new Date()): str
   if (!m) throw new DirectorError('Taklif topilmadi');
   if (m.status !== 'taklif') return m.status === 'rad' ? 'Bu taklif yopilgan (yangi tahlil almashtirgan yoki rad etilgan)' : 'Allaqachon topshirilgan';
   if (m.member !== 'egasi' && orders.count(biz.id, m.member as OrderMember) >= MAX_ORDERS) throw new DirectorError(`${MEMBER_NAME[m.member]}da topshiriqlar to'lgan (${MAX_ORDERS} ta) — keraksizini o'chiring`);
+  if (m.member !== 'egasi' && !orders.standingFits(biz.id, m.member as OrderMember, m.task)) throw new DirectorError(`${MEMBER_NAME[m.member]}ning doimiy ko'rsatmalari to'lgan — keraksizini o'chiring, keyin tasdiqlang`);
   const checkAt = iso(addDays(now, m.checkDays));
   if (!directorMoves.claim(biz.id, id, checkAt)) return 'Allaqachon topshirilgan';
   let orderId: string | null = null, taskId: string | null = null;

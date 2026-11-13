@@ -66,11 +66,28 @@ export const orders = {
   /** Kamera o'chirildi: unga bog'langan topshiriqlar o'chiriladi (jim ishlamay yotmasin) */
   dropCamera: (bizId: string, cameraId: string) =>
     sql.run("UPDATE agent_orders SET active = 0 WHERE business_id = ? AND json_extract(spec, '$.cameraId') = ?", bizId, cameraId),
-  /** Egasining doimiy ko'rsatmalari — shu xodimning ko'rsatmasiga qo'shiladi (har mijoz javobiga ham — jami MAX_STANDING_CHARS gacha) */
-  standing: (bizId: string, member: OrderMember): string[] =>
-    orders.list(bizId, member).filter(o => o.active && o.spec.kind === 'standing').map(o => o.text)
-      .filter((_, i, all) => all.slice(0, i + 1).join('').length <= MAX_STANDING_CHARS),
+  /**
+   * Egasining doimiy ko'rsatmalari — shu xodimning ko'rsatmasiga qo'shiladi (har mijoz javobiga ham — jami MAX_STANDING_CHARS gacha).
+   * Sig'masa — eng yangilari olinadi (keyingi gap avvalgisini aniqlashtiradi), tartibi — berilgan ketma-ketlikda
+   */
+  standing(bizId: string, member: OrderMember): string[] {
+    const all = orders.list(bizId, member).filter(o => o.active && o.spec.kind === 'standing').map(o => o.text);
+    const kept: string[] = [];
+    let used = 0;
+    for (const text of all.reverse()) {
+      if (used + text.length > MAX_STANDING_CHARS) continue;
+      kept.unshift(text);
+      used += text.length;
+    }
+    return kept;
+  },
+  /** Yangi doimiy ko'rsatma qolganlari bilan birga sig'adimi (sig'masa — eskilaridan biri jim tushib qolardi) */
+  standingFits(bizId: string, member: OrderMember, text: string): boolean {
+    const used = orders.list(bizId, member).filter(o => o.active && o.spec.kind === 'standing').reduce((n, o) => n + o.text.length, 0);
+    return used + text.length <= MAX_STANDING_CHARS;
+  },
 };
+export const STANDING_LIMIT = MAX_STANDING_CHARS;
 
 export const events = {
   add(bizId: string, e: Omit<AgentEvent, 'id' | 'at' | 'hasImage'>, image?: Buffer | null): AgentEvent {

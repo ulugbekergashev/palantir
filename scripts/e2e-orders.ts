@@ -65,6 +65,13 @@ export async function orderApiTests(h: Harness): Promise<void> {
   ok('topshiriq: kirishsiz — 401', (await api('/api/orders?member=yordamchi')).status === 401);
   const standing = await api('/api/orders', { token, body: { member: 'qabulxona', text: 'Chegirma va‘da qilma', spec: { kind: 'standing' }, summary: "Mijozga chegirma va'da qilmayman" } });
   ok("topshiriq: doimiy qoida saqlandi", standing.status === 200 && standing.json.order?.active === true, JSON.stringify(standing.json));
+  // G4: doimiy ko'rsatmalar jami 3000 belgidan oshsa — yangisi jim tashlanmaydi, egasiga aytiladi
+  const longRule = (n: number) => `${n}-qoida: ${'mijozga xushmuomala bo‘l, '.repeat(25)}`.slice(0, 590);
+  const made: { status: number; json: { order?: { id: string }; error?: string } }[] = [];
+  for (let i = 1; i <= 6; i++) made.push(await api('/api/orders', { token, body: { member: 'yordamchi', text: longRule(i), spec: { kind: 'standing' }, summary: `${i}-qoida` } }));
+  const over = made.find(r => r.status === 400);
+  ok("doimiy ko'rsatmalar to'lsa — 400, sababi aytiladi (yangisi jim tashlanmaydi) (G4)", made.slice(0, 5).every(r => r.status === 200) && !!over?.json.error?.includes("to'ldi"), over?.json.error ?? JSON.stringify(made.map(r => r.status)));
+  for (const r of made) if (r.json.order) await api(`/api/orders/${r.json.order.id}`, { method: 'DELETE', token });
   ok("topshiriq: kamera qoidasi boshqa xodimga — 400", (await api('/api/orders', { token, body: { member: 'yordamchi', text: 'x x x', spec: { kind: 'watch', cameraId: null, zoneId: null, condition: 'presence', people: 1, minutes: 0, from: null, to: null }, summary: 'x x x' } })).status === 400);
   ok("topshiriq: buzuq vaqt — 400", (await api('/api/orders', { token, body: { member: 'yordamchi', text: 'x x x', spec: { kind: 'schedule', at: '24:61', days: [] }, summary: 'x x x' } })).status === 400);
 
