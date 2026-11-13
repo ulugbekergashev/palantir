@@ -40,6 +40,7 @@ tgvoice/asterisk/pjsip_shahar.conf
 tgvoice/models/
 tgvoice/asterisk/pjsip_admin.conf
 tgvoice/asterisk/extensions_palantir.conf
+tgvoice/asterisk/.ornatilgan
 
 # Sinov natijalari (scripts/doc-bench.ts)
 /tmp/

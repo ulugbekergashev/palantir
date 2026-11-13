@@ -62,7 +62,7 @@ export function lineLogicTests(ok: Harness['ok']): void {
   console.log("\n# Telefon liniyasi: nazorat (egasiga xabar)");
   const st = (asterisk: boolean, trunk: 'none' | 'registered' | 'failed' | 'unknown', ai: boolean | null = true) => ({ asterisk, trunk, phones: [], ai, note: null });
   ok('nazorat: hammasi ulangan — muammo yo\'q', lineProblemOf(st(true, 'registered')) === null);
-  ok("nazorat: AI ovoz xizmati to'xtagan — «javob berilmaydi»", /javob berilmaydi/.test(lineProblemOf(st(true, 'registered', false)) ?? ''));
+  ok("nazorat: AI ovoz xizmati to'xtagan — «AI javob bermayapti, administratorga o'tyapti»", /AI javob bermayapti.*administrator/.test(lineProblemOf(st(true, 'registered', false)) ?? ''));
   ok("nazorat: Asterisk javob bermayapti — «qayta yoqing»", /qayta yoqing/.test(lineProblemOf(st(false, 'unknown')) ?? ''));
   ok("nazorat: raqam ulanmadi — «internetni tekshiring»", /internetni/.test(lineProblemOf(st(true, 'failed')) ?? ''));
   const now = Date.parse('2026-10-30T12:00:00Z');
@@ -106,6 +106,16 @@ export async function lineApiTests(h: Harness): Promise<void> {
   ok("liniya: o'tkazish so'rovi noto'g'ri kalit bilan — 401", (await handoff(`${key}x`)).status === 401);
   await api('/api/phone/line/routing', { method: 'PUT', token, body: { mode: 'ai', ring: 20, days: [1, 2, 3, 4, 5, 6], from: '09:00', to: '20:00' } });
   ok('liniya: «har doim AI» — Asterisk darhol AI ga ulaydi', (await route(key)).text === 'ai');
+
+  // AI ishlamay qoldi va administrator ham ko'tarmadi — Asterisk ([yordam]) «qayta qo'ng'iroq qiling» so'rovini ochadi
+  const missed = (query: string, k = key) => fetch(`${base}/api/voice/missed?${query}`, { method: 'POST', headers: { authorization: `Bearer ${k}` }, body: 'x=1' });
+  ok("liniya: javobsiz qo'ng'iroq — kalitsiz 401", (await missed('phone=998935550077', `${key}x`)).status === 401);
+  ok("liniya: javobsiz qo'ng'iroq — raqamsiz (yashirin raqam) 400", (await missed('phone=')).status === 400);
+  ok("liniya: javobsiz qo'ng'iroq — so'rov ochildi", (await missed('phone=998935550077')).status === 200);
+  const reqs = (await api('/api/requests', { token })).json.requests as { phone?: string; summary?: string; kind?: string; lead?: { phone?: string } }[];
+  const cb = reqs.find(r => /AI qo'ng'iroqqa javob bera olmadi/.test(r.summary ?? ''));
+  ok("liniya: qabulxonada «qayta qo'ng'iroq qiling» so'rovi, raqami bilan", cb?.kind === 'callback' && /935550077/.test(JSON.stringify(cb)), JSON.stringify(reqs).slice(0, 400));
+  ok("liniya: begona biznesda bu so'rov yo'q", !JSON.stringify((await api('/api/requests', { token: otherToken })).json).includes('935550077'));
 
   ok("liniya: server manzilida ; belgisi — 400 (Asterisk sozlamasi buzilmasin)", (await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: 'sip.uz;x', login: 'a', number: '1', password: 'p' } })).status === 400);
   ok("liniya: birinchi marta parolsiz — 400", (await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: 'sip.uztelecom.uz', login: '712000000', number: '712000000' } })).status === 400);

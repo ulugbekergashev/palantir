@@ -7,7 +7,7 @@
  * Parollar bazada shifrlangan (secret.ts); Asterisk'ning o'zi ochiq matn talab qiladi — fayllar faqat shu kompyuterda.
  */
 import { execFile } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { networkInterfaces } from 'node:os';
@@ -118,7 +118,7 @@ export async function lineStatus(): Promise<LineView['status']> {
 /** Liniya holatidan egasiga aytiladigan muammo (raqam kiritilgan bo'lsa); hammasi joyida — null */
 export function lineProblemOf(s: LineView['status']): string | null {
   if (!s.asterisk) return "telefon xizmati (Asterisk) javob bermayapti — mijozlar qo'ng'iroqlari qabul qilinmayapti. Kompyuterni qayta yoqing";
-  if (s.ai === false) return "AI ovoz xizmati ishlamayapti — qo'ng'iroqlarga javob berilmaydi. Kompyuterni qayta yoqing; davom etsa o'rnatuvchiga ayting";
+  if (s.ai === false) return "AI ovoz xizmati ishlamayapti — qo'ng'iroqlarga AI javob bermayapti, ular administrator telefoniga o'tyapti (ko'tarilmasa — «qayta qo'ng'iroq qiling» so'rovi). Kompyuterni qayta yoqing; davom etsa o'rnatuvchiga ayting";
   if (s.trunk === 'failed') return "raqam ulanmadi — internetni tekshiring; davom etsa Sozlamalar → Telefon liniyasi → Qayta ulash";
   if (s.trunk === 'none') return "raqam telefon xizmatiga o'rnatilmagan — Sozlamalar → Telefon liniyasi → Qayta ulash";
   return null;
@@ -134,8 +134,8 @@ const zadarmaSeen = new Map<string, { at: number; problem: string | null }>();
 export async function lineChecks(bizId: string, now = Date.now()): Promise<{ key: string; label: string; problem: string | null }[]> {
   const a = connections.get(bizId, KIND)?.account;
   if (!ENABLED || !a?.host) return [];
-  // Ovozli agent kaliti yangilangan (yoki o'rnatishda .env da yo'q edi) — Asterisk'ka yetkaziladi
-  if (writePalantirConf()) await applyLine().catch(e => console.error('[telefon] kalit Asterisk\'ka yozilmadi:', (e as Error).message));
+  // Ovozli agent kaliti yangilangan (yoki o'rnatishda .env da yo'q edi) yoki yangilanish yangi sozlama olib keldi — Asterisk'ka yetkaziladi
+  if (writePalantirConf() || shippedDue(now)) await applyLine().catch(e => console.error('[telefon] kalit Asterisk\'ka yozilmadi:', (e as Error).message));
   const out = [{ key: 'phone_line', label: 'Telefon liniyasi', problem: lineProblemOf(await lineStatus()) }];
   const keys = zadarmaKeysOf(bizId);
   if (a.provider === 'zadarma' && keys && a.number) {
@@ -229,11 +229,31 @@ function writePalantirConf(): boolean {
   return true;
 }
 
+/** Dastur bilan keladigan sozlamalar: yangilanishda o'zgarsa — Asterisk'ka qayta o'rnatiladi */
+const SHIPPED = ['extensions.conf', 'pjsip.conf', 'rtp.conf', 'modules.conf', 'install.sh', 'sounds/uzr.wav'];
+const APPLIED = join(DIR, '.ornatilgan');
+const shippedHash = () => createHash('sha256').update(SHIPPED.map(f => existsSync(join(DIR, f)) ? readFileSync(join(DIR, f)) : '').join('\0')).digest('hex');
+
+/**
+ * Yangilanish yangi qo'ng'iroq yo'llarini olib keldi (masalan, AI ishlamasa administratorga o'tkazish), lekin Asterisk'da hali
+ * eskisi — egasi panelda hech narsa bosmasa ham o'rnatilsin
+ */
+const shippedChanged = () => !existsSync(APPLIED) || readFileSync(APPLIED, 'utf8') !== shippedHash();
+/** O'rnatib bo'lmasa (WSL o'chiq, .env da parol yo'q) — har tekshiruvda emas, soatda bir urinadi */
+const SHIPPED_RETRY_MS = 3_600_000;
+let shippedTriedAt = 0;
+function shippedDue(now: number): boolean {
+  if (now - shippedTriedAt < SHIPPED_RETRY_MS || !shippedChanged()) return false;
+  shippedTriedAt = now;
+  return true;
+}
+
 /** Fayllar Asterisk'ka o'rnatiladi (qo'ng'iroqlarni uzmasdan qayta yuklanadi) */
 export async function applyLine(): Promise<void> {
   if (!ENABLED || !existsSync(join(DIR, 'install.sh'))) throw new Error("Telefon liniyasi faqat klinika kompyuterida (Windows + WSL) sozlanadi");
   writePalantirConf();
   await wsl(['bash', wslPath(join(DIR, 'install.sh')), 'reload']);
+  writeFileSync(APPLIED, shippedHash());
 }
 
 export function saveTrunk(biz: BusinessRow, t: LineTrunk, password: string | null): void {

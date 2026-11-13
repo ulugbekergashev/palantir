@@ -79,6 +79,8 @@ const CANT_CHANGE = "Bu o'zgarishni qilib bo'lmadi. Boshqa vaqt taklif qiling yo
 /** Agent soatiga shuncha so'rov ochadi (adashgan agent qabulxonani to'ldirmasin) */
 const REQUESTS_PER_HOUR = 30;
 const agentRequests = new Map<string, number[]>();
+const MISSED_AI = "AI qo'ng'iroqqa javob bera olmadi (xizmat ishlamadi yoki hamma liniya band), administrator ham ko'tarmadi. Qayta qo'ng'iroq qiling";
+const MissedSchema = z.object({ phone: z.string().trim().regex(/^\+?\d{7,15}$/, 'raqam: 7–15 ta raqam') });
 const esc = (s: string) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
 
 const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -247,16 +249,34 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
     }
   }));
 
+  /** Qabulxonaga so'rov (agent yoki Asterisk ochadi); soatlik chegaradan oshsa — null */
+  const agentRequest = async (biz: BusinessRow, r: z.infer<typeof RequestSchema>) => {
+    const recent = (agentRequests.get(biz.id) ?? []).filter(t => t > Date.now() - HOUR_MS);
+    if (recent.length >= REQUESTS_PER_HOUR) return null;
+    agentRequests.set(biz.id, [...recent, Date.now()]);
+    const phone = normPhone(r.phone) || r.phone;
+    const lead = leadForPhone(biz, phone, { name: r.name || null, source: "Qo'ng'iroq (ovozli agent)" });
+    const { request } = await openRequest(biz, lead.id, { kind: r.kind, phone, name: r.name || null, summary: r.summary, whenText: r.when || null, dueAt: r.dueAt || null, source: 'voice' });
+    return request;
+  };
+  const TOO_MANY = { error: "Juda ko'p so'rov — keyinroq", code: 'limit' };
+
   // Agent: qo'ng'iroq qiluvchi odam bilan gaplashishni so'radi (qayta qo'ng'iroq, surish, shikoyat) — qabulxonaga so'rov
   app.post('/api/voice/requests', asAgent(async (req, res, biz) => {
     const p = RequestSchema.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
-    const recent = (agentRequests.get(biz.id) ?? []).filter(t => t > Date.now() - HOUR_MS);
-    if (recent.length >= REQUESTS_PER_HOUR) return res.status(429).json({ error: "Juda ko'p so'rov — keyinroq", code: 'limit' });
-    agentRequests.set(biz.id, [...recent, Date.now()]);
-    const phone = normPhone(p.data.phone) || p.data.phone;
-    const lead = leadForPhone(biz, phone, { name: p.data.name || null, source: "Qo'ng'iroq (ovozli agent)" });
-    const { request } = await openRequest(biz, lead.id, { kind: p.data.kind, phone, name: p.data.name || null, summary: p.data.summary, whenText: p.data.when || null, dueAt: p.data.dueAt || null, source: 'voice' });
+    const request = await agentRequest(biz, p.data);
+    if (!request) return res.status(429).json(TOO_MANY);
+    res.json({ request: { id: request.id } });
+  }));
+
+  // Asterisk (extensions.conf, [yordam]): AI qo'ng'iroqni ko'tara olmadi (xizmat ishlamadi, liniyalar band) va administrator ham
+  // ko'tarmadi — «qayta qo'ng'iroq qiling» so'rovi. Asterisk JSON yubora olmaydi: raqam manzilda (?phone=…)
+  app.post('/api/voice/missed', asAgent(async (req, res, biz) => {
+    const p = MissedSchema.safeParse(req.query);
+    if (!p.success) return bad(res, p.error);
+    const request = await agentRequest(biz, { phone: p.data.phone, kind: 'callback', summary: MISSED_AI });
+    if (!request) return res.status(429).json(TOO_MANY);
     res.json({ request: { id: request.id } });
   }));
 

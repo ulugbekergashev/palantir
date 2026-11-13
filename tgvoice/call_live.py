@@ -38,6 +38,10 @@ LIVE_THINKING = int(env('LIVE_THINKING', '0'))          # o'ylash byudjeti: 0 �
 UPLINK_FRAMES = 4                                       # Live'ga 40 ms bo'laklarda
 PALANTIR = env('PALANTIR_URL', 'http://127.0.0.1:3200')
 CALL_LIMIT_S = 300
+# Vaqt tugashiga shuncha qolganda AI'ga aytiladi: gap o'rtasida jim uzilmasin — yakunlab, xayrlashib, end_call qilsin
+WRAP_UP_S = 60
+WRAP_UP = ("(Tizim: qo'ng'iroq vaqti bir daqiqadan keyin tugaydi. Suhbatni bir-ikki gapda yakunla: hal bo'lmagan narsa qolsa — "
+           "so'rov qoldir (bo'lsa leave_request) va «administrator qayta qo'ng'iroq qiladi» de. Keyin xayrlash va end_call qil.)")
 # Palantir yordamchisining javobi shuncha kutiladi (server/http.ts PHONE_WAIT_MS bilan bir xil): undan uzoq ish (hujjat, hisobot)
 # tugashi bilan Palantir o'zi egasining Telegram'iga yuboradi — telefonda jim kutib o'tirilmaydi
 PALANTIR_WAIT_S = 9
@@ -301,6 +305,8 @@ class Bridge:
         self.tts_busy = False
         self._pending = ''
         self.done = asyncio.Event()
+        # Suhbat buzildi (Gemini uzildi, xato, vaqt tugadi) — odam xayrlashmagan; telefon liniyasi qo'ng'iroqni administratorga buradi
+        self.failure = ''
         self.palantir = Palantir()
         self._heard: list[str] = []
         self._said: list[str] = []
@@ -493,6 +499,8 @@ class Bridge:
             self.log('—', "suhbatdosh go'shakni qo'ydi")
         except Exception as e:
             self.log('—', f"xato: {type(e).__name__}: {str(e)[:200]}")
+            if not self.done.is_set():   # qo'ng'iroq tugab bo'lgandan keyingi yopilish xatosi — buzilish emas
+                self.failure = self.failure or f'{type(e).__name__}: {str(e)[:120]}'
         finally:
             self.done.set()
 
@@ -547,9 +555,12 @@ class Bridge:
             parts = [self.uplink(s), self.player(), self.downlink(s)] + ([self.tts_worker()] if self.speaker else [])
             tasks = [asyncio.create_task(self.guard(c)) for c in parts]
             try:
-                await asyncio.wait_for(self.done.wait(), self.call_limit_s)
-            except asyncio.TimeoutError:
-                self.log('—', 'vaqt tugadi')
+                # Vaqt tugashidan oldin AI'ga aytiladi — suhbat gap o'rtasida uzilmaydi, AI yakunlab xayrlashadi
+                if not await self.wait_done(max(0, self.call_limit_s - WRAP_UP_S)):
+                    await self.wrap_up(s)
+                    if not await self.wait_done(min(WRAP_UP_S, self.call_limit_s)):
+                        self.log('—', 'vaqt tugadi')
+                        self.failure = self.failure or 'vaqt tugadi'
             finally:
                 self.done.set()
                 for t in tasks:
@@ -563,6 +574,21 @@ class Bridge:
                 await self.ended()
                 await self.archive()
                 await self.close()
+
+    async def wait_done(self, seconds: float) -> bool:
+        """Qo'ng'iroq shu vaqt ichida tugadimi"""
+        try:
+            await asyncio.wait_for(self.done.wait(), seconds)
+            return True
+        except asyncio.TimeoutError:
+            return False
+
+    async def wrap_up(self, s):
+        try:
+            await s.send_client_content(turns=types.Content(role='user', parts=[types.Part(text=WRAP_UP)]), turn_complete=True)
+            self.log('—', "vaqt tugayapti — AI'ga yakunlash aytildi")
+        except Exception as e:
+            self.log('—', f"AI'ga yakunlashni aytib bo'lmadi: {type(e).__name__}")
 
     async def ended(self):
         """Suhbat tugadi — liniyani darhol bo'shatish (telefon liniyasida: go'shak qo'yiladi, Obsidian'ga yozilishini kutmasdan)"""

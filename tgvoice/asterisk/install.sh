@@ -18,6 +18,12 @@ for f in pjsip.conf extensions.conf rtp.conf modules.conf; do
   install -m 644 "$HERE/$f" "$DEST/$f"
 done
 
+# Ovozli xabarlar (extensions.conf: custom/uzr — AI ham, administrator ham javob bermaganda). Fayl bo'lmasa — Asterisk jim o'tadi
+if compgen -G "$HERE/sounds/*.wav" >/dev/null; then
+  mkdir -p /usr/share/asterisk/sounds/custom
+  install -m 644 "$HERE"/sounds/*.wav /usr/share/asterisk/sounds/custom/
+fi
+
 umask 027
 printf '[egasi]\ntype=auth\nauth_type=userpass\nusername=egasi\npassword=%s\n' "$password" > "$DEST/pjsip_egasi.conf"
 if [ -f "$HERE/pjsip_shahar.conf" ]; then

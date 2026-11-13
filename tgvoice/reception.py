@@ -196,6 +196,7 @@ class Gateway:
 
 
 MISSED_BUSY = "Liniya band edi — AI ko'tara olmadi. Qayta qo'ng'iroq qiling"
+MISSED_AI = "AI suhbat paytida ishlamay qoldi, administratorga ham ulab bo'lmadi. Qayta qo'ng'iroq qiling"
 
 
 async def missed_call(caller: str, summary: str = MISSED_BUSY) -> bool:

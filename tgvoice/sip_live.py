@@ -33,7 +33,7 @@ if '--stend' in sys.argv:
 
 from call_live import PALANTIR, LIVE_VOICE, UZ_TZ, Bridge, down_48_to_16, log, up_24_to_48
 from common import env
-from reception import Desk, missed_call
+from reception import MISSED_AI, Desk, missed_call
 from web_live import WEB_PORT, WebVoice
 
 LINE_RATE = 8000                                   # Asterisk AudioSocket: 8 kHz, mono, 16-bit
@@ -48,7 +48,10 @@ PORT = int(env('SIP_BRIDGE_PORT', '9092'))
 MAX_CALLS = int(env('SIP_MAX_CALLS', '4'))         # ortig'i ko'tarilmaydi (Gemini va kompyuter kuchiga qarab)
 # Mijozlar hamma joyni egallab, egasini o'z yordamchisidan qoldirmasin: bitta joy egasiga
 CUSTOMER_SLOTS = max(1, MAX_CALLS - 1)
-CUSTOMER_LIMIT_S = 240                             # mijoz qo'ng'irog'i
+# Mijoz qo'ng'irog'i: qabulga yozish, ko'chirish va savollar keksa bemor bilan 4–5 daqiqadan oshadi. Oxirgi daqiqada AI'ga
+# yakunlash aytiladi (call_live.WRAP_UP_S) — gap o'rtasida uzilmaydi
+CUSTOMER_LIMIT_S = 420
+RESCUE_RING_S = 20                                 # AI ishlamay qolganda administrator telefoni shuncha jiringlaydi ([yordam])
 OWNER_LIMIT_S = 900                                # egasining qo'ng'irog'i (Telegram'dagisi — call_live.CALL_LIMIT_S)
 # Aks-sado: AI gapirayotganda (va undan keyin ECHO_TAIL_S) liniyadan kelgan shundan past ovoz Live'ga yuborilmaydi — telefon
 # karnayidan qaytgan AI ovozi «gap» bo'lib (turkcha, hindcha bo'laklar) suhbatni buzmasin. Baland gap (odam AI'ni bo'lsa) o'tadi
@@ -102,14 +105,19 @@ async def asterisk(command: str) -> str:
     return out.decode('utf-8', 'replace')
 
 
-async def redirect_to_operator(uuid: str, ring: int) -> str | None:
-    """Qo'ng'iroqni administratorga buradi ([operator], ring soniya). Xato bo'lsa — sababi, bo'lmasa None.
+NO_CHANNEL = 'kanal topilmadi'
+
+
+async def redirect_to_operator(uuid: str, ring: int, context: str = 'operator') -> str | None:
+    """Qo'ng'iroqni administratorga buradi ([operator] — AI o'tkazdi; [yordam] — AI ishlamay qoldi; ring soniya, [yordam] da 0 —
+    jiringlatmasdan so'rov). Xato bo'lsa — sababi, bo'lmasa None.
     Kanal AudioSocket id'si bo'yicha topiladi (Asterisk 20 da AI ulanishni yopsa qo'ng'iroq butunlay uziladi — shuning uchun redirect)"""
     channels = await asterisk('core show channels concise')
     chan = next((line.split('!')[0] for line in channels.splitlines() if uuid in line and 'AudioSocket' in line), None)
     if not chan:
-        return 'kanal topilmadi'
-    out = await asterisk(f'channel redirect {chan} operator,{max(5, min(int(ring), 60))},1')
+        return NO_CHANNEL
+    ring = 0 if context == 'yordam' and int(ring) <= 0 else max(5, min(int(ring), 60))
+    out = await asterisk(f'channel redirect {chan} {context},{ring},1')
     return None if 'redirected' in out.lower() else out.strip()[:160]
 
 
@@ -144,9 +152,12 @@ class PhoneBridge(Bridge):
     out_rate = LINE_RATE
     start_sensitivity = types.StartSensitivity.START_SENSITIVITY_LOW   # karnay sadosi va shovqin gap deb olinmasin
 
-    def __init__(self, writer: asyncio.StreamWriter, mode: str, caller: str, token: str, number: int, uuid: str = ''):
+    def __init__(self, writer: asyncio.StreamWriter, mode: str, caller: str, token: str, number: int, uuid: str = '', app: bool = False):
         super().__init__(None, 0)
         self.writer, self.mode, self.caller, self.uuid = writer, mode, caller, uuid
+        self.app = app                          # klinikaning Android telefoni orqali (Asterisk'siz — burib bo'lmaydi)
+        self.hung_up = False                    # mijoz go'shakni qo'ydi (yoki liniya uzildi)
+        self.rescued = False                    # AI ishlamay qoldi — qo'ng'iroq administratorga burildi
         # Mijoz qo'ng'irog'i — AI qabulxona (faqat ovozli agent kaliti bilan); egasiniki — Palantir kaliti bilan.
         # Administrator ko'tarmay AI'ga qaytgan qo'ng'iroqda yana o'tkazilmaydi (aylanib qolmasin)
         self.desk = Desk(caller, missed=mode == MISSED, can_transfer=mode == CUSTOMER) if mode in CUSTOMERS else None
@@ -279,11 +290,40 @@ class PhoneBridge(Bridge):
         if self.desk:
             await self.desk.gateway.close()
 
+    async def rescue(self, why: str) -> None:
+        """AI ishlamay qoldi (Gemini uzildi, xato, vaqt tugadi), mijoz esa hali liniyada — qo'ng'iroq jim uzilmaydi: administrator
+        telefoni jiringlaydi, ko'tarmasa uzr va «qayta qo'ng'iroq qiling» so'rovi (extensions.conf, [yordam]). Egasining qo'ng'irog'i,
+        o'zi xayrlashgan yoki allaqachon o'tkazilgan qo'ng'iroq — tegilmaydi"""
+        if self.mode not in CUSTOMERS or self.hung_up or self.rescued or (self.desk and self.desk.handed_over):
+            return
+        self.log('—', f"AI ishlamay qoldi ({why}) — qo'ng'iroq administratorga")
+        if self.app:   # Android telefon orqali: burib bo'lmaydi — faqat so'rov
+            problem = 'telefon ilovasi'
+        else:
+            try:
+                problem = await redirect_to_operator(self.uuid, 0 if self.mode == MISSED else RESCUE_RING_S, 'yordam')
+            except (OSError, asyncio.TimeoutError) as e:
+                problem = f'{type(e).__name__}: {str(e)[:120]}'
+        if problem is None:
+            self.rescued = True
+            self.log('—', "administratorga burildi ([yordam])")
+            return
+        self.log('—', f"administratorga burib bo'lmadi: {problem}")
+        if problem != NO_CHANNEL and self.caller:   # kanal yo'q — mijoz o'zi qo'ygan
+            ok = await missed_call(self.caller, MISSED_AI)
+            self.log('—', f"«qayta qo'ng'iroq qiling» so'rovi {'ochildi' if ok else 'ochilmadi'}")
+
     async def ended(self):
-        """Go'shak darhol qo'yiladi (Obsidian'ga yozish kutilmaydi): mijoz jimlikda qolmasin, joy bo'shasin"""
+        """Go'shak darhol qo'yiladi (Obsidian'ga yozish kutilmaydi): mijoz jimlikda qolmasin, joy bo'shasin.
+        AI ishlamay qolgan bo'lsa — qo'yilmaydi, administratorga buriladi"""
         e = self.echo
         self.log('—', f"aks-sado filtri: AI gapirganda {e['cut']} bo'lak o'chirildi (eng balandi {e['cut_max']}), "
                       f"{e['pass']} bo'lak o'tdi (eng balandi {e['pass_max']}); chegara {ECHO_GATE}")
+        await asyncio.sleep(0.2)   # go'shak qo'yilgan bo'lsa — read_line buni bilib ulgursin (buzilish deb burilmasin)
+        if self.failure:
+            await self.rescue(self.failure)
+        if self.rescued:
+            return
         try:
             self.writer.write(frame(HANGUP))
             await self.writer.drain()
@@ -301,12 +341,15 @@ async def read_line(reader: asyncio.StreamReader, bridge: PhoneBridge):
                 bridge.on_audio(data)
             elif kind == HANGUP:
                 bridge.log('—', "go'shak qo'yildi")
+                bridge.hung_up = True
                 break
             elif kind == ERROR:
                 bridge.log('—', f"Asterisk xatosi: {data.hex()}")
+                bridge.hung_up = True
                 break
     except (asyncio.IncompleteReadError, ConnectionError):
         bridge.log('—', 'liniya uzildi')
+        bridge.hung_up = True
     finally:
         bridge.done.set()
 
@@ -328,7 +371,7 @@ class Server:
         """AI qabulxona ovozli agent kaliti bilan ishlaydi: .env yoki ovoz.env (klinika kompyuterida Palantir o'zi yaratadi) — har qo'ng'iroqda tekshiriladi"""
         return bool(os.environ.get('VOICE_AGENT_KEY') or _env_has('VOICE_AGENT_KEY'))
 
-    async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, app: bool = False):
         try:
             kind, size = struct.unpack('>BH', await asyncio.wait_for(reader.readexactly(3), 5))
             raw = await reader.readexactly(size)
@@ -353,8 +396,9 @@ class Server:
             log('—', f"band: {self.active} ta qo'ng'iroq ketyapti, {caller or 'yashirin raqam'} ko'tarilmadi")
             writer.write(frame(HANGUP))
             writer.close()
-            # Mijoz javobsiz qolmasin: administratorga «qayta qo'ng'iroq qiling» so'rovi
-            if mode in CUSTOMERS and caller:
+            # Mijoz javobsiz qolmasin. Asterisk orqali — darhol qo'yilgan qo'ng'iroqni Asterisk o'zi administratorga beradi, ko'tarilmasa
+            # so'rovni o'zi ochadi (extensions.conf, [yordam]). Telefon ilovasi orqali — «qayta qo'ng'iroq qiling» so'rovi shu yerdan
+            if app and mode in CUSTOMERS and caller:
                 task = asyncio.create_task(self.missed(caller))
                 self.pending.add(task)
                 task.add_done_callback(self.pending.discard)
@@ -365,15 +409,15 @@ class Server:
         bridge: PhoneBridge | None = None
         reading: asyncio.Task | None = None
         try:
-            bridge = PhoneBridge(writer, mode, caller, await self.token.get() if mode == OWNER else '', self.count, call_uuid(raw))
+            bridge = PhoneBridge(writer, mode, caller, await self.token.get() if mode == OWNER else '', self.count, call_uuid(raw), app)
             reading = asyncio.create_task(read_line(reader, bridge))
             bridge.log('—', f"qo'ng'iroq ({self.active}/{MAX_CALLS})")
             await bridge.run()
-        except asyncio.TimeoutError:
-            if bridge:
-                bridge.log('—', 'ulandi, lekin ovoz kelmadi')
         except Exception as e:
+            # AI ishga tushmadi (Palantir yoki Gemini javob bermadi): mijoz jim uzilib qolmasin — administratorga
             log('—', f"qo'ng'iroq xatosi: {type(e).__name__}: {str(e)[:200]}")
+            if bridge and not bridge.done.is_set():
+                await bridge.rescue(f'{type(e).__name__}: {str(e)[:120]}')
         finally:
             self.active -= 1
             self.customers -= mode in CUSTOMERS
@@ -381,11 +425,13 @@ class Server:
                 bridge.done.set()
             if reading:
                 reading.cancel()
-            try:
-                writer.write(frame(HANGUP))
-                await writer.drain()
-            except (ConnectionError, RuntimeError):
-                pass
+            # Administratorga burilgan qo'ng'iroqqa go'shak yuborilmaydi (Asterisk ulanishni o'zi yopadi)
+            if not (bridge and bridge.rescued):
+                try:
+                    writer.write(frame(HANGUP))
+                    await writer.drain()
+                except (ConnectionError, RuntimeError):
+                    pass
             writer.close()
 
 
@@ -400,7 +446,7 @@ class Server:
             log('—', f"telefon ilovasi: noto'g'ri kalit ({writer.get_extra_info('peername')})")
             writer.close()
             return
-        await self.handle(reader, writer)
+        await self.handle(reader, writer, app=True)
 
 
 def _env_has(name: str) -> bool:
