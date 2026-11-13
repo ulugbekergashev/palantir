@@ -16,7 +16,7 @@ const world = { hub: 'ok' as 'ok' | 'hang', state: 'RUNNING', actions: [] as str
 /** Oracle buyrug'idan keyin server shuncha vaqtda tiklanadi */
 const RECOVER_MS = 300;
 
-const hub = createServer((req: IncomingMessage, res: ServerResponse) => {
+const hub = createServer((_req: IncomingMessage, res: ServerResponse) => {
   if (world.hub === 'hang') return; // qotgan server: ulanadi, lekin javob yo'q
   res.end(JSON.stringify({ ok: true }));
 });

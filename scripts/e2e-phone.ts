@@ -172,6 +172,7 @@ try {
   ok("so'rovga natija: «Qo'ng'iroq qilindi» va tahlil xulosasi (yopishni xodim qiladi)", req?.result?.includes("Qo'ng'iroq qilindi") && req.result.includes('ertaga 10:00'), req?.result);
   const lead = (await api('/api/leads', { token })).json.leads[0];
   ok("mijoz kartasi: bitta, ismi tahlildan, izohi — nima xohladi", (await api('/api/leads', { token })).json.leads.length === 1 && lead?.name === 'Dilnoza' && lead.note?.includes('Implant'), JSON.stringify(lead).slice(0, 200));
+  ok("qo'ng'iroqda qabulga yozildi — «Mijoz bo'ldi», keyingi qadam yo'q (ertasi «unutilgan»ga tushmaydi)", lead?.stage === 'won' && !lead.nextAt, `${lead?.stage} ${lead?.nextAt}`);
   ok('boshqa biznes yozuvni ololmaydi', (await fetch(`${base}/api/calls/${talk?.id}/audio`)).status === 401);
 
   console.log('\n# Uzish');

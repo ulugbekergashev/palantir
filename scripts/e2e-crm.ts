@@ -271,6 +271,11 @@ export async function crmReceptionTests(h: Harness): Promise<void> {
   ok("«Yozish va yuborish»: CRM'ga yozildi va bemorga aytildi; bir zumda ikki bosish — bitta qabul, bitta xabar", !!told && crm.posted.length === posted + 1
     && sent.slice(mark).filter(s => Number(s.params.chat_id) === C1 && textOf(s).includes('yozdik')).length === 1 && ai.replier.length === replierCalls && row?.patientId === 'p2' && row.doctorId === 'd1' && row.date === D3 && row.time === '10:00');
   ok('telefoni bazada bor bemor qayta yaratilmadi', crm.patientsPosted.length === newPatients);
+  /** Qabulga yozilgan bemor — «Mijoz bo'ldi», keyingi qadam yo'q: ertasi «💤 Unutilgan»ga tushib, «qayta yozish» tayyorlanmasin */
+  const stageOf = async (phone: string) => ((await api('/api/leads', { token })).json.leads as { phone: string | null; stage: string; nextAt: string | null }[])
+    .find(l => (l.phone ?? '').replace(/\D/g, '').endsWith(phone));
+  const vali = await stageOf('932223344');
+  ok("egasi tasdiqlagan qabul — bemor «Mijoz bo'ldi», keyingi qadam yo'q", vali?.stage === 'won' && !vali.nextAt, JSON.stringify(vali));
   mark = sent.length;
   press(OWNER, approve, proposal!.id!);
   await waitFor('ikkinchi bosish', () => sent.slice(mark).find(s => s.method === 'answerCallbackQuery'));
@@ -287,6 +292,8 @@ export async function crmReceptionTests(h: Harness): Promise<void> {
   ok("o'zi yozdi: yangi bemor yaratildi va qabul CRM'da", !!auto && crm.posted.length === posted + 1 && crm.patientsPosted.length === newPatients + 1 && created?.firstName === 'Lola' && created.lastName === 'Ergasheva'
     && crm.posted.at(-1)?.patientId === created.id && crm.posted.at(-1)?.time === '11:00');
   ok('egasiga: kimni qayerga yozgani aytildi', !!(await waitFor('xabar', () => after(mark, OWNER, s => textOf(s).includes('🤖') && textOf(s).includes('📅') && textOf(s).includes('Lola Ergasheva')))));
+  const lola = await stageOf('907008090');
+  ok("o'zi yozgan qabul — bemor «Mijoz bo'ldi», keyingi qadam yo'q", lola?.stage === 'won' && !lola.nextAt, JSON.stringify(lola));
 
   // Band vaqt: «yozdik» deyilmaydi, bemor ham yaratilmaydi, qaror egasiga o'tadi
   await join(C3);

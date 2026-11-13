@@ -299,7 +299,8 @@ export async function review(bizId: string, callId: string): Promise<void> {
     leads.update(bizId, lead.id, {
       ...(a.customerName && !lead.name ? { name: a.customerName } : {}),
       ...(a.wants ? { note: a.wants.slice(0, 200) } : {}),
-      ...(a.outcome === 'booked' && lead.stage === 'new' ? { stage: 'contacted' as const } : {}),
+      // Qo'ng'iroqda qabulga yozildi — «Mijoz bo'ldi» (yozishmadagi qabul bilan bir xil: ertasi «unutilgan»ga tushmasin)
+      ...(a.outcome === 'booked' ? { stage: 'won' as const } : {}),
     });
   }
   const linked = c.requestId ? requests.get(bizId, c.requestId) : undefined;

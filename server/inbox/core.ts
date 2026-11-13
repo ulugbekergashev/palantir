@@ -106,7 +106,8 @@ export async function sendToLead(biz: BusinessRow, lead: LeadRow, text: string, 
       ours.set(ourKey(biz.id, ch, text), Date.now());
       const extId = await s.send(biz, lead, text, by);
       inbox.add(biz.id, { leadId: lead.id, channel: ch, direction: 'out', by, text, extId });
-      if (lead.stage === 'new') leads.update(biz.id, lead.id, { stage: 'contacted' });
+      // Bazadagi hozirgi bosqich: shu orada qabul yozilgan bo'lsa (linkBooked — «Mijoz bo'ldi»), eski nusxa uni ustidan yozmasin
+      if (leads.get(biz.id, lead.id)?.stage === 'new') leads.update(biz.id, lead.id, { stage: 'contacted' });
       return ch;
     } catch (e) {
       last = e as Error;
@@ -302,8 +303,13 @@ async function handle(bizId: string, leadId: string): Promise<void> {
 }
 
 /** Qabul yozilgan bemor — mijoz kartasi unga bog'lanadi (oldin boshqa bemorga bog'langan bo'lsa — tegilmaydi) */
+/**
+ * Qabul CRM'ga yozildi: karta bemorga bog'lanadi va «Mijoz bo'ldi» bosqichiga o'tadi (keyingi qadam o'chadi). Aks holda bemor
+ * faol ro'yxatda qolib, ertasi «💤 Unutilgan»ga tushardi va unga «qayta yozish» xabari tayyorlanardi (plan.ts)
+ */
 function linkBooked(biz: BusinessRow, lead: LeadRow, patientId: string): void {
   if (!leads.get(biz.id, lead.id)?.patientId) leads.setPatient(biz.id, lead.id, patientId);
+  leads.update(biz.id, lead.id, { stage: 'won' });
 }
 
 /** Keyingi qadam vaqti: N kundan keyin soat 10:00 (mahalliy) */
