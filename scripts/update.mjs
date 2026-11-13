@@ -10,7 +10,8 @@
  *      /api/health shu nashrni aytmasa yangilash bekor, ishlab turgan nashrga tegilmaydi.
  *   4. Nazoratchi to'xtatiladi; relizdagi ildizlar (server, src, node_modules…) almashtiriladi — eskisi DATA_DIR/yangilash/oldingi/ ga.
  *      Ish paytida paydo bo'lgan fayllar (tgvoice/.venv, sessiyalar, konfiglar) yangi papkaga ko'chadi; .env va ma'lumotlarga tegilmaydi.
- *   5. Nazoratchi qayta yoqiladi; yangi nashr 3 daqiqada sog'lom bo'lmasa — eski fayllar qaytariladi, baza migratsiyadan
+ *   5. Nazoratchi qayta yoqiladi; yangi nashr 3 daqiqada sog'lom bo'lmasa (oldin Telegram bot ulangan bo'lsa — bot ham ulanmasa)
+ *      — eski fayllar qaytariladi, baza migratsiyadan
  *      oldingi nusxadan (server/migrate.ts: BACKUP_DIR/oldin-v<N>-….db) tiklanadi.
  * Natija: DATA_DIR/yangilash/holat.json (hub holatida ko'rinadi). Jurnal: DATA_DIR/logs/yangilash.log
  * Chiqish kodi: 0 — yangilandi yoki yangisi yo'q; 1 — xato (hech narsa o'zgarmadi); 2 — sinovdan o'tmadi; 3 — eskisiga qaytarildi.
@@ -113,13 +114,18 @@ function extract(zip, dir) {
 
 const freePort = () => new Promise(done => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => done(port)); }); });
 
-async function healthy(port, version, ms, streak = 1) {
+const health = async port => {
+  try { return await (await fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(3_000) })).json(); } catch { return null; }
+};
+/** Oxirgi sog'lik javobi: qaytarishda sababi aniq bo'lsin (nashr ko'tarildi, lekin bot ulanmadi) */
+let lastHealth = null;
+
+/** needBot — yangilashdan oldin bot ulangan edi: yangi nashrda ham ulanishi shart (server tirik, bot o'lik — klinika xabar ololmaydi) */
+async function healthy(port, version, ms, streak = 1, needBot = false) {
   let good = 0;
   for (const end = Date.now() + ms; Date.now() < end; await sleep(1_000)) {
-    try {
-      const j = await (await fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(3_000) })).json();
-      good = j.ok && j.version === version ? good + 1 : 0;
-    } catch { good = 0; }
+    const j = lastHealth = await health(port);
+    good = j?.ok && j.version === version && (!needBot || j.botOnline === true) ? good + 1 : 0;
     if (good >= streak) return true;
   }
   return false;
@@ -283,26 +289,30 @@ async function main() {
     const roots = [...new Set([...files.roots, ...oldRoots, 'files.json'])].filter(r => r !== 'node_modules' || !lstatSync(join(staging, 'node_modules')).isSymbolicLink());
     const schemaBefore = userVersion(DB_FILE);
     const since = Date.now();
+    // Hozirgi nashrda bot ulangan bo'lsa — yangisida ham ulanishi kutiladi (eski nashrlar botOnline aytmaydi — talab yo'q)
+    const needBot = (await health(PORT))?.botOnline === true;
     log('nazoratchi to\'xtatilmoqda');
     supervisor(['stop']);
     const backup = join(WORK, 'oldingi');
     const moved = swap(staging, roots, tracked, backup);
     log(`fayllar almashtirildi (${roots.length} ta ildiz; saqlangan ish fayllari: ${moved.length})`);
     startSupervisor();
-    if (await healthy(PORT, manifest.version, HEALTHY_MS, HEALTHY_STREAK)) {
+    if (await healthy(PORT, manifest.version, HEALTHY_MS, HEALTHY_STREAK, needBot)) {
       saveState({ from, to: manifest.version, result: 'ok' });
       rmSync(staging, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
       log(`yangilandi: ${manifest.version}`);
       return 0;
     }
 
-    log(`yangi nashr ${Math.round(HEALTHY_MS / 1000)} soniyada sog'lom bo'lmadi — eskisiga qaytarilmoqda`);
+    const botDown = needBot && lastHealth?.ok && lastHealth.version === manifest.version && lastHealth.botOnline !== true;
+    const why = botDown ? "yangi nashrda Telegram bot ulanmadi" : 'yangi nashr ishga tushmadi';
+    log(`${why} (${Math.round(HEALTHY_MS / 1000)} soniya kutildi) — eskisiga qaytarilmoqda`);
     supervisor(['stop']);
     unswap(roots, backup, moved);
     const db = restoreDb(schemaBefore, since);
     startSupervisor();
     const back = await healthy(PORT, from, HEALTHY_MS);
-    saveState({ from, to: manifest.version, result: 'qaytarildi', reason: `yangi nashr ishga tushmadi; ${db}; eski nashr ${back ? 'ishlayapti' : 'HAM ISHLAMAYAPTI'}` });
+    saveState({ from, to: manifest.version, result: 'qaytarildi', reason: `${why}; ${db}; eski nashr ${back ? 'ishlayapti' : 'HAM ISHLAMAYAPTI'}` });
     log(`eskisiga qaytarildi (${db}); eski nashr ${back ? 'ishlayapti' : 'HAM javob bermayapti — jurnalni ko\'ring'}`);
     return 3;
   } finally {

@@ -7,7 +7,9 @@
  *   1) yangi nashr → sinov → almashtirish → yangi nashr ishlayapti; ish fayllari, .env va ma'lumotlar joyida, olib tashlangan fayl yo'q;
  *   2) boshqa kalit bilan imzolangan reliz — rad etiladi, hech narsa o'zgarmaydi;
  *   3) sinovda ko'tarilmaydigan nashr — yangilash bekor, ishlab turgan nashr to'xtamaydi;
- *   4) sinovdan o'tib, haqiqiy ishga tushishda yiqiladigan va bazani migratsiya qiladigan nashr — eski fayllar va baza qaytariladi.
+ *   4) sinovdan o'tib, haqiqiy ishga tushishda yiqiladigan va bazani migratsiya qiladigan nashr — eski fayllar va baza qaytariladi;
+ *   5) server ko'tariladi, lekin Telegram bot ulanmaydi (oldin ulangan edi) — eskisiga qaytariladi, sababi «bot»;
+ *   6) bot bilan ishlaydigan oddiy nashr — o'rnatiladi (bot talabi sog'lom nashrni qaytarmaydi).
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
@@ -17,7 +19,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { unzipSync } from 'fflate';
-import { listen, sleep } from './fakes';
+import { listen, sleep, tgServer } from './fakes';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
@@ -30,7 +32,7 @@ const pem = (k: { export: (o: { type: 'spki' | 'pkcs8'; format: 'pem' }) => stri
 const keys = generateKeyPairSync('ed25519'), stranger = generateKeyPairSync('ed25519');
 const PRIVATE = pem(keys.privateKey, 'pkcs8'), PUBLIC = pem(keys.publicKey, 'spki'), STRANGER = pem(stranger.privateKey, 'pkcs8');
 const git = (...args: string[]) => execFileSync('git', args, { cwd: SRC, env: { ...process.env, GIT_AUTHOR_NAME: 'sinov', GIT_AUTHOR_EMAIL: 's@s', GIT_COMMITTER_NAME: 'sinov', GIT_COMMITTER_EMAIL: 's@s' }, stdio: 'pipe' });
-const appHealth = async () => { try { return await (await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(2_000) })).json() as { ok: boolean; version: string }; } catch { return null; } };
+const appHealth = async () => { try { return await (await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(2_000) })).json() as { ok: boolean; version: string; botOnline?: boolean }; } catch { return null; } };
 async function until<T>(what: string, fn: () => Promise<T | null | undefined | false>, ms: number): Promise<T | undefined> {
   for (const end = Date.now() + ms; Date.now() < end; await sleep(300)) { const v = await fn(); if (v) return v; }
   console.log(`    (kutildi, bo'lmadi: ${what})`);
@@ -159,11 +161,35 @@ try {
   ok('eskisiga qaytarildi (kod 3): yana 9.0.1 ishlayapti, holat — qaytarildi', failing.code === 3 && (await appHealth())?.version === '9.0.1' && holat().result === 'qaytarildi', failing.out.split('\n').slice(-2).join(' | '));
   ok(`baza migratsiyadan oldingi nusxadan tiklandi (v${before})`, schema() === before && /baza v3 → v2/.test(holat().reason ?? ''), holat().reason);
   ok('ish fayllari qaytarishdan keyin ham joyida', readFileSync(join(APP, 'tgvoice', '.venv', 'belgi.txt'), 'utf8') === 'venv' && existsSync(join(APP, 'tgvoice', 'asterisk', 'pjsip_shahar.conf')));
+
+  console.log("\n# 5. Server ko'tariladi, lekin Telegram bot ulanmaydi");
+  // Klinikada bot ulangan: soxta Telegram bilan, nazoratchi qayta yoqiladi
+  writeFileSync(join(APP, '.env'), `${envText}BOT_TOKEN=123:TEST\nTELEGRAM_API_ROOT=http://127.0.0.1:${await listen(tgServer)}\n`);
+  spawnSync(process.execPath, ['scripts/supervise.mjs', 'stop'], { cwd: APP, stdio: 'ignore', env: { ...process.env, DOTENV: '' } });
+  spawn(process.execPath, ['scripts/supervise.mjs'], { cwd: APP, stdio: 'ignore', env: { ...process.env, DOTENV: '', HUB_AUTO: '0', PALANTIR_HUB: '' } });
+  ok("9.0.1 bot bilan ishlayapti (/api/health: botOnline)", await until('bot', async () => (await appHealth())?.botOnline === true, 60_000));
+  release('v5', '9.0.5', () => {
+    // 4-holatdagi buzuqlik va migratsiya olib tashlanadi; bot ishga tushirilmaydi (masalan, yangi koddagi xato uni o'ldirgan)
+    for (const f of ['index.ts', 'migrate.ts']) cpSync(join(REPO, 'server', f), join(SRC, 'server', f));
+    const main = join(SRC, 'server', 'main.ts');
+    writeFileSync(main, edit(readFileSync(main, 'utf8'), 'await Promise.race([bot.start(), new Promise(r => setTimeout(r, BOT_WAIT_MS))]);', '// bot ishga tushmaydi (sinov)'));
+  });
+  const botless = await update('v5');
+  const back5 = await appHealth();
+  ok("eskisiga qaytarildi (kod 3): yana 9.0.1, bot ulangan; sababi — Telegram bot", botless.code === 3 && back5?.version === '9.0.1' && back5.botOnline === true
+    && holat().result === 'qaytarildi' && /Telegram bot ulanmadi/.test(holat().reason ?? ''), holat().reason);
+
+  console.log('\n# 6. Bot bilan ishlaydigan oddiy nashr');
+  release('v6', '9.0.6', () => cpSync(join(REPO, 'server', 'main.ts'), join(SRC, 'server', 'main.ts')));
+  const normal = await update('v6');
+  const now6 = await appHealth();
+  ok('yangilandi (kod 0): 9.0.6, bot ulangan, holat — ok', normal.code === 0 && now6?.version === '9.0.6' && now6.botOnline === true && holat().result === 'ok', normal.out.split('\n').slice(-2).join(' | '));
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {
   if (existsSync(join(APP, 'scripts', 'supervise.mjs'))) spawnSync(process.execPath, ['scripts/supervise.mjs', 'stop'], { cwd: APP, stdio: 'ignore', env: { ...process.env, DOTENV: '' } });
   files.close();
+  tgServer.close();
   await sleep(500);
   rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
 }

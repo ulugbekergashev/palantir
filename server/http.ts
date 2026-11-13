@@ -267,7 +267,8 @@ export function createApp(bot: BotService) {
     res.status(400).json({ error: "Ma'lumot noto'g'ri", details: error.issues.slice(0, 5).map(i => `${i.path.join('.')}: ${i.message}`) });
   const fail = (res: Response, e: unknown, code = 409) => res.status(code).json({ error: (e as Error).message });
 
-  app.get('/api/health', (_req, res) => { res.json({ ok: true, version: APP_VERSION, bot: bot.enabled, ai: env.aiEnabled, voice: voiceEnabled() }); });
+  // botOnline — Telegram botni tanidi (token ishlayapti): yangilovchi yangi nashrda bot ham tirik ekanini shundan biladi (scripts/update.mjs)
+  app.get('/api/health', (_req, res) => { res.json({ ok: true, version: APP_VERSION, bot: bot.enabled, botOnline: !!bot.username(), ai: env.aiEnabled, voice: voiceEnabled() }); });
 
   // ─── Kirish ────────────────────────────────────────────────────────────────
   app.post('/api/login', (req, res) => {
