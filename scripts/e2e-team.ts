@@ -132,6 +132,8 @@ try {
   ok("yopiq: kunlik tushum (crm/day), Direktor takliflari va kamera hodisalari, AI xotirasi (o'qish ham, yozish ham)",
     (await st('GET', '/api/crm/day')) === 403 && (await st('GET', '/api/attention')) === 403 && (await st('GET', '/api/notes?all=1')) === 403
     && (await st('POST', '/api/notes', { text: "Hammaga 90% chegirma" })) === 403 && (await st('PATCH', '/api/notes/x', { text: 'y' })) === 403);
+  ok("yopiq: jamoa jurnali (kamera ogohlantirishlari, Direktor topshiriqlari) va egasining vazifalari",
+    (await st('GET', '/api/team/day')) === 403 && (await st('GET', '/api/tasks')) === 403 && (await st('POST', '/api/tasks', { title: 'x' })) === 403);
   ok("qabulxona mijoz kartasini butunlay o'chira olmaydi (qaytarib bo'lmaydi) — tahrirlash ochiq", (await st('DELETE', '/api/leads/x')) === 403 && (await st('PATCH', '/api/leads/x', { stage: 'contacted' })) === 404);
   const list = await json<{ staff: Record<string, unknown>[] }>(get(`${base}/api/staff`, staff));
   ok("xodimlar ro'yxatida boshqalarning logini ko'rinmaydi", list.staff?.length === 1 && !('login' in list.staff[0]) && !('access' in list.staff[0]));
