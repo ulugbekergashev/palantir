@@ -198,8 +198,34 @@ export async function cameraApiTests(h: Harness): Promise<void> {
   ok("telefon: bekor qildi — DentaCRM'da «Cancelled»", cancelled.status === 200 && crm.appointments.find(a => a.id === 'tv1')?.status === 'Cancelled', JSON.stringify(cancelled.json));
   const third = await api('/api/voice/visit', { token: key, body: { phone: '+998701000007', appointmentId: 'tv1', kind: 'cancel' } });
   ok("telefon: bir raqam kuniga 2 martadan ko'p o'zgartira olmaydi", third.status === 429, String(third.status));
+
+  // F6: DentaCRM qabulni saqladi, lekin javob bermadi — AI boshqa vaqtga qayta yozmasin (ikki qabul), administrator tekshirsin.
+  // Vaqt — jadvalning eng oxirgisi (boshqa sinovlar yaqin kunlarni band qiladi)
+  const free = [...String(slots.json.schedule).matchAll(/- doctor_id (\S+)|\n\s+(\d{4}-\d{2}-\d{2}) \([^)]*\): (\d{2}:\d{2})/g)]
+    .reduce<{ doctor: string; list: [string, string, string][] }>((acc, m) => m[1] ? { ...acc, doctor: m[1] } : { ...acc, list: [...acc.list, [acc.doctor, m[2], m[3]]] }, { doctor: '', list: [] }).list;
+  const [lastDoc, lastDay, lastTime] = free.at(-1) ?? ['d1', in5, '16:00'];
+  const unsurePhone = '+998935550123';
+  crm.hangBooking = true;
+  const hung = await api('/api/voice/book', { token: key, body: { doctorId: lastDoc, date: lastDay, time: lastTime, name: 'Nodira Saidova', phone: unsurePhone } });
+  ok("telefon: CRM javob bermadi — «noma'lum», «boshqa vaqtga yozmang»", hung.status === 409 && hung.json.code === 'unknown' && /YOZMANG/.test(hung.json.error ?? ''), JSON.stringify(hung.json));
+  const [againDoc, againDay, againTime] = free.at(-2) ?? [lastDoc, lastDay, lastTime];
+  const retry = await api('/api/voice/book', { token: key, body: { doctorId: againDoc, date: againDay, time: againTime, name: 'Nodira Saidova', phone: unsurePhone } });
+  ok("telefon: shu raqamga boshqa vaqtga qayta yozilmaydi — CRM'da bitta qabul", retry.status === 409 && retry.json.code === 'unknown'
+    && crm.appointments.filter(a => a.patientName === 'Nodira Saidova').length === 1, `${retry.status} ${crm.appointments.filter(a => a.patientName === 'Nodira Saidova').length}`);
+  const checks = (await api('/api/requests', { token })).json.requests as { summary?: string }[];
+  // F8: telefonda yozilgan qabul mijoz kartasiga — DentaCRM bemoriga bog'langan, bosqichi «yozildi»
+  const [okDoc, okDay, okTime] = free.at(-3) ?? [lastDoc, lastDay, lastTime];
+  const fine = await api('/api/voice/book', { token: key, body: { doctorId: okDoc, date: okDay, time: okTime, name: 'Kamola Yusupova', phone: '+998935550124' } });
+  const kamola = ((await api('/api/leads', { token })).json.leads as { id: string; phone?: string; patientId?: string; stage?: string }[]).find(l => l.phone?.includes('935550124'));
+  const kamolaPatient = crm.appointments.find(a => a.patientName === 'Kamola Yusupova')?.patientId;
+  ok("telefon: yozilgan qabul kartaga — DentaCRM bemoriga bog'langan, bosqichi «yozildi»", fine.status === 200 && !!kamola && kamola.patientId === kamolaPatient && kamola.stage === 'won',
+    `${fine.status} ${JSON.stringify(fine.json)} ${JSON.stringify(kamola)} ${kamolaPatient}`);
+  ok("telefon: administratorga «CRM'da tekshiring» so'rovi darhol ochildi", checks.some(r => /DentaCRM javob bermadi/.test(r.summary ?? '') && (r.summary ?? '').includes(lastTime)), JSON.stringify(checks.map(r => r.summary)).slice(0, 300));
   const call = await api('/api/voice/calls', { token: key, body: { phone: '+998901234567', name: 'Bobur Karimov', startedAt: '2020-01-01T10:00:00+05:00', durationSec: 24, outcome: "Narx so'radi", transcript: [{ who: 'ai', text: 'Assalomu alaykum' }, { who: 'caller', text: 'Implant qancha?' }] } });
   ok("ovoz: tugagan qo'ng'iroq saqlanadi", call.status === 200 && !!call.json.call?.id, JSON.stringify(call.json));
+  const bobur = ((await api('/api/leads', { token })).json.leads as { id: string; phone?: string }[]).find(l => l.phone?.includes('901234567'));
+  const boburCard = bobur ? (await api(`/api/leads/${bobur.id}/card`, { token })).json : null;
+  ok("ovoz: qo'ng'iroq mijoz kartasida (F8)", !!boburCard && JSON.stringify(boburCard).includes(String(call.json.call?.id)), JSON.stringify(boburCard).slice(0, 300));
   ok("ovoz: buzuq qo'ng'iroq — 400", (await api('/api/voice/calls', { token: key, body: { phone: '', durationSec: -1, outcome: '', transcript: 'x' } })).status === 400);
   const listed = await api('/api/calls', { token });
   ok("ovoz: qo'ng'iroq panelda ko'rinadi", listed.json.calls?.[0]?.name === 'Bobur Karimov' && listed.json.calls[0].transcript.length === 2);

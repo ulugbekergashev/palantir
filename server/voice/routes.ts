@@ -7,15 +7,16 @@
 import type { Express, Request, Response } from 'express';
 import { z } from 'zod';
 import { knowledgeText } from '../brain/index';
-import { CrmError } from '../crm/dentacrm';
+import { CrmError, isUnknownOutcome } from '../crm/dentacrm';
 import { normPhone } from '../crm/logic';
 import { bookForCustomer, bookingLine, changeLine, changeVisit, checkBooking, checkChange, patientsByPhone, scheduleText, upcomingVisits } from '../crm/reception';
 import { crmConnected } from '../crm/index';
-import { businesses, calls, voiceBookings, voiceKeys, type BusinessRow } from '../db';
+import { businesses, calls, leads, voiceBookings, voiceKeys, type BusinessRow } from '../db';
 import { env } from '../env';
 import { notifyOwner } from '../inbox/core';
 import { leadForPhone } from '../people';
-import { openRequest } from '../requests/index';
+import { openRequest, settleByBooking } from '../requests/index';
+import { phoneCalls } from '../phone/store';
 import { newVoiceKey, voiceKeyOwner } from './agentKey';
 import { applyLine, connectZadarma, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk, transferNow } from './line';
 import { adoptVoiceKey } from './serviceEnv';
@@ -34,6 +35,10 @@ const PER_PHONE_WEEK = 2, BURST = 6, CALLS_PER_HOUR = 120, NOTIFY_PER_HOUR = 20;
 const UNAVAILABLE = "Bu vaqtga yozib bo'lmadi. Boshqa vaqt taklif qiling yoki administratorga uzating.";
 const HANDOFF = "Bu so'rovni administrator hal qiladi — qo'ng'iroqni unga uzating.";
 const LIMIT = "Hozir qabulga yozib bo'lmaydi — qo'ng'iroqni administratorga uzating.";
+const UNKNOWN = "Jadval javob bermadi — qabul yozildimi yoki yo'qmi, hozir bilib bo'lmaydi. Boshqa vaqtga YOZMANG va qayta urinmang (ikki qabul bo'lib qoladi). " +
+  "Mijozga ayting: «Yozuvni administrator tekshirib, sizga qo'ng'iroq qilib tasdiqlaydi». Administratorga so'rov allaqachon ochildi.";
+/** Natijasi noma'lum yozuv bo'lgan raqamlar (biznes:telefon → vaqt): administrator tekshirguncha AI bu raqamga yozmaydi */
+const unknownWrites = new Map<string, number>();
 
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
@@ -112,6 +117,41 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
     if (!biz) return res.status(401).json({ error: "Kalit noto'g'ri" });
     return fn(req, res, biz);
   };
+  /** Qabulxonaga so'rov (agent, Asterisk yoki server o'zi ochadi); soatlik chegaradan oshsa — null */
+  const agentRequest = async (biz: BusinessRow, r: z.input<typeof RequestSchema>) => {
+    const recent = (agentRequests.get(biz.id) ?? []).filter(t => t > Date.now() - HOUR_MS);
+    if (recent.length >= REQUESTS_PER_HOUR) return null;
+    agentRequests.set(biz.id, [...recent, Date.now()]);
+    const phone = normPhone(r.phone) || r.phone;
+    const lead = leadForPhone(biz, phone, { name: r.name || null, source: "Qo'ng'iroq (ovozli agent)" });
+    const { request } = await openRequest(biz, lead.id, { kind: r.kind ?? 'callback', phone, name: r.name || null, summary: r.summary, whenText: r.when || null, dueAt: r.dueAt || null, source: 'voice' });
+    return request;
+  };
+  /**
+   * DentaCRM yozuvga javob bermadi — qabul yozildimi, noma'lum. AI boshqa vaqtga qayta yozsa, bemorda ikki qabul bo'lib qolardi:
+   * shu raqamga bir soat yozish/o'zgartirish to'xtatiladi, administratorga «CRM'da tekshiring» so'rovi darhol ochiladi
+   */
+  const unknownOutcome = async (biz: BusinessRow, res: Response, phone: string, name: string | null, what: string) => {
+    unknownWrites.set(`${biz.id}:${phone}`, Date.now());
+    await agentRequest(biz, { phone, name, kind: 'change', summary: `Telefonda ${what}, lekin DentaCRM javob bermadi — bo'ldimi, noma'lum. CRM'da tekshiring va bemorga qo'ng'iroq qilib tasdiqlang` })
+      .catch(e => console.error("[ovoz] noma'lum yozuv uchun so'rov ochilmadi:", (e as Error).message));
+    return res.status(409).json({ error: UNKNOWN, code: 'unknown' });
+  };
+  /**
+   * Telefonda yozilgan qabul mijoz kartasiga: karta DentaCRM bemoriga bog'lanadi, «yozildi» bosqichiga o'tadi va qabul kutayotgan
+   * so'rovlari (qayta qo'ng'iroq, yozilish) o'zi yopiladi — yozishmadagi bilan bir xil (F8). Xato qabulni buzmaydi
+   */
+  const linkPhoneBooking = (biz: BusinessRow, phone: string, name: string, patientId: string) => {
+    try {
+      const lead = leadForPhone(biz, phone, { name, source: "Qo'ng'iroq (ovozli agent)" });
+      if (!leads.get(biz.id, lead.id)?.patientId) leads.setPatient(biz.id, lead.id, patientId);
+      leads.update(biz.id, lead.id, { stage: 'won' });
+      void settleByBooking(biz, lead.id, 'Qabulga yozildi (telefonda)').catch(e => console.error("[ovoz] so'rov yopilmadi:", (e as Error).message));
+    } catch (e) {
+      console.error('[ovoz] qabul kartaga bog\'lanmadi:', (e as Error).message);
+    }
+  };
+  const waitingCheck =(biz: BusinessRow, phone: string) => Date.now() - (unknownWrites.get(`${biz.id}:${phone}`) ?? 0) < HOUR_MS;
 
   // Panel: qo'ng'iroqlar ro'yxati va agent kaliti
   app.get('/api/calls', asBiz((_req, res, biz) => res.json({ calls: calls.recent(biz.id) })));
@@ -189,17 +229,25 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
     const over = voiceBookings.since(biz.id, midnight.toISOString()) >= env.voiceDailyBookings || voiceBookings.since(biz.id, ago(600_000)) >= BURST
       || voiceBookings.since(biz.id, ago(7 * DAY_MS), phone) >= PER_PHONE_WEEK;
     if (over) return res.status(429).json({ error: LIMIT, code: 'limit' });
+    if (waitingCheck(biz, phone)) return res.status(409).json({ error: UNKNOWN, code: 'unknown' });
+    const ask = { ...p.data, doctorName: '' };
+    let line = bookingLine(ask);
     try {
-      const ask = { ...p.data, doctorName: '' };
       const ready = await checkBooking(biz, ask);
       // Sabab agentga aytilmaydi: unda boshqa bemorning ismi yoki shifokorning shaxsiy izohi bo'lishi mumkin
       if ('problem' in ready) return res.status(409).json({ error: UNAVAILABLE, code: 'unavailable' });
       // Telefon boshqa ism bilan bazada bo'lsa — begona kartaga yozib qo'ymaslik uchun odam hal qiladi
       if (ready.others.length) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
-      await bookForCustomer(biz, ask);
+      line = bookingLine({ ...ask, doctorName: ready.doctorName });
+      const patientId = await bookForCustomer(biz, ask);
       voiceBookings.add(biz.id, phone);
-      res.json({ booked: bookingLine({ ...ask, doctorName: ready.doctorName }) });
+      linkPhoneBooking(biz, phone, p.data.name, patientId);
+      res.json({ booked: line });
     } catch (e) {
+      if (isUnknownOutcome(e)) {
+        voiceBookings.add(biz.id, phone);   // yozilgan bo'lishi mumkin — chegaralarda hisobga kiradi
+        return unknownOutcome(biz, res, phone, p.data.name, `qabulga yozilayotgan edi (${line})`);
+      }
       if (e instanceof CrmError) return res.status(409).json({ error: UNAVAILABLE, code: 'unavailable' });
       throw e;
     }
@@ -231,34 +279,31 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
     const phone = normPhone(p.data.phone);
     const recent = (phoneChanges.get(`${biz.id}:${phone}`) ?? []).filter(t => t > Date.now() - DAY_MS);
     if (!phone || recent.length >= CHANGES_PER_PHONE_DAY) return res.status(429).json({ error: LIMIT, code: 'limit' });
+    if (waitingCheck(biz, phone)) return res.status(409).json({ error: UNKNOWN, code: 'unknown' });
+    let change: Awaited<ReturnType<typeof checkChange>> | null = null;
     try {
       let ownerId: string | null = null;
       for (const patient of await patientsByPhone(biz.id, phone)) {
         if ((await upcomingVisits(biz.id, patient.id)).some(v => v.id === p.data.appointmentId)) { ownerId = patient.id; break; }
       }
       if (!ownerId) return res.status(409).json({ error: NOT_HIS, code: 'handoff' });
-      const ready = await checkChange(biz, ownerId, { kind: p.data.kind, appointmentId: p.data.appointmentId, date: p.data.date, time: p.data.time });
+      const ready = change = await checkChange(biz, ownerId, { kind: p.data.kind, appointmentId: p.data.appointmentId, date: p.data.date, time: p.data.time });
       // Sabab agentga aytilmaydi: «band» xabarida boshqa bemorning ismi bo'lishi mumkin
       if ('problem' in ready) return res.status(409).json({ error: CANT_CHANGE, code: 'unavailable' });
       await changeVisit(biz, ownerId, ready.change);
       phoneChanges.set(`${biz.id}:${phone}`, [...recent, Date.now()]);
       res.json({ changed: changeLine(ready.change) });
     } catch (e) {
+      if (isUnknownOutcome(e)) {
+        phoneChanges.set(`${biz.id}:${phone}`, [...recent, Date.now()]);
+        const what = change && !('problem' in change) ? changeLine(change.change) : `qabul ${p.data.appointmentId}`;
+        return unknownOutcome(biz, res, phone, null, `qabul o'zgartirilayotgan edi (${what})`);
+      }
       if (e instanceof CrmError) return res.status(409).json({ error: CANT_CHANGE, code: 'unavailable' });
       throw e;
     }
   }));
 
-  /** Qabulxonaga so'rov (agent yoki Asterisk ochadi); soatlik chegaradan oshsa — null */
-  const agentRequest = async (biz: BusinessRow, r: z.infer<typeof RequestSchema>) => {
-    const recent = (agentRequests.get(biz.id) ?? []).filter(t => t > Date.now() - HOUR_MS);
-    if (recent.length >= REQUESTS_PER_HOUR) return null;
-    agentRequests.set(biz.id, [...recent, Date.now()]);
-    const phone = normPhone(r.phone) || r.phone;
-    const lead = leadForPhone(biz, phone, { name: r.name || null, source: "Qo'ng'iroq (ovozli agent)" });
-    const { request } = await openRequest(biz, lead.id, { kind: r.kind, phone, name: r.name || null, summary: r.summary, whenText: r.when || null, dueAt: r.dueAt || null, source: 'voice' });
-    return request;
-  };
   const TOO_MANY = { error: "Juda ko'p so'rov — keyinroq", code: 'limit' };
 
   // Agent: qo'ng'iroq qiluvchi odam bilan gaplashishni so'radi (qayta qo'ng'iroq, surish, shikoyat) — qabulxonaga so'rov
@@ -291,6 +336,16 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
     const at = c.startedAt ? Date.parse(c.startedAt) : NaN;
     const startedAt = at <= Date.now() && at >= Date.now() - DAY_MS ? new Date(at).toISOString() : new Date().toISOString();
     const call = calls.create(biz.id, { phone: c.phone, name: c.name || null, startedAt, durationSec: c.durationSec, outcome: c.outcome, transcript: c.transcript, booked: c.booked || null });
+    // Suhbat mijoz kartasiga (F8): kartada «qo'ng'iroqlar» tarixida ko'rinadi. Yashirin raqam — kartasiz
+    const phone = normPhone(c.phone);
+    if (phone) {
+      try {
+        const lead = leadForPhone(biz, phone, { name: c.name || null, source: "Qo'ng'iroq (ovozli agent)" });
+        phoneCalls.setLead(biz.id, call.id, lead.id, c.name || null);
+      } catch (e) {
+        console.error("[ovoz] qo'ng'iroq kartaga bog'lanmadi:", (e as Error).message);
+      }
+    }
     if (saved < NOTIFY_PER_HOUR) await notifyOwner(biz, `📞 <b>${esc(call.name ?? call.phone)}</b> — ${esc(call.outcome)}${call.booked ? `\n📅 ${esc(call.booked)}` : ''}`).catch(() => null);
     res.json({ call: { id: call.id } });
   }));

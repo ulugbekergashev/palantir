@@ -130,6 +130,24 @@ async def main():
        len(calls['redirect']) == 1 and calls['redirect'][0][2] == 'yordam' and len(writer.data) == 0, f"{calls} {writer.data.hex()[:20]}")
     ok("joy bo'shadi (faol qo'ng'iroqlar 0)", server.active == 0 and server.customers == 0)
 
+    # F6: jadval javob bermadi (qabul yozildimi — noma'lum): AI shu qo'ng'iroqda boshqa vaqtga qayta yozmaydi
+    from reception import Desk
+    desk = Desk('998935550011')
+    sent: list[dict] = []
+
+    async def unknown_book(ask):
+        sent.append(ask)
+        return {'error': "Jadval javob bermadi — boshqa vaqtga YOZMANG", 'code': 'unknown'}
+    desk.gateway.book = unknown_book
+    ask = {'doctor_id': 'd1', 'date': '2026-11-20', 'time': '10:00', 'name': 'Nodira Saidova', 'phone': '+998935550011'}
+    first = await desk.tool('book_appointment', ask)
+    second = await desk.tool('book_appointment', {**ask, 'time': '11:00'})
+    ok("jadval javob bermadi — AI'ga «unknown», ikkinchi urinish CRM'ga yuborilmaydi",
+       first.get('code') == 'unknown' and 'error' in second and len(sent) == 1, f"{first} {second} {len(sent)}")
+    ok("hisobotda «Tekshirish kerak», panel yozuvida ham", 'Tekshirish kerak' in desk.outcome()
+       and 'administrator tekshiradi' in (desk.action_text('book_appointment', ask, first) or ''), desk.outcome())
+    await desk.gateway.close()
+
 
 asyncio.run(main())
 print(f"\n{sum(results)}/{len(results)} o'tdi")

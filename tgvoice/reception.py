@@ -28,7 +28,8 @@ Qo'ng'iroq qilgan raqam: {caller}.
 Faqat pastdagi biznes ma'lumotidan javob ber (xizmatlar, narx, manzil, ish vaqti). U yerda yo'q narsani to'qima —
 «aniqlab, sizga qayta qo'ng'iroq qilamiz» de va leave_request bilan so'rov qoldir.
 {booking}
-Qabulni ko'chirish, bekor qilish, avvalgi qabul haqida savol, shikoyat, narxi yo'q xizmat — leave_request (administrator hal qiladi):
+Qabulni ko'chirish yoki bekor qilish (pastda buni o'zing qilishing aytilmagan bo'lsa), avvalgi qabul haqida savol, shikoyat, narxi yo'q xizmat —
+leave_request (administrator hal qiladi):
 ismini va raqamini aniqlab ol. So'rov qoldirgach: «Rahmat, administrator tez orada siz bilan bog'lanadi».
 Tashxis qo'yma, dori yoki davolash bo'yicha maslahat berma, og'riqsiz yoki natija kafolatini va'da qilma — ko'rikka taklif qil.
 Kuchli og'riq, shish, qon ketish, isitma, jarohat — leave_request (boshida «SHOSHILINCH»), xavfli bo'lsa darhol 103 ga qo'ng'iroq qilishni ayt.
@@ -59,7 +60,9 @@ BOOKING = """Qabulga yozish — o'zing qilasan. Pastdagi jadvalda har shifokor (
 Yozish uchun hammasi kerak: bemorning ismi va familiyasi, telefon raqami ({phone_hint}), bitta shifokor, sana va vaqt — mijoz rozi bo'lgan.
 Biror narsa yetishmasa — bitta qisqa savol bilan so'ra. Hammasi bo'lsa — book_appointment.
 «Yozib qo'ydim» faqat natijada «booked» kelsa ayt: shifokor, kun va vaqtni bir marta takrorla, «kutamiz» de.
-Natijada xato kelsa — yangi jadvaldan boshqa vaqt taklif qil; yana bo'lmasa — leave_request."""
+Natijada xato kelsa — yangi jadvaldan boshqa vaqt taklif qil; yana bo'lmasa — leave_request.
+Natijada code «unknown» kelsa (jadval javob bermadi) — boshqa vaqtga YOZMA, qayta urinma: «Yozuvni administrator tekshirib,
+sizga qo'ng'iroq qilib tasdiqlaydi» de (so'rov allaqachon ochilgan, leave_request shart emas)."""
 
 CALLER = """Bu raqam klinika bazasida bor (DentaCRM): {people}.
 Raqam boshqa odamniki ham bo'lishi mumkin (oila a'zosi, raqamni boshqa birov ishlatyapti): ismini bilganingni darhol aytma.
@@ -70,7 +73,8 @@ boshqa odamning qabulini aytma. Tasdiqlangach ismi bilan murojaat qil (masalan �
 CHANGE = """Qabulni ko'chirish va bekor qilish — o'zing qilasan (administratorga topshirma), faqat yuqoridagi appointment_id lar bilan:
 ko'chirish — jadvaldan o'sha shifokorning bo'sh vaqtini taklif qil, mijoz rozi bo'lgach reschedule_visit; bekor qilish — avval
 «Bekor qilaymi?» deb tasdiqlat, keyin cancel_visit (bekor qilgach yangi vaqtga yozilishni taklif qil). «Ko'chirdim/bekor qildim» faqat natijada
-«changed» kelsa ayt. Xato kelsa — boshqa vaqt taklif qil; yana bo'lmasa — leave_request (kind: change)."""
+«changed» kelsa ayt. Xato kelsa — boshqa vaqt taklif qil; yana bo'lmasa — leave_request (kind: change).
+code «unknown» kelsa — qayta urinma: «administrator tekshirib, qo'ng'iroq qilib tasdiqlaydi» de."""
 
 NO_BOOKING = """Jadval ulanmagan: qabulga o'zing yoza olmaysan. Yozilmoqchi bo'lsa — ism-familiyasi, qulay kun va vaqti va raqamini
 ({phone_hint}) aniqlab leave_request qil va «administrator qo'ng'iroq qilib vaqtni tasdiqlaydi» de. «Yozib qo'ydim» dema."""
@@ -225,6 +229,7 @@ class Desk:
         self.booked: list[str] = []
         self.requests: list[str] = []
         self.changes: list[str] = []
+        self.unsure: list[str] = []      # jadval javob bermagan yozuvlar — administrator tekshiradi
         self.book_tries = 0
         self.change_tries = 0
         self.name = ''
@@ -290,6 +295,8 @@ class Desk:
             self.booked.append(result['booked'])
             self.name = ask['name']
             return result
+        if result.get('code') == 'unknown':
+            return self.unknown(f"{ask['date']} {ask['time']}", ask['name'], result)
         # Vaqt band bo'lib qolgan bo'lishi mumkin — model yangi jadvaldan boshqa vaqt taklif qilsin
         if result.get('code') == 'unavailable' and (fresh := await self.gateway.schedule()):
             result['schedule'] = fresh
@@ -318,8 +325,18 @@ class Desk:
             # Ro'yxat yangilanadi: ko'chirilgan qabulning yangi vaqti, bekor qilingani — yo'q
             self.patients = await self.gateway.caller(self.caller) or self.patients
             return result
+        if result.get('code') == 'unknown':
+            return self.unknown(f"{mine[0]['date']} {mine[0]['time']} qabulini {'ko‘chirish' if kind == 'move' else 'bekor qilish'}", '', result)
         if kind == 'move' and result.get('code') == 'unavailable' and (fresh := await self.gateway.schedule()):
             result['schedule'] = fresh
+        return result
+
+    def unknown(self, what: str, name: str, result: dict) -> dict:
+        """Jadval javob bermadi — yozildimi, noma'lum: bu qo'ng'iroqda boshqa yozish/o'zgartirish yo'q (ikki qabul bo'lmasin).
+        Administratorga «tekshiring» so'rovini server o'zi ochgan"""
+        self.book_tries, self.change_tries = MAX_BOOK_TRIES, MAX_CHANGE_TRIES
+        self.name = self.name or name
+        self.unsure.append(what)
         return result
 
     async def leave(self, args: dict) -> dict:
@@ -344,6 +361,8 @@ class Desk:
         return {'ok': True, 'note': "So'rov administratorga yuborildi" if sent else "So'rov qo'ng'iroq tugagach administratorga yetkaziladi"}
 
     def action_text(self, name: str, args: dict, result: dict) -> str | None:
+        if result.get('code') == 'unknown':
+            return f"Jadval javob bermadi, administrator tekshiradi: {self.unsure[-1] if self.unsure else ''}"
         if name == 'book_appointment':
             return f"Qabulga yozildi: {result['booked']}" if 'booked' in result else f"Yozib bo'lmadi: {result.get('error', '')}"
         if name == 'leave_request':
@@ -358,6 +377,7 @@ class Desk:
         parts = [f"Administratorga o'tkazildi: {self.transferred}"] if self.handed_over else []
         parts += [f"Qabulga yozildi: {', '.join(self.booked)}"] if self.booked else []
         parts += [f"Qabul o'zgardi: {', '.join(self.changes)}"] if self.changes else []
+        parts += [f"Tekshirish kerak (jadval javob bermadi): {', '.join(self.unsure)}"] if self.unsure else []
         parts += [f"So'rov: {r}" for r in self.requests]
         return '; '.join(parts)[:120] or "Ma'lumot oldi"
 

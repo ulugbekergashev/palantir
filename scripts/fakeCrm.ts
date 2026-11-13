@@ -60,6 +60,8 @@ export const crm = {
   /** Keyingi qabul shuncha ms kechikib yoziladi; so'rov kelgan zahoti onBooking chaqiriladi (yozilayotgan paytdagi voqealar uchun) */
   slowBooking: 0,
   onBooking: null as (() => void) | null,
+  /** Keyingi qabul saqlanadi, lekin mijoz xato javob oladi (502) — natija noma'lum holati */
+  hangBooking: false,
   doctors: [] as Row[],
   /** Qabulxona natijalari (ko'chirish, bekor qilish) — /call yoki eski nashrda PUT */
   callResults: [] as Row[],
@@ -226,6 +228,7 @@ export const crmServer = patient(createServer(async (req, res) => {
     const row: Row = { id: `an${++seq}`, ...body };
     crm.appointments.push(row);
     crm.posted.push(row);
+    if (crm.hangBooking) { crm.hangBooking = false; return json(res, { error: 'Bad gateway' }, 502); }
     return json(res, row);
   }
   // Qabulxona natijasi (haqiqiy CRM bilan bir xil qoida): ko'chirildi — yangi kun/vaqt va tasdiqlangan; bekor qildi — Cancelled
