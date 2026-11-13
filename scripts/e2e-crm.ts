@@ -282,7 +282,7 @@ export async function crmReceptionTests(h: Harness): Promise<void> {
     && sent.slice(mark).filter(s => Number(s.params.chat_id) === C1 && textOf(s).includes('yozdik')).length === 1 && ai.replier.length === replierCalls && row?.patientId === 'p2' && row.doctorId === 'd1' && row.date === D3 && row.time === '10:00');
   ok('telefoni bazada bor bemor qayta yaratilmadi', crm.patientsPosted.length === newPatients);
   /** Qabulga yozilgan bemor — «Mijoz bo'ldi», keyingi qadam yo'q: ertasi «💤 Unutilgan»ga tushib, «qayta yozish» tayyorlanmasin */
-  const stageOf = async (phone: string) => ((await api('/api/leads', { token })).json.leads as { phone: string | null; stage: string; nextAt: string | null }[])
+  const stageOf = async (phone: string) => ((await api('/api/leads', { token })).json.leads as { id: string; phone: string | null; stage: string; nextAt: string | null }[])
     .find(l => (l.phone ?? '').replace(/\D/g, '').endsWith(phone));
   const vali = await stageOf('932223344');
   ok("egasi tasdiqlagan qabul — bemor «Mijoz bo'ldi», keyingi qadam yo'q", vali?.stage === 'won' && !vali.nextAt, JSON.stringify(vali));
@@ -396,6 +396,17 @@ export async function crmReceptionTests(h: Harness): Promise<void> {
   await sleep(300);
   ok("bir suhbatdan kuniga ko'pi bilan 2 ta qabul", !!tooMany && crm.posted.length === posted && !after(mark, C2, s => textOf(s).includes('yozdik')));
   await setMode('draft');
+
+  // G3: «Yo'qotildi»dagi bemor yana o'zi yozdi — faol ro'yxatga qaytadi (ertalabki reja va «Sizni kutyapti» uni yana ko'radi)
+  const lolaId = (await stageOf('907008090'))!.id;
+  const lostSet = await api(`/api/leads/${lolaId}`, { method: 'PATCH', token, body: { stage: 'lost' } });
+  mark = sent.length;
+  say(C2, 'Assalomu alaykum, yana bir savolim bor');
+  let revived: string | undefined;
+  for (let i = 0; i < 40 && revived !== 'contacted'; i++) { await sleep(150); revived = (await stageOf('907008090'))?.stage; }
+  // Javob taklifi kartasi kelguncha: keyingi sinovlarga kechikib aralashmasin
+  await waitFor('qaytgan bemor kartasi', () => after(mark, OWNER, s => textOf(s).includes('yana bir savolim bor')));
+  ok("«Yo'qotildi»dagi bemor yana yozdi — «Gaplashildi»ga qaytdi (G3)", lostSet.json.lead?.stage === 'lost' && revived === 'contacted', `${lostSet.json.lead?.stage} → ${revived}`);
 }
 
 /** Yordamchi asboblari: kun hisoboti, bemor, bo'sh vaqt, yozish, token eskirishi */

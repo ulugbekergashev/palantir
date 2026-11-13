@@ -26,6 +26,7 @@ import { bookForCustomer, bookingLine, changeLine, changeVisit, checkBooking, ch
 import { env } from '../env';
 import { decide, type Decision } from './replier';
 import { phoneChanged } from '../people';
+import { revive } from '../stages';
 import { deliverToTeam, editTeamCards, openRequest, settleByBooking } from '../requests/index';
 import { replyCards } from '../requests/store';
 import { crewWorks } from '../../src/lib/crew';
@@ -152,8 +153,10 @@ function leadAiAllowed(leadId: string): boolean {
 export function onIncoming(biz: BusinessRow, m: Incoming): LeadRow {
   const { lead } = leads.fromChannel(biz.id, m.channel, m.person, m.source);
   const saved = inbox.add(biz.id, { leadId: lead.id, channel: m.channel, direction: 'in', by: 'customer', text: m.text, extId: m.extId, at: m.at });
-  if (saved) schedule(biz.id, lead.id);
-  return lead;
+  if (!saved) return lead;
+  schedule(biz.id, lead.id);
+  // «Yo'qotildi»dagi mijoz yana yozdi — faol ro'yxatga qaytadi (G3)
+  return revive(biz, lead);
 }
 
 /** Egasi o'zi yozdi (telefonidagi Telegram yoki Instagram'dan) */

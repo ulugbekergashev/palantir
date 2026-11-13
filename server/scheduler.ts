@@ -30,10 +30,14 @@ import { directorReport } from './director/telegram';
 import { crewHas, crewWorks } from '../src/lib/crew';
 import { crewFromData } from './crew';
 import { measure, measureDue } from './marketing/results';
+import { giveUpSilent, syncVisits } from './stages';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 /** Reklama sarfi va limitlar tekshiruvi oralig'i */
 const ADS_WATCH_MS = 10 * 60_000;
+/** DentaCRM'dan qabulga kelgan bemorlar shu oraliqda tekshiriladi (stages.ts: syncVisits) */
+const VISITS_EVERY_MS = 30 * 60_000;
+const visitsCheckedAt = new Map<string, number>();
 
 /**
  * Ertalabki ish rejasi (plan.ts): vazifalar, mijozlarning keyingi qadamlari, unutilgan mijozlar, tasdiq kutayotganlar,
@@ -104,6 +108,8 @@ export async function morningPlan(biz: BusinessRow, now = new Date(), opts: { we
   const today = iso(now);
   const clinic = crmConnected(biz.id);
   const profile = industryOf(biz.profile.industry, clinic);
+  // Javobsiz mijozlar rejadan oldin «Yo'qotildi»ga: ularga har kuni qayta xabar tayyorlanmasin (G3)
+  const gaveUp = giveUpSilent(biz, now, profile.followDays).length;
   const monday = opts.weekly ?? now.getDay() === 1;
   // O'tgan hafta: o'tgan dushanba 00:00 dan bu dushanba 00:00 gacha (DentaCRM yakuni bilan bir xil oraliq)
   const lastWeek = periodRange('last_week', today);
@@ -122,7 +128,7 @@ export async function morningPlan(biz: BusinessRow, now = new Date(), opts: { we
     repliesPending: replies.pendingTotal(biz.id),
     outboundDrafts: outbound.list(biz.id, 50).filter(o => o.status === 'draft').length,
     // Mijozga yozish — Qabulxonaning ishi (bazada mijozlar bor bo'lsa — u jamoaga o'zi qo'shiladi: crewFromData)
-    crmLines, holidays, recall: recall.length, autoPrep: env.aiEnabled, writer: crewHas(crewFromData(biz), 'qabulxona'),
+    crmLines, holidays, recall: recall.length, autoPrep: env.aiEnabled, writer: crewHas(crewFromData(biz), 'qabulxona'), gaveUp,
     week: monday ? { leadsAdded: leads.addedBetween(biz.id, weekFrom, weekTo), tasksDone: tasks.doneBetween(biz.id, weekFrom, weekTo), crmLine: weekLine } : null,
   });
 }
@@ -368,6 +374,12 @@ export function startScheduler(bot: BotService): () => void {
             else businesses.update(biz.id, { briefDate: today });
           }).finally(() => morningBusy.delete(biz.id));
         }
+      }
+      // 5) DentaCRM: qabulga kelgan yoki to'lagan bemor — «Mijoz bo'ldi» (G3); fonda, yarim soatda bir marta (CRM sekin bo'lsa jadval kutmaydi)
+      for (const biz of businesses.all()) {
+        if (!biz.active || !crmConnected(biz.id) || Date.now() - (visitsCheckedAt.get(biz.id) ?? 0) < VISITS_EVERY_MS) continue;
+        visitsCheckedAt.set(biz.id, Date.now());
+        void syncVisits(biz, now).catch(e => console.warn(`[jadval] kelgan bemorlar (${biz.profile.name}): ${(e as Error).message}`));
       }
       // 4) Litsenziya: panel yopilishiga 7, 3, 1 kun qolganda va yopilganda — egasiga Telegram'da (kunduzi — REQUEST_HOURS, har bosqichda bir marta)
       if (hour >= env.requestHours.from && hour < env.requestHours.to) await warnLicense(bot);

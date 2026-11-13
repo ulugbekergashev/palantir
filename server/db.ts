@@ -456,6 +456,8 @@ export const leads = {
     return key ? many('SELECT * FROM leads WHERE business_id = ? AND phone_key = ? ORDER BY created_at', toLead, businessId, key) : [];
   },
   setPatient: (businessId: string, id: string, patientId: string | null) => run('UPDATE leads SET patient_id = ? WHERE business_id = ? AND id = ?', patientId, businessId, id),
+  /** DentaCRM bemoriga bog'langan kartalar */
+  ofPatient: (businessId: string, patientId: string) => many('SELECT * FROM leads WHERE business_id = ? AND patient_id = ?', toLead, businessId, patientId),
 };
 
 // ─── Ulanishlar: shaxsiy Telegram, Instagram (maxfiy qismi shifrlangan) ──────

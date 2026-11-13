@@ -126,6 +126,9 @@ try {
   console.log('\n# Mijozning keyingi qadami (panel)');
   const a = (await api('/api/leads', { token, body: { name: 'Tabassum klinikasi', phone: '+998 90 111 22 33' } })).json.lead;
   const b = (await api('/api/leads', { token, body: { name: 'Eski mijoz', note: 'narx so\'ragan edi' } })).json.lead;
+  // G3: uch marta yozilgan, javob bermagan mijoz — ertalab «Yo'qotildi»ga o'tadi, unga yana xabar tayyorlanmaydi
+  const silent = (await api('/api/leads', { token, body: { name: 'Jim mijoz', note: 'javob bermayapti' } })).json.lead;
+  await api(`/api/leads/${silent.id}`, { method: 'PATCH', token, body: { stage: 'contacted' } });
   const set = await api(`/api/leads/${a.id}`, { method: 'PATCH', token, body: { stage: 'contacted', nextStep: 'taklif yuborish', nextAt: stamp(new Date()) } });
   ok('keyingi qadam va vaqti saqlandi', set.json.lead?.nextStep === 'taklif yuborish' && set.json.lead?.nextAt === stamp(new Date()), JSON.stringify(set.json));
   ok("noto'g'ri vaqt — rad", (await api(`/api/leads/${a.id}`, { method: 'PATCH', token, body: { nextAt: 'ertaga' } })).status === 400);
@@ -135,6 +138,14 @@ try {
   db.prepare('UPDATE leads SET updated_at = ? WHERE id = ?').run(new Date(Date.now() - 5 * 86_400_000).toISOString(), b.id);
   // Ikkalasi ham avval bizga yozgan (AI faqat shundaylarga o'zi xabar tayyorlaydi — plan.ts)
   db.prepare('UPDATE leads SET last_inbound_at = ? WHERE id IN (?, ?)').run(new Date(Date.now() - 6 * 86_400_000).toISOString(), a.id, b.id);
+  // «Jim mijoz»: bir marta yozgan, keyin biz uch marta yozdik — javob yo'q, 5 kundan beri jim.
+  // Xabarlar bir oy oldin: Direktorning «oxirgi 7 / oldingi 7 kun» raqamlariga (pastda) aralashmasin
+  const silentBiz = (db.prepare('SELECT business_id FROM leads WHERE id = ?').get(silent.id) as { business_id: string }).business_id;
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const msg = db.prepare("INSERT INTO inbox (id, business_id, lead_id, channel, direction, author, text, created_at) VALUES (?, ?, ?, 'bot', ?, ?, ?, ?)");
+  msg.run('jim-0', silentBiz, silent.id, 'in', 'customer', 'narxi qancha?', daysAgo(30));
+  for (const n of [1, 2, 3]) msg.run(`jim-${n}`, silentBiz, silent.id, 'out', 'owner', `qalaysiz? (${n})`, daysAgo(30 - n));
+  db.prepare('UPDATE leads SET updated_at = ?, last_inbound_at = ? WHERE id = ?').run(daysAgo(5), daysAgo(30), silent.id);
   db.close();
 
   console.log('\n# Ertalabki reja Telegram\'da — yordamchi xabarlarni o\'zi tayyorlaydi');
@@ -151,6 +162,9 @@ try {
   const prepReq = await waitFor('tayyorgarlik', () => ai.requests.slice(aiBefore).find(r => JSON.stringify(r.messages).includes('Morning preparation')));
   const prepText = JSON.stringify(prepReq?.messages ?? '');
   ok("yordamchiga ertalabki topshiriq: faqat id'lar (ismlar emas), ikkala mijoz", !!prepReq && prepText.includes(a.id) && prepText.includes(b.id) && !prepText.includes('Eski mijoz'));
+  const silentNow = (await api('/api/leads', { token })).json.leads.find((l: { id: string }) => l.id === silent.id);
+  ok("uch marta javob bermagan mijoz: «Yo'qotildi», unutilganlarda yo'q, xabar tayyorlanmaydi, rejada aytildi (G3)", silentNow?.stage === 'lost' && !mText.includes('Jim mijoz')
+    && !prepText.includes(silent.id) && mText.includes("3 marta yozganimizga javob bermadi"), `${silentNow?.stage} | ${mText.slice(0, 400)}`);
 
   console.log('\n# Kechki savol: kun qanday o\'tdi');
   const evening = await waitFor('kechki savol', () => toOwner(mark, "Kun qanday o'tdi"));

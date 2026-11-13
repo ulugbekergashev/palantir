@@ -18,6 +18,7 @@ import { normPhone } from '../crm/logic';
 import { env, voiceEnabled } from '../env';
 import { notifyOwner } from '../inbox/core';
 import { leadForPhone } from '../people';
+import { revive } from '../stages';
 import { addResult, closeRequest, noAnswer, nudgeRequest, openRequest, setDialer, settleByBooking } from '../requests/index';
 import { requests } from '../requests/store';
 import { SilenceError } from '../stt';
@@ -196,6 +197,8 @@ async function finished(bizId: string, c: PhoneCallRow): Promise<void> {
   if (digits.length < MIN_PHONE_DIGITS) return;
   const lead = leadForPhone(biz, normPhone(c.phone) || c.phone, { name: null, source: "Qo'ng'iroq" });
   phoneCalls.setLead(bizId, c.id, lead.id, lead.name);
+  // «Yo'qotildi»dagi mijoz o'zi qo'ng'iroq qildi (ko'tarilmagan bo'lsa ham) — faol ro'yxatga qaytadi (G3)
+  if (c.direction === 'in') revive(biz, lead);
   const open = requests.openFor(bizId, lead.id).find(r => r.kind === 'callback');
   const linked = c.requestId ? requests.get(bizId, c.requestId) : open;
   if (linked && !c.requestId) phoneCalls.setRequest(bizId, c.id, linked.id);

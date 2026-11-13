@@ -24,7 +24,8 @@ const MAX_PER_DOCTOR = 40;
 /** Bundan uzoq sanaga yozilmaydi (yil adashib aytilgan bo'lsa ushlab qolinadi) */
 const MAX_YEARS_AHEAD = 2;
 
-const CAME = new Set(['Completed', 'Checked-In']);
+/** Bemor qabulga keldi (DentaCRM holati) */
+export const CAME = new Set(['Completed', 'Checked-In']);
 /** Kreslo band emas: bekor qilingan yoki kelmagan */
 const FREES_SLOT = new Set(['Cancelled', 'No-Show']);
 

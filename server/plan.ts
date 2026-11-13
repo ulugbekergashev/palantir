@@ -33,6 +33,8 @@ export interface PlanInput {
    * egasiga kim yozishini aytiladi. Berilmasa — bor (eski chaqiruvlar)
    */
   writer?: boolean;
+  /** Bugun «Yo'qotildi»ga o'tkazilgan javobsiz mijozlar soni (stages.ts: giveUpSilent) */
+  gaveUp?: number;
 }
 
 export interface PlanButton { text: string; data: string }
@@ -44,6 +46,8 @@ const DAY_MS = 86_400_000;
 const MAX_LINES = 7, MAX_FOLLOW_BUTTONS = 3;
 /** Ertalab yordamchi shuncha mijozga xabar tayyorlaydi (qolgani — ertaga yoki egasi so'rasa) */
 export const MAX_PREP = 5;
+/** Shuncha xabarimizga javob bo'lmasa — mijoz «Yo'qotildi» (stages.ts: giveUpSilent) */
+export const SILENT_LIMIT = 3;
 const two = (n: number) => String(n).padStart(2, '0');
 const localStamp = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
 const nameOf = (l: Lead) => l.name ?? (l.username ? `@${l.username}` : l.phone ?? "ismi yo'q");
@@ -79,7 +83,8 @@ export function planText(p: PlanInput): Plan | null {
   const waiting = p.repliesPending + p.outboundDrafts;
   // Hafta yakuni faqat aytadigan narsa bo'lsa (hammasi nol — shovqin)
   const week = p.week && (p.week.leadsAdded || p.week.tasksDone || p.week.crmLine) ? p.week : null;
-  const somethingToSay = overdue.length || todays.length || due.length || forgotten.length || fresh.length || waiting || p.crmLines.length || p.holidays.length || week || p.recall;
+  const gaveUp = p.gaveUp ?? 0;
+  const somethingToSay = overdue.length || todays.length || due.length || forgotten.length || fresh.length || waiting || p.crmLines.length || p.holidays.length || week || p.recall || gaveUp;
   if (!somethingToSay) return null;
 
   const { many } = p.profile.customer;
@@ -112,6 +117,8 @@ export function planText(p: PlanInput): Plan | null {
       out.push("Keyingi qadam qo'yilmagan. Mijozlarga qayta yozish — Qabulxonaning ishi: uni panelda «+ Xodim qo'shish» orqali jamoaga oling.");
     }
   }
+  // Har kuni qayta yozilmaydi: SILENT_LIMIT marta yozildi, javob yo'q — ro'yxatdan chiqdi; o'zi yozsa yoki qo'ng'iroq qilsa — qaytadi
+  if (gaveUp) out.push('', `🔕 <b>${gaveUp} ta ${p.profile.customer.one}</b> ${SILENT_LIMIT} marta yozganimizga javob bermadi — «Yo'qotildi»ga o'tkazdim, endi har kuni yozmaymiz. O'zi yozsa yoki qo'ng'iroq qilsa — ro'yxatga qaytadi.`);
   // Sondan keyin birlik: «4 ta bemorga» (o'zbekchada «4 ta bemorlarga» emas)
   if (prep.length) out.push('', `✍️ <b>Qabulxona ${prep.length} ta ${p.profile.customer.one}ga xabar tayyorlayapti</b> — bir daqiqada shu yerga «Yuborish» tugmasi bilan keladi.`);
   if (p.recall) {
