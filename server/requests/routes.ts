@@ -69,13 +69,17 @@ export function mountRequests(app: Express, { asBiz, bad, bot }: Deps): void {
   }));
 
   // ─── Qabulxona xodimlari ───────────────────────────────────────────────────
-  const view = (s: StaffRow) => {
+  /**
+   * withLinks — Telegram ulash havolalari bilan (faqat egasiga): havolani ochgan odam o'sha xodim bo'lib so'rov kartalarini
+   * (bemor ismi, telefoni) olardi — klinika xodimi (qabulxona, boshqaruvchi) boshqalarning havolasini ko'rmaydi
+   */
+  const view = (s: StaffRow, withLinks = true) => {
     const name = bot.username();
-    return { id: s.id, name: s.name, role: s.role, linked: s.linked, createdAt: s.createdAt, link: !s.linked && name ? `https://t.me/${name}?start=s-${s.linkCode}` : null };
+    return { id: s.id, name: s.name, role: s.role, linked: s.linked, createdAt: s.createdAt, link: withLinks && !s.linked && name ? `https://t.me/${name}?start=s-${s.linkCode}` : null };
   };
-  const team = (biz: BusinessRow) => ({ staff: staff.list(biz.id).map(view), copyToOwner: (businesses.byId(biz.id) ?? biz).profile.requestsCopy !== false, bot: !!bot.username() });
+  const team = (biz: BusinessRow, withLinks = true) => ({ staff: staff.list(biz.id).map(s => view(s, withLinks)), copyToOwner: (businesses.byId(biz.id) ?? biz).profile.requestsCopy !== false, bot: !!bot.username() });
 
-  app.get('/api/staff', asBiz((_req, res, biz) => res.json(team(biz))));
+  app.get('/api/staff', asBiz((_req, res, biz) => res.json(team(biz, !res.locals.staff))));
 
   app.post('/api/staff', asBiz((req, res, biz) => {
     const p = z.object({ name: z.string().trim().min(1).max(60) }).safeParse(req.body);

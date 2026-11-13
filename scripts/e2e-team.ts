@@ -137,6 +137,9 @@ try {
   ok("qabulxona mijoz kartasini butunlay o'chira olmaydi (qaytarib bo'lmaydi) — tahrirlash ochiq", (await st('DELETE', '/api/leads/x')) === 403 && (await st('PATCH', '/api/leads/x', { stage: 'contacted' })) === 404);
   const list = await json<{ staff: Record<string, unknown>[] }>(get(`${base}/api/staff`, staff));
   ok("xodimlar ro'yxatida boshqalarning logini ko'rinmaydi", list.staff?.length === 1 && !('login' in list.staff[0]) && !('access' in list.staff[0]));
+  // Telegram ulash havolasini ochgan odam o'sha xodim bo'lib so'rov kartalarini (bemor ismi, telefoni) olardi — havola faqat egasiga (I3)
+  const ownersList = await json<{ staff: { link: string | null }[] }>(get(`${base}/api/staff`, owner));
+  ok("xodim ro'yxatida Telegram ulash havolalari yo'q (egasida — bor)", list.staff.every(s => !s.link) && ownersList.staff.some(s => !!s.link), JSON.stringify(list.staff.map(s => s.link)));
 
   console.log('\n# Boshqaruvchi');
   ok("huquq almashdi — ochiq kirish darhol tugadi", (await fetch(`${base}/api/team-access/${staffId}`, post({ access: 'manager' }, owner))).status === 200 && (await st('GET', '/api/requests')) === 401);

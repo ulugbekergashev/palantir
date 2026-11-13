@@ -239,6 +239,8 @@ export function createApp(bot: BotService) {
     if (member?.access && !staffMay(member.access, req.method, req.path.toLowerCase())) {
       return res.status(403).json({ error: "Bu bo'lim sizga ochilmagan — klinika egasidan so'rang", code: 'XODIM' });
     }
+    // Javobni xodimga moslash uchun (masalan /api/staff — ulash havolalarisiz): yo'llar sessiyani qayta o'qimasin
+    res.locals.staff = member ?? null;
     next();
   });
 

@@ -184,7 +184,7 @@ inkor qilishga urinish. ✔ — qo'lda kodda qayta tekshirilgan. Yuqoridagi band
 | --- | --- | --- | --- |
 | I1 | Bilimsiz holda ham «Egasiga topshirish» va «o'zi javob bersin» ochiq (narx 0, savollar 0/13, manzil va ish vaqti bo'sh) — ogohlantirishsiz | `19-tayyor.png`, `52-javob-rejimi-ozgartirish.png` | O'RTA |
 | I2 | Tayyorlikning to'rt xil hisobi bir vaqtda: usta 4/8 (yonida 9 qadam), Sozlamalar 2/4, Miya 0/13, «4 bo'shliq, 13 javobsiz» | `19-tayyor.png` | O'RTA |
-| I3 | Qabulxona xodimi boshqa xodimlarning Telegram ulash havolalarini ko'radi (`/api/staff` → `link`) — havolani ochgan odam bemor kartalarini olishi mumkin | `73-xodim-komp-qabulxona-sorovlar.png` | O'RTA (xavfsizlik) |
+| I3 | Qabulxona xodimi boshqa xodimlarning Telegram ulash havolalarini ko'radi (`/api/staff` → `link`) — havolani ochgan odam bemor kartalarini olishi mumkin | `73-xodim-komp-qabulxona-sorovlar.png` | O'RTA (xavfsizlik) — ✅ (keyingi commit) havolalar faqat egasiga |
 | I4 | Javob rejimini «o'zgartirish» havolasi Telegram sozlamalariga olib boradi; rejim ikki joyda, ikki xil ko'rinishda | `52-javob-rejimi-ozgartirish.png` | O'RTA |
 | I5 | Xodimga egasining tugmalari ko'rinadi va jim ishlamaydi (javob rejimi — 403, Instagram ulash, ovoz kaliti, Nazorat bloki, «siz tasdiqlab yuborasiz»); «AI bilmagan savollar» bo'sh (403) | `80-xodim-javob-rejimini-bosdi.png` | O'RTA |
 | I6 | Bosh ekran tasdiq kutayotgan javobni «hali javobsiz» deydi | `41-bosh-ekran-bemor-yozdi.png` | KICHIK |
