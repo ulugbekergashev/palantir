@@ -422,8 +422,10 @@ export type ToolGroup = 'base' | 'qabulxona' | 'kontent' | 'target' | 'marketolo
 const SPECIALISTS = ['qabulxona', 'kontent', 'target', 'marketolog', 'kuzatuvchi'] as const;
 type Specialist = (typeof SPECIALISTS)[number];
 const GROUP_DEFS: Record<Specialist, Record<string, ToolDef<z.ZodType>>> = { qabulxona: QABULXONA_DEFS, kontent: CONTENT_DEFS, target: ADS_DEFS, marketolog: MARKETING_DEFS, kuzatuvchi: CAMERA_DEFS };
+/** Boshqa guruhda turgan, lekin mutaxassisning ishi bo'lgan asboblar: kameralar va CRM taqqoslashi (klinika asboblari orasida) — Kuzatuvchiniki */
+const OWNED_ELSEWHERE: Record<string, Specialist> = { clinic_cameras: 'kuzatuvchi' };
 /** Asbob kimniki (faqat mutaxassislar; base asboblari — hammaniki) */
-export const toolOwner = (name: string): Specialist | null => SPECIALISTS.find(m => Object.hasOwn(GROUP_DEFS[m], name)) ?? null;
+export const toolOwner = (name: string): Specialist | null => OWNED_ELSEWHERE[name] ?? SPECIALISTS.find(m => Object.hasOwn(GROUP_DEFS[m], name)) ?? null;
 
 /** Egasi bilan suhbat: Yordamchi asboblari va jamoaga olingan mutaxassislarniki */
 export const chatGroups = (biz: { crew: string | null }): ToolGroup[] => ['base', ...SPECIALISTS.filter(m => crewHas(biz, m))];
@@ -437,7 +439,7 @@ export function ownerToolDefs(crm: boolean, groups: ToolGroup[] = ['base', ...SP
   return Object.entries({
     ...(on('base') ? { ...BASE_DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS } : {}), ...(on('qabulxona') ? QABULXONA_DEFS : {}),
     ...(on('kuzatuvchi') ? CAMERA_DEFS : {}), ...(on('kontent') ? CONTENT_DEFS : {}), ...(on('base') || on('kontent') ? BRAND_DEFS : {}), ...(on('target') ? ADS_DEFS : {}),
-    ...(on('base') && computerEnabled() ? COMPUTER_DEFS : {}), ...(on('marketolog') && marketingEnabled() ? MARKETING_DEFS : {}), ...(on('base') && crm ? CRM_DEFS : {}),
+    ...(on('base') && computerEnabled() ? COMPUTER_DEFS : {}), ...(on('marketolog') && marketingEnabled() ? MARKETING_DEFS : {}), ...(on('base') && crm ? Object.fromEntries(Object.entries(CRM_DEFS).filter(([n]) => !OWNED_ELSEWHERE[n] || on(OWNED_ELSEWHERE[n]))) : {}),
   }) as [string, ToolDef<z.ZodType>][];
 }
 

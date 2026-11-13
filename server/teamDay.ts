@@ -22,7 +22,9 @@ import './content/video';
 import { isClinic } from '../src/data/industries';
 import { crmConnected } from './crm/index';
 import { events } from './orders/store';
-import { crewHas } from '../src/lib/crew';
+import { CREW, crewHas, type CrewMember } from '../src/lib/crew';
+
+const isCrewMember = (m: string): m is CrewMember => (CREW as readonly string[]).includes(m);
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps { asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler }
@@ -132,7 +134,8 @@ export function teamDay(biz: BusinessRow, now = new Date()): TeamDay {
       ...(crewHas(biz, 'tahlilchi') ? [analyst(biz, t)] : []), ...(crewHas(biz, 'marketolog') ? [marketer(biz, t)] : []),
       ...(crewHas(biz, 'kontent') ? [content(biz, from)] : []), ...(crewHas(biz, 'target') ? [ads(biz, from)] : []),
     ],
-    timeline: events.since(biz.id, from, TIMELINE),
+    // Olib tashlangan xodimning yozuvlari (eski topshiriq, Direktor bergan ish) lentada ko'rinmaydi
+    timeline: events.since(biz.id, from, TIMELINE).filter(e => !isCrewMember(e.member) || crewHas(biz, e.member)),
   };
 }
 

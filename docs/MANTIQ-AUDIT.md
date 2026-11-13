@@ -22,7 +22,7 @@ Holat ustuni: «—» — tuzatilmagan.
 | A7 | Qabulxona xodimi (reception login) jamoa jurnalini (kamera ogohlantirishlari, Direktor topshiriqlari) va egasining vazifalarini ko'radi | `server/access.ts:19`, `server/teamDay.ts:131` (`/api/team/day`); `server/http.ts:579-582` (`/api/tasks`) | ✅ (keyingi commit) qabulxonaga `team/day` va `tasks` yopildi |
 | A8 | Claude obunasidan chiqib ketish yoki limit tugashi kanallar nazoratida yo'q — AI jim qoladi, egasi ham, Hub ham bilmaydi | `server/monitor.ts:33-50`; faqat kartaga izoh `server/inbox/core.ts:217-218` | ✅ (keyingi commit) kanallar nazoratida «Claude (AI)»: obuna, kalit, mablag', bemorlarga javob chegarasi — egasiga bir marta, Hub ham ko'radi |
 | A9 | Direktor tasdiqlangan taklifni Kontent-meyker, Targetolog, Tahlilchi, Marketologga «topshiradi», lekin ularning fon ishlari topshiriqni o'qimaydi; natija baribir o'lchanadi | `server/director/index.ts:71,207`; o'qiydiganlar faqat `agent.ts:125,146`, `brain/index.ts:104,252`, `orders/look.ts:31` | — |
-| A10 | Kuzatuvchi olinmagan bo'lsa ham Yordamchi kamera nomuvofiqliklarini aytadi; Sozlamalar → Kameralar izohsiz «AI xodimlar»ga qaytaradi | `server/crm/tools.ts:71`; `src/LiveApp.tsx:91-93`; `src/pages/settings/SettingsHub.tsx:66` | — |
+| A10 | Kuzatuvchi olinmagan bo'lsa ham Yordamchi kamera nomuvofiqliklarini aytadi; Sozlamalar → Kameralar izohsiz «AI xodimlar»ga qaytaradi | `server/crm/tools.ts:71`; `src/LiveApp.tsx:91-93`; `src/pages/settings/SettingsHub.tsx:66` | qisman (keyingi commit): `clinic_cameras` — Kuzatuvchiniki (olinmagan bo'lsa asbob ham, ko'rsatmadagi qator ham yo'q); Sozlamalar → Kameralar plitkasi — 4-bosqichda |
 | A11 | «Qabulxonaga ayting / Qabulxona qo'ng'iroq qilsin» deyiladi, lekin xabar faqat egasiga boradi | `server/orders/run.ts:107`; `server/botButtons.ts:239-246` | — |
 | A12 | Javob qoralamalari hech qachon eskirmaydi — ertalab bir necha kunlik eskilari ham «N ta javob» deb sanaladi | `server/db.ts:567`; `server/plan.ts:92` | ✅ (keyingi commit) 48 soatdan eski taklif eskiradi (karta «⌛ Eskirdi»), bemor javobsiz bo'lsa — «javob kutyapti» |
 | A13 | Ertalabki xabar qayta yuborilganda Direktor qismi tushib qoladi; ustadagi namuna Direktorsiz (haqiqiysidan farq qiladi) | `server/director/telegram.ts:16`; `server/setup/routes.ts:150` | — |
@@ -60,8 +60,8 @@ Holat ustuni: «—» — tuzatilmagan.
 
 ## D. Kichik qoldiqlar
 
-- Bosh ekrandagi «bugungi jurnal» olinmagan xodimlar yozuvlarini ham ko'rsatadi — `server/teamDay.ts:135`.
-- Marketolog va Tahlilchi topshiriqlari ular olinmagan bo'lsa ham Yordamchi ko'rsatmasiga qo'shiladi — `server/agent.ts:148`.
+- ✅ (keyingi commit) Bosh ekrandagi «bugungi jurnal» olinmagan xodimlar yozuvlarini ham ko'rsatadi — `server/teamDay.ts:135`.
+- ✅ (keyingi commit) Marketolog va Tahlilchi topshiriqlari ular olinmagan bo'lsa ham Yordamchi ko'rsatmasiga qo'shiladi — `server/agent.ts:148`.
 - Faqat Targetolog olingan bo'lsa ham telefondagi tugma «SMM» — `src/components/Rail.tsx:18`.
 - Eski «To'liq hisobot» sahifasi eski manzillar bilan; «Xodim qo'shish» So'rovlarga olib boradi — `Dashboard.tsx:148,163`.
 - Bot o'zini «biznesingiz uchun AI yordamchi» deb tanishtiradi, «AI administrator» emas — `server/botKit.ts:123`.

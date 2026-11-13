@@ -115,6 +115,12 @@ console.log("\n# Asboblar xodim bo'yicha (3-bosqich)");
     const k = ownerToolDefs(false, ['kontent']).map(([n]) => n);
     assert.ok(k.includes('content_plan') && !k.includes('create_task') && !k.includes('ads_plan'));
   });
+  check("kameralar va CRM taqqoslashi (clinic_cameras) — Kuzatuvchiniki: u olinmagan bo'lsa Yordamchida yo'q", () => {
+    assert.equal(toolOwner('clinic_cameras'), 'kuzatuvchi');
+    assert.ok(!ownerToolDefs(true, ['base']).some(([n]) => n === 'clinic_cameras'));
+    assert.ok(ownerToolDefs(true, ['base', 'kuzatuvchi']).some(([n]) => n === 'clinic_cameras'));
+    assert.ok(ownerToolDefs(true, ['base']).some(([n]) => n === 'clinic_day'), 'qolgan klinika asboblari joyida');
+  });
   check("brend-buk — hammaniki: Kontent-meykersiz ham Yordamchida bor, Kontent-meyker topshirig'ida ham", () => {
     assert.equal(toolOwner('content_brand_book'), null);
     assert.ok(ownerToolDefs(false, ['base']).some(([n]) => n === 'content_brand_book'), 'Yordamchi (Kontent-meyker olinmagan)');
@@ -163,6 +169,22 @@ console.log("\n# «Bugun jamoa» hisoblagichlari va kamera zonalari (5-bosqich)"
     assert.equal(m('kontent').summary, '1 ta post tayyorladi. 1 ta qoralama tasdiqingizni kutyapti.');
     assert.equal(m('target').summary, 'Hozir reklama ishlamayapti.');
   });
+  // Tahlilchi va Marketolog jamoadan olib tashlandi: ularning jurnal yozuvlari «Bugun jamoa» lentasida ko'rinmaydi (D1)
+  businesses.update(biz.id, { crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'kontent', 'target'], dismissed: ['tahlilchi', 'marketolog'] }) });
+  const fewer = teamDay(businesses.byId(biz.id)!);
+  check("olinmagan xodimlarning yozuvlari bugungi lentada yo'q", () => {
+    assert.ok(!fewer.timeline.some(e => e.member === 'tahlilchi' || e.member === 'marketolog'), JSON.stringify(fewer.timeline.map(e => e.member)));
+  });
+  const { orders } = await import('../server/orders/store');
+  const { standingOrders } = await import('../server/agent');
+  orders.create(biz.id, 'tahlilchi', 'Har dushanba hisobot', { kind: 'standing' }, 'Har dushanba hisobot');
+  orders.create(biz.id, 'kontent', 'Har kuni bitta post', { kind: 'standing' }, 'Har kuni bitta post');
+  check("olinmagan Tahlilchi va Marketolog doimiy topshiriqlari Yordamchi ko'rsatmasiga qo'shilmaydi (D2)", () => {
+    const sys = standingOrders(businesses.byId(biz.id)!);
+    assert.ok(!sys.includes('Har dushanba hisobot'), sys);
+    assert.ok(sys.includes('Har kuni bitta post'), "jamoadagi Kontent-meykerniki qoladi");
+  });
+  businesses.update(biz.id, { crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'tahlilchi', 'marketolog', 'kontent', 'target'], dismissed: [] }) });
   const { runTool, ownerToolDefs, memberGroups } = await import('../server/tools');
   const { iso } = await import('../src/lib/week');
   const ctx = { biz: businesses.byId(biz.id)!, artifacts: [] };
