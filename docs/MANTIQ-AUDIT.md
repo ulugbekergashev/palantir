@@ -23,7 +23,7 @@ Holat ustuni: «—» — tuzatilmagan.
 | A8 | Claude obunasidan chiqib ketish yoki limit tugashi kanallar nazoratida yo'q — AI jim qoladi, egasi ham, Hub ham bilmaydi | `server/monitor.ts:33-50`; faqat kartaga izoh `server/inbox/core.ts:217-218` | ✅ (keyingi commit) kanallar nazoratida «Claude (AI)»: obuna, kalit, mablag', bemorlarga javob chegarasi — egasiga bir marta, Hub ham ko'radi |
 | A9 | Direktor tasdiqlangan taklifni Kontent-meyker, Targetolog, Tahlilchi, Marketologga «topshiradi», lekin ularning fon ishlari topshiriqni o'qimaydi; natija baribir o'lchanadi | `server/director/index.ts:71,207`; o'qiydiganlar faqat `agent.ts:125,146`, `brain/index.ts:104,252`, `orders/look.ts:31` | ✅ (keyingi commit) Direktor faqat topshiriqni o'qiydiganlarga (Qabulxona, Yordamchi, Kuzatuvchi, egasi); fon ishlariga topshiriqni ulash — keyinroq |
 | A10 | Kuzatuvchi olinmagan bo'lsa ham Yordamchi kamera nomuvofiqliklarini aytadi; Sozlamalar → Kameralar izohsiz «AI xodimlar»ga qaytaradi | `server/crm/tools.ts:71`; `src/LiveApp.tsx:91-93`; `src/pages/settings/SettingsHub.tsx:66` | qisman (keyingi commit): `clinic_cameras` — Kuzatuvchiniki (olinmagan bo'lsa asbob ham, ko'rsatmadagi qator ham yo'q); Sozlamalar → Kameralar plitkasi — 4-bosqichda |
-| A11 | «Qabulxonaga ayting / Qabulxona qo'ng'iroq qilsin» deyiladi, lekin xabar faqat egasiga boradi | `server/orders/run.ts:107`; `server/botButtons.ts:239-246` | — |
+| A11 | «Qabulxonaga ayting / Qabulxona qo'ng'iroq qilsin» deyiladi, lekin xabar faqat egasiga boradi | `server/orders/run.ts:107`; `server/botButtons.ts:239-246` | ✅ (keyingi commit) odamga tegishli gaplar — «Administratorga ayting», «Administrator qo'ng'iroq qilib» |
 | A12 | Javob qoralamalari hech qachon eskirmaydi — ertalab bir necha kunlik eskilari ham «N ta javob» deb sanaladi | `server/db.ts:567`; `server/plan.ts:92` | ✅ (keyingi commit) 48 soatdan eski taklif eskiradi (karta «⌛ Eskirdi»), bemor javobsiz bo'lsa — «javob kutyapti» |
 | A13 | Ertalabki xabar qayta yuborilganda Direktor qismi tushib qoladi; ustadagi namuna Direktorsiz (haqiqiysidan farq qiladi) | `server/director/telegram.ts:16`; `server/setup/routes.ts:150` | — |
 | A14 | Kanallar nazoratida tungi sukut yo'q (tunda o'chiriladigan kamera — har kecha ogohlantirish); Telegram'i ulanmagan biznes umuman tekshirilmaydi | `server/monitor.ts:57-84`, `:61` | qisman (keyingi commit): Telegramsiz biznes ham tekshiriladi (Hub ko'radi); tungi sukut — hali yo'q |
@@ -66,7 +66,7 @@ Holat ustuni: «—» — tuzatilmagan.
 - Eski «To'liq hisobot» sahifasi eski manzillar bilan; «Xodim qo'shish» So'rovlarga olib boradi — `Dashboard.tsx:148,163`.
 - Bot o'zini «biznesingiz uchun AI yordamchi» deb tanishtiradi, «AI administrator» emas — `server/botKit.ts:123`.
 - Panel va Telegram har xil: kamera xabarida «Ko'rdim» yo'q (band 24 soat turadi), panelda «Bajarildi» natija so'ramaydi, taklif tugmalari har xil nomda — `attention.ts`, `botButtons.ts:302`, `director/logic.ts:91`.
-- Xodim yozgan javob egasiga «Javobingiz» deb eslab qolishga taklif qilinadi — `server/brain/learn.ts:49`.
+- ✅ (keyingi commit) Xodim yozgan javob egasiga «Javobingiz» deb eslab qolishga taklif qilinadi — `server/brain/learn.ts:49`. Endi «Aziza javobi», kartada «Aziza javob berdi», xodim tuzatishi «egasining tuzatishi» emas.
 - Yangi o'rnatish kalitsiz bir kun ham ishlamaydi (`server/license.ts:26`, `NEW_GRACE_DAYS = 0`) — sotuvda «14 kun bepul» deb aytilmasin, yoki sinov muddati qo'shilsin (egasi qarori).
 
 ## Taklif: klinikaga standart ko'rinish

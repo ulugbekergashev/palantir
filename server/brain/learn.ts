@@ -19,17 +19,19 @@ const MIN_ANSWER_CHARS = 12;
 const waitMs = () => env.inboxDebounceMs * 5;
 
 type Ask = (html: string, keyboard: InlineKeyboardMarkup) => Promise<unknown>;
-const waiting = new Map<string, { timer: NodeJS.Timeout; texts: string[] }>();
+const waiting = new Map<string, { timer: NodeJS.Timeout; texts: string[]; by: string | null }>();
 const esc = (s: string) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
 
 const keyboard = (id: string) => Markup.inlineKeyboard([[Markup.button.callback('✅ Eslab qol', `ky|${id}`), Markup.button.callback('✖️ Kerak emas', `kn|${id}`)]]).reply_markup;
 
 /** Egasi mijozga yozdi (bot, panel yoki o'z telefoni). ask — egasiga tugmali xabar yuboradi */
-export function ownerAnswered(biz: BusinessRow, lead: LeadRow, text: string, ask: Ask): void {
+/** by — javob yozgan xodimning ismi (egasi o'zi yozgan bo'lsa — null): egasiga kimning javobi ekani aytiladi */
+export function ownerAnswered(biz: BusinessRow, lead: LeadRow, text: string, ask: Ask, by: string | null = null): void {
   const key = `${biz.id}:${lead.id}`;
   const batch = waiting.get(key);
   if (batch) clearTimeout(batch.timer);
   const texts = [...(batch?.texts ?? []), text.trim()];
+  const author = by ?? batch?.by ?? null;
   const timer = setTimeout(() => {
     waiting.delete(key);
     const answer = texts.join('\n');
@@ -46,13 +48,13 @@ export function ownerAnswered(biz: BusinessRow, lead: LeadRow, text: string, ask
     ask([
       '🧠 <b>Eslab qolaymi?</b>',
       `Savol: «${esc(suggestion.question)}»`,
-      `Javobingiz: «${esc(suggestion.answer)}»`,
+      author ? `${esc(author)} javobi: «${esc(suggestion.answer)}»` : `Javobingiz: «${esc(suggestion.answer)}»`,
       '',
       "Keyingi safar shu savolga o'zim shunday javob beraman. Faqat shu mijozga atalgan gap bo'lsa — «Kerak emas».",
     ].join('\n'), keyboard(suggestion.id)).catch(e => console.error('[miya] egasidan so\'rab bo\'lmadi:', (e as Error).message));
   }, waitMs());
   timer.unref();
-  waiting.set(key, { timer, texts });
+  waiting.set(key, { timer, texts, by: author });
 }
 
 /** Fayl o'qilgach egasiga chiqadigan tugmalar: bilimga qo'shish, (narx bo'lsa) jadvalga olish, namuna qilish, rad etish */

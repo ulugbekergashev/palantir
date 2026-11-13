@@ -197,7 +197,7 @@ try {
   press(STAFF, buttons(staffCard).find(b => b.callback_data?.startsWith('ra|'))!.callback_data!, staffCard!.id!);
   ok("xodim «Yuborish»ni bosdi — Instagram'da mijozga ketdi", await waitFor('yuborildi', () => igWeb.typed.slice(typedBefore).some(m => m.text.includes('Narxni aniqlab'))));
   ok('egasidagi karta ham yopildi («Yuborildi», tugmasiz)', await waitFor('egasi kartasi', () => edits(OWNER, mark, 'Yuborildi').length > 0) && !buttons(edits(STAFF, mark, 'Yuborildi').at(-1)).length);
-  ai.customer = () => decision({ action: 'ask_owner', reply: 'Aniqlab aytamiz.', note_for_owner: 'Vaqtni ayting' });
+  ai.customer = () => decision({ action: 'ask_owner', reply: 'Aniqlab aytamiz.', note_for_owner: 'Vaqtni ayting', question: 'Shanba kuni ishlaysizmi?' });
   mark = sent.length;
   igWeb.incoming('t1', 'Shanba kuni ishlaysizmi?');
   const card2 = await waitFor('ikkinchi karta', () => to(STAFF, mark, 'Javob taklifi'), 15_000);
@@ -205,7 +205,9 @@ try {
   mark = sent.length;
   say(STAFF, 'Ha, shanba 9:00 dan 15:00 gacha ishlaymiz', card2!.id!);
   ok("xodim kartaga «Reply» qildi — o'z matni mijozga ketdi, egasidagi taklif eskirdi", await waitFor('xodim yozdi', () => igWeb.typed.slice(typed2).some(m => m.text.includes('shanba 9:00')))
-    && !!(await waitFor('yuborildi xabari', () => to(STAFF, mark, 'yuborildi'))) && !!(await waitFor('eskirdi', () => edits(OWNER, mark, "O'zingiz javob berdingiz").length)));
+    && !!(await waitFor('yuborildi xabari', () => to(STAFF, mark, 'yuborildi'))) && !!(await waitFor('eskirdi', () => edits(OWNER, mark, 'Aziza javob berdi').length)));
+  const learn = await waitFor('eslab qolaymi', () => to(OWNER, mark, 'Eslab qolaymi'), 8_000);
+  ok("egasiga: «Eslab qolaymi?» — xodimning javobi deb (egasining «Javobingiz» emas)", !!learn && textOf(learn).includes('Aziza javobi') && !textOf(learn).includes('Javobingiz'), textOf(learn));
 
   console.log('\n# O\'sha odam botga yozdi — bitta karta');
   tgNames.set(CUSTOMER, { first_name: 'Dilya' });

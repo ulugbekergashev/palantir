@@ -829,8 +829,8 @@ export function createApp(bot: BotService) {
     const t = text(req.body?.text, 4000);
     if (!t) return res.status(400).json({ error: "Xabar bo'sh" });
     try {
-      // replyId — egasi shu tayyor javobni «Tahrirlab yozish» orqali o'zgartirib yubordi
-      await ownerWrites(biz, lead, t, typeof req.body?.replyId === 'string' ? req.body.replyId.slice(0, 40) : undefined);
+      // replyId — egasi shu tayyor javobni «Tahrirlab yozish» orqali o'zgartirib yubordi. Klinika xodimi yozgan bo'lsa — uning ismi
+      await ownerWrites(biz, lead, t, typeof req.body?.replyId === 'string' ? req.body.replyId.slice(0, 40) : undefined, sessionOf(req)?.staff?.name ?? null);
       res.json({ messages: inbox.thread(biz.id, lead.id, 100), replies: replies.open(biz.id, lead.id) });
     } catch (e) { fail(res, e); }
   }));

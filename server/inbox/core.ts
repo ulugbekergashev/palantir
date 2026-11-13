@@ -691,12 +691,17 @@ export async function dismissReply(biz: BusinessRow, id: string): Promise<void> 
  * Egasi mijozga o'zi yozdi (kartaga «Reply» yoki panel orqali). draftId — egasi shu tayyor javob o'rniga yozgan bo'lsa:
  * farqi «tuzatish» bo'lib saqlanadi (faqat aniq ko'rsatilganda — telefonda yozilgan har gap tuzatish emas).
  */
-export async function ownerWrites(biz: BusinessRow, lead: LeadRow, text: string, draftId?: string): Promise<LeadChannel> {
+/**
+ * Odam mijozga yozdi (egasi yoki xodim — panel, Telegram kartasiga «Reply»). staff — yozgan xodimning ismi: uning javobi egasiga
+ * «Aziza javobi» deb eslab qolishga taklif qilinadi (egasi tasdiqlasa — bilim), AI taklifini tuzatgani esa «egasining tuzatishi»
+ * bo'lib mijozlarga javobga tushmaydi
+ */
+export async function ownerWrites(biz: BusinessRow, lead: LeadRow, text: string, draftId?: string, staff?: string | null): Promise<LeadChannel> {
   const draft = draftId ? replies.get(biz.id, draftId) : undefined;
   const ch = await sendToLead(biz, lead, text, 'owner');
-  // So'ralgan savolga javob — bilim taklifi; oddiy tayyor javob o'rniga yozilgani — tuzatish
-  if (draft && draft.leadId === lead.id && draft.status === 'pending' && !draft.question && !draft.booking && !draft.change && draft.text !== HOLD_TEXT) recordFix(biz, draft.text, text);
-  ownerAnswered(biz, lead, text, (html, keyboard) => notifyOwner(biz, html, keyboard));
-  await supersede(biz, lead, "O'zingiz javob berdingiz");
+  // So'ralgan savolga javob — bilim taklifi; oddiy tayyor javob o'rniga yozilgani — tuzatish (faqat egasiniki)
+  if (!staff && draft && draft.leadId === lead.id && draft.status === 'pending' && !draft.question && !draft.booking && !draft.change && draft.text !== HOLD_TEXT) recordFix(biz, draft.text, text);
+  ownerAnswered(biz, lead, text, (html, keyboard) => notifyOwner(biz, html, keyboard), staff ?? null);
+  await supersede(biz, lead, staff ? `${staff} javob berdi` : "O'zingiz javob berdingiz");
   return ch;
 }

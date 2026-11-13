@@ -115,7 +115,7 @@ export function planText(p: PlanInput): Plan | null {
   // Sondan keyin birlik: «4 ta bemorga» (o'zbekchada «4 ta bemorlarga» emas)
   if (prep.length) out.push('', `✍️ <b>Qabulxona ${prep.length} ta ${p.profile.customer.one}ga xabar tayyorlayapti</b> — bir daqiqada shu yerga «Yuborish» tugmasi bilan keladi.`);
   if (p.recall) {
-    out.push('', `🔁 <b>Qaytarish kerak:</b> ${p.recall} ta bemor 6–12 oy oldin kelgan va boshqa kelmagan. Qabulxona qo'ng'iroq qilib, ko'rikka chaqirsa — eng arzon yangi bemor shu.`);
+    out.push('', `🔁 <b>Qaytarish kerak:</b> ${p.recall} ta bemor 6–12 oy oldin kelgan va boshqa kelmagan. Administrator qo'ng'iroq qilib, ko'rikka chaqirsa — eng arzon yangi bemor shu.`);
     buttons.push([{ text: "📋 Bemorlar ro'yxati", data: 'rc|list' }]);
   }
   section(`Yangi ${many} (${fresh.length})`, fresh.slice(0, MAX_LINES).map(l => `• ${esc(nameOf(l))}${l.phone ? ` — ${esc(l.phone)}` : ''}`));

@@ -104,7 +104,7 @@ export function startOrders(bot: BotService): () => void {
     const title = `${c.name} · ${zone.name}: bir kishi ${minutes} daqiqadan beri kutyapti`;
     void cameraFrame(b.id, c.id).then(image => {
       events.add(b.id, { member: 'kuzatuvchi', orderId: null, level: 'warn', title, body: "Kutish joyida uzoq kutish — kimdir uni qabul qilsin yoki nima bo'lganini aytsin", cameraId: c.id }, image);
-      return alertOwner(b, `⏳ <b>${esc(title)}</b>\nQabulxonaga ayting: bemorni qabul qilsin yoki kechikish sababini aytsin.`, image);
+      return alertOwner(b, `⏳ <b>${esc(title)}</b>\nAdministratorga ayting: bemorni qabul qilsin yoki kechikish sababini aytsin.`, image);
     }).catch(e => console.error('[kuzatuvchi] kutish xabari:', (e as Error).message));
   }));
   const busy = new Set<string>();

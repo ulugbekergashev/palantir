@@ -99,7 +99,7 @@ export async function staffText(ctx: Context, text: string): Promise<boolean> {
   const lead = leadId && biz ? leads.get(biz.id, leadId) : undefined;
   if (biz && lead) {
     try {
-      await ownerWrites(biz, lead, text, replyCards.byMessage(chatId, replyTo!) ?? undefined);
+      await ownerWrites(biz, lead, text, replyCards.byMessage(chatId, replyTo!) ?? undefined, s.name);
       await ctx.reply(`✅ ${lead.name || 'Mijoz'}ga yuborildi.`);
     } catch (e) {
       await ctx.reply(`⚠️ Yuborilmadi: ${(e as Error).message}`);
