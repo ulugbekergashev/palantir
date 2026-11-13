@@ -269,5 +269,25 @@ console.log("\n# Ish paydo bo'lishi bilan xodim jamoada (panel ochilishini kutma
   });
 }
 
+console.log("\n# Direktor: ertalabki xabar qayta yuborilsa (internet uzilgan) — Direktor qismi tushib qolmaydi (A13)");
+{
+  const { directorRuns, directorMoves } = await import('../server/director/store');
+  const { directorReport } = await import('../server/director/telegram');
+  const { iso } = await import('../src/lib/week');
+  const b = businesses.create(`dir${Date.now()}`, 'x', emptyBusiness('Direktor klinika', 'stomatologiya'));
+  const run = directorRuns.add(b.id, iso(new Date()), 'Javob ulushi tushdi', { title: 'Javobsiz murojaatlar', evidence: '80% → 60%' },
+    { inquiries: { now: 40, prev: 50 }, answered_pct: { now: 60, prev: 80 } });
+  directorMoves.add(b.id, run.id, { member: 'qabulxona', task: "Narx so'raganga darhol javob ber", why: '60%', metric: 'answered_pct', baseline: 60, checkDays: 3 });
+  directorMoves.add(b.id, run.id, { member: 'egasi', task: 'Chegirma kerakmi — hal qiling', why: '', metric: 'booked', baseline: 8, checkDays: 7 });
+  const again = await directorReport(businesses.byId(b.id)!);
+  check("bugungi tahlil bor — hisobot saqlanganidan qayta yig'iladi (AI'siz): muammo, takliflar, tugmalar", () => {
+    assert.ok(again, 'hisobot yo\'q');
+    assert.match(again!.html, /Javobsiz murojaatlar/);
+    assert.match(again!.html, /1\. <b>Qabulxona<\/b>: Narx so'raganga/);
+    assert.match(again!.html, /2\. <b>Egasi<\/b>|2\. <b>Sizga<\/b>|2\. <b>/);
+    assert.equal(again!.buttons.flat().filter(x => x.data.startsWith('dv|')).length, 2);
+  });
+}
+
 console.log(failed ? `\n✗ ${failed} ta tekshiruv o'tmadi` : "\n✓ hammasi o'tdi");
 process.exit(failed ? 1 : 0);

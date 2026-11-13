@@ -3,20 +3,40 @@
  * morningMessage) va «✅ topshirish / ✖️ kerak emas» tugmalari. Hisobot faqat aytadigan narsa bo'lsa: muammo, taklif yoki
  * tekshirilgan qaror natijasi.
  */
-import { iso } from '../../src/lib/week';
+import { addDays, iso } from '../../src/lib/week';
 import type { BusinessRow } from '../db';
 import { env } from '../env';
 import { approveMove, declineMove, DirectorError, directorMoves, directorRuns, runDirector } from './index';
-import { moveButtons, reportHtml } from './logic';
+import { moveButtons, reportHtml, type Numbers, type ReportMove } from './logic';
+import type { DirectorRun } from './store';
 
 interface Sender { sendText(chatId: string, html: string, buttons?: { text: string; data: string }[][]): Promise<void> }
 
-/** Ertalab: bugun hali tahlil qilinmagan bo'lsa — tahlil; aytadigan narsa bo'lsa — hisobot va tugmalar (yuborilmaydi) */
+/**
+ * Ertalab: bugun hali tahlil qilinmagan bo'lsa — tahlil; aytadigan narsa bo'lsa — hisobot va tugmalar (yuborilmaydi).
+ * Bugungi tahlil allaqachon bor (ertalabki xabar internet uzilib yetmagan, qayta yuborilyapti) — hisobot saqlanganidan qayta
+ * yig'iladi: aks holda qayta yuborilgan xabarda faqat kun rejasi qolib, Direktor takliflari tushib qolardi
+ */
 export async function directorReport(biz: BusinessRow, now = new Date()): Promise<{ html: string; buttons: { text: string; data: string }[][] } | null> {
-  if (!env.aiEnabled || directorRuns.onDay(biz.id, iso(now))) return null;
+  const today = directorRuns.onDay(biz.id, iso(now));
+  if (today) return storedReport(biz, today);
+  if (!env.aiEnabled) return null;
   const r = await runDirector(biz, now);
   const html = reportHtml({ numbers: r.numbers, plan: r.plan, moves: r.moves, checked: r.checked });
   return html ? { html, buttons: moveButtons(r.moves) } : null;
+}
+
+/** Saqlangan bugungi tahlildan: raqamlar, muammo va hali hal qilinmagan takliflar (raqami — tahlildagi tartibi, tugmalar bilan bir xil) */
+function storedReport(biz: BusinessRow, run: DirectorRun): { html: string; buttons: { text: string; data: string }[][] } | null {
+  let numbers: Numbers;
+  try { numbers = JSON.parse(run.numbers) as Numbers; } catch { return null; }
+  const plan = run.problem ? { summary: run.summary, problem: { title: run.problem, evidence: run.evidence ?? '' }, moves: [] } : null;
+  const moves: ReportMove[] = directorMoves.ofRun(biz.id, run.id)
+    .map((m, i) => ({ m, n: i + 1 }))
+    .filter(({ m }) => m.status === 'taklif')
+    .map(({ m, n }) => ({ n, id: m.id, member: m.member, task: m.task, why: m.why, metric: m.metric, checkAt: iso(addDays(new Date(run.createdAt), m.checkDays)) }));
+  const html = reportHtml({ numbers, plan, moves, checked: [] });
+  return html ? { html, buttons: moveButtons(moves) } : null;
 }
 
 /** Faqat Direktor hisoboti (alohida xabar). Qaytadi: yuborildimi */
