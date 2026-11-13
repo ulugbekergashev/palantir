@@ -29,6 +29,7 @@ import { phoneChanged } from '../people';
 import { deliverToTeam, editTeamCards, openRequest } from '../requests/index';
 import { replyCards } from '../requests/store';
 import { crewWorks } from '../../src/lib/crew';
+import { awaitingReply, holdLine } from './hold';
 
 export interface Sender {
   /** Shu mijozga shu kanal orqali yozish mumkinmi */
@@ -239,7 +240,7 @@ async function holdCustomer(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage
   held.set(lead.id, Date.now());
   const urgent = fresh.some(m => URGENT.test(foldApostrophe(m.text)));
   const text = [
-    `Xabaringiz «${biz.profile.name}» xodimiga yetkazildi ✅ Tez orada javob beramiz.`,
+    holdLine(biz.profile.name),
     'Сообщение передано сотруднику, скоро ответим.',
     ...(urgent ? ['', "⚠️ Holat og'ir bo'lsa (qon to'xtamayapti, yuz shishib ketdi, nafas qiyin) — darhol 103 ga qo'ng'iroq qiling.", 'Если состояние тяжёлое — сразу звоните 103.'] : []),
   ].join('\n');
@@ -659,7 +660,8 @@ export async function expireStale(now = Date.now()): Promise<number> {
     if (!biz || !replies.move(biz.id, r.id, ['pending'], 'obsolete')) continue;
     n++;
     await settleCard(biz, r, "⌛ Eskirdi — 2 kun tasdiqlanmadi. Bemorga yozish kerak bo'lsa — o'zingiz yozing");
-    if (inbox.last(biz.id, r.leadId)?.direction === 'in') waiting.mark(biz.id, r.leadId, "Javob taklifi 2 kun tasdiqlanmay eskirdi");
+    // «Yetkazildi» javob emas — bemor hali kutyapti (hold.ts)
+    if (awaitingReply(inbox.thread(biz.id, r.leadId, 30))) waiting.mark(biz.id, r.leadId, "Javob taklifi 2 kun tasdiqlanmay eskirdi");
   }
   return n;
 }

@@ -11,6 +11,7 @@ import type { EventMember } from '../src/types';
 import { dueLabel, stamp } from '../src/lib/week';
 import { inbox, leads, replies, tasks, type BusinessRow } from './db';
 import { waiting } from './serviceStore';
+import { awaitingReply } from './inbox/hold';
 import { requests } from './requests/store';
 import { events, orders } from './orders/store';
 import { requestKind } from '../src/lib/requests';
@@ -54,9 +55,9 @@ export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
   const requested = new Set(open.map(r => r.leadId).filter(Boolean));
   for (const w of waiting.list(biz.id, LIMIT)) {
     const lead = leads.get(biz.id, w.leadId);
-    const last = lead ? inbox.last(biz.id, lead.id) : undefined;
-    // Javob yozildi (egasi, xodim yoki Palantir) yoki karta o'chirildi — kutish tugadi
-    if (!lead || !last || last.direction !== 'in') { waiting.remove(biz.id, w.leadId); continue; }
+    // Javob yozildi (egasi, xodim yoki Palantir; avtomatik «yetkazildi» — javob emas) yoki karta o'chirildi — kutish tugadi
+    const last = lead ? awaitingReply(inbox.thread(biz.id, lead.id, 30)) : null;
+    if (!lead || !last) { waiting.remove(biz.id, w.leadId); continue; }
     // Javob taklifi yoki ochiq so'rov bor — bemor o'sha qatorda turibdi (ikki marta ko'rsatilmaydi)
     if (replies.countPending(biz.id, lead.id) || requested.has(lead.id)) continue;
     const who = lead.name ?? (lead.username ? `@${lead.username}` : null) ?? lead.phone ?? 'Mijoz';
