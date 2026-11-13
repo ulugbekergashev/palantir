@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { iso } from '../src/lib/week';
 import { CrmError, createDentaCrm } from '../server/crm/dentacrm';
-import { bookingProblem, briefLine, dayOff, daySummary, freeSlots, cleanName, hasFullName, isRealDate, normPhone, resolvePatient, slotRanges, normalizeBaseUrl, parseDaysOff, parseDoctorOff, searchPatients, type Appointment, type Clinic, type Doctor, type Patient, type Transaction } from '../server/crm/logic';
+import { bookableDoctor, bookingProblem, briefLine, dayOff, daySummary, freeSlots, cleanName, hasFullName, isRealDate, normPhone, resolvePatient, slotRanges, normalizeBaseUrl, parseDaysOff, parseDoctorOff, searchPatients, type Appointment, type Clinic, type Doctor, type Patient, type Transaction } from '../server/crm/logic';
 import { clinicAlerts, comparisonRange, datesBetween, periodRange, periodReport, previousRange, spanDays, type DayData } from '../server/crm/report';
 import { payoutCategory, summarize } from '../server/crm/money';
 import { findLocalCrm } from '../server/crm/find';
@@ -83,6 +83,11 @@ export function crmLogicTests(ok: Harness['ok']): void {
   ok('jadval: shu kunning o\'z ish soatlari', slotsOf(custom)[0] === '10:00' && slotsOf(custom).at(-1) === '13:30' && !!why(custom, '09:00')?.includes('10:00') && why(custom, '13:30') === null, slotsOf(custom).join(' '));
   const closed: Clinic = { ...clinic, daysOff: parseDaysOff(JSON.stringify({ daysOff: { weekdays: [], dates: [tomorrow] } })) };
   ok('jadval: klinikaning dam olish kuni', slotsOf(d1, closed).length === 0 && !!why(d1, '11:00', closed)?.includes('klinika') && !!dayOff(d1, closed, tomorrow));
+  const lunchDoc: Doctor = { ...d1, off: parseDoctorOff(JSON.stringify({ weekdays: [], blocks: [], lunch: { from: '13:00', to: '14:00' } })) };
+  ok('jadval: shifokor tushligi — vaqt taklif qilinmaydi, yozilmaydi (F5)', slotsOf(lunchDoc).includes('12:30') && !slotsOf(lunchDoc).includes('13:00') && !slotsOf(lunchDoc).includes('13:30') && slotsOf(lunchDoc).includes('14:00')
+    && !!why(lunchDoc, '13:15')?.includes('tushlik') && why(lunchDoc, '14:00') === null && dayOff(lunchDoc, clinic, tomorrow) === null, `${slotsOf(lunchDoc).join(' ')} | ${why(lunchDoc, '13:15')}`);
+  ok("shifokor holati: faqat «Active» yoki holatsiz — ta'tildagiga («On Leave») yozilmaydi (F1)", bookableDoctor(d1) && bookableDoctor({ status: null }) && bookableDoctor({ status: 'active' })
+    && !bookableDoctor({ status: 'On Leave' }) && !bookableDoctor({ status: 'Inactive' }));
   ok('jadval: buzuq yozuv ishni to\'xtatmaydi', parseDoctorOff('{buzuq') === null && parseDoctorOff({ weekdays: ['x', 9], blocks: [{ dateFrom: 'kecha' }, null] })?.blocks.length === 0 && parseDaysOff('yo\'q') === undefined && slotsOf({ ...d1, off: null }).length === 18);
 
   ok("telefon: 9 xonali mahalliy raqam +998 bilan to'ldiriladi, chala raqam rad etiladi", normPhone('90 111 00 11') === '+998901110011' && normPhone('+998 (93) 222-33-44') === '+998932223344'
@@ -599,6 +604,15 @@ export async function crmToolTests(h: Harness): Promise<void> {
   const race = await tool(`qabulga yoz {"patient_id":"p5","doctor_id":"d1","date":"${tomorrow}","time":"13:00"}`);
   ok('CRM eski yozuvni qaytarsa — «yozildi» demaydi, mavjud vaqtni aytadi', race.isError && String(race.result).includes('15:00') && crm.posted.length === n
     && crm.appointments.filter(a => a.patientId === 'p5' && a.date === tomorrow).length === 1, String(race.result));
+  // F3: bemorning shu kungi qabuli bekor qilingan — DentaCRM o'sha qatorni tiriltiradi; bu «allaqachon yozilgan» emas
+  // Yangi ulanish: yuqoridagi `client` parol sinovidan keyin CRM'ga qayta kirmaydi (atayin). Bemor — hech qayerda qabuli yo'q odam
+  const booker = createDentaCrm({ baseUrl: `http://127.0.0.1:${h.crmPort}`, ...CRM_LOGIN });
+  const later = iso(new Date(Date.now() + 5 * 86_400_000));
+  const loner = (await booker.patients()).find(p => !crm.appointments.some(a => a.patientId === p.id))!;
+  crm.appointments.push({ id: 'cx1', patientId: loner.id, patientName: `${loner.firstName} ${loner.lastName}`, doctorId: 'd1', doctorName: 'Rustam Rustamov', type: "Ko'rik", date: later, time: '09:00', duration: 30, status: 'Cancelled', notes: null, clinicId: 'c1', reminderSent: false });
+  const revived = await booker.bookAppointment({ patient: loner, doctorId: 'd1', date: later, time: '11:00', duration: 30, type: 'Konsultatsiya', now: `${today}T08:00` }).then(a => a, (e: Error) => e);
+  ok('bekor qilingan kunga qayta yozish: CRM tiriltirgan qator — yangi qabul, «yozilmadi» demaydi (F3)', !(revived instanceof Error) && revived.id === 'cx1' && revived.time === '11:00' && revived.status === 'Pending',
+    revived instanceof Error ? revived.message : JSON.stringify(revived));
 
   const fresh = await tool(`qabulga yoz {"new_patient":{"first_name":"Kamola","last_name":"Yusupova","phone":"+998 95 777 88 99"},"doctor_id":"d2","date":"${tomorrow}","time":"12:00"}`);
   ok('yangi bemor: avval bemor, keyin qabul yaratiladi', !fresh.isError && crm.patientsPosted.length === pp0 + 1 && crm.patientsPosted.at(-1)!.clinicId === 'c1' && crm.posted.at(-1)?.patientId === crm.patientsPosted.at(-1)!.id);

@@ -216,6 +216,13 @@ export const crmServer = patient(createServer(async (req, res) => {
     }
     const existing = crm.appointments.find(a => a.patientId === body.patientId && a.date === body.date && a.status !== 'Cancelled');
     if (existing) return json(res, existing);
+    // Haqiqiy lokal DentaCRM kabi: shu kungi bekor qilingan qator yangi ma'lumot bilan tiriltiriladi (id o'sha)
+    const cancelled = crm.appointments.find(a => a.patientId === body.patientId && a.date === body.date && a.status === 'Cancelled');
+    if (cancelled) {
+      Object.assign(cancelled, body, { id: cancelled.id });
+      crm.posted.push(cancelled);
+      return json(res, cancelled);
+    }
     const row: Row = { id: `an${++seq}`, ...body };
     crm.appointments.push(row);
     crm.posted.push(row);

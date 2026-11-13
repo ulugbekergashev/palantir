@@ -8,8 +8,8 @@
 import { BlockList, isIP } from 'node:net';
 
 export interface TimeOff { dateFrom: string; dateTo: string; timeFrom?: string; timeTo?: string; note?: string }
-/** Shifokor ishlamaydigan vaqtlar: haftalik kunlar, aniq muddatlar, hafta kuni bo'yicha o'z ish soatlari */
-export interface DoctorOff { weekdays: number[]; blocks: TimeOff[]; workHours: Record<string, { from: string; to: string }> }
+/** Shifokor ishlamaydigan vaqtlar: haftalik kunlar, aniq muddatlar, hafta kuni bo'yicha o'z ish soatlari, har kungi tushlik */
+export interface DoctorOff { weekdays: number[]; blocks: TimeOff[]; workHours: Record<string, { from: string; to: string }>; lunch?: { from: string; to: string } }
 export interface DaysOff { weekdays: number[]; dates: string[] }
 export interface Clinic { id: string; name: string; startHour: number; endHour: number; daysOff?: DaysOff }
 export interface Doctor { id: string; firstName: string; lastName: string; specialty: string | null; status: string | null; startHour: number | null; endHour: number | null; off?: DoctorOff | null; /** Bulut nashri: 'none' | 'fixed' | 'fixed_kpi' | 'kpi'; lokal nashrda yo'q */ salaryType?: string | null }
@@ -38,6 +38,11 @@ export function isRealDate(date: string): boolean {
 const toMin = (time: string): number => { const [h, m] = time.split(':').map(Number); return h * 60 + m; };
 const toTime = (min: number): string => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 export const doctorName = (d: Pick<Doctor, 'firstName' | 'lastName'>): string => `${d.firstName} ${d.lastName}`.trim();
+/**
+ * Bemor yozila oladigan shifokor: DentaCRM'da holati «Active» (yoki holat umuman yo'q).
+ * Lokal DentaCRM'da ikkinchi holat — «On Leave» (ta'tilda); boshqa har qanday holat ham yozilmaydi.
+ */
+export const bookableDoctor = (d: Pick<Doctor, 'status'>): boolean => !d.status || d.status.trim().toLowerCase() === 'active';
 export const patientName = (p: Pick<Patient, 'firstName' | 'lastName'>): string => `${p.firstName} ${p.lastName}`.trim();
 
 /** Shifokorning shu kundagi ish oralig'i (daqiqada): kunning o'z soatlari → shifokorniki → klinikaniki */
@@ -177,7 +182,10 @@ export function parseDoctorOff(raw: unknown): DoctorOff | null {
     const [from, to] = [hhmm(h?.from), hhmm(h?.to)];
     if (from && to && from < to) workHours[String(day)] = { from, to };
   }
-  return { weekdays: weekdaysOf(value.weekdays), blocks, workHours };
+  const lunchRaw = asObject(value.lunch);
+  const [lunchFrom, lunchTo] = [hhmm(lunchRaw?.from), hhmm(lunchRaw?.to)];
+  const lunch = lunchFrom && lunchTo && lunchFrom < lunchTo ? { lunch: { from: lunchFrom, to: lunchTo } } : {};
+  return { weekdays: weekdaysOf(value.weekdays), blocks, workHours, ...lunch };
 }
 
 /** Clinic.features (JSON matn yoki obyekt) ichidagi daysOff; yo'q — undefined */
@@ -203,6 +211,8 @@ function offIntervals(doctor: Doctor, clinic: Clinic, date: string): OffInterval
   const off = doctor.off;
   if (!off) return out;
   if (off.weekdays.includes(day)) out.push({ from: 0, to: DAY_MIN, why: 'shifokorning dam olish kuni' });
+  // Tushlik — har ish kuni (DentaCRM o'zi ham shu vaqtga qabulni rad etadi)
+  else if (off.lunch) out.push({ from: toMin(off.lunch.from), to: toMin(off.lunch.to), why: `tushlik ${off.lunch.from}–${off.lunch.to}` });
   for (const b of off.blocks) {
     if (date < b.dateFrom || date > b.dateTo) continue;
     const hours = b.timeFrom && b.timeTo ? `${b.timeFrom}–${b.timeTo}` : "kun bo'yi";

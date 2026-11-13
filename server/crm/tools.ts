@@ -13,7 +13,7 @@ import { MAX_PERIOD_DAYS, loadAlerts, loadPeriod } from './history';
 import { bookingsLeft, noteBooking, withCrm } from './index';
 import { MONEY_DEFS } from './moneyTools';
 import { PERIODS, periodRange, spanDays } from './report';
-import { DEFAULT_DURATION_MIN, bookingProblem, dayOff, daySummary, doctorName, freeSlots, isRealDate, patientName, searchPatients, type Patient } from './logic';
+import { DEFAULT_DURATION_MIN, bookableDoctor, bookingProblem, dayOff, daySummary, doctorName, freeSlots, isRealDate, patientName, searchPatients, type Patient } from './logic';
 
 /** ISO vaqt → «HH:MM» (mahalliy) */
 const clockOf = (at: string) => stamp(new Date(at)).slice(11);
@@ -121,11 +121,15 @@ const CLINIC_DEFS = {
       const now = stamp(new Date());
       return {
         date: i.date,
-        doctors: doctors.map(doctor => ({
-          doctor_id: doctor.id, doctor: doctorName(doctor), specialty: doctor.specialty,
-          slots: freeSlots({ appointments, doctor, clinic, date: i.date, duration: i.duration ?? DEFAULT_DURATION_MIN, now }),
-          off: dayOff(doctor, clinic, i.date),
-        })),
+        doctors: doctors.map(doctor => {
+          // Ta'tildagi (CRM holati «Active» emas) shifokorga vaqt taklif qilinmaydi
+          const away = bookableDoctor(doctor) ? null : `CRM'da holati: ${doctor.status}`;
+          return {
+            doctor_id: doctor.id, doctor: doctorName(doctor), specialty: doctor.specialty,
+            slots: away ? [] : freeSlots({ appointments, doctor, clinic, date: i.date, duration: i.duration ?? DEFAULT_DURATION_MIN, now }),
+            off: away ?? dayOff(doctor, clinic, i.date),
+          };
+        }),
       };
     }),
   }),

@@ -12,7 +12,7 @@ import { DAYS, addDays, fromIso, iso, stamp, weekday } from '../../src/lib/week'
 import type { BusinessRow } from '../db';
 import { CrmError } from './dentacrm';
 import { crmConnected, withCrm } from './index';
-import { DEFAULT_DURATION_MIN, SLOT_STEP_MIN, bookingProblem, cleanName, dayOff, doctorName, freeSlots, hasFullName, isRealDate, normPhone, resolvePatient, slotRanges, type Doctor, type Patient } from './logic';
+import { DEFAULT_DURATION_MIN, SLOT_STEP_MIN, bookableDoctor, bookingProblem, cleanName, dayOff, doctorName, freeSlots, hasFullName, isRealDate, normPhone, resolvePatient, slotRanges, type Doctor, type Patient } from './logic';
 
 const DAYS_AHEAD = 7;
 /** Jadval matni shuncha vaqt qayta ishlatiladi (ketma-ket xabarlarda CRM'ga qayta-qayta murojaat qilinmasin) */
@@ -32,8 +32,8 @@ function inTurn<T>(bizId: string, work: () => Promise<T>): Promise<T> {
   return next;
 }
 
-/** Bemor o'zi yozila oladigan shifokorlar — jadvalda ko'rsatiladiganlar ham aynan shular */
-const bookable = (d: Doctor) => d.status !== 'Inactive';
+/** Bemor o'zi yozila oladigan shifokorlar — jadvalda ko'rsatiladiganlar ham aynan shular (ta'tildagilar yo'q) */
+const bookable = (d: Doctor) => bookableDoctor(d);
 /** CRM'dagi id modelga faqat harf-raqam ko'rinishida boradi (so'rov ichiga begona matn tushmasin) va shu ko'rinishda qaytadi */
 const doctorKey = (id: string) => id.replace(/[^\w-]/g, '');
 /** Bemor uchun «hozir»: bundan oldingi vaqtlar taklif ham qilinmaydi, qabul ham qilinmaydi */

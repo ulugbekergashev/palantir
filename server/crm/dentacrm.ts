@@ -369,8 +369,9 @@ export function createDentaCrm(cfg: CrmConfig): DentaCrm {
         clinicId, patientId: b.patient.id, patientName: patientName(b.patient), doctorId: doctor.id, doctorName: doctorName(doctor),
         type: b.type, date: b.date, time: b.time, duration: b.duration, status: 'Pending', reminderSent: false, notes: b.notes ?? '',
       })));
-      // CRM bemorning shu kundagi eski yozuvini jimgina qaytarishi mumkin — bu yangi qabul emas
-      const existed = dayRows.some(a => a.id === saved.id);
+      // CRM bemorning shu kundagi eski yozuvini jimgina qaytarishi mumkin — bu yangi qabul emas.
+      // Bekor qilingan qator esa yangi ma'lumot bilan tiriltiriladi (lokal DentaCRM qoidasi) — bu haqiqiy yangi qabul
+      const existed = dayRows.some(a => a.id === saved.id && a.status !== 'Cancelled');
       if (existed || saved.time !== b.time || saved.doctorId !== doctor.id || saved.date !== b.date || saved.patientId !== b.patient.id) {
         throw new CrmError('conflict', `Yozilmadi: bu bemor shu kuni allaqachon yozilgan — ${saved.time}, ${saved.doctorName}`);
       }
