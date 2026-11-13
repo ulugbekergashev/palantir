@@ -92,6 +92,10 @@ check("Direktor faqat jamoadagi xodimga va egasiga taklif beradi", () => {
   ] }, numbers, members);
   assert.deepEqual(plan.moves.map(m => m.member), ['qabulxona']);
 });
+check("Direktor topshiriqni o'qimaydigan xodimga bermaydi (kontent, reklama, tahlil, marketing fon ishlari) — u egasiga", () => {
+  businesses.update(biz.id, { crew: JSON.stringify({ hired: ['qabulxona', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'kontent', 'target'], dismissed: [] }) });
+  assert.deepEqual(moveMembersOf(businesses.byId(biz.id)!), ['qabulxona', 'yordamchi', 'kuzatuvchi', 'egasi']);
+});
 
 console.log("\n# Asboblar xodim bo'yicha (3-bosqich)");
 {
