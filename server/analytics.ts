@@ -7,7 +7,9 @@
  */
 import { daysIn, previousPeriod, type DashboardView, type Kpi, type Period, type RecentItem, type TeamRow } from '../src/lib/dashboard';
 import { iso } from '../src/lib/week';
+import type { InboxMessage } from '../src/types';
 import { leads, sql, type BusinessRow } from './db';
+import { isHold } from './inbox/hold';
 import { staff } from './requests/store';
 // Qo'ng'iroqlar jadvalining MicroSIP ustunlari shu yerda tayyor bo'lsin
 import './phone/store';
@@ -19,6 +21,8 @@ const ANSWER_WITHIN_MS = DAY_MS;
 const RECENT = 25;
 /** Javob talab qilmaydigan yakunlovchi gap (o'zbek, rus) */
 const CLOSING = /^(rahmat|raxmat|katta rahmat|ok|okey|ок|окей|xo'?p|хоп|хорошо|yaxshi|tushundim|понятно|спасибо|спс|👍|🙏|❤️)[\s!.)]*$/iu;
+/** Yakunlovchi gap shuncha vaqt ichida yozilgan javobdan keyin kelsa — javob kutmaydi */
+const CLOSING_AFTER_MS = 6 * HOUR_MS;
 
 /** Mahalliy kun boshi (00:00) ISO ko'rinishida — bazadagi UTC vaqtlar bilan solishtirish uchun */
 const startOf = (day: string) => new Date(`${day}T00:00:00`).getTime();
@@ -41,14 +45,18 @@ const slot = (r: Range, t: number): number => {
 };
 const zeros = (r: Range) => Array.from({ length: r.size }, () => 0);
 
-interface Msg { lead: string; channel: string; dir: 'in' | 'out'; at: number }
+interface Msg { lead: string; channel: string; dir: 'in' | 'out'; at: number; text: string; hold: boolean }
 interface CallRow { phone: string; key: string | null; source: string; direction: string | null; status: string | null; at: number; booked: boolean; analysisBooked: boolean; name: string | null; outcome: string; leadId: string | null }
 
 function load(bizId: string, r: Range) {
   const fromIso = new Date(r.from).toISOString(), toIso = new Date(r.to).toISOString();
   // Javobni topish uchun davrdan keyingi bir kun ham olinadi
-  const msgs = sql.many('SELECT lead_id, channel, direction, created_at FROM inbox WHERE business_id = ? AND created_at >= ? AND created_at < ? ORDER BY created_at',
-    (x): Msg => ({ lead: String(x.lead_id), channel: String(x.channel), dir: String(x.direction) as Msg['dir'], at: Date.parse(String(x.created_at)) }),
+  const msgs = sql.many('SELECT lead_id, channel, direction, author, text, created_at FROM inbox WHERE business_id = ? AND created_at >= ? AND created_at < ? ORDER BY created_at',
+    (x): Msg => {
+      const dir = String(x.direction) as Msg['dir'], text = String(x.text ?? '');
+      // «Xodimga yetkazildi ✅» — avtomatik xabar, javob emas (bemor hali kutyapti)
+      return { lead: String(x.lead_id), channel: String(x.channel), dir, at: Date.parse(String(x.created_at)), text, hold: isHold({ direction: dir, by: String(x.author) as InboxMessage['by'], text }) };
+    },
     bizId, fromIso, new Date(r.to + ANSWER_WITHIN_MS).toISOString());
   const calls = sql.many(`SELECT phone, phone_key, source, direction, status, started_at, booked, analysis, name, outcome, lead_id FROM calls WHERE business_id = ? AND started_at >= ? AND started_at < ? ORDER BY started_at`,
     (x): CallRow => ({
@@ -61,7 +69,8 @@ function load(bizId: string, r: Range) {
   const opened = sql.many('SELECT created_at FROM requests WHERE business_id = ? AND created_at >= ? AND created_at < ?', x => Date.parse(String(x.created_at)), bizId, fromIso, toIso);
   const closed = sql.many("SELECT created_at, closed_at, done_by, status FROM requests WHERE business_id = ? AND closed_at >= ? AND closed_at < ? AND status = 'done'",
     x => ({ created: Date.parse(String(x.created_at)), closed: Date.parse(String(x.closed_at)), by: sql.str(x.done_by) }), bizId, fromIso, toIso);
-  const bookedReplies = sql.many('SELECT booked_at FROM replies WHERE business_id = ? AND booked_at >= ? AND booked_at < ?', x => Date.parse(String(x.booked_at)), bizId, fromIso, toIso);
+  const bookedReplies = sql.many('SELECT lead_id, booked_at FROM replies WHERE business_id = ? AND booked_at >= ? AND booked_at < ?',
+    x => ({ who: `lead:${String(x.lead_id)}`, at: Date.parse(String(x.booked_at)) }), bizId, fromIso, toIso);
   const newLeads = sql.many('SELECT created_at FROM leads WHERE business_id = ? AND created_at >= ? AND created_at < ?', x => Date.parse(String(x.created_at)), bizId, fromIso, toIso);
   return { msgs, calls, later, opened, closed, bookedReplies, newLeads };
 }
@@ -85,22 +94,31 @@ function compute(bizId: string, r: Range, now: number): Computed {
     opened: zeros(r), closed: d.closed.length, closeMins: d.closed.map(c => (c.closed - c.created) / 60_000), booked: zeros(r), newLeads: zeros(r),
     dyn: { instagram: zeros(r), telegram: zeros(r), callsIn: zeros(r), callsOut: zeros(r), missed: zeros(r) },
   };
-  // Murojaatlar: (mijoz, kun) — birinchi kiruvchi xabar; javob — undan keyingi birinchi chiquvchi (24 soat ichida)
+  // Murojaatlar: (mijoz, kun) — bitta murojaat. Javob vaqti — birinchi xabardan birinchi javobgacha (24 soat ichida).
+  // Javob berilgan — kunning oxirgi xabari ham javob olgan bo'lsa: ertalabki savolga javob berilib, kechki savoli
+  // javobsiz qolgan mijoz «javob oldi» bo'lib ketmasin (G6)
   const byLead = new Map<string, Msg[]>();
   for (const m of d.msgs) byLead.set(m.lead, [...(byLead.get(m.lead) ?? []), m]);
   const waits: number[] = [];
+  const replyTo = (list: Msg[], m: Msg) => list.find(x => x.dir === 'out' && !x.hold && x.at > m.at && x.at - m.at <= ANSWER_WITHIN_MS);
+  // «Rahmat», «ok» — javobdan keyin kelsa, javob kutmaydi
+  const closing = (list: Msg[], m: Msg) => CLOSING.test(m.text.trim()) && list.some(x => x.dir === 'out' && !x.hold && x.at < m.at && m.at - x.at <= CLOSING_AFTER_MS);
   for (const list of byLead.values()) {
-    const seenDays = new Set<string>();
+    const byDay = new Map<string, Msg[]>();
     for (const m of list) {
       if (m.dir !== 'in' || m.at < r.from || m.at >= r.to) continue;
       const day = iso(new Date(m.at));
-      if (seenDays.has(day)) continue;
-      seenDays.add(day);
-      const s = slot(r, m.at);
+      byDay.set(day, [...(byDay.get(day) ?? []), m]);
+    }
+    for (const day of byDay.values()) {
+      const first = day[0], last = [...day].reverse().find(m => !closing(list, m)) ?? first;
+      const s = slot(r, first.at);
       out.inquiries[s]++;
-      if (m.channel === 'instagram') { out.instagram++; out.dyn.instagram[s]++; } else if (TELEGRAM.has(m.channel)) { out.telegram++; out.dyn.telegram[s]++; }
-      const reply = list.find(x => x.dir === 'out' && x.at > m.at && x.at - m.at <= ANSWER_WITHIN_MS);
-      if (reply) { out.answered[s]++; waits.push((reply.at - m.at) / 60_000); } else if (now - m.at > 0) { out.unanswered[s]++; out.unansweredMsgs++; }
+      if (first.channel === 'instagram') { out.instagram++; out.dyn.instagram[s]++; } else if (TELEGRAM.has(first.channel)) { out.telegram++; out.dyn.telegram[s]++; }
+      const reply = replyTo(list, first);
+      if (reply) waits.push((reply.at - first.at) / 60_000);
+      if (reply && replyTo(list, last)) out.answered[s]++;
+      else if (now > first.at) { out.unanswered[s]++; out.unansweredMsgs++; }
     }
   }
   out.responseMin = median(waits);
@@ -114,10 +132,18 @@ function compute(bizId: string, r: Range, now: number): Computed {
         if (!d.later.some(x => x.key && x.key === c.key && x.at > c.at)) { out.unanswered[s]++; out.missedCalls++; }
       } else out.answered[s]++;
     } else if (c.direction === 'out') out.dyn.callsOut[s]++;
-    if (c.booked || c.analysisBooked) out.booked[s]++;
   }
   for (const t of d.opened) out.opened[slot(r, t)]++;
-  for (const t of d.bookedReplies) out.booked[slot(r, t)]++;
+  // Qabulga yozilganlar — odamlar, voqealar emas: bitta bemor (yozishmada yozildi + qo'ng'iroq tahlili ham «yozildi») bir marta,
+  // birinchi yozilgan kuniga sanaladi — voronkadagi «Qabulga yozildi» bilan bir xil o'lchov (G6)
+  const bookings = [...d.bookedReplies, ...d.calls.filter(c => c.booked || c.analysisBooked).map(c => ({ who: c.leadId ? `lead:${c.leadId}` : `tel:${c.key ?? c.phone}`, at: c.at }))]
+    .sort((a, b) => a.at - b.at);
+  const bookedWho = new Set<string>();
+  for (const b of bookings) {
+    if (bookedWho.has(b.who)) continue;
+    bookedWho.add(b.who);
+    out.booked[slot(r, b.at)]++;
+  }
   for (const t of d.newLeads) out.newLeads[slot(r, t)]++;
   return out;
 }

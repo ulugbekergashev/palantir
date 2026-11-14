@@ -154,6 +154,33 @@ try {
   ok("«7 kun» — kechagacha 7 to'liq kun (bugungi 8 ta kirmaydi, Direktor ham shuni o'qiydi): kun bo'yicha 7 bo'lak, kechagi 1 murojaat", week.period.bucket === 'day' && week.period.labels.length === 7 && week.kpi.inquiries.value === 1 && week.period.to < new Date().toISOString().slice(0, 10), JSON.stringify(week.period).slice(0, 120));
   ok("noto'g'ri oraliq (to < from) — bugun", ((await api('/api/dashboard?period=custom&from=2026-10-10&to=2026-10-01', { token })).json.dashboard as DashboardView).period.key === 'today');
 
+  // G6: Kamola — ertalabki savoliga javob berildi, keyingisi javobsiz; Sherzod — faqat avtomatik «yetkazildi» oldi (javob emas).
+  // Qabul: Ali ikkinchi marta (chiquvchi qo'ng'iroqda) ham «yozildi» — bitta odam; Kamola chiquvchi qo'ng'iroqda yozildi
+  const g6db = new DatabaseSync(join(dataDir, 'palantir.db'));
+  g6db.exec('PRAGMA busy_timeout = 5000');
+  const g6msg = (lid: string, channel: string, dir: 'in' | 'out', text: string, when: string) =>
+    g6db.prepare('INSERT INTO inbox (id, business_id, lead_id, channel, direction, author, text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id(), bizId, lid, channel, dir, dir === 'in' ? 'customer' : 'palantir', text, when);
+  const g6lead = (name: string, channel: string, created: string) => {
+    const lid = id();
+    g6db.prepare(`INSERT INTO leads (id, business_id, name, channel, stage, source, created_at, updated_at, last_inbound_at) VALUES (?, ?, ?, ?, 'new', 'Telegram havola', ?, ?, ?)`).run(lid, bizId, name, channel, created, created, created);
+    return lid;
+  };
+  const g6call = (lid: string, phone: string, start: string) => g6db.prepare(`INSERT INTO calls (id, business_id, phone, name, started_at, duration_sec, outcome, transcript, booked, created_at, source, direction, status, phone_key, answered_at, ended_at, analysis, lead_id)
+      VALUES (?, ?, ?, NULL, ?, 60, '', '[]', NULL, ?, 'microsip', 'out', 'ended', ?, ?, ?, '{"outcome":"booked"}', ?)`).run(id(), bizId, phone, start, start, phone.replace(/\D/g, '').slice(-9), start, start, lid);
+  const km = g6lead('Kamola', 'telegram', ago(13));
+  g6msg(km, 'telegram', 'in', 'Narxi qancha?', ago(13)); g6msg(km, 'telegram', 'out', '300 ming', ago(12)); g6msg(km, 'telegram', 'in', "Ertaga bo'sh vaqt bormi?", ago(11));
+  const sh = g6lead('Sherzod', 'bot', ago(10));
+  g6msg(sh, 'bot', 'in', 'Salom, savolim bor', ago(10)); g6msg(sh, 'bot', 'out', 'Xabaringiz «Shifo Dent» xodimiga yetkazildi ✅ Tez orada javob beramiz.', ago(10));
+  g6call(a, '+998901110001', ago(9));
+  g6call(km, '+998935551234', ago(8));
+  g6db.close();
+  const k2 = ((await api('/api/dashboard?period=today', { token })).json.dashboard as DashboardView).kpi;
+  ok("G6: kechki savoli javobsiz qolgan mijoz va faqat «yetkazildi» olgan mijoz — javobsiz (javob berildi o'zgarmadi)",
+    k2.inquiries.value === k.inquiries.value + 2 && k2.answered.value === k.answered.value && k2.unanswered.messages === k.unanswered.messages + 2, JSON.stringify({ i: k2.inquiries.value, a: k2.answered.value, u: k2.unanswered }));
+  const f2 = (await api('/api/dashboard/funnel?period=today', { token })).json.funnel as FunnelView;
+  ok("G6: «Qabulga yozildi» — odamlar: Ali ikki marta yozilsa ham bitta, Kamola chiquvchi qo'ng'iroqda; KPI va voronka bir xil (2)",
+    k2.booked.value === 2 && f2.booked.total === 2, JSON.stringify({ kpi: k2.booked.value, funnel: f2.booked }));
+
   console.log('\n# Ko\'rinish (headless)');
   const browser = await chromium.launch({ executablePath: CHROME });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: TIMEZONE, locale: 'uz-UZ' });

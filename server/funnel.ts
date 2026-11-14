@@ -33,17 +33,22 @@ function people(bizId: string, from: number, to: number): Map<string, Who> {
   const msgs = sql.many("SELECT lead_id, channel, created_at FROM inbox WHERE business_id = ? AND direction = 'in' AND created_at >= ? AND created_at < ?",
     x => ({ lead: String(x.lead_id), channel: String(x.channel), at: Date.parse(String(x.created_at)) }), bizId, fromIso, toIso);
   for (const m of msgs) add(m.lead, m.channel === 'instagram' ? 'instagram' : 'telegram', m.at);
-  const calls = sql.many("SELECT lead_id, status, booked, analysis, started_at FROM calls WHERE business_id = ? AND lead_id IS NOT NULL AND (source = 'voice' OR direction = 'in') AND started_at >= ? AND started_at < ?",
-    x => ({ lead: String(x.lead_id), ended: String(x.status ?? 'ended') !== 'missed', booked: !!x.booked || /"outcome":"booked"/.test(String(x.analysis ?? '')), at: Date.parse(String(x.started_at)) }), bizId, fromIso, toIso);
+  const calls = sql.many("SELECT lead_id, status, started_at FROM calls WHERE business_id = ? AND lead_id IS NOT NULL AND (source = 'voice' OR direction = 'in') AND started_at >= ? AND started_at < ?",
+    x => ({ lead: String(x.lead_id), ended: String(x.status ?? 'ended') !== 'missed', at: Date.parse(String(x.started_at)) }), bizId, fromIso, toIso);
   for (const c of calls) add(c.lead, 'call', c.at);
   // Javob: yozganiga 24 soat ichida javob yozilgan yoki qo'ng'irog'i ko'tarilgan
   const answeredMsg = new Set(sql.many(`SELECT DISTINCT i.lead_id FROM inbox i WHERE i.business_id = ? AND i.direction = 'in' AND i.created_at >= ? AND i.created_at < ?
       AND EXISTS (SELECT 1 FROM inbox o WHERE o.business_id = i.business_id AND o.lead_id = i.lead_id AND o.direction = 'out' AND o.created_at > i.created_at
         AND o.created_at < strftime('%Y-%m-%dT%H:%M:%fZ', i.created_at, '+1 day'))`, x => String(x.lead_id), bizId, fromIso, toIso));
   for (const w of out.values()) w.answered = answeredMsg.has(w.lead) || calls.some(c => c.lead === w.lead && c.ended);
-  // Palantir o'zi yozgan qabullar (yozishma, ovozli agent, qo'ng'iroq tahlili)
-  const bookedReplies = new Set(sql.many('SELECT DISTINCT lead_id FROM replies WHERE business_id = ? AND booked_at >= ?', x => String(x.lead_id), bizId, fromIso));
-  for (const w of out.values()) w.booked = bookedReplies.has(w.lead) || calls.some(c => c.lead === w.lead && c.booked);
+  // Palantir o'zi yozgan qabullar (yozishma, ovozli agent, qo'ng'iroq tahlili) — shu davr ichida, KPI «Qabulga yozildi» bilan
+  // bir xil manba: chiquvchi qo'ng'iroqda yozilgani ham (G6)
+  const bookedLeads = new Set([
+    ...sql.many('SELECT DISTINCT lead_id FROM replies WHERE business_id = ? AND booked_at >= ? AND booked_at < ?', x => String(x.lead_id), bizId, fromIso, toIso),
+    ...sql.many(`SELECT DISTINCT lead_id FROM calls WHERE business_id = ? AND lead_id IS NOT NULL AND started_at >= ? AND started_at < ?
+      AND (booked IS NOT NULL AND booked != '' OR analysis LIKE '%"outcome":"booked"%')`, x => String(x.lead_id), bizId, fromIso, toIso),
+  ]);
+  for (const w of out.values()) w.booked = bookedLeads.has(w.lead);
   for (const w of out.values()) w.patientId = leads.get(bizId, w.lead)?.patientId ?? null;
   return out;
 }

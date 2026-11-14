@@ -30,7 +30,8 @@ const Verb = z.enum(['done', 'cancel', 'no-answer', 'note']);
 const MAX_STAFF = 20;
 
 export function mountRequests(app: Express, { asBiz, bad, bot }: Deps): void {
-  const by = (biz: BusinessRow) => biz.profile.ownerName ? `${biz.profile.ownerName} (panel)` : 'Panel';
+  // Kim bajardi: panelga xodim o'z kirishi bilan kirgan bo'lsa — o'sha xodim (Tahlilchi jamoa jadvali shu ism bo'yicha sanaydi, G6), aks holda egasi
+  const by = (biz: BusinessRow, res: Response) => (res.locals.staff as StaffRow | null)?.name ?? (biz.profile.ownerName ? `${biz.profile.ownerName} (panel)` : 'Panel');
   const withLead = (biz: BusinessRow) => (r: ReturnType<typeof requests.list>[number]) => {
     const lead = r.leadId ? leads.get(biz.id, r.leadId) : undefined;
     return { ...r, lead: lead ? publicLead(lead) : null };
@@ -56,10 +57,10 @@ export function mountRequests(app: Express, { asBiz, bad, bot }: Deps): void {
     const id = String(req.params.id);
     const text = typeof req.body?.text === 'string' ? req.body.text.trim().slice(0, 500) : '';
     try {
-      const r = verb.data === 'done' ? await closeRequest(biz, id, 'done', by(biz), text || null)
-        : verb.data === 'cancel' ? await closeRequest(biz, id, 'cancelled', by(biz), text || null)
-        : verb.data === 'no-answer' ? await noAnswer(biz, id, by(biz))
-        : text ? await addResult(biz, id, text, by(biz)) : null;
+      const r = verb.data === 'done' ? await closeRequest(biz, id, 'done', by(biz, res), text || null)
+        : verb.data === 'cancel' ? await closeRequest(biz, id, 'cancelled', by(biz, res), text || null)
+        : verb.data === 'no-answer' ? await noAnswer(biz, id, by(biz, res))
+        : text ? await addResult(biz, id, text, by(biz, res)) : null;
       if (!r) return res.status(400).json({ error: 'Matn kerak' });
       res.json({ request: withLead(biz)(r) });
     } catch (e) {

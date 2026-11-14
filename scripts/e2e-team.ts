@@ -125,6 +125,11 @@ try {
   ok("xodim o'z logini bilan kirdi — panel uni xodim deb biladi", me.who?.kind === 'staff' && me.who.name === 'Dilnoza' && me.who.access === 'reception', JSON.stringify(me.who));
   const st = async (method: string, p: string, body?: unknown) => (await fetch(`${base}${p}`, { method, headers: bearer(staff), body: body === undefined ? undefined : JSON.stringify(body) })).status;
   ok("ochiq: so'rovlar, yozishmalar, mijozlar, qo'ng'iroqlar", (await st('GET', '/api/requests')) === 200 && (await st('GET', '/api/inbox')) === 200 && (await st('GET', '/api/leads')) === 200 && (await st('GET', '/api/calls')) === 200);
+  // G6: xodim panelda yopgan so'rov — uning o'z nomiga (Tahlilchi jamoa jadvali shu bo'yicha sanaydi), egasiga emas
+  const g6req = await json<{ request: { id: string } }>(fetch(`${base}/api/requests`, post({ kind: 'callback', phone: '+998901234500', summary: "Narxni aytib qo'ng'iroq qilish" }, staff)));
+  await fetch(`${base}/api/requests/${g6req.request.id}/done`, post({ text: 'Gaplashdik' }, staff));
+  const closedReq = (await json<{ requests: { id: string; doneBy: string | null }[] }>(get(`${base}/api/requests?which=closed`, owner))).requests.find(r => r.id === g6req.request.id);
+  ok("xodim panelda yopgan so'rov — «Dilnoza» bajardi, egasi emas (G6)", closedReq?.doneBy === 'Dilnoza', JSON.stringify(closedReq));
   ok("yopiq: Yordamchi, tahlil, kameralar, Miya", (await st('GET', '/api/chat')) === 403 && (await st('GET', '/api/insights')) === 403 && (await st('GET', '/api/cameras')) === 403 && (await st('GET', '/api/brain')) === 403);
   ok("yopiq: klinika ma'lumotini o'zgartirish, xodim qo'shish, kalitlar, parol", (await st('PUT', '/api/business', {})) === 403 && (await st('POST', '/api/staff', { name: 'X' })) === 403
     && (await st('GET', '/api/keys')) === 403 && (await st('POST', '/api/account/password', { current: 'a', next: 'bbbbbbbbbb' })) === 403 && (await st('GET', '/api/team-access')) === 403);
