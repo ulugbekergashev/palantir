@@ -43,7 +43,7 @@ button{padding:9px 14px;border:0;border-radius:10px;background:var(--accent);col
 button:disabled{opacity:.4;cursor:default}
 ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
 li{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 14px}
-.who{flex:1;min-width:11rem}.who b{display:block}.who small{color:var(--muted)}
+.who{flex:1;min-width:11rem}.who b{display:block}.who small{color:var(--muted)} .issues{margin:.35rem 0 0;padding:0;list-style:none;font-size:.85rem;color:#b45309}.issues li{display:block;margin:.15rem 0;padding:0;border:0;border-radius:0;background:none}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--off);flex:none}.dot.on{background:var(--ok)}
 .pick{display:flex;flex-wrap:wrap;gap:6px;width:100%}
 .pick button,button.second{background:transparent;color:var(--accent);border:1px solid var(--line)}
@@ -196,6 +196,19 @@ function askRow(h) {
 /** Javob yozilayotgan yoki diagnostika ochiq bo'lsa — ro'yxat o'z-o'zidan yangilanmaydi (yozilgan matn yo'qolmasin) */
 const busyWithHelp = () => [...document.querySelectorAll('#help textarea')].some(t => t.value.trim() || t === document.activeElement) || !!document.querySelector('#help pre');
 
+/** Disk shundan kam qolsa — ogohlantirish (zaxira va yangilanish joy talab qiladi) */
+const LOW_DISK_MB = 2048;
+/** Klinika holatidagi muammolar — egasiga emas, sotuvchiga ko'rinadigan qisqa qatorlar */
+function troubles(s) {
+  if (!s) return [];
+  const out = [];
+  for (const p of s.problems || []) out.push((p.business ? p.business + ' — ' : '') + (p.label ? p.label + ': ' : '') + (p.problem || ''));
+  if (s.lastOffsite && !s.lastOffsite.ok) out.push('Tashqi zaxira yuborilmadi (' + (s.lastOffsite.day || '') + '): ' + (s.lastOffsite.error || "sababi yo'q"));
+  if (typeof s.diskFreeMb === 'number' && s.diskFreeMb < LOW_DISK_MB) out.push('Diskda ' + (s.diskFreeMb / 1024).toFixed(1) + ' GB qoldi');
+  if (s.lastUpdate && s.lastUpdate.result && s.lastUpdate.result !== 'ok') out.push('Yangilanish ' + (s.lastUpdate.to ? 'v' + s.lastUpdate.to + ' ' : '') + '— ' + s.lastUpdate.result + (s.lastUpdate.reason ? ': ' + s.lastUpdate.reason : ''));
+  return out;
+}
+
 function row(c, twins) {
   const li = el('li');
   const dot = el('span', 'dot' + (c.online ? ' on' : ''));
@@ -209,6 +222,13 @@ function row(c, twins) {
   const fresh = (c.approved ? '' : 'tasdiqlanmagan · ') + (setup ? 'sozlanmoqda (egasiga topshirilmagan) · ' : '');
   const twin = twins > 1 ? ' · ⚠ bu kod ' + twins + ' ta yozuvda' : '';
   who.append(el('b', '', c.name + label), el('small', '', fresh + (c.online ? 'aloqada' : 'aloqada emas · ' + ago(c.seenAt)) + (c.status && c.status.version ? ' · v' + c.status.version : '') + licText + (c.machineId ? ' · ' + c.machineId : '') + twin));
+  // Klinika yuborgan muammolar: Hub ularni yig'ardi, lekin hech qayerda ko'rsatmasdi (H4)
+  const issues = troubles(c.status);
+  if (issues.length) {
+    const ul = el('ul', 'issues');
+    for (const t of issues) ul.append(el('li', '', '⚠ ' + t));
+    who.append(ul);
+  }
   li.append(dot, who);
   if (!c.approved) {
     // Tasdiqlash va o'chirish — faqat asoschi (o'rnatuvchi ko'radi, lekin qila olmaydi). Yangi o'rnatish kalitsiz ochilmaydi —

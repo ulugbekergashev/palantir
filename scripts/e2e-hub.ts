@@ -22,6 +22,7 @@ import { SCHEMA_VERSION } from '../server/migrate';
 import { unseal } from '../server/offsiteCrypto';
 import { makeHubCode, parseHubCode } from '../src/lib/hubCode';
 import { OWNER, listen, press, say, sent, sleep, tgServer, waitFor, stopProcess, type Sent } from './fakes';
+import { quietNow } from '../hub/quiet';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
@@ -59,10 +60,16 @@ const buttons = (s: Sent | undefined) => ((s?.params.reply_markup as { inline_ke
 const button = (s: Sent | undefined, code: string) => buttons(s).find(b => b.callback_data?.startsWith(`${code}|`))?.callback_data;
 const toVendor = (mark: number, needle: string) => sent.slice(mark).filter(s => s.method === 'sendMessage' && Number(s.params.chat_id) === ALERT_CHAT && String(s.params.text).includes(needle));
 
+// H4: tinch soatlar — Toshkent 20:00–09:00 da «aloqa yo'q» aytilmaydi (UTC+5)
+const tz = (hh: number) => new Date(Date.UTC(2026, 10, 14, (hh - 5 + 24) % 24, 30));
+ok("H4: tinch soatlar «20-9»: 22:30 va 06:30 — tinch, 09:30 va 14:30 — xabar beriladi; bo'sh yoki noto'g'ri — tinch soat yo'q",
+  quietNow('20-9', tz(22)) && quietNow('20-9', tz(6)) && !quietNow('20-9', tz(9)) && !quietNow('20-9', tz(14)) && !quietNow('', tz(22)) && !quietNow('xato', tz(22))
+  && quietNow('1-5', tz(3)) && !quietNow('1-5', tz(6)));
+
 try {
   const hubProc = start('hub/server.ts', {
     PORT: String(HUB_PORT), HUB_DB: path.join(work, 'hub.db'), HUB_PUBLIC_URL: HUB, HUB_ADMIN_KEY: 'hub-admin-sinov-kaliti-0123456789',
-    HUB_BOT_TOKEN: '777:HUB', HUB_ALERT_CHAT: String(ALERT_CHAT), HUB_TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, HUB_OFFLINE_MS: '2500', HUB_WATCH_MS: '300',
+    HUB_BOT_TOKEN: '777:HUB', HUB_ALERT_CHAT: String(ALERT_CHAT), HUB_TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, HUB_OFFLINE_MS: '2500', HUB_WATCH_MS: '300', HUB_QUIET: '',
     HUB_BACKUP_DIR: path.join(work, 'hub-zaxira'),
     LICENSE_SIGNING_KEY: LICENSE.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64'),
   });

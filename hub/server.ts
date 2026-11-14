@@ -68,6 +68,7 @@ import { createHelp, HelpError, type HelpRow } from './help.ts';
 import { issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
 import { createTeam, TeamError, type HubRole, type Member } from './team.ts';
 import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
+import { quietNow } from './quiet.ts';
 
 /** Admin kaliti hamma klinikaning paneli, zaxirasi va diagnostikasini ochadi: qisqasi qabul qilinmaydi (hub:deploy 32 belgili yaratadi) */
 const MIN_ADMIN_KEY = 24;
@@ -96,6 +97,8 @@ const cfg = {
   telegramApi: (process.env.HUB_TELEGRAM_API_ROOT || 'https://api.telegram.org').replace(/\/+$/, ''),
   offlineMs: Number(process.env.HUB_OFFLINE_MS) || 15 * 60_000,
   watchMs: Number(process.env.HUB_WATCH_MS) || 60_000,
+  /** «aloqa yo'q» aytilmaydigan soatlar (Toshkent, «20-9»): kechqurun o'chiriladigan kompyuterdan kuniga 2 xabar — shovqin (H4). Bo'sh — o'chiq */
+  quiet: process.env.HUB_QUIET ?? '20-9',
   backupDir: resolve(process.env.HUB_BACKUP_DIR || join(dirname(resolve(process.env.HUB_DB || 'hub-data/hub.db')), 'zaxira')),
   backupKeep: Number(process.env.HUB_BACKUP_KEEP) || 7,
   backupMaxBytes: (Number(process.env.HUB_BACKUP_MAX_MB) || 512) * 1_048_576,
@@ -959,7 +962,8 @@ async function watch(): Promise<void> {
   watching = true;
   try {
     const cutoff = new Date(Date.now() - cfg.offlineMs).toISOString();
-    const lost = db.prepare('SELECT id, name, seen_at FROM clinics WHERE seen_at IS NOT NULL AND seen_at < ? AND alerted_at IS NULL').all(cutoff) as { id: string; name: string; seen_at: string }[];
+    // Tinch soatlarda (kechasi kompyuter o'chiriladi) aytilmaydi; ertalab ham yoqilmagan bo'lsa — tinch soatlar tugashi bilan aytiladi
+    const lost = quietNow(cfg.quiet, new Date()) ? [] : db.prepare('SELECT id, name, seen_at FROM clinics WHERE seen_at IS NOT NULL AND seen_at < ? AND alerted_at IS NULL').all(cutoff) as { id: string; name: string; seen_at: string }[];
     for (const c of lost) {
       const minutes = Math.round((Date.now() - Date.parse(c.seen_at)) / 60_000);
       const said = await alert(`⚠️ «${c.name}» bilan aloqa yo'q — oxirgi marta ${tashkent(c.seen_at)} da (${minutes} daqiqa oldin). Kompyuter o'chgan, uxlab qolgan yoki internet uzilgan bo'lishi mumkin.`);
