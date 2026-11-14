@@ -583,11 +583,14 @@ export const replies = {
    * Shu mijoz bo'yicha egasidan so'ralgan oxirgi savol (shu vaqtdan beri). Bir marta olinadi: egasining bitta javobi ikki marta o'rganilmasin
    */
   takeQuestion(businessId: string, leadId: string, sinceIso: string): string | null {
-    const r = one('SELECT id, question FROM replies WHERE business_id = ? AND lead_id = ? AND question IS NOT NULL AND created_at >= ? ORDER BY created_at DESC, rowid DESC LIMIT 1', x => ({ id: String(x.id), question: String(x.question) }), businessId, leadId, sinceIso);
-    if (!r || Number(run('UPDATE replies SET question = NULL WHERE business_id = ? AND id = ? AND question IS NOT NULL', businessId, r.id).changes) === 0) return null;
+    // Shu mijozning eng oxirgi taklifi savolli bo'lishi kerak: undan keyin bemor boshqa narsa so'rab, yangi taklif tayyorlangan bo'lsa,
+    // egasining javobi o'sha yangisiga — eski savolga juftlanmaydi (E9: «Bo'lib to'lash bormi?» → «Ha, 10 da keling»)
+    const r = one('SELECT id, question FROM replies WHERE business_id = ? AND lead_id = ? AND created_at >= ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
+      x => ({ id: String(x.id), question: x.question === null ? null : String(x.question) }), businessId, leadId, sinceIso);
+    const taken = !!r?.question && Number(run('UPDATE replies SET question = NULL WHERE business_id = ? AND id = ? AND question IS NOT NULL', businessId, r.id).changes) > 0;
     // Shu mijozning eskirgan takliflaridagi savollar ham yopiladi: keyingi (boshqa mavzudagi) xabar ularga javob deb olinmasin
     run('UPDATE replies SET question = NULL WHERE business_id = ? AND lead_id = ? AND question IS NOT NULL', businessId, leadId);
-    return r.question;
+    return taken ? r!.question : null;
   },
   setOwnerMessage: (businessId: string, id: string, messageId: number) =>
     run('UPDATE replies SET owner_message_id = ? WHERE business_id = ? AND id = ?', messageId, businessId, id),

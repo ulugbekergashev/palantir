@@ -90,5 +90,25 @@ await check("kompyuter o'chiq paytda yozilgan xabar — asl vaqti bilan (3 soat 
   assert.equal(inbox.last(biz.id, l.id)?.createdAt, at);
 });
 
+console.log("\n# «Eslab qolaymi?» — egasining javobi qaysi savolga (E9)");
+const since = () => new Date(Date.now() - 86_400_000).toISOString();
+const asked = (leadId: string, question: string | null) =>
+  replies.create(biz.id, { leadId, channel: 'telegram', text: 'Aniqlab aytamiz', status: 'pending', note: null, dueAt: null, question });
+await check('savol — oxirgi taklif: egasining javobi shu savolga juftlanadi, bir marta', async () => {
+  const { lead } = leads.fromChannel(biz.id, 'telegram', { tgUserId: 'savol1', name: 'Savol', username: null }, 'Telegram');
+  asked(lead.id, "Bo'lib to'lash bormi?");
+  assert.equal(replies.takeQuestion(biz.id, lead.id, since()), "Bo'lib to'lash bormi?");
+  assert.equal(replies.takeQuestion(biz.id, lead.id, since()), null);
+});
+await check("savoldan keyin bemor boshqa narsa so'radi (yangi taklif) — egasining javobi eski savolga juftlanmaydi", async () => {
+  const { lead } = leads.fromChannel(biz.id, 'telegram', { tgUserId: 'savol2', name: 'Savol', username: null }, 'Telegram');
+  asked(lead.id, "Bo'lib to'lash bormi?");
+  await tick();
+  asked(lead.id, null);
+  assert.equal(replies.takeQuestion(biz.id, lead.id, since()), null);
+  // Eski savol ham yopildi: keyingi javob ham unga juftlanmaydi
+  assert.equal(replies.takeQuestion(biz.id, lead.id, since()), null);
+});
+
 console.log(failed ? `\n✗ ${failed} ta tekshiruv o'tmadi` : "\n✓ hammasi o'tdi");
 process.exit(failed ? 1 : 0);
