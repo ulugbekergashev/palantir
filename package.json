@@ -45,6 +45,7 @@
     "test:watchdog": "tsx scripts/check-watchdog.ts",
     "test:monitor": "tsx scripts/check-monitor.ts",
     "test:time": "tsx scripts/check-time.ts",
+    "test:setup-steps": "tsx scripts/check-setup-steps.ts",
     "test:stages": "tsx scripts/check-stages.ts",
     "test:inbox": "tsx scripts/check-inbox.ts",
     "test:facts": "tsx scripts/check-facts.ts",

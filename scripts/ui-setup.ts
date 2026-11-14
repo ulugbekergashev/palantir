@@ -201,7 +201,7 @@ try {
 
   await page.getByRole('button', { name: 'Yakunlash' }).click();
   await shot(page, 'usta-yakun');
-  ok('yakun: tayyor qadamlar sanaldi', await page.getByText(/\d\/9 tayyor/).isVisible());
+  ok('yakun: tayyor qadamlar sanaldi («9 qadamdan N tasi tayyor» — sarlavhadagi «N-qadam / 10» bilan adashmasin, I2)', await page.getByText(/9 qadamdan \d tasi tayyor/).isVisible());
   await page.getByRole('link', { name: "Kabinetga o'tish" }).click();
   ok("«Kabinetga o'tish» — klinika kabineti ochildi (qayta kirishsiz)", await page.getByLabel("Palantir'ga yozing").waitFor({ timeout: 8000 }).then(() => true, () => false));
   await shot(page, 'kabinet');

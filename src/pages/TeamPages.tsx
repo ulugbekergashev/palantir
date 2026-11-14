@@ -3,7 +3,7 @@
  * raqamlari; asosiy varaq — u nima qilyapti (agents/*); to'liq ro'yxatlar (so'rovlar, jurnal, kamera sozlash) — qo'shimcha varaqlarda.
  * Sozlamalar ham shu yerda — ulanishlar va ishga tushirish qadamlari.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Settings } from 'lucide-react';
 import type { Business, LiveStatus } from '../types';
 import type { Notify } from '../components/Artifacts';
@@ -22,7 +22,7 @@ import { MarketingDesk, MarketingReports, MetaAiConnect, marketingStats, useMark
 import { InstagramPosts } from './agents/Posts';
 import { MarketingResults } from './agents/Results';
 import { ContentChannel, ContentDrafts, ContentSources, contentStats, useContent } from './agents/Content';
-import type { ContentView } from '../data/api';
+import { api, type ContentView } from '../data/api';
 import { ContentPlanTab, ContentVideoTab } from './agents/ContentStudio';
 import { AdsCabinet, AdsCampaigns, adsStats, useAds } from './agents/Ads';
 import { HUE } from '../components/agent';
@@ -305,7 +305,11 @@ export function SettingsArea({ tab, biz, status, notify, onStatus, onBiz, offeri
   onStatus: (s: LiveStatus) => void; onBiz: (b: Business) => void; offeringsRev: string; onSaved: (b: Business, rev: string) => void;
 }) {
   const feed = useDayFeed(notify);
-  const steps = feed ? setupSteps(status, isClinic(biz.industry, !!status.crm.account), feed.brain) : [];
+  // Bilim bo'shliqlari — ulash ustasi bilan bir ta'rif (I2); Miya yangilanganda feed.brain o'zgaradi — shunda qayta so'raladi
+  const [missing, setMissing] = useState<string[] | null>(null);
+  const brainRev = feed?.brain ? `${feed.brain.priced}|${feed.brain.pack.filter(q => q.answer).length}` : '';
+  useEffect(() => { api.knowledgeGaps().then(r => setMissing(r.missing)).catch(() => {}); }, [brainRev]);
+  const steps = feed ? setupSteps(status, isClinic(biz.industry, !!status.crm.account), feed.brain, missing) : [];
   return (
     <div className="space-y-7">
       <header className="flex flex-wrap items-center gap-4 border-b border-glass/[0.06] pb-6">
