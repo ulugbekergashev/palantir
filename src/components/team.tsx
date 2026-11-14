@@ -9,7 +9,7 @@ import { Camera, ChartLine, Compass, Headset, Megaphone, PenLine, Target, UserRo
 import type { LiveStatus } from '../types';
 import { api, type ContentView } from '../data/api';
 import type { AdsView, DirectorView } from '../types';
-import { iso } from '../lib/week';
+import { iso, localDay } from '../lib/week';
 import { hrefOf, type Area } from '../lib/nav';
 import { som } from '../lib/text';
 import { CREW, isCore, type CrewMember } from '../lib/crew';
@@ -139,7 +139,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false, replyMode:
       const director = await directorP;
       const phoneOn = await lineP;
       if (stale) return;
-      const callsToday = calls?.calls.filter(c => c.startedAt.slice(0, 10) === today) ?? [];
+      const callsToday = calls?.calls.filter(c => localDay(c.startedAt) === today) ?? [];
       const talking = calls?.calls.some(c => c.status === 'talking' || c.status === 'ringing') ?? false;
       const stamp = `${today}T${new Date().toTimeString().slice(0, 5)}`;
       const late = tasks?.tasks.filter(t => t.dueAt && t.dueAt < stamp).length ?? 0;

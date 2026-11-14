@@ -12,7 +12,7 @@ import type { MemberState } from '../components/team';
 import { isClinic } from '../data/industries';
 import { setupSteps } from '../lib/setup';
 import { useDayFeed } from '../lib/useDayFeed';
-import { iso } from '../lib/week';
+import { iso, localDay } from '../lib/week';
 import { AnalystBody, PeriodSwitch, analystStats, useAnalystData } from './agents/Analyst';
 import { DemandBody } from './agents/Demand';
 import { DiscoveriesBody } from './agents/Discoveries';
@@ -53,7 +53,7 @@ export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now
   const stats = [
     { label: 'Javob berildi', value: k?.answered.value ?? '—', hint: k?.answered.responseMin != null ? `o'rtacha ${k.answered.responseMin} daqiqada` : undefined },
     { label: 'Qabulga yozildi', value: k?.booked.value ?? '—', tone: k?.booked.value ? 'good' as const : undefined },
-    { label: "Qo'ng'iroq", value: data ? data.calls.filter(c => c.startedAt.slice(0, 10) === today).length : '—', hint: k?.unanswered.missedCalls ? `${k.unanswered.missedCalls} tasi o'tkazib yuborilgan` : undefined },
+    { label: "Qo'ng'iroq", value: data ? data.calls.filter(c => localDay(c.startedAt) === today).length : '—', hint: k?.unanswered.missedCalls ? `${k.unanswered.missedCalls} tasi o'tkazib yuborilgan` : undefined },
     // So'rovlar va tasdiqingizni kutayotgan javoblar — bosh ekrandagi «Sizni kutyapti»dagi Qabulxona bandlari bilan bir xil son
     { label: 'Sizni kutyapti', value: state ? state.badge : '—', tone: state?.badge ? 'warn' as const : undefined },
   ];

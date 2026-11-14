@@ -17,6 +17,9 @@ const MONTHS: Record<Lang, string[]> = {
 export const iso = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+/** Bazadagi UTC vaqt («…Z») qaysi mahalliy kunga tegishli. `.slice(0, 10)` UTC kunini beradi: Toshkentda 00:00–05:00 kechaga tushardi (G7) */
+export const localDay = (stamp: string): string => iso(new Date(stamp));
+
 /** "YYYY-MM-DD" → tush vaqtidagi mahalliy sana (soat mintaqasi kunni surmasin) */
 export const fromIso = (key: string): Date => new Date(`${key}T12:00:00`);
 
