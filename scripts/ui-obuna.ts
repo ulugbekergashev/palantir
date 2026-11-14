@@ -88,7 +88,7 @@ try {
   await link.waitFor({ timeout: 10_000 });
   const href = await link.getAttribute('href');
   ok('havola chiqdi, terminal belgilarisiz', href === 'https://claude.com/cai/oauth/authorize?code=true&client_id=sinov&state=state1', String(href));
-  ok("«server kompyuterida brauzer ochildi» deyiladi", await card.getByText(/Server kompyuterida brauzer ochildi/).isVisible());
+  ok("«Palantir o'rnatilgan kompyuterda brauzer ochildi» deyiladi (texnik «server» so'zisiz, C7)", await card.getByText(/Palantir o'rnatilgan kompyuterda brauzer ochildi/).isVisible());
 
   await card.getByLabel("Sahifa ko'rsatgan kod").fill('yarim kod');
   await card.getByRole('button', { name: 'Kodni yuborish' }).click();

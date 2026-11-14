@@ -24,7 +24,7 @@ export function setupSteps(status: LiveStatus, clinic: boolean, brain: BrainView
   const steps: (SetupStep | false | null)[] = [
     {
       key: 'bot', done: status.ownerLinked, href: '#/sozlamalar/telegram', go: 'Telegram', title: "Telegram'ni ulang",
-      text: status.bot ? "Eslatmalar, ertalabki xulosa va mijozlarga javob takliflari Telegram'ingizga keladi." : "Serverda BOT_TOKEN berilmagan — administrator @BotFather'dan token olib qo'yishi kerak.",
+      text: status.bot ? "Eslatmalar, ertalabki xulosa va mijozlarga javob takliflari Telegram'ingizga keladi." : "Telegram bot hali ulanmagan — uni o'rnatuvchi ulash ustasida ulaydi. Palantir jamoasiga ayting.",
     },
     (clinic || !!status.crm.account) && {
       key: 'crm', done: !!status.crm.account && !status.crm.problem, href: '#/sozlamalar/dentacrm', go: 'DentaCRM', title: "DentaCRM'ni ulang",

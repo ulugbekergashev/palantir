@@ -74,7 +74,7 @@ export function ClaudeObuna({ onChange }: { onChange: () => void }) {
           : running ? (
             <div className="space-y-3" aria-live="polite">
               <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Server kompyuterida brauzer ochildi — o'sha yerda klinikaning Claude akkauntiga kiring.
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Palantir o'rnatilgan kompyuterda brauzer ochildi — o'sha yerda klinikaning Claude akkauntiga kiring.
               </p>
               {s.login?.url && (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">

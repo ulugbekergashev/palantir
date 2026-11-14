@@ -70,8 +70,10 @@ export function DentaCrm({ status, onStatus, notify }: DentaCrmProps) {
       <form onSubmit={connect} className="grid gap-2 sm:grid-cols-3">
         <label className="sm:col-span-3">
           <span className="mb-1 block text-xs font-semibold text-slate-600">DentaCRM manzili</span>
-          <TextInput value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="http://192.168.1.20:3001 yoki https://klinika.dentacrm.uz" autoComplete="off" aria-label="DentaCRM manzili" />
-          {found && <span className="mt-1 block text-xs text-emerald-700">Shu kompyuterda DentaCRM topildi — manzil qo'yildi. Login va parolni yozing.</span>}
+          <TextInput value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="DentaCRM ochiladigan manzil" autoComplete="off" aria-label="DentaCRM manzili" />
+          {found
+            ? <span className="mt-1 block text-xs text-emerald-700">Shu kompyuterda DentaCRM topildi — manzil qo'yildi. Login va parolni yozing.</span>
+            : <span className="mt-1 block text-xs text-slate-500">DentaCRM'ni brauzerda oching va yuqoridagi manzil satridan nusxalab shu yerga qo'ying. Login — klinika administratoriniki (shifokor logini emas).</span>}
         </label>
         <label>
           <span className="mb-1 block text-xs font-semibold text-slate-600">Login</span>

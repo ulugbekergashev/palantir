@@ -286,7 +286,7 @@ export function SettingsCard({ biz, offeringsRev, onSaved, notify }: { biz: Busi
 
 /** Egasining Telegram'i (bot): eslatmalar, xulosa va mijozlarga javob takliflari shu yerga keladi */
 export function OwnerBot({ status }: { status: LiveStatus }) {
-  if (!status.bot) return <p className="text-sm text-slate-500">Serverda BOT_TOKEN berilmagan — ulash ustasida (#/ulash) bot tokenini kiriting.</p>;
+  if (!status.bot) return <p className="text-sm text-slate-500">Telegram bot hali ulanmagan — uni o'rnatuvchi ulash ustasida ulaydi. Palantir jamoasiga ayting.</p>;
   return (
     <div className="space-y-3">
       {status.ownerLinked
@@ -335,7 +335,7 @@ export function TelegramBusiness({ status }: { status: LiveStatus }) {
 /** Masofadan kirish (Palantir Hub orqali): havola va telefondan ochish yo'li */
 export function RemoteAccess({ status, notify }: { status: LiveStatus; notify: Notify }) {
   const r = status.remote;
-  if (!r.url) return <p className="text-sm text-slate-500">Palantir Hub kodi kiritilmagan — panel faqat shu kompyuterda (va klinika tarmog'ida) ochiladi. Hub kodi: ulash ustasi → kalitlar.</p>;
+  if (!r.url) return <p className="text-sm text-slate-500">Masofadan kirish hali yoqilmagan — panel faqat shu kompyuterda (va klinika ichidagi kompyuterlarda) ochiladi. Yoqish uchun Palantir jamoasiga ayting.</p>;
   const copy = async () => { await copyText(r.url!).catch(() => {}); notify('Nusxalandi'); };
   return (
     <div className="space-y-3 text-sm text-slate-600">
