@@ -351,6 +351,12 @@ try {
   const brain = (await api('/api/brain', { token })).json.brain;
   const aboutPage = (brain.pages ?? []).find((p: { question: string }) => p.question === 'Biznes haqida')?.answer ?? '';
   ok('«Biznes haqida»: tavsif, aloqa qatorlari, jamoa', aboutPage.startsWith('Oilaviy stomatologiya') && aboutPage.includes("- Manzil: Chilonzor 9-kvartal, 14-uy (mo'ljal: Chilonzor metrosi)") && aboutPage.includes('- Ish vaqti: Du–Ju 09:00–19:00') && aboutPage.includes('## Jamoa\n- Dr. Rahimova — terapevt'), aboutPage);
+  // C9: ustadagi shaklda manzil o'zgarsa — AI javob beradigan sahifa ham yangilanadi; boshqa qatorlar va jamoa joyida
+  const moved = await api('/api/business', { method: 'PUT', token, body: { ...me, address: 'Yunusobod 4-kvartal, 7-uy' } });
+  const aboutAfter = ((await api('/api/brain', { token })).json.brain.pages ?? []).find((p: { question: string }) => p.question === 'Biznes haqida')?.answer ?? '';
+  ok("C9: ustada manzil o'zgardi — «Biznes haqida»da ham yangi manzil, eskisi yo'q",
+    moved.status === 200 && aboutAfter.includes('- Manzil: Yunusobod 4-kvartal, 7-uy') && !aboutAfter.includes('Chilonzor 9-kvartal')
+    && aboutAfter.includes('- Ish vaqti: Du–Ju 09:00–19:00') && aboutAfter.includes('## Jamoa\n- Dr. Rahimova — terapevt'), aboutAfter);
   ok('tayyor savollarga javoblar bilimga tushdi', brain.pack.filter((q: { answer: string | null }) => q.answer).length === 2);
   const setup = (await api('/api/setup', { token })).json.setup;
   ok('bo\'shliqlar: ikki narx va yozilmagan kunlar', setup.gaps.length === 2 && setup.gaps[0].options?.length === 2 && /shanba, yakshanba/.test(setup.gaps[1].question), JSON.stringify(setup.gaps.map((g: { question: string }) => g.question)));

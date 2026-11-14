@@ -37,6 +37,7 @@ import { AutoReplySchema, BusinessSchema, emptyBusiness } from './validate';
 import { containsSecret } from '../src/lib/secrets';
 import { mountSetup } from './setup/routes';
 import { missingBasics } from './setup/gaps';
+import { syncAboutContacts } from './setup/about';
 import { crmStatus } from './crm/index';
 import { mountCrm } from './crm/routes';
 import { mountMarketing } from './marketing/routes';
@@ -501,6 +502,8 @@ export function createApp(bot: BotService) {
     // replyStyle — eski maydon (uslub endi papkadagi Uslub.md da): profil sahifasi uni o'zgartirmaydi
     const profile = { ...parsed.data, replyStyle: biz.profile.replyStyle };
     businesses.update(biz.id, { profile });
+    // Ustada o'zgargan telefon/manzil/ish vaqti — «Biznes haqida» sahifasiga ham (AI javobni shu sahifadan oladi, C9)
+    syncAboutContacts(biz.id, biz.profile, profile);
     // Papkadagi mundarija va narxlar nusxasi yangi profil bilan
     refreshVault(biz.id);
     // Yordamchi yangi profilni bilsin — keyingi gapdan yangi suhbat

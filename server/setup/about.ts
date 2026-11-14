@@ -43,3 +43,17 @@ export function updateAbout(bizId: string, lines: [label: string, value: string]
   for (const [label, value] of lines) if (value.trim()) body = setAboutLine(body, label, value);
   writeAbout(bizId, body);
 }
+
+type Contacts = { phone?: string; address?: string; hours?: string };
+const CONTACT_FIELDS: [keyof Contacts, string][] = [['phone', 'Telefon'], ['address', 'Manzil'], ['hours', 'Ish vaqti']];
+
+/**
+ * Profil shaklida (ulash ustasi) o'zgargan telefon, manzil yoki ish vaqti sahifaga ham yoziladi — AI mijozga shu sahifadan
+ * javob beradi, aks holda eski manzilni aytaverardi (C9). O'zgarmagan maydon sahifadagi qo'lda yozilgan qatorni bosmaydi.
+ */
+export function syncAboutContacts(bizId: string, before: Contacts, after: Contacts): void {
+  const changed = CONTACT_FIELDS
+    .filter(([k]) => (after[k] ?? '').trim() && (after[k] ?? '').trim() !== (before[k] ?? '').trim())
+    .map(([k, label]): [string, string] => [label, (after[k] ?? '').trim()]);
+  if (changed.length) updateAbout(bizId, changed);
+}
