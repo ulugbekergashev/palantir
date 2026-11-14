@@ -12,7 +12,7 @@ import type { AgentEvent, OrderMember } from '../src/types';
 import { periodDays } from '../src/lib/dashboard';
 import { iso } from '../src/lib/week';
 import { dashboard } from './analytics';
-import { cameras, connections, outbound, sql, tasks, type BusinessRow } from './db';
+import { cameras, connections, outbound, replies, sql, tasks, type BusinessRow } from './db';
 import { adsStore } from './ads/store';
 import { contentStore } from './content/store';
 import { insightsStore } from './insights/analyze';
@@ -43,10 +43,14 @@ function reception(biz: BusinessRow, now: Date, from: string): DayMember {
   const inq = k.inquiries.value, ans = k.answered.value, booked = k.booked.value, left = k.unanswered.value;
   const drafts = outbound.countSince(biz.id, from);
   const clinic = isClinic(biz.profile.industry, crmConnected(biz.id));
+  // Javobi tayyor, egasining tasdig'ini kutayotganlar «hali javobsiz» deyilmaydi — ish Qabulxonada emas, egasida (I6)
+  const ready = Math.min(left, new Set(replies.pendingList(biz.id, 200).map(r => r.leadId)).size);
+  const waiting = left - ready;
+  const tail = [waiting && `${waiting} tasi hali javobsiz`, ready && `${ready} tasiga javob tayyor — tasdiqingizni kutyapti`].filter(Boolean).join(', ');
   const wrote = drafts ? ` Mijozlarga ${drafts} ta qayta yozish xabarini tayyorladi.` : '';
   const summary = !inq ? `Bugun hali murojaat bo'lmadi — navbatchilikda.${wrote}`
     : `${inq} murojaatdan ${ans} tasiga javob berdi${k.answered.responseMin != null ? ` (o'rtacha ${k.answered.responseMin} daqiqada)` : ''}`
-      + `${booked ? (clinic ? `, ${booked} kishini qabulga yozdi` : `, ${booked} ta kelishuv`) : ''}.${left ? ` ${left} tasi hali javobsiz.` : ''}${wrote}`;
+      + `${booked ? (clinic ? `, ${booked} kishini qabulga yozdi` : `, ${booked} ta kelishuv`) : ''}.${tail ? ` ${tail.replace(/^./, c => c.toUpperCase())}.` : ''}${wrote}`;
   return { member: 'qabulxona', summary, facts: [
     { label: 'Murojaat', value: inq }, { label: 'Javob berdi', value: ans }, { label: clinic ? 'Qabulga yozdi' : 'Kelishildi', value: booked }, { label: "So'rov qoldirdi", value: k.requests.value },
     { label: 'Xabar tayyorladi', value: drafts },

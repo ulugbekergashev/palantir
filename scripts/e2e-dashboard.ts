@@ -182,6 +182,17 @@ try {
   const f2 = (await api('/api/dashboard/funnel?period=today', { token })).json.funnel as FunnelView;
   ok("G6: «Qabulga yozildi» — odamlar: Ali ikki marta yozilsa ham bitta, Kamola chiquvchi qo'ng'iroqda; KPI va voronka bir xil (2)",
     k2.booked.value === 2 && f2.booked.total === 2, JSON.stringify({ kpi: k2.booked.value, funnel: f2.booked }));
+  // I6: Javohirga javob tayyor, egasining tasdig'ini kutyapti — «javobsiz» emas, «javob tayyor»
+  const i6db = new DatabaseSync(join(dataDir, 'palantir.db'));
+  i6db.exec('PRAGMA busy_timeout = 5000');
+  i6db.prepare("INSERT INTO replies (id, business_id, lead_id, channel, text, status, created_at) VALUES ('i6r', ?, ?, 'instagram', '9:00 dan 19:00 gacha', 'pending', ?)").run(bizId, c, ago(5));
+  i6db.close();
+  const d3 = (await api('/api/dashboard?period=today', { token })).json.dashboard as DashboardView;
+  await api('/api/crew', { token, body: { member: 'qabulxona', on: true } });
+  const day3 = (await api('/api/team/day', { token })).json as { members: { member: string; summary: string }[] };
+  const rec = day3.members.find(m => m.member === 'qabulxona')?.summary ?? '';
+  ok("I6: tasdiq kutayotgan javobi bor Javohir — lentada «ready» (javob tayyor), jamoa kunida «javob tayyor — tasdiqingizni kutyapti»",
+    d3.recent.find(r => r.kind === 'message' && r.who === 'Javohir')?.state === 'ready' && rec.includes('1 tasiga javob tayyor — tasdiqingizni kutyapti') && /tasi hali javobsiz/.test(rec), rec);
 
   console.log('\n# Ko\'rinish (headless)');
   const browser = await chromium.launch({ executablePath: CHROME });

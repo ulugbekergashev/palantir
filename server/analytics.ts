@@ -182,14 +182,15 @@ function recent(bizId: string): RecentItem[] {
   const msgs = sql.many(`SELECT i.lead_id, i.channel, i.text, i.created_at,
       EXISTS (SELECT 1 FROM inbox o WHERE o.business_id = i.business_id AND o.lead_id = i.lead_id AND o.direction = 'out' AND o.created_at > i.created_at AND ${NOT_HOLD}) AS after,
       EXISTS (SELECT 1 FROM inbox o WHERE o.business_id = i.business_id AND o.lead_id = i.lead_id AND o.direction = 'out' AND o.created_at < i.created_at AND ${NOT_HOLD}
-        AND o.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', i.created_at, '-6 hours')) AS before
+        AND o.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', i.created_at, '-6 hours')) AS before,
+      EXISTS (SELECT 1 FROM replies r WHERE r.business_id = i.business_id AND r.lead_id = i.lead_id AND r.status = 'pending') AS ready
     FROM inbox i WHERE i.business_id = ? AND i.direction = 'in'
       AND i.created_at = (SELECT MAX(created_at) FROM inbox x WHERE x.business_id = i.business_id AND x.lead_id = i.lead_id AND x.direction = 'in')
     ORDER BY i.created_at DESC LIMIT ?`,
   (x): RecentItem => {
     const text = String(x.text);
     const done = Number(x.after) === 1 || (Number(x.before) === 1 && CLOSING.test(text.trim()));
-    return { kind: 'message', at: String(x.created_at), leadId: String(x.lead_id), who: who(String(x.lead_id), 'Mijoz'), channel: String(x.channel), text: text.slice(0, 160), state: done ? 'answered' : 'waiting' };
+    return { kind: 'message', at: String(x.created_at), leadId: String(x.lead_id), who: who(String(x.lead_id), 'Mijoz'), channel: String(x.channel), text: text.slice(0, 160), state: done ? 'answered' : Number(x.ready) === 1 ? 'ready' : 'waiting' };
   },
   bizId, RECENT);
   const calls = sql.many('SELECT lead_id, phone, name, source, direction, status, outcome, started_at, duration_sec FROM calls WHERE business_id = ? ORDER BY started_at DESC LIMIT ?',

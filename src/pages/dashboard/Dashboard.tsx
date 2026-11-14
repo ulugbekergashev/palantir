@@ -187,7 +187,9 @@ function Team({ d }: { d: DashboardView }) {
 
 const CHANNEL: Record<string, string> = { instagram: 'Instagram', telegram: 'Telegram', bot: 'Telegram bot', manual: "qo'lda", call: "qo'ng'iroq", voice: 'ovozli agent', owner: 'egasi', panel: 'panel' };
 const STATE: Record<string, [string, string]> = {
-  answered: ['javob berildi', 'bg-emerald-50 text-emerald-700'], waiting: ['javobsiz', 'bg-amber-50 text-amber-800'], open: ['ochiq', 'bg-amber-50 text-amber-800'],
+  answered: ['javob berildi', 'bg-emerald-50 text-emerald-700'], waiting: ['javobsiz', 'bg-amber-50 text-amber-800'],
+  // Javob tayyor, egasining tasdig'ini kutyapti — «javobsiz» emas (I6)
+  ready: ['javob tayyor', 'bg-sky-50 text-sky-700'], open: ['ochiq', 'bg-amber-50 text-amber-800'],
   done: ['bajarildi', 'bg-emerald-50 text-emerald-700'], cancelled: ['bekor', 'bg-slate-100 text-slate-600'], ended: ['gaplashildi', 'bg-emerald-50 text-emerald-700'],
   missed: ["o'tkazib yuborildi", 'bg-rose-50 text-rose-700'], no_answer: ["ko'tarmadi", 'bg-slate-100 text-slate-600'], talking: ['suhbatda', 'bg-sky-50 text-sky-700'],
   ringing: ['jiringlayapti', 'bg-sky-50 text-sky-700'], dialing: ['terilmoqda', 'bg-sky-50 text-sky-700'],
