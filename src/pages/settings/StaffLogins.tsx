@@ -41,10 +41,18 @@ export function StaffLogins({ notify }: { notify: Notify }) {
       await load();
     } catch (e) { notify((e as Error).message, true); } finally { setBusy(false); }
   };
+  // Login brauzerning prompt() oynasida emas — shu qatorning o'zida so'raladi (I9)
+  const [asking, setAsking] = useState<{ id: string; access: StaffAccess; login: string } | null>(null);
   const give = (m: AccessMember, access: StaffAccess) => {
-    const login = m.login ? undefined : window.prompt(`«${m.name}» uchun login (lotin harflari):`, loginFrom(m.name) || '')?.trim().toLowerCase();
-    if (!m.login && !login) return;
-    void act(() => api.grantAccess(m.id, access, login));
+    if (m.login) { void act(() => api.grantAccess(m.id, access)); return; }
+    setAsking({ id: m.id, access, login: loginFrom(m.name) || '' });
+  };
+  const confirmLogin = (e: FormEvent) => {
+    e.preventDefault();
+    if (!asking?.login.trim()) return;
+    const { id, access, login } = asking;
+    setAsking(null);
+    void act(() => api.grantAccess(id, access, login.trim().toLowerCase()));
   };
   const add = async (e: FormEvent) => {
     e.preventDefault();
@@ -87,6 +95,15 @@ export function StaffLogins({ notify }: { notify: Notify }) {
               ))}
               {m.access && <Button size="sm" disabled={busy} onClick={() => { void act(() => api.resetAccess(m.id)); }}>Yangi parol</Button>}
               {m.access && <Button size="sm" disabled={busy} onClick={() => { if (window.confirm(`«${m.name}» panelga kira olmasin? Ochiq kirishi darhol tugaydi.`)) void act(() => api.revokeAccess(m.id)); }}>Yopish</Button>}
+              {asking?.id === m.id && (
+                <form onSubmit={confirmLogin} className="flex w-full flex-wrap items-end gap-2 pt-1">
+                  <Field label={`«${m.name}» uchun login (lotin harflari) — ${ACCESS[asking.access].name}`}>
+                    <TextInput id="staff-login" value={asking.login} onChange={e => setAsking({ ...asking, login: e.target.value })} pattern="[a-zA-Z0-9._\-]{3,32}" required autoFocus className="font-mono" />
+                  </Field>
+                  <Button type="submit" size="sm" variant="primary" disabled={busy}>Kirish berish</Button>
+                  <Button size="sm" onClick={() => setAsking(null)}>Bekor</Button>
+                </form>
+              )}
             </li>
           ))}
         </ul>

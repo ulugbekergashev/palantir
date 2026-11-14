@@ -154,7 +154,8 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false, replyMode:
         direktor: directorState(director),
         qabulxona: {
           on: desk.on, live: talking, badge: reception, status: desk.status, next: desk.next,
-          detail: `Bugun ${callsToday.length} qo‘ng‘iroq${reception ? ` · ${reception} ta ish sizni kutyapti` : requests?.open ? ` · ${requests.open} so‘rov` : ''}`,
+          // Telefon hech qachon ishlatilmagan (liniya yo'q, MicroSIP qo'ng'irog'i ham yo'q) — «0 qo'ng'iroq» ishlayotgandek ko'rinmasin (I9)
+          detail: `${phoneOn || calls?.calls.length ? `Bugun ${callsToday.length} qo‘ng‘iroq` : 'Telefon ulanmagan'}${reception ? ` · ${reception} ta ish sizni kutyapti` : requests?.open ? ` · ${requests.open} so‘rov` : ''}`,
         },
         yordamchi: {
           on: true, live: false, badge: waiting('yordamchi'),

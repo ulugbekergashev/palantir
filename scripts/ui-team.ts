@@ -106,8 +106,13 @@ try {
   await page.locator('#staff-name').fill('Dilnoza');
   await page.getByRole('button', { name: "Qo'shish" }).click();
   await page.getByRole('button', { name: 'Qabulxona sifatida kirsin' }).waitFor({ timeout: 10_000 });
-  page.once('dialog', d => { void d.accept('dilnoza'); });
+  let dialogs = 0;
+  page.on('dialog', d => { dialogs++; void d.dismiss(); });
   await page.getByRole('button', { name: 'Qabulxona sifatida kirsin' }).click();
+  // I9: login brauzerning prompt() oynasida emas — qatorning o'zida, ismdan taklif bilan
+  await page.locator('#staff-login').waitFor({ timeout: 10_000 });
+  ok("I9: login sahifaning o'zida so'raladi (prompt() yo'q), ismdan taklif — «dilnoza»", dialogs === 0 && await page.locator('#staff-login').inputValue() === 'dilnoza');
+  await page.getByRole('button', { name: 'Kirish berish' }).click();
   const creds = page.getByTestId('staff-creds');
   await creds.waitFor({ timeout: 10_000 });
   const text = (await creds.textContent()) ?? '';
@@ -139,6 +144,7 @@ try {
     && !(await page.getByPlaceholder(/Qabulxonadan so'rang/).count()) && !(await page.getByText('Nazorat', { exact: true }).count())
     && !(await page.getByRole('link', { name: 'ulash' }).count()) && await page.getByText('rejimni klinika egasi tanlaydi').isVisible());
   ok("I5: «Sizni kutyapti» o'rniga «Ochiq so'rov» (xodimga «Sizni kutyapti» yopiq)", await page.getByText("Ochiq so'rov").isVisible() && !(await page.getByText('Sizni kutyapti').count()));
+  ok("I9: telefon ulanmagan, qo'ng'iroq bo'lmagan — «0 qo'ng'iroq» emas, «telefon ulanmagan»", await page.getByText('telefon ulanmagan').first().isVisible());
   await page.goto(`${base}/#/qabulxona/yozishmalar`);
   await page.getByText('Palantir javob tayyorlaydi').first().waitFor({ timeout: 10_000 });
   await sleep(600);

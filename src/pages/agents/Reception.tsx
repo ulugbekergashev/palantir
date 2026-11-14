@@ -55,7 +55,8 @@ function RequestCard({ r, onDone, notify }: { r: RequestView; onDone: () => void
   );
 }
 
-export interface ReceptionData { dashboard: DashboardView | null; requests: RequestView[]; calls: Call[]; reply: AutoReply | null }
+/** phone — telefon liniyasi ulangan (xodimga liniya holati yopiq — null; unda qo'ng'iroqlar ro'yxatiga qaraladi) */
+export interface ReceptionData { dashboard: DashboardView | null; requests: RequestView[]; calls: Call[]; reply: AutoReply | null; phone: boolean | null }
 
 export function useReceptionData(notify: Notify, tick: number): [ReceptionData | null, () => void] {
   const [data, setData] = useState<ReceptionData | null>(null);
@@ -65,7 +66,8 @@ export function useReceptionData(notify: Notify, tick: number): [ReceptionData |
     Promise.all([
       api.dashboard('today').then(r => r.dashboard).catch(() => null), api.requests('open').then(r => r.requests).catch(() => []),
       api.calls().then(r => r.calls).catch(() => []), api.inbox().then(r => r.settings).catch(() => null),
-    ]).then(([dashboard, requests, calls, reply]) => { if (!stale) setData({ dashboard, requests, calls, reply }); }).catch(e => notify((e as Error).message, true));
+      api.phoneLine().then(r => r.line.status.trunk === 'registered').catch(() => null),
+    ]).then(([dashboard, requests, calls, reply, phone]) => { if (!stale) setData({ dashboard, requests, calls, reply, phone }); }).catch(e => notify((e as Error).message, true));
     return () => { stale = true; };
   }, [tick, n]); // eslint-disable-line react-hooks/exhaustive-deps
   return [data, () => setN(x => x + 1)];

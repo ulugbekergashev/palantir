@@ -54,7 +54,10 @@ export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now
   const stats = [
     { label: 'Javob berildi', value: k?.answered.value ?? '—', hint: k?.answered.responseMin != null ? `o'rtacha ${k.answered.responseMin} daqiqada` : undefined },
     { label: 'Qabulga yozildi', value: k?.booked.value ?? '—', tone: k?.booked.value ? 'good' as const : undefined },
-    { label: "Qo'ng'iroq", value: data ? data.calls.filter(c => localDay(c.startedAt) === today).length : '—', hint: k?.unanswered.missedCalls ? `${k.unanswered.missedCalls} tasi o'tkazib yuborilgan` : undefined },
+    // Telefon hech qachon ishlatilmagan bo'lsa — «0» emas, «ulanmagan» (I9)
+    data && !data.phone && !data.calls.length
+      ? { label: "Qo'ng'iroq", value: '—', hint: 'telefon ulanmagan' }
+      : { label: "Qo'ng'iroq", value: data ? data.calls.filter(c => localDay(c.startedAt) === today).length : '—', hint: k?.unanswered.missedCalls ? `${k.unanswered.missedCalls} tasi o'tkazib yuborilgan` : undefined },
     // So'rovlar va tasdiqingizni kutayotgan javoblar — bosh ekrandagi «Sizni kutyapti»dagi Qabulxona bandlari bilan bir xil son.
     // Xodimga «Sizni kutyapti» yopiq (Direktor takliflari, kamera) — unga ochiq so'rovlar soni (I5)
     limited
