@@ -32,6 +32,7 @@ import { replyCards } from '../requests/store';
 import { crewWorks } from '../../src/lib/crew';
 import { awaitingReply, holdLine } from './hold';
 import { isMedia } from './media';
+import { splitForInstagram } from './igRules';
 
 export interface Sender {
   /** Shu mijozga shu kanal orqali yozish mumkinmi */
@@ -107,6 +108,9 @@ export async function sendToLead(biz: BusinessRow, lead: LeadRow, text: string, 
     if (!s) continue;
     try {
       ours.set(ourKey(biz.id, ch, text), Date.now());
+      // Instagram uzun javobni bo'laklab yuboradi va har bo'lak alohida aks-sado bo'lib qaytadi — ular ham «bizniki»: aks holda
+      // bo'laklar «egasi o'zi yozdi» bo'lib, AI shu mijozga 2 soat javob tayyorlamay qo'yardi (E11)
+      if (ch === 'instagram') for (const part of splitForInstagram(text)) ours.set(ourKey(biz.id, ch, part), Date.now());
       const extId = await s.send(biz, lead, text, by);
       inbox.add(biz.id, { leadId: lead.id, channel: ch, direction: 'out', by, text, extId });
       // Bazadagi hozirgi bosqich: shu orada qabul yozilgan bo'lsa (linkBooked — «Mijoz bo'ldi»), eski nusxa uni ustidan yozmasin

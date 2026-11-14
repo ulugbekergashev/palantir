@@ -183,6 +183,17 @@ try {
   await sleep(1500);
   const msgs = (await api(`/api/inbox/${lead.id}`, { token })).json.messages as { direction: string; by: string; text: string }[];
   ok("o'zimiz yuborgan javob ikki marta yozilmadi; egasining telefondan yozgani — «egasi» bo'lib yozishmada", msgs.filter(m => m.text.includes('administratorimiz')).length === 1 && msgs.some(m => m.by === 'owner' && m.text.includes('soat 11')));
+  // E11: uzun javob bo'laklab ketadi, har bo'lak alohida aks-sado — ular «egasi yozdi» bo'lib qayta yozilmasin
+  const longReply = `Implant narxlari: ${'Osstem — 4 500 000, Straumann — 9 000 000, konsultatsiya bepul. '.repeat(25)}`;
+  const sentBefore = meta.sentMsgs.length;
+  await api(`/api/inbox/${lead.id}/send`, { token, body: { text: longReply } });
+  const chunks = meta.sentMsgs.slice(sentBefore).map(x => String(x.body.message?.text ?? ''));
+  for (const [i, c] of chunks.entries()) await webhook(dm(`m_long_${i}`, c, { is_echo: true }, IG_ACCOUNT, 'IGSID-1'));
+  await sleep(1500);
+  const afterLong = (await api(`/api/inbox/${lead.id}`, { token })).json.messages as { direction: string; by: string; text: string }[];
+  ok("E11: uzun javob bo'laklari aks-sado bo'lib qaytdi — yozishmada bir marta, «egasi yozdi» bo'laklari yo'q",
+    chunks.length > 1 && afterLong.filter(m => m.text.startsWith('Implant narxlari')).length === 1 && !afterLong.some(m => m.by === 'owner' && m.text.includes('Straumann') && !m.text.startsWith('Implant narxlari')),
+    `${chunks.length} bo'lak, ${afterLong.filter(m => m.text.includes('Straumann')).length} yozuv`);
 
   console.log('\n# 24 soatdan keyin');
   const db = new DatabaseSync(path.join(work, 'data', 'palantir.db'));
