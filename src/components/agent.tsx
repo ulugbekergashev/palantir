@@ -115,9 +115,26 @@ export function AgentTabs({ area, tabs, active }: { area: Area; tabs: { id: stri
     // Shrift yuklangach varaqlar kengayadi — qayta hisoblanadi; sanoqlar (badge) kelganda ham (deps)
     void document.fonts?.ready.then(show);
   }, [active, tabs.map(t => t.count ?? 0).join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Qator suriladi va davomi bor — chetida xira o'tish: «Yo…» kesilib, surish mumkinligi bilinmay qolmasin (I8)
+  const [edge, setEdge] = useState({ left: false, right: false });
+  useEffect(() => {
+    const box = nav.current;
+    if (!box) return;
+    const measure = () => setEdge({ left: box.scrollLeft > 4, right: box.scrollLeft + box.clientWidth < box.scrollWidth - 4 });
+    measure();
+    box.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
+    void document.fonts?.ready.then(measure);
+    return () => { box.removeEventListener('scroll', measure); window.removeEventListener('resize', measure); };
+  }, [tabs.length]);
+  const FADE = '28px';
+  const mask = edge.left || edge.right
+    ? `linear-gradient(to right, ${edge.left ? `transparent, #000 ${FADE}` : '#000'}, ${edge.right ? `#000 calc(100% - ${FADE}), transparent` : '#000'})`
+    : undefined;
   return (
     // Telefonda bitta qator, yon tomonga suriladi (uch qatorga bo'linib sarlavhani cho'zmasin)
-    <nav ref={nav} aria-label="Varaqlar" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+    <nav ref={nav} aria-label="Varaqlar" style={mask ? { maskImage: mask, WebkitMaskImage: mask } : undefined}
+      className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
       {tabs.map(t => (
         <a key={t.id} href={hrefOf(area, t.id)} aria-current={t.id === active ? 'page' : undefined}
           className={`flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-medium no-underline transition-colors ${t.id === active ? 'bg-[#f2f0ea] text-[#07080b]' : 'text-[#a3a9b5] hover:bg-glass/5 hover:text-[#f2f0ea]'}`}>
