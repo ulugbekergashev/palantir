@@ -55,6 +55,13 @@ console.log('\n# Javobdagi narx va chegirma (sof)');
     && !unsupportedOffer("+998 90 123 45 67 ga qo'ng'iroq qiling", k) && !unsupportedOffer('Soat 10:00 da ochiqmiz', k));
   ok("ma'lumotda yo'q narx, foiz, chegirma — egasiga", unsupportedOffer('Narxi 400 ming', k) && unsupportedOffer('Sizga 20% chegirma', k)
     && unsupportedOffer('Скидка 10%', k) && unsupportedOffer("1 200 000 so'm", k));
+  // E7: miqdor qiymat bo'yicha — yozilishi boshqa bo'lsa ham bir xil narx o'tadi, faqat raqami mos son o'tib ketmaydi
+  const implant = "Implant — 3 500 000 so'm, tish oqartirish 2 mln so'm. Toj 150$";
+  ok("bir xil narx boshqacha yozilgan («3,5 mln», «3.5 млн», «2 000 000 сум», «150 usd») — o'tadi (E7)",
+    !unsupportedOffer("Implant 3,5 mln so'm", implant) && !unsupportedOffer('Имплант 3.5 млн', implant) && !unsupportedOffer('Отбеливание 2 000 000 сум', implant)
+    && !unsupportedOffer('Toj 150 usd', implant) && !unsupportedOffer('Plomba 350 ming', k));
+  ok("«2 mln» faqat «2» deb qidirilmaydi; boshqa birlikdagi son mos emas (E7)",
+    unsupportedOffer("Implant 2 mln so'm", "Implant — 2 yil kafolat, 3 500 000 so'm") && unsupportedOffer('Toj 150 ming', implant) && unsupportedOffer('Plomba 35 ming', k));
 }
 
 console.log('\n# Javobdagi telefon, karta va hisob raqami (sof)');

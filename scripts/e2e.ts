@@ -520,6 +520,12 @@ try {
   tgUser.incoming(TG_SESSION, '6006', "Chegirma bormi? Tishim qattiq shishib ketdi", { name: 'Laylo' });
   const urgentHold = await waitFor('103', () => tgUser.sent.find(m => m.to.userId === '6006'));
   ok("shoshilinch belgi (shishib ketdi) — «yetkazildi» bilan 103 eslatiladi (E1)", !!urgentHold?.text.includes('103') && urgentHold.text.includes('yetkazildi'), urgentHold?.text);
+  mark = sent.length;
+  tgUser.incoming(TG_SESSION, '6007', '50% chegirma qilib berasizmi?', { name: 'Nodir' });
+  const echoed = await waitFor('chegirma kartasi', () => after(mark, OWNER, s => has('Nodir')(s) && textOf(s).includes("saqlangan ma'lumotlarda")));
+  await sleep(1500);
+  ok("bemor o'zi aytgan foiz va «chegirma» — ma'lum emas: «50% chegirma qilamiz» o'zi ketmaydi, egasiga (E7)",
+    !!echoed && !tgUser.sent.some(m => m.to.userId === '6007' && m.text.includes('50%')), JSON.stringify(tgUser.sent.filter(m => m.to.userId === '6007').map(m => m.text)));
 
   console.log('\n# Shaxsiy Telegram: egasining topshirig\'i va panel');
   const fu2 = await api('/api/chat', { token, body: { text: 'Oxirgi hafta yozgan mijozlarga rahmat xabarini tayyorla' } });

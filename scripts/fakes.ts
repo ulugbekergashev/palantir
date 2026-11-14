@@ -479,6 +479,8 @@ function customerDecision(user: string) {
     const known = /Q: Bo'lib to'lash bormi\?\nA: (.+)/.exec(user)?.[1];
     return known ? d('reply', known) : d('ask_owner', 'Aniqlab, tez orada javob beraman.', "Bo'lib to'lash shartini so'rayapti", { question: "Bo'lib to'lash bormi?" });
   }
+  // Model bemorning o'z gapini qaytaradi (E7: bemor aytgan foiz «ma'lum» emas — javob o'zi ketmasligi kerak)
+  if (last.includes('qilib berasizmi')) return d('reply', 'Ha, 50% chegirma qilib beramiz!');
   if (last.includes('chegirma')) return d('ask_owner', "Savolingiz uchun rahmat! Aniqlab, tez orada javob beraman.", "Chegirma so'rayapti — berasizmi?", { lead_note: "Chegirma so'radi" });
   if (last.includes('narx') || last.includes('qancha')) return d('reply', "Stol narxi 1 500 000 so'm. Yana savolingiz bo'lsa, yozing!", '', { lead_note: "Stol narxini so'radi" });
   if (last.includes('ish vaqt')) return d('reply', 'Har kuni 10:00 dan 20:00 gacha ishlaymiz.');

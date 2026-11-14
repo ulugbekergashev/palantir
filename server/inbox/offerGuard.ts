@@ -5,12 +5,25 @@
 /** Minglik ajratgichlar olib tashlanadi: «350 000», «350.000» → «350000» */
 const joinThousands = (s: string) => s.replace(/(\d)[\s.,'](?=\d{3}(\D|$))/g, '$1');
 const OFFER_WORDS = /chegirm|skidk|скидк|aksiya|акци|bepul|бесплат|tekin|текин|sovg'a|совға|подар|bonus|бонус/g;
-/** Pul miqdori: valyuta yoki ming/mln bilan, foiz, yoki 5+ xonali son */
-const MONEY = /(\d+(?:[.,]\d+)?)\s*(%|ming|mln|million|млн|тыс|минг|so'm|сум|сўм|\$|usd|у\.е)|(\d{5,})/g;
 /**
- * Javobda ma'lumotlarda (known) yo'q narx, foiz yoki chegirma/bepul/sovg'a so'zi bormi — bunday javob avtomatik ketmasligi kerak.
- * Yumshoq tekshiruv: son yoki so'z ma'lumotlarda biror joyda uchrasa — bor deb hisoblanadi
+ * Pul miqdori va foiz: son + birlik (ming, mln, so'm, $, %) yoki 5+ xonali son. Qiymat bo'yicha solishtiriladi (E7): «3,5 mln» =
+ * «3 500 000 so'm»; «2 mln» endi faqat «2» deb qidirilmaydi (u matnning istalgan joyida bor edi)
  */
+const AMOUNT = /(\d+(?:[.,]\d+)?)\s*(%|mlrd|млрд|mln|million|млн|миллион\S*|ming|минг|тыс\S*|so'm|som|сум|сўм|\$|usd|у\.\s?е)|(\d{5,})/g;
+const MULTIPLIERS: [RegExp, number][] = [[/^(mlrd|млрд)/, 1e9], [/^(mln|million|млн|миллион)/, 1e6], [/^(ming|минг|тыс)/, 1e3]];
+/** key — tur va qiymat («sum:3500000», «pct:20», «usd:50»); bare — birliksiz uzun son (telefon bo'lishi mumkin) */
+interface Amount { key: string; bare: string | null }
+function amountsIn(s: string): Amount[] {
+  return [...s.matchAll(AMOUNT)].map(m => {
+    if (m[3]) return { key: `sum:${Number(m[3])}`, bare: m[3] };
+    const n = Number(m[1].replace(',', '.'));
+    const unit = m[2];
+    if (unit === '%') return { key: `pct:${n}`, bare: null };
+    if (/^(\$|usd|у\.)/.test(unit)) return { key: `usd:${n}`, bare: null };
+    const mult = MULTIPLIERS.find(([re]) => re.test(unit))?.[1] ?? 1;
+    return { key: `sum:${Math.round(n * mult)}`, bare: null };
+  });
+}
 /**
  * Raqamni bir xil ko'rinishga keltirish: to'liq kenglikdagi (８６００) va arab-hind (٩٠) raqamlari — oddiy raqam, apostroflar bitta.
  * Model raqamni boshqa yozuvda bersa ham tekshiruvdan o'tib ketmasin.
@@ -72,10 +85,16 @@ export function claimsBooking(reply: string): boolean {
   return CLAIM_WORDS.test(t) || (AWAITS.test(t) && CLOCK.test(t.replace(HOURS, ' ')));
 }
 
+/**
+ * Javobda ma'lumotlarda (known) yo'q narx, foiz yoki chegirma/bepul/sovg'a so'zi bormi — bunday javob avtomatik ketmasligi kerak.
+ * known — faqat biznes ma'lumoti va bizdan chiqqan xabarlar (replier.ts): bemorning o'z gapi «ma'lum» emas, aks holda «50% chegirma
+ * qilasizmi?» → «50% chegirma qilamiz» o'zi ketardi (E7). Birliksiz uzun son ma'lumotdagi telefon bo'lsa — o'tadi (uni unknownNumber tekshiradi)
+ */
 export function unsupportedOffer(reply: string, known: string): boolean {
-  const norm = (s: string) => joinThousands(s.toLowerCase().replace(/[ʻʼ’‘`´]/g, "'"));
+  const norm = (s: string) => joinThousands(foldDigits(s).toLowerCase());
   const r = norm(reply), k = norm(known);
   if ((r.match(OFFER_WORDS) ?? []).some(w => !k.includes(w))) return true;
-  for (const m of r.matchAll(MONEY)) if (!k.includes(m[1] ?? m[3])) return true;
-  return false;
+  const allowed = new Set(amountsIn(k).map(a => a.key));
+  const phones = new Set(numbersIn(known));
+  return amountsIn(r).some(a => !allowed.has(a.key) && !(a.bare && phones.has(canonical(a.bare))));
 }

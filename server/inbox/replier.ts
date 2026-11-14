@@ -193,8 +193,10 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
   const visits = schedule && trusted ? await upcomingVisits(biz.id, lead.patientId!) : [];
   const verify = !!schedule && channel === 'bot' && !phoneVerified(lead);
   const brain = replierBrain(biz);
-  // Javobdagi narx va va'dalar shu matndan tekshiriladi (unsupportedOffer): profil, saqlangan faktlar, egasining bilimi, mijozning o'z gaplari
-  const known = [profileText(biz), ...saved.map(n => n.text), brain ?? '', ...talk.map(m => m.text)].join('\n');
+  // Javobdagi narx va va'dalar shu matndan tekshiriladi (unsupportedOffer): profil, saqlangan faktlar, egasining bilimi va bizdan chiqqan
+  // xabarlar (egasi yozgan yoki tasdiqlagan, yo tekshiruvdan o'tgan). Bemorning o'z gapi emas: «50% chegirma qilasizmi?» deganda «50%»
+  // ma'lum bo'lib qolmasin (E7)
+  const known = [profileText(biz), ...saved.map(n => n.text), brain ?? '', ...talk.filter(m => m.direction === 'out').map(m => m.text)].join('\n');
   // Javobdagi telefon, karta va hisob raqami (unknownNumber): xuddi shu, lekin Palantir'ning o'zi yozgani hisobga olinmaydi (bir marta
   // o'ylab topilgan raqam keyin «ma'lum» bo'lib qolmasin); mijozning Telegram'da yuborgan raqami (kontakt) — qo'shiladi
   const knownNumbers = [profileText(biz), ...saved.map(n => n.text), brain ?? '', ...talk.filter(m => m.by !== 'palantir').map(m => m.text), lead.phone ?? ''].join('\n');
