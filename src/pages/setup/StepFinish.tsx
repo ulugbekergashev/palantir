@@ -90,7 +90,7 @@ export function StepDone({ facts, elapsed, onGo, handover, name }: { facts: Wiza
           })}
         </ul>
       </Card>
-      {handover ? <Handover name={name ?? ''} /> : (
+      {handover ? <Handover name={name ?? ''} gaps={facts.setup ? facts.setup.gaps.length + facts.setup.pack.total - facts.setup.pack.answered : 0} onGaps={() => onGo(rows.findIndex(r => r.key === 'gaps'))} /> : (
         <div className="flex flex-wrap gap-2">
           {/* Admin kirishi shu kompyuterda qolmasin: klinika xodimi kalitlarni o'zgartira olmasin */}
           <ButtonLink variant="primary" href="#/" onClick={() => session.setAdmin(null)}>Kabinetga o'tish</ButtonLink>
@@ -106,7 +106,8 @@ export function StepDone({ facts, elapsed, onGo, handover, name }: { facts: Wiza
  * Egasiga topshirish: login va yangi parol bir marta ko'rsatiladi. Shundan keyin o'rnatuvchining kirishi (shu kompyuterdagi ham,
  * Hub orqali ham) tugaydi; Palantir jamoasi endi faqat egasining Telegram'dagi ruxsati bilan kiradi
  */
-function Handover({ name }: { name: string }) {
+/** gaps — bo'shliqlar va javobsiz savollar soni: bilimsiz topshirilsa, egasi birinchi kundanoq «AI bilmaydi»ga duch keladi (I1) */
+function Handover({ name, gaps, onGaps }: { name: string; gaps: number; onGaps: () => void }) {
   const [login, setLogin] = useState(() => loginFrom(name) || 'klinika');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -145,6 +146,12 @@ Parol: ${done.password}`;
   }
   return (
     <Card title="Egasiga topshirish" description="Sozlash tugagach: egasiga login va parol beriladi, sizning kirishingiz yopiladi. Keyin — faqat egasining ruxsati bilan.">
+      {gaps > 0 && (
+        <p role="alert" className="mb-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
+          Palantir hali {gaps} ta narsani bilmaydi (narx, manzil, ish vaqti yoki ko'p so'raladigan savollar) — mijoz so'rasa, javob bera olmaydi va egasiga uzatadi.
+          {' '}<button type="button" onClick={onGaps} className="font-semibold underline">Bo'shliqlarni ko'rish</button> — egasi Telegram'da javob bersin, keyin topshiring.
+        </p>
+      )}
       <form onSubmit={give} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
         <Field label="Egasining logini" hint="Lotin harflari va raqamlar"><TextInput id="handover-login" value={login} onChange={e => setLogin(e.target.value)} pattern="[a-zA-Z0-9._\-]{3,32}" required className="font-mono" /></Field>
         <Button type="submit" variant="primary" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} Egasiga topshirish</Button>

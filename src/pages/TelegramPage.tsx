@@ -201,8 +201,16 @@ const MODES: { value: ReplyMode; title: string; text: string }[] = [
 
 export function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b: Business) => void; notify: Notify }) {
   const v: AutoReply = { mode: 'draft', contacts: false, delayMin: 2, ...biz.autoReply };
+  // Palantir hali bilmaydigan asosiy narsalar: «O'zi javob bersin» bilimsiz yoqilsa — ogohlantirish (I1)
+  const [missing, setMissing] = useState<string[]>([]);
+  useEffect(() => { api.knowledgeGaps().then(r => setMissing(r.missing)).catch(() => {}); }, []);
   const save = async (patch: Partial<AutoReply>) => {
-    try { onBiz((await api.setAutoReply({ ...v, ...patch })).business); notify('Saqlandi'); } catch (e) { notify((e as Error).message, true); }
+    try {
+      const r = await api.setAutoReply({ ...v, ...patch });
+      onBiz(r.business);
+      setMissing(r.missing);
+      notify('Saqlandi');
+    } catch (e) { notify((e as Error).message, true); }
   };
   return (
     <Card title="Mijozlarga javob" description="Bot, shaxsiy Telegram va Instagram'da yozgan mijozlarga Palantir qanday javob beradi">
@@ -215,6 +223,12 @@ export function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b
           </button>
         ))}
       </div>
+      {v.mode === 'auto' && missing.length > 0 && (
+        <p role="alert" className="mt-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
+          Palantir hali bilmaydi: <b>{missing.join(', ')}</b>. Mijoz shularni so'rasa, o'zi javob bera olmaydi — har safar sizga uzatadi.
+          Avval <a href="#/miya" className="font-semibold underline">Miya</a>'ga kiriting yoki «Men tasdiqlayman» rejimida qoldiring.
+        </p>
+      )}
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
         {v.mode === 'auto' && (
           <label className="flex items-center gap-2">

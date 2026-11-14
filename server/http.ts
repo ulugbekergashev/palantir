@@ -36,6 +36,7 @@ import { disconnectTelegramUser, loginCode, loginPassword, loginStart, telegramU
 import { AutoReplySchema, BusinessSchema, emptyBusiness } from './validate';
 import { containsSecret } from '../src/lib/secrets';
 import { mountSetup } from './setup/routes';
+import { missingBasics } from './setup/gaps';
 import { crmStatus } from './crm/index';
 import { mountCrm } from './crm/routes';
 import { mountMarketing } from './marketing/routes';
@@ -801,8 +802,10 @@ export function createApp(bot: BotService) {
     if (!p.success) return bad(res, p.error);
     const profile = { ...biz.profile, autoReply: p.data };
     businesses.update(biz.id, { profile });
-    res.json({ business: profile });
+    res.json({ business: profile, missing: missingBasics(biz) });
   }));
+  // «O'zi javob bersin» yonida: Palantir hali nimani bilmaydi (narx, manzil, ish vaqti) — bilimsiz yoqilsa ogohlantirish (I1)
+  app.get('/api/business/knowledge-gaps', asBiz((_req, res, biz) => { res.json({ missing: missingBasics(biz) }); }));
 
   /** Bir so'rovda ko'rsatiladigan yozishmalar (va alohida — yozishmasiz mijozlar) chegarasi */
   const INBOX_LIMIT = 200;

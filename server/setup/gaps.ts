@@ -51,6 +51,18 @@ export function gapsOf(biz: BusinessRow): Gap[] {
   return out;
 }
 
+/** Bo'shliqlar egasiga bir so'z bilan («narxlar, manzil») — javob rejimi yonida ogohlantirish uchun (I1) */
+export function missingBasics(biz: BusinessRow): string[] {
+  const word = (id: string): string => {
+    if (id === `${GAP_PREFIX}prices`) return 'narxlar';
+    if (id === `${GAP_PREFIX}address`) return 'manzil';
+    if (id === `${GAP_PREFIX}phone`) return 'telefon raqam';
+    if (id === `${GAP_PREFIX}hours` || id === `${GAP_PREFIX}days`) return 'ish vaqti';
+    return 'ikki xil yozilgan narx';
+  };
+  return [...new Set(gapsOf(biz).map(g => word(g.id)))];
+}
+
 const MIN_ANSWER = 2;
 const MIN_PHONE_DIGITS = 7;
 /** «Dam olish kuni», «yopiq», «ishlamaymiz», «выходной» — faqat butun javob (gap ichidagi «dam olmaymiz» emas) */

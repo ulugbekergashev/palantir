@@ -133,6 +133,12 @@ try {
   ok('Sozlamalar manzilini yozsa ham — Qabulxonaga qaytadi', page.url().includes('#/qabulxona'));
   await sleep(800);
   await shot(page, 'xodim-qabulxona');
+  // I5: xodimga egasining tugmalari ko'rinmaydi (bosilsa jim 403 berardi) — rejim faqat o'qiladi
+  ok("I5: xodimda javob rejimi tugmalari, «Mijoz bo'lib qo'ng'iroq», Yordamchiga savol, Nazorat, «ulash» yo'q; rejim — «egasi tanlaydi»",
+    !(await page.getByRole('radio', { name: /Men tasdiqlayman|O'zi javob bersin/ }).count()) && !(await page.getByText("Mijoz bo'lib qo'ng'iroq qiling").count())
+    && !(await page.getByPlaceholder(/Qabulxonadan so'rang/).count()) && !(await page.getByText('Nazorat', { exact: true }).count())
+    && !(await page.getByRole('link', { name: 'ulash' }).count()) && await page.getByText('rejimni klinika egasi tanlaydi').isVisible());
+  ok("I5: «Sizni kutyapti» o'rniga «Ochiq so'rov» (xodimga «Sizni kutyapti» yopiq)", await page.getByText("Ochiq so'rov").isVisible() && !(await page.getByText('Sizni kutyapti').count()));
   ok("brauzerda xato yo'q", !errors.length, errors.slice(0, 3).join(' | '));
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);

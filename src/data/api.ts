@@ -330,7 +330,9 @@ export const api = {
   writeTo: (leadId: string, text: string, replyId?: string | null) => call<{ messages: InboxMessage[]; replies: ReplyDraft[] }>(`/inbox/${leadId}/send`, { body: { text, ...(replyId ? { replyId } : {}) } }),
   sendReply: (id: string) => call<{ ok: true }>(`/replies/${id}/send`, { body: {} }),
   dismissReply: (id: string) => call<{ ok: true }>(`/replies/${id}/dismiss`, { body: {} }),
-  setAutoReply: (v: AutoReply) => call<{ business: Business }>('/business/auto-reply', { method: 'PUT', body: v }),
+  setAutoReply: (v: AutoReply) => call<{ business: Business; missing: string[] }>('/business/auto-reply', { method: 'PUT', body: v }),
+  /** Palantir hali bilmaydigan asosiy narsalar (narxlar, manzil, ish vaqti) — «O'zi javob bersin» yonida ogohlantirish */
+  knowledgeGaps: () => call<{ missing: string[] }>('/business/knowledge-gaps'),
 
   tgStart: (phone: string) => call<{ ok: true }>('/telegram-user/start', { body: { phone } }),
   tgCode: (code: string) => call<{ account?: string; password?: true }>('/telegram-user/code', { body: { code } }),

@@ -80,6 +80,7 @@ try {
   await page.locator('aside').getByRole('button', { name: /Tayyor/ }).click();
   await page.locator('#handover-login').waitFor({ timeout: 10_000 });
   ok('login nomzodi klinika nomidan', (await page.locator('#handover-login').inputValue()) === 'shifodent');
+  ok("I1: bilim bo'sh — topshirish oldida «Palantir hali N ta narsani bilmaydi» va bo'shliqlarga havola", await page.getByText('ta narsani bilmaydi').isVisible() && await page.getByRole('button', { name: "Bo'shliqlarni ko'rish" }).isVisible());
   ok('admin sahifasiga havola yo\'q', !(await page.getByRole('link', { name: 'Admin sahifasi' }).count()));
   await shot(page, 'topshirish');
   await page.getByRole('button', { name: 'Egasiga topshirish' }).click();

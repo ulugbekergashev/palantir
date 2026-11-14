@@ -71,13 +71,20 @@ export function useReceptionData(notify: Notify, tick: number): [ReceptionData |
   return [data, () => setN(x => x + 1)];
 }
 
-export function ReceptionToday({ data, reload, notify, status, onChanged, tick }: { data: ReceptionData | null; reload: () => void; notify: Notify; status: LiveStatus; onChanged: () => void; tick: number }) {
+/**
+ * limited — qabulxona xodimi (server/access.ts): rejimni, kanallarni, ovozni, Miya va Yordamchini egasi boshqaradi — xodimga
+ * bosganda jim 403 beradigan tugmalar ko'rsatilmaydi, rejim faqat o'qiladi (I5)
+ */
+export function ReceptionToday({ data, reload, notify, status, onChanged, tick, limited = false }: { data: ReceptionData | null; reload: () => void; notify: Notify; status: LiveStatus; onChanged: () => void; tick: number; limited?: boolean }) {
   const [mode, setMode] = useState<ReplyMode | null>(null);
   const current = mode ?? data?.reply?.mode ?? null;
+  // Palantir hali bilmaydigan asosiy narsalar — «O'zi javob bersin» bilimsiz tanlansa ogohlantirish (I1)
+  const [missing, setMissing] = useState<string[]>([]);
+  useEffect(() => { if (!limited) api.knowledgeGaps().then(r => setMissing(r.missing)).catch(() => {}); }, [limited, tick]);
   const setReply = async (m: ReplyMode) => {
     if (!data?.reply) return;
     setMode(m);
-    try { await api.setAutoReply({ ...data.reply, mode: m }); notify('Saqlandi'); } catch (e) { setMode(null); notify((e as Error).message, true); }
+    try { setMissing((await api.setAutoReply({ ...data.reply, mode: m })).missing); notify('Saqlandi'); } catch (e) { setMode(null); notify((e as Error).message, true); }
   };
   const channels = [
     { name: 'Telegram bot', on: !!status.bot },
@@ -90,11 +97,13 @@ export function ReceptionToday({ data, reload, notify, status, onChanged, tick }
   return (
     <div className="flex flex-col gap-5">
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <Conversations notify={notify} onChanged={changed} tick={tick} />
+        <Conversations notify={notify} onChanged={changed} tick={tick} tryVoice={!limited} />
         <div className="flex flex-col gap-5">
-          <VoicePanel kind="customer" member="qabulxona" title="Mijoz bo'lib qo'ng'iroq qiling"
-            hint="Qabulxona sizga mijozdek javob beradi. Sinov: jadvalga yozilmaydi, so'rov ochilmaydi."
-            labels={{ start: "Qabulxonaga qo'ng'iroq qilish", stop: "Qo'ng'iroqni tugatish", speaking: 'Qabulxona gapiryapti' }} />
+          {!limited && (
+            <VoicePanel kind="customer" member="qabulxona" title="Mijoz bo'lib qo'ng'iroq qiling"
+              hint="Qabulxona sizga mijozdek javob beradi. Sinov: jadvalga yozilmaydi, so'rov ochilmaydi."
+              labels={{ start: "Qabulxonaga qo'ng'iroq qilish", stop: "Qo'ng'iroqni tugatish", speaking: 'Qabulxona gapiryapti' }} />
+          )}
           <Panel title={`So'rovlar${data?.requests.length ? ` · ${data.requests.length}` : ''}`} action={<a href={hrefOf('qabulxona', 'sorovlar')} className="text-[13px] text-[#a3a9b5] no-underline hover:text-[#f2f0ea]">Hammasi →</a>}>
             {data?.requests.length ? <ul className="flex flex-col gap-2.5">{data.requests.slice(0, 4).map(r => <RequestCard key={r.id} r={r} notify={notify} onDone={changed} />)}</ul>
               : <Quiet>Hammasi hal qilingan — siz hal qilishingiz kerak bo'lgan so'rov yo'q.</Quiet>}
@@ -102,28 +111,39 @@ export function ReceptionToday({ data, reload, notify, status, onChanged, tick }
         </div>
       </div>
       <div className="grid items-start gap-5 lg:grid-cols-2">
-        <Gaps notify={notify} onChanged={onChanged} />
+        {!limited && <Gaps notify={notify} onChanged={onChanged} />}
         <Panel title="Qanday ishlaydi">
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 text-[14px] text-[#d9dbe1]">Yozishmalarga javob</legend>
-            {MODES.map(m => (
+            {limited && (
+              <p className="text-[14px] text-[#f2f0ea]">{MODES.find(m => m.id === current)?.label ?? '—'}
+                <span className="block text-[12px] text-[#8a909c]">{MODES.find(m => m.id === current)?.hint} · rejimni klinika egasi tanlaydi</span>
+              </p>
+            )}
+            {!limited && MODES.map(m => (
               <label key={m.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3.5 py-3 transition-colors ${current === m.id ? 'border-[#3fd6c3]/40 bg-[#3fd6c3]/[0.06]' : 'border-glass/[0.06] hover:bg-glass/[0.03]'}`}>
                 <input type="radio" name="reply-mode" checked={current === m.id} onChange={() => { void setReply(m.id); }} disabled={!data?.reply} className="mt-1 accent-[#3fd6c3]" />
                 <span><span className="block text-[14px] font-medium text-[#f2f0ea]">{m.label}</span><span className="block text-[12px] text-[#8a909c]">{m.hint}</span></span>
               </label>
             ))}
           </fieldset>
+          {!limited && current === 'auto' && missing.length > 0 && (
+            <p role="alert" className="mt-3 rounded-xl border border-[#f5b454]/30 bg-[#f5b454]/[0.08] px-3.5 py-2.5 text-[13px] text-[#f5d29a]">
+              Palantir hali bilmaydi: <b>{missing.join(', ')}</b>. Mijoz shularni so'rasa, o'zi javob bera olmaydi — sizga uzatadi.{' '}
+              <a href={hrefOf('miya')} className="font-semibold text-[#f5d29a] underline">Miya'ga kiriting</a>
+            </p>
+          )}
           <ul className="mt-5 flex flex-col gap-2 border-t border-glass/[0.06] pt-4">
             {channels.map(c => (
               <li key={c.name} className="flex items-center gap-2.5 text-[14px] text-[#d9dbe1]">
                 <span className={`h-2 w-2 rounded-full ${c.on ? 'bg-emerald-400' : 'bg-glass/25'}`} aria-hidden="true" />{c.name}
-                <span className="ml-auto text-[12px] text-[#8a909c]">{c.on ? 'ulangan' : <a href={hrefOf('sozlamalar')} className="text-[#a3a9b5]">ulash</a>}</span>
+                <span className="ml-auto text-[12px] text-[#8a909c]">{c.on ? 'ulangan' : limited ? 'ulanmagan' : <a href={hrefOf('sozlamalar')} className="text-[#a3a9b5]">ulash</a>}</span>
               </li>
             ))}
           </ul>
         </Panel>
       </div>
-      <AgentAsk member="qabulxona" placeholder="Qabulxonadan so'rang: «Bugun kim yozilgan?»" />
+      {!limited && <AgentAsk member="qabulxona" placeholder="Qabulxonadan so'rang: «Bugun kim yozilgan?»" />}
     </div>
   );
 }

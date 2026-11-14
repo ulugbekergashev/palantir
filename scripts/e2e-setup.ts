@@ -354,6 +354,10 @@ try {
   ok('tayyor savollarga javoblar bilimga tushdi', brain.pack.filter((q: { answer: string | null }) => q.answer).length === 2);
   const setup = (await api('/api/setup', { token })).json.setup;
   ok('bo\'shliqlar: ikki narx va yozilmagan kunlar', setup.gaps.length === 2 && setup.gaps[0].options?.length === 2 && /shanba, yakshanba/.test(setup.gaps[1].question), JSON.stringify(setup.gaps.map((g: { question: string }) => g.question)));
+  const kg = (await api('/api/business/knowledge-gaps', { token })).json.missing as string[];
+  const toAuto = await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'auto', contacts: false, delayMin: 2 } });
+  ok("I1: bilim chala — «O'zi javob bersin» yonida aytiladi: ikki xil narx va ish vaqti (narxlar, manzil bor)", kg.join() === 'ikki xil yozilgan narx,ish vaqti' && toAuto.json.missing?.join() === kg.join(), JSON.stringify({ kg, put: toAuto.json.missing }));
+  await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'draft', contacts: false, delayMin: 2 } });
   ok('egasida bor kanallar eslab qolindi (ulash qadamlari uchun)', setup.has.telegramPhone === '+998 90 123 45 67' && setup.has.cameras === 3 && setup.has.crm === 'dentacrm');
 
   console.log('\n# Egasidan Telegram\'da so\'rash');
@@ -394,6 +398,7 @@ try {
   const me2 = (await api('/api/me', { token })).json.business;
   ok('narx jadvalda: tugmada tanlangani (eski tugma ustidan yozmadi)', me2.offerings.find((o: { name: string }) => o.name === 'Tish tozalash')?.price === 250_000);
   ok("bo'shliq qolmadi", (await api('/api/setup', { token })).json.setup.gaps.length === 0);
+  ok("I1: bo'shliq yopildi — ogohlantirish yo'q", ((await api('/api/business/knowledge-gaps', { token })).json.missing as string[]).length === 0);
 
   // Tayyor savollar hali javobsiz — taklif chiqishi mumkin edi, lekin u faqat birinchi ulanishda (qurilma almashganda emas)
   const relink = (await api('/api/me', { token })).json.status.linkUrl as string;

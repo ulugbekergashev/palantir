@@ -44,11 +44,13 @@ export function AgentOrb({ member, size = 84, live = false }: { member: Member; 
 export interface Stat { label: string; value: ReactNode; hint?: string; tone?: 'warn' | 'good' }
 
 /** Xodim sarlavhasi: sfera, ismi, nima qiladi, jonli holati va bugungi raqamlar; ostida — varaqlar */
-export function AgentHero({ member, state, stats, children, compact = false, period }: {
+export function AgentHero({ member, state, stats, children, compact = false, period, controls = true }: {
   member: Member; state: MemberState | null; stats: Stat[]; children?: ReactNode;
   /** Ixcham: ism va varaqlar bir qatorda (suhbat kabi ekranni to'ldiradigan varaq) */ compact?: boolean;
   /** Raqamlar qaysi davrniki («Bugun», «7 kun · kechagacha») — xodimlar sahifalaridagi sonlar bir-biriga zid ko'rinmasin (G9) */
   period?: string;
+  /** «Nazorat» bloki (nima tugmasiz, nima egasining tugmasi bilan) — egasiga; qabulxona xodimiga emas (I5) */
+  controls?: boolean;
 }) {
   const m = TEAM[member], h = HUE[member];
   if (compact) {
@@ -94,7 +96,7 @@ export function AgentHero({ member, state, stats, children, compact = false, per
           ))}
         </dl>
       )}
-      <Nazorat member={member} />
+      {controls && <Nazorat member={member} />}
       {children && <div className="relative mt-4 sm:mt-7">{children}</div>}
     </header>
   );

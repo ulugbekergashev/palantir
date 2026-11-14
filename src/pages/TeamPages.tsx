@@ -55,15 +55,18 @@ export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now
     { label: 'Javob berildi', value: k?.answered.value ?? '—', hint: k?.answered.responseMin != null ? `o'rtacha ${k.answered.responseMin} daqiqada` : undefined },
     { label: 'Qabulga yozildi', value: k?.booked.value ?? '—', tone: k?.booked.value ? 'good' as const : undefined },
     { label: "Qo'ng'iroq", value: data ? data.calls.filter(c => localDay(c.startedAt) === today).length : '—', hint: k?.unanswered.missedCalls ? `${k.unanswered.missedCalls} tasi o'tkazib yuborilgan` : undefined },
-    // So'rovlar va tasdiqingizni kutayotgan javoblar — bosh ekrandagi «Sizni kutyapti»dagi Qabulxona bandlari bilan bir xil son
-    { label: 'Sizni kutyapti', value: state ? state.badge : '—', tone: state?.badge ? 'warn' as const : undefined },
+    // So'rovlar va tasdiqingizni kutayotgan javoblar — bosh ekrandagi «Sizni kutyapti»dagi Qabulxona bandlari bilan bir xil son.
+    // Xodimga «Sizni kutyapti» yopiq (Direktor takliflari, kamera) — unga ochiq so'rovlar soni (I5)
+    limited
+      ? { label: "Ochiq so'rov", value: data ? data.requests.length : '—', tone: data?.requests.length ? 'warn' as const : undefined }
+      : { label: 'Sizni kutyapti', value: state ? state.badge : '—', tone: state?.badge ? 'warn' as const : undefined },
   ];
   return (
     <div className="space-y-6">
-      <AgentHero member="qabulxona" state={state} stats={stats} period={PERIOD_CAPTION.today}>
+      <AgentHero member="qabulxona" state={state} stats={stats} period={PERIOD_CAPTION.today} controls={!limited}>
         <AgentTabs area="qabulxona" active={active} tabs={[{ id: 'bugun', label: 'Bugun' }, { id: 'sorovlar', label: "So'rovlar", count: data?.requests.length }, { id: 'qongiroqlar', label: "Qo'ng'iroqlar" }, { id: 'yozishmalar', label: 'Yozishmalar' }, ...(limited ? [] : [{ id: 'topshiriqlar', label: 'Topshiriqlar' }])]} />
       </AgentHero>
-      {active === 'bugun' && <ReceptionToday data={data} reload={reload} notify={notify} status={status} onChanged={onChanged} tick={tick} />}
+      {active === 'bugun' && <ReceptionToday data={data} reload={reload} notify={notify} status={status} onChanged={onChanged} tick={tick} limited={limited} />}
       {active === 'topshiriqlar' && <OrdersPanel member="qabulxona" notify={notify} />}
       {active !== 'bugun' && active !== 'topshiriqlar' && (
         <div className="agent-body">

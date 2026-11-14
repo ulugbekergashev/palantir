@@ -142,7 +142,8 @@ function CallThread({ call }: { call: Call }) {
   );
 }
 
-export function Conversations({ notify, onChanged, tick }: { notify: Notify; onChanged: () => void; tick: number }) {
+/** tryVoice — «Mijoz bo'lib qo'ng'iroq qiling» sferasi shu sahifada bor (egasida; qabulxona xodimida yo'q — I5) */
+export function Conversations({ notify, onChanged, tick, tryVoice = true }: { notify: Notify; onChanged: () => void; tick: number; tryVoice?: boolean }) {
   const [threads, setThreads] = useState<InboxThread[] | null>(null);
   const [calls, setCalls] = useState<Call[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
@@ -171,7 +172,7 @@ export function Conversations({ notify, onChanged, tick }: { notify: Notify; onC
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#3fd6c3]/12 text-[#8ff0e2]"><MessageCircle className="h-6 w-6" aria-hidden="true" /></span>
         <h2 className="text-[20px] font-semibold tracking-tight text-[#f2f0ea]">Hali murojaat yo'q</h2>
         <p className="max-w-lg text-[15px] leading-relaxed text-[#a3a9b5]">Mijoz yozganda yoki qo'ng'iroq qilganda u shu yerda chiqadi: nima so'radi, AI nima javob berdi va nima bilan tugadi. Kerak bo'lsa — suhbatni o'zingiz qo'lga olasiz.</p>
-        <p className="text-[14px] text-[#8ff0e2]">Hozir sinab ko'ring: «Mijoz bo'lib qo'ng'iroq qiling» — sferani bosing va gapiring.</p>
+        {tryVoice && <p className="text-[14px] text-[#8ff0e2]">Hozir sinab ko'ring: «Mijoz bo'lib qo'ng'iroq qiling» — sferani bosing va gapiring.</p>}
       </section>
     );
   }
