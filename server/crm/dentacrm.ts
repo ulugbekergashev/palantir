@@ -16,7 +16,7 @@ import type { DayData } from './report';
 import { iso } from '../../src/lib/week';
 import { bookingProblem, doctorName, parseDaysOff, parseDoctorOff, patientName, type Appointment, type Clinic, type Doctor, type Patient, type Transaction } from './logic';
 
-export type CrmErrorKind = 'credentials' | 'auth' | 'license' | 'unreachable' | 'protocol' | 'conflict' | 'invalid';
+export type CrmErrorKind = 'credentials' | 'auth' | 'forbidden' | 'license' | 'unreachable' | 'protocol' | 'conflict' | 'invalid';
 export class CrmError extends Error {
   constructor(readonly kind: CrmErrorKind, message: string) { super(message); }
 }
@@ -24,6 +24,8 @@ export class CrmError extends Error {
 const MESSAGES = {
   credentials: "DentaCRM: login yoki parol noto'g'ri",
   auth: "DentaCRM kirishni rad etdi — parol o'zgargan bo'lishi mumkin. Panel → Ulanishlar'da qayta ulang",
+  // Login to'g'ri, lekin bu amalga huquqi yo'q (403) — «parol o'zgargan» deyilsa, egasi bekorga parol almashtirardi (F11)
+  forbidden: "DentaCRM bu loginga ruxsat bermadi (rol huquqi yetmaydi) — klinika administratori loginini ulang: panel → Ulanishlar",
   license: 'DentaCRM litsenziyasi faollashtirilmagan',
   unreachable: "DentaCRM'ga ulanib bo'lmadi — manzilni va dastur ishlab turganini tekshiring",
   protocol: 'Bu manzilda DentaCRM topilmadi yoki javobi tushunarsiz',
@@ -244,7 +246,8 @@ export function createDentaCrm(cfg: CrmConfig): DentaCrm {
       const res = await send(c.method, c.path(s.clinicId), s.token, c.body?.(s.clinicId), c.timeoutMs);
       if (res.status === 401 || res.status === 403) {
         if ((await readCapped(res, ERROR_BODY_LIMIT).catch(() => '')).includes('LICENSE_REQUIRED')) throw fail('license');
-        if (attempt > 0) throw fail('auth');
+        // Yangi token bilan ham 403 — kirish emas, huquq muammosi; 401 — kirish rad etildi
+        if (attempt > 0) throw fail(res.status === 403 ? 'forbidden' : 'auth');
         // Boshqa parallel so'rov allaqachon yangilagan bo'lsa — yangi token bilan takrorlanadi
         if (session?.token === s.token) { session = null; await signIn(); }
         continue;

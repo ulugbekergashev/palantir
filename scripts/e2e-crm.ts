@@ -103,9 +103,16 @@ export function crmLogicTests(ok: Harness['ok']): void {
     && who('Jasur Karimov', '+998905006070').others.join() === 'Bobur Karimov,Aziz Karimov' && who('Yangi Odam', '+998900000009').others.length === 0);
   ok("apostrofli ism: bazaga qanday yozilgan bo'lsa ham o'sha bemor topiladi", who('O‘ktam Valiyev', '911111111').patient?.id === 'f3' && who('Valiyev O`ktam', '+998911111111').patient?.id === 'f3'
     && resolvePatient([{ ...family[0], id: 'g1', firstName: "G'ulom", lastName: 'Rahimov' }], 'G‘ulom Rahimov', '+998905006070').patient?.id === 'g1');
+  // F9: bir odam har xil yoziladi — takror bemor ochilmasin
+  ok("F9: qaytgan bemor ismi boshqacha yozilsa ham o'sha bemor (Valiev, Валиев Ўктам; Hurshid/Xurshid; Kodirov/Qodirov; Абдуллаев/Abdullayev)",
+    who('Oktam Valiev', '+998911111111').patient?.id === 'f3' && who('Валиев Ўктам', '+998911111111').patient?.id === 'f3' && who('Бобур Каримов', '+998905006070').patient?.id === 'f1'
+    && resolvePatient([{ ...family[0], id: 'h1', firstName: 'Hurshid', lastName: 'Qodirov' }], 'Xurshid Kodirov', '+998905006070').patient?.id === 'h1'
+    && resolvePatient([{ ...family[0], id: 'a1', firstName: 'Anvar', lastName: 'Abdullayev' }], 'Анвар Абдуллаев', '+998905006070').patient?.id === 'a1');
+  ok("F9: yozilishi o'xshash, lekin boshqa odam — baribir boshqa (Aziz ≠ Bobur; bitta familiya yetmaydi)", who('Азиз Каримов', '+998905006070').patient?.id === 'f2' && who('Jasur Karimov', '+998905006070').patient === null);
 
   const list = crm.patients as unknown as Patient[];
   ok('bemor qidirish: familiya bo\'yicha', searchPatients(list, 'valiyev').total === 2);
+  ok("F9: qidiruv — familiya boshqacha yozilsa ham (valiev, Валиев) xuddi «valiyev» kabi topadi", searchPatients(list, 'valiev').total === 2 && searchPatients(list, 'Валиев').total === 2);
   ok("bemor qidirish: o' ning har xil yozilishi", searchPatients(list, "o'ktam").matches[0]?.id === 'p3' && searchPatients(list, 'O`ktam karimov').matches[0]?.id === 'p3');
   ok('bemor qidirish: telefon oxirgi raqamlari', searchPatients(list, '901112233').matches[0]?.id === 'p1' && searchPatients(list, '+998 (93) 222-33-44').matches[0]?.id === 'p2');
   ok("bemor qidirish: ko'pi bilan 10 ta, jami soni bilan", searchPatients(list, 'bemor').matches.length === 10 && searchPatients(list, 'bemor').total === 2000);
@@ -205,6 +212,11 @@ export async function crmConnectTests(h: Harness): Promise<void> {
   await sleep(200);
   ok("buzuq so'rov — 400, parol logga tushmaydi", broken.status === 400 && !h.serverLog().includes('KANAREYKA'), String(broken.status));
 
+  // F11: shifokor logini — DentaCRM unga faqat o'z bemorlarini beradi; ulanmaydi, sababi aytiladi
+  crm.role = 'DOCTOR';
+  const doctor = await api('/api/crm', { token, body: { url, ...CRM_LOGIN } });
+  crm.role = 'CLINIC_ADMIN';
+  ok("F11: shifokor logini bilan ulanmaydi — «faqat o'z bemorlarini ko'radi», administrator loginini so'raydi", doctor.status === 400 && /shifokor logini/.test(String(doctor.json.error)) && !(await api('/api/me', { token })).json.status.crm.account, JSON.stringify(doctor.json));
   const good = await api('/api/crm', { token, body: { url: `${url}/login`, ...CRM_LOGIN } });
   ok('ulandi: klinika nomi va manzili', good.status === 200 && good.json.status?.crm?.account === `Tabassum Dental · 127.0.0.1:${h.crmPort}`, JSON.stringify(good.json.status?.crm ?? good.json));
   const me = await api('/api/me', { token });
@@ -445,6 +457,11 @@ export async function crmToolTests(h: Harness): Promise<void> {
   const big = createDentaCrm({ baseUrl: `http://127.0.0.1:${h.crmPort}`, ...CRM_LOGIN });
   ok('mijoz: haddan katta javob o\'qilmaydi', await kind(big.patients()) === 'protocol');
   crm.hugePatients = false;
+  // F11: token to'g'ri, lekin rol huquqi yetmaydi (403) — «parol o'zgargan» emas, «ruxsat bermadi»
+  crm.forbid = true;
+  const denied = await big.patients().then(() => null, (e: Error & { kind?: string }) => e);
+  crm.forbid = false;
+  ok("F11: 403 (huquq yetmaydi) — «parol o'zgargan» emas, «bu loginga ruxsat bermadi»", denied?.kind === 'forbidden' && /ruxsat bermadi/.test(denied.message) && !/parol/.test(denied.message), denied?.message);
   crm.passwordChanged = true;
   crm.expireTokens();
   const attempts = crm.loginAttempts;

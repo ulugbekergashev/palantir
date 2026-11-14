@@ -17,7 +17,7 @@ import { eraseEntry, summarize, writeEntry, type MoneyPayload } from './money';
 /** Taklif shuncha vaqtdan keyin eskiradi: eski kartadagi tugma bexosdan bosilib, pul yozilib ketmasin */
 const DRAFT_TTL_MS = 30 * 60_000;
 /** Hech narsa yozilmagani aniq bo'lgan xatolar (CRM'ga yetib bo'lmadi yoki kirish rad etildi) */
-const NOT_WRITTEN: CrmErrorKind[] = ['unreachable', 'auth', 'credentials', 'license', 'protocol'];
+const NOT_WRITTEN: CrmErrorKind[] = ['unreachable', 'auth', 'forbidden', 'credentials', 'license', 'protocol'];
 const STATE: Record<MoneyStatus, string> = {
   draft: 'Hali tasdiqlanmagan', running: 'Hozir yozilmoqda — kuting', done: "Allaqachon CRM'ga yozilgan", cancelled: 'Bu taklif bekor qilingan',
   failed: "Bu taklif yozilmagan — yordamchidan qayta so'rang", unknown: "Natijasi noma'lum — CRM'da tekshiring", undone: 'Bu yozuv ortga qaytarilgan',

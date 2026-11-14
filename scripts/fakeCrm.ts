@@ -42,6 +42,10 @@ export const crm = {
   lastAuth: '',
   /** Hamma tokenni rad etadi (parol o'zgargan holat) */
   rejectAll: false,
+  /** Login roli (F11): shifokor logini — «DOCTOR» */
+  role: 'CLINIC_ADMIN',
+  /** Token to'g'ri, lekin huquq yo'q — 403 (rol yetmaydi, F11) */
+  forbid: false,
   /** Lokal nashr: litsenziya faollashtirilmagan */
   unlicensed: false,
   /** Keyingi javobda yangi token beradi (X-Refreshed-Token) */
@@ -143,7 +147,7 @@ export const crmServer = patient(createServer(async (req, res) => {
     crm.logins++;
     const token = `jwt-fake-${++seq}`;
     crm.tokens.add(token);
-    return json(res, { success: true, role: 'CLINIC_ADMIN', name: 'Tabassum Dental', clinicId: CLINIC, token });
+    return json(res, { success: true, role: crm.role, name: 'Tabassum Dental', clinicId: CLINIC, token });
   }
   // Lokal nashrdagi kabi: litsenziya holati kirishsiz ochiq (Palantir shu bilan shu kompyuterdagi DentaCRM'ni topadi)
   if (path === '/api/license/status' && req.method === 'GET') return json(res, { activated: !crm.unlicensed, machineId: 'FAKE-HWID-0001', displayId: 'FAKE-HWI...', clinicExists: true });
@@ -152,6 +156,7 @@ export const crmServer = patient(createServer(async (req, res) => {
   const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
   crm.lastAuth = token;
   if (crm.rejectAll || !crm.tokens.has(token)) return json(res, { error: 'Invalid token' }, crm.edition === 'local' ? 403 : 401);
+  if (crm.forbid) return json(res, { error: 'Forbidden' }, 403);
   if (crm.refreshNext) {
     crm.refreshNext = false;
     const fresh = `jwt-fake-${++seq}`;

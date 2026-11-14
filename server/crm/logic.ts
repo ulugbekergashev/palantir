@@ -236,10 +236,12 @@ export function searchPatients(list: Patient[], query: string, limit = 10): { to
   const num = digits(query);
   const byPhone = num.length >= 5 && !/[a-zа-яё]/i.test(query);
   const tail = num.slice(-9);
-  const words = fold(query).split(' ').filter(Boolean);
+  // Ism yozilishi farqi (Valiyev/Valiev/Валиев) qidiruvga xalaqit bermasin — ikkala tomon bir xil kalitga keltiriladi (F9)
+  const words = fold(query).split(' ').filter(Boolean).map(nameKey);
+  const keyOf = (p: Patient) => fold(patientName(p)).split(' ').map(nameKey).join(' ');
   const hit = (p: Patient) => (byPhone
     ? digits(p.phone).endsWith(tail) || digits(p.secondaryPhone).endsWith(tail)
-    : words.length > 0 && words.every(w => fold(patientName(p)).includes(w)));
+    : words.length > 0 && words.every(w => keyOf(p).includes(w)));
   const all = list.filter(hit);
   return { total: all.length, matches: all.slice(0, limit) };
 }
@@ -258,7 +260,24 @@ export const cleanName = (s: string): string => s.replace(/[ʻʼ’‘`´ʹ′]/
 /** Ism ham, familiya ham bormi: kamida ikki so'z, har birida kamida ikki harf */
 export const hasFullName = (s: string): boolean => cleanName(s).split(' ').filter(w => (w.match(/\p{L}/gu) ?? []).length >= 2).length >= 2;
 
-const nameWords = (name: string) => new Set(fold(cleanName(name)).split(' ').filter(w => w.length > 1));
+/** Kirill → lotin (o'zbekcha va ruscha harflar); qolgan belgi o'zgarmaydi */
+const CYR: Record<string, string> = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'j', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r',
+  с: 's', т: 't', у: 'u', ф: 'f', х: 'x', ц: 's', ч: 'ch', ш: 'sh', щ: 'sh', ъ: '', ы: 'i', ь: '', э: 'e', ю: 'yu', я: 'ya', ў: 'o', қ: 'k', ғ: 'g', ҳ: 'x',
+};
+/**
+ * Ismning bitta yozilishi — solishtirish uchun (bazaga yozilmaydi). Bir odam har xil yoziladi: Valiyev / Valiev / Валиев,
+ * Xurshid / Hurshid / Хуршид, Qodirov / Kodirov, Yelena / Elena — farqi bilan DentaCRM'da takror bemor ochilardi (F9)
+ */
+export function nameKey(word: string): string {
+  return [...fold(word)].map(c => CYR[c] ?? c).join('')
+    .replace(/['-]/g, '')
+    .replace(/kh|h/g, 'x').replace(/q/g, 'k')
+    .replace(/^ye/, 'e').replace(/([aeiou])ye/g, '$1e').replace(/iy(ev|eva)$/, 'i$1').replace(/yev(a?)$/, 'ev$1')
+    .replace(/(.)\1+/g, '$1');
+}
+
+const nameWords = (name: string) => new Set(fold(cleanName(name)).split(' ').filter(w => w.length > 1).map(nameKey));
 /** Bir odammi: so'zlar tartibi ahamiyatsiz, lekin kamida ikki so'z (ism va familiya) mos kelishi shart — bitta umumiy familiya yetmaydi */
 function sameFullName(a: string, b: string): boolean {
   const [x, y] = [nameWords(a), nameWords(b)];

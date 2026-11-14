@@ -16,7 +16,12 @@ const BRIEF_TIMEOUT_MS = 4_000;
 /** Ogohlantirishlar o'nlab so'rov yig'adi — alohida, kattaroq vaqt */
 const ALERTS_TIMEOUT_MS = 20_000;
 /** Panelda «muammo» bo'lib ko'rinadigan xatolar (band vaqt kabi ish xatolari emas) */
-const OUTAGES: CrmErrorKind[] = ['auth', 'credentials', 'license', 'unreachable', 'protocol'];
+const OUTAGES: CrmErrorKind[] = ['auth', 'forbidden', 'credentials', 'license', 'unreachable', 'protocol'];
+/**
+ * Faqat o'z bemorlarini ko'radigan rollar (DentaCRM): shifokor logini bilan ulansa, Palantir boshqa shifokorning bemorini
+ * «topmaydi» va takror bemor ochadi (F11). Klinika administratori, superadmin, qabulxona — ulanadi; eski CRM rol bermasa — ham
+ */
+const NARROW_ROLES = new Set(['DOCTOR', 'TECHNICIAN']);
 
 const clients = new Map<string, DentaCrm>();
 
@@ -40,6 +45,9 @@ export async function connectCrm(biz: BusinessRow, v: { url: string; username: s
   try { baseUrl = normalizeBaseUrl(v.url, env.crmAllowPrivate); } catch (e) { throw new CrmError('invalid', (e as Error).message); }
   const client = createDentaCrm({ baseUrl, username: v.username, password: v.password });
   const who = await client.login();
+  if (NARROW_ROLES.has(who.role.toUpperCase())) {
+    throw new CrmError('invalid', "Bu shifokor logini — DentaCRM unga faqat o'z bemorlarini ko'rsatadi, Palantir boshqa bemorlarni topa olmay takror yozuv ochadi. Klinika administratori (yoki qabulxona) loginini kiriting");
+  }
   const clinic = await client.clinic();
   connections.save(biz.id, 'dentacrm', seal(v.password), { baseUrl, username: v.username, clinicId: who.clinicId, clinicName: clinic.name, role: who.role });
   clients.set(biz.id, client);
