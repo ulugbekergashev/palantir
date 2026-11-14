@@ -9,13 +9,24 @@ interface DentaCrmProps {
   status: LiveStatus;
   onStatus: (s: LiveStatus) => void;
   notify: Notify;
+  /** Ulash ustasining «Kalitlar» qadamida tanilgan manzil va parol — bo'sh maydonlarga qo'yiladi */
+  initial?: { url: string; password: string };
 }
 
 const EMPTY = { url: '', username: '', password: '' };
 
-/** DentaCRM: klinikaning qabul va to'lovlari. Yordamchi shu yerdan o'qiydi va bemorni qabulga yozadi */
-export function DentaCrm({ status, onStatus, notify }: DentaCrmProps) {
-  const [form, setForm] = useState(EMPTY);
+/**
+ * DentaCRM: klinikaning qabul va to'lovlari. Yordamchi shu yerdan o'qiydi va bemorni qabulga yozadi.
+ * Sozlamalarda ham, ulash ustasida ham shu bitta shakl (C9): avval ustadagisi manzilni o'zi topmasdi
+ */
+export function DentaCrm({ status, onStatus, notify, initial }: DentaCrmProps) {
+  const [form, setForm] = useState(() => ({ ...EMPTY, url: initial?.url ?? '', password: initial?.password ?? '' }));
+  // Kalitlar qadamida keyinroq tanilgan qiymat kelsa — bo'sh maydonlarga (render paytida, effektsiz)
+  const [seen, setSeen] = useState(initial);
+  if (initial && (initial.url !== seen?.url || initial.password !== seen?.password)) {
+    setSeen(initial);
+    setForm(f => ({ ...f, url: f.url || initial.url, password: f.password || initial.password }));
+  }
   const [busy, setBusy] = useState(false);
   const [found, setFound] = useState(false);
   const { account, problem } = status.crm;
@@ -85,7 +96,7 @@ export function DentaCrm({ status, onStatus, notify }: DentaCrmProps) {
         </label>
         <div className="flex items-end">
           <Button type="submit" variant="primary" disabled={busy || !form.url.trim() || !form.username.trim() || !form.password}>
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />} Ulash
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />} Ulash va tekshirish
           </Button>
         </div>
       </form>

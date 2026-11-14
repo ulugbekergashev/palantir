@@ -5,6 +5,7 @@ import { api } from '../../data/api';
 import { Button, Card, Field, TextInput } from '../../components/ui';
 import type { LiveStatus, SetupView } from '../../types';
 import { InstagramOfficial, TelegramBusiness } from '../TelegramPage';
+import { DentaCrm } from '../DentaCrmSection';
 import type { Routed } from './StepKeys';
 import { copyText } from '../../lib/clipboard';
 
@@ -82,30 +83,12 @@ export function StepPatients({ status, notify }: { status: LiveStatus; notify: N
 // ─── DentaCRM ────────────────────────────────────────────────────────────────
 
 export function StepCrm({ status, setup, routed, onStatus, notify }: { status: LiveStatus; setup: SetupView | null; routed: Routed; onStatus: (s: LiveStatus) => void; notify: Notify }) {
-  const [form, setForm] = useState({ url: routed.crmUrl, username: '', password: routed.crmPassword });
-  const [busy, setBusy] = useState(false);
-  // Kalitlar qadamida kiritilgan CRM manzili/paroli kelsa — bo'sh maydonlarga qo'yiladi (render paytida, effektsiz)
-  const [seen, setSeen] = useState(routed);
-  if (routed.crmUrl !== seen.crmUrl || routed.crmPassword !== seen.crmPassword) {
-    setSeen(routed);
-    setForm(f => ({ ...f, url: f.url || routed.crmUrl, password: f.password || routed.crmPassword }));
-  }
-  const connect = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    try { onStatus((await api.crmConnect(form)).status); notify('DentaCRM ulandi'); } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
-  };
+  // Sozlamalardagi bilan bitta shakl (C9): manzilni shu kompyuterdan o'zi topadi, kalitlar qadamidagi manzil va parolni oladi
   return (
     <div className="space-y-4">
       {setup?.has.crm === 'none' && <Note>Anketada egasi «DentaCRM yo'q» deb yozgan — bu qadamni o'tkazib yuborish mumkin.</Note>}
-      {status.crm.account && (status.crm.problem ? <Note>{status.crm.problem}</Note> : <Done title={`Ulandi: ${status.crm.account}`}>Qabullar, kelgan-kelmaganlar va tushum bosh sahifada ko'rinadi; yordamchi bemorni qabulga yoza oladi.</Done>)}
-      <Card title={status.crm.account ? 'Boshqa akkaunt bilan qayta ulash' : 'DentaCRM akkaunti'}>
-        <form onSubmit={connect} className="grid gap-3 sm:grid-cols-3 sm:items-end">
-          <div className="sm:col-span-3"><Field label="DentaCRM manzili"><TextInput value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} placeholder="https://klinika.dentacrm.uz" required /></Field></div>
-          <Field label="Login"><TextInput value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} autoComplete="off" required /></Field>
-          <Field label="Parol" hint={routed.crmPassword ? 'Kalitlar maydonidan olindi' : undefined}><TextInput type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} autoComplete="off" required /></Field>
-          <Button type="submit" variant="primary" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Ulash va tekshirish</Button>
-        </form>
+      <Card title="DentaCRM akkaunti">
+        <DentaCrm status={status} onStatus={onStatus} notify={notify} initial={{ url: routed.crmUrl, password: routed.crmPassword }} />
       </Card>
     </div>
   );

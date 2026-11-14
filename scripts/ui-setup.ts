@@ -158,10 +158,10 @@ try {
     && await page.getByText(/t\.me\/palantir_test_bot/).first().isVisible() && await page.getByText('Telegram Business').first().isVisible());
   await shot(page, 'usta-bemorlar-telegram');
   await page.getByRole('button', { name: 'Davom etish' }).click();
-  ok("DentaCRM: manzil va parol kalitlar maydonidan o'tdi", (await page.getByLabel('DentaCRM manzili').inputValue()).includes(String(crmPort)) && (await page.getByLabel('Parol').inputValue()) === CRM_LOGIN.password);
-  await page.getByLabel('Login').fill(CRM_LOGIN.username);
+  ok("DentaCRM: manzil va parol kalitlar maydonidan o'tdi", (await page.getByLabel('DentaCRM manzili').inputValue()).includes(String(crmPort)) && (await page.getByLabel('DentaCRM paroli').inputValue()) === CRM_LOGIN.password);
+  await page.getByLabel('DentaCRM logini').fill(CRM_LOGIN.username);
   await page.getByRole('button', { name: 'Ulash va tekshirish' }).click();
-  ok('DentaCRM ulandi', await page.getByText(/^Ulandi: /).waitFor({ timeout: 10000 }).then(() => true, () => false));
+  ok('DentaCRM ulandi', await page.getByText(/^Ulangan: /).waitFor({ timeout: 10000 }).then(() => true, () => false));
   await shot(page, 'usta-dentacrm');
 
   await page.getByRole('button', { name: 'Davom etish' }).click();
