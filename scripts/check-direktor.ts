@@ -54,13 +54,16 @@ ok('maqsaddan oshib ketdi — 100%, bajarildi', progress(g('booked', 20), nums).
 ok("ma'lumot yo'q (CRM ulanmagan) — foiz yo'q", progress(g('came', 50), nums).pct === null && progress(g('came', 50), nums).now === null);
 ok('modelga: maqsad, joriy va foiz', goalsText([progress(g('answered_pct', 90), nums)]) === '- answered_pct: target 90%, now 72 (80% of target)', goalsText([progress(g('answered_pct', 90), nums)]));
 
-if (failed) {
-  console.error(`\n${failed} ta sinov yiqildi`);
-  ok("tugma bosilganda: kun rejasining tugmalari qoladi, Direktor qatorlari yangilanadi", JSON.stringify(mergeKeyboard(
+ok("tugma bosilganda: kun rejasining tugmalari qoladi, Direktor qatorlari yangilanadi", JSON.stringify(mergeKeyboard(
   [[{ text: '✍️ Ali', callback_data: 'fu|1' }], [{ text: '✅ 1', callback_data: 'dv|a' }, { text: '✖️ 1', callback_data: 'dn|a' }], [{ text: '✅ 2', callback_data: 'dv|b' }], [{ text: 'havola' }]],
   [[{ text: '✅ 2', data: 'dv|b' }]],
 )) === JSON.stringify([[{ text: '✍️ Ali', callback_data: 'fu|1' }], [{ text: '✅ 2', callback_data: 'dv|b' }]]));
 
-process.exit(1);
+const blind = reportHtml({ numbers, plan: null, moves: [], checked: [{ task: 'Qayta chaqirish', member: 'yordamchi', metric: 'came', before: 10, after: null, verdict: null, pct: null }] }) ?? '';
+ok("G5: o'lchab bo'lmagan qaror — xabarda «o'lchab bo'lmadi», «→ null» emas", blind.includes("o'lchab bo'lmadi") && !blind.includes('null') && !blind.includes('undefined'), blind);
+
+if (failed) {
+  console.error(`\n${failed} ta sinov yiqildi`);
+  process.exit(1);
 }
 console.log("\nHammasi o'tdi");

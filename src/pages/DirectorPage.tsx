@@ -173,6 +173,7 @@ function Journal({ view }: { view: DirectorView }) {
                 {m.status === 'tekshirildi' && m.after !== null && m.verdict && (
                   <> → {num(m.after, unit)} <span className={`font-semibold ${VERDICT[m.verdict].cls}`}>{VERDICT[m.verdict].label}</span></>
                 )}
+                {m.status === 'tekshirildi' && m.after === null && <> → <span className="font-semibold text-[#a3a9b5]">o'lchab bo'lmadi</span> (ma'lumot kelmadi)</>}
                 {m.why && <> · {m.why}</>}
               </p>
             </li>

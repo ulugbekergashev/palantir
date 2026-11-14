@@ -83,7 +83,8 @@ export function numbersText(n: Numbers): string {
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-export interface CheckedMove { task: string; member: MoveMember; metric: MetricKey; before: number; after: number; verdict: Verdict; pct: number | null }
+/** after/verdict — null: ko'rsatkichni o'lchab bo'lmadi (ma'lumot manbai uzoq vaqt uzilgan), qaror natijasiz yopildi */
+export interface CheckedMove { task: string; member: MoveMember; metric: MetricKey; before: number; after: number | null; verdict: Verdict | null; pct: number | null }
 export interface ReportMove { n: number; id: string; member: MoveMember; task: string; why: string; metric: MetricKey; checkAt: string }
 
 /** Takliflar tugmalari: har biriga «✅ N — topshirish» va «✖️» (dv|id, dn|id) */
@@ -104,7 +105,11 @@ export function reportHtml(input: { numbers: Numbers; plan: DirectorPlan | null;
   if (shown.length) out.push('', ...shown);
   if (checked.length) {
     out.push('', '<b>Qarorlar natijasi</b>');
-    for (const c of checked) out.push(`• ${esc(c.task)} — ${METRICS[c.metric].label}: ${fmt(c.metric, c.before)} → ${fmt(c.metric, c.after)} ${VERDICT_MARK[c.verdict]}`);
+    for (const c of checked) {
+      out.push(c.after === null || !c.verdict
+        ? `• ${esc(c.task)} — ${METRICS[c.metric].label}: o'lchab bo'lmadi (ma'lumot kelmadi — CRM ulanganini tekshiring), qaror yopildi`
+        : `• ${esc(c.task)} — ${METRICS[c.metric].label}: ${fmt(c.metric, c.before)} → ${fmt(c.metric, c.after)} ${VERDICT_MARK[c.verdict]}`);
+    }
   }
   if (plan?.problem) out.push('', `<b>Eng katta muammo:</b> ${esc(plan.problem.title)}`, ...(plan.problem.evidence ? [`<i>${esc(plan.problem.evidence)}</i>`] : []));
   if (moves.length) {

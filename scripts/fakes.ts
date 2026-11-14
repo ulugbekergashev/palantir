@@ -790,7 +790,8 @@ export const aiServer = patient(createServer(async (req, res) => {
     const user = String(body.messages[0]?.content ?? '');
     ai.director.push(user);
     const plan = ai.directorPlan ? ai.directorPlan(user) : { summary: 'Hammasi joyida', problem: null, moves: [] };
-    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: JSON.stringify(plan) }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 20 } });
+    // { refusal: true } — model rad etdi (tahlil yiqilgan kun)
+    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: JSON.stringify(plan) }], stop_reason: plan.refusal ? 'refusal' : 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 20 } });
   }
 
   if (String(body.system).startsWith('You answer customer messages')) {

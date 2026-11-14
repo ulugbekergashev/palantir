@@ -80,6 +80,13 @@ export const directorMoves = {
   checked: (bizId: string, id: string, after: number, verdict: Verdict) =>
     sql.run("UPDATE director_moves SET status = 'tekshirildi', after = ?, verdict = ?, checked_at = ? WHERE business_id = ? AND id = ? AND status = 'topshirildi'",
       after, verdict, sql.nowIso(), bizId, id).changes > 0,
+  /** Ko'rsatkichni o'lchab bo'lmadi (masalan CRM uzoq uzilgan) — qaror yopiladi, natija yo'q (after, verdict — null) */
+  unmeasured: (bizId: string, id: string) =>
+    sql.run("UPDATE director_moves SET status = 'tekshirildi', after = NULL, verdict = NULL, checked_at = ? WHERE business_id = ? AND id = ? AND status = 'topshirildi'",
+      sql.nowIso(), bizId, id).changes > 0,
+  /** Shu vaqtdan oldingi tasdiqlanmagan takliflar yopiladi — yangi tahlil bo'lmasa ham (AI o'chiq, faollik kam) eskirgan taklif turib qolmasin */
+  expireBefore: (bizId: string, beforeIso: string) =>
+    sql.run("UPDATE director_moves SET status = 'rad', decided_at = ? WHERE business_id = ? AND status = 'taklif' AND created_at < ?", sql.nowIso(), bizId, beforeIso).changes,
   /** Yangi tahlil eski tasdiqlanmagan takliflarni almashtiradi (ular endi eskirgan raqamlarga asoslangan) */
   expireWaiting: (bizId: string) => sql.run("UPDATE director_moves SET status = 'rad', decided_at = ? WHERE business_id = ? AND status = 'taklif'", sql.nowIso(), bizId).changes,
 };

@@ -32,6 +32,10 @@ export { directorMoves, directorRuns } from './store';
 const MIN_ACTIVITY = 3;
 /** Modelga beriladigan qaror va qoidalar soni */
 const MAX_RULES = 30;
+/** Tekshirish kuni ko'rsatkich bo'lmasa (CRM uzilgan) — shuncha kun qayta ulanishi kutiladi, keyin qaror natijasiz yopiladi */
+const UNMEASURED_GRACE_DAYS = 7;
+/** Tasdiqlanmagan taklif shuncha kundan keyin eskirgan hisoblanadi (raqamlari eski) */
+const PROPOSAL_TTL_DAYS = 3;
 
 export class DirectorError extends Error {}
 
@@ -157,7 +161,8 @@ async function ask(biz: BusinessRow, numbers: Numbers, inWork: DirectorMove[]): 
 function checkDue(biz: BusinessRow, numbers: Numbers, day: string): CheckedMove[] {
   return directorMoves.due(biz.id, day).flatMap(m => {
     const after = numbers[m.metric]?.now;
-    if (after === undefined) return [];
+    // Ko'rsatkich yo'q (CRM uzilgan): bir necha kun kutiladi, keyin qaror natijasiz yopiladi — abadiy «ishda» turmasin (G5)
+    if (after === undefined) return m.checkAt && m.checkAt <= iso(addDays(new Date(`${day}T12:00:00Z`), -UNMEASURED_GRACE_DAYS)) ? closeUnmeasured(biz, m, day) : [];
     const v = verdict(m.metric, m.baseline, after);
     if (!directorMoves.checked(biz.id, m.id, after, v.verdict)) return [];
     // Natija bermagan topshiriq doimiy ko'rsatmalar orasida qolib ketmasin (har mijoz javobiga qo'shiladi, joyni egallaydi):
@@ -174,6 +179,18 @@ function checkDue(biz: BusinessRow, numbers: Numbers, day: string): CheckedMove[
   });
 }
 
+/** O'lchab bo'lmagan qaror: yopiladi, topshiriq to'xtatiladi (natijasi isbotlanmagan ko'rsatma joyni egallamasin), Xotira'ga yoziladi */
+function closeUnmeasured(biz: BusinessRow, m: DirectorMove, day: string): CheckedMove[] {
+  if (!directorMoves.unmeasured(biz.id, m.id)) return [];
+  const label = METRICS[m.metric].label.toLowerCase();
+  if (m.orderId && orders.setActive(biz.id, m.orderId, false)) {
+    events.add(biz.id, { member: m.member as OrderMember, orderId: m.orderId, level: 'info', title: "Direktor topshirig'i to'xtatildi", body: `${m.task} — natijani o'lchab bo'lmadi (${label} bo'yicha ma'lumot kelmadi)`, cameraId: null });
+  }
+  const note = m.memoryId ? notes.all(biz.id).find(n => n.id === m.memoryId) : undefined;
+  if (note && m.memoryId) notes.update(biz.id, m.memoryId, { text: `${note.text} → Natija ${dayLabel(day)}: o'lchab bo'lmadi (${label} bo'yicha ma'lumot kelmadi)` });
+  return [{ task: m.task, member: m.member, metric: m.metric, before: m.baseline, after: null, verdict: null, pct: null }];
+}
+
 export interface DirectorResult { run: DirectorRun | null; plan: DirectorPlan | null; moves: ReportMove[]; checked: CheckedMove[]; numbers: Numbers }
 
 /**
@@ -184,6 +201,8 @@ export async function runDirector(biz: BusinessRow, now = new Date()): Promise<D
   const day = iso(now);
   // Tahlilchi haftasiga bir marta «mijozlar nimani so'rayapti»ni yangilaydi — Direktor uni ham o'qiydi; yiqilsa tahlil baribir davom etadi
   await weeklyDemand(biz, now).catch(e => console.error(`[tahlilchi] haftalik talab (${biz.profile.name}):`, (e as Error).message));
+  // Eskirgan takliflar yangi tahlil bo'lmasa ham yopiladi (AI o'chiq yoki faollik kam kunlarda «Sizni kutyapti»da turib qolmasin — G5)
+  directorMoves.expireBefore(biz.id, addDays(now, -PROPOSAL_TTL_DAYS).toISOString());
   const numbers = await readNumbers(biz, now);
   const checked = checkDue(biz, numbers, day);
   const activity = (numbers.inquiries?.now ?? 0) + (numbers.inquiries?.prev ?? 0);

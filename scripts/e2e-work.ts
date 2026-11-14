@@ -320,6 +320,25 @@ try {
     const memo2 = ((await api('/api/notes', { token })).json.notes as { id: string; text: string; tags: string[] }[]).find(n => n.tags.includes('direktor'));
     ok("tekshiruv: muddati kelgan qaror qayta o'lchandi — 25% → 100%, yaxshilandi", checked?.status === 'tekshirildi' && checked.after === 100 && checked.verdict === 'yaxshi', JSON.stringify(checked));
     ok("tekshiruv: natija Xotira'dagi qaror yozuviga qo'shildi", !!memo2?.text.includes('→ Natija') && memo2.text.includes('25% → 100%, yaxshilandi'), memo2?.text);
+
+    // G5: CRM ulanmagan — «kelganlar» o'lchanmaydi. Muddatdan 1 kun o'tdi — kutadi; 8 kun o'tdi — natijasiz yopiladi.
+    // 4 kunlik tasdiqlanmagan taklif — yangi tahlil bo'lmasa ham yopiladi (AI javob bermagan kun ham)
+    const runId = String((ddb.prepare('SELECT run_id FROM director_moves WHERE id = ?').get(toReception.id) as { run_id: string }).run_id);
+    const addMove = (id: string, status: string, checkDaysAgo: number | null, createdDaysAgo: number) => ddb.prepare(
+      "INSERT INTO director_moves (id, business_id, run_id, member, task, why, metric, baseline, check_days, status, created_at, check_at) VALUES (?, ?, ?, 'yordamchi', ?, '', 'came', 10, 5, ?, ?, ?)",
+    ).run(id, bizId, runId, `G5 ${id}`, status, new Date(Date.now() - createdDaysAgo * 86_400_000).toISOString(), checkDaysAgo === null ? null : stamp(new Date(Date.now() - checkDaysAgo * 86_400_000)).slice(0, 10));
+    addMove('g5late', 'topshirildi', 8, 13);
+    addMove('g5fresh', 'topshirildi', 1, 6);
+    addMove('g5old', 'taklif', null, 4);
+    addMove('g5new', 'taklif', null, 1);
+    ai.directorPlan = () => ({ refusal: true });
+    const failedRun = await api('/api/director/run', { token, body: {} });
+    const g5 = Object.fromEntries((ddb.prepare("SELECT id, status, after, verdict FROM director_moves WHERE id LIKE 'g5%'").all() as { id: string; status: string; after: number | null; verdict: string | null }[]).map(r => [r.id, r]));
+    ok("G5: CRM yo'q, muddatidan 8 kun o'tdi — qaror natijasiz yopildi («ishda» abadiy turmaydi); 1 kun o'tgani — hali kutadi",
+      g5.g5late?.status === 'tekshirildi' && g5.g5late.after === null && g5.g5late.verdict === null && g5.g5fresh?.status === 'topshirildi', JSON.stringify(g5));
+    ok("G5: 4 kunlik tasdiqlanmagan taklif — tahlil yiqilsa ham (model rad etdi) yopildi; kechagi — turibdi",
+      failedRun.status === 502 && g5.g5old?.status === 'rad' && g5.g5new?.status === 'taklif', `${failedRun.status} ${JSON.stringify(g5)}`);
+    ddb.prepare("DELETE FROM director_moves WHERE id LIKE 'g5%'").run();
     ddb.close();
     ai.directorPlan = null;
   }
