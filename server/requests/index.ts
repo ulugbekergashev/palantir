@@ -184,8 +184,10 @@ export async function openRequest(biz: BusinessRow, leadId: string | null, v: Re
   const phone = v.phone ? normPhone(v.phone) || v.phone.trim().slice(0, 24) : null;
   let lead = leadId ? leads.get(biz.id, leadId) : undefined;
   if (lead && phone && !lead.phone) leads.update(biz.id, lead.id, { phone });
-  // Bir odamning boshqa kartalari yig'iladi va DentaCRM bemori qisqa qidiriladi: xodim kartasida «bemor» belgisi bo'lsin
-  if (lead?.phone || (lead && phone)) lead = (await settlePerson(biz, lead.id)) ?? lead;
+  // Bir odamning boshqa kartalari yig'iladi va DentaCRM bemori qisqa qidiriladi: xodim kartasida «bemor» belgisi bo'lsin. Yozishmadan
+  // kelgan so'rovdagi raqam tasdiqlanmagan — boshqa messenjer odamining kartasi qo'shilmaydi (E6)
+  const trust = v.source === 'bot' || v.source === 'telegram' || v.source === 'instagram' ? 'chat' : 'verified';
+  if (lead?.phone || (lead && phone)) lead = (await settlePerson(biz, lead.id, trust)) ?? lead;
   const dueAt = cleanDue(v.dueAt, now);
   const fields = {
     phone: phone ?? lead?.phone ?? null, name: v.name?.trim() || lead?.name || null, summary: cut(v.summary.trim() || KIND_LABEL[v.kind], 500),

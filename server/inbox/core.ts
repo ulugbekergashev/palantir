@@ -400,8 +400,9 @@ function remember(biz: BusinessRow, lead: LeadRow, d: Decision): void {
   if (d.leadNote && d.leadNote !== lead.note) patch.note = d.leadNote;
   if (d.followUp && d.followUpDays && !lead.nextAt && (lead.stage === 'new' || lead.stage === 'contacted')) { patch.nextStep = d.followUp; patch.nextAt = followAt(d.followUpDays); }
   if (Object.keys(patch).length) leads.update(biz.id, lead.id, patch);
-  // Raqam aytildi — shu odamning boshqa kanaldagi kartalari (Instagram, bot, qo'ng'iroq) shu kartaga yig'iladi
-  if (patch.phone) phoneChanged(biz, lead.id);
+  // Raqam aytildi (tasdiqlanmagan) — shu raqamdagi qo'ng'iroq va qo'lda qo'shilgan kartalar yig'iladi; boshqa Telegram/Instagram odamining
+  // kartasi emas (E6: xato yoki birovning raqami ikki odamni qaytarib bo'lmaydigan qilib qo'shardi). Bot tugmasi bilan yuborilgan raqam — bot.ts
+  if (patch.phone) phoneChanged(biz, lead.id, 'chat');
 }
 
 const DAY_MS = 86_400_000;

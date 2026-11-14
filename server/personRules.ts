@@ -25,6 +25,19 @@ export function samePerson(a: Pick<LeadRow, 'tgUserId' | 'igUserId' | 'patientId
   return namesFit(a.name, b.name);
 }
 
+/**
+ * Raqam qayerdan: verified — Telegram tugmasi bilan yuborilgan kontakt, egasi yoki xodim kiritgan, qo'ng'iroq qilgan raqam; chat — yozishmada
+ * aytilgan (model ajratgan, tasdiqlanmagan: xato yozilgan yoki birovniki bo'lishi mumkin)
+ */
+export type PhoneTrust = 'verified' | 'chat';
+
+/**
+ * Yozishmada aytilgan raqam bilan qaysi karta yig'iladi (E6): faqat o'z messenjer akkaunti va DentaCRM bemori yo'q karta (qo'ng'iroq yoki
+ * qo'lda qo'shilgan). Boshqa Telegram/Instagram odamining kartasi bunday raqam bilan qo'shilmaydi — qo'shish qaytarib bo'lmaydi, javob esa
+ * oxirgi yozgan kanalga, ya'ni boshqa odamga ketib qolardi
+ */
+export const chatMergeable = (l: Pick<LeadRow, 'tgUserId' | 'igUserId' | 'patientId'>): boolean => !l.tgUserId && !l.igUserId && !l.patientId;
+
 /** Ikki ismdan to'liqrog'i (ko'proq so'zli): «Malika» va «Malika Yusupova» dan ikkinchisi */
 export const fullerName = (a: string | null, b: string | null): string | null => (words(b).length > words(a).length ? b : a);
 

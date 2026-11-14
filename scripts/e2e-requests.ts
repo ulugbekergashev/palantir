@@ -16,7 +16,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { Lead, LeadRequest } from '../src/types';
 import { phoneKey, prettyPhone } from '../src/lib/phone';
 import { iso, stamp } from '../src/lib/week';
-import { namesFit, patientFor, patientHasPhone, phoneVerified, proofFor, samePerson } from '../server/personRules';
+import { chatMergeable, namesFit, patientFor, patientHasPhone, phoneVerified, proofFor, samePerson } from '../server/personRules';
 import { cleanDue, daytime, firstRemind } from '../server/requests/timing';
 import { unknownNumber, unsupportedOffer } from '../server/inbox/offerGuard';
 import { CUSTOMER, OWNER, ai, aiServer, igWeb, igWebServer, listen, press, say, sent, shareContact, sleep, tgNames, tgServer, waitFor, type Sent, stopProcess } from './fakes';
@@ -33,6 +33,8 @@ const L = (o: Partial<{ tgUserId: string; igUserId: string; patientId: string; n
 ok('laqab («Dilya») va to\'liq ism — bir odam', samePerson(L({ name: 'Dilya', igUserId: 'i1' }), L({ name: 'Dilnoza Karimova', tgUserId: 't1' })));
 ok("ikki to'liq ism, umumiy so'z yo'q (oila a'zosi) — ikki odam", !samePerson(L({ name: 'Malika Yusupova' }), L({ name: 'Dilnoza Karimova' })) && namesFit('Dilnoza Karimova', 'Karimova Dilnoza'));
 ok('boshqa-boshqa Telegram akkaunt — ikki odam', !samePerson(L({ tgUserId: '1' }), L({ tgUserId: '2' })));
+ok("yozishmada aytilgan raqam faqat messenjersiz va bemorsiz kartani yig'adi (qo'ng'iroq, qo'lda) — E6",
+  chatMergeable(L({})) && !chatMergeable(L({ tgUserId: '1' })) && !chatMergeable(L({ igUserId: 'i1' })) && !chatMergeable(L({ patientId: 'p1' })));
 const pts = [
   { id: 'p1', firstName: 'Dilnoza', lastName: 'Karimova', phone: '+998944445566', secondaryPhone: null, lastVisit: null, balance: 0 },
   { id: 'p2', firstName: 'Ali', lastName: 'Karimov', phone: '+998944445566', secondaryPhone: null, lastVisit: null, balance: 0 },
@@ -388,23 +390,20 @@ try {
   asked = ai.replier.length;
   say(VICTIM, "Kecha plomba tushib ketdi, tishim og'riyapti. Raqamim 93 222 33 44");
   await answered(asked);
-  // Begona: o'sha ism, boshqaning raqami — kartalar raqam bo'yicha yig'iladi (egasi uchun bitta karta)
+  // Begona: o'sha ism, boshqaning raqami (yozishmada aytilgan, tasdiqlanmagan) — kartalar qo'shilmaydi (E6). Avval bitta kartaga yig'ilardi:
+  // qo'shish qaytarib bo'lmaydi, javob esa oxirgi yozgan kanalga — boshqa odamga ketishi mumkin edi
   ai.customer = () => decision({ reply: 'Rahmat, yozib oldik', customer_phone: '+998 93 222 33 44' });
   asked = ai.replier.length;
   igWeb.incoming('t9', 'Salom, raqamim 93 222 33 44', { pk: '8009', username: 'zarina_ig', name: 'Zarina' });
   await answered(asked);
-  const bothChannels = async () => {
-    const cards = ((await api('/api/leads', { token })).json.leads as Lead[]).filter(l => phoneKey(l.phone) === '932223344');
-    const msgs = cards.length === 1 ? ((await api(`/api/inbox/${cards[0].id}`, { token })).json.messages ?? []) as { channel: string }[] : [];
-    return ['bot', 'instagram'].every(c => msgs.some(m => m.channel === c)) ? cards[0] : null;
-  };
-  let joined: Lead | null = null;
-  for (let i = 0; i < 80 && !joined; i++) { joined = await bothChannels(); if (!joined) await sleep(100); }
+  await sleep(500);
+  const sameNumber = ((await api('/api/leads', { token })).json.leads as Lead[]).filter(l => phoneKey(l.phone) === '932223344');
   ai.customer = () => decision({ reply: 'Qaysi kun qulay?' });
   asked = ai.replier.length;
   igWeb.incoming('t9', 'Oldin nima yozgan edim, eslatib yuboring');
   await answered(asked);
-  ok("egasi uchun bitta karta: ikkala kanal yozishmasi shu kartada", !!joined, JSON.stringify(joined));
+  ok("yozishmada aytilgan bir xil raqam — boshqa messenjerdagi odamning kartasiga qo'shilmaydi: bot va Instagram — ikki karta (E6)",
+    sameNumber.length === 2 && sameNumber.map(l => l.channel).sort().join(',') === 'bot,instagram', JSON.stringify(sameNumber.map(l => [l.name, l.channel])));
   ok("Instagram'dagi javob uchun modelga faqat Instagram suhbati boradi — botdagi «plomba» yo'q",
     lastPrompt().includes('Oldin nima yozgan') && !lastPrompt().includes('plomba'), lastPrompt().split('<conversation>').at(-1)?.slice(0, 400));
   console.log("\n# Shikoyat — egasiga (nusxa o'chirilgan bo'lsa ham), xodimlarga emas");
@@ -447,8 +446,10 @@ try {
   ok("eskirgan taklif «Mijozga javob tayyor» sifatida sanalmaydi", !!pend && expired && !after2.some(a => a.refId === pend.refId), pend?.refId);
   ok("bemor hali javobsiz — «javob kutyapti»da (yo'qolmadi)", !!leadOfReply && after2.some(a => a.kind === 'message' && a.refId === leadOfReply), JSON.stringify(after2.map(a => a.kind)));
 
+  // Instagram'dagi Zarina kartasi raqam bo'yicha DentaCRM bemoriga bog'langan (tasdiqlanmagan) — oxirgi so'rov shu kartaga edi
+  const igCard = ((await api('/api/leads', { token })).json.leads as Lead[]).find(l => phoneKey(l.phone) === '932223344' && l.channel === 'instagram');
   ok("raqam bo'yicha bemorga bog'lansa ham, tasdiqlanmagan mijozga bemorning CRM'dagi ismi modelga bormaydi",
-    !!joined?.patientId && !!joined.name && !lastPrompt().includes(joined.name), `${joined?.name} | ${lastPrompt().split('Customer: ').at(1)?.slice(0, 80)}`);
+    !!igCard?.patientId && !!igCard.name && !lastPrompt().includes(igCard.name), `${igCard?.name} | ${lastPrompt().split('Customer: ').at(1)?.slice(0, 80)}`);
 } catch (e) {
   console.error(e);
   results.push(false);
