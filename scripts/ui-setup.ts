@@ -160,14 +160,6 @@ try {
   await shot(page, 'usta-dentacrm');
 
   await page.getByRole('button', { name: 'Davom etish' }).click();
-  await page.getByRole('button', { name: 'Tarmoqdan qidirish' }).click();
-  ok('kamera tarmoqdan topildi', await page.getByText('Hikvision · ').waitFor({ timeout: 10000 }).then(() => true, () => false));
-  await page.getByLabel('Kamera paroli').fill('kamera123');
-  await page.getByRole('button', { name: 'Ulash', exact: true }).first().click();
-  ok('kamera ulandi, kadr chiqdi', await page.getByAltText(/kamerasidan kadr/).first().waitFor({ timeout: 25000 }).then(() => true, () => false));
-  await shot(page, 'usta-kameralar');
-
-  await page.getByRole('button', { name: 'Davom etish' }).click();
   ok("shaxsiy Telegram: raqam kalitlar maydonidan", (await page.getByLabel('Raqam').inputValue()) === '+998 90 123 45 67');
   await page.getByRole('button', { name: 'Kod yuborish' }).click();
   await page.getByLabel('Kod').fill('12345');
@@ -198,6 +190,16 @@ try {
   await waitFor('keyingi', () => toOwner(mark, 'Ish vaqti:'));
   ok("egasi javob bergan sari ro'yxat yangilandi", !!q2 && await page.getByText(/narxi ikki xil/).waitFor({ state: 'detached', timeout: 12000 }).then(() => true, () => false));
   await shot(page, 'usta-boshliqlar-hal');
+
+  // C3: kameralar — qo'shimcha, asosiy yo'ldan keyin (oxirgi qadam)
+  await page.getByRole('button', { name: 'Davom etish' }).click();
+  ok("C3: kameralar asosiy yo'ldan keyin, «ixtiyoriy» deb", await page.getByText('Ixtiyoriy — Kuzatuvchi uchun').isVisible());
+  await page.getByRole('button', { name: 'Tarmoqdan qidirish' }).click();
+  ok('kamera tarmoqdan topildi', await page.getByText('Hikvision · ').waitFor({ timeout: 10000 }).then(() => true, () => false));
+  await page.getByLabel('Kamera paroli').fill('kamera123');
+  await page.getByRole('button', { name: 'Ulash', exact: true }).first().click();
+  ok('kamera ulandi, kadr chiqdi', await page.getByAltText(/kamerasidan kadr/).first().waitFor({ timeout: 25000 }).then(() => true, () => false));
+  await shot(page, 'usta-kameralar');
 
   await page.getByRole('button', { name: 'Yakunlash' }).click();
   await shot(page, 'usta-yakun');

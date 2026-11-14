@@ -62,7 +62,9 @@ export function StepDone({ facts, elapsed, onGo, handover, name }: { facts: Wiza
   // Ustaning o'zidagi tartib bilan bir xil: onGo indeksi o'sha ro'yxatga mos
   const rows = visibleSteps(facts.status).filter(s => s.key !== 'done');
   const states = rows.map(s => stepState(s.key, facts));
-  const ready = states.filter(s => s === 'ok' || s === 'skip').length;
+  // Ixtiyoriy qadam (kameralar) qilinmagan — «chala» emas: tayyorlik hisobiga kirmaydi (C3)
+  const spare = (i: number) => !!rows[i].optional && states[i] === '';
+  const ready = states.filter((s, i) => s === 'ok' || s === 'skip' || spare(i)).length;
   return (
     <div className="space-y-4">
       <Card>
@@ -84,7 +86,7 @@ export function StepDone({ facts, elapsed, onGo, handover, name }: { facts: Wiza
                 <button type="button" onClick={() => onGo(i)} className="flex w-full items-center gap-3 py-3 text-left hover:bg-slate-50">
                   <Icon className={`h-5 w-5 shrink-0 ${TONE[st]}`} aria-hidden="true" />
                   <span className="flex-1 font-semibold">{s.title}</span>
-                  <span className="text-sm text-slate-500">{WORD[st]}</span>
+                  <span className="text-sm text-slate-500">{spare(i) ? 'ixtiyoriy' : WORD[st]}</span>
                 </button>
               </li>
             );

@@ -9,17 +9,18 @@ export type StepKey = 'clinic' | 'keys' | 'owner' | 'crm' | 'cams' | 'tg' | 'ig'
 /** ok — tayyor; warn — chala (keyin qaytsa ham bo'ladi); skip — bu klinikaga kerak emas; '' — hali qilinmagan */
 export type StepState = 'ok' | 'warn' | 'skip' | '';
 
-export interface StepInfo { key: StepKey; title: string; lead: string }
+/** optional — qo'shimcha (asosiy yo'l emas): qilinmagani «chala» sanalmaydi, usta oxiriga qo'yiladi (C3) */
+export interface StepInfo { key: StepKey; title: string; lead: string; optional?: boolean }
 export const STEPS: StepInfo[] = [
   { key: 'clinic', title: 'Klinika', lead: "Qaysi klinikani ulayapmiz. Manzil, ish vaqti va narxlarni keyin egasi Telegram'da aytadi — bot o'zi so'raydi." },
   { key: 'keys', title: 'Kalitlar', lead: "Bot tokeni, AI kalitlari, kamera manzili, DentaCRM havolasi — hammasini bitta maydonga qo'ying. Palantir har birining turini o'zi taniydi va darhol tekshiradi." },
   { key: 'owner', title: "Egasining Telegram'i", lead: "Egasi yordamchi bilan shu botda gaplashadi: eslatmalar, ertalabki xulosa, mijozlarga javob takliflari unga keladi." },
   { key: 'crm', title: 'DentaCRM', lead: "Qabullar, kelgan-kelmaganlar va tushum Palantir'ga shu yerdan keladi." },
-  { key: 'cams', title: 'Kameralar', lead: "Palantir klinika tarmog'idagi kameralarni o'zi topadi. Siz login-parolni kiritasiz va kamera qayerda turganini yozasiz." },
   { key: 'tg', title: 'Shaxsiy Telegram', lead: "Klinika raqamidagi Telegram: mijozlar shu yerga yozadi. Palantir javob taklif qiladi, egasi tasdiqlamaguncha hech narsa yuborilmaydi." },
   { key: 'ig', title: 'Instagram', lead: "Instagram Direct'dagi yozishmalar ham shu navbatga tushadi." },
   { key: 'phone', title: 'Telefon', lead: "Klinika raqamiga kelgan qo'ng'iroqlarga AI javob beradi. Zadarma kabinetidan Key va Secret'ni qo'ying — raqam, liniya va yo'naltirishni Palantir o'zi sozlaydi." },
   { key: 'gaps', title: "Bo'shliqlar", lead: "Palantir hamma ma'lumotni tekshirib, yetishmagan va bir-biriga zid joylarni topdi. Egasiga Telegram'da bittalab so'raydi — egasi tugmani bosib javob beradi." },
+  { key: 'cams', title: 'Kameralar', optional: true, lead: "Ixtiyoriy — Kuzatuvchi uchun. Palantir klinika tarmog'idagi kameralarni o'zi topadi. Siz login-parolni kiritasiz va kamera qayerda turganini yozasiz." },
   { key: 'done', title: 'Tayyor', lead: "Klinikadan ketishdan oldin oxirgi ko'rinish." },
 ];
 
