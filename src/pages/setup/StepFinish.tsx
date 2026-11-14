@@ -97,7 +97,7 @@ export function StepDone({ facts, elapsed, onGo, handover, name }: { facts: Wiza
           {!facts.profile && <ButtonLink href="#/admin">Admin sahifasi</ButtonLink>}
         </div>
       )}
-      <p className="text-sm text-slate-500">Ketishdan oldin: egasi botga «Bugun nechta qabul bor?» deb yozib ko'rsin, kompyuterni o'chirib-yoqib bot o'zi javob berishini tekshiring, kompyuter uxlamaydigan qilinsin.</p>
+      <p className="text-sm text-slate-500">Ketishdan oldin: boshqa telefondan botga bemor bo'lib yozing («narxlar qancha?», «ertaga bo'sh vaqt bormi?») — egasiga javob keladi (yoki rejimga qarab o'zi javob beradi); kompyuterni o'chirib-yoqib bot yana javob berishini tekshiring; kompyuter uxlamaydigan qilinsin.</p>
     </div>
   );
 }

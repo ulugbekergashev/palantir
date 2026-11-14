@@ -51,12 +51,12 @@ Holat ustuni: «—» — tuzatilmagan.
 | C2 | Bemorlar yozadigan Telegram (Business + havola/QR) ustada yo'q — faqat Sozlamalarda | `src/pages/setup/wizard.ts:35`; `SettingsHub.tsx:98,112` | — |
 | C3 | Qo'shimchalar asosiy yo'lga aralashgan: Kameralar — 5-qadam, Telegram/Instagram/telefondan oldin; yakunda «7/8 tayyor — chala qolganlarini tugating» | `src/pages/setup/wizard.ts:18-22,64`; `StepFinish.tsx:72-73` | — |
 | C4 | Obunaga kirishdan oldin «Claude kaliti — majburiy, sk-ant-…» ko'rinadi (standart dvigatel — API) | `server/env.ts:106`; `src/pages/setup/secrets.ts:16`; `StepKeys.tsx:24,134` | ✅ (keyingi commit) obuna kartasi birinchi; obuna yo'li bor kompyuterda Claude kaliti majburiy emas («pullik; obuna o'rniga»); «Kalitlar» qadami AI ishlamasa tayyor emas |
-| C5 | Yakuniy tekshiruv bemorni emas, egasining yordamchisini sinaydi («Bugun nechta qabul bor?») | `src/pages/setup/StepFinish.tsx:100` | — |
-| C6 | O'rnatgich matnlari eskirgan: «ULANISH KODINI qo'ying» (birinchi ekran — litsenziya), «Bloknotda oching» | `install/ornatish.ps1:190,336` | — |
+| C5 | Yakuniy tekshiruv bemorni emas, egasining yordamchisini sinaydi («Bugun nechta qabul bor?») | `src/pages/setup/StepFinish.tsx:100` | — · ✅ (keyingi commit) ustaning oxirgi eslatmasi bemor yo'lini sinaydi: boshqa telefondan bemor bo'lib yozish, kompyuterni o'chirib-yoqib qayta tekshirish |
+| C6 | O'rnatgich matnlari eskirgan: «ULANISH KODINI qo'ying» (birinchi ekran — litsenziya), «Bloknotda oching» | `install/ornatish.ps1:190,336` | — · ✅ (keyingi commit) «ulanish kodini qo'ying» o'rniga «ekrandagi kompyuter kodini asoschiga ayting»; kalitlar — Bloknot emas, ustadagi «Kalitlar» qadami (matn ASCII — PowerShell 5.1) |
 | C7 | Klinika xodimiga texnik so'zlar: BOT_TOKEN, Server/Port, Zoiper, `http://192.168.1.20:3001`, Hub kodi, port ochish, «Server kompyuterida» | `TelegramPage.tsx:100,271,320`; `PhoneLine.tsx:137-141,223`; `DentaCrmSection.tsx:73`; `ClaudeObuna.tsx:77`; `SettingsHub.tsx:69` | — |
 | C8 | O'rnatuvchi ustasi topshirgandan keyin ham egasiga ochiq: «Klinikada o'tgan vaqt», 9 kalit jadvali (SpeechLab ham) | `SettingsHub.tsx:68`; `SetupWizard.tsx:108-111`; `secrets.ts:16-23` | — |
 | C9 | Bir narsa bir necha joyda: DentaCRM shaklasi 2 ta (biri manzilni o'zi topadi, biri yo'q), «tayyormi» ro'yxati 3 ta, klinika ma'lumoti 2 shakl, narxlar 3 joyda | `DentaCrmSection.tsx:23-30` / `StepConnections.tsx:58`; `lib/setup.ts`; `StepProfile.tsx:280` / `TelegramPage.tsx` | — |
-| C10 | Instagram «Ulash»dan keyin Meta tester taklifi kerak — ustada aytilmaydi | `docs/INSTAGRAM.md:33-36`; `StepConnections.tsx:129` | — |
+| C10 | Instagram «Ulash»dan keyin Meta tester taklifi kerak — ustada aytilmaydi | `docs/INSTAGRAM.md:33-36`; `StepConnections.tsx:129` | — · ✅ (keyingi commit) «Ulash» oldida: «avval sinovchi taklifini qabul qiling — instagram.com/accounts/manage_access → Tester Invites»; Hub ulanmagan bo'lsa — «Hub kodi (kalitlar)» emas, oddiy tushuntirish |
 
 ## D. Kichik qoldiqlar
 

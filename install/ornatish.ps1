@@ -187,7 +187,7 @@ if ((Test-Path 'files.json') -and (Test-Path 'node_modules') -and (Test-Path 'di
 Step '4/7  Sozlamalar (.env)'
 $fresh = -not (Test-Path '.env')
 if (-not $fresh) {
-  Note ".env bor - o'zgartirilmadi. Kalitlarni almashtirish: faylni Bloknotda oching (install papkasi yonida)."
+  Note ".env bor - o'zgartirilmadi. Kalitlarni almashtirish: ulash ustasidagi 'Kalitlar' qadamida (panel -> Sozlamalar -> Claude va kalitlar)."
   if ($ffmpegPath -and -not (Read-EnvValue 'FFMPEG_PATH')) {
     [IO.File]::AppendAllText((Join-Path $Root '.env'), "`r`nFFMPEG_PATH=$ffmpegPath`r`n", (New-Object Text.UTF8Encoding($false)))
     Note 'FFMPEG_PATH .env ga qoshildi'
@@ -333,7 +333,7 @@ Note "Palantir ishlayapti: http://localhost:$port"
 Write-Host ''
 Write-Host '== Tayyor. Keyingi qadamlar (docs\ORNATISH.md da batafsil):' -ForegroundColor Green
 Note "Brauzerda ulash ustasi o'zi ochiladi (parol so'ralmaydi): http://localhost:$port/#/ulash"
-Note "   1-qadamda Palantir'dan olgan ULANISH KODINI qo'ying - shunda Palantir sozlashni masofadan davom ettiradi"
+Note "   Ekranda KOMPYUTER KODI chiqadi (XXXX-XXXX-XXXX-XXXX) - uni Palantir asoschisiga ayting: Hub'da tasdiqlaydi va panel o'zi ochiladi"
 Note "   keyin: kalitlar -> egasining Telegrami -> DentaCRM -> kameralar -> Instagram -> bo'shliqlar -> Egasiga topshirish"
 if ($checkFailed) { Warn "Eslatma: tekshiruvdagi xatolarni tuzating (install\Tekshirish.cmd)." }
 Note "Telefon liniyasi (AI qabulxona shahar raqamida) - Uztelecom SIP ma'lumotlari kelganda: install\Telefon.cmd"

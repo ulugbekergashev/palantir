@@ -97,7 +97,7 @@ export function InstagramOfficial({ status, onStatus, notify }: { status: LiveSt
   }, [waiting]);
   const connect = () => api.igOfficialUrl().then(r => { window.open(r.url, '_blank', 'noopener'); setWaiting(true); }).catch(e => notify((e as Error).message, true));
   if (!ig.hub) {
-    return <p className="text-sm text-slate-600">Rasmiy ulanish uchun <b>Palantir Hub kodi</b> kerak (ulash ustasi → kalitlar). Hub Meta xabarlarini shu kompyuterga yetkazadi — kompyuterda port ochish shart emas.</p>;
+    return <p className="text-sm text-slate-600">Instagram Palantir jamoasining serveri orqali ulanadi — bu kompyuter unga hali ulanmagan. O'rnatuvchiga yoki Palantir jamoasiga ayting.</p>;
   }
   if (ig.account) {
     return (
@@ -112,6 +112,10 @@ export function InstagramOfficial({ status, onStatus, notify }: { status: LiveSt
   return (
     <div className="space-y-2">
       <p className="text-sm text-slate-600">Instagram professional (Business yoki Creator) akkaunt kerak. «Ulash»ni bosing — Instagram oynasi ochiladi, akkauntingizga kiring va ruxsat bering.</p>
+      {/* Meta ilovasi hali tekshiruvdan o'tmagan: faqat «sinovchi» akkauntlar ulanadi — taklif qabul qilinmasa, ruxsat oynasi xato beradi (C10) */}
+      <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
+        Avval: Palantir jamoasi akkauntingizni Meta ilovasiga sinovchi qilib qo'shadi. Taklifni qabul qiling — brauzerda <b>instagram.com/accounts/manage_access</b> → «Tester Invites» (Instagram ilovasida: Settings → Apps and websites) → Accept. Shundan keyin «Ulash».
+      </p>
       <Button variant="primary" onClick={connect}>{waiting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />} {waiting ? 'Instagram oynasida ruxsat bering…' : "Instagram'ni rasmiy ulash"}</Button>
     </div>
   );
