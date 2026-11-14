@@ -6,18 +6,24 @@ Bir klinika — bitta kompyuter — bitta bot. O'rnatish 30–40 daqiqa oladi (i
 **Bitta kompyuter — bitta ish.** O'rnatish shu kompyuterning yagona profilini o'zi yaratadi; ikkinchi klinika yoki boshqa ish shu kompyuterda
 ochilmaydi (litsenziya kompyuterga bog'langan). Tartib:
 
-1. Palantir Hub `/admin` → **«Yangi klinika»** → nomi → **ulanish kodi** (`palantirhub.…`) bir marta ko'rsatiladi — nusxalab klinikaga bering.
-2. Klinika (yoki siz) exe'ni o'rnatadi. Oxirida ulash ustasi **parolsiz** ochiladi — 1-qadamda ulanish kodini qo'yadi.
-3. Kompyuter Hub ro'yxatida «sozlanmoqda» bo'lib chiqadi. **«Sozlash»** — panel egasidan so'ramasdan ochiladi: klinika ma'lumotlari, kalitlar,
-   Instagram, CRM, kameralar — o'z kompyuteringizdan. Klinika kompyuterida ham shu: kirish sahifasidagi «Sozlashni davom ettirish».
+1. Klinika (yoki siz) exe'ni o'rnatadi. Oxirida ulash ustasi **parolsiz** ochiladi. Hub kodi so'ralmaydi — kompyuter Hub'ga **o'zi ulanadi**
+   va Hub ro'yxatida «tasdiqlanmagan» bo'lib chiqadi. Ekranda aktivlashtirish oynasi va **kompyuter kodi** (`XXXX-XXXX-XXXX-XXXX`) turadi.
+2. Kompyuter kodini **asoschiga** ayting (qo'ng'iroq yoki Telegram) — asoschi Hub'da **«Tasdiqlash va aktivlashtirish»**ni bosib, shu kodni
+   kiritadi. Klinika ekranidagi oyna o'zi yopiladi. Bu qadamni faqat asoschi qiladi: o'rnatuvchi uni klinikada turib kutadi (kalitsiz panel ochilmaydi).
+3. Tasdiqlangach kompyuter Hub'da «sozlanmoqda» bo'ladi. Klinika ma'lumotlari, kalitlar, Instagram, CRM, kameralar — shu kompyuterdagi
+   ustada (kirish sahifasidagi «Sozlashni davom ettirish») yoki asoschi Hub'dagi **«Sozlash»** bilan masofadan.
 4. Oxirgi qadam — **«Egasiga topshirish»**: egasining logini va yangi paroli bir marta ko'rsatiladi. Sizning kirishingiz (u yerdagisi ham,
    Hub orqali ham) shu zahoti tugaydi. Keyin Palantir jamoasi faqat egasining Telegram'dagi ruxsati bilan kiradi (Hub → «Panelni ochish»).
+
+Kompyuter o'zi ulana olmasa (Hub ro'yxatdan o'tishni yopgan) — zaxira yo'l: Hub `/admin` → **«Yangi klinika»** → `palantirhub.…` kodi →
+ustaning «Kalitlar» maydoniga (3-bo'lim, 1-qadam). Windows qayta o'rnatilsa yoki kompyuter almashsa — asoschi Hub'da **«Kompyuter almashdi»**
+(yangi ekrandagi kod bilan).
 
 Parolsiz kirish faqat shu kompyuterning o'zidan va Hub'dagi «Sozlash»dan: klinika tarmog'idagi boshqa kompyuterdan va Hub'ning oddiy
 `/c/` havolasidan — yo'q. Kalitlar klinika profiliniki: egasi panelda ko'radi, almashtirish — shu kompyuterdan yoki Palantir jamoasi orqali.
 
-**Har kim o'z hisobi bilan.** Hub `/admin` ga har kishi o'z logini va paroli bilan kiradi (asoschi — hammasi; o'rnatuvchi — klinikalar,
-«Yangi klinika», «Sozlash»/«Panelni ochish», diagnostika; litsenziya, tasdiqlash, o'chirish va zaxiralar — faqat asoschi). Hisoblarni asoschi
+**Har kim o'z hisobi bilan.** Hub `/admin` ga har kishi o'z logini va paroli bilan kiradi (asoschi — hammasi; o'rnatuvchi — faqat o'zi
+«Yangi klinika» bilan ochgan klinikalar: «Sozlash»/«Panelni ochish», diagnostika — o'zi ulangan kompyuterni o'rnatuvchi Hub'da ko'rmaydi; litsenziya, tasdiqlash, o'chirish va zaxiralar — faqat asoschi). Hisoblarni asoschi
 «Jamoa»da ochadi (parol bir marta ko'rinadi; «Yangi parol», «Yopish» — ochiq kirishi darhol tugaydi). Asosiy kalit (`HUB_ADMIN_KEY`, login
 bo'sh qoldiriladi) — faqat birinchi asoschini ochish va favqulodda. «Jurnal»: kim, qachon, qaysi klinikaga nima qildi. Klinika egasi ham
 Telegram'dagi so'rovda va Sozlamalardagi ro'yxatda **kim** kirmoqchi/kirganini ko'radi («Palantir jamoasidan Sardor»).
