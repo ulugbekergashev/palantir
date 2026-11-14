@@ -36,6 +36,19 @@ export const waiting = {
   remove: (businessId: string, leadId: string) => run('DELETE FROM waiting_leads WHERE business_id = ? AND lead_id = ?', businessId, leadId),
 };
 
+// ─── «Yozmang» degan mijozlar ────────────────────────────────────────────────
+sql.exec('CREATE TABLE IF NOT EXISTS opt_outs (business_id TEXT NOT NULL, lead_id TEXT NOT NULL, since TEXT NOT NULL, PRIMARY KEY (business_id, lead_id))');
+
+/**
+ * Mijoz «boshqa yozmang» dedi (inbox/stages: optOutText): unga ommaviy va qayta yozish xabari tayyorlanmaydi va yuborilmaydi.
+ * O'zi yana yozsa — belgi olinadi (u yana gaplashmoqchi)
+ */
+export const optOuts = {
+  mark: (businessId: string, leadId: string) => run('INSERT OR IGNORE INTO opt_outs (business_id, lead_id, since) VALUES (?, ?, ?)', businessId, leadId, nowIso()),
+  has: (businessId: string, leadId: string) => !!one('SELECT 1 AS x FROM opt_outs WHERE business_id = ? AND lead_id = ?', r => r.x, businessId, leadId),
+  remove: (businessId: string, leadId: string) => run('DELETE FROM opt_outs WHERE business_id = ? AND lead_id = ?', businessId, leadId),
+};
+
 // ─── AI xarajati ─────────────────────────────────────────────────────────────
 sql.exec(`
 CREATE TABLE IF NOT EXISTS ai_usage (

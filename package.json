@@ -45,6 +45,7 @@
     "test:watchdog": "tsx scripts/check-watchdog.ts",
     "test:monitor": "tsx scripts/check-monitor.ts",
     "test:stages": "tsx scripts/check-stages.ts",
+    "test:inbox": "tsx scripts/check-inbox.ts",
     "test:brend": "tsx scripts/check-brend.ts",
     "test:video": "tsx scripts/check-video.ts",
     "live:content": "tsx scripts/live-content.ts",

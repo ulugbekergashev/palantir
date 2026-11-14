@@ -19,6 +19,7 @@ import { filterOptions } from './brain/index';
 import { LIMITS as BRAIN_LIMITS, PAGE_CHARS, sameQuestion } from './brain/logic';
 import { facts as notes, mirrorDocument, refresh as refreshVault, vault as knowledge } from './brain/vault';
 import { businesses, inbox, leads, newId, outbound, replies, tasks } from './db';
+import { optOuts } from './serviceStore';
 import { documents } from './docs/store';
 import { callsEnabled } from './calls';
 import { speechEnabled } from './tts';
@@ -216,7 +217,11 @@ const DEFS = {
       if (missing.length) throw new ToolError(`Mijoz topilmadi: ${missing.join(', ')}`);
       const issues = complianceErrors(ctx, [i.text]);
       if (issues.length) throw new ToolError(`Matnni qayta yozing:\n${issues.join('\n')}`);
-      const list = found.filter(l => !!l);
+      // «Boshqa yozmang» degan mijozlarga xabar tayyorlanmaydi (E10) — natijada ular alohida aytiladi
+      const all = found.filter(l => !!l);
+      const declined = all.filter(l => optOuts.has(ctx.biz.id, l.id));
+      const list = all.filter(l => !declined.includes(l));
+      if (!list.length) throw new ToolError("Bu mijozlarning hammasi «boshqa yozmang» degan — ularga xabar yuborilmaydi");
       const o = outbound.create(ctx.biz.id, i.text, list.map(l => l.id));
       ctx.artifacts.push({ type: 'outbound', outbound: o });
       return {
@@ -224,6 +229,7 @@ const DEFS = {
         status: 'waiting for the owner to press Send',
         telegram_recipients: o.reachable,
         call_instead: list.filter(l => !l.reachable).map(l => ({ name: l.name, phone: l.phone })),
+        ...(declined.length ? { skipped_asked_not_to_write: declined.map(l => l.name ?? l.id) } : {}),
       };
     },
   }),

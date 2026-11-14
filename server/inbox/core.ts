@@ -26,11 +26,12 @@ import { bookForCustomer, bookingLine, changeLine, changeVisit, checkBooking, ch
 import { env } from '../env';
 import { decide, type Decision } from './replier';
 import { phoneChanged } from '../people';
-import { revive } from '../stages';
+import { customerWrote } from '../stages';
 import { deliverToTeam, editTeamCards, openRequest, settleByBooking } from '../requests/index';
 import { replyCards } from '../requests/store';
 import { crewWorks } from '../../src/lib/crew';
 import { awaitingReply, holdLine } from './hold';
+import { isMedia } from './media';
 
 export interface Sender {
   /** Shu mijozga shu kanal orqali yozish mumkinmi */
@@ -150,22 +151,35 @@ function leadAiAllowed(leadId: string): boolean {
   return true;
 }
 
-export function onIncoming(biz: BusinessRow, m: Incoming): LeadRow {
-  const { lead } = leads.fromChannel(biz.id, m.channel, m.person, m.source);
-  const saved = inbox.add(biz.id, { leadId: lead.id, channel: m.channel, direction: 'in', by: 'customer', text: m.text, extId: m.extId, at: m.at });
-  if (!saved) return lead;
-  schedule(biz.id, lead.id);
-  // «Yo'qotildi»dagi mijoz yana yozdi — faol ro'yxatga qaytadi (G3)
-  return revive(biz, lead);
+/**
+ * Xabarning asl vaqti (kanal bergan): kompyuter o'chiq turganda kelgan xabar «hozir» deb yozilmasin — model kechagi «bugun»ni
+ * ertangi kun deb tushunmasin (E4), eski xabarga javob esa faqat taklif bo'lsin (handle: stale). Yangi xabar (bir daqiqadan
+ * yaqin) — hozirgi vaqt: Telegram vaqtni butun soniyagacha beradi, aks holda yarim soniya oldin yuborgan javobimiz yozishmada
+ * bemorning yangi xabaridan keyin turib qolardi va u «javob berilgan» bo'lib, ishlanmay qolardi. Kelajakdagi vaqt — ham hozirgi
+ */
+const REAL_AT_MIN_AGE_MS = 60_000;
+function realAt(at: string | undefined): string | undefined {
+  const t = at ? Date.parse(at) : NaN;
+  return Number.isFinite(t) && Date.now() - t > REAL_AT_MIN_AGE_MS ? new Date(t).toISOString() : undefined;
 }
 
-/** Egasi o'zi yozdi (telefonidagi Telegram yoki Instagram'dan) */
-export function onOwnerOutgoing(biz: BusinessRow, channel: 'telegram' | 'instagram', peer: { tgUserId?: string; igUserId?: string }, text: string, extId: string | null): void {
+export function onIncoming(biz: BusinessRow, m: Incoming): LeadRow {
+  const { lead } = leads.fromChannel(biz.id, m.channel, m.person, m.source);
+  const saved = inbox.add(biz.id, { leadId: lead.id, channel: m.channel, direction: 'in', by: 'customer', text: m.text, extId: m.extId, at: realAt(m.at) });
+  if (!saved) return lead;
+  // Botdagi rasm/stiker: asl nusxasi egasida, bemorga «yetkazildi» deyilgan (bot.ts), AI uni ko'rmaydi — yangi ishlov boshlanmaydi
+  if (!botMedia(saved)) schedule(biz.id, lead.id);
+  // «Yo'qotildi»dagi mijoz yana yozdi — faol ro'yxatga qaytadi (G3); «boshqa yozmang» — belgi va «Yo'qotildi» (E10)
+  return customerWrote(biz, lead, m.text);
+}
+
+/** Egasi o'zi yozdi (telefonidagi Telegram yoki Instagram'dan); at — asl vaqti (uzilishdan keyin kelganda tartib buzilmasin) */
+export function onOwnerOutgoing(biz: BusinessRow, channel: 'telegram' | 'instagram', peer: { tgUserId?: string; igUserId?: string }, text: string, extId: string | null, at?: string): void {
   const lead = peer.igUserId ? leads.byInstagram(biz.id, peer.igUserId) : peer.tgUserId ? leads.byTelegram(biz.id, peer.tgUserId) : undefined;
   // Mijoz bo'lmagan odam bilan yozishma (shaxsiy suhbat) — yozib olinmaydi
   if (!lead) return;
   if ((extId && inbox.has(biz.id, channel, extId)) || isOurEcho(biz.id, channel, text)) return;
-  inbox.add(biz.id, { leadId: lead.id, channel, direction: 'out', by: 'owner', text, extId });
+  inbox.add(biz.id, { leadId: lead.id, channel, direction: 'out', by: 'owner', text, extId, at: realAt(at) });
   ownerAnswered(biz, lead, text, (html, keyboard) => notifyOwner(biz, html, keyboard));
   void supersede(biz, lead, "O'zingiz javob berdingiz").catch(e => console.error('[mijozlar] karta:', (e as Error).message));
 }
@@ -208,6 +222,20 @@ export function resumeUnanswered(maxAgeMs = 6 * 3_600_000): number {
     if (fresh) { schedule(bizId, leadId); n++; } else markPending(key, false);
   }
   return n;
+}
+
+/** Botdagi matnsiz xabar (rasm, stiker…): asl nusxasi egasida — javob kutmaydi va ishlovni to'xtatmaydi */
+const botMedia = (m: InboxMessage): boolean => m.channel === 'bot' && isMedia(m);
+
+/**
+ * Shu xabardan keyin suhbatda yangi narsa bormi (bemor yana yozdi yoki egasi javob berdi) — bo'lsa, tayyorlangan javob eskirgan:
+ * navbatdagi ishlov hammasini birga ko'radi. Botdagi rasm/stiker sanalmaydi — uning ishlovi yo'q (aks holda AI o'ylayotganda
+ * kelgan rasm tayyor javobni jim tashlab yuborardi — E3)
+ */
+function newerThan(bizId: string, leadId: string, msgId: string): boolean {
+  const thread = inbox.thread(bizId, leadId, 30);
+  const i = thread.findIndex(m => m.id === msgId);
+  return i < 0 || thread.slice(i + 1).some(m => !botMedia(m));
 }
 
 /** Oxirgi javobimizdan keyingi mijoz xabarlari */
@@ -258,6 +286,9 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   const last = thread.at(-1);
   if (!last || last.direction !== 'in') return;
   const fresh = unanswered(thread);
+  // Botda faqat rasm, video, stiker… (dastur qayta yonganda shunday suhbat ham navbatga tushadi): AI javob yozmaydi. Savol bilan
+  // birga kelsa — pastda odatdagidek, model «[rasm]» belgisini ko'radi. Boshqa kanallarda asl nusxa egasiga bormaydi — AI qaror qiladi
+  if (fresh.every(botMedia)) return;
   const settings = replySettings(biz);
   // Egasi shu suhbatga yaqinda o'zi yozgan — u gaplashayotgan joyga AI aralashmaydi: javob faqat taklif bo'lib egasiga boradi
   const ownerTalking = thread.some(m => m.by === 'owner' && Date.now() - Date.parse(m.createdAt) < env.humanPauseMin * env.minuteMs);
@@ -288,8 +319,8 @@ async function handle(bizId: string, leadId: string): Promise<void> {
     await holdCustomer(biz, lead, fresh, mode);
     return;
   }
-  // Claude o'ylayotganda yana yozgan bo'lsa — navbatdagi ishlov hammasini birga ko'radi
-  if (inbox.last(bizId, leadId)?.id !== last.id) return;
+  // Claude o'ylayotganda yana yozgan bo'lsa — navbatdagi ishlov hammasini birga ko'radi (botdagi rasm — javobni to'xtatmaydi)
+  if (newerThan(bizId, leadId, last.id)) return;
   remember(biz, lead, d);
   // Mijoz xodimdan ish kutyapti (qo'ng'iroq qilish, qabul, shikoyat): so'rov qabulxonaga — javobning taqdiridan qat'i nazar
   if (d.request) {
@@ -300,7 +331,7 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   if (d.action !== 'ignore') await supersede(biz, lead, 'Yangi xabar keldi — pastda yangi taklif');
 
   // Qabul oqimi bemorga yozmagan bo'lsa (egasining tasdig'iga ketdi, CRM rad etdi, xato) — suhbatning oxiri hali o'sha kiruvchi xabar
-  const holdIfSilent = () => (inbox.last(bizId, leadId)?.id === last.id ? holdCustomer(biz, lead, fresh, mode) : Promise.resolve());
+  const holdIfSilent = () => (newerThan(bizId, leadId, last.id) ? Promise.resolve() : holdCustomer(biz, lead, fresh, mode));
   if (d.action === 'book' && d.booking) {
     try {
       await receive(biz, lead, fresh, d, mode);
@@ -427,7 +458,7 @@ async function receive(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], d
   };
   const ready = await checkBooking(biz, ask);
   // Bemor bu orada yana yozgan bo'lsa ("yo'q, boshqa vaqt") — taklif ham, qabul ham yo'q: navbatdagi ishlov hammasini birga ko'radi
-  if (inbox.last(biz.id, lead.id)?.id !== fresh.at(-1)?.id) return;
+  if (newerThan(biz.id, lead.id, fresh.at(-1)!.id)) return;
   if ('problem' in ready) return hold(ready.problem);
   const booking: ReplyBooking = { ...ask, doctorName: ready.doctorName };
   // Tasdiqdagi kun, vaqt va shifokor model matnidan emas, yoziladigan qabulning o'zidan olinadi
@@ -485,7 +516,7 @@ async function changeFlow(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[]
   if (!lead.patientId) return hold("mijoz DentaCRM bemoriga bog'lanmagan");
   const ready = await checkChange(biz, lead.patientId, want);
   // Bemor bu orada yana yozgan bo'lsa — navbatdagi ishlov hammasini birga ko'radi
-  if (inbox.last(biz.id, lead.id)?.id !== fresh.at(-1)?.id) return;
+  if (newerThan(biz.id, lead.id, fresh.at(-1)!.id)) return;
   if ('problem' in ready) return hold(ready.problem);
   const change = ready.change;
   // Tasdiqdagi yangi vaqt model matnidan emas, CRM'ga yoziladigan o'zgarishning o'zidan
@@ -630,11 +661,29 @@ async function supersede(biz: BusinessRow, lead: LeadRow, why: string, keepBooki
 
 // ─── Javobni yuborish ─────────────────────────────────────────────────────────
 
+/** Vaqtidan shuncha daqiqa kechikkan avto-javob o'zicha yuborilmaydi — egasiga karta (dastur o'chiq turgan) */
+const LATE_REPLY_MIN = 15;
+
 /** "O'zi javob bersin": vaqti kelgan javob (egasi bu orada yozmagan bo'lsa) */
 async function flush(r: ReplyRow): Promise<void> {
   const biz = businesses.byId(r.businessId);
   const lead = biz && leads.get(biz.id, r.leadId);
   if (!biz || !lead) return;
+  // Javob tayyorlangandan keyin bemor yana yozgan: eski javob endi yuborilsa yangi xabar «javob berilgan» bo'lib qolardi va unga hech
+  // kim javob bermasdi (E5). Yangi xabarning ishlovi (onIncoming → schedule) hammasiga birga javob tayyorlaydi. Botdagi rasm/stiker
+  // bundan mustasno — uning asl nusxasi egasida, javob kerak emas (handle ham unga javob yozmaydi)
+  if (inbox.thread(biz.id, lead.id, 30).some(m => m.direction === 'in' && !botMedia(m) && m.createdAt > r.createdAt)) {
+    if (replies.move(biz.id, r.id, ['scheduled'], 'obsolete')) await settleCard(biz, r, '↪️ Bemor yana yozdi — yangi javob tayyorlanadi');
+    return;
+  }
+  // Kompyuter o'chiq turgan — javob o'z vaqtida ketmadi: soatlar o'tib o'zicha yuborilmaydi («bugun ochiqmiz» ertasi kuni noto'g'ri), egasi ko'rib yuborsin (E4)
+  const late = r.dueAt ? Date.now() - Date.parse(r.dueAt) : 0;
+  if (late > LATE_REPLY_MIN * env.minuteMs) {
+    if (!replies.move(biz.id, r.id, ['scheduled'], 'pending')) return;
+    const fresh = unanswered(inbox.thread(biz.id, lead.id, 30));
+    await card(biz, lead, fresh, { ...r, status: 'pending', note: `Kompyuter o'chiq edi — javob ${Math.round(late / env.minuteMs)} daqiqa kechikdi, o'zim yubormadim: tekshirib yuboring` });
+    return;
+  }
   if (!replies.move(biz.id, r.id, ['scheduled'], 'sent')) return;
   try {
     const ch = await sendToLead(biz, lead, r.text, 'palantir');

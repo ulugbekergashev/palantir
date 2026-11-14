@@ -33,6 +33,8 @@ export interface TgEvent {
   isBot: boolean;
   text: string;
   msgId: string;
+  /** Yozilgan vaqti (ISO): uzilish paytidagi xabarlar (catchUp) asl vaqti bilan yoziladi */
+  at?: string;
 }
 
 export interface TgAccount { id: string; name: string; username: string; phone: string }
@@ -111,6 +113,7 @@ function gramjs(): Driver {
       out: !!m.out, userId: partner.id.toString(), accessHash: partner.accessHash?.toString() ?? null,
       name: [partner.firstName, partner.lastName].filter(Boolean).join(' ') || null, username: partner.username ?? null,
       phone: partner.phone ? `+${partner.phone}` : null, isContact: !!partner.contact, isBot: !!partner.bot, text, msgId: String(m.id),
+      at: m.date ? new Date(m.date * 1000).toISOString() : undefined,
     };
   };
 
@@ -308,14 +311,14 @@ function onEvent(bizId: string, e: TgEvent): void {
   const biz = businesses.byId(bizId);
   if (!biz?.active) return;
   if (e.out) {
-    onOwnerOutgoing(biz, 'telegram', { tgUserId: e.userId }, e.text, e.msgId);
+    onOwnerOutgoing(biz, 'telegram', { tgUserId: e.userId }, e.text, e.msgId, e.at);
     return;
   }
   if (!accept(biz, e)) return;
   onIncoming(biz, {
     channel: 'telegram',
     person: { tgUserId: e.userId, tgAccessHash: e.accessHash ?? undefined, name: e.name, username: e.username, phone: e.phone },
-    text: e.text, extId: e.msgId, source: 'Telegram (shaxsiy)',
+    text: e.text, extId: e.msgId, source: 'Telegram (shaxsiy)', at: e.at,
   });
 }
 

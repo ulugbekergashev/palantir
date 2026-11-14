@@ -13,7 +13,8 @@ const { businesses, inbox, leads } = await import('../server/db');
 const { emptyBusiness } = await import('../server/validate');
 const { hashPassword } = await import('../server/auth');
 const { env } = await import('../server/env');
-const { revive, markVisited, giveUpSilent } = await import('../server/stages');
+const { revive, markVisited, giveUpSilent, customerWrote, wantsNoMessages } = await import('../server/stages');
+const { optOuts } = await import('../server/serviceStore');
 const { planText, SILENT_LIMIT } = await import('../server/plan');
 const { holdLine } = await import('../server/inbox/hold');
 
@@ -122,6 +123,21 @@ check("ertalabki rejada aytiladi: nechta mijoz «Yo'qotildi»ga o'tdi va qaytish
     repliesPending: 0, outboundDrafts: 0, crmLines: [], holidays: [], week: null, recall: 0, autoPrep: true, gaveUp: 2 });
   assert.ok(plan?.html.includes(`2 ta bemor</b> ${SILENT_LIMIT} marta yozganimizga javob bermadi`), plan?.html ?? 'reja yo\'q');
   assert.ok(plan?.html.includes("ro'yxatga qaytadi"));
+});
+
+console.log('\n# «Boshqa yozmang» (E10)');
+check("iboralar: yozmang / bezovta qilmang / не пишите — ha; «qo'ng'iroq qilmang», «yozing» — yo'q", () => {
+  for (const t of ['Boshqa yozmang', "Iltimos bezovta qilmang", 'xabar yubormanglar', 'Не пишите мне больше', 'не беспокойте', 'Ёзманг илтимос'])
+    assert.ok(wantsNoMessages(t), t);
+  for (const t of ["Qo'ng'iroq qilmang, yozing", 'Ertaga yozing', 'Напишите завтра', 'yozmoqchi edim'])
+    assert.ok(!wantsNoMessages(t), t);
+});
+check("«yozmang» — belgi va «Yo'qotildi»; keyin o'zi yozsa — belgi olinadi, «Gaplashildi»", () => {
+  const l = lead('contacted');
+  assert.equal(customerWrote(biz, l, 'Boshqa yozmang').stage, 'lost');
+  assert.ok(optOuts.has(biz.id, l.id));
+  assert.equal(customerWrote(biz, leads.get(biz.id, l.id)!, 'Salom, narxi qancha?').stage, 'contacted');
+  assert.ok(!optOuts.has(biz.id, l.id));
 });
 
 raw.close();

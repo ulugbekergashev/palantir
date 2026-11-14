@@ -21,7 +21,8 @@ import { INTERVIEW_START, interviewPending, interviewReply, interviewStart, type
 import { containsSecret } from '../src/lib/secrets';
 import { takeOutcome } from './outcome';
 import { fileKeyboard } from './brain/learn';
-import { businesses, cameras, chatLog, inbox, leads, outbound, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
+import { businesses, cameras, chatLog, leads, outbound, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
+import { optOuts } from './serviceStore';
 import { moneyEntries } from './crm/moneyStore';
 import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index';
 import { docFileName, markdownToDocx } from './docx';
@@ -43,6 +44,7 @@ import { remoteUrl } from './remote';
 import { ComputerError, openLoginWindow, runningJob, stopJob } from './computer/jobs';
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
 import { clearBotOutlets, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
+import { mediaLabel } from './inbox/media';
 import { registerButtons } from './botButtons';
 import { ContentError, setChannelOutlet } from './content/factory';
 import { RETRY_MAX_MS, RETRY_MIN_MS, b, chunks, cut, detach, esc, followupKeyboard, followupText, helpFor, ignoreUnchanged, kb, langOf, moneyKeyboard, moneyText, personName, reminderKeyboard, reminderText, tgHtml, type Btn } from './botKit';
@@ -266,28 +268,30 @@ export function createBot(): BotService {
   }
 
   /** Mijoz yuborgan matnsiz xabar turi — suhbat tarixida va panelda shu ko'rinadi (asl nusxasi egasiga boradi) */
-  const mediaLabel = (ctx: Context): string => {
+  const labelOf = (ctx: Context): string => {
     const m = (ctx.message ?? {}) as Record<string, unknown>;
-    const caption = typeof m.caption === 'string' && m.caption.trim() ? ` ${m.caption.trim().slice(0, 500)}` : '';
+    const caption = typeof m.caption === 'string' ? m.caption.trim().slice(0, 500) : '';
     const sticker = m.sticker as { emoji?: string } | undefined;
     const kind = m.photo ? 'rasm' : m.video ? 'video' : m.video_note ? 'dumaloq video' : m.voice ? 'ovozli xabar' : m.audio ? 'audio'
-      : m.animation ? 'GIF' : sticker ? `stiker${sticker.emoji ? ` ${sticker.emoji}` : ''}` : m.location || m.venue ? 'lokatsiya' : m.document ? 'fayl' : 'xabar';
-    return `[${kind}]${caption}`;
+      : m.animation ? 'GIF' : sticker ? 'stiker' : m.location || m.venue ? 'lokatsiya' : m.document ? 'fayl' : 'xabar';
+    return mediaLabel(kind, caption, sticker?.emoji ?? '');
   };
 
   async function customerMessage(ctx: Context, lead: LeadRow, text: string | null) {
     const biz = businesses.byId(lead.businessId);
     if (!biz?.active) return;
     const from = ctx.from!;
-    if (text) {
-      onIncoming(biz, {
-        channel: 'bot',
-        person: { tgUserId: String(from.id), name: [from.first_name, from.last_name].filter(Boolean).join(' ') || null, username: from.username ?? null },
-        text, extId: `b${ctx.message!.message_id}`, source: lead.source ?? 'Telegram havola',
-      });
-    } else {
+    // Matnsiz xabar ham suhbatga turi bilan yoziladi («[rasm] izoh»): yozishmada ko'rinadi, «Yo'qotildi»dagi bemor qaytadi. AI unga
+    // javob yozmaydi va u AI tayyorlayotgan javobni to'xtatmaydi (core.ts: botMedia); asl nusxasi — egasiga (pastda)
+    onIncoming(biz, {
+      channel: 'bot',
+      person: { tgUserId: String(from.id), name: [from.first_name, from.last_name].filter(Boolean).join(' ') || null, username: from.username ?? null },
+      text: text ?? labelOf(ctx), extId: `b${ctx.message!.message_id}`, source: lead.source ?? 'Telegram havola',
+      // Asl vaqti: kompyuter o'chiq turganda yozilgan xabar ertalab «hozir» deb javoblanmasin (E4)
+      at: ctx.message?.date ? new Date(ctx.message.date * 1000).toISOString() : undefined,
+    });
+    if (!text) {
       // Rasm yoki fayl: egasiga asl nusxasi (Palantir rasmni o'qimaydi)
-      inbox.add(biz.id, { leadId: lead.id, channel: 'bot', direction: 'in', by: 'customer', text: mediaLabel(ctx), extId: `b${ctx.message!.message_id}` });
       const who = `${esc(personName(lead))}${lead.username && lead.name ? ` (@${esc(lead.username)})` : ''}${lead.phone ? ` · ${esc(lead.phone)}` : ''}`;
       await toOwner(biz, lead, `💬 <b>${who}</b> yubordi:`, { chat: ctx.chat!.id, message: ctx.message!.message_id });
     }
@@ -720,7 +724,8 @@ export function createBot(): BotService {
     let failed = 0;
     for (const lid of o.leadIds) {
       const l = leads.get(biz.id, lid);
-      if (!l?.reachable) continue;
+      // «Boshqa yozmang» degan mijoz — tayyorlangandan keyin aytgan bo'lsa ham yuborilmaydi (E10)
+      if (!l?.reachable || optOuts.has(biz.id, l.id)) continue;
       try {
         await sendToLead(biz, l, o.text, 'palantir');
         sent++;

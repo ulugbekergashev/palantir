@@ -23,6 +23,8 @@ interface TgUser { id: number; is_bot?: boolean; first_name?: string; last_name?
 export interface BusinessConnection { id: string; user: TgUser; user_chat_id: number; is_enabled: boolean; can_reply?: boolean; rights?: { can_reply?: boolean } }
 export interface BusinessMessage {
   message_id: number; business_connection_id?: string; chat: { id: number; type: string }; from?: TgUser; sender_business_bot?: TgUser;
+  /** Yozilgan vaqti (Unix soniya) — kompyuter o'chiq turgan bo'lsa ham xabar asl vaqti bilan yoziladi */
+  date?: number;
   text?: string; caption?: string; voice?: unknown; audio?: unknown; photo?: unknown; video?: unknown; video_note?: unknown; document?: unknown; sticker?: unknown;
 }
 
@@ -73,12 +75,13 @@ export function onBusinessMessage(m: BusinessMessage): void {
   const text = textOf(m);
   if (!text) return;
   const extId = `${m.chat.id}:${m.message_id}`;
+  const at = m.date ? new Date(m.date * 1000).toISOString() : undefined;
   if (String(m.from?.id) === conn.account.userId) {
-    onOwnerOutgoing(biz, 'telegram', { tgUserId: String(m.chat.id) }, text, extId);
+    onOwnerOutgoing(biz, 'telegram', { tgUserId: String(m.chat.id) }, text, extId, at);
     return;
   }
   if (m.from?.is_bot) return;
-  onIncoming(biz, { channel: 'telegram', person: { tgUserId: String(m.chat.id), name: nameOf(m.from), username: m.from?.username ?? null }, text, extId, source: 'Telegram (Business)' });
+  onIncoming(biz, { channel: 'telegram', person: { tgUserId: String(m.chat.id), name: nameOf(m.from), username: m.from?.username ?? null }, text, extId, source: 'Telegram (Business)', at });
 }
 
 /** Panel uchun: ulangan akkaunt va javob berish ruxsati */

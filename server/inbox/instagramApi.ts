@@ -123,17 +123,19 @@ async function onEntry(p: Record<string, unknown>): Promise<void> {
     if (!msg?.mid || msg.is_deleted) continue;
     const text = (msg.text ?? '').trim() || (msg.attachments?.length ? '[rasm yoki fayl]' : '');
     if (!text) continue;
+    // Yozilgan vaqti (ms): kompyuter o'chiq turganda kelgan xabar «hozir» deb javoblanmasin
+    const at = m.timestamp ? new Date(m.timestamp).toISOString() : undefined;
     if (msg.is_echo || m.sender?.id === ours) {
       // Biz yuborgan javobning aks-sadosi — tashlanadi; egasi telefondan o'zi yozgani — yozishmaga
       const peer = m.recipient?.id;
       if (!peer || inbox.has(biz.id, 'instagram', msg.mid) || isOurEcho(biz.id, 'instagram', text)) continue;
-      onOwnerOutgoing(biz, 'instagram', { igUserId: peer }, text, msg.mid);
+      onOwnerOutgoing(biz, 'instagram', { igUserId: peer }, text, msg.mid, at);
       continue;
     }
     const igsid = m.sender?.id;
     if (!igsid) continue;
     const who = await profile(biz.id, igsid);
-    onIncoming(biz, { channel: 'instagram', person: { igUserId: igsid, igThread: igsid, name: who.name, username: who.username }, text, extId: msg.mid, source: 'Instagram' });
+    onIncoming(biz, { channel: 'instagram', person: { igUserId: igsid, igThread: igsid, name: who.name, username: who.username }, text, extId: msg.mid, source: 'Instagram', at });
   }
 }
 

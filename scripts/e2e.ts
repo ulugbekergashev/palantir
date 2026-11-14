@@ -260,6 +260,30 @@ try {
   await api(`/api/admin/businesses/${boshqaId}`, { method: 'PATCH', token: admin, body: { active: true } });
   if (strangerLead) await api(`/api/leads/${strangerLead.id}`, { method: 'DELETE', token });
 
+  // E3: bemor savol yozdi, AI o'ylayotganda rasm yubordi — tayyor javob «yangi xabar keldi» deb tashlanib, karta umuman chiqmasdi
+  const PHOTO_GUY = 7402;
+  mark = sent.length;
+  say(PHOTO_GUY, `/start l-${bizId}`);
+  await waitFor('rasmli bemorga salom', () => after(mark, PHOTO_GUY, () => true));
+  ai.replierWaitMs = 1500;
+  const askedBefore = ai.replier.length;
+  mark = sent.length;
+  say(PHOTO_GUY, 'Shu divanning narxi qancha?');
+  await waitFor("AI o'ylayapti", () => (ai.replier.length > askedBefore ? true : undefined));
+  sendPhoto(PHOTO_GUY);
+  const photoCard = await waitFor('savol va rasm bilan karta', () => after(mark, OWNER, s => textOf(s).includes('Shu divanning narxi') && textOf(s).includes('Javob taklifi')), 25_000);
+  ai.replierWaitMs = 0;
+  const photoOnly = ai.replier.length;
+  mark = sent.length;
+  sendPhoto(PHOTO_GUY);
+  await waitFor("faqat rasm — asl nusxasi egasiga", () => after(mark, OWNER, s => s.method === 'copyMessage'));
+  await sleep(800);
+  ok("AI o'ylayotganda rasm keldi: javob tashlanmadi — egasiga savol va javob taklifi; faqat rasm kelsa AI qayta chaqirilmaydi (E3)",
+    !!photoCard && ai.replier.length === photoOnly, photoCard ? textOf(photoCard).replace(/\n/g, ' ').slice(0, 200) : "karta yo'q");
+  // Keyingi tekshiruvlar («oxirgi hafta yozgan mijozlarga xabar» — 1 ta) bu bemorni sanamasin
+  const photoLead = ((await api('/api/inbox', { token })).json.threads as { lead: { id: string }; last: { text: string } | null }[]).find(t => t.last?.text.startsWith('[rasm]'))?.lead.id;
+  if (photoLead) await api(`/api/leads/${photoLead}`, { method: 'DELETE', token });
+
   console.log("\n# AI javob bermadi va egasi Telegram'ga ulanmagan: bemor savoli yo'qolmaydi");
   const LONELY = 7301;
   const otherBiz = ((await api('/api/admin/businesses', { token: admin })).json.businesses as { id: string; login: string }[]).find(b => b.login === 'boshqa')!.id;

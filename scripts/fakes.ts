@@ -388,6 +388,8 @@ export const ai = {
   violations: [] as string[],
   /** Mijozga javob so'rovlari (Palantir biznes nomidan yozadi) */
   replier: [] as { user: string; format: unknown; cached: boolean }[],
+  /** Mijozga javob shuncha kechikib keladi (model «o'ylayotganda» bemor yana yozadi — sinov uchun) */
+  replierWaitMs: 0,
   /** Stend: taqlid miya (scripts/stendBrain.ts). Berilsa — pastdagi kalit so'zli qoidalar o'rniga shu javob beradi */
   owner: null as ((messages: Msg[], tools: Block[], system: string) => { content: Block[]; stop: string }) | null,
   customer: null as ((user: string) => Record<string, unknown>) | null,
@@ -796,6 +798,7 @@ export const aiServer = patient(createServer(async (req, res) => {
     // cached: biznes ma'lumoti bloki keshga belgilanganmi (oxirgi blok — suhbat — belgilanmaydi)
     const cached = Array.isArray(first) && !!first[0]?.cache_control && !first.at(-1)?.cache_control && !String(first[0]?.text ?? '').includes('<conversation>');
     ai.replier.push({ user, format: (body as { output_config?: { format?: unknown } }).output_config?.format, cached });
+    if (ai.replierWaitMs) await sleep(ai.replierWaitMs);
     const decision = (ai.customer ? ai.customer(user) : customerDecision(user)) as { action?: unknown };
     wire.log?.('Model', `mijozga javob: ${String(decision.action)}`, { modelga_berilgan: user, qaror: decision });
     const text = JSON.stringify(decision);
