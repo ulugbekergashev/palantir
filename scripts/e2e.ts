@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Business } from '../src/types';
 import { iso, stamp } from '../src/lib/week';
-import { CUSTOMER, OWNER, TG_SESSION, VOICE_BYTES, addedToChannel, ai, aiServer, igWeb, igWebServer, listen, press, say, sendAudio, sendDocument, sendPhoto, sendRaw, sendVoice, sent, shareContact, sleep, speechlab, speechlabServer, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, type Sent, stopProcess } from './fakes';
+import { CUSTOMER, OWNER, TG_SESSION, VOICE_BYTES, addedToChannel, ai, aiServer, editMessage, igWeb, igWebServer, listen, press, say, sendAudio, sendDocument, sendPhoto, sendRaw, sendVoice, sent, shareContact, sleep, speechlab, speechlabServer, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, type Sent, stopProcess } from './fakes';
 import { crm, crmServer } from './fakeCrm';
 import { crmConnectTests, crmLogicTests, crmReceptionTests, crmToolTests, type Harness } from './e2e-crm';
 import { cameraAccuracyTests, cameraApiTests, cameraLogicTests, cameraToolTests, commandTests, journalTests } from './e2e-camera';
@@ -289,6 +289,20 @@ try {
   // Keyingi tekshiruvlar («oxirgi hafta yozgan mijozlarga xabar» — 1 ta) bu bemorni sanamasin
   const photoLead = ((await api('/api/inbox', { token })).json.threads as { lead: { id: string }; last: { text: string } | null }[]).find(t => t.last?.text.startsWith('[rasm]'))?.lead.id;
   if (photoLead) await api(`/api/leads/${photoLead}`, { method: 'DELETE', token });
+
+  // E11: bemor xabarini tahrirladi — tahriri ham suhbatga tushadi va AI unga qaraydi (avval jim e'tiborsiz qolardi)
+  const EDITOR = 7403;
+  mark = sent.length;
+  say(EDITOR, `/start l-${bizId}`);
+  await waitFor('tahrirlovchiga salom', () => after(mark, EDITOR, () => true));
+  const firstId = say(EDITOR, 'Ertaga soat 10 ga yozilsam boladimi');
+  await sleep(300);
+  const askedEdit = ai.replier.length;
+  editMessage(EDITOR, firstId, 'Ertaga soat 15 ga yozilsam boladimi');
+  const editSeen = await waitFor('tahrir AI ga', () => (ai.replier.slice(askedEdit).some(r => JSON.stringify(r).includes('tahrirladi: Ertaga soat 15')) ? true : undefined), 20_000);
+  const editLead = ((await api('/api/inbox', { token })).json.threads as { lead: { id: string }; last: { text: string } | null }[]).find(t => t.last?.text.includes('tahrirladi'))?.lead.id;
+  ok("E11: bemor xabarini tahrirladi — yozishmada «✏️ tahrirladi: …», AI yangi variantni ko'rdi", !!editSeen && !!editLead);
+  if (editLead) await api(`/api/leads/${editLead}`, { method: 'DELETE', token });
 
   console.log("\n# AI javob bermadi va egasi Telegram'ga ulanmagan: bemor savoli yo'qolmaydi");
   const LONELY = 7301;

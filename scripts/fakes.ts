@@ -127,6 +127,10 @@ export const say = (from: number, text: string, replyTo?: number) => {
   const cmd = text.match(/^\/\w+/)?.[0];
   return push({ from: user(from), chat: chat(from), text, ...(cmd ? { entities: [{ type: 'bot_command', offset: 0, length: cmd.length }] } : {}), ...(replyTo ? { reply_to_message: { message_id: replyTo, date: 0, chat: chat(from) } } : {}) });
 };
+/** Mijoz yuborgan xabarini tahrirladi (edited_message) */
+export const editMessage = (from: number, id: number, text: string) => updates.push({
+  update_id: updateId++, edited_message: { message_id: id, date: Math.floor(Date.now() / 1000) - 5, edit_date: Math.floor(Date.now() / 1000), from: user(from), chat: chat(from), text },
+});
 /** Istalgan turdagi xabar (stiker, lokatsiya, video…): fields — Telegram message maydonlari */
 export const sendRaw = (from: number, fields: Record<string, unknown>) => push({ from: user(from), chat: chat(from), ...fields });
 export const sendPhoto = (from: number, caption = '') => push({

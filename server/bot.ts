@@ -564,6 +564,21 @@ export function createBot(): BotService {
     await ctx.reply("Assalomu alaykum! Bu Palantir — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz, paneldagi «Telegramni ulash» havolasini bosing.");
   });
 
+  // Mijoz xabarini tahrirladi (xatoni tuzatdi, savolni o'zgartirdi) — tahriri ham suhbatga: avval jim e'tiborsiz qolardi (E11)
+  bot.on('edited_message', async ctx => {
+    const m = ctx.editedMessage as { message_id: number; edit_date?: number; text?: string; caption?: string };
+    const text = (m.text ?? m.caption ?? '').trim();
+    if (ctx.chat?.type !== 'private' || !ctx.from || !text) return;
+    const lead = customerLead(ctx);
+    const biz = lead && businesses.byId(lead.businessId);
+    if (!lead || !biz?.active) return;
+    onIncoming(biz, {
+      channel: 'bot',
+      person: { tgUserId: String(ctx.from.id), name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ') || null, username: ctx.from.username ?? null },
+      text: `✏️ tahrirladi: ${text.slice(0, 4000)}`, extId: `b${m.message_id}e${m.edit_date ?? Math.floor(Date.now() / 1000)}`, source: lead.source ?? 'Telegram havola',
+    });
+  });
+
   // Mijoz rasm, video, stiker, lokatsiya yoki fayl yuborsa — egasiga asl nusxasi (jim yo'qolmaydi)
   const forwardMedia = async (ctx: Context) => {
     if (ctx.chat?.type !== 'private' || !ctx.from) return;
@@ -834,7 +849,7 @@ export function createBot(): BotService {
               // Ulangan egalarga «Panel» tugmasi (hub manzili o'zgargan yoki masofadan kirish endi yoqilgan bo'lishi mumkin)
               if (remoteUrl()?.startsWith('https://')) for (const b of businesses.all()) if (b.active && b.ownerChatId) await panelButton(b.ownerChatId);
               // Xabar olish to'xtamaguncha shu yerda turadi; uzilsa — pastda sababi yoziladi va qayta boshlanadi
-              await bot.launch({ dropPendingUpdates: false, allowedUpdates: ['message', 'callback_query', 'my_chat_member', ...BUSINESS_UPDATES] });
+              await bot.launch({ dropPendingUpdates: false, allowedUpdates: ['message', 'edited_message', 'callback_query', 'my_chat_member', ...BUSINESS_UPDATES] });
               if (stopped) return;
               wait = RETRY_MIN_MS;
             } catch (e) {
