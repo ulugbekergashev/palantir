@@ -129,7 +129,7 @@ inkor qilishga urinish. ✔ — qo'lda kodda qayta tekshirilgan. Yuqoridagi band
 | E10 | «Yozmang» degan bemorga ham qayta yozish tayyorlanadi (rad etish belgisi yo'q) | `core.ts:321`; `plan.ts:103` | KICHIK |
 | E11 | Tahrirlangan xabar o'qilmaydi; betaraf javob faqat o'zbekcha; «yetkazildi» xaritasi qayta yoqilganda takrorlanadi; rasmiy Instagram'da uzun javob bo'laklari «egasi yozdi» deb olinib AI 2 soat qoralamaga o'tadi | `bot.ts:221,770`; `core.ts:337`; `instagramApi.ts:65-69,129` | KICHIK |
 | E12 ✔ | Javob rejimi «o'chiq» bo'lsa Telegram Business xabari **umuman saqlanmaydi** (izoh «xabarlar saqlanaveradi» deydi) | `inbox/telegramBusiness.ts:70`; `core.ts:68` | O'RTA · ✅ (keyingi commit) saqlanadi, AI javob tayyorlamaydi |
-| E13 | Egasining shaxsiy Telegram'iga (Business) yozgan har kim «bemor» bo'ladi; egasi yoki xodim bemor havolasini bossa ham karta ochiladi | `telegramBusiness.ts:79`; `bot.ts:230` | O'RTA |
+| E13 | Egasining shaxsiy Telegram'iga (Business) yozgan har kim «bemor» bo'ladi; egasi yoki xodim bemor havolasini bossa ham karta ochiladi | `telegramBusiness.ts:79`; `bot.ts:230` | O'RTA · 🟡 qisman (keyingi commit): egasi yoki xodim bemorlar havolasini bossa — karta ochilmaydi, tushuntiriladi; xodimning egasiga Business orqali yozgani — bemor emas; ulanishda «Kontaktlarimdan tashqari hammasi» maslahati. Qoldi: Bot API yozgan odam egasining kontaktimi aytmaydi — sozlamani egasi o'zi tanlaydi |
 
 ### F. DentaCRM va telefon
 

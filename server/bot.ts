@@ -248,6 +248,12 @@ export function createBot(): BotService {
       return;
     }
     const from = ctx.from!;
+    // Egasi yoki xodim bemorlar havolasini sinab bosdi: o'ziga bemor kartasi ochilmasin (ro'yxat, hisobot va ertalabki rejada «bemor» bo'lib
+    // qolardi), keyingi yozganlari ham bemor xabari emas — o'z buyrug'i (E13)
+    if (ownerOf(ctx) || staff.byChat(String(ctx.chat!.id))) {
+      await ctx.reply("Bu — bemorlar uchun havola. Siz Palantir'ga egasi yoki xodim sifatida ulangansiz, shuning uchun bemor kartasi ochilmaydi. Bemor bo'lib sinab ko'rmoqchi bo'lsangiz — boshqa Telegram akkauntdan oching.");
+      return;
+    }
     leads.fromTelegram(biz.id, String(from.id), [from.first_name, from.last_name].filter(Boolean).join(' ') || null, from.username ?? null, source, null);
     await ctx.reply([
       `Assalomu alaykum! 👋 «${biz.profile.name}» bilan bog'lanish uchun telefon raqamingizni yuboring yoki savolingizni shu yerga yozing.`,

@@ -217,6 +217,12 @@ try {
   ok('mijoz saqlandi', leads.some(l => l.name === 'Aziz Karimov' && l.phone === '+998901234567' && !l.reachable));
 
   console.log('\n# Mijoz havola orqali keladi');
+  // E13: egasi bemorlar havolasini sinab bosdi — o'ziga bemor kartasi ochilmaydi
+  const leadsBefore = ((await api('/api/leads', { token })).json.leads as unknown[]).length;
+  mark = sent.length;
+  say(OWNER, `/start l-${bizId}`);
+  const ownerLink = await waitFor('egasiga tushuntirish', () => after(mark, OWNER, has('bemorlar uchun havola')));
+  ok("egasi bemorlar havolasini bosdi — tushuntirish, bemor kartasi ochilmadi (E13)", !!ownerLink && ((await api('/api/leads', { token })).json.leads as unknown[]).length === leadsBefore);
   mark = sent.length;
   say(CUSTOMER, `/start l-${bizId}`);
   const greet = await waitFor('mijozga salom', () => after(mark, CUSTOMER, has('Mebel Uyi')));

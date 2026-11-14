@@ -28,8 +28,9 @@ export async function businessTests(h: Harness): Promise<void> {
 
   mark = sent.length;
   businessConnection({ id: 'bc-1', userId: OWNER, canReply: true });
-  ok('egasi ulandi — panelda akkaunt, javob ruxsati bor; egasiga xabar', !!(await waitFor('egasiga', () => to(OWNER, mark, 'Telegram Business ulandi')))
-    && (await status()).telegramBusiness.canReply && !!(await status()).telegramBusiness.account);
+  const connected = await waitFor('egasiga', () => to(OWNER, mark, 'Telegram Business ulandi'));
+  ok('egasi ulandi — panelda akkaunt, javob ruxsati bor; egasiga xabar', !!connected && (await status()).telegramBusiness.canReply && !!(await status()).telegramBusiness.account);
+  ok("ulanishda maslahat: «Kontaktlarimdan tashqari» — do'st va qarindoshlar bemor bo'lib qolmasin (E13)", textOf(connected).includes('Kontaktlarimdan tashqari'));
 
   ai.customer = () => ({
     action: 'reply', reply: "Assalomu alaykum! Ha, ertaga 10:00 dan ochiqmiz.", question: '', note_for_owner: '', lead_note: '', customer_name: '', customer_phone: '',

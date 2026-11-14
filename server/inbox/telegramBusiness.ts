@@ -13,6 +13,7 @@
 import type { Telegram } from 'telegraf';
 import { businesses, connections, type BusinessRow, type LeadRow } from '../db';
 import { notifyOwner, onIncoming, onOwnerOutgoing, registerSender } from './core';
+import { staff } from '../requests/store';
 
 const KIND = 'tg_business';
 /** Bot olishi kerak bo'lgan yangilanishlar (bot.ts: allowedUpdates) — Telegraf 4.16 turlarida yo'q */
@@ -60,7 +61,7 @@ export async function onBusinessConnection(c: BusinessConnection, tg: Telegram):
   const reply = canReply(c);
   connections.save(biz.id, KIND, '', { id: c.id, userId: String(c.user.id), username: c.user.username ?? '', name: nameOf(c.user) ?? '' }, { canReply: reply ? '1' : '' });
   await notifyOwner(biz, reply
-    ? "✅ Telegram Business ulandi: shaxsiy chatlaringizga yozgan mijozlarga Palantir javob beradi (panel → Ulanishlar → «Mijozlarga javob» sozlamasi bo'yicha)."
+    ? "✅ Telegram Business ulandi: shaxsiy chatlaringizga yozgan mijozlarga Palantir javob beradi (panel → Ulanishlar → «Mijozlarga javob» sozlamasi bo'yicha).\n\nMaslahat: Telegram → Sozlamalar → Telegram Business → Chat-botlar → «Kontaktlarimdan tashqari hammasi»ni tanlang — aks holda do'st va qarindoshlaringiz ham bemorlar ro'yxatiga tushadi."
     : "✅ Telegram Business ulandi, lekin «Xabarlarga javob berish» ruxsati yo'q — Palantir mijoz yozganini ko'radi va sizga javob taklif qiladi, o'zi yubora olmaydi. Ruxsat: Telegram → Sozlamalar → Telegram Business → Chat-botlar.").catch(() => null);
 }
 
@@ -80,7 +81,8 @@ export function onBusinessMessage(m: BusinessMessage): void {
     onOwnerOutgoing(biz, 'telegram', { tgUserId: String(m.chat.id) }, text, extId, at);
     return;
   }
-  if (m.from?.is_bot) return;
+  // Bot yoki shu Palantir'ga ulangan xodim (egasiga shaxsiy yozishgan) — bemor emas (E13)
+  if (m.from?.is_bot || staff.byChat(String(m.chat.id))) return;
   onIncoming(biz, { channel: 'telegram', person: { tgUserId: String(m.chat.id), name: nameOf(m.from), username: m.from?.username ?? null }, text, extId, source: 'Telegram (Business)', at });
 }
 
