@@ -602,6 +602,30 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     return void res.end(Buffer.from(answer.body, 'base64'));
   }
 
+  // Admin (faqat asoschi): egasi Telegram'ini ham, parolini ham yo'qotgan — kirishni tiklash (H9, egasi qarori). Asoschi avval egasining
+  // shaxsini tekshiradi; klinika yangi parol beradi, eski kirishlarni yopadi va eski Telegram'ga aytadi (server/passwordReset.ts)
+  const recovering = /^\/admin\/clinics\/([0-9a-f]{10})\/recover$/.exec(p);
+  if (recovering && req.method === 'POST') {
+    const who = memberOf(req, res, 'founder'); if (!who) return;
+    const id = recovering[1];
+    const clinic = db.prepare('SELECT seen_at FROM clinics WHERE id = ?').get(id) as { seen_at: string | null } | undefined;
+    if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
+    if (!approved(id)) return send(res, 409, { error: QUARANTINE });
+    if (!clinicOnline(id, clinic.seen_at)) return send(res, 503, { error: 'Klinika kompyuteri aloqada emas' });
+    // Bir kompyuterda bir nechta biznes bo'lsa — qaysi biri («Panelni ochish»dagi kabi: avval ro'yxat qaytadi)
+    let body: { business?: unknown };
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    const ask = { ...(typeof body.business === 'string' ? { business: body.business.slice(0, 40) } : {}), who: who.name };
+    const answer = await dispatch(id, {
+      method: 'POST', path: '/api/account/recover', headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify(ask)).toString('base64'), ip: clientIp(req), support: true,
+    });
+    team.log(who, answer?.status === 200 ? 'kirish.tiklandi' : 'kirish.tiklanmadi', id, answer && answer.status !== 200 ? `javob ${answer.status}` : null);
+    if (!answer) return send(res, 504, { error: 'Klinika kompyuteri javob bermadi' });
+    res.statusCode = answer.status;
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    return void res.end(Buffer.from(answer.body, 'base64'));
+  }
+
   // Admin: litsenziyani bir bosishda berish — klinikadan kompyuter kodi so'raladi, hub imzolaydi va kalitni klinikaga yuboradi
   const licensing = /^\/admin\/clinics\/([0-9a-f]{10})\/license$/.exec(p);
   if (licensing && req.method === 'POST') {

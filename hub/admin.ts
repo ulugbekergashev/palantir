@@ -255,6 +255,13 @@ function row(c, twins) {
     li.append(act, moved);
   }
   li.append(btn);
+  // Egasi Telegram'ini ham, parolini ham yo'qotgan — kirishni tiklash (faqat asoschi, egasining shaxsi tekshirilgandan keyin; H9)
+  if (founder() && !setup) {
+    const rec = el('button', 'second', 'Kirishni tiklash');
+    rec.disabled = !c.online;
+    rec.onclick = () => recover(c, rec);
+    li.append(rec);
+  }
   return li;
 }
 
@@ -292,6 +299,21 @@ async function remove(c, btn) {
     if (r.status === 401) return load();
     say(r.ok ? "O'chirildi" : (j.error || 'Xato: ' + r.status));
     if (r.ok) load();
+  } catch {
+    say("Hub bilan aloqa yo'q");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function recover(c, btn) {
+  if (!confirm("«" + c.name + "»: egasining kirishini tiklaysizmi?\\n\\nFaqat egasining shaxsini tekshirgandan keyin (pasport, klinika hujjati, tanish ovoz). Yangi parol beriladi, eski kirishlar yopiladi, eski Telegram uziladi va unga aytiladi.")) return;
+  btn.disabled = true;
+  try {
+    const r = await api('/admin/clinics/' + c.id + '/recover', {});
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) return load();
+    say(r.ok ? '«' + c.name + "» — yangi kirish (faqat egasiga bering): login " + j.login + ' · parol ' + j.password + ". Egasi kirgach Sozlamalar → Telegram'dan qayta ulanadi." : (j.error || 'Xato: ' + r.status));
   } catch {
     say("Hub bilan aloqa yo'q");
   } finally {
@@ -507,6 +529,7 @@ const ACTION = {
   'panel.javobsiz': 'panelga kirolmadi (klinika javob bermadi)', 'litsenziya.berildi': 'litsenziya berdi', 'klinika.tasdiqlandi': 'kompyuterni tasdiqladi',
   'klinika.ochirildi': "yozuvni o'chirdi", 'zaxira.yuklandi': 'zaxirani yukladi', 'diagnostika.oqildi': "diagnostikani o'qidi", 'yordam.javob': "yordam so'roviga javob berdi", 'yordam.qayta': 'javobni qayta yubordi',
   'jamoa.qoshildi': "jamoaga qo'shdi", 'jamoa.parol': 'yangi parol berdi', 'jamoa.yopildi': 'hisobni yopdi', 'jamoa.ochildi': 'hisobni ochdi', 'parol.almashdi': "o'z parolini almashtirdi",
+  'kirish.tiklandi': 'egasining kirishini tikladi', 'kirish.tiklanmadi': 'kirishni tiklay olmadi', 'klinika.kompyuter_almashdi': 'kompyuter kodini yangiladi',
 };
 let names = {};
 $('tabAudit').onclick = () => { $('audit').hidden = !$('audit').hidden; if (!$('audit').hidden) audit(); };

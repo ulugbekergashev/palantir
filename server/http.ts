@@ -21,7 +21,7 @@ import { documents } from './docs/store';
 import { moneyEntries } from './crm/moneyStore';
 import { aiUsage } from './serviceStore';
 import { askSupport, notifySupportVisit } from './supportAsk';
-import { askPasswordReset } from './passwordReset';
+import { askPasswordReset, recoverOwnerAccess } from './passwordReset';
 import { createBlocked, handOver, hubVia, inSetup, theProfile } from './profile';
 import { docFileName, markdownToDocx } from './docx';
 import { env, voiceEnabled } from './env';
@@ -431,6 +431,20 @@ export function createApp(bot: BotService) {
     supportVisits.add(biz.id, req.get(CLIENT_HEADER) ?? null, who);
     void notifySupportVisit(now, hours, who);
     res.json({ token: issueToken(biz.id, 'business', SUPPORT_SESSION_DAYS, now.tokenVer, now.supportVer) });
+  });
+
+  // Egasi Telegram'ini ham, parolini ham yo'qotgan — kirishni Palantir jamoasi tiklaydi (H9, egasi qarori): faqat Hub orqali, asoschi
+  // egasining shaxsini tekshirgandan keyin (hub/server.ts). Yangi parol asoschiga qaytadi, u egasiga beradi; eski Telegram'ga aytiladi
+  app.post('/api/account/recover', async (req, res) => {
+    if (!isSupportRelay(req)) return res.status(403).json({ error: 'Faqat Palantir Hub orqali' });
+    const active = businesses.all().filter(b => b.active);
+    const wanted = typeof req.body?.business === 'string' ? req.body.business : null;
+    const biz = wanted ? active.find(b => b.id === wanted) : active.length === 1 ? active[0] : undefined;
+    if (!biz) return res.status(active.length ? 409 : 404).json({ error: active.length ? 'Qaysi biznes?' : "Bu kompyuterda biznes yo'q", businesses: active.map(b => ({ id: b.id, name: b.profile.name })) });
+    const who = typeof req.body?.who === 'string' ? req.body.who.replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60) || null : null;
+    const access = await recoverOwnerAccess(biz, who);
+    supportVisits.add(biz.id, req.get(CLIENT_HEADER) ?? null, who ? `${who} — kirishni tikladi` : 'kirishni tikladi');
+    res.json(access);
   });
 
   // Egasi: jamoa kira oladimi va qachon kirgan. mine — hozirgi kirish jamoaniki (u ruxsatni o'zgartira olmaydi)

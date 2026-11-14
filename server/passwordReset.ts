@@ -35,6 +35,22 @@ export async function askPasswordReset(biz: BusinessRow, now = Date.now()): Prom
   return 'sent';
 }
 
+/**
+ * Egasi Telegram'ini ham, parolini ham yo'qotgan (yoki klinika sotilgan) — kirish Palantir jamoasi orqali tiklanadi (H9, egasi qarori):
+ * asoschi egasining shaxsini tekshiradi va Hub'da «Kirishni tiklash»ni bosadi (faqat Hub orqali, http.ts). Yangi parol, hamma eski
+ * kirishlar bekor, eski Telegram uziladi (yangi egasi ulash havolasi bilan qayta ulanadi). Eski Telegram hali
+ * egasining qo'lida bo'lsa (bu tiklashni u so'ramagan bo'lsa) — avval unga aytiladi: tiklash yashirin o'tmaydi.
+ */
+export async function recoverOwnerAccess(biz: BusinessRow, who: string | null): Promise<{ login: string; password: string }> {
+  if (biz.ownerChatId) {
+    await notifyOwner(biz, `⚠️ <b>Panelga kirish Palantir jamoasi orqali tiklandi</b>${who ? ` (${esc(who)})` : ''}: parol almashtirildi, bu Telegram uzildi. Siz so'ramagan bo'lsangiz — darhol Palantir jamoasiga qo'ng'iroq qiling.`).catch(() => null);
+  }
+  const password = newOwnerPassword();
+  businesses.update(biz.id, { passwordHash: hashPassword(password), ownerChatId: null });
+  businesses.revokeSessions(biz.id);
+  return { login: biz.login, password };
+}
+
 /** Tugma bosildi. Qaytaradi: egasiga yuboriladigan javob (HTML); so'rov eskirgan bo'lsa — null */
 export function answerPasswordReset(bizId: string, id: string, yes: boolean, now = Date.now()): string | null {
   const p = pending.get(id);

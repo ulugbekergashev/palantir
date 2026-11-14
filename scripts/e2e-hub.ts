@@ -364,6 +364,22 @@ try {
   const afterList = (await adminList()).find(c => c.id === clinic.clinicId);
   ok("hub ro'yxatida darhol: litsenziya bor", (afterList?.status as { license?: { activated: boolean } } | null)?.license?.activated === true);
 
+  console.log("\n# Egasi Telegram'ini ham, parolini ham yo'qotdi: kirish Palantir jamoasi orqali (H9)");
+  ok("H9: klinikaning o'zida va oddiy /c/ so'rovi bilan tiklab bo'lmaydi — faqat Hub orqali", (await fetch(`${base}/api/account/recover`, json({}))).status === 403
+    && (await viaHub('/api/account/recover', { ...json({}), headers: { 'content-type': 'application/json', 'x-palantir-support': 'x', 'x-palantir-relay': 'x' } })).status === 403);
+  ok("H9: o'rnatuvchi (asoschi emas) va kalitsiz — tiklay olmaydi", (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/recover`, { method: 'POST', headers: { authorization: 'Bearer xato' } })).status === 401);
+  const recoverAsk = await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/recover`, { method: 'POST', headers: admin });
+  const choices = (await recoverAsk.json() as { businesses?: { id: string; name: string }[] }).businesses ?? [];
+  ok("H9: bir kompyuterda bir nechta biznes — avval qaysi biri so'raladi (hech narsa o'zgarmaydi)", recoverAsk.status === 409 && choices.some(b => b.name === 'Shifo Dent'));
+  mark = sent.length;
+  const recovered = await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/recover`, { method: 'POST', headers: admin, body: JSON.stringify({ business: choices.find(b => b.name === 'Shifo Dent')?.id }) });
+  const creds = await recovered.json() as { login?: string; password?: string; error?: string };
+  const warned = await waitFor("eski Telegram'ga xabar", () => toOwner(mark, 'Palantir jamoasi orqali tiklandi'), 10_000);
+  ok("H9: asoschi tikladi — yangi parol unga qaytdi, eski Telegram'ga aytildi (so'ramagan bo'lsa bilsin)", recovered.status === 200 && !!creds.password && !!warned, JSON.stringify(creds).slice(0, 80));
+  const relogin = await viaHub('/api/login', json({ login: creds.login, password: creds.password }));
+  ok("H9: eski kirish yopildi, yangi parol bilan kiriladi, eski Telegram uzildi", (await viaHub('/api/me', { headers: owner })).status === 401 && relogin.status === 200
+    && (await (await viaHub('/api/me', { headers: { authorization: `Bearer ${(await relogin.json() as { token: string }).token}` } })).json() as { status: { ownerLinked: boolean } }).status.ownerLinked === false);
+
   console.log("\n# O'zi ulanish: yangi o'rnatilgan kompyuter Hub kodini o'zi oladi");
   const NEW_MACHINE = '1111-2222-3333-4444', NEW_PORT = 3297;
   const newcomerEnv = {

@@ -68,6 +68,8 @@ try {
   ok("o'rnatuvchi «Yangi klinika» ochdi", clinic.code?.startsWith('palantirhub.'));
   ok("litsenziya va o'chirish — faqat asoschi (403)", (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/license`, post({}, installer.token))).status === 403
     && (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/delete`, post({}, installer.token))).status === 403);
+  ok("H9: egasining kirishini tiklash va kompyuter kodini yangilash — faqat asoschi (403)", (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/recover`, post({}, installer.token))).status === 403
+    && (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/machine`, post({ machineId: '1111-2222-3333-4444' }, installer.token))).status === 403);
 
   start('server/index.ts', {
     PORT: String(PORT), DATA_DIR: path.join(work, 'data'), ONE_PROFILE: '1', BOT_TOKEN: '123:CLINIC', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
