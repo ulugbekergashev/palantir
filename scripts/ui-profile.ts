@@ -133,6 +133,10 @@ try {
   await page.getByText('Klinika kalitlari').waitFor({ timeout: 10_000 });
   ok("C8: egasining kalitlar jadvalida berilmagan qo'shimchalar (SpeechLab va h.k.) yo'q — «yana N ta» bir qator bilan",
     !(await page.getByText('SpeechLab', { exact: false }).count()) && await page.getByText(/ta qo'shimcha kalit/).isVisible());
+  // A10: jamoada yo'q xodimning bo'limi (Sozlamalar → Kameralar → Kuzatuvchi) — «AI xodimlar»ga sababi aytilib qaytadi
+  await page.goto(`${base}/#/kuzatuvchi/ulash`);
+  ok("A10: Kuzatuvchi jamoada yo'q — «AI xodimlar»ga qaytdi va sababi aytildi", await page.getByText("Kuzatuvchi jamoangizda yo'q").waitFor({ timeout: 10_000 }).then(() => true, () => false)
+    && page.url().includes('#/xodimlar'), page.url());
   ok("brauzerda xato yo'q", !errors.length, errors.slice(0, 3).join(' | '));
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);

@@ -90,7 +90,12 @@ export default function LiveApp() {
   const railCrew = !crew || inCrew.length ? crew ?? [] : [...crew, ...byAccess.filter(isMember)];
   const closed = !allowed.includes(route.area);
   const home = isMember(route.area) && allowed.includes('xodimlar') ? 'xodimlar' : allowed[0];
-  useEffect(() => { if (closed) window.location.hash = hrefOf(home); }, [closed, home]);
+  useEffect(() => {
+    if (!closed) return;
+    // Jamoada yo'q xodimning bo'limi (masalan Sozlamalar → Kameralar → Kuzatuvchi) — izohsiz qaytarilmasin (A10)
+    if (isMember(route.area) && home === 'xodimlar') setToast({ text: `${TEAM[route.area].name} jamoangizda yo'q — kerak bo'lsa shu sahifada jamoaga qo'shing` });
+    window.location.hash = hrefOf(home);
+  }, [closed, home, route.area, setToast]);
   const team = useTeam(status ?? ({ crm: { account: null } } as unknown as LiveStatus), tick, !!biz && isClinic(biz.industry, !!status?.crm.account), biz?.autoReply?.mode ?? 'draft');
   const wake = useWake();
   // «Quloq» ishlay olmasa (model o'rnatilmagan, mikrofon yo'q) — egasi bilsin
