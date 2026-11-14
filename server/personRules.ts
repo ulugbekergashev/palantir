@@ -38,6 +38,12 @@ export type PhoneTrust = 'verified' | 'chat';
  */
 export const chatMergeable = (l: Pick<LeadRow, 'tgUserId' | 'igUserId' | 'patientId'>): boolean => !l.tgUserId && !l.igUserId && !l.patientId;
 
+/** Ikki ismda umumiy so'z bormi («Dilnoza» va «Dilnoza Karimova» — ha; «Zarina» va «Vali Valiyev» — yo'q) */
+export const shareWord = (a: string | null, b: string | null): boolean => {
+  const set = new Set(words(a));
+  return words(b).some(w => set.has(w));
+};
+
 /** Ikki ismdan to'liqrog'i (ko'proq so'zli): «Malika» va «Malika Yusupova» dan ikkinchisi */
 export const fullerName = (a: string | null, b: string | null): string | null => (words(b).length > words(a).length ? b : a);
 

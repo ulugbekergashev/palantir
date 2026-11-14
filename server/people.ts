@@ -9,7 +9,7 @@
 import { leads, sql, type BusinessRow, type LeadRow } from './db';
 import { crmConnected, withCrm } from './crm/index';
 import type { Patient } from './crm/logic';
-import { chatMergeable, fullerName, namesFit, patientFor, patientHasPhone, phoneVerified, samePerson, type PhoneTrust } from './personRules';
+import { chatMergeable, fullerName, namesFit, patientFor, patientHasPhone, phoneVerified, samePerson, shareWord, type PhoneTrust } from './personRules';
 // Kartalar qo'shilganda so'rovlar va qo'ng'iroqlar ham ko'chadi — ularning jadvali shu yerda tayyor bo'lsin
 import './requests/store';
 
@@ -71,8 +71,11 @@ export async function linkPatient(biz: BusinessRow, leadId: string): Promise<str
   if (!p) return null;
   leads.setPatient(biz.id, lead.id, p.id);
   const full = `${p.firstName} ${p.lastName}`.trim();
-  // Bemor kartasidagi ism — haqiqiy ism (Telegram'dagi laqabdan to'liqrog'i)
-  if (full && fullerName(lead.name, full) === full) leads.update(biz.id, lead.id, { name: full });
+  // Bemor kartasidagi ism — haqiqiy ism (Telegram'dagi laqabdan to'liqrog'i). Raqam ishonchli bo'lsa (bot tugmasi bilan yuborilgan yoki
+  // messenjersiz karta — qo'ng'iroq, qo'lda) yoki ismda umumiy so'z bo'lsa («Dilnoza» → «Dilnoza Karimova»). Yozishmada birovning raqamini
+  // aytgan odamning kartasi o'sha bemor nomini olmasin — egasi «Zarina»ni «Vali Valiyev» deb ko'rardi (E6)
+  const trusted = phoneVerified(lead) || chatMergeable(lead) || shareWord(lead.name, full);
+  if (full && fullerName(lead.name, full) === full && trusted) leads.update(biz.id, lead.id, { name: full });
   return p.id;
 }
 

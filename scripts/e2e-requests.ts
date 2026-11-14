@@ -449,7 +449,9 @@ try {
   // Instagram'dagi Zarina kartasi raqam bo'yicha DentaCRM bemoriga bog'langan (tasdiqlanmagan) — oxirgi so'rov shu kartaga edi
   const igCard = ((await api('/api/leads', { token })).json.leads as Lead[]).find(l => phoneKey(l.phone) === '932223344' && l.channel === 'instagram');
   ok("raqam bo'yicha bemorga bog'lansa ham, tasdiqlanmagan mijozga bemorning CRM'dagi ismi modelga bormaydi",
-    !!igCard?.patientId && !!igCard.name && !lastPrompt().includes(igCard.name), `${igCard?.name} | ${lastPrompt().split('Customer: ').at(1)?.slice(0, 80)}`);
+    !!igCard?.patientId && !lastPrompt().includes('Valiyev'), `${igCard?.name} | ${lastPrompt().split('Customer: ').at(1)?.slice(0, 80)}`);
+  ok("tasdiqlanmagan raqam bilan bog'langan karta bemorning ismini olmaydi — egasi «Zarina»ni «Vali Valiyev» deb ko'rmaydi (E6)",
+    !!igCard && igCard.name === 'Zarina', String(igCard?.name));
 } catch (e) {
   console.error(e);
   results.push(false);
