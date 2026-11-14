@@ -142,7 +142,7 @@ const STALE_MS = 12 * 3_600_000;
 const MAX_AI_PER_LEAD_DAY = 40;
 const leadAi = new Map<string, { day: string; count: number }>();
 function leadAiAllowed(leadId: string): boolean {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = iso(new Date());
   // Kun almashganda eski hisoblar tashlanadi (xarita o'smaydi)
   if (leadAi.size > 5000) for (const [k, v] of leadAi) if (v.day !== today) leadAi.delete(k);
   const used = leadAi.get(leadId)?.day === today ? leadAi.get(leadId)!.count : 0;

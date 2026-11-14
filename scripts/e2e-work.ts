@@ -17,7 +17,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { ALL_PACKS, EDUCATION_PACK, MANUFACTURING_PACK, SERVICES_PACK, industryOf } from '../src/data/industries';
 import type { Lead, Task } from '../src/types';
 import { stamp } from '../src/lib/week';
-import { forgottenLeads, joinMorning, planText, TG_TEXT, type PlanInput } from '../server/plan';
+import { forgottenLeads, joinMorning, planText, TG_TEXT, weeklyDue, type PlanInput } from '../server/plan';
 import { wantsOutcome } from '../server/outcome';
 import { CUSTOMER, OWNER, ai, aiServer, listen, press, say, sent, sleep, tgServer, waitFor, type Sent, stopProcess } from './fakes';
 
@@ -67,6 +67,7 @@ ok('reja: vazifalar — bugun va kechikkan', h.includes('Hisobot') && h.includes
 ok("reja: unutilganlar soha bo'yicha atalgan («mijozlar»), izohi bilan", h.includes('Unutilgan mijozlar (4)') && h.includes("narx so'radi") && !h.includes('Yaqinda'));
 ok('reja: 3 tagacha «✍️» tugma — unutilganlarga', plan.buttons.length === 3 && plan.buttons[0][0].data === 'fu|f1' && plan.buttons[0][0].text.includes('Shifo Dent'));
 ok('reja: yangi mijozlar va dushanba yakuni', h.includes('Yangi mijozlar (1)') && h.includes("O'tgan hafta") && h.includes('Bajarilgan vazifalar: 7'));
+ok("G10: haftalik yakun — shu haftaning birinchi rejasida (dushanba kompyuter o'chiq bo'lsa — seshanba); shu hafta yuborilgan bo'lsa — yo'q", weeklyDue('2026-11-12', '2026-11-16') && weeklyDue(null, '2026-11-16') && !weeklyDue('2026-11-16', '2026-11-16') && !weeklyDue('2026-11-17', '2026-11-16'));
 const clinicPlan = planText({ ...base, profile: industryOf('stomatologiya'), leads: [lead('p', 'Bemor', { updatedAt: iso(2) })], recall: 34, crmLines: ['📅 Bugun 12 ta qabul'] })!;
 ok("klinika: bemorlar deb ataladi, 1 kun jim — unutilgan; qaytarish ro'yxati tugmasi", clinicPlan.html.includes('Unutilgan bemorlar (1)') && clinicPlan.html.includes('34 ta bemor') && clinicPlan.buttons.some(r => r[0].data === 'rc|list'));
 ok("klinika: CRM qatorlari qadamlardan oldin", clinicPlan.html.indexOf('12 ta qabul') < clinicPlan.html.indexOf('Unutilgan'));

@@ -11,6 +11,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { iso } from '../../src/lib/week';
 import type { AdCampaign } from '../../src/types';
 import type { BusinessRow } from '../db';
 import { env } from '../env';
@@ -346,7 +347,8 @@ const resultsOf = (i: Insight, destination: Plan['destination']): number =>
 /** Egasiga ogohlantirish kuniga bir marta (sababi bo'yicha) */
 const warned = new Map<string, string>();
 const warnOnce = async (biz: BusinessRow, key: string, html: string, now: Date) => {
-  const day = now.toISOString().slice(0, 10), k = `${biz.id}:${key}`;
+  // Mahalliy kun: UTC kunida Toshkentda 05:00 da «yangi kun» boshlanib, ogohlantirish tunda takrorlanardi (G10)
+  const day = iso(now), k = `${biz.id}:${key}`;
   if (warned.get(k) === day) return;
   warned.set(k, day);
   await notifyOwner(biz, html).catch(() => {});

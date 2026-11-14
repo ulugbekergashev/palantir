@@ -15,6 +15,7 @@ import { fetchChannelViews } from '../content/telegram';
 import { videoStore } from '../content/video';
 import { instagramOwnPosts, type IgPostStats } from '../inbox/instagram';
 import { posts } from './posts';
+import { iso } from '../../src/lib/week';
 
 sql.exec(`
 CREATE TABLE IF NOT EXISTS content_results (
@@ -119,7 +120,7 @@ export class MeasureError extends Error {}
 /** Jadval: kuniga bir marta (bugun o'lchanmagan bo'lsa) */
 const measuredDay = new Map<string, string>();
 export function measureDue(bizId: string, now: Date): boolean {
-  const day = now.toISOString().slice(0, 10);
+  const day = iso(now);
   if (measuredDay.get(bizId) === day) return false;
   measuredDay.set(bizId, day);
   return true;

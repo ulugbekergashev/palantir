@@ -48,6 +48,13 @@ const MAX_LINES = 7, MAX_FOLLOW_BUTTONS = 3;
 export const MAX_PREP = 5;
 /** Shuncha xabarimizga javob bo'lmasa — mijoz «Yo'qotildi» (stages.ts: giveUpSilent) */
 export const SILENT_LIMIT = 3;
+
+/**
+ * Haftalik yakun shu rejaga qo'shiladimi: shu haftada (dushanbadan beri) reja hali yuborilmagan bo'lsa. Dushanba ertalab kompyuter
+ * o'chiq bo'lsa, yakun keyingi yoqilgan kunning rejasida keladi — yo'qolmaydi (G10). lastSent, thisMonday — «YYYY-MM-DD»
+ */
+export const weeklyDue = (lastSent: string | null, thisMonday: string): boolean => !lastSent || lastSent < thisMonday;
+
 const two = (n: number) => String(n).padStart(2, '0');
 const localStamp = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
 const nameOf = (l: Lead) => l.name ?? (l.username ? `@${l.username}` : l.phone ?? "ismi yo'q");

@@ -16,7 +16,7 @@ import { waitFrame } from '../camera/waiting';
 import { reportTick } from '../camera/report';
 import { checkFrame } from './look';
 import { events, orders } from './store';
-import { dueAt, dueEvery } from './logic';
+import { SAME_DAY, dueAt, dueEvery } from './logic';
 import { watchFrame } from './watch';
 import { TEAM_NAME, crewWorks } from '../../src/lib/crew';
 
@@ -121,7 +121,7 @@ export function startOrders(bot: BotService): () => void {
       if (busy.has(o.id) || (retryAt.get(o.id) ?? 0) > now.getTime()) continue;
       // Soatli ish yaratilgan kuni o'tib ketgan vaqt uchun darhol bajarilmasin: hisob yaratilgan paytdan
       const since = o.lastRunAt ?? o.createdAt;
-      const due = o.spec.kind === 'schedule' ? dueAt(o.spec.at, o.spec.days, since, now) : o.spec.kind === 'look' ? dueEvery(o.spec, o.spec.at ? since : o.lastRunAt, now) : false;
+      const due = o.spec.kind === 'schedule' ? dueAt(o.spec.at, o.spec.days, since, now, SAME_DAY) : o.spec.kind === 'look' ? dueEvery(o.spec, o.spec.at ? since : o.lastRunAt, now) : false;
       if (!due) continue;
       const biz = businesses.byId(o.businessId);
       // Xodim jamoadan olib tashlangan — uning topshiriqlari to'xtaydi (o'chirilmaydi: qaytib olinsa, davom etadi)

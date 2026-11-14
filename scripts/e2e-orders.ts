@@ -5,7 +5,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import type { Camera } from '../src/types';
-import { conditionHolds, dueAt, dueEvery, inWindow, judge, toSpec, whatHappened } from '../server/orders/logic';
+import { SAME_DAY, conditionHolds, dueAt, dueEvery, inWindow, judge, toSpec, whatHappened } from '../server/orders/logic';
 import type { Harness } from './e2e-crm';
 import { ai, sent, sleep } from './fakes';
 
@@ -56,6 +56,7 @@ export function orderLogicTests(ok: Ok): void {
   ok("topshiriq: vaqti kelmadi yoki juda kech", !dueAt('20:00', [], null, at('19:59')) && !dueAt('20:00', [], null, at('20:45')));
   ok("topshiriq: bugun bajarilgan — qayta yo'q", !dueAt('20:00', [], at('20:00').toISOString(), at('20:05')));
   ok('topshiriq: hafta kuni (2026-10-19 — dushanba)', dueAt('09:00', [1], null, at('09:01')) && !dueAt('09:00', [2], null, at('09:01')));
+  ok("G10: ish topshirig'i (09:00) kompyuter 11:30 da yoqilsa ham o'sha kuni bajariladi; kamera qarashi — 30 daqiqadan keyin emas", dueAt('09:00', [], null, at('11:30'), SAME_DAY) && !dueAt('09:00', [], null, at('11:30')) && !dueAt('09:00', [], at('09:00').toISOString(), at('11:30'), SAME_DAY));
   const every = { kind: 'look' as const, cameraId: null, at: null, days: [], everyMin: 30, from: '09:00', to: '18:00', question: 'q' };
   ok("topshiriq: har 30 daqiqada — vaqti keldi/kelmadi", dueEvery(every, at('10:00').toISOString(), at('10:31')) && !dueEvery(every, at('10:00').toISOString(), at('10:10')));
   ok("topshiriq: oraliqdan tashqarida qaramaydi", !dueEvery(every, null, at('19:00')));

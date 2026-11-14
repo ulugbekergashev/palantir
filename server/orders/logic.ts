@@ -8,8 +8,10 @@ import { inZone, type Box } from '../camera/sessions';
 /** AI ko'zi shundan tez-tez qaramaydi (har qarash — pulli so'rov) */
 export const MIN_LOOK_EVERY = 15;
 const MAX_MINUTES = 24 * 60;
-/** Server qisqa to'xtagan bo'lsa, shu vaqt ichida o'tib ketgan jadvaldagi ish baribir bajariladi; eskisi — o'tkaziladi */
+/** Kamera qarashi (look): server qisqa to'xtagan bo'lsa, shu vaqt ichida o'tib ketgani baribir bajariladi; eskisi — o'tkaziladi (09:00 dagi «administrator joyidami» 11:00 da ma'nosiz) */
 const CATCH_UP_MS = 30 * 60_000;
+/** Ish topshirig'i (schedule: post tayyorlash, hisobot, eslatma) — kompyuter kech yoqilsa ham o'sha kun ichida bajariladi (G10) */
+export const SAME_DAY = Number.POSITIVE_INFINITY;
 /** Har N daqiqalik qarash jadval tekshiruvi oralig'iga to'g'ri kelmasa ham kechikmasin */
 const LOOK_SLACK_MS = 15_000;
 
@@ -106,13 +108,13 @@ export function toSpec(member: OrderMember, j: Record<string, unknown>, cams: Ca
 
 const weekday = (d: Date) => ((d.getDay() + 6) % 7) + 1;
 
-/** Bugungi «HH:MM» vaqti keldimi va hali bajarilmadimi (sof funksiya) */
-export function dueAt(at: string, days: number[], lastRunAt: string | null, now: Date): boolean {
+/** Bugungi «HH:MM» vaqti keldimi va hali bajarilmadimi (sof funksiya). catchUpMs — vaqtidan keyin qancha kechikish mumkin */
+export function dueAt(at: string, days: number[], lastRunAt: string | null, now: Date, catchUpMs = CATCH_UP_MS): boolean {
   if (days.length && !days.includes(weekday(now))) return false;
   const [h, m] = at.split(':').map(Number);
   const slot = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m).getTime();
   const t = now.getTime();
-  return t >= slot && t - slot < CATCH_UP_MS && (!lastRunAt || Date.parse(lastRunAt) < slot);
+  return t >= slot && t - slot < catchUpMs && (!lastRunAt || Date.parse(lastRunAt) < slot);
 }
 
 /** Har N daqiqalik tekshiruv vaqti keldimi (oraliq ichida) */

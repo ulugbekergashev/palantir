@@ -7,7 +7,7 @@
 import { remindRequests } from './requests/index';
 import type { Task } from '../src/types';
 import { upcomingOccasions } from '../src/lib/occasions';
-import { dayLong, fromIso, iso, stamp } from '../src/lib/week';
+import { addDays, dayLong, fromIso, iso, stamp } from '../src/lib/week';
 import type { BotService } from './bot';
 import { callState, callsEnabled, placeCall } from './calls';
 import { speak, speechEnabled } from './tts';
@@ -17,7 +17,7 @@ import { licenseStatus } from './license';
 import { env } from './env';
 import { crmBriefLines, crmConnected, crmWeekLine, recallPatients } from './crm/index';
 import { industryOf, isClinic } from '../src/data/industries';
-import { planText, type Plan, joinMorning } from './plan';
+import { planText, type Plan, joinMorning, weeklyDue } from './plan';
 import { periodRange } from './crm/report';
 import { DAY_OUTCOME, askDay } from './outcome';
 import { flushDue } from './inbox/core';
@@ -110,10 +110,13 @@ export async function morningPlan(biz: BusinessRow, now = new Date(), opts: { we
   const profile = industryOf(biz.profile.industry, clinic);
   // Javobsiz mijozlar rejadan oldin «Yo'qotildi»ga: ularga har kuni qayta xabar tayyorlanmasin (G3)
   const gaveUp = giveUpSilent(biz, now, profile.followDays).length;
-  const monday = opts.weekly ?? now.getDay() === 1;
   // O'tgan hafta: o'tgan dushanba 00:00 dan bu dushanba 00:00 gacha (DentaCRM yakuni bilan bir xil oraliq)
   const lastWeek = periodRange('last_week', today);
-  const weekFrom = new Date(`${lastWeek.from}T00:00:00`).toISOString(), weekTo = new Date(`${today}T00:00:00`).toISOString();
+  const thisMonday = iso(addDays(fromIso(lastWeek.to), 1));
+  // Haftalik yakun — shu haftaning BIRINCHI yuborilgan rejasida: dushanba ertalab kompyuter o'chiq bo'lsa, seshanba (yoki
+  // keyingi yoqilgan kun) keladi — yo'qolmaydi (G10). Avval faqat dushanba 08–12 da edi
+  const monday = opts.weekly ?? weeklyDue(biz.briefSentDate, thisMonday);
+  const weekFrom = new Date(`${lastWeek.from}T00:00:00`).toISOString(), weekTo = new Date(`${thisMonday}T00:00:00`).toISOString();
   const [crmLines, weekLine, recall] = await Promise.all([
     crmBriefLines(biz.id, today),
     monday ? crmWeekLine(biz.id, today) : Promise.resolve(null),

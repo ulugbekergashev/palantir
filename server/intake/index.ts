@@ -11,6 +11,7 @@ import { removeSource, saveSource, type SourceExt } from '../brain/vault';
 import { businesses, type BusinessRow } from '../db';
 import { FileError, type FileKind } from './extract';
 import { extractSafely } from './sandbox';
+import { iso } from '../../src/lib/week';
 
 export { FileError, MAX_FILE_BYTES } from './extract';
 
@@ -43,7 +44,7 @@ const som = (n: number): string => n.toLocaleString('ru').replace(/\s/g, ' ');
 
 const days = new Map<string, { day: string; count: number }>();
 function countFile(bizId: string): void {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = iso(new Date());
   const used = days.get(bizId)?.day === today ? days.get(bizId)!.count : 0;
   if (used >= MAX_FILES_PER_DAY) throw new FileError(`Bugun ${MAX_FILES_PER_DAY} ta fayl qabul qilindi — qolganini ertaga yuboring.`);
   days.set(bizId, { day: today, count: used + 1 });
