@@ -20,7 +20,7 @@ import { StepKeys, emptyRouted, type Routed } from './StepKeys';
 import { StepPhone } from './StepPhone';
 import { StepProfile } from './StepProfile';
 import { hrefOf } from '../../lib/nav';
-import { clock, stepFromHash, stepHref, stepState, visibleSteps, type StepKey, type StepState, type WizardFacts } from './wizard';
+import { clock, leaveGuard, stepFromHash, stepHref, stepState, visibleSteps, type StepKey, type StepState, type WizardFacts } from './wizard';
 
 const BIZ_KEY = 'palantir_setup_biz', T0_KEY = 'palantir_setup_t0';
 /** O'rnatish o'zi yaratgan profilning nomi (server/profile.ts DEFAULT_NAME): o'zgartirilmagan bo'lsa «Klinika» qadami tayyor emas */
@@ -72,8 +72,9 @@ function Shell({ label, facts, stepKey, onStep, onLogout, back, children, toast 
   const steps = visibleSteps(facts.status);
   const step = Math.max(0, steps.findIndex(s => s.key === stepKey));
   const current = steps[step];
-  const go = (i: number) => {
+  const go = async (i: number) => {
     const key = steps[Math.max(0, Math.min(steps.length - 1, i))].key;
+    if (key !== stepKey && leaveGuard.current && !(await leaveGuard.current())) return;
     onStep(key);
     // Qadam havolada turadi (sahifa yangilansa shu qadamda qoladi); tarixga yozilmaydi — «orqaga» panelga qaytaradi
     window.history.replaceState(null, '', stepHref(key));

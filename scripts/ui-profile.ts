@@ -60,6 +60,8 @@ try {
   // Kompyuter Hub'ga o'zi ulanadi: Hub kodi («palantirhub.») so'ralmaydi (zaxira yo'l — «Kalitlar» maydoni)
   ok("Hub ulanish kodi so'ralmaydi", !(await page.getByText('Palantir ulanish kodi').count()) && !(await page.locator('#hub-code').count()));
   ok('klinikani tanlash/qo\'shish yo\'q (profil bitta)', !(await page.getByRole('button', { name: /Yangi klinika/ }).count()));
+  ok("I7: nom maydoni bo'sh («Yangi biznes» emas), misollar — klinikaniki", await page.locator('#p-name').inputValue() === '' && await page.locator('#p-industry').getAttribute('placeholder') === 'stomatologiya');
+  ok("I7: «Bo'shliqlar» egasi Telegram'ni ulamaguncha «!» emas", !(await page.locator('aside').getByRole('button', { name: /Bo'shliqlar/ }).filter({ hasText: '!' }).count()));
   await page.locator('#p-name').fill('Shifo Dent');
   await page.locator('#p-address').fill('Toshkent, Chilonzor 7');
   // Yangi profil sohasiz: soha yozilmaguncha saqlanmaydi (AI shunga qarab gapiradi)
@@ -69,6 +71,14 @@ try {
   await page.getByRole('status').filter({ hasText: 'Saqlandi' }).waitFor({ timeout: 10_000 });
   ok('klinika nomi saqlandi va yon panelda ko\'rinadi', await page.locator('aside').getByText('Shifo Dent').isVisible());
   await shot(page, 'klinika');
+  // I7: «Saqlash»ni bosmay keyingi qadamga o'tildi — ish vaqti jim yo'qolmaydi, o'zi saqlanadi
+  await page.locator('#p-hours').fill('Du–Sh 09:00–19:00');
+  await page.getByRole('button', { name: 'Davom etish' }).click();
+  await page.getByText('Klinika kalitlari').waitFor({ timeout: 10_000 });
+  await page.locator('aside').getByRole('button', { name: /Klinika/ }).click();
+  await page.locator('#p-hours').waitFor({ timeout: 10_000 });
+  await page.waitForTimeout(500);
+  ok("I7: saqlamasdan «Davom etish» — ish vaqti o'zi saqlandi (qaytib kelganda joyida)", await page.locator('#p-hours').inputValue() === 'Du–Sh 09:00–19:00', await page.locator('#p-hours').inputValue());
 
   await page.locator('aside').getByRole('button', { name: /Kalitlar/ }).click();
   await page.getByText('Klinika kalitlari').waitFor({ timeout: 10_000 });

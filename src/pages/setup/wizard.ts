@@ -25,6 +25,12 @@ export const STEPS: StepInfo[] = [
 
 /** Qadam havolasi: panel ustani kerakli qadamda ochadi (Sozlamalar → «Claude va kalitlar» → #/ulash/keys); joriy qadam ham shu yerda turadi */
 export const stepHref = (key: StepKey): string => `#/ulash/${key}`;
+
+/**
+ * Qadamdan chiqishdan oldin (Davom etish, Orqaga, chapdagi qadam): ochiq qadam saqlanmagan o'zgarishini saqlab oladi.
+ * false — saqlanmadi (xato egasiga aytilgan), qadam almashmaydi. «Saqlash»ni bosmay o'tib ketilsa ma'lumot jim yo'qolardi (I7)
+ */
+export const leaveGuard: { current: (() => Promise<boolean>) | null } = { current: null };
 /** «#/ulash/keys» → 'keys'; qadamsiz yoki noma'lum bo'lsa — null (usta birinchi qadamdan ochiladi) */
 export function stepFromHash(hash: string): StepKey | null {
   const key = /^#\/ulash\/([a-z]+)\/?$/.exec(hash)?.[1];
@@ -76,7 +82,8 @@ export function stepState(key: StepKey, f: WizardFacts): StepState {
       return p.status.trunk === 'registered' && p.status.ai !== false ? 'ok' : 'warn';
     }
     case 'gaps': {
-      if (!setup) return '';
+      // Savollar egasining Telegram'iga boradi: u ulanmaguncha bu qadam hali boshlanmagan — birinchi soniyadan «!» emas (I7)
+      if (!setup || !f.status?.ownerLinked) return '';
       return !setup.gaps.length && setup.pack.answered === setup.pack.total ? 'ok' : 'warn';
     }
     default: return '';
