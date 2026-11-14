@@ -20,7 +20,7 @@ import { industryOf, isClinic } from '../src/data/industries';
 import { planText, type Plan, joinMorning, weeklyDue } from './plan';
 import { periodRange } from './crm/report';
 import { DAY_OUTCOME, askDay } from './outcome';
-import { flushDue } from './inbox/core';
+import { flushDue, sendAutoDigest } from './inbox/core';
 import { pollInstagram } from './inbox/instagram';
 import { syncTasks } from './brain/mirror';
 import { tgCall, tgCallEnabled } from './tgcall';
@@ -38,6 +38,8 @@ const ADS_WATCH_MS = 10 * 60_000;
 /** DentaCRM'dan qabulga kelgan bemorlar shu oraliqda tekshiriladi (stages.ts: syncVisits) */
 const VISITS_EVERY_MS = 30 * 60_000;
 const visitsCheckedAt = new Map<string, number>();
+/** Kechki yig'ma shu kuni yuborilgan bizneslar (B7) — yuborilgani bazadan tozalanadi, bu esa bir kechada ikkinchi xabar ketmasligi uchun */
+const digestDay = new Map<string, string>();
 
 /**
  * Ertalabki ish rejasi (plan.ts): vazifalar, mijozlarning keyingi qadamlari, unutilgan mijozlar, tasdiq kutayotganlar,
@@ -357,6 +359,19 @@ export function startScheduler(bot: BotService): () => void {
             if (transient(e)) break;
           }
           businesses.update(biz.id, { eveningDate: day });
+        }
+      }
+      // 3b) «O'zi javob bersin» yig'masi (B7): Palantir bugun o'zi javob bergan suhbatlar — bitta xabar (har javobga alohida emas)
+      if (eveningHour >= env.eveningHour && eveningHour < env.eveningHour + 3) {
+        for (const biz of businesses.all()) {
+          if (!biz.active || !biz.ownerChatId || digestDay.get(biz.id) === day) continue;
+          try {
+            // Bo'sh bo'lsa — belgilanmaydi: kechki oraliqda keyinroq kelgan javoblar ham shu kuni aytiladi
+            if (await sendAutoDigest(biz)) digestDay.set(biz.id, day);
+          } catch (e) {
+            console.error(`[jadval] kechki yig'ma (${biz.profile.name}):`, (e as Error).message);
+            if (transient(e)) break;
+          }
         }
       }
       // 2) Ertalabki xulosa

@@ -49,6 +49,21 @@ export const optOuts = {
   remove: (businessId: string, leadId: string) => run('DELETE FROM opt_outs WHERE business_id = ? AND lead_id = ?', businessId, leadId),
 };
 
+// ─── «O'zi javob bersin»: kunlik yig'ma ──────────────────────────────────────
+sql.exec('CREATE TABLE IF NOT EXISTS auto_digest (business_id TEXT NOT NULL, lead_id TEXT NOT NULL, at TEXT NOT NULL)');
+
+/**
+ * Palantir o'zi javob bergan suhbatlar (B7, egasi qarori): har javob uchun egasiga alohida xabar emas — kechqurun bitta yig'ma.
+ * Qabul va AI bilmagan savol esa darhol aytiladi (core.ts)
+ */
+export const autoDigest = {
+  add: (businessId: string, leadId: string) => run('INSERT INTO auto_digest (business_id, lead_id, at) VALUES (?, ?, ?)', businessId, leadId, nowIso()),
+  /** Yig'ilganlar (mijoz bo'yicha, eng ko'p yozilgani birinchi) */
+  list: (businessId: string) => many('SELECT lead_id, COUNT(*) AS n FROM auto_digest WHERE business_id = ? GROUP BY lead_id ORDER BY n DESC, MAX(at) DESC',
+    r => ({ leadId: String(r.lead_id), replies: Number(r.n) }), businessId),
+  clear: (businessId: string) => run('DELETE FROM auto_digest WHERE business_id = ?', businessId),
+};
+
 // ─── AI xarajati ─────────────────────────────────────────────────────────────
 sql.exec(`
 CREATE TABLE IF NOT EXISTS ai_usage (

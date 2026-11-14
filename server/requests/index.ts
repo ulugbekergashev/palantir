@@ -132,14 +132,15 @@ async function sendCards(biz: BusinessRow, r: LeadRequest, head = '', silent = f
  * Kartani jamoaga (qabulxona xodimlari va egasi) yuboradi. onSent — har karta yuborilishi bilan (hammasini kutmasdan): xodim birinchi
  * kartaga darhol javob qaytarsa ham, u ro'yxatda bo'ladi
  */
-export async function deliverToTeam(biz: BusinessRow, html: string, keyboard?: InlineKeyboardMarkup, onSent?: (c: { chatId: string; messageId: number }) => void): Promise<{ chatId: string; messageId: number }[]> {
+/** silent — ovozsiz (kechasi shoshilinch bo'lmagan karta) */
+export async function deliverToTeam(biz: BusinessRow, html: string, keyboard?: InlineKeyboardMarkup, onSent?: (c: { chatId: string; messageId: number }) => void, silent = false): Promise<{ chatId: string; messageId: number }[]> {
   const to = recipients(biz);
   if (!outlet || !to.length) return [];
   const out: { chatId: string; messageId: number }[] = [];
   let last: Error | null = null;
   for (const r of to) {
     try {
-      const c = { chatId: r.chatId, messageId: await outlet.send(r.chatId, html, keyboard) };
+      const c = { chatId: r.chatId, messageId: await outlet.send(r.chatId, html, keyboard, silent || undefined) };
       out.push(c);
       onSent?.(c);
     } catch (e) { last = e as Error; }

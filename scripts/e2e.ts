@@ -10,6 +10,7 @@ import { createHmac } from 'node:crypto';
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import type { Business } from '../src/types';
 import { iso, stamp } from '../src/lib/week';
 import { CUSTOMER, OWNER, TG_SESSION, VOICE_BYTES, addedToChannel, ai, aiServer, editMessage, igWeb, igWebServer, listen, press, say, sendAudio, sendDocument, sendPhoto, sendRaw, sendVoice, sent, shareContact, sleep, speechlab, speechlabServer, stt, sttServer, tgServer, tgUser, tgUserServer, waitFor, type Sent, stopProcess } from './fakes';
@@ -41,6 +42,11 @@ const crmPort = await listen(crmServer);
 const speechlabPort = await listen(speechlabServer);
 const zadarmaPort = await listen(zadarmaServer);
 const dataDir = mkdtempSync(join(tmpdir(), 'palantir-e2e-'));
+/** Kechki yig'ma navbatida shu Telegram foydalanuvchisining suhbati bormi (B7) */
+const digestHas = (tgUserId: string): boolean => {
+  const db = new DatabaseSync(join(dataDir, 'palantir.db'), { readOnly: true });
+  try { return !!db.prepare('SELECT 1 FROM auto_digest d JOIN leads l ON l.id = d.lead_id WHERE l.tg_user_id = ?').get(tgUserId); } finally { db.close(); }
+};
 const PORT = 3290;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
@@ -524,7 +530,9 @@ try {
   ok('kutish vaqtida — hali yubormaydi (egasiga imkon)', !tgUser.sent.some(m => m.to.userId === '6002'));
   const auto = await waitFor('avto javob', () => tgUser.sent.find(m => m.to.userId === '6002'));
   ok("egasi yozmadi — Palantir o'zi javob berdi", auto?.text.includes('10:00') && Date.now() - tAuto >= 1500, `${Date.now() - tAuto} ms`);
-  ok('egasiga: «javob berdim»', await waitFor('xabar', () => after(mark, OWNER, s => textOf(s).includes('🤖') && textOf(s).includes('Sardor'))));
+  // B7 (egasi qarori): oddiy javob haqida darhol xabar yo'q — kechqurun bitta yig'ma (bazadagi navbatga yozildi)
+  await sleep(1200);
+  ok("B7: oddiy avtomatik javob — egasiga darhol «javob berdim» yo'q, kechki yig'maga yozildi", !after(mark, OWNER, s => textOf(s).includes('🤖') && textOf(s).includes('Sardor')) && digestHas('6002'));
   tgUser.incoming(TG_SESSION, '6003', 'Ish vaqtingiz?', { name: 'Kamola' });
   await sleep(700);
   tgUser.ownerTyped(TG_SESSION, '6003', 'Hozir aytaman');
@@ -603,7 +611,8 @@ try {
   const igAuto = await waitFor('IG avto javob', () => igWeb.typed.find(m => m.threadIds[0] === 'v2_t1'));
   ok("Instagram'da o'zi javob berdi (suhbatni ochib yozdi)", igAuto?.text.includes("1 500 000 so'm") && igAuto.threadIds.join() === 'v2_t1,t1' && Date.now() - tIg >= 1500,
     `${Date.now() - tIg} ms`);
-  ok('egasiga: «javob berdim»', await waitFor('xabar', () => after(mark, OWNER, s => textOf(s).includes('🤖') && textOf(s).includes('· Instagram'))));
+  await sleep(1200);
+  ok("B7: Instagram'dagi avtomatik javob ham — darhol xabarsiz, yig'maga", !after(mark, OWNER, s => textOf(s).includes('🤖') && textOf(s).includes('· Instagram')));
   const dilnoza = (await leadsNow()).find(l => l.name === 'Dilnoza Karimova');
   ok("mijoz: ismi Instagram profilidan, kanal — Instagram, yozsa bo'ladi", dilnoza?.channel === 'instagram' && dilnoza.reachable);
   igWeb.ownerTyped('t1', "Qo'shimcha: yetkazib berish bepul");

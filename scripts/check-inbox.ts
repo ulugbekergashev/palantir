@@ -110,5 +110,25 @@ await check("savoldan keyin bemor boshqa narsa so'radi (yangi taklif) — egasin
   assert.equal(replies.takeQuestion(biz.id, lead.id, since()), null);
 });
 
+const { digestText } = await import('../server/inbox/digest');
+const { autoDigest } = await import('../server/serviceStore');
+await check("B7: kechki yig'ma — mijozlar soni, xabarlar, ko'p bo'lsa «yana N ta»; bo'sh — xabar yo'q", async () => {
+  assert.equal(digestText([]), null);
+  const rows = Array.from({ length: 12 }, (_, i) => ({ name: `Mijoz ${i + 1}`, channel: 'Instagram', replies: i === 0 ? 3 : 1 }));
+  const html = digestText(rows)!;
+  assert.match(html, /o'zi 12 ta mijozga javob berdi<\/b> \(14 ta xabar\)/);
+  assert.match(html, /Mijoz 1 · Instagram — 3 ta javob/);
+  assert.match(html, /yana 2 ta mijoz/);
+  assert.ok(!html.includes('Mijoz 11'));
+  assert.equal(digestText([{ name: '<script>', channel: 'Telegram', replies: 1 }])!.includes('<script>'), false);
+});
+await check("B7: yig'ma navbati — mijoz bo'yicha guruhlanadi, yuborilgach tozalanadi", async () => {
+  autoDigest.clear(biz.id); // oldingi tekshiruvlardagi avtomatik javoblar
+  autoDigest.add(biz.id, 'L1'); autoDigest.add(biz.id, 'L2'); autoDigest.add(biz.id, 'L1');
+  assert.deepEqual(autoDigest.list(biz.id), [{ leadId: 'L1', replies: 2 }, { leadId: 'L2', replies: 1 }]);
+  autoDigest.clear(biz.id);
+  assert.equal(autoDigest.list(biz.id).length, 0);
+});
+
 console.log(failed ? `\n✗ ${failed} ta tekshiruv o'tmadi` : "\n✓ hammasi o'tdi");
 process.exit(failed ? 1 : 0);

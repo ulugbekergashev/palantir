@@ -16,7 +16,7 @@ import type { AutoReply, InboxMessage, LeadChannel, ReplyBooking } from '../../s
 import { check } from '../../src/lib/compliance';
 import { iso } from '../../src/lib/week';
 import { businesses, inbox, leads, relays, replies, type BusinessRow, type ChannelPerson, type LeadRow, type ReplyRow } from '../db';
-import { notices, settings as store, waiting } from '../serviceStore';
+import { autoDigest, notices, settings as store, waiting } from '../serviceStore';
 import { cleanName, normPhone } from '../crm/logic';
 import { filterOptions, recordFix } from '../brain/index';
 import { ownerAnswered } from '../brain/learn';
@@ -32,6 +32,7 @@ import { replyCards } from '../requests/store';
 import { crewWorks } from '../../src/lib/crew';
 import { awaitingReply, holdLine } from './hold';
 import { isMedia } from './media';
+import { digestText } from './digest';
 import { splitForInstagram } from './igRules';
 
 export interface Sender {
@@ -46,7 +47,8 @@ export interface Sender {
 
 /** Egasiga Telegram orqali xabar (bot) */
 export interface OwnerOutlet {
-  notify(biz: BusinessRow, html: string, keyboard?: InlineKeyboardMarkup): Promise<number | null>;
+  /** silent — ovozsiz (kechasi shoshilinch bo'lmagan xabar) */
+  notify(biz: BusinessRow, html: string, keyboard?: InlineKeyboardMarkup, silent?: boolean): Promise<number | null>;
   /** keyboard berilmasa — tugmalar olib tashlanadi */
   edit(biz: BusinessRow, messageId: number, html: string, keyboard?: InlineKeyboardMarkup): Promise<void>;
   /** Kompyuterdagi fayl (hujjat sifatida) */
@@ -262,6 +264,10 @@ const held = new Map<string, number>();
 /** Shoshilinch belgilar (bemor matnida): «yetkazildi» bilan birga 103 eslatiladi */
 const URGENT = /qon\s*(ket|to'xta|oqa)|kuchli og'ri|chidab bo'lma|shish(ib|gan|di)|isitma|harorat|nafas|hushdan|кров|сильн\S* бол|не могу терпеть|опух|отек|отёк|температур|задыха/i;
 const foldApostrophe = (s: string) => s.replace(/[ʻʼ’‘`´]/g, "'");
+/** Tun (mahalliy 22:00–08:00): egasiga va xodimga xabar ovozsiz boradi — shoshilinch holat bundan mustasno (B7, egasi qarori) */
+const NIGHT_FROM = 22, NIGHT_TO = 8;
+const nightNow = (at = new Date()) => at.getHours() >= NIGHT_FROM || at.getHours() < NIGHT_TO;
+const isUrgent = (fresh: InboxMessage[]) => fresh.some(m => URGENT.test(foldApostrophe(m.text)));
 
 /**
  * «O'zi javob bersin» rejimida bemor javobni darhol kutadi: AI javob bermagan bo'lsa (bilmaydi, xato, limit, egasining tasdig'i kerak)
@@ -273,7 +279,7 @@ async function holdCustomer(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage
   if (lead.channel === 'instagram' && lead.source?.includes("so'rov")) return;
   if (Date.now() - (held.get(lead.id) ?? 0) < HOLD_EVERY_MS) return;
   held.set(lead.id, Date.now());
-  const urgent = fresh.some(m => URGENT.test(foldApostrophe(m.text)));
+  const urgent = isUrgent(fresh);
   const text = [
     holdLine(biz.profile.name),
     'Сообщение передано сотруднику, скоро ответим.',
@@ -496,7 +502,8 @@ async function receive(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], d
   const line = `📅 Qabulga yozdim: ${esc(bookingLine(booking))}`;
   try {
     const ch = await sendToLead(biz, lead, text, 'palantir');
-    await owner?.notify(biz, `🤖 <b>${who(lead)}</b> · ${CHANNEL_LABEL[ch]}\n${line}\n<i>${esc(cut(text, 1500))}</i>`).catch(() => {});
+    // Qabul — darhol aytiladi; kechasi ovozsiz (B7: kechasi faqat shoshilinch xabar ovoz bilan)
+    await owner?.notify(biz, `🤖 <b>${who(lead)}</b> · ${CHANNEL_LABEL[ch]}\n${line}\n<i>${esc(cut(text, 1500))}</i>`, undefined, nightNow()).catch(() => {});
   } catch (e) {
     // Qabul CRM'da bor, lekin bemor bilmaydi — egasi o'zi aytishi kerak
     await owner?.notify(biz, `⚠️ <b>${who(lead)}</b>\n${line}\nLekin bemorga xabar yetmadi (${esc((e as Error).message)}) — o'zingiz ayting.`).catch(() => {});
@@ -547,7 +554,8 @@ async function changeFlow(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[]
   const line = `🔁 ${change.kind === 'move' ? "Qabulni ko'chirdim" : 'Qabulni bekor qildim'}: ${esc(changeLine(change))}`;
   try {
     const ch = await sendToLead(biz, lead, text, 'palantir');
-    await owner?.notify(biz, `🤖 <b>${who(lead)}</b> · ${CHANNEL_LABEL[ch]}\n${line}\n<i>${esc(cut(text, 1500))}</i>`).catch(() => {});
+    // Qabul — darhol aytiladi; kechasi ovozsiz (B7: kechasi faqat shoshilinch xabar ovoz bilan)
+    await owner?.notify(biz, `🤖 <b>${who(lead)}</b> · ${CHANNEL_LABEL[ch]}\n${line}\n<i>${esc(cut(text, 1500))}</i>`, undefined, nightNow()).catch(() => {});
   } catch (e) {
     await owner?.notify(biz, `⚠️ <b>${who(lead)}</b>\n${line}\nLekin bemorga xabar yetmadi (${esc((e as Error).message)}) — o'zingiz ayting.`).catch(() => {});
   }
@@ -591,7 +599,8 @@ async function forward(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], n
   let sentTo: { chatId: string; messageId: number }[];
   try {
     // Qabulxona xodimlari (bo'lsa) va egasi: kim birinchi ko'rsa — kartaga «Reply» qilib javob beradi
-    sentTo = await deliverToTeam(biz, [...body, '', REPLY_HINT].join('\n'));
+    // AI bilmagan savol — darhol; kechasi ovozsiz, agar shoshilinch bo'lmasa (B7)
+    sentTo = await deliverToTeam(biz, [...body, '', REPLY_HINT].join('\n'), undefined, undefined, nightNow() && !isUrgent(fresh));
   } catch (e) {
     // Telegram hozir javob bermadi: mijozning xabari egasiga yetmay qolmasin — navbatga (javobni panelda beradi)
     console.error('[mijozlar] egasiga yetkazilmadi, navbatga qo\'yildi:', (e as Error).message);
@@ -691,14 +700,31 @@ async function flush(r: ReplyRow): Promise<void> {
   }
   if (!replies.move(biz.id, r.id, ['scheduled'], 'sent')) return;
   try {
-    const ch = await sendToLead(biz, lead, r.text, 'palantir');
-    // Egasiga xabar yetmasa ham javob yuborilgan hisoblanadi (aks holda qayta yuborilardi)
-    await owner?.notify(biz, `🤖 <b>${who(lead)}</b> · ${CHANNEL_LABEL[ch]} — javob berdim:\n<i>${esc(cut(r.text, 1500))}</i>`).catch(() => {});
+    await sendToLead(biz, lead, r.text, 'palantir');
+    // Oddiy javob haqida egasiga darhol xabar yo'q — kechqurun bitta yig'ma (B7, egasi qarori: kuniga 30–50 xabar shovqin edi)
+    autoDigest.add(biz.id, lead.id);
   } catch (e) {
     replies.move(biz.id, r.id, ['sent'], 'pending');
     const fresh = unanswered(inbox.thread(biz.id, lead.id, 30));
     await card(biz, lead, fresh, { ...r, status: 'pending', note: `Yuborilmadi: ${(e as Error).message}` });
   }
+}
+
+/**
+ * Kechki yig'ma (B7): Palantir o'zi javob bergan suhbatlar — bitta xabar. Yuborilgach tozalanadi.
+ * Qaytadi: yuborildimi (yig'ilgan narsa bo'lmasa — false)
+ */
+export async function sendAutoDigest(biz: BusinessRow): Promise<boolean> {
+  if (!owner || !biz.ownerChatId) return false;
+  const rows = autoDigest.list(biz.id).flatMap(r => {
+    const lead = leads.get(biz.id, r.leadId);
+    return lead ? [{ name: lead.name || (lead.username ? `@${lead.username}` : null) || lead.phone || 'Mijoz', channel: CHANNEL_LABEL[lead.channel], replies: r.replies }] : [];
+  });
+  const html = digestText(rows);
+  if (!html) { autoDigest.clear(biz.id); return false; }
+  await owner.notify(biz, html);
+  autoDigest.clear(biz.id);
+  return true;
 }
 
 export async function flushDue(): Promise<void> {

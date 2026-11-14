@@ -288,7 +288,8 @@ async function liveTests(): Promise<void> {
     await world('/api/mode', { mode: 'auto', contacts: false, delayMin: 1 });
     mark = newest(await snapshot());
     await world('/api/tg/send', { chat: dilnoza, text: 'Manzilingiz qayerda?' });
-    ok("mijozga o'zi javob berdi, egasiga xabar qildi", !!(await seen('manzil', s => botSaid(s, dilnoza, mark, 'Chilonzor 7-mavze'))) && !!(await seen('xabar', s => botSaid(s, OWNER, mark, 'javob berdim'))));
+    // B7: oddiy javob haqida egasiga darhol xabar yo'q — kechqurun bitta yig'ma
+    ok("mijozga o'zi javob berdi (egasiga — kechki yig'mada)", !!(await seen('manzil', s => botSaid(s, dilnoza, mark, 'Chilonzor 7-mavze'))));
     mark = newest(await snapshot());
     await world('/api/tg/send', { chat: dilnoza, text: 'Qabulga yozilmoqchi edim' });
     ok("bo'sh vaqtlar CRM jadvalidan taklif qilindi", !!(await seen("bo'sh vaqtlar", s => botSaid(s, dilnoza, mark, 'Rustam Rustamov'))));

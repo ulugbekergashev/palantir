@@ -170,6 +170,13 @@ try {
   console.log('\n# Kechki savol: kun qanday o\'tdi');
   const evening = await waitFor('kechki savol', () => toOwner(mark, "Kun qanday o'tdi"));
   ok("kechki savol: bugungi vazifa va mijoz qadami, «aytadigan narsa yo'q» tugmasi", !!evening && String(evening.params.text).includes('Tabassum bilan uchrashuv') && String(evening.params.text).includes('taklif yuborish') && buttons(evening).some(x => x.callback_data === 'od|day'));
+  // B7: «o'zi javob bersin»da javob berilgan suhbatlar — kechqurun bitta yig'ma (har javobga alohida xabar emas)
+  const digestDb = new DatabaseSync(join(dataDir, 'palantir.db'));
+  const bizRow = digestDb.prepare('SELECT business_id FROM leads WHERE id = ?').get(a.id) as { business_id: string };
+  for (const id of [a.id, a.id, b.id]) digestDb.prepare('INSERT INTO auto_digest (business_id, lead_id, at) VALUES (?, ?, ?)').run(bizRow.business_id, id, new Date().toISOString());
+  digestDb.close();
+  const digest = await waitFor("kechki yig'ma", () => toOwner(mark, "Bugun Palantir o'zi"));
+  ok("B7: kechki yig'ma — «Bugun Palantir o'zi 2 ta mijozga javob berdi (3 ta xabar)», bir marta", !!digest && String(digest.params.text).includes("2 ta mijozga javob berdi") && String(digest.params.text).includes('3 ta xabar'), String(digest?.params.text ?? '').slice(0, 200));
   await sleep(1500);
   const was0 = ai.requests.length;
   say(OWNER, 'Tabassumga taklifni yubordim, juma kuni javob beradi');

@@ -778,9 +778,9 @@ export function createBot(): BotService {
   });
   setTeamOutlet(teamOutlet(tg));
   setOwnerOutlet({
-    async notify(biz, html, keyboard) {
+    async notify(biz, html, keyboard, silent) {
       if (!biz.ownerChatId) return null;
-      const m = await tg.sendMessage(biz.ownerChatId, html, { parse_mode: 'HTML', link_preview_options: { is_disabled: true }, reply_markup: keyboard });
+      const m = await tg.sendMessage(biz.ownerChatId, html, { parse_mode: 'HTML', link_preview_options: { is_disabled: true }, reply_markup: keyboard, disable_notification: silent || undefined });
       return m.message_id;
     },
     async edit(biz, messageId, html, keyboard) {
