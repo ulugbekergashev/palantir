@@ -127,6 +127,8 @@ export function ReceptionToday({ data, reload, notify, status, onChanged, tick, 
               </label>
             ))}
           </fieldset>
+          {/* Rejim bitta: shu yerda va Sozlamalarda bir xil saqlanadi; kutish vaqti va tanishlarga javob — faqat Sozlamalarda (I4) */}
+          {!limited && <a href={hrefOf('sozlamalar', 'asosiy')} className="mt-2 inline-block text-[12px] text-[#a3a9b5] hover:text-[#f2f0ea]">Kutish vaqti, tanishlarga javob — Sozlamalarda →</a>}
           {!limited && current === 'auto' && missing.length > 0 && (
             <p role="alert" className="mt-3 rounded-xl border border-[#f5b454]/30 bg-[#f5b454]/[0.08] px-3.5 py-2.5 text-[13px] text-[#f5d29a]">
               Palantir hali bilmaydi: <b>{missing.join(', ')}</b>. Mijoz shularni so'rasa, o'zi javob bera olmaydi — sizga uzatadi.{' '}

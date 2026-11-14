@@ -3,6 +3,7 @@ import { ClientCard } from './ClientCard';
 import { ArrowLeft, Bot, Check, Loader2, Phone, Send, Users, X } from 'lucide-react';
 import type { AutoReply, InboxMessage, InboxThread, Lead, LeadChannel, LeadStage, Outbound, ReplyDraft } from '../types';
 import { api } from '../data/api';
+import { hrefOf } from '../lib/nav';
 import { FollowupCard, type Notify } from '../components/Artifacts';
 import { Button, ButtonLink, Card, EmptyState, PageHeader, controlClass } from '../components/ui';
 import { shortDate } from '../lib/week';
@@ -205,7 +206,11 @@ function Thread({ leadId, notify, onBack, onChanged, canForget }: { leadId: stri
 }
 
 /** Mijozlar: kim yozgan, nima deyilgan, holati qanday — bitta ro'yxatda (bot, shaxsiy Telegram, Instagram, qo'lda qo'shilganlar) */
-export function InboxPage({ notify, onChanged, canForget = true }: { notify: Notify; /** Javob tasdiqlandi yoki rad etildi — menyudagi belgi yangilansin */ onChanged?: () => void; /** Qabulxona xodimi mijoz kartasini butunlay o'chira olmaydi (server/access.ts) */ canForget?: boolean }) {
+export function InboxPage({ notify, onChanged, canForget = true, canSettings = true }: {
+  notify: Notify; /** Javob tasdiqlandi yoki rad etildi — menyudagi belgi yangilansin */ onChanged?: () => void;
+  /** Qabulxona xodimi mijoz kartasini butunlay o'chira olmaydi (server/access.ts) */ canForget?: boolean;
+  /** Javob rejimini o'zgartira oladi (egasi; qabulxona xodimiga Sozlamalar yopiq) */ canSettings?: boolean;
+}) {
   const [threads, setThreads] = useState<InboxThread[] | null>(null);
   const [settings, setSettings] = useState<AutoReply | null>(null);
   const [drafts, setDrafts] = useState<Outbound[]>([]);
@@ -230,7 +235,9 @@ export function InboxPage({ notify, onChanged, canForget = true }: { notify: Not
             {STAGE_IDS.map(s => <option key={s} value={s}>{STAGES[s].label} ({count(s)})</option>)}
           </select>
         )}
-        {settings && <a href="#/telegram" className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50">{MODE_LABEL[settings.mode]} · o'zgartirish</a>}
+        {settings && !canSettings && <span className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">{MODE_LABEL[settings.mode]}</span>}
+        {/* Javob rejimining to'liq sozlamasi (kutish vaqti, tanishlar) — Sozlamalar → Asosiy (I4: avval Telegram varag'iga olib borardi) */}
+        {settings && canSettings && <a href={hrefOf('sozlamalar', 'asosiy')} className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50">{MODE_LABEL[settings.mode]} · o'zgartirish</a>}
       </PageHeader>
 
       {drafts.length > 0 && (

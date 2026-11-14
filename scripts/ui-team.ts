@@ -139,6 +139,10 @@ try {
     && !(await page.getByPlaceholder(/Qabulxonadan so'rang/).count()) && !(await page.getByText('Nazorat', { exact: true }).count())
     && !(await page.getByRole('link', { name: 'ulash' }).count()) && await page.getByText('rejimni klinika egasi tanlaydi').isVisible());
   ok("I5: «Sizni kutyapti» o'rniga «Ochiq so'rov» (xodimga «Sizni kutyapti» yopiq)", await page.getByText("Ochiq so'rov").isVisible() && !(await page.getByText('Sizni kutyapti').count()));
+  await page.goto(`${base}/#/qabulxona/yozishmalar`);
+  await page.getByText('Palantir javob tayyorlaydi').first().waitFor({ timeout: 10_000 });
+  await sleep(600);
+  ok("I4: xodimning yozishmalarida rejim faqat ko'rinadi — «o'zgartirish» havolasi (yopiq Sozlamalarga) yo'q", !(await page.getByRole('link', { name: /o'zgartirish/ }).count()) && await page.getByText('Palantir javob tayyorlaydi').first().isVisible());
   ok("brauzerda xato yo'q", !errors.length, errors.slice(0, 3).join(' | '));
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
