@@ -228,7 +228,11 @@ function row(c, twins) {
     const act = el('button', 'second', 'Aktivlashtirish');
     act.disabled = !c.online;
     act.onclick = () => license(c, act);
-    li.append(act);
+    // Windows qayta o'rnatildi yoki kompyuter almashdi — kod o'zgaradi, «Aktivlashtirish» 409 beradi (H7)
+    const moved = el('button', 'second', 'Kompyuter almashdi');
+    moved.disabled = !c.online;
+    moved.onclick = () => rebind(c, moved);
+    li.append(act, moved);
   }
   li.append(btn);
   return li;
@@ -268,6 +272,27 @@ async function remove(c, btn) {
     if (r.status === 401) return load();
     say(r.ok ? "O'chirildi" : (j.error || 'Xato: ' + r.status));
     if (r.ok) load();
+  } catch {
+    say("Hub bilan aloqa yo'q");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function rebind(c, btn) {
+  const code = prompt("«" + c.name + "»: kompyuter almashdi — egasidan yangi kompyuter ekranidagi kodni so'rang va kiriting (XXXX-XXXX-XXXX-XXXX):");
+  if (!code) return;
+  btn.disabled = true;
+  try {
+    const r = await api('/admin/clinics/' + c.id + '/machine', { machineId: code.trim() });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) return load();
+    if (!r.ok) return say(j.error || 'Xato: ' + r.status);
+    say('«' + c.name + "»: yangi kompyuter kodi yozildi, litsenziya berilmoqda…");
+    const g = await api('/admin/clinics/' + c.id + '/license', {});
+    const gj = await g.json().catch(() => ({}));
+    say(g.ok ? '«' + c.name + "» yangi kompyuterda aktivlashtirildi" : "Kod yozildi, lekin litsenziya berilmadi: " + (gj.error || 'Xato: ' + g.status) + " — «Aktivlashtirish»ni qayta bosing");
+    load();
   } catch {
     say("Hub bilan aloqa yo'q");
   } finally {

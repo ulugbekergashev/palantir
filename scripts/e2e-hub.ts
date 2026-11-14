@@ -405,6 +405,13 @@ try {
   ok("karantin: tasdiqlanmagan kompyuter zaxira yubora olmaydi (hub diskini to'ldira olmaydi) — 403", fakeBackup.status === 403);
   ok("bir xil kod bilan ikki yozuv: biri tasdiqlanadi, ikkinchisi — yo'q (takror yoki soxta)",
     (await approve(a.clinicId, '5555-6666-7777-8888')).status === 200 && (await approve(b.clinicId, '5555-6666-7777-8888')).status === 409);
+  // H7: Windows qayta o'rnatildi — tasdiqlangan yozuvning kompyuter kodi yangilanadi (avval litsenziya abadiy 409 edi)
+  const machine = (id: string, machineId: string, key = admin) => fetch(`${HUB}/admin/clinics/${id}/machine`, { method: 'POST', headers: key, body: JSON.stringify({ machineId }) });
+  const rebound = await machine(a.clinicId, '1212-3434-5656-7878');
+  ok("H7: kompyuter almashdi — yangi kod yozildi (yozuv tuzatiladi), boshqa tasdiqlangan klinikaning kodi — 409, tasdiqlanmagan yozuv — 409, kalitsiz — 401",
+    rebound.status === 200 && (await adminList() as { id: string; machineId?: string }[]).find(c => c.id === a.clinicId)?.machineId === '1212-3434-5656-7878'
+    && (await machine(a.clinicId, NEW_MACHINE)).status === 409 && (await machine(b.clinicId, '1111-2222-3333-4444')).status === 409
+    && (await machine(a.clinicId, '1212-3434-5656-7878', { authorization: 'Bearer xato' })).status === 401, String(rebound.status));
   const delApproved = await fetch(`${HUB}/admin/clinics/${a.clinicId}/delete`, { method: 'POST', headers: admin });
   const delFake = await fetch(`${HUB}/admin/clinics/${b.clinicId}/delete`, { method: 'POST', headers: admin });
   ok("tasdiqlangan yozuv o'chirilmaydi, tasdiqlanmagani o'chadi", delApproved.status === 409 && delFake.status === 200 && !(await adminList()).some(c => c.id === b.clinicId));

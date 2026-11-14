@@ -616,7 +616,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const machine = normalizeMachineId(String(state?.license?.machineId ?? ''));
     if (!machine) return send(res, 502, { error: "Klinika kompyuter kodini bermadi (eski nashr bo'lishi mumkin)" });
     // Ro'yxatdan o'tgandagi (sotuvchi tasdiqlagan) kod bilan bir xil bo'lishi kerak: kalit boshqa kompyuterga ketmasin
-    if (clinic.machine_id && clinic.machine_id !== machine) return send(res, 409, { error: `Kompyuter kodi o'zgargan (${clinic.machine_id} → ${machine}) — egasidan kodni qayta so'rang` });
+    if (clinic.machine_id && clinic.machine_id !== machine) return send(res, 409, { error: `Kompyuter kodi o'zgargan (${clinic.machine_id} → ${machine}). Windows qayta o'rnatilgan yoki kompyuter almashgan bo'lsa — egasidan ekrandagi yangi kodni so'rab, «Kompyuter almashdi»ni bosing` });
     const answer = await ask('POST', '/api/license', JSON.stringify({ key: issueLicense(machine, signingKey(cfg.licenseKey)) }));
     const done = parsed(answer);
     if (!answer || answer.status !== 200) return send(res, answer?.status ?? 504, { error: done?.error ?? 'Klinika kompyuteri javob bermadi' });
@@ -645,6 +645,27 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     db.prepare('UPDATE clinics SET approved = 1 WHERE id = ?').run(approving[1]);
     team.log(who, 'klinika.tasdiqlandi', approving[1], machine);
     return send(res, 200, { approved: true });
+  }
+
+  // Admin: tasdiqlangan klinikaning kompyuteri almashdi (Windows qayta o'rnatildi, yangi kompyuter) — kompyuter kodi yangilanadi (H7).
+  // Avval kod o'zgarsa litsenziya abadiy 409 edi va yozuvni tuzatib bo'lmasdi. Ishonch — tasdiqlashdagidek: kodni egasi ekrandan aytadi
+  const rebinding = /^\/admin\/clinics\/([0-9a-f]{10})\/machine$/.exec(p);
+  if (rebinding && req.method === 'POST') {
+    const who = memberOf(req, res, 'founder'); if (!who) return;
+    const id = rebinding[1];
+    const clinic = db.prepare('SELECT machine_id, approved FROM clinics WHERE id = ?').get(id) as { machine_id: string | null; approved: number | null } | undefined;
+    if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
+    if (clinic.approved !== 1) return send(res, 409, { error: "Tasdiqlanmagan yozuv — «Tasdiqlash»dan foydalaning" });
+    let body: { machineId?: unknown };
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    const machine = normalizeMachineId(String(body.machineId ?? ''));
+    if (!machine) return send(res, 400, { error: "Kompyuter kodi noto'g'ri yozilgan (XXXX-XXXX-XXXX-XXXX)" });
+    if (clinic.machine_id === machine) return send(res, 200, { machineId: machine });
+    const twin = db.prepare('SELECT name FROM clinics WHERE machine_id = ? AND approved = 1 AND id <> ?').get(machine, id) as { name: string } | undefined;
+    if (twin) return send(res, 409, { error: `Bu kompyuter kodi tasdiqlangan «${twin.name}» yozuvida bor — boshqa klinikaning kompyuteri` });
+    db.prepare('UPDATE clinics SET machine_id = ? WHERE id = ?').run(machine, id);
+    team.log(who, 'klinika.kompyuter_almashdi', id, `${clinic.machine_id ?? '—'} → ${machine}`);
+    return send(res, 200, { machineId: machine });
   }
 
   // Admin: tasdiqlanmagan (soxta yoki takror) yozuvni o'chirish — tasdiqlangan klinika bu yo'l bilan o'chmaydi
