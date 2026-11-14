@@ -14,6 +14,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { query, type EffortLevel, type McpSdkServerConfigWithInstance, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { env } from '../env';
 import { APP_VERSION } from '../version';
+import { notePressure } from './pressure';
 
 /**
  * auth — obunaga kirilmagan; limit — obuna limiti tugagan; unsupported — bu ish obunada yo'q (API kalit kerak);
@@ -111,6 +112,9 @@ export function collectResult(msgs: readonly SDKMessage[]): TurnResult {
   const sessionId = msgs.find(m => 'session_id' in m && m.session_id)?.session_id ?? null;
   // Obuna limiti haqidagi aniq belgi (xato matni har xil bo'lishi mumkin)
   const limited = msgs.some(m => m.type === 'rate_limit_event' && m.rate_limit_info.status === 'rejected');
+  // Limitga qanchalik yaqinligi — qo'shimchalar (Direktor, kontent) bemorlarga joy qoldirib to'xtaydi (B5)
+  const rate = msgs.findLast(m => m.type === 'rate_limit_event');
+  if (rate?.type === 'rate_limit_event') notePressure(rate.rate_limit_info);
   const fail = (why: string): SubscriptionError => new SubscriptionError(limited ? 'limit' : classify(why), why, sessionId);
   const res = msgs.findLast(m => m.type === 'result');
   if (!res || res.type !== 'result') throw fail('Obuna javob bermadi');

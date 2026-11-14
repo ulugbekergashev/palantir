@@ -163,5 +163,29 @@ await check("har bir Palantir asbobi MCP asbobiga aylanadi va natija runTool orq
   assert.match(String((bad.content[0] as { text: string }).text), /Kirish noto'g'ri/);
 });
 
+const { extrasPaused, extrasPausedUntil, notePressure, resetPressure } = await import('../server/subscription/pressure');
+await check("B5: limitga yaqin (ogohlantirish yoki 80%) — qo'shimchalar yangilanguncha to'xtaydi; 50% — ishlaydi; yangilangach — yana ishlaydi", () => {
+  const now = Date.parse('2026-11-15T10:00:00Z'), reset = Math.floor((now + 2 * 3_600_000) / 1000);
+  resetPressure();
+  assert.equal(extrasPaused(now), false);
+  notePressure({ status: 'allowed', utilization: 0.5, resetsAt: reset }, now);
+  assert.equal(extrasPaused(now), false);
+  notePressure({ status: 'allowed', utilization: 0.85, resetsAt: reset }, now);
+  assert.equal(extrasPausedUntil(now), reset * 1000);
+  assert.equal(extrasPaused(reset * 1000 + 1), false, 'limit yangilangach — yana ishlaydi');
+  notePressure({ status: 'allowed_warning', resetsAt: reset }, now);
+  assert.equal(extrasPaused(now), true);
+  notePressure({ status: 'allowed', utilization: 92 }, now); // foizda kelsa ham; vaqt aytilmasa — 5 soat
+  assert.equal(extrasPaused(now + 4 * 3_600_000), true);
+  assert.equal(extrasPaused(now + 6 * 3_600_000), false);
+  resetPressure();
+});
+await check("B5: obuna javobidagi limit belgisi bosim holatiga yoziladi", () => {
+  resetPressure();
+  collectResult([{ type: 'rate_limit_event', session_id: 's', rate_limit_info: { status: 'allowed_warning', utilization: 0.9 } }, { type: 'result', subtype: 'success', is_error: false, result: 'ok', session_id: 's', usage: { input_tokens: 1, output_tokens: 1 }, stop_reason: 'end_turn' }] as never);
+  assert.equal(extrasPaused(), true);
+  resetPressure();
+});
+
 console.log(failed ? `\n${failed} ta tekshiruv yiqildi` : '\nHammasi o\'tdi');
 process.exit(failed ? 1 : 0);

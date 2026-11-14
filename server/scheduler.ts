@@ -27,6 +27,7 @@ import { tgCall, tgCallEnabled } from './tgcall';
 import { ContentError, factoryDue, runFactory } from './content/factory';
 import { watchAll as watchAds } from './ads/campaigns';
 import { directorReport } from './director/telegram';
+import { extrasPaused, extrasPausedUntil } from './subscription/pressure';
 import { crewHas, crewWorks } from '../src/lib/crew';
 import { crewFromData } from './crew';
 import { measure, measureDue } from './marketing/results';
@@ -40,6 +41,8 @@ const VISITS_EVERY_MS = 30 * 60_000;
 const visitsCheckedAt = new Map<string, number>();
 /** Kechki yig'ma shu kuni yuborilgan bizneslar (B7) — yuborilgani bazadan tozalanadi, bu esa bir kechada ikkinchi xabar ketmasligi uchun */
 const digestDay = new Map<string, string>();
+/** Limit bosimi haqida egasiga aytilgan oyna (B5) — bir oynada bir marta */
+let pressureTold: number | null = null;
 
 /**
  * Ertalabki ish rejasi (plan.ts): vazifalar, mijozlarning keyingi qadamlari, unutilgan mijozlar, tasdiq kutayotganlar,
@@ -68,7 +71,8 @@ export async function sendMorning(bot: BotService, biz: BusinessRow, now = new D
 export async function morningMessage(bot: BotService, biz: BusinessRow, now = new Date()): Promise<boolean> {
   if (!biz.ownerChatId) return false;
   const plan = await morningPlan(biz, now).catch(e => { console.error(`[jadval] reja (${biz.profile.name}):`, e); return null; });
-  const dir = await directorReport(biz, now).catch(e => { console.error(`[direktor] (${biz.profile.name}):`, (e as Error).message); return null; });
+  // Obuna limitiga yaqin — Direktor tahlili (AI) o'tkazib yuboriladi: bemorlarga javob uchun joy qoladi (B5, «bemorlar birinchi»)
+  const dir = extrasPaused() ? null : await directorReport(biz, now).catch(e => { console.error(`[direktor] (${biz.profile.name}):`, (e as Error).message); return null; });
   const messages = joinMorning(plan, dir);
   if (!messages.length) return false;
   for (const m of messages) await bot.sendText(biz.ownerChatId, m.html, m.buttons);
@@ -329,7 +333,7 @@ export function startScheduler(bot: BotService): () => void {
       const contentHour = now.getHours(), contentDay = iso(now);
       if (env.aiEnabled && Date.now() >= remindRetryAt && contentHour >= env.morningHour + 1 && contentHour < env.morningHour + 8) {
         for (const biz of businesses.all()) {
-          if (!biz.active || !biz.ownerChatId || !crewWorks(biz, 'kontent') || !factoryDue(biz.id, now)) continue;
+          if (!biz.active || !biz.ownerChatId || !crewWorks(biz, 'kontent') || !factoryDue(biz.id, now) || extrasPaused()) continue;
           void runFactory(biz).catch(async e => {
             const why = e instanceof ContentError ? e.message : 'ichki xato';
             console.error(`[jadval] kontent-zavod (${biz.profile.name}):`, (e as Error).message);
@@ -359,6 +363,16 @@ export function startScheduler(bot: BotService): () => void {
             if (transient(e)) break;
           }
           businesses.update(biz.id, { eveningDate: day });
+        }
+      }
+      // 3c) Obuna limitiga yaqin (B5): egasiga bir marta — qo'shimchalar to'xtadi, bemorlarga javob ishlayveradi
+      const pausedUntil = extrasPausedUntil();
+      if (pausedUntil && pressureTold !== pausedUntil) {
+        pressureTold = pausedUntil;
+        const back = new Date(pausedUntil).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        for (const biz of businesses.all()) {
+          if (!biz.active || !biz.ownerChatId) continue;
+          await bot.sendText(biz.ownerChatId, `⏸ <b>Claude obunasi limitiga yaqin</b> — bemorlarga javob uchun joy qoldirib, Direktor tahlili va avtomatik kontent ${back} gacha to'xtatildi. Bemorlarga javob ishlayveradi; o'zingiz so'ragan ishlar ham.`).catch(() => {});
         }
       }
       // 3b) «O'zi javob bersin» yig'masi (B7): Palantir bugun o'zi javob bergan suhbatlar — bitta xabar (har javobga alohida emas)
