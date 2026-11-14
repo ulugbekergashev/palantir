@@ -9,7 +9,7 @@ import { daysIn, previousPeriod, type DashboardView, type Kpi, type Period, type
 import { iso } from '../src/lib/week';
 import type { InboxMessage } from '../src/types';
 import { leads, sql, type BusinessRow } from './db';
-import { isHold } from './inbox/hold';
+import { HOLD_MARK, isHold } from './inbox/hold';
 import { staff } from './requests/store';
 // Qo'ng'iroqlar jadvalining MicroSIP ustunlari shu yerda tayyor bo'lsin
 import './phone/store';
@@ -169,6 +169,9 @@ function team(biz: BusinessRow, r: Range): TeamRow[] {
   return [...members, { id: null, name: ownerName, role: 'owner', linked: !!biz.ownerChatId, ...of(by => by === ownerName || by.startsWith(`${ownerName} (`) || by === 'Panel') }];
 }
 
+/** SQL: chiquvchi xabar avtomatik «xodimga yetkazildi» emas (u javob emas — bemor hali kutyapti) */
+const NOT_HOLD = `NOT (o.author = 'palantir' AND instr(o.text, '${HOLD_MARK}') > 0)`;
+
 function recent(bizId: string): RecentItem[] {
   const who = (leadId: string | null, fallback: string) => {
     const l = leadId ? leads.get(bizId, leadId) : undefined;
@@ -177,8 +180,8 @@ function recent(bizId: string): RecentItem[] {
   // Oxirgi xabarga javob yozilgan bo'lsa — javob berildi; javob yo'q, lekin bu «rahmat», «ok» kabi yakunlovchi gap va undan oldin
   // (6 soat ichida) javob yozilgan bo'lsa — javob kutilmaydi; qolgani — javobsiz
   const msgs = sql.many(`SELECT i.lead_id, i.channel, i.text, i.created_at,
-      EXISTS (SELECT 1 FROM inbox o WHERE o.business_id = i.business_id AND o.lead_id = i.lead_id AND o.direction = 'out' AND o.created_at > i.created_at) AS after,
-      EXISTS (SELECT 1 FROM inbox o WHERE o.business_id = i.business_id AND o.lead_id = i.lead_id AND o.direction = 'out' AND o.created_at < i.created_at
+      EXISTS (SELECT 1 FROM inbox o WHERE o.business_id = i.business_id AND o.lead_id = i.lead_id AND o.direction = 'out' AND o.created_at > i.created_at AND ${NOT_HOLD}) AS after,
+      EXISTS (SELECT 1 FROM inbox o WHERE o.business_id = i.business_id AND o.lead_id = i.lead_id AND o.direction = 'out' AND o.created_at < i.created_at AND ${NOT_HOLD}
         AND o.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', i.created_at, '-6 hours')) AS before
     FROM inbox i WHERE i.business_id = ? AND i.direction = 'in'
       AND i.created_at = (SELECT MAX(created_at) FROM inbox x WHERE x.business_id = i.business_id AND x.lead_id = i.lead_id AND x.direction = 'in')

@@ -11,6 +11,10 @@ export type PeriodKey = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
  * dushanba kungi yakunda (plan.ts), shunday deb yoziladi
  */
 export const PERIOD_LABEL: Record<Exclude<PeriodKey, 'custom'>, string> = { today: 'Bugun', yesterday: 'Kecha', week: '7 kun', month: '30 kun' };
+/** Xodim sarlavhasidagi raqamlar ustida: qaysi davr. «7 kun» bugunni kiritmasligi aytiladi — Qabulxonaning «bugun»i bilan zid ko'rinmasin (G9) */
+export const PERIOD_CAPTION: Record<Exclude<PeriodKey, 'custom'>, string> = {
+  today: 'Bugun', yesterday: 'Kecha', week: "Oxirgi 7 kun · kechagacha, bugun kirmaydi", month: "Oxirgi 30 kun · kechagacha, bugun kirmaydi",
+};
 /** Oraliq shundan uzun bo'lmaydi (bitta so'rovda) */
 export const MAX_PERIOD_DAYS = 366;
 

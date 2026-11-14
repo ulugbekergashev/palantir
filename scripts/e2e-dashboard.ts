@@ -174,7 +174,9 @@ try {
   g6call(a, '+998901110001', ago(9));
   g6call(km, '+998935551234', ago(8));
   g6db.close();
-  const k2 = ((await api('/api/dashboard?period=today', { token })).json.dashboard as DashboardView).kpi;
+  const d2 = (await api('/api/dashboard?period=today', { token })).json.dashboard as DashboardView;
+  const k2 = d2.kpi;
+  ok("G6: lentada faqat «yetkazildi» olgan Sherzod — «waiting» (javob berilmagan), Kamola ham", d2.recent.find(r => r.kind === 'message' && r.who === 'Sherzod')?.state === 'waiting' && d2.recent.find(r => r.kind === 'message' && r.who === 'Kamola')?.state === 'waiting', JSON.stringify(d2.recent.filter(r => r.kind === 'message').map(r => [r.who, r.state])));
   ok("G6: kechki savoli javobsiz qolgan mijoz va faqat «yetkazildi» olgan mijoz — javobsiz (javob berildi o'zgarmadi)",
     k2.inquiries.value === k.inquiries.value + 2 && k2.answered.value === k.answered.value && k2.unanswered.messages === k.unanswered.messages + 2, JSON.stringify({ i: k2.inquiries.value, a: k2.answered.value, u: k2.unanswered }));
   const f2 = (await api('/api/dashboard/funnel?period=today', { token })).json.funnel as FunnelView;
@@ -194,6 +196,7 @@ try {
   await page.screenshot({ path: join(OUT, 'dashboard-1440.png'), fullPage: true });
   await page.getByText('Voronka va tushum').waitFor({ timeout: 10000 });
   ok("voronka panelda: tushum ko'rinadi", await page.getByText("300 000 so'm").first().isVisible());
+  ok("G9: Tahlilchi raqamlari ustida davr yozilgan — «7 kun» bugunni kiritmasligi aytiladi (Qabulxonaning «bugun»i bilan zid ko'rinmasin)", await page.getByText('Oxirgi 7 kun · kechagacha, bugun kirmaydi').isVisible());
   ok("panel ochildi: ko'rsatkichlar, dinamika, kanallar, jamoa, so'nggi murojaatlar", await page.getByText('Murojaatlar dinamikasi').isVisible() && await page.getByText('Kanallar').first().isVisible() && await page.getByRole('heading', { name: /Jamoa/ }).isVisible() && await page.getByText("So'nggi murojaatlar").isVisible());
   const chart = page.getByRole('img', { name: 'Murojaatlar dinamikasi' });
   await chart.scrollIntoViewIfNeeded();

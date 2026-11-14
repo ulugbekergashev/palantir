@@ -44,7 +44,12 @@ export function AgentOrb({ member, size = 84, live = false }: { member: Member; 
 export interface Stat { label: string; value: ReactNode; hint?: string; tone?: 'warn' | 'good' }
 
 /** Xodim sarlavhasi: sfera, ismi, nima qiladi, jonli holati va bugungi raqamlar; ostida — varaqlar */
-export function AgentHero({ member, state, stats, children, compact = false }: { member: Member; state: MemberState | null; stats: Stat[]; children?: ReactNode; /** Ixcham: ism va varaqlar bir qatorda (suhbat kabi ekranni to'ldiradigan varaq) */ compact?: boolean }) {
+export function AgentHero({ member, state, stats, children, compact = false, period }: {
+  member: Member; state: MemberState | null; stats: Stat[]; children?: ReactNode;
+  /** Ixcham: ism va varaqlar bir qatorda (suhbat kabi ekranni to'ldiradigan varaq) */ compact?: boolean;
+  /** Raqamlar qaysi davrniki («Bugun», «7 kun · kechagacha») — xodimlar sahifalaridagi sonlar bir-biriga zid ko'rinmasin (G9) */
+  period?: string;
+}) {
   const m = TEAM[member], h = HUE[member];
   if (compact) {
     return (
@@ -77,8 +82,9 @@ export function AgentHero({ member, state, stats, children, compact = false }: {
           </span>
         )}
       </div>
+      {stats.length > 0 && period && <p className="relative mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7d838f] sm:mt-7">{period}</p>}
       {stats.length > 0 && (
-        <dl className={`relative mt-4 grid gap-x-3 gap-y-4 sm:mt-8 sm:gap-x-6 sm:gap-y-6 ${stats.length >= 4 ? 'grid-cols-4' : stats.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} lg:grid-cols-4`}>
+        <dl className={`relative ${period ? 'mt-2 sm:mt-3' : 'mt-4 sm:mt-8'} grid gap-x-3 gap-y-4 sm:gap-x-6 sm:gap-y-6 ${stats.length >= 4 ? 'grid-cols-4' : stats.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} lg:grid-cols-4`}>
           {stats.map(s => (
             <div key={s.label} className="flex min-w-0 flex-col gap-1 border-l border-glass/10 pl-2.5 sm:pl-4">
               <dt className="order-2 text-[11px] leading-tight text-[#a3a9b5] sm:text-[13px]">{s.label}</dt>

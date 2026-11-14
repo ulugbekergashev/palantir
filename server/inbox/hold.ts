@@ -5,7 +5,7 @@
 import type { InboxMessage } from '../../src/types';
 
 /** Xabarning birinchi qatori — shu belgi bilan taniladi */
-const HOLD_MARK = 'xodimiga yetkazildi ✅';
+export const HOLD_MARK = 'xodimiga yetkazildi ✅';
 export const holdLine = (business: string): string => `Xabaringiz «${business}» ${HOLD_MARK} Tez orada javob beramiz.`;
 
 export const isHold = (m: Pick<InboxMessage, 'direction' | 'by' | 'text'>): boolean => m.direction === 'out' && m.by === 'palantir' && m.text.includes(HOLD_MARK);

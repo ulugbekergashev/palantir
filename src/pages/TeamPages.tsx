@@ -13,6 +13,7 @@ import { isClinic } from '../data/industries';
 import { setupSteps } from '../lib/setup';
 import { useDayFeed } from '../lib/useDayFeed';
 import { iso, localDay } from '../lib/week';
+import { PERIOD_CAPTION } from '../lib/dashboard';
 import { AnalystBody, PeriodSwitch, analystStats, useAnalystData } from './agents/Analyst';
 import { DemandBody } from './agents/Demand';
 import { DiscoveriesBody } from './agents/Discoveries';
@@ -59,7 +60,7 @@ export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now
   ];
   return (
     <div className="space-y-6">
-      <AgentHero member="qabulxona" state={state} stats={stats}>
+      <AgentHero member="qabulxona" state={state} stats={stats} period={PERIOD_CAPTION.today}>
         <AgentTabs area="qabulxona" active={active} tabs={[{ id: 'bugun', label: 'Bugun' }, { id: 'sorovlar', label: "So'rovlar", count: data?.requests.length }, { id: 'qongiroqlar', label: "Qo'ng'iroqlar" }, { id: 'yozishmalar', label: 'Yozishmalar' }, ...(limited ? [] : [{ id: 'topshiriqlar', label: 'Topshiriqlar' }])]} />
       </AgentHero>
       {active === 'bugun' && <ReceptionToday data={data} reload={reload} notify={notify} status={status} onChanged={onChanged} tick={tick} />}
@@ -142,7 +143,7 @@ export function AnalystArea({ tab, biz, status, notify, state }: Common) {
   const data = useAnalystData(period, notify);
   return (
     <div className="space-y-6">
-      <AgentHero member="tahlilchi" state={state} stats={analystStats(data?.dashboard ?? null, data?.funnel ?? null)}>
+      <AgentHero member="tahlilchi" state={state} stats={analystStats(data?.dashboard ?? null, data?.funnel ?? null)} period={PERIOD_CAPTION[period]}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <AgentTabs area="tahlilchi" active={active} tabs={[{ id: 'raqamlar', label: 'Raqamlar' }, { id: 'kashfiyotlar', label: 'Kashfiyotlar' }, { id: 'talab', label: 'Talab' }, { id: 'hisobot', label: "To'liq hisobot" }, { id: 'topshiriqlar', label: 'Topshiriqlar' }]} />
           {active === 'raqamlar' && <PeriodSwitch value={period} onChange={setPeriod} />}
