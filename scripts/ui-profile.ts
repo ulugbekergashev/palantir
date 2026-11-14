@@ -127,6 +127,12 @@ try {
   await page.locator('#p-name').waitFor({ timeout: 15_000 });
   ok('egasi ham ulash ustasini ochadi (topshirish tugmasisiz)', !(await page.locator('#handover-login').count()));
   await shot(page, 'egasi-ustada');
+  // C8: egasiga o'rnatuvchining soati va 9 qatorli kalitlar jadvali ko'rinmaydi
+  ok("C8: egasida «Klinikada o'tgan vaqt» yo'q", !(await page.getByText("Klinikada o'tgan vaqt").count()));
+  await page.locator('aside').getByRole('button', { name: /Kalitlar/ }).click();
+  await page.getByText('Klinika kalitlari').waitFor({ timeout: 10_000 });
+  ok("C8: egasining kalitlar jadvalida berilmagan qo'shimchalar (SpeechLab va h.k.) yo'q — «yana N ta» bir qator bilan",
+    !(await page.getByText('SpeechLab', { exact: false }).count()) && await page.getByText(/ta qo'shimcha kalit/).isVisible());
   ok("brauzerda xato yo'q", !errors.length, errors.slice(0, 3).join(' | '));
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);

@@ -27,8 +27,9 @@ const SAMPLE_HINT = "7412589630:AAH…        — Telegram bot tokeni\nsk-ant-�
  * profile — bitta kompyuter, bitta profil: kalitlar shu klinikaniki (egasi yoki uni sozlayotgan Palantir xodimi, masofadan ham).
  * Aks holda (bir nechta biznesli server) — hamma biznes uchun umumiy, admin orqali
  */
-export function StepKeys({ keys, onKeys, onRouted, profile }: {
-  keys: KeyView[] | null; onKeys: (k: KeyView[]) => void; onRouted: (change: (r: Routed) => Routed) => void; profile: boolean;
+/** owner — klinika egasiga topshirilgan: jadvalda faqat berilgan va majburiy kalitlar, qolgan qo'shimchalar bir qator bilan (C8) */
+export function StepKeys({ keys, onKeys, onRouted, profile, owner = false }: {
+  keys: KeyView[] | null; onKeys: (k: KeyView[]) => void; onRouted: (change: (r: Routed) => Routed) => void; profile: boolean; owner?: boolean;
 }) {
   const list = () => (profile ? api.keys() : adminApi.keys());
   const [text, setText] = useState('');
@@ -95,7 +96,10 @@ export function StepKeys({ keys, onKeys, onRouted, profile }: {
   const required = (keys ?? []).filter(k => k.required);
   // Klinika kompyuterida Hub ulanishi kalit emas: kompyuter o'zi ulanadi (server/hubJoin.ts). Jadvalda bo'lsa, egasi uni bilmasdan
   // o'chirib qo'yishi mumkin — masofadan yordam, zaxira va rasmiy Instagram uziladi. Zaxira yo'l («palantirhub.» kodini maydonga qo'yish) qoladi
-  const rows = profile ? KEYS.filter(k => k.name !== 'PALANTIR_HUB') : KEYS;
+  const all = profile ? KEYS.filter(k => k.name !== 'PALANTIR_HUB') : KEYS;
+  const shown = (name: string) => { const k = keys?.find(x => x.name === name); return !!k && (!!k.source || k.required); };
+  const rows = owner ? all.filter(k => shown(k.name)) : all;
+  const extra = all.length - rows.length;
   return (
     <div className="space-y-4">
       {/* Klinika avval o'z Claude obunasiga kiradi; pullik kalit — ikkinchi yo'l (pastdagi maydonga) */}
@@ -155,6 +159,7 @@ export function StepKeys({ keys, onKeys, onRouted, profile }: {
                 </tbody>
               </table>
             </div>
+            {extra > 0 && <p className="mt-2 text-xs text-slate-500">Yana {extra} ta qo'shimcha kalit (ovoz, nutqni tanish va h.k.) berilmagan — kerak bo'lsa Palantir jamoasi qo'yadi.</p>}
           </>
         )}
       </Card>

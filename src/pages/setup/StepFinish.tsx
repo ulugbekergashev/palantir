@@ -67,7 +67,8 @@ export function StepDone({ facts, elapsed, onGo, handover, name }: { facts: Wiza
     <div className="space-y-4">
       <Card>
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div><p className="text-sm text-slate-500">Klinikada o'tgan vaqt</p><p className="font-mono text-4xl font-medium tabular-nums">{elapsed}</p></div>
+          {/* O'rnatuvchining soati — egasiga topshirilgandan keyin (handover === false) ko'rsatilmaydi (C8) */}
+          {handover !== false ? <div><p className="text-sm text-slate-500">Klinikada o'tgan vaqt</p><p className="font-mono text-4xl font-medium tabular-nums">{elapsed}</p></div> : <div />}
           <div className="text-right">
             <p className={`text-lg font-extrabold ${ready === rows.length ? 'text-emerald-700' : 'text-amber-700'}`}>{rows.length} qadamdan {ready} tasi tayyor</p>
             <p className="text-sm text-slate-500">{ready === rows.length ? 'Ketishingiz mumkin.' : "Chala qolganlarini bosib, qaytib tugating."}</p>

@@ -61,10 +61,11 @@ function Centered({ children }: { children: ReactNode }) {
  * Ustaning ko'rinishi: chapda qadamlar va vaqt, o'ngda joriy qadam, pastda «Orqaga / Davom etish».
  * back — panelga qaytish (usta panel oynasida ochiladi, brauzerning «orqaga» tugmasi ko'rinmasligi mumkin)
  */
-function Shell({ label, facts, stepKey, onStep, onLogout, back, children, toast }: {
+/** timer — «Klinikada o'tgan vaqt» (o'rnatuvchiniki): egasiga topshirilgandan keyin ko'rsatilmaydi (C8) */
+function Shell({ label, facts, stepKey, onStep, onLogout, back, children, toast, timer = true }: {
   label: string | null; facts: WizardFacts; stepKey: StepKey; onStep: (k: StepKey) => void; onLogout: () => void;
   back: { href: string; label: string };
-  children: (current: StepKey, go: (i: number) => void, elapsed: string) => ReactNode; toast: { text: string; error?: boolean } | null;
+  children: (current: StepKey, go: (i: number) => void, elapsed: string) => ReactNode; toast: { text: string; error?: boolean } | null; timer?: boolean;
 }) {
   const [t0] = useState(() => Number(read(T0_KEY)) || (write(T0_KEY, String(Date.now())), Date.now()));
   const [now, setNow] = useState(Date.now);
@@ -107,9 +108,11 @@ function Shell({ label, facts, stepKey, onStep, onLogout, back, children, toast 
           })}
         </ol>
         <div className="hidden lg:mt-auto lg:block">
-          <p className="text-xs text-ink-400">Klinikada o'tgan vaqt</p>
-          <p className="font-mono text-2xl tabular-nums text-white">{clock(now - t0)}</p>
-          <button type="button" onClick={() => { write(T0_KEY, String(Date.now())); window.location.reload(); }} className="mt-1 rounded text-xs text-ink-400 hover:text-white">Vaqtni qaytadan boshlash</button>
+          {timer && <>
+            <p className="text-xs text-ink-400">Klinikada o'tgan vaqt</p>
+            <p className="font-mono text-2xl tabular-nums text-white">{clock(now - t0)}</p>
+            <button type="button" onClick={() => { write(T0_KEY, String(Date.now())); window.location.reload(); }} className="mt-1 rounded text-xs text-ink-400 hover:text-white">Vaqtni qaytadan boshlash</button>
+          </>}
           <button type="button" onClick={onLogout} className="mt-4 flex items-center gap-1.5 rounded text-xs text-ink-400 hover:text-white"><LogOut className="h-3.5 w-3.5" aria-hidden="true" /> Chiqish</button>
         </div>
       </aside>
@@ -221,10 +224,10 @@ function ProfileWizard({ phase, onPhase }: { phase: ProfilePhase; onPhase: () =>
   const facts: WizardFacts = { hasBiz: !!phase.name && phase.name !== DEFAULT_NAME, status: cab.status, setup: cab.setup, keys, cameras: cab.cameras, phone: cab.phone, profile: true };
   const logout = () => { session.set(null); window.location.hash = '#/'; window.location.reload(); };
   return (
-    <Shell label={phase.name} facts={facts} stepKey={stepKey} onStep={setStepKey} onLogout={logout} back={{ href: hrefOf('sozlamalar'), label: 'Panelga qaytish' }} toast={toast}>
+    <Shell label={phase.name} facts={facts} stepKey={stepKey} onStep={setStepKey} onLogout={logout} back={{ href: hrefOf('sozlamalar'), label: 'Panelga qaytish' }} toast={toast} timer={phase.setup}>
       {(key, go, elapsed) => !ready || !cab.status || !cab.setup ? loading
         : key === 'clinic' ? <StepProfile onPhase={onPhase} setup={cab.setup} onSetup={cab.setSetup} notify={notify} />
-        : key === 'keys' ? <StepKeys profile keys={keys} onKeys={k => { setKeys(k); refresh().catch(() => {}); }} onRouted={cab.setRouted} />
+        : key === 'keys' ? <StepKeys profile owner={!phase.setup} keys={keys} onKeys={k => { setKeys(k); refresh().catch(() => {}); }} onRouted={cab.setRouted} />
         : key === 'done' ? <StepDone facts={facts} elapsed={elapsed} onGo={go} handover={phase.setup} name={phase.name ?? ''} />
         : cabinetStep(key, cab)}
     </Shell>
