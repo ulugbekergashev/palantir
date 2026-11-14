@@ -11,6 +11,7 @@ import type { InboxMessage, LeadChannel, RequestKind } from '../../src/types';
 import { isClinic } from '../../src/data/industries';
 import { forbiddenAsk } from './darvoza';
 import { claimsBooking, unknownNumber, unsupportedOffer } from './offerGuard';
+import { unknownFact } from './factGuard';
 import { DAYS, stamp, weekday } from '../../src/lib/week';
 import { profileText, think } from '../claude';
 import { crmConnected } from '../crm/index';
@@ -263,6 +264,11 @@ export async function decide(biz: BusinessRow, lead: LeadRow, thread: InboxMessa
   // Ma'lumotlarda yo'q telefon, karta yoki hisob raqami — avtomatik ketmaydi (model raqam o'ylab topsa, mijoz pulni begona hisobga o'tkazadi)
   if (action === 'reply' && unknownNumber(reply, knownNumbers)) {
     return { action: 'ask_owner', reply, question: '', booking: null, change: null, noteForOwner: "Javobda telefon, karta yoki hisob raqami bor, lekin u saqlangan ma'lumotlarda yo'q — raqamni tekshirib yuboring", ...about };
+  }
+  // Ma'lumotlarda yo'q ish vaqti, manzil yoki shifokor ismi — model o'ylab topgan: avtomatik ketmaydi (E8). Shifokorlar va bo'sh soatlar — jadvalda
+  const fact = action === 'reply' ? unknownFact(reply, `${known}\n${schedule ?? ''}`) : null;
+  if (fact) {
+    return { action: 'ask_owner', reply, question: '', booking: null, change: null, noteForOwner: `Javobda ${fact} bor, lekin u saqlangan ma'lumotlarda yo'q — tekshirib yuboring (to'g'ri bo'lsa, Miya'ga saqlang)`, ...about };
   }
   // Jadval olinmagan bo'lsa ham (CRM javob bermadi) klinikada «yozdik» degan javob o'zi ketmaydi
   if (medical && action === 'reply' && claimsBooking(reply)) {

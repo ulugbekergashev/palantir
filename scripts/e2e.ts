@@ -488,6 +488,15 @@ try {
   console.log("\n# Shaxsiy Telegram: o'zi javob beradi");
   ok("rejim: noto'g'ri qiymat — 400", (await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'tez', contacts: false, delayMin: 1 } })).status === 400);
   ok('rejim: «o\'zi javob bersin», 1 daqiqa kutib', (await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'auto', contacts: false, delayMin: 1 } })).json.business?.autoReply?.mode === 'auto');
+  // E8: ish vaqti saqlanmagan — model aytgan «10:00 dan 20:00 gacha» o'ylab topilgan: o'zi ketmaydi, egasiga
+  mark = sent.length;
+  tgUser.incoming(TG_SESSION, '6008', 'Ish vaqtingiz qanday?', { name: 'Botir' });
+  const hoursCard = await waitFor('ish vaqti kartasi', () => after(mark, OWNER, s => has('Botir')(s) && textOf(s).includes('ish vaqti')));
+  await sleep(1500);
+  ok("ish vaqti saqlanmagan — model aytgan soat o'zi ketmaydi, egasiga «ish vaqti… saqlangan ma'lumotlarda yo'q» (E8)",
+    !!hoursCard && !tgUser.sent.some(m => m.to.userId === '6008' && m.text.includes('10:00')), JSON.stringify(tgUser.sent.filter(m => m.to.userId === '6008').map(m => m.text)));
+  // Egasi ish vaqtini saqladi — endi xuddi shu javob o'zi ketadi
+  await api('/api/notes', { token, body: { text: 'Ish vaqti: har kuni 10:00 dan 20:00 gacha' } });
   mark = sent.length;
   const tAuto = Date.now();
   tgUser.incoming(TG_SESSION, '6002', 'Ish vaqtingiz qanday?', { name: 'Sardor' });

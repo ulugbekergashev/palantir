@@ -422,16 +422,19 @@ try {
   console.log("\n# 2 kun tasdiqlanmagan javob taklifi eskiradi — bemor «javob kutyapti»ga o'tadi");
   type Att = { kind: string; refId: string };
   const attention = async () => (await api('/api/attention', { token })).json.items as Att[];
+  const oldDb = new DatabaseSync(join(dataDir, 'palantir.db'));
+  oldDb.exec('PRAGMA busy_timeout = 5000');
+  // Ochiq so'rovi bor bemor «javob kutyapti» emas, so'rov qatorida turadi (attention.ts) — shuning uchun so'rovsiz bemorning taklifi olinadi
+  // (aks holda qaysi taklif birinchi chiqishiga qarab sinov goh o'tib, goh yiqilardi)
+  const hasOpenRequest = (replyId: string) => !!oldDb.prepare("SELECT 1 FROM requests r JOIN replies p ON p.lead_id = r.lead_id WHERE p.id = ? AND r.status = 'open'").get(replyId);
   const pend = await (async () => {
     for (let i = 0; i < 50; i++) {
-      const p = (await attention()).find(a => a.kind === 'reply');
+      const p = (await attention()).find(a => a.kind === 'reply' && !hasOpenRequest(a.refId));
       if (p) return p;
       await sleep(100);
     }
     return undefined;
   })();
-  const oldDb = new DatabaseSync(join(dataDir, 'palantir.db'));
-  oldDb.exec('PRAGMA busy_timeout = 5000');
   const leadOfReply = (oldDb.prepare('SELECT lead_id FROM replies WHERE id = ?').get(pend?.refId ?? '') as { lead_id?: string } | undefined)?.lead_id;
   oldDb.prepare('UPDATE replies SET created_at = ? WHERE id = ?').run(new Date(Date.now() - 3 * 86_400_000).toISOString(), pend?.refId ?? '');
   let expired = false;
