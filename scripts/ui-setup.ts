@@ -152,6 +152,11 @@ try {
   await waitFor('ulandi', () => toOwner(mark, 'Ulandi'));
   ok("egasi ulandi — sahifa o'zi yangilandi", await page.getByText(/Egasi @palantir_test_bot bilan ulangan/).waitFor({ timeout: 10000 }).then(() => true, () => false));
 
+  // C2: bemorlar yozadigan Telegram (bot havolasi, Telegram Business) — endi ustada ham
+  await page.getByRole('button', { name: 'Davom etish' }).click();
+  ok("C2: «Bemorlar Telegram'i» — bemorlar uchun bot havolasi va Telegram Business yo'riqnomasi", await page.getByText('Bemorlar uchun havola').isVisible()
+    && await page.getByText(/t\.me\/palantir_test_bot/).first().isVisible() && await page.getByText('Telegram Business').first().isVisible());
+  await shot(page, 'usta-bemorlar-telegram');
   await page.getByRole('button', { name: 'Davom etish' }).click();
   ok("DentaCRM: manzil va parol kalitlar maydonidan o'tdi", (await page.getByLabel('DentaCRM manzili').inputValue()).includes(String(crmPort)) && (await page.getByLabel('Parol').inputValue()) === CRM_LOGIN.password);
   await page.getByLabel('Login').fill(CRM_LOGIN.username);
@@ -203,7 +208,7 @@ try {
 
   await page.getByRole('button', { name: 'Yakunlash' }).click();
   await shot(page, 'usta-yakun');
-  ok('yakun: tayyor qadamlar sanaldi («9 qadamdan N tasi tayyor» — sarlavhadagi «N-qadam / 10» bilan adashmasin, I2)', await page.getByText(/9 qadamdan \d tasi tayyor/).isVisible());
+  ok('yakun: tayyor qadamlar sanaldi («10 qadamdan N tasi tayyor» — sarlavhadagi «N-qadam / 11» bilan adashmasin, I2)', await page.getByText(/10 qadamdan \d+ tasi tayyor/).isVisible());
   await page.getByRole('link', { name: "Kabinetga o'tish" }).click();
   ok("«Kabinetga o'tish» — klinika kabineti ochildi (qayta kirishsiz)", await page.getByLabel("Palantir'ga yozing").waitFor({ timeout: 8000 }).then(() => true, () => false));
   await shot(page, 'kabinet');

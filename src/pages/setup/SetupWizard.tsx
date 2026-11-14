@@ -14,7 +14,7 @@ import { useFontsReady, useToast } from '../../lib/hooks';
 import type { KeyView, LiveStatus, SetupView } from '../../types';
 import { StepCameras } from './StepCameras';
 import { StepClinic } from './StepClinic';
-import { StepCrm, StepInstagram, StepOwner, StepTelegram } from './StepConnections';
+import { StepCrm, StepInstagram, StepOwner, StepPatients, StepTelegram } from './StepConnections';
 import { StepDone, StepGaps } from './StepFinish';
 import { StepKeys, emptyRouted, type Routed } from './StepKeys';
 import { StepPhone } from './StepPhone';
@@ -165,6 +165,7 @@ function cabinetStep(key: StepKey, c: Cabinet): ReactNode {
   const { status, setup, routed, refresh, notify } = c;
   switch (key) {
     case 'owner': return <StepOwner status={status!} refresh={refresh} notify={notify} />;
+    case 'patients': return <StepPatients status={status!} notify={notify} />;
     case 'crm': return <StepCrm status={status!} setup={setup} routed={routed} onStatus={c.setStatus} notify={notify} />;
     case 'cams': return <StepCameras setup={setup} routed={routed} onCount={c.setCameras} notify={notify} />;
     case 'tg': return <StepTelegram status={status!} setup={setup} routed={routed} refresh={refresh} notify={notify} />;

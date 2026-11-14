@@ -4,7 +4,7 @@ import { CheckCircle2, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { api } from '../../data/api';
 import { Button, Card, Field, TextInput } from '../../components/ui';
 import type { LiveStatus, SetupView } from '../../types';
-import { InstagramOfficial } from '../TelegramPage';
+import { InstagramOfficial, TelegramBusiness } from '../TelegramPage';
 import type { Routed } from './StepKeys';
 import { copyText } from '../../lib/clipboard';
 
@@ -50,6 +50,32 @@ export function StepOwner({ status, refresh, notify }: { status: LiveStatus; ref
       </div>
       <p className="mt-3 flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Egasi «Start» bosishini kutyapman…</p>
     </Card>
+  );
+}
+
+// ─── Bemorlar Telegram'i ─────────────────────────────────────────────────────
+
+/**
+ * Bemorlar yozadigan Telegram (C2): bot havolasi (Instagram bio, vizitka, reklama — bosgan odam botga tushadi) va egasining
+ * shaxsiy chatlari (Telegram Business). Avval ular faqat Sozlamalarda edi — o'rnatuvchi ustada ko'rmasdi
+ */
+export function StepPatients({ status, notify }: { status: LiveStatus; notify: Notify }) {
+  if (!status.bot) return <Note>Avval «Kalitlar» qadamida Telegram bot tokenini kiriting — bemorlar uchun havola shu yerda chiqadi.</Note>;
+  const copy = () => { void copyText(status.generalLink ?? '').then(() => notify('Havola nusxalandi'), () => {}); };
+  return (
+    <div className="space-y-4">
+      {status.generalLink && (
+        <Card title="Bemorlar uchun havola" description="Instagram bio, Google xarita, vizitka yoki reklamaga qo'ying: bosgan bemor botga tushadi, savol yoki raqam qoldiradi — Palantir javob beradi.">
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="min-w-0 flex-1 break-all rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-mono text-sm">{status.generalLink}</code>
+            <Button onClick={copy}><Copy className="h-4 w-4" /> Nusxalash</Button>
+          </div>
+        </Card>
+      )}
+      <Card title="Egasining shaxsiy Telegram'i (ixtiyoriy)">
+        <TelegramBusiness status={status} />
+      </Card>
+    </div>
   );
 }
 

@@ -5,7 +5,7 @@
 import type { PhoneLine } from '../../data/api';
 import type { KeyView, LiveStatus, SetupView } from '../../types';
 
-export type StepKey = 'clinic' | 'keys' | 'owner' | 'crm' | 'cams' | 'tg' | 'ig' | 'phone' | 'gaps' | 'done';
+export type StepKey = 'clinic' | 'keys' | 'owner' | 'patients' | 'crm' | 'cams' | 'tg' | 'ig' | 'phone' | 'gaps' | 'done';
 /** ok — tayyor; warn — chala (keyin qaytsa ham bo'ladi); skip — bu klinikaga kerak emas; '' — hali qilinmagan */
 export type StepState = 'ok' | 'warn' | 'skip' | '';
 
@@ -15,6 +15,7 @@ export const STEPS: StepInfo[] = [
   { key: 'clinic', title: 'Klinika', lead: "Qaysi klinikani ulayapmiz. Manzil, ish vaqti va narxlarni keyin egasi Telegram'da aytadi — bot o'zi so'raydi." },
   { key: 'keys', title: 'Kalitlar', lead: "Bot tokeni, AI kalitlari, kamera manzili, DentaCRM havolasi — hammasini bitta maydonga qo'ying. Palantir har birining turini o'zi taniydi va darhol tekshiradi." },
   { key: 'owner', title: "Egasining Telegram'i", lead: "Egasi yordamchi bilan shu botda gaplashadi: eslatmalar, ertalabki xulosa, mijozlarga javob takliflari unga keladi." },
+  { key: 'patients', title: "Bemorlar Telegram'i", lead: "Bemorlar botga havola orqali yozadi (Instagram bio, vizitka, reklama); egasining shaxsiy Telegram'iga yozganlar — Telegram Business orqali. Palantir ikkalasiga ham javob beradi." },
   { key: 'crm', title: 'DentaCRM', lead: "Qabullar, kelgan-kelmaganlar va tushum Palantir'ga shu yerdan keladi." },
   { key: 'tg', title: 'Shaxsiy Telegram', lead: "Klinika raqamidagi Telegram: mijozlar shu yerga yozadi. Palantir javob taklif qiladi, egasi tasdiqlamaguncha hech narsa yuborilmaydi." },
   { key: 'ig', title: 'Instagram', lead: "Instagram Direct'dagi yozishmalar ham shu navbatga tushadi." },
@@ -66,6 +67,8 @@ export function stepState(key: StepKey, f: WizardFacts): StepState {
       return f.keys.some(k => k.source) ? 'warn' : '';
     }
     case 'owner': return s?.ownerLinked ? 'ok' : '';
+    // Bot havolasi bor — bemorlar yoza oladi; Telegram Business — qo'shimcha (C2)
+    case 'patients': return s?.telegramBusiness.account || (s?.bot && s.generalLink) ? 'ok' : '';
     case 'crm':
       if (s?.crm.account) return s.crm.problem ? 'warn' : 'ok';
       return setup?.has.crm === 'none' || setup?.has.crm === 'other' ? 'skip' : '';

@@ -334,7 +334,7 @@ Write-Host ''
 Write-Host '== Tayyor. Keyingi qadamlar (docs\ORNATISH.md da batafsil):' -ForegroundColor Green
 Note "Brauzerda ulash ustasi o'zi ochiladi (parol so'ralmaydi): http://localhost:$port/#/ulash"
 Note "   Ekranda KOMPYUTER KODI chiqadi (XXXX-XXXX-XXXX-XXXX) - uni Palantir asoschisiga ayting: Hub'da tasdiqlaydi va panel o'zi ochiladi"
-Note "   keyin: kalitlar -> egasining Telegrami -> DentaCRM -> Instagram -> telefon -> bo'shliqlar -> (ixtiyoriy) kameralar -> Egasiga topshirish"
+Note "   keyin: kalitlar -> egasining Telegrami -> bemorlar Telegrami -> DentaCRM -> Instagram -> telefon -> bo'shliqlar -> (ixtiyoriy) kameralar -> Egasiga topshirish"
 if ($checkFailed) { Warn "Eslatma: tekshiruvdagi xatolarni tuzating (install\Tekshirish.cmd)." }
 Note "Telefon liniyasi (AI qabulxona shahar raqamida) - Uztelecom SIP ma'lumotlari kelganda: install\Telefon.cmd"
 Start-Process "http://localhost:$port/#/ulash"
