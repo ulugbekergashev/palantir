@@ -1,15 +1,21 @@
 /**
  * «Sizni kutyapti» — hamma AI xodimdan egasining qarorini kutayotgan narsalar bitta ro'yxatda (bosh ekran):
- *   Qabulxona — javob kutayotgan bemorlar (AI javob bermay egasiga uzatgan), tasdiq kutayotgan AI javoblari va ochiq so'rovlar;
+ *   Qabulxona — javob kutayotgan bemorlar (AI javob bermay egasiga uzatgan), tasdiq kutayotgan AI javoblari, ochiq so'rovlar
+ *               va mijozlarga xabar qoralamalari;
  *   Kuzatuvchi — egasi hali ko'rmagan kamera hodisalari (oxirgi sutka);
- *   Yordamchi — muddati o'tgan ishlar; har xodim — bajarilmay qolgan topshiriqlar.
+ *   Yordamchi — muddati o'tgan ishlar; har xodim (jamoada bo'lsa) — bajarilmay qolgan topshiriqlar.
+ *   Kontent-meyker — tasdiq kutayotgan postlar; Targetolog — tasdiq kutayotgan reklama rejalari.
  *   Direktor — tasdiq kutayotgan takliflar.
  * Har biri o'z joyidagi tugma bilan hal qilinadi (javob yuborish, so'rovni yopish, «ko'rdim», ishni surish).
  */
 import type { Express, Request, Response } from 'express';
 import type { EventMember } from '../src/types';
 import { dueLabel, stamp } from '../src/lib/week';
-import { inbox, leads, replies, tasks, type BusinessRow } from './db';
+import { crewHas } from '../src/lib/crew';
+import { inbox, leads, outbound, replies, tasks, type BusinessRow } from './db';
+import { contentStore } from './content/store';
+import { posts } from './marketing/posts';
+import { adsStore } from './ads/store';
 import { waiting } from './serviceStore';
 import { awaitingReply } from './inbox/hold';
 import { requests } from './requests/store';
@@ -21,7 +27,7 @@ import { MEMBER_NAME } from './director/logic';
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps { asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler }
 
-export type AttentionKind = 'message' | 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order';
+export type AttentionKind = 'message' | 'director' | 'camera' | 'request' | 'reply' | 'outbound' | 'task' | 'content' | 'ads' | 'order';
 export interface AttentionItem {
   /** Ro'yxat kaliti: tur va manba id */
   key: string; kind: AttentionKind; member: EventMember | 'direktor';
@@ -29,13 +35,15 @@ export interface AttentionItem {
   refId: string; title: string; body: string; at: string; phone: string | null;
   /** Hodisa darajasi (kamera) yoki kechikkan — tepaga */
   urgent: boolean;
+  /** Xabar qoralamasi: Palantir o'zi yubora oladimi */
+  canSend?: boolean;
 }
 
 const DAY_MS = 86_400_000;
 const LIMIT = 30;
 /** Ochiq so'rovlar shundan o'qiladi (eng yangi LIMIT tasi ko'rsatiladi) */
 const OPEN_SCAN = 500;
-const ORDER: AttentionKind[] = ['message', 'director', 'camera', 'request', 'reply', 'task', 'order'];
+const ORDER: AttentionKind[] = ['message', 'director', 'camera', 'request', 'reply', 'outbound', 'task', 'content', 'ads', 'order'];
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
@@ -75,7 +83,26 @@ export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
   for (const t of tasks.list(biz.id, 'open', 200).filter(t => t.dueAt && t.dueAt < nowStamp).slice(0, LIMIT)) {
     items.push({ key: `task:${t.id}`, kind: 'task', member: 'yordamchi', refId: t.id, title: t.title, body: `Muddati: ${dueLabel(biz.profile.contentLang ?? 'uz', t.dueAt!, now)}`, at: t.dueAt!, phone: null, urgent: false });
   }
-  for (const o of orders.list(biz.id).filter(o => o.active && o.lastResult?.startsWith('Bajarilmadi'))) {
+  // Mijozlarga xabar qoralamalari (Qabulxona: unutilgan mijozlarga qayta yozish) — egasi yuboradi yoki bekor qiladi (G8)
+  for (const o of outbound.list(biz.id, LIMIT).filter(o => o.status === 'draft')) {
+    // canSend: Palantir yoza oladigan mijoz bor (bot, Telegram, Instagram) — qolganlariga egasi o'zi qo'ng'iroq qiladi yoki yozadi
+    items.push({ key: `outbound:${o.id}`, kind: 'outbound', member: 'qabulxona', refId: o.id, title: `${o.leadIds.length} ta mijozga xabar tayyor${!o.reachable ? " — o'zingiz yozasiz yoki qo'ng'iroq qilasiz" : o.reachable < o.leadIds.length ? ` (Palantir ${o.reachable} tasiga yoza oladi)` : ''}`, body: cut(o.text, 280), at: o.createdAt, phone: null, urgent: false, canSend: o.reachable > 0 });
+  }
+  // Kontent-meyker: tasdiq kutayotgan postlar (Telegram kanal va Instagram) — bitta band, son bilan
+  if (crewHas(biz, 'kontent')) {
+    const drafts = contentStore.drafts(biz.id).filter(d => d.status === 'draft' || d.status === 'failed');
+    const ig = posts.list(biz.id).filter(p => p.status === 'draft' || p.status === 'failed' || p.status === 'unknown');
+    const newest = [...drafts.map(d => ({ text: d.text, at: d.createdAt })), ...ig.map(p => ({ text: p.caption, at: p.createdAt }))].sort((a, b) => (a.at < b.at ? 1 : -1))[0];
+    if (newest) items.push({ key: 'content:posts', kind: 'content', member: 'kontent', refId: 'posts', title: `${drafts.length + ig.length} ta post tasdiq kutyapti`, body: cut(newest.text, 200), at: newest.at, phone: null, urgent: false });
+  }
+  // Targetolog: tasdiq kutayotgan reklama rejalari
+  if (crewHas(biz, 'target')) {
+    for (const c of adsStore.campaigns(biz.id).filter(c => c.status === 'proposed')) {
+      items.push({ key: `ads:${c.id}`, kind: 'ads', member: 'target', refId: c.id, title: 'Reklama rejasi tasdiq kutyapti', body: cut(c.task, 240), at: c.createdAt, phone: null, urgent: false });
+    }
+  }
+  // Jamoadan chiqarilgan xodimning bajarilmagan topshirig'i ro'yxatda abadiy turmasin (G8)
+  for (const o of orders.list(biz.id).filter(o => o.active && o.lastResult?.startsWith('Bajarilmadi') && crewHas(biz, o.member))) {
     items.push({ key: `order:${o.id}`, kind: 'order', member: o.member, refId: o.id, title: `Topshiriq bajarilmadi: ${cut(o.text, 80)}`, body: cut(o.lastResult ?? '', 200), at: o.lastRunAt ?? o.createdAt, phone: null, urgent: false });
   }
   // Shoshilinchi tepada, keyin tur bo'yicha, har tur ichida — yangisi oldin

@@ -27,8 +27,8 @@ import type { DashboardView, FunnelView, PeriodKey } from '../lib/dashboard';
 export type RequestView = LeadRequest & { lead: Lead | null };
 /** «Sizni kutyapti» qatori (server/attention.ts) */
 export interface AttentionItem {
-  key: string; kind: 'message' | 'director' | 'camera' | 'request' | 'reply' | 'task' | 'order'; member: EventMember | 'direktor'; refId: string;
-  title: string; body: string; at: string; phone: string | null; urgent: boolean;
+  key: string; kind: 'message' | 'director' | 'camera' | 'request' | 'reply' | 'outbound' | 'task' | 'content' | 'ads' | 'order'; member: EventMember | 'direktor'; refId: string;
+  title: string; body: string; at: string; phone: string | null; urgent: boolean; canSend?: boolean;
 }
 /** Talab tahlili (server/insights/analyze.ts): sonlar bandlardan kodda sanalgan */
 export interface DemandGroup { name: string; count: number; share: number; examples: string[] }

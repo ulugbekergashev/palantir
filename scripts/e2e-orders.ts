@@ -2,6 +2,8 @@
  * Topshiriqlar sinovi: qoidalar (sof mantiq) va yo'llar — topshiriq saqlash, kamera qoidasi kadrda ishlashi, jurnal, yoqish/o'chirish,
  * begona biznesdan himoya. Gapni topshiriqqa aylantirish (haqiqiy AI) — scripts/check-orders.ts da.
  */
+import { DatabaseSync } from 'node:sqlite';
+import { join } from 'node:path';
 import type { Camera } from '../src/types';
 import { conditionHolds, dueAt, dueEvery, inWindow, judge, toSpec, whatHappened } from '../server/orders/logic';
 import type { Harness } from './e2e-crm';
@@ -108,6 +110,38 @@ export async function orderApiTests(h: Harness): Promise<void> {
   ok("kutyapti: «ko'rdim» — hodisa ro'yxatdan tushdi", (await api(`/api/agents/events/${events[0].id}/seen`, { token, body: {} })).status === 200
     && !((await api('/api/attention', { token })).json.items as { refId: string }[]).some(i => i.refId === events[0].id));
   await api(`/api/tasks/${late.id}`, { method: 'PATCH', token, body: { status: 'done' } });
+
+  // G8: mijozlarga xabar qoralamasi, tasdiq kutayotgan post va reklama rejasi ham «Sizni kutyapti»da; jamoadan chiqarilgan
+  // Targetologning rejasi va bajarilmagan topshirig'i — yo'q
+  const db = new DatabaseSync(join(h.dataDir, 'palantir.db'));
+  db.exec('PRAGMA busy_timeout = 5000');
+  const bizId = String((db.prepare('SELECT business_id FROM agent_orders WHERE id = ?').get(orderId) as { business_id: string }).business_id);
+  const now = new Date().toISOString();
+  db.prepare("INSERT INTO outbound (id, business_id, text, lead_ids, created_at) VALUES ('g8out', ?, 'Assalomu alaykum! Ko''rikka yozilasizmi?', '[\"g8a\",\"g8b\"]', ?)").run(bizId, now);
+  db.prepare("INSERT INTO content_drafts (id, business_id, text, status, created_at) VALUES ('g8post', ?, 'Tish oqartirish haqida post', 'draft', ?)").run(bizId, now);
+  db.prepare("INSERT INTO ads_campaigns (id, business_id, task, plan, status, currency, created_at) VALUES ('g8ads', ?, 'Implant reklamasi, 5 kun', '{}', 'proposed', 'USD', ?)").run(bizId, now);
+  db.prepare("INSERT INTO agent_orders (id, business_id, member, text, spec, summary, created_at, last_result) VALUES ('g8ord', ?, 'target', 'Har kuni xarajatni tekshir', '{\"kind\":\"standing\"}', 'x', ?, 'Bajarilmadi: kabinet ulanmagan')").run(bizId, now);
+  for (const member of ['kontent', 'target']) await api('/api/crew', { token, body: { member, on: true } });
+  type Att = { key: string; kind: string; member: string; title: string; canSend?: boolean };
+  const g8 = async () => (await api('/api/attention', { token })).json.items as Att[];
+  const hired = await g8();
+  const out = hired.find(i => i.key === 'outbound:g8out');
+  ok("G8: kutyapti — 2 mijozga xabar qoralamasi (Palantir yoza olmaydi — «Yuborish» yo'q), 1 post, reklama rejasi, Targetolog topshirig'i",
+    !!out && out.member === 'qabulxona' && out.title.startsWith('2 ta mijozga xabar tayyor') && out.canSend === false
+    && hired.some(i => i.kind === 'content' && i.member === 'kontent' && i.title === '1 ta post tasdiq kutyapti')
+    && hired.some(i => i.key === 'ads:g8ads' && i.member === 'target') && hired.some(i => i.key === 'order:g8ord'), JSON.stringify(hired.map(i => [i.key, i.title])));
+  ok("G8: begona biznes bularni ko'rmaydi", !((await api('/api/attention', { token: otherToken })).json.items as Att[]).some(i => i.key.includes('g8') || i.kind === 'content'));
+  await api('/api/crew', { token, body: { member: 'target', on: false } });
+  const fired = await g8();
+  ok("G8: Targetolog jamoadan chiqarildi — uning rejasi va «Bajarilmadi» topshirig'i ro'yxatda abadiy turmaydi", !fired.some(i => i.key === 'ads:g8ads' || i.key === 'order:g8ord') && fired.some(i => i.key === 'outbound:g8out'), JSON.stringify(fired.map(i => i.key)));
+  await api('/api/followups/g8out/cancel', { token, body: {} });
+  ok("G8: qoralama bekor qilindi — ro'yxatdan tushdi", !(await g8()).some(i => i.key === 'outbound:g8out'));
+  db.prepare("DELETE FROM content_drafts WHERE id = 'g8post'").run();
+  db.prepare("DELETE FROM ads_campaigns WHERE id = 'g8ads'").run();
+  db.prepare("DELETE FROM agent_orders WHERE id = 'g8ord'").run();
+  db.prepare("DELETE FROM outbound WHERE id = 'g8out'").run();
+  db.close();
+  await api('/api/crew', { token, body: { member: 'kontent', on: false } });
   // «Bugun jamoa nima qildi»: haqiqiy yozuvlardan — to'rt xodim, kamera hodisasi jurnalda, bajarilgan ish sanaldi; begona biznesga ko'rinmaydi
   type Day = { members: { member: string; summary: string; facts: { label: string; value: number }[] }[]; timeline: { id: string }[] };
   const fact = (d: Day, m: string, label: string) => d.members.find(x => x.member === m)?.facts.find(f => f.label === label)?.value ?? -1;

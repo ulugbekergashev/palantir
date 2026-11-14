@@ -4,7 +4,7 @@
  * ro'yxatdan darhol tushadi; ro'yxat har 30 soniyada yangilanadi. Bo'sh bo'lsa — «hammasi joyida».
  */
 import { useEffect, useState } from 'react';
-import { Camera, Check, Compass, CircleCheck, Clock, ExternalLink, Headset, Loader2, MessageCircle, Phone, Send, Sparkles, X, type LucideIcon } from 'lucide-react';
+import { Camera, Check, Compass, CircleCheck, Clock, ExternalLink, Headset, Loader2, Mails, Megaphone, MessageCircle, PenLine, Phone, Send, Sparkles, X, type LucideIcon } from 'lucide-react';
 import { api, type AttentionItem } from '../data/api';
 import { iso, addDays } from '../lib/week';
 import { hrefOf, type Area } from '../lib/nav';
@@ -12,14 +12,19 @@ import { HUE, ago } from './agent';
 import type { Notify } from './Artifacts';
 
 const POLL_MS = 30_000;
-const ICON: Record<AttentionItem['kind'], LucideIcon> = { message: MessageCircle, director: Compass, camera: Camera, request: Headset, reply: Send, task: Clock, order: Sparkles };
+const ICON: Record<AttentionItem['kind'], LucideIcon> = {
+  message: MessageCircle, director: Compass, camera: Camera, request: Headset, reply: Send, outbound: Mails, task: Clock, content: PenLine, ads: Megaphone, order: Sparkles,
+};
 const WHERE: Record<AttentionItem['kind'], (i: AttentionItem) => string> = {
   message: () => hrefOf('qabulxona', 'yozishmalar'),
   director: () => hrefOf('direktor'),
   camera: () => hrefOf('kuzatuvchi', 'jurnal'),
   request: () => hrefOf('qabulxona', 'sorovlar'),
   reply: () => hrefOf('qabulxona'),
+  outbound: () => hrefOf('qabulxona', 'yozishmalar'),
   task: () => hrefOf('yordamchi', 'jurnal'),
+  content: () => hrefOf('marketolog', 'postlar'),
+  ads: () => hrefOf('marketolog', 'kampaniyalar'),
   // Kontent-meyker va Targetolog — Marketing bo'limida, o'z topshiriqlar varag'i bilan
   order: i => (i.member === 'kontent' ? hrefOf('marketolog', 'kontent-topshiriqlar') : i.member === 'target' ? hrefOf('marketolog', 'reklama-topshiriqlar') : hrefOf(i.member as Area, 'topshiriqlar')),
 };
@@ -60,6 +65,10 @@ function Item({ it, onDone, notify }: { it: AttentionItem; onDone: (key: string)
         {it.kind === 'reply' && [
           button('send', 'Yuborish', Send, () => api.sendReply(it.refId), 'Yuborildi', true),
           button('dismiss', 'Kerak emas', X, () => api.dismissReply(it.refId), 'Olib tashlandi'),
+        ]}
+        {it.kind === 'outbound' && [
+          it.canSend && button('send', 'Yuborish', Send, () => api.sendFollowup(it.refId), 'Yuborildi', true),
+          button('cancel', 'Bekor qilish', X, () => api.cancelFollowup(it.refId), 'Bekor qilindi'),
         ]}
         {it.kind === 'request' && button('done', 'Bajarildi', Check, () => api.requestAction(it.refId, 'done'), 'Bajarildi', true)}
         {it.kind === 'request' && it.phone && <a href={`tel:${it.phone}`} className="flex min-h-9 items-center gap-1.5 rounded-xl border border-glass/10 px-3 text-[13px] text-[#d9dbe1] no-underline hover:bg-glass/5"><Phone className="h-3.5 w-3.5" aria-hidden="true" />{it.phone}</a>}
