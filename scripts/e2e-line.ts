@@ -115,6 +115,10 @@ export async function lineApiTests(h: Harness): Promise<void> {
   const reqs = (await api('/api/requests', { token })).json.requests as { phone?: string; summary?: string; kind?: string; lead?: { phone?: string } }[];
   const cb = reqs.find(r => /AI qo'ng'iroqqa javob bera olmadi/.test(r.summary ?? ''));
   ok("liniya: qabulxonada «qayta qo'ng'iroq qiling» so'rovi, raqami bilan", cb?.kind === 'callback' && /935550077/.test(JSON.stringify(cb)), JSON.stringify(reqs).slice(0, 400));
+  // F12: AI suhbatida raqam yashirin va bemor raqam aytmadi — so'rov baribir «So'rovlar»ga, izoh bilan (avval yo'qolardi)
+  const hidden = await fetch(`${base}/api/voice/requests`, { method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify({ phone: '', kind: 'complaint', summary: "Shifokor kechikdi, shikoyat" }) });
+  const hiddenReq = ((await api('/api/requests', { token })).json.requests as { summary?: string; phone?: string | null; kind?: string }[]).find(r => r.summary?.includes('Shifokor kechikdi'));
+  ok("F12: yashirin raqam — so'rov baribir ochildi, «raqam yashirin» izohi bilan", hidden.status === 200 && hiddenReq?.kind === 'complaint' && !hiddenReq.phone && !!hiddenReq.summary?.includes('raqam yashirin'), JSON.stringify(hiddenReq));
   ok("liniya: begona biznesda bu so'rov yo'q", !JSON.stringify((await api('/api/requests', { token: otherToken })).json).includes('935550077'));
 
   ok("liniya: server manzilida ; belgisi — 400 (Asterisk sozlamasi buzilmasin)", (await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: 'sip.uz;x', login: 'a', number: '1', password: 'p' } })).status === 400);

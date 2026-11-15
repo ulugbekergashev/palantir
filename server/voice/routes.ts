@@ -69,7 +69,8 @@ const CallSchema = z.object({
   transcript: z.array(z.object({ who: z.enum(['ai', 'caller']), text: cut(600) })).max(2000).transform(list => list.filter(l => l.text).slice(0, 200)),
 });
 const RequestSchema = z.object({
-  phone: need(24), name: cut(80).nullable().optional(), kind: z.enum(['callback', 'booking', 'change', 'complaint', 'other']).default('callback'),
+  // Raqam yashirin va bemor raqam qoldirmagan — bo'sh (so'rov baribir «So'rovlar»ga tushadi, F12)
+  phone: cut(24).nullable().optional(), name: cut(80).nullable().optional(), kind: z.enum(['callback', 'booking', 'change', 'complaint', 'other']).default('callback'),
   summary: need(400), when: cut(120).nullable().optional(), dueAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/).nullable().optional(),
 });
 const VisitSchema = z.object({
@@ -122,7 +123,13 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
     const recent = (agentRequests.get(biz.id) ?? []).filter(t => t > Date.now() - HOUR_MS);
     if (recent.length >= REQUESTS_PER_HOUR) return null;
     agentRequests.set(biz.id, [...recent, Date.now()]);
-    const phone = normPhone(r.phone) || r.phone;
+    const given = r.phone?.trim() ?? '';
+    // Yashirin raqam: mijoz kartasi ochilmaydi (raqamsiz karta — kim ekani noma'lum), so'rov esa yo'qolmaydi — izoh bilan (F12)
+    if (!given) {
+      const summary = `${r.summary} (raqam yashirin, bemor raqam qoldirmadi — suhbatni Qo'ng'iroqlar jurnalida tinglang)`;
+      return (await openRequest(biz, null, { kind: r.kind ?? 'callback', phone: null, name: r.name || null, summary, whenText: r.when || null, dueAt: r.dueAt || null, source: 'voice' })).request;
+    }
+    const phone = normPhone(given) || given;
     const lead = leadForPhone(biz, phone, { name: r.name || null, source: "Qo'ng'iroq (ovozli agent)" });
     const { request } = await openRequest(biz, lead.id, { kind: r.kind ?? 'callback', phone, name: r.name || null, summary: r.summary, whenText: r.when || null, dueAt: r.dueAt || null, source: 'voice' });
     return request;

@@ -351,9 +351,10 @@ class Desk:
         self.name = self.name or name
         self.requests.append(' — '.join(filter(None, [request, name, phone])))
         sent = False
-        if phone and not self.test:
+        # Raqam yashirin va bemor raqam aytmagan bo'lsa ham so'rov yuboriladi — «So'rovlar»da izoh bilan turadi (F12)
+        if not self.test:
             try:
-                sent = await self.gateway.request({'phone': phone, 'name': name or None, 'summary': request,
+                sent = await self.gateway.request({'phone': phone or None, 'name': name or None, 'summary': request,
                                                    'kind': kind if kind in ('booking', 'callback', 'change', 'complaint', 'other') else 'other',
                                                    'when': str(args.get('when') or '').strip()[:120] or None})
             except httpx.HTTPError:
