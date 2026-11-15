@@ -50,6 +50,9 @@ interface Recipient { chatId: string; name: string }
  * Kartani kim oladi: qabulxona xodimlari va egasi (xodim bo'lsa — nusxa sozlamasi bo'yicha). Shikoyat — faqat egasiga (nusxa
  * o'chirilgan bo'lsa ham): u qabulxona xodimining o'zi haqida bo'lishi mumkin. Egasi Telegram'ga ulanmagan bo'lsa — xodimlarga (yo'qolmasin)
  */
+/** Shu turdagi so'rov kartasi egasiga ham boradimi (bormasa — voqea haqida egasiga alohida xabar kerak) */
+export const reachesOwner = (biz: BusinessRow, kind: RequestKind): boolean => recipients(biz, kind).some(x => x.chatId === biz.ownerChatId);
+
 function recipients(biz: BusinessRow, kind?: RequestKind): Recipient[] {
   const team = staff.linked(biz.id).map((s: StaffRow) => ({ chatId: s.chatId!, name: s.name }));
   const ownerTo = biz.ownerChatId ? [{ chatId: biz.ownerChatId, name: biz.profile.ownerName || 'Egasi' }] : [];
@@ -74,7 +77,7 @@ const dueLine = (r: LeadRequest) => {
   return r.dueAt ? `🕕 ${r.dueAt.replace('T', ' ')}` : '';
 };
 
-export function requestHtml(r: LeadRequest, lead: LeadRow | undefined, head = ''): string {
+export function requestHtml(r: LeadRequest, lead: LeadRow | undefined, head = '', hint = true): string {
   const who = lead?.name || r.name || (lead?.username ? `@${lead.username}` : null) || 'Mijoz';
   const phone = r.phone ?? lead?.phone;
   const status = r.status === 'done' ? `\n✅ <b>Bajarildi</b>${r.doneBy ? ` — ${esc(r.doneBy)}` : ''}${r.closedAt ? ` (${hhmm(r.closedAt)})` : ''}`
@@ -91,12 +94,12 @@ export function requestHtml(r: LeadRequest, lead: LeadRow | undefined, head = ''
     lead?.patientId ? '🦷 DentaCRM bemori' : '',
     r.result ? `💬 ${esc(cut(r.result, 400))}` : '',
     status,
-    r.status === 'open' ? "\n<i>↩️ Natijani yozish uchun shu xabarga «Reply» qiling.</i>" : '',
+    hint && r.status === 'open' ? "\n<i>↩️ Natijani yozish uchun shu xabarga «Reply» qiling.</i>" : '',
   ].filter(Boolean).join('\n');
 }
 
 const btn = (text: string, data: string) => ({ text, callback_data: data });
-function keyboard(r: LeadRequest, lead: LeadRow | undefined): InlineKeyboardMarkup | undefined {
+export function keyboard(r: LeadRequest, lead: LeadRow | undefined): InlineKeyboardMarkup | undefined {
   if (r.status !== 'open') return undefined;
   const rows = [[btn('✅ Bajarildi', `qd|${r.id}`), btn("📵 Ko'tarmadi", `qn|${r.id}`)]];
   // Klinika kompyuteridagi MicroSIP raqamni o'zi teradi va suhbat yozib olinadi
@@ -107,13 +110,34 @@ function keyboard(r: LeadRequest, lead: LeadRow | undefined): InlineKeyboardMark
   return { inline_keyboard: rows };
 }
 
-async function sendCards(biz: BusinessRow, r: LeadRequest, head = '', silent = false): Promise<number> {
+/**
+ * Bitta voqea — bitta karta (B8): bemor xabaridan so'rov ham, javob taklifi ham chiqsa, ular bitta kartada (inbox/core.ts).
+ * Shunday kartada javob qismi bor — so'rov kartasi yangilanganda u yo'qolmasin: core.ts shu yerga javob qismini beradi
+ * (pending — taklif hali kutyapti: kartaga «Reply» mijozga javob bo'ladi, so'rov natijasi emas)
+ */
+export interface CardExtra { html: string; rows: InlineKeyboardMarkup['inline_keyboard']; pending: boolean }
+type ExtraOf = (biz: BusinessRow, chatId: string, messageId: number) => CardExtra | null;
+let cardExtra: ExtraOf | null = null;
+export const setCardExtra = (fn: ExtraOf): void => { cardExtra = fn; };
+export const extraOf: ExtraOf = (biz, chatId, messageId) => cardExtra?.(biz, chatId, messageId) ?? null;
+
+/** So'rov va (bo'lsa) javob qismi — bitta karta matni va tugmalari */
+export function mergedCard(r: LeadRequest, lead: LeadRow | undefined, extra: CardExtra | null, head = ''): { html: string; keyboard?: InlineKeyboardMarkup } {
+  const own = keyboard(r, lead);
+  if (!extra) return { html: requestHtml(r, lead, head), keyboard: own };
+  const rows = [...extra.rows, ...(own?.inline_keyboard ?? [])];
+  return { html: [requestHtml(r, lead, head, !extra.pending), extra.html].join('\n\n'), keyboard: rows.length ? { inline_keyboard: rows } : undefined };
+}
+
+/** head — hammaga bir xil yoki egasiga/xodimga alohida (qo'ng'iroq xulosasidagi xodim bahosi — faqat egasiga, B8) */
+type Head = string | ((isOwner: boolean) => string);
+async function sendCards(biz: BusinessRow, r: LeadRequest, head: Head = '', silent = false): Promise<number> {
   if (!outlet) return 0;
   const lead = r.leadId ? leads.get(biz.id, r.leadId) : undefined;
-  const html = requestHtml(r, lead, head);
   let sent = 0;
   for (const to of recipients(biz, r.kind)) {
     try {
+      const html = requestHtml(r, lead, typeof head === 'string' ? head : head(to.chatId === biz.ownerChatId));
       const id = await outlet.send(to.chatId, html, keyboard(r, lead), silent);
       requestCards.add(r.id, to.chatId, id);
       sent++;
@@ -167,8 +191,10 @@ export async function refreshCards(biz: BusinessRow, id: string): Promise<void> 
   const r = requests.get(biz.id, id);
   if (!r || !outlet) return;
   const lead = r.leadId ? leads.get(biz.id, r.leadId) : undefined;
-  const html = requestHtml(r, lead);
-  for (const c of requestCards.of(id)) await outlet.edit(c.chatId, c.messageId, html, keyboard(r, lead)).catch(() => {});
+  for (const c of requestCards.of(id)) {
+    const card = mergedCard(r, lead, extraOf(biz, c.chatId, c.messageId));
+    await outlet.edit(c.chatId, c.messageId, card.html, card.keyboard).catch(() => {});
+  }
 }
 
 // ─── Ochish ──────────────────────────────────────────────────────────────────
@@ -181,7 +207,11 @@ export interface RequestInput {
  * So'rov ochadi (yoki shu mijozning shu turdagi ochiq so'rovini yangilaydi — mijoz «raqamim boshqa» deb aniqlashtirsa yangi so'rov ochilmaydi)
  * va xodimlarga karta yuboradi. Raqam berilgan bo'lsa va mijoz kartasida raqam bo'lmasa — kartaga yoziladi (bir odamning kartalari yig'iladi)
  */
-export async function openRequest(biz: BusinessRow, leadId: string | null, v: RequestInput, now = new Date()): Promise<{ request: LeadRequest; created: boolean }> {
+/**
+ * defer — YANGI so'rov kartasi hozir yuborilmaydi: chaqiruvchi uni javob kartasiga qo'shadi yoki announce() bilan alohida yuboradi;
+ * announce(head) — karta tepasiga voqeaning o'zi (qo'ng'iroq xulosasi), ikkinchi xabar bo'lmasin (B8)
+ */
+export async function openRequest(biz: BusinessRow, leadId: string | null, v: RequestInput, now = new Date(), opts: { defer?: boolean } = {}): Promise<{ request: LeadRequest; created: boolean; announce?: (head?: Head) => Promise<void> }> {
   const phone = v.phone ? normPhone(v.phone) || v.phone.trim().slice(0, 24) : null;
   let lead = leadId ? leads.get(biz.id, leadId) : undefined;
   if (lead && phone && !lead.phone) leads.update(biz.id, lead.id, { phone });
@@ -207,7 +237,9 @@ export async function openRequest(biz: BusinessRow, leadId: string | null, v: Re
     return { request: updated, created: false };
   }
   const r = requests.create(biz.id, { leadId: lead?.id ?? null, kind: v.kind, source: v.source, ...fields, remindAt: firstRemind(v.kind, dueAt, now) });
-  await sendCards(biz, r, '🆕', isNight(now));
+  const announce = async (head: Head = '🆕') => { await sendCards(biz, r, head, isNight(now)); };
+  if (opts.defer) return { request: r, created: true, announce };
+  await announce();
   return { request: r, created: true };
 }
 

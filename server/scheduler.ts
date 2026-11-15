@@ -170,13 +170,22 @@ const called = new Set<string>();
  * Eslatma vaqti keldi va egasi qo'ng'iroq so'ragan: SpeechLab agenti telefon qiladi. Natija bir necha daqiqadan keyin tekshiriladi —
  * ko'tarmagan yoki qo'ng'iroq bo'lmagan bo'lsa, Telegram'da aytiladi (eslatma u yerda baribir bor)
  */
-/** Telegram'ga o'zbekcha ovozli eslatma (telefon liniyasi yo'q yoki qo'ng'iroq bo'lmagan payt) */
-function voiceMessage(bot: BotService, biz: BusinessRow, t: Task): Promise<void> {
-  if (!t.spoken || !speechEnabled() || !biz.ownerChatId) return Promise.resolve();
+/**
+ * Telegram'ga o'zbekcha ovozli eslatma (telefon liniyasi yo'q yoki qo'ng'iroq bo'lmagan payt). why — qo'ng'iroq bo'lmadi: sababi shu
+ * xabarning izohida (B8: avval alohida matn + ovoz edi). Ovoz bo'lmasa (TTS yo'q yoki xato) — sabab matn bo'lib boradi
+ */
+async function voiceMessage(bot: BotService, biz: BusinessRow, t: Task, why?: string): Promise<void> {
+  if (!biz.ownerChatId) return;
   const chat = biz.ownerChatId, name = biz.profile.ownerName;
-  return speak(`${name ? `${name}, ` : ''}eslatma: ${t.title}`)
-    .then(audio => bot.sendVoice(chat, audio, `🔊 <b>${esc(t.title)}</b>`))
-    .catch(e => console.error('[ovozli eslatma]', (e as Error).message));
+  const caption = why ? `${why} — eslatma: <b>${esc(t.title)}</b>` : `🔊 <b>${esc(t.title)}</b>`;
+  const text = () => (why ? bot.sendText(chat, caption).catch(e => console.error("[qo'ng'iroq] xabar:", (e as Error).message)) : Promise.resolve());
+  if (!t.spoken || !speechEnabled()) return text();
+  try {
+    await bot.sendVoice(chat, await speak(`${name ? `${name}, ` : ''}eslatma: ${t.title}`), caption);
+  } catch (e) {
+    console.error('[ovozli eslatma]', (e as Error).message);
+    await text();
+  }
 }
 
 function phoneReminder(bot: BotService, biz: BusinessRow, t: Task): void {
@@ -188,9 +197,7 @@ function phoneReminder(bot: BotService, biz: BusinessRow, t: Task): void {
     const chat = biz.ownerChatId;
     void tgCall(biz.id, chat, t.id).then(async result => {
       if (result === 'answered') return;
-      const why = result === 'missed' ? "📞 Qo'ng'iroqni ko'tarmadingiz" : "📞 Qo'ng'iroq qilib bo'lmadi";
-      await bot.sendText(chat, `${why} — eslatma: <b>${esc(t.title)}</b>`).catch(e => console.error("[qo'ng'iroq] xabar:", (e as Error).message));
-      await voiceMessage(bot, biz, t);
+      await voiceMessage(bot, biz, t, result === 'missed' ? "📞 Qo'ng'iroqni ko'tarmadingiz" : "📞 Qo'ng'iroq qilib bo'lmadi");
     });
     return;
   }
@@ -202,7 +209,6 @@ function phoneReminder(bot: BotService, biz: BusinessRow, t: Task): void {
     return;
   }
   called.add(key);
-  const tell = (text: string) => (biz.ownerChatId ? bot.sendText(biz.ownerChatId, text).catch(e => console.error('[qo\'ng\'iroq] xabar:', (e as Error).message)) : Promise.resolve());
   void (async () => {
     let id: number;
     try {
@@ -213,9 +219,8 @@ function phoneReminder(bot: BotService, biz: BusinessRow, t: Task): void {
       })).id;
     } catch (e) {
       console.error('[qo\'ng\'iroq]', (e as Error).message);
-      await tell(`📞 Qo'ng'iroq qilib bo'lmadi: ${esc((e as Error).message)}. Eslatma shu yerda: <b>${esc(t.title)}</b>`);
-      // Qo'ng'iroq bo'lmadi — eslatma baribir ovoz bilan eshitilsin
-      await voiceMessage(bot, biz, t);
+      // Qo'ng'iroq bo'lmadi — eslatma baribir ovoz bilan eshitilsin; sababi o'sha xabarda (alohida matn emas)
+      await voiceMessage(bot, biz, t, `📞 Qo'ng'iroq qilib bo'lmadi (${esc((e as Error).message)})`);
       return;
     }
     // Ikki marta tekshiriladi: terish va gaplashish bir necha daqiqa davom etishi mumkin
@@ -224,8 +229,7 @@ function phoneReminder(bot: BotService, biz: BusinessRow, t: Task): void {
       const s = await callState(id).catch(() => null);
       if (!s?.finished) continue;
       if (s.status === 'no_answer' || s.status === 'failed') {
-        await tell(`📞 Qo'ng'iroqni ko'tarmadingiz — eslatma: <b>${esc(t.title)}</b>`);
-        await voiceMessage(bot, biz, t);
+        await voiceMessage(bot, biz, t, "📞 Qo'ng'iroqni ko'tarmadingiz");
       }
       return;
     }

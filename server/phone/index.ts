@@ -19,7 +19,7 @@ import { env, voiceEnabled } from '../env';
 import { notifyOwner } from '../inbox/core';
 import { leadForPhone } from '../people';
 import { revive } from '../stages';
-import { addResult, closeRequest, noAnswer, nudgeRequest, openRequest, setDialer, settleByBooking } from '../requests/index';
+import { addResult, closeRequest, noAnswer, nudgeRequest, openRequest, reachesOwner, setDialer, settleByBooking } from '../requests/index';
 import { requests } from '../requests/store';
 import { SilenceError } from '../stt';
 import { analyseCall } from './analysis';
@@ -319,16 +319,27 @@ export async function review(bizId: string, callId: string): Promise<void> {
   // Qo'ng'iroqda qabulga yozildi — shu bemorning qabulni kutayotgan so'rovlari o'zi yopiladi (yangi so'rov ochilishidan oldin: uni yopib qo'ymasin)
   if (a.outcome === 'booked' && lead) await settleByBooking(biz, lead.id, "Qabulga yozildi (qo'ng'iroqda)").catch(() => 0);
   // Qo'ng'iroqdan keyin ham xodim qilishi kerak bo'lgan ish — so'rov (mavjud bo'lsa — yangilanadi)
-  if (request && lead) await openRequest(biz, lead.id, { kind: request.kind, phone: c.phone, summary: request.summary, dueAt: request.dueAt, source: 'call', quote: a.wants });
+  // Yangi so'rov kartasi kechiktiriladi: qo'ng'iroq xulosasi uning tepasida — bitta voqea, bitta karta (B8)
+  const opened = request && lead
+    ? await openRequest(biz, lead.id, { kind: request.kind, phone: c.phone, summary: request.summary, dueAt: request.dueAt, source: 'call', quote: a.wants }, new Date(), { defer: true })
+      .catch(e => { console.error(`[telefon] ${callId} so'rov ochilmadi:`, (e as Error).message); return null; })
+    : null;
   const who = lead?.name || a.customerName || prettyPhone(c.phone);
-  await notifyOwner(biz, [
+  // Xodim bahosi — faqat egasiga (xodim kartasida yo'q)
+  const summary = (isOwner: boolean) => [
     `📞 <b>${c.direction === 'in' ? 'Kiruvchi' : 'Chiquvchi'} qo'ng'iroq</b> · ${mmss(sec)} — ${esc(who)}`,
     esc(a.summary),
     a.agreed ? `${OUTCOME_LABEL[a.outcome]}: ${esc(a.agreed)}` : OUTCOME_LABEL[a.outcome] !== '•' ? OUTCOME_LABEL[a.outcome] : '',
     a.nextStep ? `➡️ ${esc(a.nextStep)}` : '',
-    a.score ? `🗣 Xodim: ${a.score}/10${a.staffNote ? ` — ${esc(a.staffNote)}` : ''}` : '',
+    isOwner && a.score ? `🗣 Xodim: ${a.score}/10${a.staffNote ? ` — ${esc(a.staffNote)}` : ''}` : '',
     '<i>Yozuv va matn: panel → Qo\'ng\'iroqlar</i>',
-  ].filter(Boolean).join('\n')).catch(() => null);
+  ].filter(Boolean).join('\n');
+  if (opened?.announce) {
+    await opened.announce(isOwner => `${summary(isOwner)}\n\n🆕 <b>Qilish kerak:</b>`).catch(e => console.error(`[telefon] ${callId} so'rov kartasi:`, (e as Error).message));
+    // Egasi so'rov kartasini olgan bo'lsa — xulosa unda bor, alohida xabar kerak emas
+    if (reachesOwner(biz, opened.request.kind)) return;
+  }
+  await notifyOwner(biz, summary(true)).catch(() => null);
 }
 
 // ─── Panel va kartadan boshqarish ────────────────────────────────────────────

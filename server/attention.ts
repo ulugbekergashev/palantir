@@ -37,6 +37,8 @@ export interface AttentionItem {
   urgent: boolean;
   /** Xabar qoralamasi: Palantir o'zi yubora oladimi */
   canSend?: boolean;
+  /** So'rov qatorida shu bemorga javob taklifi (B8: bitta voqea — bitta qator; alohida «javob tayyor» qatori bo'lmaydi) */
+  reply?: { id: string; text: string };
 }
 
 const DAY_MS = 86_400_000;
@@ -57,10 +59,16 @@ export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
   }
   // Eng yangilari: ochiq so'rov ko'p bo'lsa (eskilari yopilmay qolgan), yangisi ro'yxatdan chiqib ketmasin (G1)
   const open = requests.list(biz.id, 'open', OPEN_SCAN).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, LIMIT);
+  const pendingReplies = replies.pendingList(biz.id, LIMIT);
+  /** So'rov qatoriga qo'shilgan javob takliflari — pastda alohida qator bo'lmaydi */
+  const joined = new Set<string>();
   for (const r of open) {
     const lead = r.leadId ? leads.get(biz.id, r.leadId) : null;
     const who = r.name ?? lead?.name ?? lead?.username ?? 'Mijoz';
-    items.push({ key: `request:${r.id}`, kind: 'request', member: 'qabulxona', refId: r.id, title: `${requestKind(r.kind)} · ${who}`, body: cut(r.summary + (r.whenText ? ` · ${r.whenText}` : ''), 240), at: r.createdAt, phone: r.phone ?? lead?.phone ?? null, urgent: r.kind === 'complaint' });
+    // Shikoyat — alohida (Telegram'da ham faqat egasiga, javob bilan birlashmaydi)
+    const reply = r.kind !== 'complaint' && lead ? pendingReplies.find(p => p.leadId === lead.id && !joined.has(p.id)) : undefined;
+    if (reply) joined.add(reply.id);
+    items.push({ key: `request:${r.id}`, kind: 'request', member: 'qabulxona', refId: r.id, title: `${requestKind(r.kind)} · ${who}`, body: cut(r.summary + (r.whenText ? ` · ${r.whenText}` : ''), 240), at: r.createdAt, phone: r.phone ?? lead?.phone ?? null, urgent: r.kind === 'complaint', ...(reply ? { reply: { id: reply.id, text: cut(reply.text, 280) } } : {}) });
   }
   // Bemor javob kutyapti: AI javob bermay egasiga uzatgan suhbatlar (inbox/core.ts: forward) — Telegram ulanmagan bo'lsa ham shu yerda
   const requested = new Set(open.map(r => r.leadId).filter(Boolean));
@@ -74,7 +82,7 @@ export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
     const who = lead.name ?? (lead.username ? `@${lead.username}` : null) ?? lead.phone ?? 'Mijoz';
     items.push({ key: `message:${lead.id}`, kind: 'message', member: 'qabulxona', refId: lead.id, title: `${who} javob kutyapti`, body: cut(`«${last.text}»${w.note ? ` — ${w.note}` : ''}`, 280), at: w.since, phone: lead.phone, urgent: false });
   }
-  for (const r of replies.pendingList(biz.id, LIMIT)) {
+  for (const r of pendingReplies.filter(p => !joined.has(p.id))) {
     const lead = leads.get(biz.id, r.leadId);
     const who = lead?.name ?? (lead?.username ? `@${lead.username}` : null) ?? lead?.phone ?? 'Mijoz';
     items.push({ key: `reply:${r.id}`, kind: 'reply', member: 'qabulxona', refId: r.id, title: `${who}ga javob tayyor`, body: cut(r.text, 280), at: r.createdAt, phone: null, urgent: false });

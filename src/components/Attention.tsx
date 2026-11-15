@@ -54,6 +54,11 @@ function Item({ it, onDone, notify }: { it: AttentionItem; onDone: (key: string)
         <div className="min-w-0 flex-1">
           <p className="flex items-baseline gap-2"><span className="min-w-0 flex-1 text-[15px] font-semibold leading-snug text-[#f2f0ea]">{it.title}</span><span className="shrink-0 text-[12px] text-[#7d838f]">{ago(it.at)}</span></p>
           {it.body && <p className="mt-1 line-clamp-3 text-[13.5px] leading-relaxed text-[#a3a9b5]">{it.body}</p>}
+          {it.reply && (
+            <p className="mt-2 rounded-xl border border-glass/[0.08] bg-glass/[0.03] px-3 py-2 text-[13px] leading-relaxed text-[#c9ccd4]">
+              <span className="font-semibold text-[#f2f0ea]">Javob taklifi: </span>{it.reply.text}
+            </p>
+          )}
         </div>
       </div>
       <div className="flex flex-wrap gap-2 pl-12">
@@ -70,7 +75,11 @@ function Item({ it, onDone, notify }: { it: AttentionItem; onDone: (key: string)
           it.canSend && button('send', 'Yuborish', Send, () => api.sendFollowup(it.refId), 'Yuborildi', true),
           button('cancel', 'Bekor qilish', X, () => api.cancelFollowup(it.refId), 'Bekor qilindi'),
         ]}
-        {it.kind === 'request' && button('done', 'Bajarildi', Check, () => api.requestAction(it.refId, 'done'), 'Bajarildi', true)}
+        {it.kind === 'request' && it.reply && [
+          button('send', 'Javobni yuborish', Send, () => api.sendReply(it.reply!.id), 'Yuborildi', true),
+          button('dismiss', 'Javob kerak emas', X, () => api.dismissReply(it.reply!.id), 'Olib tashlandi'),
+        ]}
+        {it.kind === 'request' && button('done', 'Bajarildi', Check, () => api.requestAction(it.refId, 'done'), 'Bajarildi', !it.reply)}
         {it.kind === 'request' && it.phone && <a href={`tel:${it.phone}`} className="flex min-h-9 items-center gap-1.5 rounded-xl border border-glass/10 px-3 text-[13px] text-[#d9dbe1] no-underline hover:bg-glass/5"><Phone className="h-3.5 w-3.5" aria-hidden="true" />{it.phone}</a>}
         {it.kind === 'camera' && button('seen', "Ko'rdim", Check, () => api.seeEvent(it.refId), "Ko'rildi", true)}
         {it.kind === 'task' && [

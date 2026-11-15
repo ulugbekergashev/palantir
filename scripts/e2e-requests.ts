@@ -176,6 +176,14 @@ try {
   ok("xodimga karta: kanal, ism, raqam, vaqt, nima qilish, bemorning gapi", cardText.includes('Instagram') && cardText.includes('+998 94 444 55 66') && cardText.includes('ikki soatdan keyin') && cardText.includes('implant narxini aytish') && cardText.includes('implant qancha turadi'), cardText);
   ok("kartada: DentaCRM bemori (telefon va ism mos)", cardText.includes('DentaCRM bemori'));
   ok('tugmalar: Bajarildi, Ko\'tarmadi, Bekor', ['qd|', 'qn|', 'qx|'].every(c => buttons(card).some(b => b.callback_data?.startsWith(c))));
+  // B8: bitta voqea — bitta karta: javob taklifi shu so'rov kartasining ichida, alohida karta yo'q
+  const staffCards = sent.slice(mark).filter(s => s.method === 'sendMessage' && Number(s.params.chat_id) === STAFF);
+  ok("B8: javob taklifi shu kartada (matni va «Yuborish» tugmasi), xodimga bitta karta", cardText.includes('Javob taklifi') && cardText.includes('administratorimiz sizga') && buttons(card).some(b => b.callback_data?.startsWith('ra|'))
+    && staffCards.length === 1, staffCards.map(s => textOf(s).slice(0, 60)).join(' | '));
+  const att = (await api('/api/attention', { token })).json.items as { kind: string; reply?: { id: string; text: string } }[];
+  const reqRow = att.find(a => a.kind === 'request');
+  ok("B8: panelda ham bitta qator — so'rov ichida javob taklifi, alohida «javob tayyor» qatori yo'q",
+    !!reqRow?.reply?.text.includes('administratorimiz') && !att.some(a => a.kind === 'reply'), JSON.stringify(att.map(a => a.kind)));
   ok('egasiga ham nusxa', await waitFor('egasi', () => to(OWNER, mark, "Qo'ng'iroq qilish")));
   let list = (await api('/api/requests', { token })).json;
   const req1 = list.requests[0] as LeadRequest & { lead: Lead | null };

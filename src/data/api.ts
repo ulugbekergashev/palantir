@@ -29,6 +29,8 @@ export type RequestView = LeadRequest & { lead: Lead | null };
 export interface AttentionItem {
   key: string; kind: 'message' | 'director' | 'camera' | 'request' | 'reply' | 'outbound' | 'task' | 'content' | 'ads' | 'order'; member: EventMember | 'direktor'; refId: string;
   title: string; body: string; at: string; phone: string | null; urgent: boolean; canSend?: boolean;
+  /** So'rov qatorida shu bemorga javob taklifi (B8: bitta voqea — bitta qator) */
+  reply?: { id: string; text: string };
 }
 /** Talab tahlili (server/insights/analyze.ts): sonlar bandlardan kodda sanalgan */
 export interface DemandGroup { name: string; count: number; share: number; examples: string[] }

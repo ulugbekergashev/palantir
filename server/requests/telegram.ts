@@ -6,7 +6,7 @@ import type { Context, Telegram } from 'telegraf';
 import { businesses, leads, relays } from '../db';
 import { ownerWrites, sendToLead } from '../inbox/core';
 import { dialFor } from '../phone/index';
-import { MISSED_TEXT, RequestError, actorOf, addResult, closeRequest, noAnswer, sendCardTo, type TeamOutlet } from './index';
+import { MISSED_TEXT, RequestError, actorOf, addResult, closeRequest, extraOf, noAnswer, sendCardTo, type TeamOutlet } from './index';
 import { replyCards, requestCards, requests, staff } from './store';
 
 const CODES = new Set(['qd', 'qn', 'qm', 'qx', 'qc']);
@@ -77,6 +77,8 @@ export async function requestReply(chatId: string, replyTo: number | undefined, 
   const id = replyTo ? requestCards.byMessage(chatId, replyTo) : null;
   const actor = id ? actorOf(chatId) : null;
   if (!id || !actor) return null;
+  // Birlashgan karta (B8): javob taklifi hali kutyapti — «Reply» mijozga javob, so'rov natijasi emas
+  if (extraOf(actor.biz, chatId, replyTo!)?.pending) return null;
   try {
     await addResult(actor.biz, id, text, actor.name);
     return "✅ Natija so'rovga yozildi";

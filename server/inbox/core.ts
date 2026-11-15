@@ -12,7 +12,7 @@
  */
 import { Markup } from 'telegraf';
 import type { InlineKeyboardMarkup } from 'telegraf/types';
-import type { AutoReply, InboxMessage, LeadChannel, ReplyBooking } from '../../src/types';
+import type { AutoReply, InboxMessage, LeadChannel, LeadRequest, ReplyBooking } from '../../src/types';
 import { check } from '../../src/lib/compliance';
 import { iso } from '../../src/lib/week';
 import { businesses, inbox, leads, relays, replies, type BusinessRow, type ChannelPerson, type LeadRow, type ReplyRow } from '../db';
@@ -27,8 +27,8 @@ import { env } from '../env';
 import { decide, type Decision } from './replier';
 import { phoneChanged } from '../people';
 import { customerWrote } from '../stages';
-import { deliverToTeam, editTeamCards, openRequest, settleByBooking } from '../requests/index';
-import { replyCards } from '../requests/store';
+import { deliverToTeam, editTeamCards, mergedCard, openRequest, refreshCards, setCardExtra, settleByBooking } from '../requests/index';
+import { replyCards, requestCards } from '../requests/store';
 import { crewWorks } from '../../src/lib/crew';
 import { awaitingReply, holdLine } from './hold';
 import { isMedia } from './media';
@@ -333,55 +333,63 @@ async function handle(bizId: string, leadId: string): Promise<void> {
   if (newerThan(bizId, leadId, last.id)) return;
   remember(biz, lead, d);
   // Mijoz xodimdan ish kutyapti (qo'ng'iroq qilish, qabul, shikoyat): so'rov qabulxonaga — javobning taqdiridan qat'i nazar
-  if (d.request) {
-    await openRequest(biz, lead.id, { ...d.request, source: lead.channel, quote: fresh.map(m => m.text).join(' / ') })
-      .catch(e => console.error("[mijozlar] so'rov ochilmadi:", (e as Error).message));
-  }
-  // Yangi javob yoki yangi qabul taklifi bo'lsa — eski qabul taklifi ham eskiradi
-  if (d.action !== 'ignore') await supersede(biz, lead, 'Yangi xabar keldi — pastda yangi taklif');
+  // Bitta voqea — bitta karta (B8): yangi so'rovning kartasi kechiktiriladi — javob taklifi kartasi chiqsa, so'rov uning ichida;
+  // chiqmasa (avto-javob, qabul oqimi, javob kerak emas) — oxirida alohida. Shikoyat faqat egasiga boradi — doim alohida
+  const opened = d.request
+    ? await openRequest(biz, lead.id, { ...d.request, source: lead.channel, quote: fresh.map(m => m.text).join(' / ') }, new Date(), { defer: d.request.kind !== 'complaint' })
+      .catch(e => { console.error("[mijozlar] so'rov ochilmadi:", (e as Error).message); return null; })
+    : null;
+  const together = opened?.announce ? opened.request : undefined;
+  let merged = false;
+  try {
+    // Yangi javob yoki yangi qabul taklifi bo'lsa — eski qabul taklifi ham eskiradi
+    if (d.action !== 'ignore') await supersede(biz, lead, 'Yangi xabar keldi — pastda yangi taklif');
 
-  // Qabul oqimi bemorga yozmagan bo'lsa (egasining tasdig'iga ketdi, CRM rad etdi, xato) — suhbatning oxiri hali o'sha kiruvchi xabar
-  const holdIfSilent = () => (newerThan(bizId, leadId, last.id) ? Promise.resolve() : holdCustomer(biz, lead, fresh, mode));
-  if (d.action === 'book' && d.booking) {
-    try {
-      await receive(biz, lead, fresh, d, mode);
-    } catch (e) {
-      // Kutilmagan xato (masalan, Telegram kartani qabul qilmadi): bemorning xabari javobsiz yo'qolmasin
-      console.error('[mijozlar] qabul:', (e as Error).message);
-      await forward(biz, lead, fresh, "Palantir qabulni oxiriga yetkaza olmadi — CRM'ni tekshirib, o'zingiz javob bering");
+    // Qabul oqimi bemorga yozmagan bo'lsa (egasining tasdig'iga ketdi, CRM rad etdi, xato) — suhbatning oxiri hali o'sha kiruvchi xabar
+    const holdIfSilent = () => (newerThan(bizId, leadId, last.id) ? Promise.resolve() : holdCustomer(biz, lead, fresh, mode));
+    if (d.action === 'book' && d.booking) {
+      try {
+        await receive(biz, lead, fresh, d, mode);
+      } catch (e) {
+        // Kutilmagan xato (masalan, Telegram kartani qabul qilmadi): bemorning xabari javobsiz yo'qolmasin
+        console.error('[mijozlar] qabul:', (e as Error).message);
+        await forward(biz, lead, fresh, "Palantir qabulni oxiriga yetkaza olmadi — CRM'ni tekshirib, o'zingiz javob bering");
+      }
+      return holdIfSilent();
     }
-    return holdIfSilent();
-  }
-  if ((d.action === 'reschedule' || d.action === 'cancel_visit') && d.change) {
-    try {
-      await changeFlow(biz, lead, fresh, d, mode);
-    } catch (e) {
-      console.error("[mijozlar] qabulni o'zgartirish:", (e as Error).message);
-      await forward(biz, lead, fresh, "Palantir qabulni o'zgartira olmadi — CRM'ni tekshirib, o'zingiz javob bering");
+    if ((d.action === 'reschedule' || d.action === 'cancel_visit') && d.change) {
+      try {
+        await changeFlow(biz, lead, fresh, d, mode);
+      } catch (e) {
+        console.error("[mijozlar] qabulni o'zgartirish:", (e as Error).message);
+        await forward(biz, lead, fresh, "Palantir qabulni o'zgartira olmadi — CRM'ni tekshirib, o'zingiz javob bering");
+      }
+      return holdIfSilent();
     }
-    return holdIfSilent();
+    if (d.action === 'ignore' || !d.reply) {
+      // Javob matni yo'q, lekin egasiga aytadigan gap bor (model javob yozishdan bosh tortdi) — hamma kanalda yetkaziladi, xabar javobsiz yo'qolmasin
+      if (d.action !== 'ignore' && d.noteForOwner) await forward(biz, lead, fresh, d.noteForOwner);
+      else if (lead.channel === 'bot') await forward(biz, lead, fresh, null);
+      // «rahmat», «ok» kabi javob kerak bo'lmagan xabar — bemorga ham hech narsa yozilmaydi
+      if (d.action !== 'ignore') await holdCustomer(biz, lead, fresh, mode);
+      return;
+    }
+    const clean = isClean(biz, d.reply);
+    if (mode === 'auto' && d.action === 'reply' && clean) {
+      // Botda egasi suhbatda yo'q — darhol; shaxsiy chatda egasiga o'zi javob berishga vaqt
+      const delay = lead.channel === 'bot' ? 0 : settings.delayMin * env.minuteMs;
+      const r = replies.create(bizId, { leadId, channel: lead.channel, text: d.reply, status: 'scheduled', note: null, dueAt: new Date(Date.now() + delay).toISOString() });
+      if (!delay) await flush(r);
+      return;
+    }
+    const note = !clean ? "Javob taklifida reklama filtriga tushadigan so'z bor — tekshirib yuboring" : d.noteForOwner || null;
+    const r = replies.create(bizId, { leadId, channel: lead.channel, text: d.reply, status: 'pending', note, dueAt: null, question: d.action === 'ask_owner' ? d.question : null });
+    merged = await card(biz, lead, fresh, r, together);
+    // Javob egasining tasdig'ini kutadi (bilmagan narsasi, filtrga tushgan so'z) — bemorga hozircha «yetkazildi»
+    await holdCustomer(biz, lead, fresh, mode);
+  } finally {
+    if (opened?.announce && !merged) await opened.announce().catch(e => console.error("[so'rov] karta yuborilmadi:", (e as Error).message));
   }
-  if (d.action === 'ignore' || !d.reply) {
-    // Javob matni yo'q, lekin egasiga aytadigan gap bor (model javob yozishdan bosh tortdi) — hamma kanalda yetkaziladi, xabar javobsiz yo'qolmasin
-    if (d.action !== 'ignore' && d.noteForOwner) await forward(biz, lead, fresh, d.noteForOwner);
-    else if (lead.channel === 'bot') await forward(biz, lead, fresh, null);
-    // «rahmat», «ok» kabi javob kerak bo'lmagan xabar — bemorga ham hech narsa yozilmaydi
-    if (d.action !== 'ignore') await holdCustomer(biz, lead, fresh, mode);
-    return;
-  }
-  const clean = isClean(biz, d.reply);
-  if (mode === 'auto' && d.action === 'reply' && clean) {
-    // Botda egasi suhbatda yo'q — darhol; shaxsiy chatda egasiga o'zi javob berishga vaqt
-    const delay = lead.channel === 'bot' ? 0 : settings.delayMin * env.minuteMs;
-    const r = replies.create(bizId, { leadId, channel: lead.channel, text: d.reply, status: 'scheduled', note: null, dueAt: new Date(Date.now() + delay).toISOString() });
-    if (!delay) await flush(r);
-    return;
-  }
-  const note = !clean ? "Javob taklifida reklama filtriga tushadigan so'z bor — tekshirib yuboring" : d.noteForOwner || null;
-  const r = replies.create(bizId, { leadId, channel: lead.channel, text: d.reply, status: 'pending', note, dueAt: null, question: d.action === 'ask_owner' ? d.question : null });
-  await card(biz, lead, fresh, r);
-  // Javob egasining tasdig'ini kutadi (bilmagan narsasi, filtrga tushgan so'z) — bemorga hozircha «yetkazildi»
-  await holdCustomer(biz, lead, fresh, mode);
 }
 
 /** Qabul yozilgan bemor — mijoz kartasi unga bog'lanadi (oldin boshqa bemorga bog'langan bo'lsa — tegilmaydi) */
@@ -620,36 +628,59 @@ const replyKeyboard = (r: ReplyRow) => Markup.inlineKeyboard([[
   Markup.button.callback('✖️ Kerak emas', `rx|${r.id}`),
 ]]).reply_markup;
 
-async function card(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], r: ReplyRow): Promise<void> {
-  if (!owner) return;
-  const html = [
-    `💬 <b>${who(lead)}</b> · ${CHANNEL_LABEL[lead.channel]}`,
-    quotes(fresh),
-    '',
-    r.booking ? `📅 <b>Qabulga yozadi:</b> ${esc(bookingLine(r.booking))}\n` : '',
-    r.change ? `🔁 <b>${r.change.kind === 'move' ? "Qabulni ko'chiradi" : 'Qabulni bekor qiladi'}:</b> ${esc(changeLine(r.change))}\n` : '',
-    `✍️ <b>Javob taklifi:</b>\n<i>${esc(cut(r.text, 1300))}</i>`,
-    r.note ? `ℹ️ ${esc(cut(r.note, 500))}` : '',
-    '',
-    REPLY_HINT,
-  ].filter((l, i, a) => l !== '' || a[i - 1] !== '').join('\n');
+/** Javob taklifi qismi: qabul/o'zgartirish, taklif matni va izoh (alohida kartada ham, so'rov bilan birlashganida ham) */
+const replyPart = (r: ReplyRow): string => [
+  r.booking ? `📅 <b>Qabulga yozadi:</b> ${esc(bookingLine(r.booking))}\n` : '',
+  r.change ? `🔁 <b>${r.change.kind === 'move' ? "Qabulni ko'chiradi" : 'Qabulni bekor qiladi'}:</b> ${esc(changeLine(r.change))}\n` : '',
+  `✍️ <b>Javob taklifi:</b>\n<i>${esc(cut(r.text, 1300))}</i>`,
+  r.note ? `ℹ️ ${esc(cut(r.note, 500))}` : '',
+].filter(Boolean).join('\n');
+
+/** Hal bo'lgan taklifning oxirgi holati (settleCard): birlashgan karta so'rov tomonidan yangilansa ham shu holat qoladi */
+const settledLabel = new Map<string, string>();
+
+/**
+ * Birlashgan kartadagi javob qismi (B8, requests/index.ts: mergedCard). Taklif kutyapti — matn, «Reply» izohi va tugmalari;
+ * hal bo'lgan — qisqa holat, tugmasiz
+ */
+setCardExtra((biz, chatId, messageId) => {
+  const id = replyCards.byMessage(chatId, messageId);
+  const r = id ? replies.get(biz.id, id) : undefined;
+  if (!r) return null;
+  if (r.status === 'pending') return { html: `${replyPart(r)}\n\n${REPLY_HINT}`, rows: replyKeyboard(r).inline_keyboard, pending: true };
+  return { html: `✍️ <i>${esc(cut(r.text, 800))}</i>\n${settledLabel.get(r.id) ?? SETTLED[r.status] ?? '↪️ Hal qilindi'}`, rows: [], pending: false };
+});
+
+/**
+ * Javob taklifi kartasi jamoaga. withRequest — shu xabardan ochilgan yangi so'rov (B8): ikkalasi bitta kartada, so'rov tugmalari ham
+ * shu yerda. Qaytadi: so'rov shu kartaga qo'shildimi (yo'q bo'lsa — chaqiruvchi so'rov kartasini alohida yuboradi)
+ */
+async function card(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], r: ReplyRow, withRequest?: LeadRequest): Promise<boolean> {
+  if (!owner) return false;
+  const merged = withRequest
+    ? mergedCard(withRequest, leads.get(biz.id, lead.id) ?? lead, { html: `${replyPart(r)}\n\n${REPLY_HINT}`, rows: replyKeyboard(r).inline_keyboard, pending: true }, '🆕')
+    : null;
+  const html = merged?.html ?? [`💬 <b>${who(lead)}</b> · ${CHANNEL_LABEL[lead.channel]}`, quotes(fresh), '', replyPart(r), '', REPLY_HINT].join('\n');
   // Har karta yuborilishi bilan ro'yxatga: xodim kartaga darhol «Reply» qilsa yoki bossa — u topiladi
   const register = (c: { chatId: string; messageId: number }) => {
     replyCards.add(r.id, c.chatId, c.messageId);
+    if (withRequest) requestCards.add(withRequest.id, c.chatId, c.messageId);
     relays.add(c.chatId, c.messageId, lead.id);
     if (c.chatId === biz.ownerChatId) replies.setOwnerMessage(biz.id, r.id, c.messageId);
   };
+  let sentTo: { chatId: string; messageId: number }[];
   try {
-    await deliverToTeam(biz, html, replyKeyboard(r), register);
+    sentTo = await deliverToTeam(biz, html, merged?.keyboard ?? replyKeyboard(r), register);
   } catch (e) {
     // Karta ketmadi: taklif panelda turibdi — egasi buni bilishi uchun qisqa xabar navbatga qo'yiladi
-    console.error('[mijozlar] karta ketmadi, navbatga qo\'yildi:', (e as Error).message);
+    console.error("[mijozlar] karta ketmadi, navbatga qo'yildi:", (e as Error).message);
     notices.add(biz.id, [`💬 <b>${who(lead)}</b> · ${CHANNEL_LABEL[lead.channel]}`, quotes(fresh), '', '<i>Javob taklifi tayyor — tasdiqlash: panel → Mijozlar.</i>'].join('\n'));
-    return;
+    return false;
   }
   // Kartalar ketayotgan paytda taklif hal bo'lgan (xodim yubordi yoki o'zi javob berdi) — kechikkan kartalar ham yopilsin
   const now = replies.get(biz.id, r.id);
   if (now && now.status !== 'pending' && now.status !== 'scheduled') await settleCard(biz, now, SETTLED[now.status] ?? '↪️ Hal qilindi');
+  return !!withRequest && sentTo.length > 0;
 }
 
 /** Kartalar yuborilayotganda hal bo'lgan taklif: kechikkan kartaga qisqa holat (to'liq matni boshqa kartalarda) */
@@ -657,10 +688,14 @@ const SETTLED: Partial<Record<ReplyRow['status'], string>> = { sent: '✅ Yubori
 
 /** Karta natijasi bilan yangilanadi (tugmalar olib tashlanadi) */
 async function settleCard(biz: BusinessRow, r: ReplyRow, status: string): Promise<void> {
+  settledLabel.set(r.id, status);
   const lead = leads.get(biz.id, r.leadId);
   const html = `💬 <b>${lead ? who(lead) : 'Mijoz'}</b> · ${CHANNEL_LABEL[r.channel]}\n✍️ <i>${esc(cut(r.text, 1500))}</i>\n\n${status}`;
   const cards = replyCards.of(r.id);
-  if (cards.length) return editTeamCards(cards, html);
+  // Birlashgan karta (B8): so'rov qismi bilan birga yangilanadi — so'rov tugmalari (ochiq bo'lsa) qoladi
+  const together = new Set(cards.flatMap(c => requestCards.byMessage(c.chatId, c.messageId) ?? []));
+  for (const id of together) await refreshCards(biz, id);
+  if (cards.length) return editTeamCards(cards.filter(c => !requestCards.byMessage(c.chatId, c.messageId)), html);
   // Eski karta (jamoa kartalaridan oldin yuborilgan) — faqat egasida
   if (owner && r.ownerMessageId) await owner.edit(biz, r.ownerMessageId, html).catch(() => {});
 }

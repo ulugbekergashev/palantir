@@ -177,6 +177,30 @@ try {
   ok("qo'ng'iroqda qabulga yozildi — «Mijoz bo'ldi», keyingi qadam yo'q (ertasi «unutilgan»ga tushmaydi)", lead?.stage === 'won' && !lead.nextAt, `${lead?.stage} ${lead?.nextAt}`);
   ok('boshqa biznes yozuvni ololmaydi', (await fetch(`${base}/api/calls/${talk?.id}/audio`)).status === 401);
 
+  console.log("\n# B8: qo'ng'iroqdan keyin ish qoldi — xulosa va so'rov bitta kartada");
+  ai.callAnalysis = () => ({
+    summary: "Mijoz qabulni payshanbaga ko'chirmoqchi.", customer_name: 'Dilnoza', wants: "Qabulni ko'chirish", outcome: 'callback', agreed: '', next_step: "Payshanba bo'sh vaqtini aytish",
+    request_kind: 'change', request_summary: "Qabulni payshanbaga ko'chirish", request_due: '', score: 6, staff_note: 'Vaqtni darhol taklif qilmadi',
+  });
+  stt.text = "[0:01] 1-ovoz: Shifo Dent.\n[0:03] 2-ovoz: Qabulimni payshanbaga ko'chirsangiz.\n[0:08] 1-ovoz: Tekshirib aytaman.";
+  mark = sent.length;
+  microsip('outgoing', '+998944445566');
+  await sleep(500);
+  microsip('start', '+998944445566');
+  await sleep(1000);
+  fs.writeFileSync(path.join(hookDir, 'rec', `${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}_998944445566.mp3`), Buffer.alloc(20_000, 7));
+  await sleep(8500);
+  microsip('end', '+998944445566');
+  const staffCard = await waitFor('xodimga birlashgan karta', () => to(STAFF, mark, "Qabulni payshanbaga ko'chirish"), 25_000);
+  const ownerCard = await waitFor('egasiga birlashgan karta', () => to(OWNER, mark, "Qabulni payshanbaga ko'chirish"), 10_000);
+  await sleep(1000);
+  const ownerMsgs = sent.slice(mark).filter(s => s.method === 'sendMessage' && Number(s.params.chat_id) === OWNER && textOf(s).includes("qo'ng'iroq</b>"));
+  ok("B8: xodimga bitta karta — qo'ng'iroq xulosasi va so'rov (tugmalari bilan), xodim bahosi yo'q",
+    !!staffCard && textOf(staffCard).includes("payshanbaga ko'chirmoqchi") && buttons(staffCard).some(b => b.callback_data?.startsWith('qd|')) && !textOf(staffCard).includes('6/10'), textOf(staffCard));
+  ok("B8: egasiga ham bitta xabar — xulosa, baho va so'rov birga (alohida xulosa xabari yo'q)",
+    !!ownerCard && textOf(ownerCard).includes('6/10') && ownerMsgs.length === 1, ownerMsgs.map(s => textOf(s).slice(0, 80)).join(' | '));
+  ai.callAnalysis = null;
+
   console.log('\n# Uzish');
   // Ochiq so'rov (oldingisi qo'ng'iroqdan keyin o'zi yopildi): uzilgach uning kartasida «📞 Kompyuterdan» bo'lmasligi kerak
   await api('/api/requests', { token, body: { kind: 'callback', leadId: lead.id, summary: "Ertaga yana qo'ng'iroq qilish" } });

@@ -100,6 +100,10 @@ try {
   mark = sent.length;
   await api('/api/tasks', { token, body: { title: 'Kassani topshirish', dueAt: past(), call: true } });
   ok("ko'tarmadi — Telegram'da «ko'tarmadingiz» va eslatma matni", await waitFor("ko'tarmadi", () => textsAfter(mark).some(t => t.includes("ko'tarmadingiz") && t.includes('Kassani topshirish'))));
+  await sleep(800);
+  // B8: eslatma kartasi + bitta «ko'tarmadingiz» xabari (avval yana alohida ovozli xabar ham kelardi)
+  const about = textsAfter(mark).filter(t => t.includes('Kassani topshirish'));
+  ok("B8: ko'tarmagan eslatma — karta va bitta «ko'tarmadingiz» xabari (ikkinchisi yo'q)", about.length === 2 && about.filter(t => t.includes("ko'tarmadingiz")).length === 1, about.join(' | '));
   writeFileSync(join(dataDir, 'exit'), '1');
   mark = sent.length;
   await api('/api/tasks', { token, body: { title: 'Hisobot yuborish', dueAt: past(), call: true } });
