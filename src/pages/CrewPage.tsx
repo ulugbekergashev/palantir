@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import {
-  ArrowRight, BadgeCheck, Calculator, Check, GraduationCap, Handshake, Loader2, Lock, MessageSquareHeart, PackageSearch, Plus, Repeat, Scale,
+  ArrowRight, Calculator, Check, GraduationCap, Handshake, Loader2, Lock, MessageSquareHeart, PackageSearch, Plus, Scale,
   ShoppingCart, Star, UserSearch, Users, type LucideIcon,
 } from 'lucide-react';
 import { api } from '../data/api';
@@ -17,28 +17,22 @@ import type { Notify } from '../components/Artifacts';
 export interface Upcoming { id: string; name: string; role: string; about: string; icon: LucideIcon; department: Department }
 
 /**
- * Tez kunda keladiganlar. Ishdagi xodimning ishini takrorlaydigani qo'shilmaydi: haftalik xulosa — Direktor va Tahlilchida,
- * video — Kontent-meykerda; xodimlar ishini baholash — bitta Sifat nazoratchisida.
+ * Tez kunda keladiganlar. Ishdagi xodimning ishini takrorlaydigani qo'shilmaydi (B9): haftalik xulosa — Direktor va Tahlilchida,
+ * video — Kontent-meykerda, unutilgan mijozlarni qaytarish — Qabulxonada, kassa — Kuzatuvchida, xodimlar ishi — Tahlilchining «Jamoa»sida.
  */
 export const UPCOMING: Upcoming[] = [
   { id: 'sotuvchi', department: 'sotuv', name: 'Sotuvchi', role: 'Sotuv · yangi mijozlar', icon: Handshake,
     about: "Ehtimoliy mijozlarni topadi, birinchi xabarni yozadi, tijorat taklifini tayyorlaydi va javob kelguncha kuzatib boradi." },
-  { id: 'qaytaruvchi', department: 'sotuv', name: 'Mijozlarni qaytaruvchi', role: 'Sotuv · qayta kelish', icon: Repeat,
-    about: "Ko'pdan beri kelmagan mijozlarni topadi, ularga o'z vaqtida eslatma va shaxsiy taklif yuboradi." },
   { id: 'sharhlar', department: 'sotuv', name: 'Sharh menejeri', role: "Sotuv · obro'", icon: Star,
     about: "Google, 2GIS va Yandex'dagi sharhlarga javob yozadi, mamnun mijozlardan sharh so'raydi, yomon sharhni darhol aytadi." },
   { id: 'hamkorlik', department: 'marketing', name: 'Hamkorlik menejeri', role: 'Marketing · blogerlar', icon: MessageSquareHeart,
     about: "Mos blogerlar va hamkorlarni topadi, taklif yozadi, kelishuv va natijani kuzatadi." },
-  { id: 'sifat', department: 'sifat', name: 'Sifat nazoratchisi', role: 'Sifat · xodimlar ishi', icon: BadgeCheck,
-    about: "Qo'ng'iroq, yozishma va kamera bo'yicha har xodimning ishini baholaydi: skriptga rioya, xushmuomalalik, kim ko'p mijoz qabul qildi, yo'qotilgan mijozlar sababi." },
   { id: 'rekruter', department: 'hr', name: 'Rekruter', role: 'HR · ishga olish', icon: UserSearch,
     about: "Vakansiya matnini yozadi va joylaydi, kelgan rezyumelarni saralaydi, nomzodlarga savol beradi va eng mosini suhbatga chaqiradi." },
   { id: 'murabbiy', department: 'hr', name: 'Murabbiy', role: "HR · o'rgatish", icon: GraduationCap,
     about: "Yangi xodimni o'rgatadi: qoidalar, javob skriptlari, test savollari; xatolardan qisqa darslar tayyorlaydi." },
   { id: 'buxgalter', department: 'moliya', name: 'Buxgalter', role: 'Moliya · hisob', icon: Calculator,
     about: "Kirim-chiqimni yuritadi, xarajatlarni toifalaydi, oylik va soliq hisobotlari uchun ma'lumotni tayyorlaydi." },
-  { id: 'kassa', department: 'moliya', name: 'Kassa nazoratchisi', role: 'Moliya · kassa va qarzlar', icon: Calculator,
-    about: "Kassa, CRM va kamera ma'lumotini solishtiradi; qarzdor mijozlarga eslatadi va to'lovlarni kuzatadi." },
   { id: 'xaridor', department: 'taminot', name: 'Xaridor', role: "Ta'minot · xarid", icon: ShoppingCart,
     about: "Ta'minotchilardan narx so'raydi va solishtiradi, buyurtma qoralamasini tayyorlaydi, yetkazib berishni kuzatadi." },
   { id: 'omborchi', department: 'taminot', name: 'Omborchi', role: "Ta'minot · zaxira", icon: PackageSearch,

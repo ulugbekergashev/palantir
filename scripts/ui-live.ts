@@ -109,7 +109,9 @@ try {
     && await page.getByRole('region', { name: 'Boshqaruv' }).getByRole('article', { name: 'Direktor' }).getByText('Asosiy').isVisible()
     && await page.getByRole('region', { name: 'Mijozlar va sotuv' }).getByRole('article', { name: 'Qabulxona' }).getByRole('button', { name: 'Ishga olish' }).isVisible()
     && await page.getByRole('region', { name: 'HR' }).getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible()
-    && await page.getByRole('article', { name: 'Video-meyker — tez kunda' }).count() === 0 && await page.getByRole('article', { name: 'Strateg — tez kunda' }).count() === 0);
+    && await page.getByRole('article', { name: 'Video-meyker — tez kunda' }).count() === 0 && await page.getByRole('article', { name: 'Strateg — tez kunda' }).count() === 0
+    // B9: mavjud ishni takrorlaydiganlar yo'q
+    && (await Promise.all(['Mijozlarni qaytaruvchi', 'Kassa nazoratchisi', 'Sifat nazoratchisi'].map(n => page.getByRole('article', { name: `${n} — tez kunda` }).count()))).every(n => n === 0));
   ok("asosiy xodimni olib tashlab bo'lmaydi — Direktor kartasida «Olib tashlash» yo'q", await page.getByRole('article', { name: 'Direktor' }).getByRole('button', { name: 'Olib tashlash' }).count() === 0);
   await shot('02b-xodimlar', true);
   for (const name of ['Qabulxona', 'Kuzatuvchi', 'Tahlilchi', 'Marketolog', 'Kontent-meyker', 'Targetolog']) {
@@ -367,7 +369,7 @@ try {
   ok("eski #/hr va #/tezkunda manzillari — «AI xodimlar»ga, tez kunda keladiganlar qulf bilan", await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 }))
     && await page.getByRole('region', { name: 'HR' }).getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible()
     && await page.getByRole('region', { name: 'Moliya' }).getByRole('article', { name: 'Buxgalter — tez kunda' }).isVisible()
-    && await page.getByRole('article').count() >= 18);
+    && await page.getByRole('article').count() >= 15);
   await go('tezkunda');
   ok('#/tezkunda ham shu sahifa', await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 })));
   await shot('12e-xodimlar', true);
