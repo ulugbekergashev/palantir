@@ -41,6 +41,7 @@
     "live:learn": "tsx scripts/live-learn.ts",
     "test:content": "tsx scripts/check-content.ts",
     "test:crew": "tsx scripts/check-crew.ts",
+    "test:analyst": "tsx scripts/check-analyst.ts",
     "test:strangers": "tsx scripts/check-strangers.ts",
     "test:watchdog": "tsx scripts/check-watchdog.ts",
     "test:monitor": "tsx scripts/check-monitor.ts",

@@ -8,6 +8,7 @@ import type { Express, Request, Response } from 'express';
 import type { BusinessRow } from '../db';
 import { analyzeDemand, insightsStore } from './analyze';
 import { chartsDir, deepStore, FreshEnough, runDeepAnalysis } from './deep';
+import { analystWeeks, weekVerdict } from '../analyst/weekly';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps { asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler }
@@ -23,6 +24,11 @@ const deepNotice = new Map<string, string>();
 const SAFE = /^[\w-]{1,40}$/, CHART_FILE = /^[\w.-]{1,80}\.(png|jpe?g|svg)$/i;
 
 export function mountInsights(app: Express, { asBiz }: Deps): void {
+  // Tahlilchining haftalik hisobi (B4): qaysi kanal va xizmat pul keltirdi + kodda chiqarilgan xulosa
+  app.get('/api/analyst/week', asBiz((_req, res, biz) => {
+    const week = analystWeeks.latest(biz.id);
+    res.json({ week, verdict: week ? weekVerdict(week) : [] });
+  }));
   app.get('/api/insights', asBiz((req, res, biz) => {
     const days = daysOf(req.query.days);
     res.json({ insights: insightsStore.latest(biz.id, days), running: running.has(`${biz.id}:${days}`) });

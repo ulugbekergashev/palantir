@@ -32,6 +32,12 @@ export interface AttentionItem {
   /** So'rov qatorida shu bemorga javob taklifi (B8: bitta voqea — bitta qator) */
   reply?: { id: string; text: string };
 }
+/** Tahlilchining haftalik hisobi (server/analyst/weekly.ts): kanal bo'yicha murojaatdan pulgacha, xizmatlar bo'yicha tushum */
+export interface AnalystWeekView {
+  from: string; to: string; crm: boolean;
+  channels: { channel: 'instagram' | 'telegram' | 'call'; inquiries: number; booked: number; paid: number | null; revenue: number | null }[];
+  services: { name: string; revenue: number; count: number }[] | null; demand: string | null; createdAt: string;
+}
 /** Talab tahlili (server/insights/analyze.ts): sonlar bandlardan kodda sanalgan */
 export interface DemandGroup { name: string; count: number; share: number; examples: string[] }
 export interface Insights {
@@ -208,6 +214,8 @@ export const api = {
   dismissWaiting: (leadId: string) => call<{ ok: true }>(`/attention/waiting/${leadId}/dismiss`, { body: {} }),
   teamDay: () => call<TeamDay>('/team/day'),
   insights: (days: number) => call<{ insights: Insights | null; running: boolean }>(`/insights?days=${days}`),
+  /** Tahlilchining haftalik hisobi (server/analyst/weekly.ts, B4) */
+  analystWeek: () => call<{ week: AnalystWeekView | null; verdict: string[] }>('/analyst/week'),
   runInsights: (days: number) => call<{ insights: Insights }>('/insights', { body: { days } }),
   deepInsights: () => call<{ result: DeepInsights | null; running: string | null; error: string | null; notice: string | null }>('/insights/deep'),
   runDeepInsights: (force = false) => call<{ running: string }>('/insights/deep', { body: { force } }),

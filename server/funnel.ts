@@ -111,3 +111,25 @@ export async function funnel(biz: BusinessRow, period: { from: string; to: strin
     revenue: { total: revenue.instagram + revenue.telegram + revenue.call, byChannel: revenue },
   };
 }
+
+export interface ServiceMoney { name: string; revenue: number; count: number }
+/** Xizmat nomi bo'lmagan to'lov shu nom bilan */
+const NO_SERVICE = "Xizmat ko'rsatilmagan";
+/**
+ * Davrdagi tushum xizmatlar bo'yicha (DentaCRM to'lovlari, klinikaning hamma bemorlari — faqat murojaat qilganlar emas):
+ * kamayish tartibida. Balansdan to'lov — yangi pul emas. CRM ulanmagan bo'lsa — null
+ */
+export async function serviceRevenue(biz: BusinessRow, period: { from: string; to: string }): Promise<ServiceMoney[] | null> {
+  if (!crmConnected(biz.id)) return null;
+  const days = await crmDays(biz.id, datesBetween(period.from, period.to));
+  const by = new Map<string, ServiceMoney>();
+  for (const d of days) {
+    for (const t of d.transactions) {
+      if (t.status !== 'Paid' || t.type === 'Balance' || t.amount <= 0) continue;
+      const name = t.service?.trim() || NO_SERVICE;
+      const cur = by.get(name) ?? { name, revenue: 0, count: 0 };
+      by.set(name, { name, revenue: cur.revenue + t.amount, count: cur.count + 1 });
+    }
+  }
+  return [...by.values()].sort((a, b) => b.revenue - a.revenue);
+}

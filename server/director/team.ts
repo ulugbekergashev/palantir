@@ -12,6 +12,7 @@ import { deepStore } from '../insights/deep';
 import { bestAndWorst } from '../marketing/results';
 import { events } from '../orders/store';
 import { crewWorks } from '../../src/lib/crew';
+import { weekFindings } from '../analyst/weekly';
 
 const DAY_MS = 86_400_000;
 /** Talab tahlili shundan eski bo'lsa — Tahlilchi yangisini qiladi (haftasiga bir marta) */
@@ -46,6 +47,9 @@ export function teamFindings(biz: BusinessRow, now = new Date()): string {
       ...d.unanswered.slice(0, 3).map(u => `- left without an answer: ${fence(u.name)} — ${u.count}`),
       ...d.objections.slice(0, 2).map(o => `- objection: ${fence(o.name)} — ${o.count}`));
   }
+  // Tahlilchining haftalik hisobi: qaysi kanal va xizmat pul keltirdi (B4)
+  const money = weekFindings(biz.id);
+  if (money) out.push(money);
   const deep = deepStore.latest(biz.id);
   if (deep && now.getTime() - Date.parse(deep.createdAt) < DEEP_FRESH_MS && deep.findings.length) {
     out.push(`Analyst — deep analysis (${deep.createdAt.slice(0, 10)}): ${fence(deep.headline)}`,

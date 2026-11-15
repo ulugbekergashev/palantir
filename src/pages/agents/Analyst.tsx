@@ -3,7 +3,7 @@
  * hammasi bitta qorong'i sahifada. Ma'lumot — /api/dashboard va /api/dashboard/funnel (DentaCRM bilan — keldi va to'ladi ham).
  */
 import { useEffect, useEffectEvent, useState } from 'react';
-import { api } from '../../data/api';
+import { api, type AnalystWeekView } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { AgentAsk, HUE, Panel, Quiet, type Stat } from '../../components/agent';
 import { PERIOD_LABEL, type DashboardView, type FunnelView, type PeriodKey } from '../../lib/dashboard';
@@ -110,6 +110,50 @@ function Funnel({ f }: { f: FunnelView }) {
   );
 }
 
+const CHANNEL: Record<AnalystWeekView['channels'][number]['channel'], string> = { instagram: 'Instagram', telegram: 'Telegram', call: "Qo'ng'iroq" };
+const dm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
+
+/** Tahlilchining o'z ishi (B4): har dushanba — o'tgan hafta qaysi kanal va xizmat pul keltirdi. Shu xulosa Direktorga ham boradi */
+function WeekReport() {
+  const [r, setR] = useState<{ week: AnalystWeekView | null; verdict: string[] } | null>(null);
+  useEffect(() => {
+    let stale = false;
+    api.analystWeek().then(x => { if (!stale) setR(x); }).catch(() => { if (!stale) setR({ week: null, verdict: [] }); });
+    return () => { stale = true; };
+  }, []);
+  const w = r?.week;
+  return (
+    <Panel title={w ? `Haftalik hisobot · ${dm(w.from)}–${dm(w.to)}` : 'Haftalik hisobot'}>
+      {!r ? <div className="h-24 animate-pulse rounded-xl bg-glass/[0.03]" /> : !w || (!w.channels.length && !w.services?.length) ? (
+        <Quiet>Har dushanba ertalab o'tgan haftani hisoblayman: qaysi kanal va qaysi xizmat pul keltirdi. Hisob ertalabki xabarda ham keladi va Direktor shunga qarab taklif beradi.</Quiet>
+      ) : (
+        <div className="flex flex-col gap-3 text-[13.5px] text-[#d9dbe1]">
+          {w.channels.length > 0 && (
+            <ul className="flex flex-col gap-1.5">
+              {w.channels.map(c => (
+                <li key={c.channel} className="flex items-baseline justify-between gap-3">
+                  <span>{CHANNEL[c.channel]}<span className="ml-2 text-[12px] text-[#7d838f]">{c.inquiries} → {c.booked} yozildi{c.paid !== null ? ` → ${c.paid} to'ladi` : ''}</span></span>
+                  {c.revenue ? <span className="shrink-0 tabular-nums font-semibold text-[#f2f0ea]">{som(c.revenue)}</span> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {w.services?.length ? (
+            <div>
+              <p className="mb-1 text-[12px] uppercase tracking-[0.1em] text-[#7d838f]">Xizmatlar bo'yicha tushum</p>
+              <ul className="flex flex-col gap-1">
+                {w.services.slice(0, 5).map(s => <li key={s.name} className="flex justify-between gap-3"><span className="min-w-0 truncate">{s.name}</span><span className="shrink-0 tabular-nums">{som(s.revenue)}</span></li>)}
+              </ul>
+            </div>
+          ) : null}
+          {r.verdict.map(v => <p key={v} className="text-[#f2f0ea]">{v}</p>)}
+          {!w.crm && <p className="text-[12px] text-[#7d838f]">DentaCRM ulansa — kim kelib to'lagani va xizmatlar bo'yicha tushum ham.</p>}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 export function AnalystBody({ data }: { data: AnalystData | null }) {
   const d = data?.dashboard, f = data?.funnel;
   return (
@@ -119,6 +163,7 @@ export function AnalystBody({ data }: { data: AnalystData | null }) {
         <Panel title="Voronka">{f ? <Funnel f={f} /> : <div className="h-40 animate-pulse rounded-xl bg-glass/[0.03]" />}</Panel>
       </div>
       <div className="flex flex-col gap-5">
+        <WeekReport />
         <Panel title="Jamoa">
           {d?.team.length ? (
             <ul className="flex flex-col gap-2">

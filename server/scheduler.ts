@@ -28,6 +28,8 @@ import { tgCall, tgCallEnabled } from './tgcall';
 import { ContentError, factoryDue, runFactory } from './content/factory';
 import { watchAll as watchAds } from './ads/campaigns';
 import { directorReport } from './director/telegram';
+import { weeklyDemand } from './director/team';
+import { analystMorning } from './analyst/weekly';
 import { extrasPaused, extrasPausedUntil } from './subscription/pressure';
 import { crewHas, crewWorks } from '../src/lib/crew';
 import { crewFromData } from './crew';
@@ -70,9 +72,13 @@ export async function sendMorning(bot: BotService, biz: BusinessRow, now = new D
 export async function morningMessage(bot: BotService, biz: BusinessRow, now = new Date()): Promise<boolean> {
   if (!biz.ownerChatId) return false;
   const plan = await morningPlan(biz, now).catch(e => { console.error(`[jadval] reja (${biz.profile.name}):`, e); return null; });
+  // Tahlilchining o'z ishi (B4): haftasiga bir marta — talab tahlili (AI; limitga yaqin bo'lsa o'tkaziladi) va «qaysi kanal va xizmat
+  // pul keltirdi» (kodda). Direktordan OLDIN: u shu xulosani o'qiydi
+  if (!extrasPaused()) await weeklyDemand(biz, now).catch(e => console.error(`[tahlilchi] haftalik talab (${biz.profile.name}):`, (e as Error).message));
+  const analyst = await analystMorning(biz, now).catch(e => { console.error(`[tahlilchi] haftalik hisobot (${biz.profile.name}):`, (e as Error).message); return null; });
   // Obuna limitiga yaqin — Direktor tahlili (AI) o'tkazib yuboriladi: bemorlarga javob uchun joy qoladi (B5, «bemorlar birinchi»)
   const dir = extrasPaused() ? null : await directorReport(biz, now).catch(e => { console.error(`[direktor] (${biz.profile.name}):`, (e as Error).message); return null; });
-  const messages = joinMorning(plan, dir);
+  const messages = joinMorning(plan, dir, analyst ? { html: analyst, buttons: [] } : null);
   if (!messages.length) return false;
   for (const m of messages) await bot.sendText(biz.ownerChatId, m.html, m.buttons);
   if (plan?.prep.length) void bot.prepareDay(biz, prepPrompt(plan.prep), '☀️ Bugungi xabarlarni tayyorla').catch(e => console.error(`[jadval] tayyorgarlik (${biz.profile.name}):`, (e as Error).message));

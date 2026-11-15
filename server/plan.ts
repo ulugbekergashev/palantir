@@ -148,9 +148,10 @@ type Msg = { html: string; buttons: PlanButton[][] };
 /**
  * Ertalab bitta xabar: kun rejasi va Direktor hisoboti (tugmalari birga). Juda uzun bo'lsa — ikkita; biri yo'q bo'lsa — boshqasi o'zi
  */
-export function joinMorning(plan: Msg | null, director: Msg | null): Msg[] {
-  const parts = [plan, director].filter((x): x is Msg => !!x);
+export function joinMorning(plan: Msg | null, director: Msg | null, analyst: Msg | null = null): Msg[] {
+  // Tartib: kun rejasi, Tahlilchining haftalik hisobi (B4), Direktor (u Tahlilchi xulosasini o'qigan)
+  const parts = [plan, analyst, director].filter((x): x is Msg => !!x);
   if (parts.length < 2) return parts;
-  const html = `${plan!.html}\n\n━━━━━━━━━━\n\n${director!.html}`;
-  return html.length <= TG_TEXT ? [{ html, buttons: [...plan!.buttons, ...director!.buttons] }] : parts;
+  const html = parts.map(p => p.html).join('\n\n━━━━━━━━━━\n\n');
+  return html.length <= TG_TEXT ? [{ html, buttons: parts.flatMap(p => p.buttons) }] : parts;
 }

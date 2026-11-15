@@ -8,6 +8,7 @@ import { AiLimitError } from '../claude';
 import type { BusinessRow } from '../db';
 import { env } from '../env';
 import { approveMove, declineMove, DirectorError, directorView, readNumbers, runDirector } from './index';
+import { weeklyDemand } from './team';
 import { goals, MAX_GOALS, progress } from './goals';
 import { METRIC_KEYS, METRICS, type MetricKey } from './logic';
 
@@ -29,6 +30,8 @@ export function mountDirector(app: Express, { asBiz, fail }: Deps): void {
     running.add(biz.id);
     lastRun.set(biz.id, Date.now());
     try {
+      // Qo'lda tahlilda ham Tahlilchining talab tahlili yangi bo'lsin (haftasiga bir marta, o'zi cheklaydi) — Direktor uni o'qiydi (B4)
+      await weeklyDemand(biz).catch(e => console.error(`[tahlilchi] haftalik talab (${biz.profile.name}):`, (e as Error).message));
       await runDirector(biz);
       res.json(directorView(biz));
     } catch (e) {

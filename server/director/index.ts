@@ -24,7 +24,7 @@ import {
 import { directorMoves, directorRuns, type DirectorMove, type DirectorRun } from './store';
 import { goals, goalsText, progress } from './goals';
 import { crewHas } from '../../src/lib/crew';
-import { teamFindings, weeklyDemand } from './team';
+import { teamFindings } from './team';
 
 export { directorMoves, directorRuns } from './store';
 
@@ -199,8 +199,8 @@ export interface DirectorResult { run: DirectorRun | null; plan: DirectorPlan | 
  */
 export async function runDirector(biz: BusinessRow, now = new Date()): Promise<DirectorResult> {
   const day = iso(now);
-  // Tahlilchi haftasiga bir marta «mijozlar nimani so'rayapti»ni yangilaydi — Direktor uni ham o'qiydi; yiqilsa tahlil baribir davom etadi
-  await weeklyDemand(biz, now).catch(e => console.error(`[tahlilchi] haftalik talab (${biz.profile.name}):`, (e as Error).message));
+  // Tahlilchining haftalik ishi (talab tahlili, kanal va xizmat pullari) — o'zi, ertalabki xabarda Direktordan oldin (scheduler.ts, B4);
+  // Direktor faqat natijasini o'qiydi (teamFindings)
   // Eskirgan takliflar yangi tahlil bo'lmasa ham yopiladi (AI o'chiq yoki faollik kam kunlarda «Sizni kutyapti»da turib qolmasin — G5)
   directorMoves.expireBefore(biz.id, addDays(now, -PROPOSAL_TTL_DAYS).toISOString());
   const numbers = await readNumbers(biz, now);
