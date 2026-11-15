@@ -4,7 +4,8 @@
  * egasi «eslab qol» demaguncha boshqa mijozga aytilmaydi.
  */
 import type { PackQuestion } from '../../src/data/brainPack';
-import type { BrainView, Knowledge } from '../../src/types';
+import type { BrainView, Knowledge, Offering } from '../../src/types';
+import { amountsIn } from '../../src/lib/prices';
 
 /** Matn uzunliklari va soni: model ko'rsatmasi cheksiz o'smasin */
 export const LIMITS = { question: 300, answer: 800, sample: 6000, title: 80, style: 600, qa: 200, samples: 20, fixes: 20 };
@@ -32,6 +33,20 @@ export const plain = (s: string, max: number): string => s.replace(/[\p{Cc}\p{Cf
 const norm = (s: string): string => s.toLowerCase().replace(/[‘’ʻʼ`]/g, "'").replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
 /** Bir xil savolmi (katta-kichik harf, apostrof turi va tinish belgisi hisobga olinmaydi) */
 export const sameQuestion = (a: string, b: string): boolean => norm(a) === norm(b);
+
+/**
+ * Saqlangan javobdagi narx jadvaldagi narxdan eskirganmi (E9): javob xizmat nomini aytadi, ichida pul miqdori bor, lekin shu xizmatning
+ * hozirgi narxi u yerda yo'q («Vinir 1 200 000 so'm», jadvalda esa 1 500 000). Bunday javob mijozga berilmaydi — egasiga sababi.
+ * Shubhali holatda ham javob chetga qo'yiladi: narx jadvaldan baribir aytiladi, eski narxni aytgandan ko'ra yaxshi
+ */
+export function stalePrice(k: Pick<Knowledge, 'question' | 'answer'>, offerings: Pick<Offering, 'name' | 'nameRu' | 'price'>[]): string | null {
+  const amounts = amountsIn(k.answer);
+  if (!amounts.length) return null;
+  const text = ` ${norm(`${k.question} ${k.answer}`)} `;
+  const named = (name: string | undefined) => { const n = norm(name ?? ''); return n.length >= 3 && text.includes(` ${n}`); };   // so'z boshidan: «vinirlar», «plombani» ham
+  const old = offerings.find(o => o.price > 0 && (named(o.name) || named(o.nameRu)) && !amounts.includes(o.price));
+  return old ? `Narx eskirgan: «${old.name}» hozir ${old.price.toLocaleString('ru-RU')} so'm, bu javobda boshqa narx. Mijozlarga bu javob aytilmaydi — javobni yangilang yoki o'chiring.` : null;
+}
 
 /** Tayyor savollar: javob berilganlari javobi bilan (source = pack:<id>) */
 export function packView(pack: PackQuestion[], qa: Knowledge[]): BrainView['pack'] {

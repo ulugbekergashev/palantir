@@ -65,6 +65,38 @@ function parseLine(line: string): PriceLine | null {
   return { name, price };
 }
 
+/** Matndan pul miqdorini qidirish uchun son: «1 200 000», «1.200.000», «1200000», «4,5» (birlik bilan) — ro'yxatdagi ikki narx bitta son bo'lib qo'shilmaydi */
+const SCAN = new RegExp(String.raw`(\d{1,3}(?:[\s.,']\d{3})+|\d+(?:[.,]\d+)?)\s*(${UNIT})?\.?\s*(${CURRENCY})?`, 'gi');
+/** «1 mln 200 ming» — bitta narx */
+const MLN_MING = /(\d+(?:[.,]\d+)?)\s*(?:mln|million|млн)\s*(\d{1,3})\s*(?:ming|тыс\.?)/gi;
+/** Birlik va valyutasiz bundan uzun son — telefon yoki hisob raqami, narx emas */
+const MAX_PLAIN_DIGITS = 8;
+const scanAmount = (digits: string, unit: string | undefined): number => {
+  if (!unit) return Number(digits.replace(/\D/g, ''));
+  const s = digits.replace(/[\s']/g, '');
+  return Math.round((/^\d+[.,]\d{1,2}$/.test(s) ? parseFloat(s.replace(',', '.')) : Number(s.replace(/\D/g, ''))) * factor(unit));
+};
+
+/**
+ * Gapdagi pul miqdorlari (so'm): «Vinir 1,2 mln, plomba 350 000 so'm» → [1200000, 350000]. Sana, yil, telefon va birliksiz kichik son
+ * («3 oygacha», «2 ta») olinmaydi. Saqlangan javobdagi narx jadvaldagidan eskirganini topish uchun (server/brain/logic.ts)
+ */
+export function amountsIn(text: string): number[] {
+  const out: number[] = [];
+  // Sana va telefon raqami («+998 90 123 45 67») — narx emas
+  const rest = text.replace(/\d{1,2}[./]\d{1,2}[./]\d{2,4}|\+\s*\d[\d\s()-]{6,}|\b998[\d\s-]{7,}/g, ' ').replace(MLN_MING, (_, mln: string, ming: string) => {
+    out.push(scanAmount(mln, 'mln') + Number(ming) * 1000);
+    return ' ';
+  });
+  for (const [, digits, unit, currency] of rest.matchAll(SCAN)) {
+    const plain = !unit && !currency;
+    if (plain && (yearLike(digits) || digits.replace(/\D/g, '').length > MAX_PLAIN_DIGITS)) continue;
+    const value = scanAmount(digits, unit);
+    if (Number.isFinite(value) && value > 0 && value <= MAX_PRICE && (!plain || value >= MIN_PLAIN)) out.push(value);
+  }
+  return out;
+}
+
 /** Faylda shuncha narx topilsa — «narxlar jadvaliga» olish taklif qilinadi (bitta son tasodif bo'lishi mumkin) */
 export const MIN_FILE_PRICES = 2;
 

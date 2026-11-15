@@ -154,6 +154,17 @@ export async function brainApiTests(h: Harness): Promise<void> {
   ok("ovozli agent: narxi kiritilmagan xizmat ham bor deb aytiladi, narxi o'ylab topilmaydi", free.status === 200 && /Narxi kiritilmagan xizmatlar[^\n]*\n(- [^\n]*\n)*- Breket/.test(saidFree) && !saidFree.includes('Breket: 0'), `${free.status} ${saidFree.slice(0, 400)}`);
   await api('/api/brain/prices/narxsiz1', { method: 'DELETE', token });
 
+  // E9: Vinir narxi 1 200 000 dan 1 500 000 ga yangilangan — eski narxli saqlangan javob mijozga ham, telefon AI'ga ham aytilmaydi
+  const oldQa = await api('/api/brain/qa', { token, body: { question: 'Vinir qancha turadi?', answer: "Vinir bir tishga 1 200 000 so'm" } });
+  const oldRow = brainOf(oldQa).qa.find(k => k.question === 'Vinir qancha turadi?');
+  const saidOld = String((await api('/api/voice/knowledge', { token: key })).json.knowledge);
+  ok("miya: narxi eskirgan javob — panelda «Narx eskirgan», telefon AI'ga berilmaydi, jadvaldagi narx joyida (E9)",
+    !!oldRow?.warning?.includes('Narx eskirgan') && !saidOld.includes('1 200 000') && saidOld.includes('Vinir: 1500000'), `${oldRow?.warning} | ${saidOld.slice(0, 300)}`);
+  const fixedQa = await api(`/api/brain/${oldRow?.id}`, { method: 'PATCH', token, body: { answer: "Vinir bir tishga 1 500 000 so'm" } });
+  const saidFixed = String((await api('/api/voice/knowledge', { token: key })).json.knowledge);
+  ok('miya: egasi narxni yangiladi — ogohlantirish yo\'qoldi, javob yana aytiladi', !brainOf(fixedQa).qa.find(k => k.id === oldRow?.id)?.warning && saidFixed.includes("1 500 000 so'm"), saidFixed.slice(0, 300));
+  await api(`/api/brain/${oldRow?.id}`, { method: 'DELETE', token });
+
   const removed = await api(`/api/brain/${qaId}`, { method: 'DELETE', token });
   ok("miya: o'chirildi", removed.status === 200 && !brainOf(removed).qa.length && (await api(`/api/brain/${qaId}`, { method: 'DELETE', token })).status === 404);
 }

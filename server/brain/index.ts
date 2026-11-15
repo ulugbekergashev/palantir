@@ -9,7 +9,7 @@ import { mergeOfferings, parsePrices, type PriceLine } from '../../src/lib/price
 import type { BrainView, Knowledge } from '../../src/types';
 import { crmConnected } from '../crm/index';
 import { businesses, newId, type BusinessRow } from '../db';
-import { LIMITS, approvedAnswers, brainPrompt, fitPages, inert, packView, plain, sameQuestion } from './logic';
+import { LIMITS, approvedAnswers, brainPrompt, fitPages, inert, packView, plain, sameQuestion, stalePrice } from './logic';
 import { FILE_SOURCE, facts as notes, refresh, removeSource, style, vault as knowledge, vaultPath } from './vault';
 import { orders } from '../orders/store';
 import { companyContext } from '../company';
@@ -74,7 +74,8 @@ export function brainView(biz: BusinessRow): BrainView {
   refresh(biz.id);
   const all = knowledge.list(biz.id);
   const opts = filterOptions(biz);
-  const warned = (k: Knowledge): Knowledge => { const warning = filterWarning(k.answer, opts); return warning ? { ...k, warning } : k; };
+  // Eskirgan narx birinchi aytiladi: bu javob mijozga umuman ketmaydi (E9)
+  const warned = (k: Knowledge): Knowledge => { const warning = (k.kind === 'qa' ? stalePrice(k, biz.profile.offerings) : null) ?? filterWarning(k.answer, opts); return warning ? { ...k, warning } : k; };
   const qa = all.filter(k => k.kind === 'qa').map(warned);
   const pack = packView(packOf(biz), qa);
   const inPack = new Set(pack.flatMap(q => (q.answer ? [q.answer.id] : [])));
@@ -96,6 +97,9 @@ export function brainView(biz: BusinessRow): BrainView {
   };
 }
 
+/** Narxi jadvaldagidan eskirgan saqlangan javoblar mijozga javob beradigan modelga ham, telefon AI'ga ham berilmaydi (E9) */
+const freshAnswers = (biz: BusinessRow, list: Knowledge[]): Knowledge[] => list.filter(k => k.kind !== 'qa' || !stalePrice(k, biz.profile.offerings));
+
 /** Mijozlarga javob beradigan modelga qo'shiladigan bilim (bo'lmasa — bo'sh satr) */
 export function replierBrain(biz: BusinessRow): string {
   // Papka bir marta o'qiladi (har mijoz xabarida chaqiriladi)
@@ -103,7 +107,7 @@ export function replierBrain(biz: BusinessRow): string {
   const of = (kind: Knowledge['kind']) => all.filter(k => k.kind === kind);
   const rules = orders.standing(biz.id, 'qabulxona');
   return [
-    brainPrompt({ qa: of('qa'), fixes: of('fix'), pages: of('page'), style: style.get(biz.id) }),
+    brainPrompt({ qa: freshAnswers(biz, of('qa')), fixes: of('fix'), pages: of('page'), style: style.get(biz.id) }),
     rules.length ? `<owner_standing_orders>\nThe owner's standing orders for answering customers — always follow them:\n${rules.map(r => `- ${r}`).join('\n')}\n</owner_standing_orders>` : '',
     // Brend ovozi (brend-buk — Miya → Brend): qanday gapirish; fakt va narx bu yerdan olinmaydi
     companyContext(biz, 'customers'),
@@ -252,7 +256,7 @@ export function knowledgeText(biz: BusinessRow): string {
   // Egasi mijozlar bilan qanday gaplashishni xohlaydi (yozishmadagi «uslub»): telefonda ham shu ohang
   const tone = plain(style.get(biz.id), LIMITS.style);
   const all = knowledge.list(biz.id).flatMap(k => (k.kind === 'page' ? (sayable(k.question) ? [{ ...k, answer: k.answer.split('\n').filter(sayable).join('\n') }] : []) : k.kind === 'qa' && !sayable(k.answer) ? [] : [k]));
-  const qa = approvedAnswers(all);
+  const qa = approvedAnswers(freshAnswers(biz, all));
   // Qatorlar birlashtirilgach paydo bo'lgan ibora ham («eng» bir qatorda, «yaxshi» keyingisida) o'tib ketmasin
   const pages = fitPages(all).lines.filter(sayable);
   const facts = notes.list(biz.id).filter(f => sayable(f.text));
