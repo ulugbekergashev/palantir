@@ -60,12 +60,14 @@ export interface TeamDay {
 }
 /** Telefon liniyasi (server/voice/line.ts LineView) */
 export interface PhoneLine {
-  trunk: { host: string; port: number; login: string; number: string } | null;
+  /** auth: ip — parolsiz (operator IP bo'yicha taniydi); operator: qo'lda kiritilganda Uztelecom yoki boshqasi */
+  trunk: { host: string; port: number; login: string; number: string; auth: 'password' | 'ip'; operator: 'uztelecom' | 'other' } | null;
   /** zadarma — API kalitlari bilan o'zi sozlangan; manual — qo'lda (Uztelecom, Sarkor va boshqalar) */
   provider: 'zadarma' | 'manual' | null;
   routing: { mode: 'ai' | 'ai_transfer' | 'day_admin'; ring: number; days: number[]; from: string; to: string };
   admin: { server: string; login: string; password: string | null };
-  status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; ai: boolean | null; note: string | null };
+  /** reason — raqam ulanmagan bo'lsa, nega (Asterisk jurnalidan, odam tilida) */
+  status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; ai: boolean | null; note: string | null; reason?: string | null };
 }
 /** MicroSIP shu kompyuterda: topildimi, ulanganmi (shu biznesga), operator hisobi bormi, suhbatlar yozib olinadimi */
 export interface PhoneStatus {
@@ -223,7 +225,8 @@ export const api = {
   seeEvent: (id: string) => call<{ ok: true }>(`/agents/events/${id}/seen`, { body: {} }),
   // ─── Telefon liniyasi (Asterisk): shahar raqami, kim javob beradi, administrator telefoni ───
   phoneLine: () => call<{ line: PhoneLine }>('/phone/line'),
-  savePhoneTrunk: (t: { host: string; port: number; login: string; number: string; password?: string }) => call<{ line: PhoneLine; warning: string | null }>('/phone/line/trunk', { method: 'PUT', body: t }),
+  savePhoneTrunk: (t: { host: string; port: number; login: string; number: string; password?: string; auth: 'password' | 'ip'; operator: 'uztelecom' | 'other' }) => call<{ line: PhoneLine; warning: string | null }>('/phone/line/trunk', { method: 'PUT', body: t }),
+  checkPhoneLine: () => call<{ line: PhoneLine }>('/phone/line/check', { body: {} }),
   connectZadarma: (z: { key: string; secret: string; number?: string }) => call<{ line: PhoneLine; warning: string | null; zadarma: { number: string; balance: number; currency: string; channels: number | null } }>('/phone/line/zadarma', { body: z }),
   savePhoneRouting: (r: PhoneLine['routing']) => call<{ line: PhoneLine }>('/phone/line/routing', { method: 'PUT', body: r }),
   newAdminPhone: () => call<{ line: PhoneLine; warning: string | null }>('/phone/line/admin', { body: {} }),

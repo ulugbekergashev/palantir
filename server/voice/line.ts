@@ -17,21 +17,24 @@ import { open, seal } from '../secret';
 
 import { LINE_MODES, type LineMode, type LineRouting } from './route';
 import { voiceAgentKey } from './serviceEnv';
+import { contactState, confValue, registrationState, trunkConf, trunkReason, type LineTrunk, type TrunkAuth, type TrunkState } from './trunk';
 import { ZADARMA_HOST, ZADARMA_PORT, zadarmaProblem, zadarmaSetup, type ZadarmaKeys } from './zadarma';
 
 export { routeNow, transferNow, type LineMode, type LineRouting } from './route';
-export interface LineTrunk { host: string; port: number; login: string; number: string }
+export type { LineTrunk, TrunkAuth } from './trunk';
+/** Qo'lda kiritilgan operator: Uztelecom (login — raqamning o'zi) yoki boshqasi (Sarkor va h.k.) */
+export type LineOperator = 'uztelecom' | 'other';
 /** zadarma — API kalitlari bilan o'zi sozlangan; manual — server/login/parol qo'lda kiritilgan (Uztelecom va boshqalar) */
 export type LineProvider = 'zadarma' | 'manual';
 export interface LineView {
-  trunk: LineTrunk | null;
+  trunk: (LineTrunk & { auth: TrunkAuth; operator: LineOperator }) | null;
   provider: LineProvider | null;
   routing: LineRouting;
   /** Administrator telefoni uchun SIP akkaunt (Zoiper): server — shu kompyuterning ichki tarmoqdagi manzili */
   admin: { server: string; login: string; password: string | null };
   /** Asterisk holati: ishlayaptimi, shahar raqami ro'yxatdan o'tganmi, qaysi telefonlar ulangan */
-  /** ai — AI ovoz xizmati qo'ng'iroq qabul qilyaptimi (null — tekshirilmadi) */
-  status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; ai: boolean | null; note: string | null };
+  /** ai — AI ovoz xizmati qo'ng'iroq qabul qilyaptimi (null — tekshirilmadi); reason — raqam ulanmagan bo'lsa, nega (Asterisk jurnalidan) */
+  status: { asterisk: boolean; trunk: TrunkState; phones: string[]; ai: boolean | null; note: string | null; reason?: string | null };
 }
 
 const KIND = 'sip_line';
@@ -101,15 +104,18 @@ const aiListening = () => new Promise<boolean>(ok => {
   s.on('timeout', () => { s.destroy(); ok(false); });
 });
 
-export async function lineStatus(): Promise<LineView['status']> {
+/** Asterisk jurnalining oxiri — ro'yxatdan o'tish xabarlari (raqam nega ulanmagani). Jurnal fayli nomi versiyaga qarab har xil */
+const registrationLog = () => wsl(['sh', '-c', "cat /var/log/asterisk/messages /var/log/asterisk/messages.log 2>/dev/null | grep -i 'registration' | tail -n 20"]).catch(() => '');
+
+export async function lineStatus(auth: TrunkAuth = 'password'): Promise<LineView['status']> {
   if (!ENABLED) return { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: "Telefon liniyasi faqat klinika kompyuterida (Windows + WSL) ishlaydi" };
   const ai = await aiListening();
   try {
-    const regs = await asterisk('pjsip show registrations');
     const contacts = await asterisk('pjsip show contacts');
-    const trunk = !/shahar/.test(regs) ? 'none' : /Registered/i.test(regs) ? 'registered' : 'failed';
+    const trunk = auth === 'ip' ? contactState(contacts) : registrationState(await asterisk('pjsip show registrations'));
     const phones = [...new Set([...contacts.matchAll(/Contact:\s+(egasi|admin)\//g)].map(m => m[1]))];
-    return { asterisk: true, trunk, phones, ai, note: null };
+    const reason = trunk === 'failed' ? trunkReason(trunk, auth, await registrationLog()) : null;
+    return { asterisk: true, trunk, phones, ai, note: null, reason };
   } catch (e) {
     return { asterisk: false, trunk: 'unknown', phones: [], ai, note: `Asterisk javob bermadi: ${(e as Error).message}` };
   }
@@ -119,10 +125,13 @@ export async function lineStatus(): Promise<LineView['status']> {
 export function lineProblemOf(s: LineView['status']): string | null {
   if (!s.asterisk) return "telefon xizmati (Asterisk) javob bermayapti — mijozlar qo'ng'iroqlari qabul qilinmayapti. Kompyuterni qayta yoqing";
   if (s.ai === false) return "AI ovoz xizmati ishlamayapti — qo'ng'iroqlarga AI javob bermayapti, ular administrator telefoniga o'tyapti (ko'tarilmasa — «qayta qo'ng'iroq qiling» so'rovi). Kompyuterni qayta yoqing; davom etsa o'rnatuvchiga ayting";
-  if (s.trunk === 'failed') return "raqam ulanmadi — internetni tekshiring; davom etsa Sozlamalar → Telefon liniyasi → Qayta ulash";
+  if (s.trunk === 'failed') return s.reason ? `raqam ulanmadi: ${s.reason}` : "raqam ulanmadi — internetni tekshiring; davom etsa Sozlamalar → Telefon liniyasi → Qayta ulash";
   if (s.trunk === 'none') return "raqam telefon xizmatiga o'rnatilmagan — Sozlamalar → Telefon liniyasi → Qayta ulash";
   return null;
 }
+
+const authOf = (a: Record<string, string>): TrunkAuth => a.auth === 'ip' ? 'ip' : 'password';
+const operatorOf = (a: Record<string, string>): LineOperator => a.operator === 'uztelecom' ? 'uztelecom' : 'other';
 
 const ZADARMA_CHECK_MS = Number(process.env.ZADARMA_CHECK_MS) || 3_600_000;
 const zadarmaSeen = new Map<string, { at: number; problem: string | null }>();
@@ -138,7 +147,7 @@ export async function lineChecks(bizId: string, now = Date.now()): Promise<{ key
   // kompyuterda raqam fayllari yo'q (H5) — Asterisk'ka yetkaziladi
   const restored = restoreLineConf(bizId, a);
   if (writePalantirConf() || restored || shippedDue(now)) await applyLine().catch(e => console.error('[telefon] kalit Asterisk\'ka yozilmadi:', (e as Error).message));
-  const out = [{ key: 'phone_line', label: 'Telefon liniyasi', problem: lineProblemOf(await lineStatus()) }];
+  const out = [{ key: 'phone_line', label: 'Telefon liniyasi', problem: lineProblemOf(await lineStatus(authOf(a))) }];
   const keys = zadarmaKeysOf(bizId);
   if (a.provider === 'zadarma' && keys && a.number) {
     const seen = zadarmaSeen.get(bizId);
@@ -155,64 +164,18 @@ export async function lineView(biz: BusinessRow, withStatus = true): Promise<Lin
   const a = c?.account ?? {};
   const s = secretsOf(biz.id);
   return {
-    trunk: a.host ? { host: a.host, port: Number(a.port) || 5060, login: a.login ?? '', number: a.number ?? '' } : null,
+    trunk: a.host ? { host: a.host, port: Number(a.port) || 5060, login: a.login ?? '', number: a.number ?? '', auth: authOf(a), operator: operatorOf(a) } : null,
     // sip.zadarma.com — har doim Zadarma, «Boshqa operator» shaklida qo'lda kiritilgan bo'lsa ham (o'sha shakl Uztelecom, Sarkor
     // va boshqalar uchun; aks holda u Zadarma ma'lumoti bilan to'lib ochiladi)
     provider: a.host ? (a.provider === 'zadarma' || a.host.trim().toLowerCase() === ZADARMA_HOST ? 'zadarma' : 'manual') : null,
     routing: lineRouting(biz.id),
     admin: { server: lanIp(), login: 'admin', password: s.admin ?? null },
-    status: withStatus ? await lineStatus() : { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: null },
+    status: withStatus ? await lineStatus(authOf(a)) : { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: null },
   };
 }
 
-/** Asterisk sozlama qatoridagi qiymat: qator uzilishi, izoh va bo'limni buzadigan belgilar o'tmaydi */
-const confValue = (v: string) => v.replace(/[\r\n;[\]]/g, '').trim();
-
-function writeTrunkConf(t: LineTrunk, password: string): void {
-  if (!ENABLED) return;
-  const host = confValue(t.host), port = t.port === 5060 ? '' : `:${t.port}`, user = confValue(t.login), num = confValue(t.number);
-  // 5061 — shifrlangan SIP (TLS): provayder oddiy SIP'ni to'sganda ham o'tadi. Aks holda UDP (DNS TCP'ni taklif qilsa ham — TCP'da
-  // javob kelmaydi, sip.zadarma.com)
-  const proto = t.port === 5061 ? 'tls' : 'udp', uriTail = proto === 'tls' ? ';transport=tls' : '';
-  writeFileSync(join(DIR, 'pjsip_shahar.conf'), `; Panel yozgan (Sozlamalar → Telefon liniyasi) — qo'lda o'zgartirmang
-[shahar]
-type=registration
-transport=${proto}
-outbound_auth=shahar
-server_uri=sip:${host}${port}${uriTail}
-client_uri=sip:${user}@${host}${port}
-contact_user=${num || user}
-retry_interval=60
-
-[shahar]
-type=auth
-auth_type=userpass
-username=${user}
-password=${confValue(password)}
-
-[shahar]
-type=aor
-contact=sip:${host}${port}${uriTail}
-
-[shahar]
-type=endpoint
-transport=${proto}
-context=shahar
-disallow=all
-allow=alaw,ulaw
-outbound_auth=shahar
-aors=shahar
-from_user=${user}
-from_domain=${host}
-direct_media=no
-rtp_symmetric=yes
-force_rport=yes
-
-[shahar]
-type=identify
-endpoint=shahar
-match=${host}
-`, { mode: 0o600 });
+function writeTrunkConf(t: LineTrunk, password: string | null): void {
+  if (ENABLED) writeFileSync(join(DIR, 'pjsip_shahar.conf'), trunkConf(t, password), { mode: 0o600 });
 }
 
 const writeAdminConf = (password: string) => ENABLED &&
@@ -259,8 +222,9 @@ function restoreLineConf(bizId: string, a: Record<string, string>): boolean {
   if (!ENABLED) return false;
   const s = secretsOf(bizId);
   let wrote = false;
-  if (s.password && a.host && a.login && !existsSync(join(DIR, 'pjsip_shahar.conf'))) {
-    writeTrunkConf({ host: a.host, port: Number(a.port) || 5060, login: a.login, number: a.number ?? '' }, s.password);
+  const ip = authOf(a) === 'ip';
+  if ((s.password || ip) && a.host && a.login && !existsSync(join(DIR, 'pjsip_shahar.conf'))) {
+    writeTrunkConf({ host: a.host, port: Number(a.port) || 5060, login: a.login, number: a.number ?? '' }, ip ? null : s.password ?? null);
     wrote = true;
   }
   if (s.admin && !existsSync(join(DIR, 'pjsip_admin.conf'))) {
@@ -278,16 +242,38 @@ export async function applyLine(): Promise<void> {
   writeFileSync(APPLIED, shippedHash());
 }
 
-export function saveTrunk(biz: BusinessRow, t: LineTrunk, password: string | null): void {
+/**
+ * Qo'lda kiritilgan operator. auth «ip» — parolsiz (operator klinikaning IP manzilini biladi): saqlangan parol o'chiriladi, Asterisk
+ * ro'yxatdan o'tmaydi. Bo'sh parol — eskisi qoladi
+ */
+export function saveTrunk(biz: BusinessRow, t: LineTrunk, password: string | null, auth: TrunkAuth = 'password', operator: LineOperator = 'other'): void {
   const cur = connections.get(biz.id, KIND);
   const s = secretsOf(biz.id);
-  const pass = password ?? s.password;
-  if (!pass) throw new Error('Parol kerak');
+  const pass = auth === 'ip' ? null : password ?? s.password ?? null;
+  if (auth === 'password' && !pass) throw new Error('Parol kerak');
   // Qo'lda kiritildi — Zadarma kalitlari (bo'lsa) endi bu liniyaga tegishli emas
-  const rest: Secrets = { ...s };
-  delete rest.zadarma;
-  connections.save(biz.id, KIND, seal(JSON.stringify({ ...rest, password: pass })), { host: t.host, port: String(t.port), login: t.login, number: t.number, provider: 'manual' }, cur?.meta ?? {});
+  const rest: Secrets = { admin: s.admin };
+  const account = { host: t.host, port: String(t.port), login: t.login, number: t.number, provider: 'manual', auth, operator };
+  connections.save(biz.id, KIND, seal(JSON.stringify(pass ? { ...rest, password: pass } : rest)), account, cur?.meta ?? {});
   writeTrunkConf(t, pass);
+}
+
+/**
+ * «Tekshirish»: Asterisk hozir operatorga qayta murojaat qiladi (ro'yxatdan o'tish yoki «tirikmisan»), bir necha soniya kutib holatni
+ * va sababini qaytaradi. Natija server jurnaliga ham yoziladi — diagnostika o'rnatuvchiga yetadi
+ */
+const CHECK_WAIT_MS = Number(process.env.LINE_CHECK_WAIT_MS) || 6000;
+export async function checkLine(biz: BusinessRow): Promise<LineView> {
+  const a = connections.get(biz.id, KIND)?.account ?? {};
+  if (ENABLED && a.host) {
+    await asterisk(authOf(a) === 'ip' ? 'pjsip qualify shahar' : 'pjsip send register shahar').catch(() => '');
+    await new Promise(r => setTimeout(r, CHECK_WAIT_MS));
+  }
+  const view = await lineView(biz);
+  const st = view.status;
+  console.log(`[telefon] tekshiruv: Asterisk ${st.asterisk ? 'ishlayapti' : 'javob bermadi'}, raqam — ${st.trunk}${st.reason ? ` (${st.reason})` : ''}${st.note ? `; ${st.note}` : ''}`);
+  if (ENABLED && st.trunk === 'failed') console.log(`[telefon] Asterisk jurnali:\n${(await registrationLog()).trim()}`);
+  return view;
 }
 
 /** Zadarma kalitlari (balansni kuzatish uchun ham kerak) */

@@ -5,6 +5,7 @@
 import { createServer } from 'node:http';
 import { routeNow, transferNow, type LineRouting } from '../server/voice/route';
 import { lineProblemOf } from '../server/voice/line';
+import { contactState, registrationState, trunkConf, trunkReason } from '../server/voice/trunk';
 import { forwardCodes, intlNumber } from '../src/lib/forwarding';
 import { accountProblem, zadarmaSign, type ZadarmaNumber } from '../server/voice/zadarma';
 import type { Harness } from './e2e-crm';
@@ -72,6 +73,35 @@ export function lineLogicTests(ok: Harness['ok']): void {
   ok("zadarma: to'lovga hali 20 kun — jim (har oy bezovta qilmaydi)", accountProblem(num({ stop_date: '2026-11-20 10:00:00' }), 1, 'USD', now) === null);
   ok("zadarma: raqam to'xtatilgan (parking) — darhol aytadi", /to'xtatilgan/.test(accountProblem(num({ status: 'parking' }), 0, 'USD', now) ?? ''));
 
+  console.log("\n# Telefon liniyasi: shahar raqami (T3) — sozlama va holat");
+  const T = { host: '10.20.30.40', port: 5060, login: '712000000', number: '712000000' };
+  const withPass = trunkConf(T, 'Maxfiy-1');
+  ok("T3: ro'yxatdan o'tish to'xtamaydi — cheksiz urinish, rad javobidan keyin ham qayta",
+    /max_retries=1000000/.test(withPass) && /auth_rejection_permanent=no/.test(withPass) && /forbidden_retry_interval=120/.test(withPass) && /fatal_retry_interval=120/.test(withPass), withPass);
+  ok("T3: har 30 soniyada operatorga «tirikmisan» (routerdagi yo'l yopilmaydi)", /qualify_frequency=30/.test(withPass) && /expiration=300/.test(withPass));
+  const ipOnly = trunkConf(T, null);
+  ok("T3: parolsiz (IP bo'yicha) — ro'yxatdan o'tish va parol yo'q, operator IP bilan taniladi",
+    !/type=registration/.test(ipOnly) && !/type=auth/.test(ipOnly) && !/outbound_auth/.test(ipOnly) && /match=10\.20\.30\.40/.test(ipOnly) && /qualify_frequency=30/.test(ipOnly), ipOnly);
+  ok("T3: TLS port (5061) — transport tls", /transport=tls/.test(trunkConf({ ...T, port: 5061 }, 'p')) && /;transport=tls/.test(trunkConf({ ...T, port: 5061 }, 'p')));
+  const regs = (state: string) => ` <Registration/ServerURI..>  <Auth..>  <Status.......>\n==========\n shahar/sip:10.20.30.40          shahar            ${state}        (exp. 250s)\n`;
+  ok("T3: «Registered» — ulangan", registrationState(regs('Registered')) === 'registered');
+  ok("T3: «Unregistered» — ulanmagan (avval «ulangan» deb ko'rinardi)", registrationState(regs('Unregistered')) === 'failed');
+  ok("T3: «Rejected» / «Stopped» — ulanmagan", registrationState(regs('Rejected')) === 'failed' && registrationState(regs('Stopped')) === 'failed');
+  ok("T3: ro'yxatda shahar yo'q — o'rnatilmagan", registrationState('No objects found.') === 'none');
+  const contacts = (s: string) => `  Contact:  admin/sip:admin@192.168.1.5:5060   abc Avail 3.1\n  Contact:  shahar/sip:10.20.30.40         def ${s}   12.0\n`;
+  ok("T3: parolsiz — operator «tirikmisan»ga javob beryapti (Avail) / javob yo'q (Unavail)", contactState(contacts('Avail')) === 'registered' && contactState(contacts('Unavail')) === 'failed');
+  const rej = "[2026-11-15 10:00:01] WARNING[123]: res_pjsip_outbound_registration.c:1110 handle_registration_response: 403 Forbidden fatal response received from 'sip:10.20.30.40' on registration attempt to 'sip:712000000@10.20.30.40', retrying in '120' seconds";
+  ok("T3: sabab — operator parolni rad etdi (403)", /login yoki parolni rad etdi/.test(trunkReason('failed', 'password', rej) ?? ''), trunkReason('failed', 'password', rej) ?? '');
+  const silent = "[2026-11-15 10:00:01] WARNING[123]: res_pjsip_outbound_registration.c:1110 handle_registration_response: No response received from 'sip:10.20.30.40' on registration attempt to 'sip:712000000@10.20.30.40', retrying in '60'";
+  ok("T3: sabab — operator serveri javob bermayapti (manzil, port yoki internet; Uztelecom eslatmasi)", /javob bermayapti.*Uztelecom internetida/.test(trunkReason('failed', 'password', silent) ?? ''));
+  // Shu kompyuterdagi haqiqiy jurnal (2026-10-28): eski sozlamada 10 urinishdan keyin ro'yxatdan o'tish butunlay to'xtagan
+  const stopped = "[Oct 28 16:06:57] WARNING[2809] res_pjsip_outbound_registration.c: Maximum retries reached when attempting outbound registration to 'sip:x with client 'sip:y stopping registration attempt";
+  ok("T3: sabab — urinishlar tugagan (haqiqiy jurnal qatori) — «javob bermayapti»", /javob bermayapti/.test(trunkReason('failed', 'password', stopped) ?? ''), trunkReason('failed', 'password', stopped) ?? '');
+  ok("T3: «retrying in '120'» javob kodi deb o'qilmaydi", /javob bermayapti/.test(trunkReason('failed', 'password', "No response received from 'sip:x' on registration attempt to 'sip:y', retrying in '120'") ?? ''));
+  ok("T3: sabab — 404: login noto'g'ri", /loginni tanimaydi/.test(trunkReason('failed', 'password', "Fatal response '404' received from 'sip:x' on registration attempt to 'sip:y', stopping outbound registration") ?? ''));
+  ok("T3: ulangan raqam uchun sabab aytilmaydi (eski xato jurnalda qolgan bo'lsa ham)", trunkReason('registered', 'password', rej) === null);
+  ok("T3: nazorat xabarida aniq sabab", /raqam ulanmadi: operator login yoki parolni/.test(lineProblemOf({ ...st(true, 'failed'), reason: trunkReason('failed', 'password', rej) }) ?? ''));
+
   console.log("\n# Telefon liniyasi: klinika telefonidan yo'naltirish kodlari");
   const f = forwardCodes('998712001122', 15);
   ok("yo'naltirish: ko'tarilmasa 15 s, band, o'chiq — standart GSM kodlari", f?.on.map(c => c.code).join(' ') === '**61*+998712001122**15# **67*+998712001122# **62*+998712001122#', f?.on.map(c => c.code).join(' '));
@@ -136,7 +166,16 @@ export async function lineApiTests(h: Harness): Promise<void> {
   const admin = await api('/api/phone/line/admin', { token, body: {} });
   ok('liniya: administrator telefoni uchun parol yaratildi', admin.status === 200 && typeof admin.json.line?.admin?.password === 'string' && admin.json.line.admin.password.length >= 10 && admin.json.line.admin.login === 'admin');
   ok("liniya: begona biznes boshqa biznesning raqamini ko'rmaydi", (await api('/api/phone/line', { token: otherToken })).json.line?.trunk === null);
-  ok("liniya: qo'lda kiritilgan raqam — «boshqa operator»", again.json.line?.provider === 'manual');
+  ok("liniya: qo'lda kiritilgan raqam — «boshqa operator»", again.json.line?.provider === 'manual' && again.json.line.trunk?.auth === 'password' && again.json.line.trunk.operator === 'other');
+  // T3: Uztelecom ajratilgan IP bilan — parolsiz; saqlangan parol o'chiriladi, parolli shaklga qaytishda yana parol kerak
+  const ipTrunk = await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: '10.20.30.40', login: '712000000', number: '712000000', auth: 'ip', operator: 'uztelecom' } });
+  ok("T3: Uztelecom, parolsiz (IP bo'yicha) — saqlandi", ipTrunk.status === 200 && ipTrunk.json.line?.trunk?.auth === 'ip' && ipTrunk.json.line.trunk.operator === 'uztelecom', JSON.stringify(ipTrunk.json).slice(0, 300));
+  ok("T3: parolsizdan parolliga — parol yana so'raladi (eskisi o'chirilgan)", (await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: '10.20.30.40', login: '712000000', number: '712000000' } })).status === 400);
+  ok("T3: noto'g'ri ulanish turi — 400", (await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: '10.20.30.40', login: 'a', number: '1', auth: 'magic' } })).status === 400);
+  const check = await api('/api/phone/line/check', { token, body: {} });
+  ok("T3: «Tekshirish» — holat qaytadi (sinov serverida Asterisk o'chiq, kutmaydi)", check.status === 200 && check.json.line?.status?.asterisk === false && check.json.line.trunk?.auth === 'ip', JSON.stringify(check.json).slice(0, 200));
+  ok("T3: «Tekshirish» kirishsiz — 401", (await api('/api/phone/line/check', { body: {} })).status === 401);
+  await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: 'sip2.uztelecom.uz', port: 5070, login: '712000000', number: '712000000', password: 'Maxfiy-parol-1' } });
   // «Boshqa operator» shakliga Zadarma SIP'i yozilgan (API kalitlarisiz) — baribir Zadarma: Uztelecom/Sarkor shakli u bilan to'lib ochilmasin
   const manualZ = await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: 'SIP.zadarma.com', port: 5061, login: '343303', number: '', password: 'Zadarma-sip-1' } });
   ok("liniya: qo'lda kiritilgan sip.zadarma.com — Zadarma (boshqa operator emas)", manualZ.status === 200 && manualZ.json.line?.provider === 'zadarma', JSON.stringify(manualZ.json).slice(0, 200));

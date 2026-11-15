@@ -324,6 +324,18 @@ try {
   const line = await (await fetch(`${base}/api/phone/line`, { headers: auth })).json() as { line: { routing: { mode: string } } };
   ok('telefon liniyasi: «ish vaqtida administrator» saqlandi', line.line.routing.mode === 'day_admin');
   await shot('11c-telefon', true);
+  // T3: Uztelecom — birinchi yorliq; login so'ralmaydi (raqamning o'zi), parolsiz (ajratilgan IP) tanlansa parol maydoni yo'qoladi
+  ok("T3: Uztelecom yorlig'i birinchi ochiladi, «Login» maydoni yo'q",
+    await page.getByRole('tab', { name: 'Uztelecom' }).getAttribute('aria-selected') === 'true' && !(await page.getByLabel('Login', { exact: true }).count()));
+  await page.getByLabel('Softswitch manzili (server)').fill('10.20.30.40');
+  await page.getByLabel('Raqam', { exact: true }).fill('712000000');
+  await page.getByRole('checkbox', { name: /Parolsiz/ }).check();
+  ok("T3: parolsiz — parol maydoni yo'qoldi", !(await page.getByLabel('Parol', { exact: true }).count()));
+  await page.getByRole('button', { name: 'Saqlash va ulash' }).click();
+  await page.getByText(/Saqlandi/).first().waitFor({ timeout: 10000 });
+  const uzLine = await (await fetch(`${base}/api/phone/line`, { headers: auth })).json() as { line: { trunk: { login: string; auth: string; operator: string } | null } };
+  ok("T3: Uztelecom saqlandi — login = raqam, parolsiz", uzLine.line.trunk?.login === '712000000' && uzLine.line.trunk.auth === 'ip' && uzLine.line.trunk.operator === 'uztelecom', JSON.stringify(uzLine.line.trunk));
+  ok("T3: «Raqamni tekshirish» tugmasi chiqdi", await visible(page.getByRole('button', { name: 'Raqamni tekshirish' })));
 
   // DentaCRM: plitka klinikada yoki ulangan bo'lsa ko'rinadi — API orqali ulab, holatini tekshiramiz
   crm.seed(new Date().toISOString().slice(0, 10), new Date(Date.now() + 86_400_000).toISOString().slice(0, 10));

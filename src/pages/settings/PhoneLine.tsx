@@ -30,12 +30,25 @@ const Label = ({ text, children }: { text: string; children: ReactNode }) => (
   <label className="flex flex-col gap-1.5 text-[12px] font-medium text-[#a3a9b5]">{text}{children}</label>
 );
 
-function Status({ line }: { line: Line }) {
+function Status({ line, onLine, notify }: LineProps) {
   const s = line.status;
+  const [busy, setBusy] = useState(false);
+  // Asterisk operatorga hozir qayta murojaat qiladi (bir necha soniya) — natija va sabab shu yerda
+  const check = async () => {
+    setBusy(true);
+    try {
+      const r = await api.checkPhoneLine();
+      onLine(r.line);
+      const t = r.line.status.trunk;
+      notify(t === 'registered' ? 'Raqam ulangan — qo‘ng‘iroq qabul qiladi' : r.line.status.reason ?? r.line.status.note ?? 'Raqam hali ulanmadi', t !== 'registered');
+    } catch (e) { notify((e as Error).message, true); } finally { setBusy(false); }
+  };
+  const trunkText = s.trunk === 'registered' ? `ulangan${line.trunk?.number ? ` · ${line.trunk.number}` : ''}`
+    : s.trunk === 'failed' ? 'ulanmadi — sababi pastda' : line.trunk ? 'tekshirilmoqda' : 'kiritilmagan';
   const items = [
     { name: 'Telefon xizmati', on: s.asterisk, text: s.asterisk ? 'ishlayapti' : "o'chiq — o'rnatuvchiga ayting" },
     { name: 'AI administrator', on: s.ai === true, text: s.ai ? "qo'ng'iroq kutyapti" : s.ai === false ? "to'xtagan — kompyuterni qayta yoqing" : 'tekshirilmadi' },
-    { name: 'Telefon raqami', on: s.trunk === 'registered', text: s.trunk === 'registered' ? `ulangan${line.trunk?.number ? ` · ${line.trunk.number}` : ''}` : s.trunk === 'failed' ? "ulanmadi — kalit yoki parolni tekshiring" : line.trunk ? 'tekshirilmoqda' : 'kiritilmagan' },
+    { name: 'Telefon raqami', on: s.trunk === 'registered', text: trunkText },
     { name: 'Egasi telefoni', on: s.phones.includes('egasi'), text: s.phones.includes('egasi') ? 'ulangan' : 'ulanmagan' },
     { name: 'Administrator telefoni', on: s.phones.includes('admin'), text: s.phones.includes('admin') ? 'ulangan' : 'ulanmagan' },
   ];
@@ -48,16 +61,27 @@ function Status({ line }: { line: Line }) {
         </div>
       ))}
       {s.note && <p className="text-[12px] text-[#fde2b0] sm:col-span-2 xl:col-span-5">{s.note}</p>}
+      {s.trunk === 'failed' && s.reason && <p role="status" className="rounded-xl bg-amber-400/10 px-3.5 py-2.5 text-[13px] leading-snug text-amber-200 sm:col-span-2 xl:col-span-5">Raqam ulanmadi: {s.reason}</p>}
+      {line.trunk && (
+        <div className="flex items-center gap-3 sm:col-span-2 xl:col-span-5">
+          <button type="button" disabled={busy} onClick={() => { void check(); }} className="flex min-h-10 items-center gap-2 rounded-xl border border-glass/10 px-4 text-[13px] text-[#d9dbe1] hover:bg-glass/5 disabled:opacity-50">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}Raqamni tekshirish
+          </button>
+          <p className="text-[12px] text-[#7d838f]">Telefon xizmati operatorga hozir qayta ulanib ko'radi (bir necha soniya).</p>
+        </div>
+      )}
     </div>
   );
 }
 
-type Provider = 'zadarma' | 'manual';
+type Provider = 'uztelecom' | 'zadarma' | 'manual';
 type LineProps = { line: Line; onLine: (l: Line) => void; notify: Notify };
 
-/** Telefon raqami: Zadarma (faqat API kalitlari — qolganini dastur o'zi sozlaydi) yoki boshqa operator (qo'lda) */
+const firstTab = (line: Line): Provider => line.provider === 'zadarma' ? 'zadarma' : line.provider === 'manual' && line.trunk?.operator === 'other' ? 'manual' : 'uztelecom';
+
+/** Telefon raqami: Uztelecom (ko'pchilik klinika), Zadarma (faqat API kalitlari — qolganini dastur o'zi sozlaydi) yoki boshqa operator */
 function NumberBlock({ line, onLine, notify }: LineProps) {
-  const [tab, setTab] = useState<Provider>(line.provider === 'manual' ? 'manual' : 'zadarma');
+  const [tab, setTab] = useState<Provider>(firstTab(line));
   const tabBtn = (id: Provider, text: string) => (
     <button type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
       className={`min-h-10 rounded-xl px-4 text-[13px] font-semibold transition-colors ${tab === id ? 'bg-[#3fd6c3] text-[#07080b]' : 'border border-glass/10 text-[#a3a9b5] hover:bg-glass/5'}`}>{text}</button>
@@ -65,10 +89,12 @@ function NumberBlock({ line, onLine, notify }: LineProps) {
   return (
     <Block icon={<Phone className="h-[18px] w-[18px]" aria-hidden="true" />} title="Telefon raqami" hint="Mijoz shu raqamga qo'ng'iroq qiladi (yoki klinika telefoni shu raqamga yo'naltiradi) — AI qabulxona javob beradi.">
       <div role="tablist" aria-label="Operator" className="mb-4 flex flex-wrap gap-2">
-        {tabBtn('zadarma', 'Zadarma (tavsiya)')}
+        {tabBtn('uztelecom', 'Uztelecom')}
+        {tabBtn('zadarma', 'Zadarma')}
         {tabBtn('manual', 'Boshqa operator (SIP)')}
       </div>
-      {tab === 'zadarma' ? <ZadarmaForm line={line} onLine={onLine} notify={notify} /> : <Trunk line={line} onLine={onLine} notify={notify} />}
+      {tab === 'zadarma' ? <ZadarmaForm line={line} onLine={onLine} notify={notify} />
+        : <Trunk key={tab} operator={tab === 'uztelecom' ? 'uztelecom' : 'other'} line={line} onLine={onLine} notify={notify} />}
     </Block>
   );
 }
@@ -115,36 +141,62 @@ function ZadarmaForm({ line, onLine, notify }: LineProps) {
   );
 }
 
-function Trunk({ line, onLine, notify }: LineProps) {
-  // Saqlangan liniya Zadarma bo'lsa — u o'z yorlig'ida; bu shakl boshqa operator uchun bo'sh ochiladi
-  const t = line.provider === 'manual' ? line.trunk : null;
-  const replacing = line.provider === 'zadarma' && !!line.trunk;
+type Operator = 'uztelecom' | 'other';
+
+/**
+ * Qo'lda kiritiladigan operator. Uztelecom: ro'yxatdan o'tish «raqam:parol@softswitch» — login alohida so'ralmaydi (raqamning o'zi).
+ * Parolsiz — operator klinikaning ajratilgan IP manzilini biladi va qo'ng'iroqni o'zi yuboradi
+ */
+function Trunk({ line, onLine, notify, operator }: LineProps & { operator: Operator }) {
+  // Saqlangan liniya Zadarma yoki boshqa yorliqniki bo'lsa — bu shakl bo'sh ochiladi
+  const t = line.provider === 'manual' && line.trunk?.operator === operator ? line.trunk : null;
+  const replacing = !!line.trunk && !t;
+  const uz = operator === 'uztelecom';
   const [form, setForm] = useState({ host: t?.host ?? '', port: String(t?.port ?? 5060), login: t?.login ?? '', number: t?.number ?? '', password: '' });
+  const [ipOnly, setIpOnly] = useState(t?.auth === 'ip');
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const hadPassword = t?.auth === 'password';
   const save = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      const r = await api.savePhoneTrunk({ host: form.host.trim(), port: Number(form.port) || 5060, login: form.login.trim(), number: form.number.trim(), ...(form.password ? { password: form.password } : {}) });
+      const number = form.number.trim();
+      const r = await api.savePhoneTrunk({
+        host: form.host.trim(), port: Number(form.port) || 5060, login: uz ? number : form.login.trim(), number,
+        auth: ipOnly ? 'ip' : 'password', operator, ...(!ipOnly && form.password ? { password: form.password } : {}),
+      });
       onLine(r.line);
       setForm(f => ({ ...f, password: '' }));
       notify(r.warning ? `Saqlandi, lekin telefon xizmatiga o'rnatilmadi: ${r.warning}` : 'Saqlandi — raqam bir daqiqada ulanadi', !!r.warning);
     } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
   };
+  const replaced = line.provider === 'zadarma' ? 'Zadarma' : line.trunk?.operator === 'uztelecom' ? 'Uztelecom' : 'boshqa operator';
   return (
     <>
-      <p className="mb-3 text-[12.5px] leading-snug text-[#8a909c]">Operator (Uztelecom, Sarkor yoki boshqasi) bergan SIP ma'lumotlari: server manzili, login, parol va raqam.</p>
-      {replacing && <p className="mb-3 rounded-xl bg-amber-400/10 px-3.5 py-2.5 text-[12.5px] leading-snug text-amber-200">Hozir Zadarma ulangan. Shu yerda saqlasangiz, Zadarma o'rniga shu operator ulanadi.</p>}
+      <p className="mb-3 text-[12.5px] leading-snug text-[#8a909c]">
+        {uz ? <>Uztelecom shartnomasidagi SIP ma'lumotlari: <b>softswitch manzili</b> (server), <b>raqam</b> va <b>parol</b>. Uztelecom raqami faqat
+          Uztelecom internetida ishlaydi — klinika interneti boshqa provayderdan bo'lsa, raqam ulanmaydi.</>
+          : <>Operator (Sarkor yoki boshqasi) bergan SIP ma'lumotlari: server manzili, login, parol va raqam.</>}
+      </p>
+      {replacing && <p className="mb-3 rounded-xl bg-amber-400/10 px-3.5 py-2.5 text-[12.5px] leading-snug text-amber-200">Hozir {replaced} ulangan. Shu yerda saqlasangiz, uning o'rniga shu raqam ulanadi.</p>}
       <form onSubmit={save} className="grid gap-3 sm:grid-cols-[1fr_110px]">
-        <Label text="Server manzili"><input className={input} value={form.host} onChange={set('host')} placeholder="Operator bergan manzil yoki IP" required /></Label>
+        <Label text={uz ? 'Softswitch manzili (server)' : 'Server manzili'}><input className={input} value={form.host} onChange={set('host')} placeholder="Operator bergan manzil yoki IP" required /></Label>
         <Label text="Port"><input className={input} value={form.port} onChange={set('port')} inputMode="numeric" /></Label>
-        <Label text="Login"><input className={input} value={form.login} onChange={set('login')} autoComplete="off" required /></Label>
-        <Label text="Raqam"><input className={input} value={form.number} onChange={set('number')} placeholder="712000000" inputMode="tel" /></Label>
-        <div className="sm:col-span-2">
-          <Label text="Parol"><input className={input} type="password" value={form.password} onChange={set('password')} autoComplete="new-password" placeholder={t ? "Saqlangan — o'zgarmasa bo'sh qoldiring" : ''} required={!t} /></Label>
-          {t && <p className="mt-1.5 text-[12px] leading-snug text-[#7d838f]">Parol saqlangan va ekranga qayta chiqarilmaydi. Qayta yozish faqat operatorda parol almashganda yoki «Telefon raqami» holatida «ulanmadi» chiqsa kerak.</p>}
-        </div>
+        {!uz && <Label text="Login"><input className={input} value={form.login} onChange={set('login')} autoComplete="off" required /></Label>}
+        <Label text="Raqam"><input className={input} value={form.number} onChange={set('number')} placeholder="712000000" inputMode="tel" required={uz} /></Label>
+        <label className="flex items-start gap-2.5 text-[13px] text-[#d9dbe1] sm:col-span-2">
+          <input type="checkbox" checked={ipOnly} onChange={e => setIpOnly(e.target.checked)} className="mt-0.5 accent-[#3fd6c3]" />
+          <span>Parolsiz — operator klinikaning IP manzili bo'yicha ulaydi
+            <span className="block text-[12px] leading-snug text-[#7d838f]">Operator «ajratilgan IP» bergan va parol bermagan bo'lsa. Bunda routerda 5060 porti shu kompyuterga ochiladi — buni o'rnatuvchi qiladi.</span>
+          </span>
+        </label>
+        {!ipOnly && (
+          <div className="sm:col-span-2">
+            <Label text="Parol"><input className={input} type="password" value={form.password} onChange={set('password')} autoComplete="new-password" placeholder={hadPassword ? "Saqlangan — o'zgarmasa bo'sh qoldiring" : ''} required={!hadPassword} /></Label>
+            {hadPassword && <p className="mt-1.5 text-[12px] leading-snug text-[#7d838f]">Parol saqlangan va ekranga qayta chiqarilmaydi. Qayta yozish faqat operatorda parol almashganda yoki «Telefon raqami» holatida «ulanmadi» chiqsa kerak.</p>}
+          </div>
+        )}
         <div className="flex items-center gap-3 sm:col-span-2">
           <button type="submit" disabled={busy} className="flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-[#3fd6c3] px-5 text-[14px] font-semibold text-[#07080b] disabled:opacity-50">
             {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}Saqlash va ulash
@@ -292,7 +344,7 @@ export function PhoneLineSettings({ notify }: { notify: Notify }) {
   if (!line) return <Loader2 className="h-6 w-6 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" />;
   return (
     <div className="flex flex-col gap-5">
-      <Status line={line} />
+      <Status line={line} onLine={setLine} notify={notify} />
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
         <div className="flex flex-col gap-5">
           <NumberBlock line={line} onLine={setLine} notify={notify} />

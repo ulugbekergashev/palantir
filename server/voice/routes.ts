@@ -18,7 +18,7 @@ import { leadForPhone } from '../people';
 import { openRequest, settleByBooking } from '../requests/index';
 import { phoneCalls } from '../phone/store';
 import { newVoiceKey, voiceKeyOwner } from './agentKey';
-import { applyLine, connectZadarma, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk, transferNow } from './line';
+import { applyLine, checkLine, connectZadarma, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk, transferNow } from './line';
 import { adoptVoiceKey } from './serviceEnv';
 import { ZadarmaError } from './zadarma';
 import { crewWorks } from '../../src/lib/crew';
@@ -101,6 +101,9 @@ const TrunkSchema = z.object({
   number: z.string().trim().max(20).regex(/^\+?\d*$/, 'raqam: faqat raqamlar'),
   /** Bo'sh — eski parol qoladi */
   password: SipText.max(128).optional(),
+  /** ip — parolsiz: operator klinikaning IP manzilini biladi (Uztelecom ajratilgan IP bilan) */
+  auth: z.enum(['password', 'ip']).default('password'),
+  operator: z.enum(['uztelecom', 'other']).default('other'),
 });
 /** Zadarma kabineti → Sozlamalar → API: Key va Secret (harf-raqam) */
 const ZadarmaSchema = z.object({
@@ -188,8 +191,8 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   app.put('/api/phone/line/trunk', asBiz(async (req, res, biz) => {
     const p = TrunkSchema.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
-    const { password, ...trunk } = p.data;
-    try { saveTrunk(biz, trunk, password || null); } catch (e) { return res.status(400).json({ error: (e as Error).message }); }
+    const { password, auth, operator, ...trunk } = p.data;
+    try { saveTrunk(biz, trunk, password || null, auth, operator); } catch (e) { return res.status(400).json({ error: (e as Error).message }); }
     await applied(res, biz);
   }));
   // Zadarma: faqat API kalitlari — raqam, SIP va yo'naltirishni dastur o'zi sozlaydi
@@ -205,6 +208,8 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
       res.status(e instanceof ZadarmaError ? 400 : 500).json({ error: (e as Error).message });
     }
   }));
+  // «Tekshirish»: Asterisk operatorga hozir qayta murojaat qiladi — raqam ulandimi, ulanmasa nega
+  app.post('/api/phone/line/check', asBiz(async (_req, res, biz) => { res.json({ line: await checkLine(biz) }); }));
   app.put('/api/phone/line/routing', asBiz(async (req, res, biz) => {
     const p = RoutingSchema.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
