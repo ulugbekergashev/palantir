@@ -1,11 +1,13 @@
 # Ovoz xizmati va telefon liniyasini o'rnatadi (Windows 10/11, PowerShell 5.1). ornatish.ps1 chaqiradi; alohida ham ishlaydi:
 #   install\Telefon.cmd               - ovoz xizmati (Python) va telefon liniyasi (WSL ichida Asterisk)
 #   install\Telefon.cmd -OnlyVoice    - faqat ovoz xizmati (panel ovozi, "Quloq"); telefon liniyasisiz
-# Qadamlar: Python -> ovoz xizmati kutubxonalari -> "Quloq" modeli -> .env ->
-#   (administrator huquqi bilan) WSL -> Ubuntu 24.04 -> Asterisk -> mirrored tarmoq -> brandmauer -> Asterisk sozlamalari.
+# Qadamlar: oldindan tekshiruv (Windows 11, virtualizatsiya, disk) -> Python -> ovoz xizmati kutubxonalari -> "Quloq" modeli -> .env ->
+#   (administrator huquqi bilan) WSL -> Ubuntu 24.04 -> Asterisk -> mirrored tarmoq -> brandmauer -> Asterisk sozlamalari ->
+#   o'zini tekshirish -> Palantir qayta yoqiladi (telefon liniyasi xizmati ishga tushsin).
+# WSL birinchi marta o'rnatilsa kompyuter qayta yoqiladi: Windows'ga kirilgandan keyin o'rnatish o'zi davom etadi (RunOnce).
 # Har qadam qayta ishga tushirilganda tekshiradi: bor narsa qayta o'rnatilmaydi.
-# Bu faylda faqat ASCII belgilar: PowerShell 5.1 boshqa belgilarni buzib o'qiydi.
-param([switch]$OnlyVoice, [switch]$AsteriskPart, [string]$Distro = '', [string]$WslDir = '')
+# Bu faylda faqat ASCII belgilar: PowerShell 5.1 boshqa belgilarni buzib o'qiydi (scripts/check-install.ts tekshiradi).
+param([switch]$OnlyVoice, [switch]$AsteriskPart, [string]$Distro = '', [string]$WslDir = '', [string]$ForUser = '', [string]$Log = '')
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -64,8 +66,51 @@ if (-not $Distro -and -not $OnlyVoice) {
   if (($have -notcontains 'Palantir') -and ($have -contains 'Cerebro')) { $Distro = 'Cerebro' } else { $Distro = 'Palantir' } # eski nom
 }
 
+# Joriy Windows foydalanuvchisi. WSL distributivlari har foydalanuvchiga alohida: administrator huquqi boshqa akkaunt nomidan
+# berilsa, Ubuntu o'sha akkauntga o'rnatiladi va Palantir (shu foydalanuvchida) uni ko'rmaydi
+function Current-User { "$env:USERDOMAIN\$env:USERNAME" }
+
+# Telefon liniyasi uchun shartlar - o'rnatishni boshlashdan oldin, tushunarli sabab bilan
+function Assert-PhonePrereqs {
+  Step 'Oldindan tekshiruv (telefon liniyasi)'
+  $build = [Environment]::OSVersion.Version.Build
+  # mirrored tarmoq (Asterisk kompyuterning o'z IP manzilida ko'rinadi) - Windows 11 22H2 (build 22621) dan
+  if ($build -lt 22621) { Fail "Telefon liniyasi Windows 11 (22H2 yoki yangisi) talab qiladi - bu kompyuterda Windows build $build. Ovoz xizmati baribir ishlaydi: install\Telefon.cmd -OnlyVoice" }
+  Note "Windows build $build"
+  $wslReady = $false
+  try { $v = Wsl @('--version'); $wslReady = ($LASTEXITCODE -eq 0 -and $v -match 'WSL') } catch { }
+  if (-not $wslReady) {
+    # Hyper-V yoqilgan bo'lsa protsessor "firmware'da o'chiq" deydi - shuning uchun ikkalasi ham qaraladi
+    $hypervisor = $false; $firmware = $false
+    try { $hypervisor = [bool](Get-CimInstance Win32_ComputerSystem).HypervisorPresent } catch { }
+    try { $firmware = [bool](@(Get-CimInstance Win32_Processor | Where-Object { $_.VirtualizationFirmwareEnabled }).Count) } catch { }
+    if (-not ($hypervisor -or $firmware)) { Fail "Virtualizatsiya o'chiq: kompyuter BIOS/UEFI sozlamasida Intel VT-x (Virtualization Technology) yoki AMD SVM ni yoqing, keyin qayta ishga tushiring." }
+    Note 'Virtualizatsiya yoqilgan'
+  }
+  # Bo'sh joy: WSL platformasi tizim diskida (~1.5 GB) - faqat WSL hali yo'q bo'lsa; Ubuntu va Asterisk distributiv papkasida (~2 GB) -
+  # faqat distributiv hali yo'q bo'lsa. Pastga yaxlitlanadi: "2.0 bo'sh, 2 kerak" degan chalkash xabar chiqmasin
+  $gb = { param([string]$drive) [math]::Floor((Get-PSDrive $drive.TrimEnd(':')).Free / 1GB * 10) / 10 }
+  if (-not $wslReady) {
+    $sysFree = & $gb $env:SystemDrive
+    if ($sysFree -lt 2) { Fail "Tizim diskida ($env:SystemDrive) joy kam: $sysFree GB bo'sh, WSL uchun kamida 2 GB kerak" }
+  }
+  $have = @()
+  try { $have = (Wsl @('-l', '-q')) -split "`r?`n" | ForEach-Object { $_.Trim() } } catch { }
+  if ($have -notcontains $Distro) {
+    $drive = Split-Path -Qualifier $WslDir
+    $free = & $gb $drive
+    if ($free -lt 3) { Fail "$drive diskida joy kam: $free GB bo'sh, Ubuntu va Asterisk uchun kamida 3 GB kerak" }
+  }
+  Note "Bo'sh joy yetarli"
+}
+
 # --- Telefon liniyasi: administrator huquqi bilan ishlaydigan qism ----------
 if ($AsteriskPart) {
+  # Administrator oynasi tugashi bilan yopiladi - yozilganini asosiy oyna ko'rsatadi
+  if ($Log) { Start-Transcript -Path $Log -Force | Out-Null }
+  if ($ForUser -and $ForUser -ne (Current-User)) {
+    Fail "Administrator huquqi boshqa akkaunt ($(Current-User)) nomidan berildi. WSL har foydalanuvchiga alohida: telefon liniyasi Palantir ishlaydigan foydalanuvchiga ($ForUser) o'rnatilishi kerak. Windows'ga administrator huquqli foydalanuvchi bilan kirib, Palantir'ni o'sha foydalanuvchida ishlating."
+  }
   Step 'WSL (Windows ichidagi Linux)'
   $version = Wsl @('--version')
   if ($LASTEXITCODE -ne 0 -or $version -notmatch 'WSL') {
@@ -73,7 +118,7 @@ if ($AsteriskPart) {
     & wsl.exe --install --no-distribution
     if ($LASTEXITCODE -ne 0) { Fail "WSL o'rnatilmadi. Kompyuter BIOS'ida virtualizatsiya (VT-x / AMD-V, SVM) yoqilganini tekshiring." }
     Write-Host ''
-    Write-Host '   WSL o''rnatildi. KOMPYUTERNI QAYTA YOQING, keyin install\Telefon.cmd ni yana ishga tushiring.' -ForegroundColor Yellow
+    Write-Host '   WSL o''rnatildi - kompyuter qayta yoqilishi kerak.' -ForegroundColor Yellow
     exit 3010
   }
   Note 'WSL bor'
@@ -147,8 +192,23 @@ if ($AsteriskPart) {
 
   Step 'Asterisk sozlamalari'
   Run 'install.sh' { & wsl.exe -d $Distro -u root -- bash (To-WslPath (Join-Path $Voice 'asterisk\install.sh')) }
+
+  Step "O'zini tekshirish"
+  if ((WslRoot 'systemctl is-active --quiet asterisk') -ne 0) { Fail "Asterisk ishga tushmadi. Kompyuterni qayta yoqib, install\Telefon.cmd ni yana ishga tushiring." }
+  $endpoints = Wsl @('-d', $Distro, '-u', 'root', '--', 'asterisk', '-rx', 'pjsip show endpoints')
+  if ($endpoints -notmatch 'egasi' -or $endpoints -notmatch 'admin') { Fail "Asterisk sozlamalari yuklanmadi (egasi va administrator telefonlari yo'q)" }
+  Note 'Asterisk ishlayapti, egasi va administrator telefonlari sozlangan'
+  # Har qo'ng'iroqda Asterisk Palantir'dan "kim javob beradi" deb so'raydi (extensions.conf) - WSL ichidan Palantir ko'rinishi kerak
+  $port = Read-EnvValue 'PORT'
+  if (-not $port) { $port = '3200' }
+  $health = (Wsl @('-d', $Distro, '-u', 'root', '--', 'curl', '-s', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', "http://127.0.0.1:$port/api/health")).Trim()
+  if ($health -eq '200') { Note "Asterisk Palantir'ga yetadi (port $port)" }
+  else { Warn "Asterisk Palantir'ga yetmadi (port $port, javob: $health) - Palantir hozir ishlamayotgan bo'lishi mumkin; yoqilgandan keyin o'zi ulanadi" }
   exit 0
 }
+
+# Telefon liniyasi uchun shartlar - Python va kutubxonalardan oldin (Windows 10 da yarim yo'lda to'xtamasin)
+if (-not $OnlyVoice) { Assert-PhonePrereqs }
 
 # --- 1. Python ---------------------------------------------------------------
 Step 'Ovoz xizmati: Python'
@@ -221,19 +281,47 @@ if ($OnlyVoice) { Write-Host ''; Write-Host '== Ovoz xizmati tayyor (telefon lin
 # --- Telefon liniyasi (administrator huquqi kerak) ---------------------------
 Step 'Telefon liniyasi (WSL + Asterisk) - administrator huquqi so''raladi'
 # Start-Process argumentlarni bitta satrga qo'shadi - bo'shliqli yo'llar qo'shtirnoqda; to'g'ridan-to'g'ri chaqiriqda esa qo'shtirnoqsiz
-$elevated = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-AsteriskPart', '-Distro', $Distro, '-WslDir', "`"$WslDir`"")
+$elevatedLog = Join-Path $Voice 'telefon-ornatish.log'
+Remove-Item $elevatedLog -Force -ErrorAction SilentlyContinue
+$elevated = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-AsteriskPart', '-Distro', $Distro, '-WslDir', "`"$WslDir`"",
+  '-ForUser', "`"$(Current-User)`"", '-Log', "`"$elevatedLog`"")
 if (Is-Admin) {
   & powershell -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -AsteriskPart -Distro $Distro -WslDir $WslDir
   $code = $LASTEXITCODE
 } else {
-  $p = Start-Process powershell -Verb RunAs -ArgumentList $elevated -Wait -PassThru
-  $code = $p.ExitCode
+  try {
+    $p = Start-Process powershell -Verb RunAs -ArgumentList $elevated -Wait -PassThru
+    $code = $p.ExitCode
+  } catch { Fail "Administrator huquqi berilmadi - telefon liniyasi o'rnatilmadi. Qayta ishga tushirib, so'rovga 'Ha' deb javob bering." }
+  # Administrator oynasi yopilib ketdi - u yozganini shu yerda ko'rsatamiz
+  if (Test-Path $elevatedLog) {
+    Get-Content $elevatedLog | Where-Object { $_ -match '^(==|   )' } | ForEach-Object { Write-Host $_ }
+  }
 }
-if ($code -eq 3010) { exit 3010 }
+if ($code -eq 3010) {
+  # Qayta yoqilgandan keyin Windows'ga kirilganda o'rnatish o'zi davom etadi (RunOnce bir marta ishlaydi va o'chadi)
+  $again = Join-Path $PSScriptRoot 'Telefon.cmd'
+  New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce' -Force | Out-Null
+  Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce' -Name 'PalantirTelefon' -Value "`"$again`""
+  Write-Host ''
+  Write-Host '   KOMPYUTERNI QAYTA YOQING. Windows''ga kirganingizdan keyin telefon liniyasini o''rnatish o''zi davom etadi.' -ForegroundColor Yellow
+  exit 3010
+}
 if ($code -ne 0) {
-  Warn "Telefon liniyasi o'rnatilmadi (kod $code). Panel ovozi va 'Quloq' baribir ishlaydi. Keyinroq: install\Telefon.cmd"
+  Warn "Telefon liniyasi o'rnatilmadi (kod $code). Panel ovozi va 'Quloq' baribir ishlaydi. Sababi yuqorida; tuzatib, install\Telefon.cmd ni qayta ishga tushiring."
   exit 2
+}
+
+# Palantir yangi sozlamalar (.env) bilan qayta yoqiladi - AI qabulxona xizmati (sip_live.py) ishga tushadi
+Step 'Palantir qayta yoqilmoqda'
+if (Get-Command node -ErrorAction SilentlyContinue) {
+  & node scripts\supervise.mjs status *> $null
+  if ($LASTEXITCODE -eq 0) {
+    & node scripts\supervise.mjs stop | Out-Null
+    & wscript.exe (Join-Path $PSScriptRoot 'palantir-fon.vbs')
+    Note 'Palantir qayta yoqildi'
+  } else { Note "Palantir hozir ishlamayapti - ish stolidagi 'Palantir' yorlig'i bilan yoqing" }
 }
 Write-Host ''
 Write-Host '== Ovoz xizmati va telefon liniyasi tayyor.' -ForegroundColor Green
-Note 'Shahar raqami (Uztelecom) va administrator telefoni: panel -> Sozlamalar -> Telefon liniyasi'
+Note 'Shahar raqami (Uztelecom yoki Zadarma) va administrator telefoni: panel -> Sozlamalar -> Telefon liniyasi'

@@ -1,5 +1,5 @@
-' Ish stolidagi «Palantir» yorlig'i: Palantir'ni fonda yoqadi (server va — sozlangan bo'lsa — telefon liniyasi, AI qabulxona),
-' tayyor bo'lishini kutadi va AI bosh ekranni (#/ai) brauzerda ochadi. Allaqachon ishlab turgan bo'lsa — faqat panelni ochadi.
+' Ish stolidagi "Palantir" yorlig'i: Palantir'ni fonda yoqadi (server va - sozlangan bo'lsa - telefon liniyasi, AI qabulxona),
+' tayyor bo'lishini kutadi va AI bosh ekranni (#/ai) brauzerda ochadi. Allaqachon ishlab turgan bo'lsa - faqat panelni ochadi.
 Option Explicit
 Dim fso, shell, root, port, url, i, http, ready
 Set fso = CreateObject("Scripting.FileSystemObject")
@@ -31,7 +31,7 @@ Else
 End If
 
 ' Palantir alohida ilova oynasida (tablarsiz, manzil satrisiz; vazifalar panelida o'z belgisi): Chrome yoki Edge --app.
-' Ikkalasi ham bo'lmasa — oddiy brauzerda
+' Ikkalasi ham bo'lmasa - oddiy brauzerda
 Sub OpenApp(target)
   Dim browsers, b, pf, pf86, lad
   pf = shell.ExpandEnvironmentStrings("%ProgramFiles%")
@@ -41,7 +41,7 @@ Sub OpenApp(target)
                    lad & "\Google\Chrome\Application\chrome.exe", pf86 & "\Microsoft\Edge\Application\msedge.exe", pf & "\Microsoft\Edge\Application\msedge.exe")
   For Each b In browsers
     If fso.FileExists(b) Then
-      ' Ovoz bosishsiz ham ishlasin («Quloq»: «Palantir» deb chaqirish) — brauzer hali ochilmagan bo'lsa kuchga kiradi
+      ' Ovoz bosishsiz ham ishlasin ("Quloq": "Palantir" deb chaqirish) - brauzer hali ochilmagan bo'lsa kuchga kiradi
       shell.Run """" & b & """ --app=" & target & " --start-maximized --autoplay-policy=no-user-gesture-required", 1, False
       Exit Sub
     End If
@@ -59,7 +59,7 @@ Function Healthy()
   On Error GoTo 0
 End Function
 
-' .env dagi qiymat (yo'q bo'lsa — bo'sh)
+' .env dagi qiymat (yo'q bo'lsa - bo'sh)
 Function EnvValue(name)
   Dim f, line
   EnvValue = ""

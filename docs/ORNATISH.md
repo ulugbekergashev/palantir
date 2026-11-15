@@ -84,8 +84,11 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
 
    **Telefon liniyasi** (AI qabulxona shahar raqamida) bu yerda o'rnatilmaydi — Uztelecom SIP ma'lumotlari kelganda alohida: `install\Telefon.cmd`
    (administrator huquqi bilan WSL, Ubuntu 24.04 ≈340 MB SHA256 bilan, Asterisk, `.wslconfig` da mirrored tarmoq, brandmauer qoidalari 5060 va
-   10000–10100 — faqat ichki tarmoq). WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqib, `Telefon.cmd` ni yana bosing; har qadam qayta bosilganda
-   bor narsani o'tkazib yuboradi.
+   10000–10100 — faqat ichki tarmoq). Avval tekshiradi: Windows 11 22H2+ (mirrored tarmoq shunda bor), BIOS'da virtualizatsiya, bo'sh joy
+   (tizim diskida 2 GB, WSL papkasida 3 GB), administrator huquqi **shu foydalanuvchida** (boshqa akkaunt nomidan berilsa — to'xtaydi: WSL har
+   foydalanuvchiga alohida). WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqing, Windows'ga kirilganda o'rnatish o'zi davom etadi.
+   Oxirida o'zini tekshiradi (Asterisk yoniq, egasi/administrator telefonlari sozlangan, Asterisk Palantir'ga yetadi) va Palantir'ni qayta
+   yoqadi — AI qabulxona xizmati ishga tushadi. Har qadam qayta bosilganda bor narsani o'tkazib yuboradi.
 3. **Klinikada admin sahifasi yo'q** (`ONE_PROFILE=1`): `/#/admin` kirish sahifasiga qaytaradi, server ham rad etadi — klinika
    .env'dan parol topib admin bo'la olmaydi. Egasi parolni unutsa: kirish sahifasi → «Parolni unutdingizmi?» → Telegram'ida
    «✅ Ha, yangi parol» → yangi parol o'sha yerga keladi (Telegram ulanmagan bo'lsa — Palantir xodimiga murojaat qiladi).

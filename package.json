@@ -45,6 +45,7 @@
     "test:analyst": "tsx scripts/check-analyst.ts",
     "test:people": "tsx scripts/check-people.ts",
     "test:backup": "tsx scripts/check-backup.ts",
+    "test:install": "tsx scripts/check-install.ts",
     "test:strangers": "tsx scripts/check-strangers.ts",
     "test:watchdog": "tsx scripts/check-watchdog.ts",
     "test:monitor": "tsx scripts/check-monitor.ts",
