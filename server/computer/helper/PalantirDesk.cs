@@ -20,6 +20,10 @@ internal static class PalantirDesk
     [DllImport("user32.dll")] static extern bool GetCursorPos(out POINT p);
     [DllImport("user32.dll", SetLastError = true)] static extern uint SendInput(uint n, INPUT[] inputs, int size);
     [DllImport("user32.dll")] static extern short VkKeyScan(char c);
+    // Ochiq oyna: pul zonasi tekshiruvi (server/computer/money.ts) — bank yoki to'lov dasturida AI bosmaydi va yozmaydi
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder text, int max);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
 
     [StructLayout(LayoutKind.Sequential)] struct POINT { public int X, Y; }
     [StructLayout(LayoutKind.Sequential)] struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr dwExtraInfo; }
@@ -75,6 +79,16 @@ internal static class PalantirDesk
             case "size": { var r = Ok(); r["w"] = w; r["h"] = h; return r; }
             case "capture": { var r = Ok(); r["png"] = Capture(Int(c, "x"), Int(c, "y"), Int(c, "cw", w), Int(c, "ch", h), Int(c, "outW", w), Int(c, "outH", h)); return r; }
             case "cursor": { POINT p; GetCursorPos(out p); var r = Ok(); r["x"] = p.X; r["y"] = p.Y; return r; }
+            case "window":
+            {
+                IntPtr hwnd = GetForegroundWindow();
+                var title = new StringBuilder(512);
+                GetWindowText(hwnd, title, title.Capacity);
+                uint pid; GetWindowThreadProcessId(hwnd, out pid);
+                string proc = "";
+                try { proc = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName; } catch (Exception) { /* jarayon yopilgan */ }
+                var r = Ok(); r["title"] = title.ToString(); r["process"] = proc; return r;
+            }
             case "move": SetCursorPos(Int(c, "x"), Int(c, "y")); return Ok();
             case "click":
             {

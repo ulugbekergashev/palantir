@@ -11,13 +11,14 @@
 process.env.TZ = 'Asia/Tashkent';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { PolicyError, allowedRequest, checkUrl, privateHost, riskyClick, riskyKey } from '../server/computer/policy';
 import { pngSize, solidPng } from '../server/computer/png';
 import { DesktopSession, FakeDriver, startDriver } from '../server/computer/desktop';
+import { cardLike, moneyAction, moneyTask } from '../server/computer/money';
 import { chromePath } from './chrome';
 import { OWNER, ai, aiServer, listen, patient, press, say, sent, sleep, stopProcess, tgServer, waitFor, type Sent } from './fakes';
 
@@ -63,6 +64,37 @@ ok('Ctrl+Alt+Del, Win+L — bosilmaydi', (await desk.run('key', { text: 'ctrl+al
 const zoom = await desk.run('zoom', { region: [0, 0, 320, 200] });
 ok('zoom: kichik hudud kattalashtiriladi (1280×800 dan oshmaydi)', JSON.stringify(pngSize(Buffer.from((zoom.content[0] as { source: { data: string } }).source.data, 'base64'))) === '{"width":1280,"height":800}');
 
+console.log("\n# Pul zonasi: bank, to'lov, o'tkazma, xarid — AI kirmaydi (egasi qarori, ruxsat bilan ham)");
+{
+  const allowAll = { allowedSites: ['kapitalbank.uz', 'payme.uz'], allowHosts: ['kapitalbank.uz', 'payme.uz'] };
+  ok("bank va to'lov saytlari ochilmaydi — ruxsat ro'yxatida bo'lsa ham", ['https://kapitalbank.uz', 'https://online.hamkorbank.uz/login', 'https://payme.uz/home', 'https://my.click.uz', 'https://www.paypal.com']
+    .every(u => !allowedRequest(u, allowAll) && !allowedRequest(u, open)) && !!throws(() => checkUrl('kapitalbank.uz', allowAll))?.message.includes('bank'));
+  ok("oddiy saytlar ochilaveradi (soliq.uz, olx.uz)", allowedRequest('https://soliq.uz/uz', open) && allowedRequest('https://www.olx.uz/', open));
+  ok("to'lov tugmalari: «To'lash», «Оплатить», «Pay now», «Sotib olish», «Pul o'tkazish», «Перевести деньги» — bosilmaydi",
+    ["To'lash", 'To‘lovni tasdiqlash', 'Оплатить', 'Pay now', 'Sotib olish', "Pul o'tkazish", 'Перевести деньги', 'Checkout', 'Savatga qo\'shish'].every(moneyAction));
+  ok("oddiy tugmalar emas: «Qidirish», «Yuklab olish», «Kartaga qo'shish» (xarita), «To'ldirish», «Перевод текста»",
+    !['Qidirish', 'Yuklab olish', 'Xaritada ko\'rsatish', "Formani to'ldirish", 'Перевод текста', 'Batafsil'].some(moneyAction));
+  ok("topshiriq: bank, to'lov tizimi, o'tkazma, xarid — boshlanmaydi",
+    ['Kapitalbankdan ko\'chirmani yuklab ol', "Payme orqali internet uchun to'la", "Aliga 500 ming pul o'tkaz", 'Переведи деньги на карту', 'OLX dan shu kreslolarni sotib ol', 'Kartaga yoz: 8600 1234 5678 9012'].every(t => moneyTask(t) !== null),
+    ['Kapitalbankdan', 'Payme', "o'tkaz", 'Переведи', 'sotib', '8600'].join());
+  ok("oddiy topshiriqlar boshlanadi: soliq.uz dan dalolatnoma, OLX da narx qidirish, Click tugmasi haqida emas",
+    ["soliq.uz dan dalolatnomani yuklab ol", "OLX da 3 mln gacha kreslolarni top", "Google kartada klinikamizni top", "Saytdagi «Yuborish»ni click qil"].every(t => moneyTask(t) === null),
+    ["soliq.uz dan dalolatnomani yuklab ol", "OLX da 3 mln gacha kreslolarni top", "Google kartada klinikamizni top", "Saytdagi «Yuborish»ni click qil"].map(t => moneyTask(t)).join('|'));
+  ok("karta raqami tanilgan, telefon va summa emas", cardLike('8600 1234 5678 9012') && cardLike('8600-1234-5678-9012') && !cardLike('+998 90 123 45 67') && !cardLike('1 250 000'));
+  // Butun ekran: ochiq oyna bank dasturi bo'lsa — bosish va yozish yo'q, ko'rish mumkin
+  const dir = mkdtempSync(join(tmpdir(), 'palantir-pul-'));
+  const log = join(dir, 'ekran.log');
+  const md = await DesktopSession.open(new FakeDriver({ width: 1280, height: 800 }, log));
+  writeFileSync(`${log}.window`, 'Kapitalbank — Internet banking — Google Chrome');
+  const click = await md.run('left_click', { coordinate: [100, 100] }), typed = await md.run('type', { text: 'salom' }), look = await md.run('screenshot', {});
+  ok("butun ekran: bank oynasida bosish va yozish yo'q, ko'rish mumkin", click.isError === true && typed.isError === true && !look.isError && !readFileSync(log, 'utf8').includes('"cmd":"click"'), JSON.stringify(click.content).slice(0, 120));
+  writeFileSync(`${log}.window`, 'Hisobot.xlsx — Excel');
+  const okClick = await md.run('left_click', { coordinate: [100, 100] }), card = await md.run('type', { text: '8600 1234 5678 9012' });
+  ok("butun ekran: oddiy oynada bosiladi; karta raqami hech qayerga yozilmaydi", !okClick.isError && card.isError === true && readFileSync(log, 'utf8').includes('"cmd":"click"'));
+  md.close();
+  rmSync(dir, { recursive: true, force: true });
+}
+
 if (process.platform === 'win32') {
   console.log('\n# Windows: haqiqiy yordamchi');
   const work = mkdtempSync(join(tmpdir(), 'palantir-desk-'));
@@ -75,6 +107,8 @@ if (process.platform === 'win32') {
     ok('sichqoncha: joyiga keldi', Math.abs(at.x - Math.round(size.width / 3)) <= 2 && Math.abs(at.y - Math.round(size.height / 3)) <= 2, JSON.stringify(at));
     const cap = await d.capture({ x: 0, y: 0, w: size.width, h: size.height }, { width: 640, height: 400 }).catch(e => (e as Error).message);
     ok('ekran rasmi olinadi (kichraytirilgan)', typeof cap !== 'string' && pngSize(cap)?.width === 640, typeof cap === 'string' ? cap : '');
+    const win = await d.window();
+    ok("ochiq oyna: sarlavha va dastur nomi o'qiladi (pul zonasi tekshiruvi uchun)", !!win && typeof win.title === 'string' && !!win.process, JSON.stringify(win));
     d.close();
   } catch (e) {
     ok('Windows yordamchisi', false, (e as Error).message);

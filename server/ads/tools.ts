@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { ToolError, def } from '../toolkit';
 import { pause, propose } from './campaigns';
 import { money, planSummary } from './plan';
-import { planFromTask } from './planner';
+import { ownerBudget, planFromTask } from './planner';
 import { TargetError, adsStore } from './store';
 
 const asTool = (e: unknown): never => { throw e instanceof TargetError ? new ToolError(e.message) : e; };
@@ -18,7 +18,9 @@ export const ADS_DEFS = {
     run: async (i, ctx) => {
       // Rejani faqat egasining o'z gapi tuzadi: rasm yoki mijoz matnidan emas
       if (ctx.fromPhoto || ctx.readStrangers || ctx.unattended) throw new ToolError("Reklama rejasini egasi o'z so'zi bilan, o'zi kuzatib turganda aytsin — keyingi xabarda yozing");
-      const plan = await planFromTask(ctx.biz, i.task).catch(asTool);
+      // Byudjet faqat egasining o'z gapidan (egasi qarori 2026-11-16): topshiriq matnini model yozadi — u summa qo'shib yuborsa ham,
+      // egasi aytmagan summa rejaga tushmaydi (byudjetsiz reja ishga tushmaydi, egasi summani o'zi yozadi)
+      const plan = ownerBudget(await planFromTask(ctx.biz, i.task).catch(asTool), ctx.ownerSaid ?? '');
       const c = await propose(ctx.biz, i.task, plan).catch(asTool);
       return { plan: planSummary(c.plan, c.currency), notes: c.plan.notes, next: "Reja egasining Telegram'ida — «Ishga tushirish» tugmasi bilan (limitlar tekshiriladi)" };
     },

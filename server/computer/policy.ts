@@ -5,6 +5,7 @@
  *   qaysi amal «xavfli» — yuborish, to'lash, o'chirish, tasdiqlash, sotib olish: bajarishdan oldin egasidan Telegram'da so'raladi.
  */
 import { isIP } from 'node:net';
+import { MONEY_ZONE, moneyHost } from './money';
 
 export class PolicyError extends Error {}
 
@@ -47,12 +48,15 @@ export function allowedRequest(href: string, p: SitePolicy): boolean {
   if (u.protocol === 'data:' || u.protocol === 'blob:' || u.protocol === 'about:') return true;
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
   const host = u.hostname.toLowerCase(), hostPort = u.port ? `${host}:${u.port}` : host;
+  // Bank va to'lov saytlari — hech qachon, ruxsat berilgan ro'yxatda bo'lsa ham (money.ts, egasi qarori)
+  if (moneyHost(host)) return false;
   if (p.allowHosts.includes(hostPort) || p.allowHosts.includes(host)) return true;
   if (privateHost(host)) return false;
   return !p.allowedSites.length || p.allowedSites.some(s => siteMatch(host, s));
 }
 
 function blockedWhy(u: URL, p: SitePolicy): string {
+  if (moneyHost(u.hostname)) return `${u.host} — bank yoki to'lov sayti. ${MONEY_ZONE}`;
   if (privateHost(u.hostname)) return `${u.host} — shu kompyuter yoki ichki tarmoq: bu yerga kirilmaydi`;
   return `${u.host} ruxsat berilgan saytlar ro'yxatida yo'q (${p.allowedSites.join(', ')})`;
 }

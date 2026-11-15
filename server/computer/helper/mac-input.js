@@ -67,6 +67,14 @@ function run(argv) {
     // trusted — «Maxsus imkoniyatlar» ruxsati: busiz sichqoncha va klaviatura hodisalari jimgina tashlab yuboriladi
     case 'points': { const b = $.CGDisplayBounds($.CGMainDisplayID()); return JSON.stringify({ ok: true, w: b.size.width, h: b.size.height, trusted: $.AXIsProcessTrusted() }); }
     case 'cursor': { const p = $.CGEventGetLocation($.CGEventCreate(null)); return JSON.stringify({ ok: true, x: p.x, y: p.y }); }
+    // Ochiq oyna (pul zonasi tekshiruvi — money.ts): dastur nomi va iloji bo'lsa oyna sarlavhasi
+    case 'window': {
+      const app = $.NSWorkspace.sharedWorkspace.frontmostApplication;
+      const proc = app ? ObjC.unwrap(app.localizedName) : '';
+      let title = '';
+      try { title = Application('System Events').processes.whose({ frontmost: true })[0].windows[0].name() || ''; } catch (e) { /* oynasiz dastur */ }
+      return JSON.stringify({ ok: true, title, process: proc });
+    }
     case 'move': mouse($.kCGEventMouseMoved, c.x, c.y, $.kCGMouseButtonLeft, 0, 0); break;
     case 'click': {
       const [down, up, btn] = BUTTON[c.button] || BUTTON.left, flags = flagsOf(c.mods);

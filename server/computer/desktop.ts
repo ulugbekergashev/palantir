@@ -14,6 +14,7 @@ import { assetPath } from '../entry';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { MemberResult } from './browser';
 import { pngSize, solidPng } from './png';
+import { MONEY_ZONE, cardLike, moneyWindow } from './money';
 
 export const DESKTOP_MAX = { width: 1280, height: 800 };
 const MAX_WAIT_S = 60, MAX_HOLD_S = 10;
@@ -37,6 +38,8 @@ export interface Driver {
   key(combo: string, repeat: number): Promise<void>;
   hold(combo: string, ms: number): Promise<void>;
   cursor(): Promise<{ x: number; y: number }>;
+  /** Ochiq oyna — sarlavhasi va dasturi (pul zonasi tekshiruvi, money.ts); bilib bo'lmasa — null */
+  window(): Promise<{ title: string; process: string } | null>;
   close(): void;
 }
 
@@ -128,6 +131,7 @@ class WindowsDriver implements Driver {
   async key(combo: string, repeat: number) { await this.call({ cmd: 'key', combo, repeat }); }
   async hold(combo: string, ms: number) { await this.call({ cmd: 'hold', combo, ms }); }
   async cursor() { return this.call<{ x: number; y: number }>({ cmd: 'cursor' }); }
+  async window() { return this.call<{ title: string; process: string }>({ cmd: 'window' }).catch(() => null); }
   close() { try { this.proc.stdin.end(); this.proc.kill(); } catch { /* allaqachon to'xtagan */ } }
 }
 
@@ -179,6 +183,7 @@ class MacDriver implements Driver {
   async key(combo: string, repeat: number) { await this.send({ cmd: 'key', combo, repeat }); }
   async hold(combo: string, ms: number) { await this.send({ cmd: 'hold', combo, ms }); }
   async cursor() { const r = JSON.parse(await MacDriver.input({ cmd: 'cursor' })) as { x: number; y: number }; return { x: r.x * this.scale, y: r.y * this.scale }; }
+  async window() { try { return JSON.parse(await MacDriver.input({ cmd: 'window' })) as { title: string; process: string }; } catch { return null; } }
   close() { rmSync(this.tmp, { force: true }); }
 }
 
@@ -204,6 +209,8 @@ export class FakeDriver implements Driver {
   async key(combo: string, repeat: number) { this.note({ cmd: 'key', combo, repeat }); }
   async hold(combo: string, ms: number) { this.note({ cmd: 'hold', combo, ms }); }
   async cursor() { return this.pos; }
+  /** Sinov ochiq oynani «<log>.window» fayliga yozadi (bo'lmasa — oddiy oyna) */
+  async window() { try { return { title: readFileSync(`${this.log}.window`, 'utf8').trim(), process: 'sinov' }; } catch { return { title: 'Bloknot', process: 'notepad' }; } }
   close() { /* yo'q */ }
 }
 
@@ -224,6 +231,9 @@ const image = (png: Buffer): MemberResult => ({ content: [{ type: 'image', sourc
 const point = (v: unknown): [number, number] | null => (Array.isArray(v) && v.length === 2 && v.every(n => Number.isFinite(Number(n))) ? [Number(v[0]), Number(v[1])] : null);
 /** Kompyuterni bloklaydigan yoki tizimdan chiqaradigan tugmalar — AI bosmaydi */
 const FORBIDDEN_KEYS = /ctrl\+alt\+(del|delete)|^(super|win|cmd)\+l$|cmd\+ctrl\+q/i;
+
+/** Ekranga ta'sir qiladigan amallar — pul zonasida bajarilmaydi (ko'rish, kutish, sichqonchani siljitish — mumkin) */
+const INPUT_ACTIONS = new Set(['left_click', 'right_click', 'middle_click', 'double_click', 'triple_click', 'left_click_drag', 'left_mouse_down', 'left_mouse_up', 'scroll', 'type', 'key', 'hold_key']);
 
 export class DesktopSession {
   private constructor(private d: Driver, private px: { width: number; height: number }, readonly view: { width: number; height: number }) {}
@@ -250,6 +260,11 @@ export class DesktopSession {
 
   private async member(name: string, i: Record<string, unknown>): Promise<MemberResult> {
     const mods = typeof i.text === 'string' && ['left_click', 'right_click', 'middle_click', 'double_click', 'triple_click', 'left_click_drag', 'scroll'].includes(name) ? i.text : '';
+    // Pul zonasi (money.ts): bank yoki to'lov dasturi oynasida — bosish, sudrash va yozish yo'q; karta raqami hech qayerga yozilmaydi
+    if (INPUT_ACTIONS.has(name)) {
+      if (moneyWindow(await this.d.window())) return fail(`Ochiq oyna — bank yoki to'lov dasturi. ${MONEY_ZONE}`);
+      if ((name === 'type') && cardLike(String(i.text ?? ''))) return fail(`Karta raqami yozilmaydi. ${MONEY_ZONE}`);
+    }
     switch (name) {
       case 'screenshot':
         return image(await this.d.capture({ x: 0, y: 0, w: this.px.width, h: this.px.height }, this.view));

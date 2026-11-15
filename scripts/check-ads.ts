@@ -142,6 +142,15 @@ await check("byudjet faqat egasidan: topshiriqda yo'q summa — null; jami yoki 
   assert.equal(ownerBudget(P(1500000), "Jami 1 500 000 so'm").budget, 1500000);
 });
 
+await check("byudjet egasining o'z gapidan (ads_plan): model topshiriqqa summa qo'shib yozsa ham, egasi aytmagan bo'lsa — null", () => {
+  const P = (budget: number, days = 5) => plan({ budget, days }) as never;
+  const modelTask = 'Implant reklamasi, Toshkent, 5 kun, jami 50 dollar';
+  // ads_plan: ownerBudget(planFromTask(task), ctx.ownerSaid) — avval topshiriq, keyin egasining o'z gapi
+  assert.equal(ownerBudget(ownerBudget(P(50), modelTask), 'Implant reklamasini qil, Toshkentda').budget, null);
+  assert.equal(ownerBudget(ownerBudget(P(50), modelTask), 'Implant reklamasini qil, 5 kun, jami 50 dollar').budget, 50);
+  assert.equal(ownerBudget(P(50), '').budget, null);
+});
+
 // ─── Zanjir (soxta Meta) ──────────────────────────────────────────────────────
 const biz = businesses.create(`target${Date.now()}`, 'x', { name: 'Sinov', ownerName: 'X', industry: '', phone: '', address: '', contentLang: 'uz', brand: { primary: '#000', accent: '#111' }, offerings: [], team: [] } as never);
 mkdirSync(join(env.dataDir, 'reklama', biz.id), { recursive: true });

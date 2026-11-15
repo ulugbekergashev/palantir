@@ -10,6 +10,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { chromium, type BrowserContext, type ElementHandle, type Page, type Request } from 'playwright-core';
 import { installedBrowser } from '../browserPath';
 import { PolicyError, allowedRequest, checkUrl, riskyClick, riskyKey, type ElementInfo, type SitePolicy } from './policy';
+import { MONEY_ZONE, cardLike, moneyAction } from './money';
 
 export type ResultContent = Exclude<Anthropic.Beta.BetaToolResultBlockParam['content'], string | undefined>;
 export interface MemberResult { content: ResultContent; isError?: boolean }
@@ -332,6 +333,8 @@ export class BrowserSession {
       case 'left_click': case 'right_click': case 'middle_click': case 'double_click': case 'triple_click': {
         const p = this.page(tabId);
         const { point, info } = await this.infoAt(p, i.target as Target);
+        // To'lash, pul o'tkazish, sotib olish — bosilmaydi, egasining ruxsati bilan ham (money.ts)
+        if (name !== 'right_click' && info?.name && moneyAction(info.name)) return fail(`«${info.name.slice(0, 60)}» — ${MONEY_ZONE}`);
         const stop = await this.gate(name === 'right_click' ? null : riskyClick(info));
         if (stop) return stop;
         const before = { url: p.url(), title: await p.title().catch(() => '') };
@@ -379,6 +382,7 @@ export class BrowserSession {
         const active = await p.evaluate(() => (window as unknown as { __pal?: { active: () => (ElementInfo & { password?: boolean }) | null } }).__pal?.active() ?? null);
         if (active?.password) return fail('Bu parol maydoni — parolni AI kiritmaydi. Egasi /brauzer bilan saytga o\'zi kirib olsin; hisobotda ayting.');
         const t = String(i.text ?? '');
+        if (cardLike(t)) return fail(`Karta raqami yozilmaydi. ${MONEY_ZONE}`);
         // Matn ichidagi yangi qator — Enter: formada yuboradi
         const stop = await this.gate(/[\r\n]/.test(t) ? riskyKey('Enter', active) : null);
         if (stop) return stop;
@@ -391,6 +395,8 @@ export class BrowserSession {
         await this.helpers(p);
         const keys = String(i.text ?? '').trim();
         const active = await p.evaluate(() => (window as unknown as { __pal?: { active: () => ElementInfo | null } }).__pal?.active() ?? null);
+        // To'lov tugmasi ustida Enter yoki probel — bosish bilan bir xil
+        if (/\b(enter|return|space)\b/i.test(keys) && active?.name && moneyAction(active.name)) return fail(`«${active.name.slice(0, 60)}» — ${MONEY_ZONE}`);
         const stop = await this.gate(riskyKey(keys, active));
         if (stop) return stop;
         const before = { url: p.url(), title: await p.title().catch(() => '') };
@@ -437,6 +443,7 @@ export class BrowserSession {
         const kind = await el.evaluate(e => ({ tag: e.tagName, type: ((e as HTMLInputElement).type || '').toLowerCase() }));
         if (kind.type === 'password') return fail('Bu parol maydoni — parolni AI kiritmaydi. Egasi /brauzer bilan saytga o\'zi kirib olsin; hisobotda ayting.');
         const value = i.value;
+        if (cardLike(String(value ?? ''))) return fail(`Karta raqami yozilmaydi. ${MONEY_ZONE}`);
         if (kind.tag === 'SELECT') await el.selectOption({ label: String(value) }).catch(() => el.selectOption(String(value)));
         else if (kind.type === 'checkbox' || kind.type === 'radio') await (value === true || value === 'true' ? el.check() : el.uncheck());
         else await el.fill(String(value ?? ''));

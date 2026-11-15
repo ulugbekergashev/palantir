@@ -1,0 +1,63 @@
+/**
+ * Pul zonasi — egasi qarori (2026-11-16): bank, to'lov, pul o'tkazish va xaridga AI agent o'zi kirmaydi. Bu kodda yopilgan, egasining
+ * tugmasi bilan ham ochilmaydi (riskyClick'dagi «so'rab bajarish»dan farqli). AI pul haqida faqat ma'lumot, hisobot va hisob-kitob beradi.
+ * Sof funksiyalar — sinovda bevosita tekshiriladi (scripts/check-money-zone.ts).
+ *   moneyTask   — kompyuter topshirig'i matni pulga oidmi (boshlanmaydi)
+ *   moneyHost   — bank va to'lov saytlari (brauzer so'rovi ketmaydi)
+ *   moneyAction — to'lash, o'tkazish, sotib olish tugmalari (bosilmaydi)
+ *   moneyWindow — «butun kompyuter» rejimida ochiq oyna bank yoki to'lov dasturimi (bosish va yozish yo'q)
+ *   cardLike    — karta raqamiga o'xshash matn (hech qayerga yozilmaydi)
+ */
+
+/** Javob matni: modelga va egasiga — nega to'xtadi */
+export const MONEY_ZONE = "Pul bilan bog'liq ish (bank, to'lov, pul o'tkazish, xarid) — AI buni qilmaydi, egasi o'zi qiladi. Ma'lumot, hisobot yoki hisob-kitob kerak bo'lsa — shuni so'rang";
+
+/** O'zbekiston banklari, to'lov tizimlari va xalqaro pul xizmatlari (nomida «bank» bo'lgan har qanday sayt ham — pastda) */
+const MONEY_SITES = [
+  'click.uz', 'payme.uz', 'paycom.uz', 'paynet.uz', 'uzcard.uz', 'humocard.uz', 'humo.uz', 'oson.uz', 'upay.uz', 'apelsin.uz', 'uzumbank.uz', 'mkb.uz',
+  'nbu.uz', 'sqb.uz', 'xb.uz', 'ofb.uz', 'kdb.uz', 'infinbank.com', 'orientfinans.uz', 'garant.uz',
+  'paypal.com', 'stripe.com', 'wise.com', 'payoneer.com', 'revolut.com', 'westernunion.com', 'koronapay.com', 'zolotayakorona.ru',
+  'binance.com', 'bybit.com', 'coinbase.com', 'okx.com',
+];
+const siteMatch = (host: string, site: string) => host === site || host.endsWith(`.${site}`);
+
+export function moneyHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  if (MONEY_SITES.some(s => siteMatch(host, s))) return true;
+  // kapitalbank.uz, ipakyulibank.uz, online.hamkorbank.uz, ibank.… — nomida «bank» bo'lgan har qanday qism
+  return host.split('.').some(label => label.includes('bank'));
+}
+
+/** Tugma nomi: to'lash, pul o'tkazish, sotib olish (o'zbek, rus, ingliz). Faqat nomga qaraladi */
+const MONEY_ACTION = new RegExp([
+  "to'?la(sh|ng|moq|yman|ndi|b)?\\b", "to'?lov", "pul o'?tkaz", "o'?tkazma", "sotib ol", "xarid qil", "savatga", "kartaga (pul|o'?tkaz)", "kartadan (pul|o'?tkaz|yech)", "hisobni to'ldir",
+  "оплат", "плат[её]ж", "заплат", "перев(ест|ед|од)[а-яё]*.{0,15}(деньг|сумм|средств|на карт)", "отправ[а-яё]*.{0,10}деньг", "купить", "в корзину", "пополнить", "снять деньги",
+  "\\bpay\\b", "pay now", "payment", "purchase", "\\bbuy\\b", "checkout", "add to cart", "transfer", "withdraw", "deposit", "top ?up", "send money",
+].join('|'), 'i');
+
+export const moneyAction = (name: string): boolean => MONEY_ACTION.test(name.replace(/[‘’ʻʼ`]/g, "'"));
+
+/**
+ * Kompyuter topshirig'i (egasi yoki model yozgan) pulga oidmi. Qaytaradi — sababi (egasiga aytiladi); bo'lmasa — null.
+ * Bank saytidan «ko'chirma yuklab olish» ham — bank saytiga kirish (egasi o'zi yuklab, Palantir'ga yuboradi)
+ */
+export function moneyTask(text: string): string | null {
+  const t = text.replace(/[‘’ʻʼ`]/g, "'");
+  if (/bank|банк/i.test(t)) return "bank bilan ish";
+  // «click» va «oson» — oddiy so'z ham: faqat to'lov tizimi sifatida
+  if (/\b(payme|paynet|uzcard|humo|apelsin|upay|paypal)\b|click\.uz|\bclick (orqali|bilan|ilova)|\boson (orqali|bilan|ilova)/i.test(t)) return "to'lov tizimi bilan ish";
+  if (MONEY_ACTION.test(t)) return "to'lov, pul o'tkazish yoki xarid";
+  if (cardLike(t)) return "karta raqami";
+  return null;
+}
+
+/** «Butun kompyuter»: ochiq oyna sarlavhasi va dasturi bank yoki to'lovnikimi (brauzerda — sayt nomi sarlavhada bo'ladi) */
+export function moneyWindow(w: { title: string; process: string } | null): boolean {
+  if (!w) return false;
+  const s = `${w.title} ${w.process}`.replace(/[‘’ʻʼ`]/g, "'");
+  return /bank|банк|payme|paynet|click\.uz|uzcard|humo|apelsin|upay|paypal|to'lov|оплат|плат[её]ж/i.test(s)
+    || MONEY_SITES.some(site => s.toLowerCase().includes(site));
+}
+
+/** Karta raqami (16 raqam, bo'shliq yoki chiziqcha bilan) yoki uning muddati bilan birga — AI hech qayerga yozmaydi */
+export const cardLike = (text: string): boolean => /(?<!\d)(?:\d[ -]?){15}\d(?!\d)/.test(text);
