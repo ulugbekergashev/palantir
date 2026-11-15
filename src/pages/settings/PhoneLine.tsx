@@ -224,14 +224,14 @@ function Routing({ line, onLine, notify }: { line: Line; onLine: (l: Line) => vo
     </label>
   );
   return (
-    <Block icon={<Waypoints className="h-[18px] w-[18px]" aria-hidden="true" />} title="Kim javob beradi" hint="Raqamga kelgan qo'ng'iroq kimga boradi. Kechasi va administrator ko'tarmasa — har doim AI, mijoz javobsiz qolmaydi.">
-      {!line.aiOn && <p role="status" className="mb-3 rounded-xl bg-amber-400/10 px-3.5 py-2.5 text-[13px] leading-snug text-amber-200">AI administrator jamoada yo'q — hozir qo'ng'iroqlarga faqat administrator telefoni javob beradi (ko'tarilmasa — mijozga uzr aytiladi va «qayta qo'ng'iroq qiling» so'rovi ochiladi). AI javob berishi uchun uni AI jamoa sahifasida qaytaring.</p>}
+    <Block icon={<Waypoints className="h-[18px] w-[18px]" aria-hidden="true" />} title="Kim javob beradi" hint="Raqamga kelgan qo'ng'iroq kimga boradi. AI rejimlarida kechasi va administrator ko'tarmasa — AI, mijoz javobsiz qolmaydi.">
       <div className="flex flex-col gap-2">
         {option('ai', 'Har doim AI administrator', 'Kunu tun AI javob beradi, qabulga yozadi, bilmaganini sizga so‘rov qilib qoldiradi.')}
         {option('ai_transfer', 'AI javob beradi, ish vaqtida kerak bo‘lsa — administratorga o‘tkazadi', 'AI javob bera olmasa yoki mijoz odam bilan gaplashmoqchi bo‘lsa, ish vaqtida qo‘ng‘iroqni administrator telefoniga o‘tkazadi; u ko‘tarmasa — AI so‘rov qoldiradi. Kechasi — faqat AI.')}
         {option('day_admin', 'Ish vaqtida — administrator, qolgan paytda — AI', 'Ish vaqtida avval administrator telefoni jiringlaydi; ko‘tarmasa yoki band bo‘lsa — AI javob beradi.')}
+        {option('human', 'Faqat administrator — AI javob bermaydi', 'Kechasi ham har qo‘ng‘iroqda faqat administrator telefoni jiringlaydi (kamida 45 soniya); ko‘tarilmasa — mijozga uzr aytiladi va «qayta qo‘ng‘iroq qiling» so‘rovi ochiladi.')}
       </div>
-      {r.mode !== 'ai' && (
+      {(r.mode === 'ai_transfer' || r.mode === 'day_admin') && (
         <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-glass/[0.06] p-4">
           <fieldset className="flex flex-wrap items-center gap-1.5">
             <legend className="mb-2 text-[12px] font-medium text-[#a3a9b5]">Ish kunlari</legend>

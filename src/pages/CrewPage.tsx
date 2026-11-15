@@ -1,6 +1,6 @@
 /**
  * «AI xodimlar» (#/xodimlar): hamma AI xodim bitta joyda, bo'lim-bo'lim — jamoadagilari, ishga olinadiganlari va tez kunda keladiganlari.
- * Standart jamoa — Direktor va Yordamchi; qolganini egasi shu yerda «+ Ishga olish» bilan qo'shadi va u menyu hamda bosh ekranda paydo bo'ladi.
+ * Asosiy xodimlar — AI administrator va Palantir (olib tashlanmaydi), Direktor — standart; qolganini egasi shu yerda «+ Ishga olish» bilan qo'shadi va u menyu hamda bosh ekranda paydo bo'ladi.
  * Olib tashlangan xodim menyudan chiqadi va fonda ishlamaydi; ma'lumotlari o'chmaydi (qaytib olinsa — joyida).
  * Tez kunda keladigan xodim — UPCOMING ga bitta qator (o'z bo'limi bilan); ishlay boshlaganda bu yerdan olinib, jamoaga (components/team.tsx) o'tadi.
  */
@@ -155,7 +155,7 @@ export function CrewArea({ crew, onCrew, notify, owner }: { crew: Member[]; onCr
           <h1 className="text-[28px] font-bold leading-tight tracking-tight text-[#f2f0ea]">AI xodimlar</h1>
           <p className="mt-0.5 text-sm text-[#a3a9b5]">
             Jamoangizda {crew.length} ta xodim{free ? ` · yana ${free} tasini olish mumkin` : ''} · {UPCOMING.length} tasi tez kunda.
-            {' '}Kerakli xodimni ishga oling — u menyu va bosh ekranda paydo bo'ladi. Direktor va Palantir doim jamoada.
+            {' '}Kerakli xodimni ishga oling — u menyu va bosh ekranda paydo bo'ladi. AI administrator va Palantir doim jamoada.
           </p>
         </div>
       </header>

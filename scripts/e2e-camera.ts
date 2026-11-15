@@ -165,17 +165,20 @@ export async function cameraApiTests(h: Harness): Promise<void> {
   ok("ovoz: bo'sh vaqtlar matni keladi", slots.status === 200 && typeof slots.json.schedule === 'string' && slots.json.schedule.length > 20, JSON.stringify(slots.json).slice(0, 160));
   const noName = await api('/api/voice/book', { token: key, body: { doctorId: 'd1', date: '2026-10-12', time: '10:00', name: 'Bobur', phone: '901234567' } });
   ok("ovoz: familiyasiz qabulga yozilmaydi", noName.status === 409 && noName.json.code === 'unavailable' && !JSON.stringify(noName.json).includes('Bemor'), JSON.stringify(noName.json));
-  // Qabulxona jamoadan olib tashlangan: telefondagi AI qabul yozmaydi va jadvalni olmaydi — odamga o'tkazadi (handoff)
-  await api('/api/crew', { token, body: { member: 'qabulxona', on: false } });
+  // B1: AI administrator jamoadan chiqmaydi — telefonda AI'ni egasi «Faqat administrator» rejimi bilan o'chiradi
+  ok("B1: AI administratorni olib tashlab bo'lmaydi (409, javob rejimiga yo'naltiradi)", (await api('/api/crew', { token, body: { member: 'qabulxona', on: false } })).status === 409);
+  const routingBefore = (await api('/api/phone/line', { token })).json.line.routing;
+  await api('/api/phone/line/routing', { method: 'PUT', token, body: { ...routingBefore, mode: 'human' } });
+  // Telefondagi AI qabul yozmaydi va jadvalni olmaydi — odamga o'tkazadi (handoff)
   const offSlots = await api('/api/voice/slots', { token: key });
   const offBook = await api('/api/voice/book', { token: key, body: { doctorId: 'd1', date: '2026-10-12', time: '10:00', name: 'Bobur Karimov', phone: '901234567' } });
-  ok("ovoz: Qabulxona olib tashlangan — jadval va qabul yo'q (handoff)", offSlots.status === 409 && offSlots.json.code === 'handoff' && offBook.status === 409 && offBook.json.code === 'handoff',
+  ok("ovoz: «Faqat administrator» — jadval va qabul yo'q (handoff)", offSlots.status === 409 && offSlots.json.code === 'handoff' && offBook.status === 409 && offBook.json.code === 'handoff',
     `${offSlots.status} ${offSlots.json.code} / ${offBook.status} ${offBook.json.code}`);
   // A3: liniyaga kelgan qo'ng'iroqni AI umuman olmaydi — Asterisk faqat administratorni jiringlatadi
   const offRoute = await fetch(`${base}/api/voice/route?phone=998901234567`, { headers: { authorization: `Bearer ${key}` } });
-  ok("A3: Qabulxona olib tashlangan — Asterisk'ka «faqat administrator» (AI qo'ng'iroqni olmaydi)", /^human:\d+$/.test(await offRoute.text()));
-  await api('/api/crew', { token, body: { member: 'qabulxona', on: true } });
-  ok("ovoz: Qabulxona qaytdi — jadval yana keladi", (await api('/api/voice/slots', { token: key })).status === 200);
+  ok("A3/B1: «Faqat administrator» — Asterisk'ka «human» (AI qo'ng'iroqni olmaydi)", /^human:\d+$/.test(await offRoute.text()));
+  await api('/api/phone/line/routing', { method: 'PUT', token, body: routingBefore });
+  ok("ovoz: AI rejimi qaytdi — jadval yana keladi", (await api('/api/voice/slots', { token: key })).status === 200);
 
   // Telefon AI qo'ng'iroq qiluvchini taniydi va qabulini o'zi ko'chiradi/bekor qiladi (boshqa sinovlarga tegmaslik uchun — alohida bemor va vaqt:
   // d1 ning D4 11:00 va D5 11:00 vaqtlari e2e-crm.ts dagi Lolaning qabullariga band — u yerga qo'yilsa «kuniga 2 ta qabul» va F3 yiqiladi)

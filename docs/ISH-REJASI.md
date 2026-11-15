@@ -73,14 +73,14 @@ Zadarma yo'li (kalit kiritiladi — o'zi sozlanadi) o'zgarmaydi; T1–T4 unga ha
 
 | band | qaror | eslatma |
 | --- | --- | --- |
-| B2 | Ustada javob rejimi so'ralsin («o'zi javob bersin» / «tasdiqlayman») | K. Eski o'rnatishlarda rejim o'zgarmaydi. C2 bilan birga 1-bosqichga yaqin qilish tavsiya etiladi |
+| B2 | Ustada javob rejimi so'ralsin («o'zi javob bersin» / «tasdiqlayman») | ✅ 2026-11-16 (d1d6657): «Javob rejimi» qadami, hech biri oldindan tanlanmagan; eski o'rnatishlarda rejim o'zgarmaydi |
 | C2 | Ustada bemorlar yozadigan Telegram (Business + havola/QR) | K–O', qaror shart emas — B2 bilan birga |
-| B1 | Qabulxona — asosiy xodim; Direktor va Yordamchi — qo'shimcha | Kt, **alohida reliz**: eski o'rnatishda «Qabulxona olib tashlangan» → javob o'chiq deb ko'chiriladi, aks holda yangilanish bemorlarga javobni o'zi yoqib yuboradi |
+| B1 | Qabulxona — asosiy xodim; Direktor — qo'shimcha (Palantir — asosiy) | ✅ 2026-11-16: baza v3 migratsiyasi — olib tashlagan klinikada javob «o'chiq», telefon yangi «Faqat administrator» rejimida; **alohida reliz** |
 | B3 | Bitta nom («Palantir» yoki «Yordamchi») | nom — K–O'; bitta miya — Kt |
 | B5, B6 | Qo'shimchalar obunani sarflamasin; «ertalabki xulosa» belgisi uchga ajralsin | K–O', B1 dan keyin |
 | B7 | «O'zi javob bersin»da egasiga har javob uchun xabar emas — jim yoki yig'ma | O' |
 | Bosh ekran | AI administrator: 3 kanal holati, rejim, bugungi sonlar, «Sizni kutyapti», yozishmalar | Kt, B1 dan keyin. Ko'pi Qabulxona sahifasida bor |
-| D8 | Sinov muddati (hozir yangi o'rnatish kalitsiz 0 kun) | K |
+| D8 | Sinov muddati | Egasi qarori (2026-11-15): sinov muddati yo'q — kalit bilan, hozirgidek |
 
 ## 4-bosqich. Usta tartibi, matnlar, dublikatlar
 
@@ -89,12 +89,12 @@ so'zlar, usta egasidan yashiriladi), C9 (ikki DentaCRM shakli → bitta), C10 (I
 
 ## Egasidan kerak
 
-1. **B2:** yangi o'rnatishda javob rejimi ustada so'ralsinmi? (tavsiya: ha, aniq tanlov bilan)
-2. **B1:** Qabulxona asosiy xodim bo'lsinmi, Direktor va Yordamchi qo'shimchaga o'tsinmi?
-3. **B3:** bitta nom qaysi?
-4. **Telefon:** Windows 11 shartmi? (hozirgi telefon yo'li Windows 10 da ishlamaydi; Windows 10 ni qo'llash — qo'shimcha ish)
+1. ~~**B2**~~ — ha, aniq tanlov (bajarildi).
+2. ~~**B1**~~ — ha, AI administrator asosiy; Direktor qo'shimcha (bajarildi).
+3. ~~**B3**~~ — «Palantir» (bajarildi, 2026-11-15).
+4. **Telefon:** egasi qarori — Windows 10 ni ham qo'llash. Ish: WSL NAT rejimida Asterisk (UDP SIP/RTP ichkariga yo'naltirilmaydi — yechim izlanadi); sinash uchun Windows 10 kompyuter kerak.
 5. **T5:** haqiqiy Uztelecom raqami — qaysi klinikada va qachon sinaymiz?
-6. **D8:** sinov muddati beriladimi, necha kun?
+6. ~~**D8**~~ — sinov muddati yo'q, kalit bilan.
 
 ## Qoldiq (rejadan tashqari, eslatma)
 

@@ -64,12 +64,11 @@ export interface PhoneLine {
   trunk: { host: string; port: number; login: string; number: string; auth: 'password' | 'ip'; operator: 'uztelecom' | 'other' } | null;
   /** zadarma — API kalitlari bilan o'zi sozlangan; manual — qo'lda (Uztelecom, Sarkor va boshqalar) */
   provider: 'zadarma' | 'manual' | null;
-  routing: { mode: 'ai' | 'ai_transfer' | 'day_admin'; ring: number; days: number[]; from: string; to: string };
+  routing: { mode: 'ai' | 'ai_transfer' | 'day_admin' | 'human'; ring: number; days: number[]; from: string; to: string };
   admin: { server: string; login: string; password: string | null };
   /** Telefondagi AI Gemini orqali gapiradi — kalitsiz qo'ng'iroqqa AI javob bermaydi */
   geminiKey: boolean;
   /** AI administrator jamoada — yo'q bo'lsa qo'ng'iroqqa faqat administrator javob beradi */
-  aiOn: boolean;
   /** reason — raqam ulanmagan bo'lsa, nega (Asterisk jurnalidan, odam tilida) */
   status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; ai: boolean | null; note: string | null; reason?: string | null };
 }

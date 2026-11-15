@@ -17,7 +17,7 @@ import { DirectorArea } from './pages/DirectorPage';
 import { CrewArea } from './pages/CrewPage';
 
 /**
- * Panel — bitta dastur, AI jamoa atrofida: bosh ekran (Palantir, ovoz bilan), jamoadagi xodimlar (standart — Direktor va Yordamchi,
+ * Panel — bitta dastur, AI jamoa atrofida: bosh ekran (Palantir, ovoz bilan), jamoadagi xodimlar (asosiy — AI administrator va Palantir, Direktor — standart,
  * qolganini egasi «AI xodimlar»da ishga oladi: src/lib/crew.ts), Miya (Obsidian kabi) va Sozlamalar. Chapda (telefonda — pastda) bir xil ustun.
  * Ko'rinish qorong'i (index.css: .night).
  */

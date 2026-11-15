@@ -1,7 +1,8 @@
 /**
  * AI jamoa tarkibi (src/lib/crew.ts, server/crew.ts) — brauzer va AI'siz:
- *   standart jamoa Direktor va Yordamchi; ishi ulangan xodim o'zi qo'shiladi, egasi olib tashlagani qaytib qo'shilmaydi;
- *   eski baza (tarkib hali hisoblanmagan) — hamma xodim avvalgidek ishlaydi; olib tashlangan Qabulxona javob tayyorlamaydi;
+ *   asosiy — AI administrator (Qabulxona) va Palantir, Direktor o'zi qo'shiladi (olib tashlasa bo'ladi — B1); ishi ulangan xodim o'zi
+ *   qo'shiladi, egasi olib tashlagani qaytib qo'shilmaydi; eski baza (tarkib hali hisoblanmagan) — hamma xodim avvalgidek ishlaydi;
+ *   B1 migratsiyasi (Qabulxonani olib tashlagan klinika — javob «o'chiq», telefon «faqat administrator»);
  *   Direktor jamoada yo'q xodimga taklif bermaydi; API: ishga olish, asosiy xodimni olib tashlab bo'lmaydi.
  * Ishga tushirish: npm run test:crew
  */
@@ -29,17 +30,23 @@ function check(name: string, fn: () => void): void {
 const none = { customers: false, crm: false, cameras: 0, metaAi: false, marketingPosts: 0, content: false, ads: false };
 
 console.log('\n# Qoida');
-check('yangi biznes: jamoada faqat Direktor va Yordamchi', () => {
-  assert.deepEqual(crewList(withInUse(null, inUse(none))), ['direktor', 'yordamchi']);
-  assert.deepEqual([...CORE], ['direktor', 'yordamchi']);
+check('yangi biznes: asosiy — AI administrator va Palantir, Direktor o\'zi qo\'shiladi (B1)', () => {
+  assert.deepEqual(crewList(withInUse(null, inUse(none))), ['direktor', 'qabulxona', 'yordamchi']);
+  assert.deepEqual([...CORE], ['qabulxona', 'yordamchi']);
+});
+check("B1: Direktorni olib tashlasa bo'ladi va u o'zi qaytib qo'shilmaydi; AI administratorni — yo'q", () => {
+  const out = setHired(withInUse(null, inUse(none)), 'direktor', false);
+  assert.equal(crewList(out).includes('direktor'), false);
+  assert.equal(crewList(withInUse(out, inUse(none))).includes('direktor'), false);
+  assert.equal(works(setHired(out, 'qabulxona', false), 'qabulxona'), true);
 });
 check("Instagram ulandi — Qabulxona va Tahlilchi o'zi qo'shiladi; kamera — Kuzatuvchi", () => {
   const s = withInUse(null, inUse({ ...none, customers: true, cameras: 2 }));
   assert.deepEqual(crewList(s), ['direktor', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi']);
 });
 check("Instagram postlari — Kontent-meykerning ishi (Marketolog emas); Meta AI — Marketolog", () => {
-  assert.deepEqual(crewList(withInUse(null, inUse({ ...none, marketingPosts: 1 }))), ['direktor', 'yordamchi', 'kontent']);
-  assert.deepEqual(crewList(withInUse(null, inUse({ ...none, metaAi: true }))), ['direktor', 'yordamchi', 'marketolog']);
+  assert.deepEqual(crewList(withInUse(null, inUse({ ...none, marketingPosts: 1 }))), ['direktor', 'qabulxona', 'yordamchi', 'kontent']);
+  assert.deepEqual(crewList(withInUse(null, inUse({ ...none, metaAi: true }))), ['direktor', 'qabulxona', 'yordamchi', 'marketolog']);
 });
 check("egasi olib tashlagan xodim ishi ulangan bo'lsa ham qaytib qo'shilmaydi; «Ishga olish» bilan qaytadi", () => {
   const hired = withInUse(null, inUse({ ...none, cameras: 1 }));
@@ -51,8 +58,8 @@ check("egasi olib tashlagan xodim ishi ulangan bo'lsa ham qaytib qo'shilmaydi; �
   assert.deepEqual(back.dismissed, []);
 });
 check("asosiy xodimni olib tashlab bo'lmaydi; noma'lum nom va buzuq JSON — e'tiborsiz", () => {
-  assert.equal(works(setHired(null, 'direktor', false), 'direktor'), true);
-  assert.deepEqual(parseCrew('{"hired":["kontent","boshqa","direktor"],"dismissed":"x"}'), { hired: ['kontent'], dismissed: [] });
+  assert.equal(works(setHired(null, 'qabulxona', false), 'qabulxona'), true);
+  assert.deepEqual(parseCrew('{"hired":["kontent","boshqa","qabulxona"],"dismissed":"x"}'), { hired: ['kontent'], dismissed: [] });
   assert.equal(parseCrew('{buzuq'), null);
 });
 check('tarkib hali hisoblanmagan (eski baza) — hamma xodim fonda avvalgidek ishlaydi va jamoada', () => {
@@ -60,11 +67,12 @@ check('tarkib hali hisoblanmagan (eski baza) — hamma xodim fonda avvalgidek is
   assert.equal(crewWorks({ crew: null }, 'kontent'), true);
   assert.equal(crewHas({ crew: null }, 'kontent'), true);
 });
-check("hali ishga olinmagan, lekin olib tashlanmagan — fonda ishlaydi (panel ochilmasdan kelgan mijoz javobsiz qolmaydi), jamoada esa yo'q", () => {
+check("hali ishga olinmagan, lekin olib tashlanmagan — fonda ishlaydi (panel ochilmasdan ishi ulangan), jamoada esa yo'q", () => {
   const fresh = JSON.stringify({ hired: [], dismissed: [] });
-  assert.equal(crewWorks({ crew: fresh }, 'qabulxona'), true);
-  assert.equal(crewHas({ crew: fresh }, 'qabulxona'), false);
-  assert.equal(hiredIn(null, 'qabulxona'), true);
+  assert.equal(crewWorks({ crew: fresh }, 'kuzatuvchi'), true);
+  assert.equal(crewHas({ crew: fresh }, 'kuzatuvchi'), false);
+  assert.equal(hiredIn(null, 'kuzatuvchi'), true);
+  assert.equal(crewHas({ crew: fresh }, 'qabulxona'), true, 'AI administrator — doim jamoada');
 });
 check("o'zgarish bo'lmasa — o'sha holat (bazaga qayta yozilmaydi)", () => {
   const s = withInUse(null, inUse({ ...none, ads: true }));
@@ -73,14 +81,43 @@ check("o'zgarish bo'lmasa — o'sha holat (bazaga qayta yozilmaydi)", () => {
 
 console.log('\n# Server');
 const biz = businesses.create('crew-sinov', 'x', emptyBusiness('Sinov klinika', 'stomatologiya'));
-check("Qabulxona jamoada yo'q — javob rejimi «o'chiq» (sozlamasi saqlanadi)", () => {
+check("B1: javob rejimi — faqat egasining sozlamasi (AI administrator jamoadan chiqmaydi; eski «olib tashlangan» yozuvi e'tiborsiz)", () => {
   businesses.update(biz.id, { crew: JSON.stringify({ hired: [], dismissed: ['qabulxona'] }) });
-  const row = businesses.byId(biz.id)!;
-  assert.equal(replySettings(row).mode, 'off');
-  assert.equal(row.profile.autoReply?.mode, 'draft');
-  businesses.update(biz.id, { crew: JSON.stringify({ hired: ['qabulxona'], dismissed: [] }) });
   assert.equal(replySettings(businesses.byId(biz.id)!).mode, 'draft');
+  businesses.update(biz.id, { crew: JSON.stringify({ hired: ['qabulxona'], dismissed: [] }) });
 });
+
+console.log('\n# B1 migratsiyasi (server/migrate.ts v3)');
+{
+  const { DatabaseSync } = await import('node:sqlite');
+  const { MIGRATIONS } = await import('../server/migrate');
+  const db = new DatabaseSync(':memory:');
+  db.exec("CREATE TABLE businesses (id TEXT PRIMARY KEY, crew TEXT, profile TEXT NOT NULL); CREATE TABLE connections (business_id TEXT NOT NULL, kind TEXT NOT NULL, meta TEXT NOT NULL DEFAULT '{}')");
+  const add = db.prepare('INSERT INTO businesses (id, crew, profile) VALUES (?, ?, ?)');
+  add.run('off', JSON.stringify({ hired: ['kuzatuvchi'], dismissed: ['qabulxona', 'kontent'] }), JSON.stringify({ name: 'A', autoReply: { mode: 'auto', contacts: true, delayMin: 5 } }));
+  add.run('on', JSON.stringify({ hired: ['qabulxona'], dismissed: [] }), JSON.stringify({ name: 'B', autoReply: { mode: 'auto', contacts: false, delayMin: 2 } }));
+  add.run('nodir', JSON.stringify({ hired: [], dismissed: ['direktor'] }), JSON.stringify({ name: 'C' }));
+  add.run('eski', null, JSON.stringify({ name: 'D' }));
+  db.prepare("INSERT INTO connections (business_id, kind, meta) VALUES ('off', 'sip_line', ?), ('on', 'sip_line', ?)").run(JSON.stringify({ mode: 'day_admin', ring: '20' }), JSON.stringify({ mode: 'ai' }));
+  MIGRATIONS.find(m => m.version === 3)!.up(db);
+  const row = (id: string) => db.prepare('SELECT crew, profile FROM businesses WHERE id = ?').get(id) as { crew: string | null; profile: string };
+  const meta = (id: string) => JSON.parse((db.prepare("SELECT meta FROM connections WHERE business_id = ? AND kind = 'sip_line'").get(id) as { meta: string }).meta);
+  check("AI administratorni olib tashlagan klinika: bemorlarga javob «o'chiq» (qolgan sozlama joyida), telefon «faqat administrator»", () => {
+    assert.deepEqual(JSON.parse(row('off').profile).autoReply, { mode: 'off', contacts: true, delayMin: 5 });
+    assert.deepEqual(meta('off'), { mode: 'human', ring: '20' });
+    assert.deepEqual(JSON.parse(row('off').crew!), { hired: ['kuzatuvchi', 'direktor'], dismissed: ['kontent'] });
+  });
+  check("olib tashlamagan klinika: javob va telefon o'zgarmaydi, Direktor jamoada qoladi", () => {
+    assert.equal(JSON.parse(row('on').profile).autoReply.mode, 'auto');
+    assert.equal(meta('on').mode, 'ai');
+    assert.deepEqual(JSON.parse(row('on').crew!).hired, ['direktor']);
+  });
+  check("Direktorni egasi olib tashlagan bo'lsa — qaytmaydi; tarkibi hisoblanmagan eski baza — tegilmaydi", () => {
+    assert.deepEqual(JSON.parse(row('nodir').crew!), { hired: [], dismissed: ['direktor'] });
+    assert.equal(row('eski').crew, null);
+  });
+  db.close();
+}
 check("Direktor faqat jamoadagi xodimga va egasiga taklif beradi", () => {
   businesses.update(biz.id, { crew: JSON.stringify({ hired: ['qabulxona'], dismissed: [] }) });
   const members = moveMembersOf(businesses.byId(biz.id)!);
@@ -110,7 +147,7 @@ console.log("\n# Asboblar xodim bo'yicha (3-bosqich)");
     assert.equal(toolOwner('create_task'), null);
   });
   check("suhbatda — Yordamchi va jamoadagi mutaxassislar; topshiriqda — faqat bajaruvchiniki", () => {
-    assert.deepEqual(chatGroups({ crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'kontent'], dismissed: [] }) }), ['base', 'kontent']);
+    assert.deepEqual(chatGroups({ crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'kontent'], dismissed: [] }) }), ['base', 'qabulxona', 'kontent'], 'AI administrator — doim jamoada (B1)');
     assert.deepEqual(chatGroups({ crew: null }), ['base', 'qabulxona', 'kontent', 'target', 'marketolog', 'kuzatuvchi'], 'eski baza — hammasi');
     assert.deepEqual(memberGroups('kontent'), ['kontent']);
     assert.deepEqual(memberGroups('tahlilchi'), ['base']);
@@ -168,7 +205,7 @@ console.log("\n# «Bugun jamoa» hisoblagichlari va kamera zonalari (5-bosqich)"
     assert.equal(m('marketolog').facts[0].value, 0);
   });
   check("Kontent-meyker va Targetolog ham «Bugun jamoa»da — bugungi postlar va reklama", () => {
-    assert.deepEqual(day.members.map(x => x.member), ['yordamchi', 'tahlilchi', 'marketolog', 'kontent', 'target']);
+    assert.deepEqual(day.members.map(x => x.member), ['qabulxona', 'yordamchi', 'tahlilchi', 'marketolog', 'kontent', 'target']);
     assert.equal(m('kontent').facts.find(f => f.label === 'Post')?.value, 1);
     assert.equal(m('kontent').summary, '1 ta post tayyorladi. 1 ta qoralama tasdiqingizni kutyapti.');
     assert.equal(m('target').summary, 'Hozir reklama ishlamayapti.');
@@ -221,17 +258,12 @@ console.log("\n# Mijozga yozish — Qabulxonaniki");
   const { leads } = await import('../server/db');
   const { events } = await import('../server/orders/store');
   const biz = businesses.create(`qx${Date.now()}`, 'x', emptyBusiness('Qx klinika', 'stomatologiya'));
+  // Eski bazadagi «olib tashlangan» yozuvi (B1 dan oldingi) — e'tiborsiz: AI administrator doim jamoada
   businesses.update(biz.id, { crew: JSON.stringify({ hired: [], dismissed: ['qabulxona'] }) });
   const lead = leads.add(biz.id, { name: 'Ali', phone: '+998901234567', note: null, source: null });
-  const refused = await runTool('draft_followup', { lead_ids: [lead.id], text: 'Assalomu alaykum, Ali! Qabulga yozilasizmi?' }, { biz: businesses.byId(biz.id)!, artifacts: [] });
-  businesses.update(biz.id, { crew: JSON.stringify({ hired: ['qabulxona'], dismissed: [] }) });
   const artifacts: unknown[] = [];
   const made = await runTool('draft_followup', { lead_ids: [lead.id], text: 'Assalomu alaykum, Ali! Qabulga yozilasizmi?' }, { biz: businesses.byId(biz.id)!, artifacts: artifacts as never });
-  check("Qabulxona jamoada yo'q — mijozga xabar tayyorlanmaydi («+ Xodim qo'shish»)", () => {
-    assert.equal(refused.isError, true);
-    assert.match(refused.content, /AI administratorning ishi, u jamoada yo'q/);
-  });
-  check("Qabulxona jamoada — xabar tayyor (egasi «Yuborish»ni bosadi), Qabulxona jurnalida", () => {
+  check("AI administrator doim jamoada — xabar tayyor (egasi «Yuborish»ni bosadi), Qabulxona jurnalida", () => {
     assert.equal(made.isError, false, made.content);
     assert.equal(artifacts.length, 1);
     const ev = events.since(biz.id, '2000-01-01', 10).find(e => e.member === 'qabulxona');

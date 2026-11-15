@@ -1,7 +1,9 @@
 /**
  * AI jamoa tarkibi — kim ishga olingan. Server ham, panel ham shu qoidadan foydalanadi.
  *
- * Standart jamoa — Direktor va Yordamchi (asosiy: olib tashlanmaydi). Qolgan xodimlar:
+ * Asosiy xodimlar — AI administrator (Qabulxona: bemorlarga javob — mahsulotning o'zi) va Palantir (egasining yordamchisi); ular
+ * olib tashlanmaydi (B1). AI administrator bemorlarga javob bermasin desa — javob rejimi «o'chiq» (Sozlamalar), telefonda — «Faqat
+ * administrator» rejimi. Direktor — standart jamoada (o'zi qo'shiladi), lekin olib tashlasa bo'ladi. Qolgan xodimlar:
  *   - egasi «+ Xodim qo'shish» sahifasida o'zi ishga oladi;
  *   - yoki xodimning ishi allaqachon ulangan bo'lsa (Instagram ulandi — Qabulxona, kamera qo'shildi — Kuzatuvchi), o'zi qo'shiladi,
  *     egasi uni o'zi olib tashlamagan bo'lsa.
@@ -15,7 +17,7 @@
 export const CREW = ['direktor', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'kontent', 'target'] as const;
 export type CrewMember = typeof CREW[number];
 /** Asosiy xodimlar: har biznesda bor, olib tashlanmaydi */
-export const CORE: readonly CrewMember[] = ['direktor', 'yordamchi'];
+export const CORE: readonly CrewMember[] = ['qabulxona', 'yordamchi'];
 /** Xodim nomi (server xabarlarida; panel — components/team.tsx TEAM) */
 export const TEAM_NAME: Record<CrewMember, string> = {
   direktor: 'Direktor', qabulxona: 'AI administrator', yordamchi: 'Palantir', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', kontent: 'Kontent-meyker', target: 'Targetolog',

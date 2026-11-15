@@ -1,7 +1,7 @@
 /**
  * AI jamoa: har xodim kim, qaysi bo'limda, nima qiladi va hozir nima bilan band — bosh ekrandagi kartalar, «AI xodimlar» sahifasi
  * va xodim sahifasining sarlavhasi shu yerdan. Holat haqiqiy ma'lumotdan (so'rovlar, qo'ng'iroqlar, vazifalar, kameralar, DentaCRM),
- * 30 soniyada yangilanadi. Kim jamoada — src/lib/crew.ts (standart: Direktor va Yordamchi, qolgani «+ Xodim qo'shish»dan).
+ * 30 soniyada yangilanadi. Kim jamoada — src/lib/crew.ts (asosiy: AI administrator va Palantir; Direktor o'zi qo'shiladi; qolgani «+ Xodim qo'shish»dan).
  * about — xodim haqiqatan nima qiladi (egasi shunga qarab ishga oladi): bajarmaydigan ishini yozmang.
  */
 import { useEffect, useState } from 'react';

@@ -152,7 +152,10 @@ export async function orderApiTests(h: Harness): Promise<void> {
   ok("bugun jamoa: jamoadagi besh xodim, tartibda", day.members?.map(m => m.member).join() === 'qabulxona,yordamchi,kuzatuvchi,tahlilchi,marketolog',JSON.stringify(day.members?.map(m => m.summary)));
   await api('/api/crew', { token, body: { member: 'marketolog', on: false } });
   ok("bugun jamoa: jamoadan olib tashlangan Marketolog ro'yxatda yo'q", !((await api('/api/team/day', { token })).json as Day).members.some(m => m.member === 'marketolog'));
-  ok("asosiy xodimni (Direktor) olib tashlab bo'lmaydi", (await api('/api/crew', { token, body: { member: 'direktor', on: false } })).status === 409);
+  ok("B1: asosiy xodimni (AI administrator) olib tashlab bo'lmaydi", (await api('/api/crew', { token, body: { member: 'qabulxona', on: false } })).status === 409);
+  const noDirector = await api('/api/crew', { token, body: { member: 'direktor', on: false } });
+  ok("B1: Direktor — qo'shimcha: olib tashlasa bo'ladi, qaytib olinadi", noDirector.status === 200 && !noDirector.json.crew.includes('direktor')
+    && (await api('/api/crew', { token, body: { member: 'direktor', on: true } })).json.crew.includes('direktor'), JSON.stringify(noDirector.json));
 
   console.log("\n# Har xodim o'z asboblari bilan (3-bosqich)");
   type AiReq = { system: string; tools: { name?: string }[]; messages: unknown[] };
@@ -191,12 +194,6 @@ export async function orderApiTests(h: Harness): Promise<void> {
   const withQ = lastOwnerReq();
   ok("Qabulxona jamoada: mijozga yozish asbobi bor va Yordamchi uning qoidasi bilan yozadi (<writing_to_customers>)", toolNames(withQ).includes('draft_followup')
     && /<writing_to_customers>[\s\S]*Chegirma va‘da qilma[\s\S]*<\/writing_to_customers>/.test(withQ?.system ?? ''), (withQ?.system ?? '').split('<writing_to_customers>')[1]?.slice(0, 300));
-  await api('/api/crew', { token, body: { member: 'qabulxona', on: false } });
-  await api('/api/chat', { token, body: { text: 'Eski mijozlarga qayta yozish matnini tayyorla' } });
-  const withoutQ = lastOwnerReq();
-  ok("Qabulxona olib tashlandi — mijozga yozilmaydi: asbob yo'q, ko'rsatmada «jamoaga oling»", !toolNames(withoutQ).includes('draft_followup')
-    && /Not hired[^\n]*AI administrator/.test(withoutQ?.system ?? '') && !(withoutQ?.system ?? '').includes('<writing_to_customers>'), toolNames(withoutQ).join(','));
-  await api('/api/crew', { token, body: { member: 'qabulxona', on: true } });
   ok('bugun jamoa: kamera hodisasi jurnalda va Kuzatuvchi sanadi', day.timeline.some(e => e.id === events[0].id) && fact(day, 'kuzatuvchi', 'Yozuv') >= 1 && fact(day, 'kuzatuvchi', 'Kamera') >= 1);
   ok("bugun jamoa: bajarilgan ish Yordamchida sanaldi", fact(day, 'yordamchi', 'Bajarildi') >= 1, day.members.find(m => m.member === 'yordamchi')?.summary);
   const otherDay = (await api('/api/team/day', { token: otherToken })).json as Day;

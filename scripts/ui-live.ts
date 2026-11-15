@@ -94,27 +94,28 @@ try {
   // Logotip havolasi (rasm, matnsiz) ro'yxatga kirmaydi
   const menuItems = async () => (await rail().getByRole('link').allInnerTexts()).map(t => t.trim().split('\n')[0]).filter(Boolean).join(', ');
   const first = await menuItems();
-  ok("yangi biznes: menyuda jamoa faqat Direktor va Palantir (B3: bitta nom), keyin «Xodim qo'shish», Miya, Sozlamalar", first === "Bosh sahifa, Direktor, Palantir, Xodim qo'shish, Miya, Sozlamalar", first);
+  ok("yangi biznes: menyuda jamoa — Direktor, AI administrator (B1: asosiy) va Palantir (B3), keyin «Xodim qo'shish», Miya, Sozlamalar", first === "Bosh sahifa, Direktor, AI administrator, Palantir, Xodim qo'shish, Miya, Sozlamalar", first);
   const teamCards = page.getByRole('region', { name: 'AI jamoa' });
   // Karta — xodim nomi aniq shu bo'lgan havola («Xodim qo'shish» kartasining izohida ham xodim nomlari bor)
   const cardOf = (name: string) => teamCards.getByRole('link').filter({ has: page.getByText(name, { exact: true }) });
   await visible(cardOf('Direktor'));
-  ok("bosh ekran: jamoada ikki xodim va «Xodim qo'shish» kartasi", await cardOf('Direktor').count() === 1 && await cardOf('Palantir').count() === 1
-    && await cardOf('AI administrator').count() === 0 && (await cardOf("Xodim qo'shish").getAttribute('href'))?.endsWith('#/xodimlar'));
+  ok("bosh ekran: jamoada uch xodim (AI administrator — doim) va «Xodim qo'shish» kartasi", await cardOf('Direktor').count() === 1 && await cardOf('Palantir').count() === 1
+    && await cardOf('AI administrator').count() === 1 && (await cardOf("Xodim qo'shish").getAttribute('href'))?.endsWith('#/xodimlar'));
   await shot('02-home-standart', true);
 
   console.log("\n# AI xodimlar: ishga olish");
   await cardOf("Xodim qo'shish").click();
   ok("«AI xodimlar»: bo'lim-bo'lim — jamoadagilar, olinadiganlar va tez kunda keladiganlar", await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 }))
-    && await page.getByRole('region', { name: 'Boshqaruv' }).getByRole('article', { name: 'Direktor' }).getByText('Asosiy').isVisible()
-    && await page.getByRole('region', { name: 'Mijozlar va sotuv' }).getByRole('article', { name: 'AI administrator' }).getByRole('button', { name: 'Ishga olish' }).isVisible()
+    && await page.getByRole('region', { name: 'Boshqaruv' }).getByRole('article', { name: 'Direktor' }).getByText('Jamoada', { exact: true }).isVisible()
+    && await page.getByRole('region', { name: 'Mijozlar va sotuv' }).getByRole('article', { name: 'AI administrator' }).getByText('Asosiy', { exact: true }).isVisible()
     && await page.getByRole('region', { name: 'HR' }).getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible()
     && await page.getByRole('article', { name: 'Video-meyker — tez kunda' }).count() === 0 && await page.getByRole('article', { name: 'Strateg — tez kunda' }).count() === 0
     // B9: mavjud ishni takrorlaydiganlar yo'q
     && (await Promise.all(['Mijozlarni qaytaruvchi', 'Kassa nazoratchisi', 'Sifat nazoratchisi'].map(n => page.getByRole('article', { name: `${n} — tez kunda` }).count()))).every(n => n === 0));
-  ok("asosiy xodimni olib tashlab bo'lmaydi — Direktor kartasida «Olib tashlash» yo'q", await page.getByRole('article', { name: 'Direktor' }).getByRole('button', { name: 'Olib tashlash' }).count() === 0);
+  ok("B1: asosiy xodimni olib tashlab bo'lmaydi — AI administrator kartasida «Olib tashlash» yo'q, Direktorda bor", await page.getByRole('article', { name: 'AI administrator' }).getByRole('button', { name: 'Olib tashlash' }).count() === 0
+    && await page.getByRole('article', { name: 'Direktor' }).getByRole('button', { name: 'Olib tashlash' }).count() === 1);
   await shot('02b-xodimlar', true);
-  for (const name of ['AI administrator', 'Kuzatuvchi', 'Tahlilchi', 'Marketolog', 'Kontent-meyker', 'Targetolog']) {
+  for (const name of ['Kuzatuvchi', 'Tahlilchi', 'Marketolog', 'Kontent-meyker', 'Targetolog']) {
     const card = page.getByRole('article', { name, exact: true });
     await card.getByRole('button', { name: 'Ishga olish' }).click();
     await card.getByText('Jamoada').waitFor({ timeout: 8000 });
@@ -324,6 +325,16 @@ try {
   const line = await (await fetch(`${base}/api/phone/line`, { headers: auth })).json() as { line: { routing: { mode: string } } };
   ok('telefon liniyasi: «ish vaqtida administrator» saqlandi', line.line.routing.mode === 'day_admin');
   await shot('11c-telefon', true);
+  // B1: telefonda AI'ni o'chirish — «Faqat administrator» (AI administrator jamoadan chiqmaydi); ish vaqti maydonlari kerak emas
+  await page.getByRole('radio', { name: /Faqat administrator/ }).check();
+  ok("B1: «Faqat administrator» — ish kunlari va soatlar so'ralmaydi", !(await page.getByText('Ish kunlari').count()));
+  await page.getByRole('button', { name: 'Saqlash', exact: true }).click();
+  await page.getByText(/keyingi qo.ng.iroqdan kuchga kiradi/).first().waitFor({ timeout: 10000 });
+  const human = await (await fetch(`${base}/api/phone/line`, { headers: auth })).json() as { line: { routing: { mode: string } } };
+  ok("B1: «Faqat administrator» saqlandi", human.line.routing.mode === 'human');
+  await page.getByRole('radio', { name: /Ish vaqtida — administrator/ }).check();
+  await page.getByRole('button', { name: 'Saqlash', exact: true }).click();
+  await page.getByText(/keyingi qo.ng.iroqdan kuchga kiradi/).first().waitFor({ timeout: 10000 });
   // T3: Uztelecom — birinchi yorliq; login so'ralmaydi (raqamning o'zi), parolsiz (ajratilgan IP) tanlansa parol maydoni yo'qoladi
   ok("T3: Uztelecom yorlig'i birinchi ochiladi, «Login» maydoni yo'q",
     await page.getByRole('tab', { name: 'Uztelecom' }).getAttribute('aria-selected') === 'true' && !(await page.getByLabel('Login', { exact: true }).count()));

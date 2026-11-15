@@ -25,6 +25,7 @@ import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { unzipSync } from 'fflate';
 import { listen, sleep, tgServer } from './fakes';
+import { SCHEMA_VERSION } from '../server/migrate';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
@@ -159,12 +160,12 @@ try {
     writeFileSync(index, edit(edit(readFileSync(index, 'utf8'), "throw new Error('buzuq nashr');\n", ''),
       "await import('./main');", "if (process.env.PALANTIR_DRY_RUN !== '1') { await import('./db'); process.exit(1); }\nawait import('./main');"));
     const migrate = join(SRC, 'server', 'migrate.ts');
-    writeFileSync(migrate, edit(readFileSync(migrate, 'utf8'), /\];\r?\nexport const SCHEMA_VERSION/, "  { version: 3, about: 'sinov', up: db => db.exec('ALTER TABLE businesses ADD COLUMN sinov TEXT') },\n];\nexport const SCHEMA_VERSION"));
+    writeFileSync(migrate, edit(readFileSync(migrate, 'utf8'), /\];\r?\nexport const SCHEMA_VERSION/, `  { version: ${SCHEMA_VERSION + 1}, about: 'sinov', up: db => db.exec('ALTER TABLE businesses ADD COLUMN sinov TEXT') },\n];\nexport const SCHEMA_VERSION`));
   });
   const before = schema();
   const failing = await update('v4');
   ok('eskisiga qaytarildi (kod 3): yana 9.0.1 ishlayapti, holat — qaytarildi', failing.code === 3 && (await appHealth())?.version === '9.0.1' && holat().result === 'qaytarildi', failing.out.split('\n').slice(-2).join(' | '));
-  ok(`baza migratsiyadan oldingi nusxadan tiklandi (v${before})`, schema() === before && /baza v3 → v2/.test(holat().reason ?? ''), holat().reason);
+  ok(`baza migratsiyadan oldingi nusxadan tiklandi (v${before})`, schema() === before && new RegExp(`baza v${SCHEMA_VERSION + 1} → v${SCHEMA_VERSION}`).test(holat().reason ?? ''), holat().reason);
   ok('ish fayllari qaytarishdan keyin ham joyida', readFileSync(join(APP, 'tgvoice', '.venv', 'belgi.txt'), 'utf8') === 'venv' && existsSync(join(APP, 'tgvoice', 'asterisk', 'pjsip_shahar.conf')));
 
   console.log("\n# 5. Server ko'tariladi, lekin Telegram bot ulanmaydi");

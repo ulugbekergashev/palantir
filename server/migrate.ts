@@ -14,6 +14,44 @@ import type { DatabaseSync } from 'node:sqlite';
 
 interface Migration { version: number; about: string; up: (db: DatabaseSync) => void }
 
+const tableHas = (db: DatabaseSync, table: string, column: string): boolean =>
+  (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some(c => c.name === column);
+const parse = (raw: string | null): Record<string, unknown> | null => {
+  try { const v = JSON.parse(raw ?? 'null'); return v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : null; } catch { return null; }
+};
+const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+
+/**
+ * B1: AI administrator (qabulxona) endi olib tashlanmaydi. Oldin egasi uni olib tashlagan bo'lsa, yangilanish bemorlarga javobni
+ * o'zidan yoqib yubormasin — o'sha holat aniq sozlamaga ko'chiriladi: mijozlarga javob «o'chiq», telefon liniyasi (sozlangan bo'lsa)
+ * «faqat administrator». Direktor endi qo'shimcha xodim: tarkibi hisoblangan har jamoada u ishga olinganlar ro'yxatiga yoziladi
+ * (avval asosiy bo'lgani uchun ro'yxatda yo'q edi) — yangilanishdan keyin jamoadan yo'qolmaydi
+ */
+function migrateCoreReception(db: DatabaseSync): void {
+  if (!tableHas(db, 'businesses', 'crew')) return;
+  const rows = db.prepare('SELECT id, crew, profile FROM businesses').all() as { id: string; crew: string | null; profile: string }[];
+  const lines = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'connections'").get() as { name: string } | undefined) !== undefined;
+  for (const r of rows) {
+    const crew = parse(r.crew);
+    if (!crew) continue;
+    const hired = list(crew.hired), dismissed = list(crew.dismissed);
+    const next = {
+      hired: [...hired.filter(m => m !== 'qabulxona'), ...(hired.includes('direktor') || dismissed.includes('direktor') ? [] : ['direktor'])],
+      dismissed: dismissed.filter(m => m !== 'qabulxona'),
+    };
+    db.prepare('UPDATE businesses SET crew = ? WHERE id = ?').run(JSON.stringify(next), r.id);
+    if (!dismissed.includes('qabulxona')) continue;
+    const profile = parse(r.profile);
+    if (profile) {
+      const reply = parse(JSON.stringify(profile.autoReply ?? null)) ?? { contacts: false, delayMin: 2 };
+      db.prepare('UPDATE businesses SET profile = ? WHERE id = ?').run(JSON.stringify({ ...profile, autoReply: { ...reply, mode: 'off' } }), r.id);
+    }
+    if (!lines) continue;
+    const line = db.prepare("SELECT meta FROM connections WHERE business_id = ? AND kind = 'sip_line'").get(r.id) as { meta: string } | undefined;
+    if (line) db.prepare("UPDATE connections SET meta = ? WHERE business_id = ? AND kind = 'sip_line'").run(JSON.stringify({ ...(parse(line.meta) ?? {}), mode: 'human' }), r.id);
+  }
+}
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, about: "bazaning nashri shu yerdan yuritiladi (tuzilma o'zgarmaydi)", up: () => {} },
   {
@@ -24,6 +62,11 @@ export const MIGRATIONS: Migration[] = [
       const have = new Set((db.prepare('PRAGMA table_info(businesses)').all() as { name: string }[]).map(c => c.name));
       for (const column of ['channel_id', 'channel_title']) if (have.has(column)) db.exec(`ALTER TABLE businesses DROP COLUMN ${column}`);
     },
+  },
+  {
+    version: 3,
+    about: "AI administrator — asosiy xodim, Direktor — qo'shimcha (B1): uni olib tashlagan klinikada javob «o'chiq», telefon «faqat administrator»",
+    up: db => migrateCoreReception(db),
   },
 ];
 export const SCHEMA_VERSION = MIGRATIONS.at(-1)?.version ?? 0;

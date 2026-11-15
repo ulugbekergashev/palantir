@@ -1,7 +1,7 @@
 /**
  * AI bosh ekran (#/ai): egasi qo'l bilan emas, ovoz bilan ishlaydi. Markazda Palantir — bosing va gapiring: jonli suhbat
  * (Gemini Live, telefondagi yordamchining o'zi), javob ovozda va ekranda; asbob natijasi (vazifalar, Palantir javobi) karta bo'lib chiqadi.
- * Pastda AI jamoa — faqat ishga olingan xodimlar (standart: Direktor va Yordamchi), har biri hozir nima qilayotgani haqiqiy ma'lumotdan;
+ * Pastda AI jamoa — faqat ishga olingan xodimlar (asosiy: AI administrator va Palantir; Direktor — standart), har biri hozir nima qilayotgani haqiqiy ma'lumotdan;
  * oxirida «+ Xodim qo'shish» — «AI xodimlar» sahifasiga (u yerda qolganlari va tez kunda keladiganlari).
  * Kartani bosish — o'sha xodimning sahifasi (qobiq: LiveApp, chap ustun — Rail). O'rtada «Sizni kutyapti» — hamma xodimdan egasining qarorini
  * kutayotganlar (components/Attention.tsx).

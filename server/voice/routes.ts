@@ -18,11 +18,10 @@ import { leadForPhone } from '../people';
 import { openRequest, settleByBooking } from '../requests/index';
 import { phoneCalls } from '../phone/store';
 import { newVoiceKey, voiceKeyOwner } from './agentKey';
-import { applyLine, checkLine, connectZadarma, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk, transferNow } from './line';
+import { applyLine, checkLine, connectZadarma, lineRouting, lineView, newAdminPassword, phoneAiOn, routeNow, saveRouting, saveTrunk, transferNow } from './line';
 import { adoptVoiceKey } from './serviceEnv';
 import { LINE_CALL_WINDOW_MS, markLineCall } from './lineCalls';
 import { ZadarmaError } from './zadarma';
-import { crewWorks } from '../../src/lib/crew';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -114,7 +113,7 @@ const ZadarmaSchema = z.object({
   number: z.string().trim().max(20).regex(/^\+?\d*$/, 'raqam: faqat raqamlar').optional(),
 });
 const RoutingSchema = z.object({
-  mode: z.enum(['ai', 'ai_transfer', 'day_admin']), ring: z.number().int().min(5).max(60),
+  mode: z.enum(['ai', 'ai_transfer', 'day_admin', 'human']), ring: z.number().int().min(5).max(60),
   days: z.array(z.number().int().min(1).max(7)).max(7), from: HHMM, to: HHMM,
 });
 
@@ -181,8 +180,8 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   app.get('/api/voice/route', asAgent((req, res, biz) => {
     const phone = MissedSchema.safeParse(req.query);
     if (phone.success) markLineCall(biz.id, phone.data.phone);
-    // Qabulxona (AI administrator) jamoadan olib tashlangan — telefonda ham AI javob bermaydi (A3)
-    res.type('text/plain').send(routeNow(lineRouting(biz.id), new Date(), crewWorks(biz, 'qabulxona')));
+    // «Faqat administrator» rejimi — AI qo'ng'iroq olmaydi: «human:45» (A3, B1)
+    res.type('text/plain').send(routeNow(lineRouting(biz.id), new Date()));
   }));
   // AI qabulxona (sip_live.py): hozir administratorga o'tkaza oladimi — ish vaqtida «ai_transfer» rejimida necha soniya jiringlashi, bo'lmasa null
   app.get('/api/voice/handoff', asAgent((_req, res, biz) => { res.json({ ring: transferNow(lineRouting(biz.id), new Date()) }); }));
@@ -230,7 +229,7 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
 
   app.get('/api/voice/slots', asAgent(async (_req, res, biz) => {
     // Qabulxona jamoadan olib tashlangan: telefondagi AI qabul yozmaydi — odamga o'tkazadi (so'rov va qo'ng'iroq yozuvi qoladi)
-    if (!crewWorks(biz, 'qabulxona')) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
+    if (!phoneAiOn(biz.id)) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
     const schedule = await scheduleText(biz.id);
     if (!schedule) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
     res.json({ schedule });
@@ -243,7 +242,7 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   app.post('/api/voice/book', asAgent(async (req, res, biz) => {
     const p = BookSchema.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
-    if (!crewWorks(biz, 'qabulxona')) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
+    if (!phoneAiOn(biz.id)) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
     const phone = normPhone(p.data.phone);
     const midnight = new Date();
     midnight.setHours(0, 0, 0, 0);
@@ -278,7 +277,7 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   // AI bu bilan bemorni taniydi; qabul haqida gapirishdan oldin ismini so'rab tasdiqlatadi (reception.py)
   app.get('/api/voice/caller', asAgent(async (req, res, biz) => {
     const phone = normPhone(String(req.query.phone ?? ''));
-    if (!phone || !crewWorks(biz, 'qabulxona') || !crmConnected(biz.id)) return res.json({ patients: [] });
+    if (!phone || !phoneAiOn(biz.id) || !crmConnected(biz.id)) return res.json({ patients: [] });
     try {
       const found = await patientsByPhone(biz.id, phone);
       const patients = await Promise.all(found.map(async p => ({
@@ -296,7 +295,7 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   app.post('/api/voice/visit', asAgent(async (req, res, biz) => {
     const p = VisitSchema.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
-    if (!crewWorks(biz, 'qabulxona')) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
+    if (!phoneAiOn(biz.id)) return res.status(409).json({ error: HANDOFF, code: 'handoff' });
     const phone = normPhone(p.data.phone);
     const recent = (phoneChanges.get(`${biz.id}:${phone}`) ?? []).filter(t => t > Date.now() - DAY_MS);
     if (!phone || recent.length >= CHANGES_PER_PHONE_DAY) return res.status(429).json({ error: LIMIT, code: 'limit' });
