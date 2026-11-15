@@ -43,10 +43,10 @@ export function receptionFeed(biz: BusinessRow, sinceIso: string, limit: number)
   for (const x of sql.many('SELECT lead_id FROM replies WHERE business_id = ? AND (booked_at >= ? OR changed_at >= ?)', r => String(r.lead_id), biz.id, sinceIso, sinceIso)) bookedLeads.add(x);
   // Javoblar: bir bemorga bir qator (oxirgi javobi va nechta xabar); qabul qatori bo'lgan bemorga — takror yo'q
   const answers = sql.many(`SELECT i.lead_id, i.channel, MAX(i.created_at) AS at, COUNT(*) AS n,
-        (SELECT text FROM inbox x WHERE x.business_id = i.business_id AND x.lead_id = i.lead_id AND x.direction = 'out' AND x.author IN ('palantir', 'cerebro')
+        (SELECT text FROM inbox x WHERE x.business_id = i.business_id AND x.lead_id = i.lead_id AND x.direction = 'out' AND x.author IN ('palantir', 'cerebro') -- eski nom
           AND instr(x.text, ?) = 0 ORDER BY x.created_at DESC LIMIT 1) AS text, l.name
       FROM inbox i LEFT JOIN leads l ON l.id = i.lead_id
-      WHERE i.business_id = ? AND i.direction = 'out' AND i.author IN ('palantir', 'cerebro') AND i.created_at >= ? AND instr(i.text, ?) = 0
+      WHERE i.business_id = ? AND i.direction = 'out' AND i.author IN ('palantir', 'cerebro') AND i.created_at >= ? AND instr(i.text, ?) = 0 -- eski nom
       GROUP BY i.lead_id ORDER BY at DESC LIMIT ?`, x => x, HOLD_MARK, biz.id, sinceIso, HOLD_MARK, limit);
   for (const x of answers) {
     if (bookedLeads.has(String(x.lead_id))) continue;
