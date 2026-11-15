@@ -11,7 +11,10 @@
  *   5) server ko'tariladi, lekin Telegram bot ulanmaydi (oldin ulangan edi) — eskisiga qaytariladi, sababi «bot»;
  *   6) bot bilan ishlaydigan oddiy nashr — o'rnatiladi (bot talabi sog'lom nashrni qaytarmaydi);
  *   7) obunadagi AI ishlab turgan edi, yangi nashrda Claude dasturi topilmaydi — eskisiga qaytariladi, sababi «AI» (H1);
- *   8) AI bilan ishlaydigan oddiy nashr — o'rnatiladi.
+ *   8) AI bilan ishlaydigan oddiy nashr — o'rnatiladi;
+ *   9) ovoz xizmati kutubxonalari (tgvoice/requirements.txt) o'zgargan nashr — Python'ga o'rnatiladi (soxta pip), keyin yangilanadi;
+ *  10) kutubxona o'rnatilmaydi — yangilash bekor, eski kutubxonalar qaytariladi, ishlab turgan nashr qoladi;
+ *  11) kutubxonalar o'rnatildi, lekin nashr ishga tushmaydi — eskisiga qaytariladi, kutubxonalar ham eskisi.
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
@@ -208,6 +211,43 @@ try {
   const withAi = await update('v8');
   const now8 = await appHealth();
   ok('yangilandi (kod 0): 9.0.8, AI va bot ishlayapti, holat — ok', withAi.code === 0 && now8?.version === '9.0.8' && now8.aiReady === true && now8.botOnline === true && holat().result === 'ok', withAi.out.split('\n').slice(-2).join(' | '));
+
+  console.log("\n# 9. Ovoz xizmati kutubxonalari o'zgargan nashr");
+  // Klinikada ovoz xizmati Python'i bor (soxta pip): yangilovchi .env dan oladi
+  const pipLog = join(work, 'pip.log');
+  writeFileSync(pipLog, '');
+  writeFileSync(join(APP, '.env'), `${readFileSync(join(APP, '.env'), 'utf8')}TG_CALL_PYTHON=${join(REPO, 'scripts', 'fake-pip.mjs')}\nFAKE_PIP_LOG=${pipLog}\n`);
+  const pipCalls = () => readFileSync(pipLog, 'utf8').split('\n').filter(Boolean).map(l => (JSON.parse(l) as { req: string }).req);
+  const reqFile = join(SRC, 'tgvoice', 'requirements.txt');
+  const reqBase = readFileSync(reqFile, 'utf8');
+  release('v9', '9.0.9', () => writeFileSync(reqFile, `${reqBase.trimEnd()}\nyangi-kutubxona==1.0\n`));
+  const deps = await update('v9');
+  const now9 = await appHealth();
+  ok("yangilandi (kod 0): 9.0.9; yangi kutubxonalar o'rnatildi (bir marta, yangi ro'yxat)", deps.code === 0 && now9?.version === '9.0.9' && holat().result === 'ok'
+    && pipCalls().length === 1 && /yangi-kutubxona==1\.0/.test(pipCalls()[0]), JSON.stringify(pipCalls()));
+  const before10 = pipCalls().length;
+
+  console.log("\n# 10. Kutubxona o'rnatilmaydi");
+  release('v10', '9.0.10', () => writeFileSync(reqFile, `${reqBase.trimEnd()}\nbuzuq-kutubxona==9.9\n`));
+  const badDeps = await update('v10');
+  const now10 = await until('9.0.9 qayta ishga tushdi', async () => { const j = await appHealth(); return j?.version === '9.0.9' ? j : null; }, 60_000);
+  const calls10 = pipCalls().slice(before10);
+  ok("bekor qilindi (kod 2): 9.0.9 ishlayapti, sababi — kutubxonalar; eski ro'yxat qayta o'rnatildi", badDeps.code === 2 && now10?.version === '9.0.9' && holat().result === 'sinov'
+    && /kutubxonalari o'rnatilmadi/.test(holat().reason ?? '') && /eski kutubxonalar tiklandi/.test(holat().reason ?? '')
+    && calls10.length === 2 && /buzuq-kutubxona/.test(calls10[0]) && /yangi-kutubxona==1\.0/.test(calls10[1]) && !/buzuq/.test(calls10[1]), `${holat().reason} | ${JSON.stringify(calls10)}`);
+
+  console.log("\n# 11. Kutubxonalar o'rnatildi, lekin nashr ishga tushmaydi");
+  const before11 = pipCalls().length;
+  release('v11', '9.0.11', () => {
+    writeFileSync(reqFile, `${reqBase.trimEnd()}\nyana-kutubxona==2.0\n`);
+    const index = join(SRC, 'server', 'index.ts');
+    writeFileSync(index, edit(readFileSync(index, 'utf8'), "await import('./main');", "if (process.env.PALANTIR_DRY_RUN !== '1') process.exit(1);\nawait import('./main');"));
+  });
+  const broken11 = await update('v11');
+  const now11 = await appHealth();
+  const calls11 = pipCalls().slice(before11);
+  ok("eskisiga qaytarildi (kod 3): 9.0.9, kutubxonalar ham eskisi", broken11.code === 3 && now11?.version === '9.0.9' && holat().result === 'qaytarildi'
+    && /eski kutubxonalar tiklandi/.test(holat().reason ?? '') && calls11.length === 2 && /yana-kutubxona/.test(calls11[0]) && /yangi-kutubxona==1\.0/.test(calls11[1]), `${holat().reason} | ${JSON.stringify(calls11)}`);
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

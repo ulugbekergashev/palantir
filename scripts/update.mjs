@@ -10,8 +10,10 @@
  *      /api/health shu nashrni aytmasa yangilash bekor, ishlab turgan nashrga tegilmaydi.
  *   4. Nazoratchi to'xtatiladi; relizdagi ildizlar (server, src, node_modules…) almashtiriladi — eskisi DATA_DIR/yangilash/oldingi/ ga.
  *      Ish paytida paydo bo'lgan fayllar (tgvoice/.venv, sessiyalar, konfiglar) yangi papkaga ko'chadi; .env va ma'lumotlarga tegilmaydi.
- *   5. Nazoratchi qayta yoqiladi; yangi nashr 3 daqiqada sog'lom bo'lmasa (oldin Telegram bot ulangan bo'lsa — bot ham ulanmasa)
- *      — eski fayllar qaytariladi, baza migratsiyadan
+ *      Relizda ovoz xizmati kutubxonalari (tgvoice/requirements.txt) o'zgargan bo'lsa — almashtirishdan oldin Python'ga o'rnatiladi (pip);
+ *      o'rnatilmasa — yangilash bekor, eski kutubxonalar qaytariladi.
+ *   5. Nazoratchi qayta yoqiladi; yangi nashr 3 daqiqada sog'lom bo'lmasa (oldin ishlagan Telegram bot, AI yoki telefon AI ishlamasa ham)
+ *      — eski fayllar (va kutubxonalar) qaytariladi, baza migratsiyadan
  *      oldingi nusxadan (server/migrate.ts: BACKUP_DIR/oldin-v<N>-….db) tiklanadi.
  * Natija: DATA_DIR/yangilash/holat.json (hub holatida ko'rinadi). Jurnal: DATA_DIR/logs/yangilash.log
  * Chiqish kodi: 0 — yangilandi yoki yangisi yo'q; 1 — xato (hech narsa o'zgarmadi); 2 — sinovdan o'tmadi; 3 — eskisiga qaytarildi.
@@ -189,6 +191,26 @@ async function preflight(staging, version) {
   }
 }
 
+/**
+ * Ovoz xizmati (tgvoice — telefon liniyasi, Telegram qo'ng'iroq) Python'i: TG_CALL_PYTHON (tgvoice\.venv yoki runtime\python).
+ * Relizda kutubxonalar ro'yxati o'zgarsa — shu Python'ga o'rnatiladi, aks holda yangi sip_live.py eski kutubxonalar bilan yiqiladi (H1).
+ * Telefon to'xtagan paytda o'rnatiladi: Windows'da ishlatilayotgan kutubxona faylini (.pyd) almashtirib bo'lmaydi.
+ * TG_CALL_PYTHON .mjs bo'lsa — Node bilan (sinovdagi soxta pip)
+ */
+const PIP_TIMEOUT_MS = Number(process.env.UPDATE_PIP_MS) || 15 * 60_000;
+const voicePython = () => { const p = process.env.TG_CALL_PYTHON?.trim(); return p && existsSync(p) ? p : null; };
+const requirementsFile = dir => join(dir, 'tgvoice', 'requirements.txt');
+const requirements = dir => { try { return readFileSync(requirementsFile(dir), 'utf8').replace(/\r\n/g, '\n').trim(); } catch { return null; } };
+/** Kutubxonalarni o'rnatadi; xato bo'lsa — qisqa sababi, bo'lmasa null */
+function pipInstall(python, file) {
+  const args = ['-m', 'pip', 'install', '--disable-pip-version-check', '-q', '-r', file];
+  const [cmd, argv] = /\.m?js$/i.test(python) ? [process.execPath, [python, ...args]] : [python, args];
+  const r = spawnSync(cmd, argv, { cwd: ROOT, encoding: 'utf8', timeout: PIP_TIMEOUT_MS, windowsHide: true });
+  if (r.status === 0) return null;
+  const said = String(r.stderr || r.stdout || '').trim().split(/\r?\n/).slice(-3).join(' ');
+  return (r.error?.message || said || `kod ${r.status}`).slice(0, 300);
+}
+
 const supervisor = args => spawnSync(process.execPath, ['scripts/supervise.mjs', ...args], { cwd: ROOT, stdio: 'ignore', windowsHide: true }).status;
 const startSupervisor = () => spawn(process.execPath, ['scripts/supervise.mjs'], { cwd: ROOT, detached: true, stdio: 'ignore', windowsHide: true }).unref();
 
@@ -306,8 +328,29 @@ async function main() {
     // Hozirgi nashrda bot, AI, telefon AI ishlayotgan bo'lsa — yangisida ham ishlashi kutiladi (H1)
     const needs = working(await health(PORT));
     if (needs.length) log(`yangi nashrda ham ishlashi kerak: ${needs.join(', ')}`);
+    const python = voicePython(), reqOld = requirements(ROOT), reqNew = requirements(staging);
+    const pipNeeded = !!python && reqNew !== null && reqNew !== reqOld;
+    /** Eski kutubxonalar qaytariladi (yangilash bekor yoki eskisiga qaytildi) — jurnal/holat uchun natija */
+    const pipBack = () => {
+      if (!pipNeeded || reqOld === null) return '';
+      const e = pipInstall(python, requirementsFile(ROOT));
+      return e ? `; eski kutubxonalar HAM tiklanmadi: ${e}` : '; eski kutubxonalar tiklandi';
+    };
     log('nazoratchi to\'xtatilmoqda');
     supervisor(['stop']);
+    if (pipNeeded) {
+      log('ovoz xizmati kutubxonalari yangilanmoqda (tgvoice/requirements.txt o\'zgargan — pip)');
+      const err = pipInstall(python, requirementsFile(staging));
+      if (err) {
+        const back = pipBack();
+        startSupervisor();
+        const reason = `ovoz xizmati kutubxonalari o'rnatilmadi (pip): ${err}${back}`;
+        saveState({ from, to: manifest.version, result: 'sinov', reason });
+        log(`yangilash bekor qilindi — ${reason}`);
+        return 2;
+      }
+      log('kutubxonalar o\'rnatildi');
+    }
     const backup = join(WORK, 'oldingi');
     const moved = swap(staging, roots, tracked, backup);
     log(`fayllar almashtirildi (${roots.length} ta ildiz; saqlangan ish fayllari: ${moved.length})`);
@@ -324,7 +367,7 @@ async function main() {
     log(`${why} (${Math.round(HEALTHY_MS / 1000)} soniya kutildi) — eskisiga qaytarilmoqda`);
     supervisor(['stop']);
     unswap(roots, backup, moved);
-    const db = restoreDb(schemaBefore, since);
+    const db = `${restoreDb(schemaBefore, since)}${pipBack()}`;
     startSupervisor();
     const back = await healthy(PORT, from, HEALTHY_MS);
     saveState({ from, to: manifest.version, result: 'qaytarildi', reason: `${why}; ${db}; eski nashr ${back ? 'ishlayapti' : 'HAM ISHLAMAYAPTI'}` });
