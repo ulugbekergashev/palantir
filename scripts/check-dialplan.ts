@@ -224,7 +224,11 @@ try {
   const stuck = ast('core show channels concise').split('\n').filter(l => /!AudioSocket!/.test(l)).length;
   ok("Asterisk AI uzilganini o'zi sezmaydi — ikkala mijoz jimlikda turibdi (shuning uchun qutqarish kerak)", stuck === 2, `${stuck} ta`);
   // Haqiqiy sip_live.py qutqaruvi (ishga tushishdagi qadam) — shu vaqtinchalik Asterisk bilan
-  const out = python('asyncio.run(sip_live.rescue_orphans())');
+  // Nazoratchi telefon xizmatini to'xtatganda va u qayta yonganda shunday chaqiradi (scripts/supervise.mjs rescueCalls)
+  const out = execFileSync(resolve('tgvoice', '.venv', 'Scripts', 'python.exe'), ['-X', 'utf8', 'sip_live.py', '--rescue'], {
+    cwd: resolve('tgvoice'), encoding: 'utf8', timeout: 60_000,
+    env: { ...process.env, SIP_ASTERISK_CONF: CONF, SIP_BRIDGE_PORT: String(aiPort), SIP_WSL_DISTRO: distro, PYTHONIOENCODING: 'utf-8' },
+  });
   ok("sip_live.py: ikkala qo'ng'iroq administratorga burildi", (out.match(/burildi/g) ?? []).length === 2, out.trim().split('\n').slice(-2).join(' | '));
   let left = 2;
   for (let i = 0; i < 40 && left; i++) { await sleep(500); left = ast('core show channels concise').split('\n').filter(l => /Local\/99890000000[89]/.test(l)).length; }

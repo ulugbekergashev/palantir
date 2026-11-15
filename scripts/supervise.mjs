@@ -137,6 +137,17 @@ function stopPhone() {
   if (!phone || phone.exitCode !== null) return;
   if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(phone.pid), '/T', '/F'], { stdio: 'ignore' });
   else phone.kill();
+  rescueCalls();
+}
+
+/** To'xtatilgan telefon xizmatining jonli qo'ng'iroqlari — administratorga ([yordam]: jiringlaydi, ko'tarilmasa uzr va so'rov); aks holda mijoz
+ * go'shak qo'ymaguncha jimlikda qoladi (Asterisk 20.6 AI ulanishi uzilganini sezmaydi). Yangilanishda yangi nashr ham ishga tushganda qutqaradi */
+const RESCUE_TIMEOUT_MS = 30_000;
+function rescueCalls() {
+  const out = openSync(join(LOGS, 'telefon.log'), 'a');
+  try {
+    spawnSync(PHONE_PYTHON, ['-X', 'utf8', PHONE_SCRIPT, '--rescue'], { cwd: dirname(PHONE_SCRIPT), stdio: ['ignore', out, out], windowsHide: true, timeout: RESCUE_TIMEOUT_MS });
+  } catch { /* qutqarib bo'lmadi — yangi ishga tushishda qutqaradi */ } finally { closeSync(out); }
 }
 
 /** Serverga «tinch to'xta» deyiladi (yozilayotgan narsa oxiriga yetsin); vaqtida to'xtamasa — majburan */

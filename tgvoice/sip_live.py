@@ -536,4 +536,6 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    # --rescue: faqat AI'siz qolgan qo'ng'iroqlarni administratorga burib chiqadi (nazoratchi telefon xizmatini to'xtatgandan keyin —
+    # scripts/supervise.mjs: aks holda o'sha paytdagi mijozlar jimlikda qoladi, Asterisk 20.6 uzilishni sezmaydi)
+    asyncio.run(rescue_orphans() if '--rescue' in sys.argv else main())
