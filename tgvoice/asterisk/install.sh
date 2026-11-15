@@ -47,13 +47,19 @@ fi
 chown asterisk:asterisk "$DEST"/pjsip_*.conf "$DEST/extensions_palantir.conf"
 rm -f "$DEST/extensions_cerebro.conf" # eski nom: endi o'qilmaydi
 
-# «reload» — qo'ng'iroqlarni uzmasdan qayta yuklash (panel shunday chaqiradi); argumentsiz — to'liq qayta ishga tushirish
-if [ "${1:-}" = "reload" ] && systemctl is-active --quiet asterisk; then
+# «reload» — qo'ng'iroqlarni uzmasdan qayta yuklash (panel shunday chaqiradi); argumentsiz — to'liq qayta ishga tushirish.
+# systemd yo'q (WSL1 — Windows 10): Asterisk'ni sip_live.py yoqadi; bu yerda — to'g'ridan-to'g'ri
+running() { asterisk -rx 'core show version' >/dev/null 2>&1; }
+if [ "${1:-}" = "reload" ] && running; then
   asterisk -rx 'module reload res_pjsip.so' >/dev/null
   asterisk -rx 'dialplan reload' >/dev/null
-else
+elif [ -d /run/systemd/system ]; then
   systemctl restart asterisk
   sleep 2
+else
+  running && { asterisk -rx 'core stop now' >/dev/null 2>&1 || true; sleep 2; }
+  /usr/sbin/asterisk
+  sleep 3
 fi
 asterisk -rx 'pjsip show endpoints' | grep -E 'Endpoint:  (egasi|admin|shahar)' || true
 echo "Asterisk sozlandi"

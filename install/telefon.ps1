@@ -1,9 +1,11 @@
 # Ovoz xizmati va telefon liniyasini o'rnatadi (Windows 10/11, PowerShell 5.1). ornatish.ps1 chaqiradi; alohida ham ishlaydi:
 #   install\Telefon.cmd               - ovoz xizmati (Python) va telefon liniyasi (WSL ichida Asterisk)
 #   install\Telefon.cmd -OnlyVoice    - faqat ovoz xizmati (panel ovozi, "Quloq"); telefon liniyasisiz
-# Qadamlar: oldindan tekshiruv (Windows 11, virtualizatsiya, disk) -> Python -> ovoz xizmati kutubxonalari -> "Quloq" modeli -> .env ->
-#   (administrator huquqi bilan) WSL -> Ubuntu 24.04 -> Asterisk -> mirrored tarmoq -> brandmauer -> Asterisk sozlamalari ->
+# Qadamlar: oldindan tekshiruv (Windows versiyasi, virtualizatsiya, disk) -> Python -> ovoz xizmati kutubxonalari -> "Quloq" modeli -> .env ->
+#   (administrator huquqi bilan) WSL -> Ubuntu 24.04 -> Asterisk -> tarmoq -> brandmauer -> Asterisk sozlamalari ->
 #   o'zini tekshirish -> Palantir qayta yoqiladi (telefon liniyasi xizmati ishga tushsin).
+# Windows 11 22H2+ (build 22621): WSL2, mirrored tarmoq. Windows 10 (2004+) va eski Windows 11: WSL1 - Linux Windows tarmog'ida ishlaydi
+#   (mirrored kerak emas), virtualizatsiya ham kerak emas; systemd yo'q - Asterisk'ni ovoz xizmati (sip_live.py) yoqadi.
 # WSL birinchi marta o'rnatilsa kompyuter qayta yoqiladi: Windows'ga kirilgandan keyin o'rnatish o'zi davom etadi (RunOnce).
 # Har qadam qayta ishga tushirilganda tekshiradi: bor narsa qayta o'rnatilmaydi.
 # Bu faylda faqat ASCII belgilar: PowerShell 5.1 boshqa belgilarni buzib o'qiydi (scripts/check-install.ts tekshiradi).
@@ -25,6 +27,11 @@ $RootfsSums = 'https://cloud-images.ubuntu.com/wsl/releases/24.04/current/SHA256
 # WSL (Hyper-V) virtual mashinalarining brandmauer identifikatori
 $WslVm = '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
 if (-not $WslDir) { $WslDir = Join-Path (Split-Path -Parent $Root) 'palantir-wsl' }
+# Telefon liniyasi qaysi WSL da: mirrored tarmoq Windows 11 22H2 (build 22621) dan; undan eskisida - WSL1 (o'zi Windows tarmog'ida)
+$Build = [Environment]::OSVersion.Version.Build
+$Wsl1 = $Build -lt 22621
+# WSL1 yoqilganmi (Windows qismi "Windows Subsystem for Linux") - administrator huquqisiz ham tekshiriladi
+function Wsl1-Ready { Test-Path (Join-Path $env:windir 'System32\lxss\LxssManager.dll') }
 
 function Step([string]$text) { Write-Host ''; Write-Host "== $text" -ForegroundColor Cyan }
 function Note([string]$text) { Write-Host "   $text" }
@@ -73,13 +80,14 @@ function Current-User { "$env:USERDOMAIN\$env:USERNAME" }
 # Telefon liniyasi uchun shartlar - o'rnatishni boshlashdan oldin, tushunarli sabab bilan
 function Assert-PhonePrereqs {
   Step 'Oldindan tekshiruv (telefon liniyasi)'
-  $build = [Environment]::OSVersion.Version.Build
-  # mirrored tarmoq (Asterisk kompyuterning o'z IP manzilida ko'rinadi) - Windows 11 22H2 (build 22621) dan
-  if ($build -lt 22621) { Fail "Telefon liniyasi Windows 11 (22H2 yoki yangisi) talab qiladi - bu kompyuterda Windows build $build. Ovoz xizmati baribir ishlaydi: install\Telefon.cmd -OnlyVoice" }
-  Note "Windows build $build"
+  # WSL1 ga distributivni fayldan o'rnatish (wsl --import --version) - Windows 10 2004 (build 19041) dan
+  if ($Build -lt 19041) { Fail "Telefon liniyasi Windows 10 (2004 yoki yangisi) talab qiladi - bu kompyuterda Windows build $Build. Windows'ni yangilang. Ovoz xizmati baribir ishlaydi: install\Telefon.cmd -OnlyVoice" }
+  if ($Wsl1) { Note "Windows build $Build - telefon liniyasi WSL1 da (virtualizatsiya kerak emas)" } else { Note "Windows build $Build - telefon liniyasi WSL2 da (mirrored tarmoq)" }
   $wslReady = $false
-  try { $v = Wsl @('--version'); $wslReady = ($LASTEXITCODE -eq 0 -and $v -match 'WSL') } catch { }
-  if (-not $wslReady) {
+  if ($Wsl1) { $wslReady = Wsl1-Ready } else {
+    try { $v = Wsl @('--version'); $wslReady = ($LASTEXITCODE -eq 0 -and $v -match 'WSL') } catch { }
+  }
+  if (-not $wslReady -and -not $Wsl1) {
     # Hyper-V yoqilgan bo'lsa protsessor "firmware'da o'chiq" deydi - shuning uchun ikkalasi ham qaraladi
     $hypervisor = $false; $firmware = $false
     try { $hypervisor = [bool](Get-CimInstance Win32_ComputerSystem).HypervisorPresent } catch { }
@@ -90,7 +98,7 @@ function Assert-PhonePrereqs {
   # Bo'sh joy: WSL platformasi tizim diskida (~1.5 GB) - faqat WSL hali yo'q bo'lsa; Ubuntu va Asterisk distributiv papkasida (~2 GB) -
   # faqat distributiv hali yo'q bo'lsa. Pastga yaxlitlanadi: "2.0 bo'sh, 2 kerak" degan chalkash xabar chiqmasin
   $gb = { param([string]$drive) [math]::Floor((Get-PSDrive $drive.TrimEnd(':')).Free / 1GB * 10) / 10 }
-  if (-not $wslReady) {
+  if (-not $wslReady -and -not $Wsl1) {
     $sysFree = & $gb $env:SystemDrive
     if ($sysFree -lt 2) { Fail "Tizim diskida ($env:SystemDrive) joy kam: $sysFree GB bo'sh, WSL uchun kamida 2 GB kerak" }
   }
@@ -112,6 +120,17 @@ if ($AsteriskPart) {
     Fail "Administrator huquqi boshqa akkaunt ($(Current-User)) nomidan berildi. WSL har foydalanuvchiga alohida: telefon liniyasi Palantir ishlaydigan foydalanuvchiga ($ForUser) o'rnatilishi kerak. Windows'ga administrator huquqli foydalanuvchi bilan kirib, Palantir'ni o'sha foydalanuvchida ishlating."
   }
   Step 'WSL (Windows ichidagi Linux)'
+  if ($Wsl1) {
+    if (-not (Wsl1-Ready)) {
+      Note "WSL1 yoqilmoqda (Windows qismi, internet kerak emas)..."
+      & dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart | Out-Null
+      if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { Fail "WSL1 yoqilmadi (dism kodi $LASTEXITCODE)." }
+      Write-Host ''
+      Write-Host '   WSL yoqildi - kompyuter qayta yoqilishi kerak.' -ForegroundColor Yellow
+      exit 3010
+    }
+    Note 'WSL1 bor'
+  } else {
   $version = Wsl @('--version')
   if ($LASTEXITCODE -ne 0 -or $version -notmatch 'WSL') {
     Note "WSL o'rnatilmagan - o'rnatilmoqda (internet kerak)..."
@@ -122,6 +141,7 @@ if ($AsteriskPart) {
     exit 3010
   }
   Note 'WSL bor'
+  }
 
   Step "Ubuntu 24.04 ($Distro)"
   $distros = Wsl @('-l', '-q')
@@ -143,13 +163,16 @@ if ($AsteriskPart) {
     $got = (Get-FileHash $tar -Algorithm SHA256).Hash.ToLower()
     if (-not $expected -or $got -ne $expected.ToLower()) { Remove-Item $tar -Force; Fail "Ubuntu fayli buzilgan (SHA256 mos emas) - qayta ishga tushiring." }
     New-Item -ItemType Directory -Force $WslDir | Out-Null
-    Run 'Ubuntu import' { & wsl.exe --import $Distro $WslDir $tar --version 2 }
+    $wslVersion = if ($Wsl1) { 1 } else { 2 }
+    Run 'Ubuntu import' { & wsl.exe --import $Distro $WslDir $tar --version $wslVersion }
     Remove-Item $tar -Force
     Note "Ubuntu o'rnatildi: $WslDir"
   }
-  # systemd - Asterisk xizmat sifatida o'zi yonsin
-  $null = WslRoot "grep -q '^systemd=true' /etc/wsl.conf 2>/dev/null || printf '[boot]\nsystemd=true\n' > /etc/wsl.conf"
-  & wsl.exe --terminate $Distro | Out-Null
+  # systemd - Asterisk xizmat sifatida o'zi yonsin (WSL1 da systemd yo'q - Asterisk'ni ovoz xizmati yoqadi)
+  if (-not $Wsl1) {
+    $null = WslRoot "grep -q '^systemd=true' /etc/wsl.conf 2>/dev/null || printf '[boot]\nsystemd=true\n' > /etc/wsl.conf"
+    & wsl.exe --terminate $Distro | Out-Null
+  }
 
   Step 'Asterisk'
   if ((WslRoot 'command -v asterisk >/dev/null') -ne 0) {
@@ -158,8 +181,9 @@ if ($AsteriskPart) {
   }
   Note "Asterisk bor: $((Wsl @('-d', $Distro, '-u', 'root', '--', 'asterisk', '-V')).Trim())"
 
-  Step 'Tarmoq (mirrored) va brandmauer'
-  # Asterisk kompyuterning o'z IP manzilida ko'rinsin (telefonlar va Uztelecom shu manzilga ulanadi)
+  Step 'Tarmoq va brandmauer'
+  # Asterisk kompyuterning o'z IP manzilida ko'rinsin (telefonlar va Uztelecom shu manzilga ulanadi). WSL1 - o'zi shunday
+  if ($Wsl1) { Note 'WSL1: Asterisk Windows tarmog''ida ishlaydi' } else {
   $cfg = Join-Path $env:USERPROFILE '.wslconfig'
   $text = ''
   if (Test-Path $cfg) { $text = Get-Content $cfg -Raw }
@@ -170,6 +194,7 @@ if ($AsteriskPart) {
     Note '.wslconfig: networkingMode=mirrored (WSL qayta yonadi)'
     & wsl.exe --shutdown | Out-Null
   } else { Note 'mirrored tarmoq bor' }
+  }
   # Faqat ichki tarmoqdan: SIP (5060 UDP/TCP) va ovoz (10000-10100 UDP)
   $rules = @(@('Palantir-SIP', 'UDP', '5060'), @('Palantir-SIP-TCP', 'TCP', '5060'), @('Palantir-RTP', 'UDP', '10000-10100'))
   # Eski nomdagi (Cerebro - eski nom) qoidalar olib tashlanadi: o'rniga shu qoidalar qo'yiladi
@@ -194,8 +219,10 @@ if ($AsteriskPart) {
   Run 'install.sh' { & wsl.exe -d $Distro -u root -- bash (To-WslPath (Join-Path $Voice 'asterisk\install.sh')) }
 
   Step "O'zini tekshirish"
-  if ((WslRoot 'systemctl is-active --quiet asterisk') -ne 0) { Fail "Asterisk ishga tushmadi. Kompyuterni qayta yoqib, install\Telefon.cmd ni yana ishga tushiring." }
-  $endpoints = Wsl @('-d', $Distro, '-u', 'root', '--', 'asterisk', '-rx', 'pjsip show endpoints')
+  # WSL1 da Asterisk'ni hech kim yoqmagan bo'lishi mumkin (systemd yo'q; oxirgi oyna yopilganda WSL o'chadi) - shu yerda yoqiladi,
+  # tekshiruv bitta seansda. systemd'li WSL2 da u allaqachon ishlaydi (pgrep topadi)
+  $endpoints = Wsl @('-d', $Distro, '-u', 'root', '--exec', 'sh', '-c', "pgrep -x asterisk >/dev/null || /usr/sbin/asterisk; for i in 1 2 3 4 5 6 7 8 9 10; do /usr/sbin/asterisk -rx 'core show version' >/dev/null 2>&1 && break; sleep 1; done; /usr/sbin/asterisk -rx 'pjsip show endpoints'")
+  if ($endpoints -match 'Unable to connect') { Fail "Asterisk ishga tushmadi. Kompyuterni qayta yoqib, install\Telefon.cmd ni yana ishga tushiring." }
   if ($endpoints -notmatch 'egasi' -or $endpoints -notmatch 'admin') { Fail "Asterisk sozlamalari yuklanmadi (egasi va administrator telefonlari yo'q)" }
   Note 'Asterisk ishlayapti, egasi va administrator telefonlari sozlangan'
   # Har qo'ng'iroqda Asterisk Palantir'dan "kim javob beradi" deb so'raydi (extensions.conf) - WSL ichidan Palantir ko'rinishi kerak

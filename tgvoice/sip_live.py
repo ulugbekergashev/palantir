@@ -496,10 +496,12 @@ def _env_has(name: str) -> bool:
 
 
 def keep_wsl_alive() -> subprocess.Popen | None:
-    """WSL hech kim ishlatmasa o'zi o'chadi (Asterisk ham) — shu dastur ishlab turguncha yoqiq tursin"""
+    """WSL hech kim ishlatmasa o'zi o'chadi (Asterisk ham) — shu dastur ishlab turguncha yoqiq tursin. Asterisk ishlamayotgan bo'lsa —
+    yoqiladi: WSL1 da (Windows 10) systemd yo'q, uni hech kim yoqmaydi; systemd'li WSL2 da u allaqachon ishlaydi (pgrep topadi)"""
+    keep = 'pgrep -x asterisk >/dev/null || /usr/sbin/asterisk; exec sleep infinity'
     try:
-        return subprocess.Popen(['wsl.exe', '-d', DISTRO, '--', 'sleep', 'infinity'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))   # fonda ishlaganda oyna ochilmasin
+        return subprocess.Popen(['wsl.exe', '-d', DISTRO, '-u', 'root', '--exec', 'sh', '-c', keep], stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))   # fonda — oynasiz
     except FileNotFoundError:
         log('—', "WSL topilmadi — Asterisk boshqa joyda bo'lsa, shunchaki ulanishni kutaman")
         return None

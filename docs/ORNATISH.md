@@ -84,8 +84,9 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
 
    **Telefon liniyasi** (AI qabulxona shahar raqamida) bu yerda o'rnatilmaydi — Uztelecom SIP ma'lumotlari kelganda alohida: `install\Telefon.cmd`
    (administrator huquqi bilan WSL, Ubuntu 24.04 ≈340 MB SHA256 bilan, Asterisk, `.wslconfig` da mirrored tarmoq, brandmauer qoidalari 5060 va
-   10000–10100 — faqat ichki tarmoq). Avval tekshiradi: Windows 11 22H2+ (mirrored tarmoq shunda bor), BIOS'da virtualizatsiya, bo'sh joy
-   (tizim diskida 2 GB, WSL papkasida 3 GB), administrator huquqi **shu foydalanuvchida** (boshqa akkaunt nomidan berilsa — to'xtaydi: WSL har
+   10000–10100 — faqat ichki tarmoq). Windows 11 22H2+ da — WSL2 va mirrored tarmoq; **Windows 10 (2004+) va eski Windows 11 da — WSL1** (Linux Windows tarmog'ida
+   ishlaydi, mirrored va virtualizatsiya kerak emas; systemd yo'q — Asterisk'ni ovoz xizmati yoqadi). Avval tekshiradi: Windows versiyasi, WSL2 uchun
+   BIOS'da virtualizatsiya, bo'sh joy (WSL2 da tizim diskida 2 GB, WSL papkasida 3 GB), administrator huquqi **shu foydalanuvchida** (boshqa akkaunt nomidan berilsa — to'xtaydi: WSL har
    foydalanuvchiga alohida). WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqing, Windows'ga kirilganda o'rnatish o'zi davom etadi.
    Oxirida o'zini tekshiradi (Asterisk yoniq, egasi/administrator telefonlari sozlangan, Asterisk Palantir'ga yetadi) va Palantir'ni qayta
    yoqadi — AI qabulxona xizmati ishga tushadi. Har qadam qayta bosilganda bor narsani o'tkazib yuboradi.

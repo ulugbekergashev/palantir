@@ -92,7 +92,7 @@ so'zlar, usta egasidan yashiriladi), C9 (ikki DentaCRM shakli → bitta), C10 (I
 1. ~~**B2**~~ — ha, aniq tanlov (bajarildi).
 2. ~~**B1**~~ — ha, AI administrator asosiy; Direktor qo'shimcha (bajarildi).
 3. ~~**B3**~~ — «Palantir» (bajarildi, 2026-11-15).
-4. **Telefon:** egasi qarori — Windows 10 ni ham qo'llash. Ish: WSL NAT rejimida Asterisk (UDP SIP/RTP ichkariga yo'naltirilmaydi — yechim izlanadi); sinash uchun Windows 10 kompyuter kerak.
+4. **Telefon:** egasi qarori — Windows 10 ni ham qo'llash. Yechim (2026-11-16): Windows 10 da **WSL1** — Linux Windows tarmog'ida ishlaydi (NAT ko'prigi kerak emas, virtualizatsiya ham). Shu kompyuterdagi WSL1 sinov distributivida: `test:dialplan` 24/24, PJSIP+RTP o'ziga qo'ng'iroq (298/298 paket, yo'qotishsiz). `install/telefon.ps1` build < 22621 da WSL1 ni tanlaydi. Qoldi: haqiqiy Windows 10 kompyuterda o'rnatgichni boshidan oxirigacha va ichki tarmoqdagi telefon (MicroSIP) bilan sinash.
 5. **T5:** haqiqiy Uztelecom raqami — qaysi klinikada va qachon sinaymiz?
 6. ~~**D8**~~ — sinov muddati yo'q, kalit bilan.
 
