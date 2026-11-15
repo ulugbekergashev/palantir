@@ -44,13 +44,15 @@ export function AgentOrb({ member, size = 84, live = false }: { member: Member; 
 export interface Stat { label: string; value: ReactNode; hint?: string; tone?: 'warn' | 'good' }
 
 /** Xodim sarlavhasi: sfera, ismi, nima qiladi, jonli holati va bugungi raqamlar; ostida — varaqlar */
-export function AgentHero({ member, state, stats, children, compact = false, period, controls = true }: {
+export function AgentHero({ member, state, stats, children, compact = false, period, controls = true, about }: {
   member: Member; state: MemberState | null; stats: Stat[]; children?: ReactNode;
   /** Ixcham: ism va varaqlar bir qatorda (suhbat kabi ekranni to'ldiradigan varaq) */ compact?: boolean;
   /** Raqamlar qaysi davrniki («Bugun», «7 kun · kechagacha») — xodimlar sahifalaridagi sonlar bir-biriga zid ko'rinmasin (G9) */
   period?: string;
   /** «Nazorat» bloki (nima tugmasiz, nima egasining tugmasi bilan) — egasiga; qabulxona xodimiga emas (I5) */
   controls?: boolean;
+  /** Tavsif o'rniga (qabulxona xodimiga — egasining «siz tasdiqlaysiz» gapi emas, I5) */
+  about?: string;
 }) {
   const m = TEAM[member], h = HUE[member];
   if (compact) {
@@ -76,7 +78,7 @@ export function AgentHero({ member, state, stats, children, compact = false, per
         <div className="min-w-0 flex-1 sm:basis-72">
           <p className="hidden text-[12px] font-semibold uppercase tracking-[0.16em] sm:block" style={{ color: h.text }}>{m.role}</p>
           <h1 className="text-[24px] font-bold leading-[1.05] tracking-[-0.02em] text-[#f2f0ea] sm:mt-1 sm:text-[38px]">{m.name}</h1>
-          <p className="mt-2 hidden max-w-2xl text-[15px] leading-relaxed text-[#a3a9b5] sm:block">{m.about}</p>
+          <p className="mt-2 hidden max-w-2xl text-[15px] leading-relaxed text-[#a3a9b5] sm:block">{about ?? m.about}</p>
         </div>
         {state && (
           <span className="flex items-center gap-2 rounded-full border border-glass/10 bg-glass/[0.04] px-3 py-1.5 text-[13px] font-medium text-[#f2f0ea] sm:px-4 sm:py-2 sm:text-sm">

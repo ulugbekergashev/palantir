@@ -45,6 +45,9 @@ import { SettingsHub } from './settings/SettingsHub';
 interface Common { biz: Business; status: LiveStatus; now: Date; notify: Notify; onChanged: () => void; tab: string | null; state: MemberState | null; tick: number }
 const pick = (tab: string | null, ids: string[]) => (tab && ids.includes(tab) ? tab : ids[0]);
 
+/** Qabulxona xodimi ko'radigan tavsif: javob rejimini egasi tanlaydi, xodim esa so'rov va savollarni hal qiladi (I5) */
+const STAFF_ABOUT = "Bemorlarga Telegram, Instagram va telefonda javob beradi, qabulga yozadi. AI bilmagan savol va so'rovlar sizga keladi — javob bering yoki bemorga qo'ng'iroq qiling. Javob rejimini klinika egasi tanlaydi.";
+
 /** limited — qabulxona xodimi (server/access.ts): AI xodimlarga topshiriq bera olmaydi */
 export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now, limited = false }: Common & { limited?: boolean }) {
   const active = pick(tab, ['bugun', 'sorovlar', 'qongiroqlar', 'yozishmalar', ...(limited ? [] : ['topshiriqlar'])]);
@@ -66,7 +69,7 @@ export function ReceptionArea({ tab, notify, onChanged, state, status, tick, now
   ];
   return (
     <div className="space-y-6">
-      <AgentHero member="qabulxona" state={state} stats={stats} period={PERIOD_CAPTION.today} controls={!limited}>
+      <AgentHero member="qabulxona" state={state} stats={stats} period={PERIOD_CAPTION.today} controls={!limited} about={limited ? STAFF_ABOUT : undefined}>
         <AgentTabs area="qabulxona" active={active} tabs={[{ id: 'bugun', label: 'Bugun' }, { id: 'sorovlar', label: "So'rovlar", count: data?.requests.length }, { id: 'qongiroqlar', label: "Qo'ng'iroqlar" }, { id: 'yozishmalar', label: 'Yozishmalar' }, ...(limited ? [] : [{ id: 'topshiriqlar', label: 'Topshiriqlar' }])]} />
       </AgentHero>
       {active === 'bugun' && <ReceptionToday data={data} reload={reload} notify={notify} status={status} onChanged={onChanged} tick={tick} limited={limited} />}

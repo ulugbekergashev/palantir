@@ -148,6 +148,8 @@ try {
     && !(await page.getByPlaceholder(/AI administratordan so'rang/).count()) && !(await page.getByText('Nazorat', { exact: true }).count())
     && !(await page.getByRole('link', { name: 'ulash' }).count()) && await page.getByText('rejimni klinika egasi tanlaydi').isVisible());
   ok("I5: «Sizni kutyapti» o'rniga «Ochiq so'rov» (xodimga «Sizni kutyapti» yopiq)", await page.getByText("Ochiq so'rov").isVisible() && !(await page.getByText('Sizni kutyapti').count()));
+  ok("I5: sarlavha tavsifi xodimga — «siz tasdiqlab yuborasiz» emas, «Javob rejimini klinika egasi tanlaydi»",
+    await page.getByText('Javob rejimini klinika egasi tanlaydi.', { exact: false }).isVisible() && !(await page.getByText('siz tasdiqlab yuborasiz', { exact: false }).count()));
   ok("I9: telefon ulanmagan, qo'ng'iroq bo'lmagan — «0 qo'ng'iroq» emas, «telefon ulanmagan»", await page.getByText('telefon ulanmagan').first().isVisible());
   await page.goto(`${base}/#/qabulxona/yozishmalar`);
   await page.getByText('Palantir javob tayyorlaydi').first().waitFor({ timeout: 10_000 });
