@@ -17,6 +17,7 @@
     "release": "tsx scripts/release.ts",
     "setup-exe": "tsx scripts/setup-exe.ts",
     "restore-backup": "tsx scripts/restore-backup.ts",
+    "zaxira-kalit-nusxa": "tsx scripts/backup-key-copy.ts",
     "check": "node --no-warnings --import tsx scripts/preflight.ts",
     "live": "tsx scripts/live.ts",
     "preview": "vite preview --port 3101 --host localhost",

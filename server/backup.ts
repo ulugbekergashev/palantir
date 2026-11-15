@@ -1,17 +1,23 @@
 /**
  * Zaxira nusxa: kuniga bir marta baza (izchil nusxa), «ikkinchi miya» papkasi va maxfiy kalit BACKUP_DIR/YYYY-MM-DD ga ko'chiriladi.
  * Oxirgi BACKUP_KEEP kun saqlanadi. Tiklash: server to'xtatiladi, DATA_DIR dagi palantir.db-wal va palantir.db-shm o'chiriladi
- * (eski jurnal yangi baza ustiga «qayta ijro» qilinmasin), keyin shu papkadagi uchta narsa DATA_DIR ga qaytariladi.
+ * (eski jurnal yangi baza ustiga «qayta ijro» qilinmasin), keyin palantir.db, miya/ va session.secret DATA_DIR ga qaytariladi,
+ * sozlamalar.env esa ilova papkasiga .env nomi bilan (bo'lsa). Telefon raqami sozlamasi bazada — Asterisk fayllari o'zi qayta yoziladi.
  * Kalit (session.secret) ham kerak: usiz bazadagi ulanish parollari (DentaCRM, Telegram seansi) ochilmaydi.
  * Hub kodi bo'lsa — shu nusxa shifrlanib hubga ham yuboriladi (offsite.ts); yuborilmasa — har soatlik tekshiruvda qayta uriniladi.
  */
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { iso } from '../src/lib/week';
 import { copyDb } from './db';
 import { env } from './env';
 import { sendOffsite } from './offsite';
 
+/**
+ * Ilova sozlamalari fayli — server shu papkadan ishga tushadi (env.ts: process.loadEnvFile('.env')). DOTENV=0 — ilova uni o'qimagan
+ * (sinovlar): nusxalanmaydi, aks holda ishlab chiquvchining kalitlari sinov zaxirasiga tushardi
+ */
+const ENV_FILE = process.env.DOTENV === '0' ? null : resolve('.env');
 const FIRST_MS = Number(process.env.BACKUP_FIRST_MS) || 2 * 60_000, CHECK_MS = 60 * 60_000;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 /** O'zimiz yozgan nusxa: ichida baza bor (avvalgi nusxalarda — cerebro.db, eski nom) */
@@ -30,6 +36,9 @@ export function backupNow(now = new Date()): string | null {
   // Havolalar ko'chirilmaydi: papkaga tashlangan yorliq boshqa diskdagi narsani nusxaga tortib kelmasin
   if (existsSync(vault)) cpSync(vault, join(tmp, 'miya'), { recursive: true, filter: src => !lstatSync(src).isSymbolicLink() });
   if (existsSync(secret)) cpSync(secret, join(tmp, 'session.secret'));
+  // Sozlamalar fayli (kalitlar, port, Hub kodi): usiz tiklangan kompyuterda hammasini qaytadan kiritish kerak edi (H5). Tashqi zaxira
+  // sotuvchining kaliti bilan shifrlanadi; Claude kirishi (foydalanuvchi papkasida) qo'shilmaydi — klinikaning shaxsiy hisobi, qayta kiriladi
+  if (ENV_FILE && existsSync(ENV_FILE)) cpSync(ENV_FILE, join(tmp, 'sozlamalar.env'));
   renameSync(tmp, dest);
   prune();
   return dest;

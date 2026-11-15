@@ -134,8 +134,10 @@ const zadarmaSeen = new Map<string, { at: number; problem: string | null }>();
 export async function lineChecks(bizId: string, now = Date.now()): Promise<{ key: string; label: string; problem: string | null }[]> {
   const a = connections.get(bizId, KIND)?.account;
   if (!ENABLED || !a?.host) return [];
-  // Ovozli agent kaliti yangilangan (yoki o'rnatishda .env da yo'q edi) yoki yangilanish yangi sozlama olib keldi — Asterisk'ka yetkaziladi
-  if (writePalantirConf() || shippedDue(now)) await applyLine().catch(e => console.error('[telefon] kalit Asterisk\'ka yozilmadi:', (e as Error).message));
+  // Ovozli agent kaliti yangilangan (yoki o'rnatishda .env da yo'q edi), yangilanish yangi sozlama olib keldi yoki zaxiradan tiklangan
+  // kompyuterda raqam fayllari yo'q (H5) — Asterisk'ka yetkaziladi
+  const restored = restoreLineConf(bizId, a);
+  if (writePalantirConf() || restored || shippedDue(now)) await applyLine().catch(e => console.error('[telefon] kalit Asterisk\'ka yozilmadi:', (e as Error).message));
   const out = [{ key: 'phone_line', label: 'Telefon liniyasi', problem: lineProblemOf(await lineStatus()) }];
   const keys = zadarmaKeysOf(bizId);
   if (a.provider === 'zadarma' && keys && a.number) {
@@ -246,6 +248,26 @@ function shippedDue(now: number): boolean {
   if (now - shippedTriedAt < SHIPPED_RETRY_MS || !shippedChanged()) return false;
   shippedTriedAt = now;
   return true;
+}
+
+/**
+ * Raqam va administrator telefoni sozlamasi bazada (shifrlangan, zaxiraga kiradi), Asterisk fayllari esa faqat saqlashda yozilardi:
+ * zaxiradan tiklangan yoki qayta o'rnatilgan kompyuterda fayl yo'q — qo'ng'iroq ketmasdi (H5). Fayl yo'q bo'lsa — bazadan qayta yoziladi.
+ * Qaytadi: biror fayl yozildimi (Asterisk qayta yuklanishi kerak)
+ */
+function restoreLineConf(bizId: string, a: Record<string, string>): boolean {
+  if (!ENABLED) return false;
+  const s = secretsOf(bizId);
+  let wrote = false;
+  if (s.password && a.host && a.login && !existsSync(join(DIR, 'pjsip_shahar.conf'))) {
+    writeTrunkConf({ host: a.host, port: Number(a.port) || 5060, login: a.login, number: a.number ?? '' }, s.password);
+    wrote = true;
+  }
+  if (s.admin && !existsSync(join(DIR, 'pjsip_admin.conf'))) {
+    writeAdminConf(s.admin);
+    wrote = true;
+  }
+  return wrote;
 }
 
 /** Fayllar Asterisk'ka o'rnatiladi (qo'ng'iroqlarni uzmasdan qayta yuklanadi) */

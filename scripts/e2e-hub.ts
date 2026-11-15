@@ -106,6 +106,7 @@ try {
   ok("hubda ochiq ma'lumot yo'q (bazaning SQLite sarlavhasi ko'rinmaydi)", blob.length === backup!.size && !blob.includes('SQLite format 3'));
   const opened = unzipSync(new Uint8Array(unseal(VENDOR.private, blob)));
   ok("sotuvchining maxfiy kaliti bilan ochiladi: baza va session.secret", Buffer.from(opened['palantir.db'] ?? []).subarray(0, 15).toString() === 'SQLite format 3' && !!opened['session.secret'], Object.keys(opened).join(', '));
+  ok("DOTENV=0 (ilova .env o'qimagan) — sozlamalar fayli zaxiraga tushmaydi (H5)", !opened['sozlamalar.env'], Object.keys(opened).join(', '));
   ok('begona kalit bilan ochilmaydi', (() => { try { unseal(STRANGER.private, blob); return false; } catch { return true; } })());
   ok("admin kalitsiz yuklab bo'lmaydi", (await fetch(`${HUB}/admin/backups/${clinic.clinicId}/${backup!.file}`)).status === 401);
   const notBackup = await fetch(`${HUB}/api/backup?day=2026-01-01`, { method: 'POST', headers: { authorization: `Bearer ${parseHubCode(clinic.code)!.key}` }, body: 'oddiy matn' });
@@ -115,6 +116,14 @@ try {
   fs.writeFileSync(pzb, blob);
   const restored = spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', 'scripts/restore-backup.ts', pzb, '--key', keyFile, '--out', out], { encoding: 'utf8' });
   ok('npm run restore-backup: papkaga ochdi', restored.status === 0 && fs.existsSync(path.join(out, 'palantir.db')) && fs.existsSync(path.join(out, 'session.secret')), (restored.stdout + restored.stderr).trim());
+  // H5: kalitning parolli nusxasi (npm run zaxira-kalit-nusxa) — zaxira u bilan ham ochiladi; noto'g'ri parol bilan — yo'q
+  const copy = path.join(work, 'kalit-nusxa.pem'), out2 = path.join(work, 'ochilgan-2');
+  const withPass = (pass: string) => ({ encoding: 'utf8' as const, env: { ...process.env, ZAXIRA_PAROL: pass } });
+  const copied = spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', 'scripts/backup-key-copy.ts', '--key', keyFile, '--out', copy], withPass('nusxa-paroli-123'));
+  ok('H5: kalitning parolli nusxasi yaratildi (shifrlangan PEM)', copied.status === 0 && fs.readFileSync(copy, 'utf8').includes('ENCRYPTED PRIVATE KEY'), (copied.stdout + copied.stderr).trim());
+  const viaCopy = spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', 'scripts/restore-backup.ts', pzb, '--key', copy, '--out', out2], withPass('nusxa-paroli-123'));
+  const wrongPass = spawnSync(process.execPath, ['--no-warnings', '--import', 'tsx', 'scripts/restore-backup.ts', pzb, '--key', copy, '--out', path.join(work, 'ochilgan-3')], withPass('notogri-parol-00'));
+  ok("H5: zaxira parolli nusxa bilan ochiladi, noto'g'ri parol bilan — yo'q", viaCopy.status === 0 && fs.existsSync(path.join(out2, 'palantir.db')) && wrongPass.status !== 0, (viaCopy.stdout + viaCopy.stderr).trim().slice(0, 300));
   const reported = await until('holatda zaxira', async () => (await adminList()).find(c => c.id === clinic.clinicId && (c.status as { lastOffsite?: { ok: boolean } } | null)?.lastOffsite?.ok), 10_000);
   ok("hub holatida: oxirgi tashqi zaxira yetdi", !!reported);
 
