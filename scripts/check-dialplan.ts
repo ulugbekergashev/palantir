@@ -8,7 +8,7 @@
  * administrator ko'tarmasa — AI, ko'tarsa — «gaplashdi» Palantir'ga, Palantir javob bermasa — AI, raqam Palantir'ga yetadi; AI suhbat
  * o'rtasida administratorga o'tkazadi (sip_live.py redirect), u ko'tarmasa — AI'ga qaytadi; AI yiqilsa — sip_live.py qayta yonganda qutqaradi.
  * Administrator telefoni — soxta (ADMIN_PHONE = Local/javob|jim@sinov_admin): haqiqiy SIP telefon va operator liniyasi sinalmaydi.
- * Faqat Windows + WSL (distributiv: WSL_DISTRO, bo'lmasa Palantir yoki Cerebro) va unda Asterisk o'rnatilgan bo'lsa.
+ * Faqat Windows + WSL (distributiv: WSL_DISTRO, bo'lmasa Palantir yoki Cerebro — eski nom) va unda Asterisk o'rnatilgan bo'lsa.
  */
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -28,7 +28,7 @@ const SRC = resolve('tgvoice', 'asterisk');
 
 const distro = process.env.WSL_DISTRO || (() => {
   const have = execFileSync('wsl', ['-l', '-q'], { encoding: 'utf8' }).replace(/\0/g, '').split(/\r?\n/).map(s => s.trim());
-  return !have.includes('Palantir') && have.includes('Cerebro') ? 'Cerebro' : 'Palantir';
+  return !have.includes('Palantir') && have.includes('Cerebro') ? 'Cerebro' : 'Palantir'; // eski nom
 })();
 const wsl = (script: string, timeout = 30_000) => execFileSync('wsl', ['-d', distro, '-u', 'root', '--exec', 'sh', '-c', script], { encoding: 'utf8', timeout }).replace(/\0/g, '');
 const ast = (cmd: string) => wsl(`asterisk -C ${CONF} -rx '${cmd}'`);
