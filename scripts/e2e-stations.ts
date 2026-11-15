@@ -112,6 +112,7 @@ try {
   const report = await waitFor('egasiga tahlil', () => to(OWNER, mark, "Kiruvchi qo'ng'iroq"), 20_000);
   calls = (await api('/api/calls', { token })).json.calls;
   ok("yozuv qo'ng'iroqqa biriktirildi, matn va tahlil — egasiga xabar", !!report && calls[0].hasRecording && calls[0].review === 'done', textOf(report).slice(0, 120));
+  ok("F12: baho kompyuterga biriktirilgan xodimga — «Xodim — Aziza: 8/10»", textOf(report).includes('Xodim — Aziza: 8/10'), textOf(report));
   const audio = await fetch(`${base}/api/calls/${calls[0].id}/audio`, { headers: { authorization: `Bearer ${token}` } });
   ok('panelda yozuvni tinglash mumkin', audio.status === 200 && (await audio.arrayBuffer()).byteLength === 30_000);
 

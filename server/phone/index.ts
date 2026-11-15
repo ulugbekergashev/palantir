@@ -21,7 +21,7 @@ import { notifyOwner } from '../inbox/core';
 import { leadForPhone } from '../people';
 import { revive } from '../stages';
 import { addResult, closeRequest, noAnswer, nudgeRequest, openRequest, reachesOwner, setDialer, settleByBooking } from '../requests/index';
-import { requests } from '../requests/store';
+import { requests, staff } from '../requests/store';
 import { SilenceError } from '../stt';
 import { analyseCall } from './analysis';
 import { ensureHookExe } from './hook';
@@ -297,6 +297,15 @@ function cardByName(bizId: string, lead: LeadRow | undefined, name: string | nul
   return leads.byPhone(bizId, lead.phone).find(l => l.id !== lead.id && shareWord(l.name, name)) ?? lead;
 }
 
+/** Qo'ng'iroqda kim gaplashgan: stansiya kompyuteriga biriktirilgan xodim yoki kompyuter nomi (asosiy kompyuter — null) */
+function callTalker(bizId: string, station: string | null): string | null {
+  if (!station || station === LOCAL_STATION) return null;
+  const st = stations.get(bizId, station);
+  if (!st) return null;
+  const who = st.staffId ? staff.byId(bizId, st.staffId)?.name : null;
+  return who ? `Xodim — ${who}` : `Xodim (${st.name})`;
+}
+
 /** Yozuv → matn → tahlil → mijoz kartasi, so'rov, egasiga xabar. Xato bo'lsa — «failed» (panelda ko'rinadi) */
 export async function review(bizId: string, callId: string): Promise<void> {
   const biz = businesses.byId(bizId);
@@ -336,13 +345,15 @@ export async function review(bizId: string, callId: string): Promise<void> {
       .catch(e => { console.error(`[telefon] ${callId} so'rov ochilmadi:`, (e as Error).message); return null; })
     : null;
   const who = lead?.name || a.customerName || prettyPhone(c.phone);
-  // Xodim bahosi — faqat egasiga (xodim kartasida yo'q)
+  // Xodim bahosi — faqat egasiga (xodim kartasida yo'q). Kim gaplashgani: qo'ng'iroq bo'lgan kompyuterga biriktirilgan xodim (F12),
+  // bo'lmasa — kompyuter nomi; shu kompyuterning o'zidagi MicroSIP — ismsiz
+  const talker = callTalker(bizId, c.station);
   const summary = (isOwner: boolean) => [
     `📞 <b>${c.direction === 'in' ? 'Kiruvchi' : 'Chiquvchi'} qo'ng'iroq</b> · ${mmss(sec)} — ${esc(who)}`,
     esc(a.summary),
     a.agreed ? `${OUTCOME_LABEL[a.outcome]}: ${esc(a.agreed)}` : OUTCOME_LABEL[a.outcome] !== '•' ? OUTCOME_LABEL[a.outcome] : '',
     a.nextStep ? `➡️ ${esc(a.nextStep)}` : '',
-    isOwner && a.score ? `🗣 Xodim: ${a.score}/10${a.staffNote ? ` — ${esc(a.staffNote)}` : ''}` : '',
+    isOwner && a.score ? `🗣 ${talker ? esc(talker) : 'Xodim'}: ${a.score}/10${a.staffNote ? ` — ${esc(a.staffNote)}` : ''}` : '',
     '<i>Yozuv va matn: panel → Qo\'ng\'iroqlar</i>',
   ].filter(Boolean).join('\n');
   if (opened?.announce) {
