@@ -81,6 +81,15 @@ export const phoneCalls = {
   recentIn: (businessId: string, key: string, at: number, lookBack: number) =>
     sql.one("SELECT * FROM calls WHERE business_id = ? AND source = 'microsip' AND phone_key = ? AND direction = 'in' AND ended_at >= ? ORDER BY started_at DESC LIMIT 1",
       toPhoneCall, businessId, key, iso(at - lookBack)),
+  /** Shu raqamdagi, at'ga yaqin (± oyna) boshlangan kiruvchi MicroSIP yozuvi — Asterisk liniyasi bilan takrorni topish (T7) */
+  microsipNear: (businessId: string, phone: string, at: number, windowMs: number) => {
+    const key = phoneKey(phone);
+    if (!key) return undefined;
+    return sql.one("SELECT * FROM calls WHERE business_id = ? AND source = 'microsip' AND phone_key = ? AND direction = 'in' AND started_at BETWEEN ? AND ? ORDER BY started_at DESC LIMIT 1",
+      toPhoneCall, businessId, key, iso(at - windowMs), iso(at + windowMs));
+  },
+  /** Takror yozuv olib tashlanadi (Asterisk liniyasidagi qo'ng'iroqning MicroSIP'dagi «ko'tarilmadi» qismi) */
+  remove: (businessId: string, id: string) => sql.run('DELETE FROM calls WHERE business_id = ? AND id = ?', businessId, id),
   allOpen: (businessId: string) => sql.many("SELECT * FROM calls WHERE business_id = ? AND source = 'microsip' AND ended_at IS NULL", toPhoneCall, businessId),
   setState(businessId: string, id: string, state: CallState, at: number, opts: { answered?: boolean; ended?: boolean; reopened?: boolean }): PhoneCallRow {
     const cur = phoneCalls.get(businessId, id)!;

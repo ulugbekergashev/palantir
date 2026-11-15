@@ -138,6 +138,7 @@ try {
   ok("xodimga karta: «Qo'ng'iroq qilish · o'tkazib yuborilgan qo'ng'iroq», raqam, «📞 Kompyuterdan» tugmasi", textOf(card).includes("Qo'ng'iroq qilish") && textOf(card).includes('+998 94 444 55 66') && buttons(card).some(b => b.callback_data?.startsWith('qc|')), textOf(card));
   let calls = (await api('/api/calls', { token })).json.calls;
   ok("jurnal: kiruvchi, o'tkazib yuborilgan, mijoz kartasiga bog'langan", calls[0]?.source === 'microsip' && calls[0].direction === 'in' && calls[0].status === 'missed' && !!calls[0].leadId);
+
   mark = sent.length;
   await sleep(6000);
   microsip('incoming', '+998944445566');
@@ -200,6 +201,31 @@ try {
   ok("B8: egasiga ham bitta xabar — xulosa, baho va so'rov birga (alohida xulosa xabari yo'q)",
     !!ownerCard && textOf(ownerCard).includes('6/10') && ownerMsgs.length === 1, ownerMsgs.map(s => textOf(s).slice(0, 80)).join(' | '));
   ai.callAnalysis = null;
+
+  // T7: MicroSIP — Asterisk liniyasining administrator telefoni. Asterisk qo'ng'iroq boshida raqamni aytadi (/api/voice/route?phone=)
+  console.log("\n# T7: AI liniyasi va MicroSIP — bitta qo'ng'iroq, bitta yozuv");
+  const voiceKey = (await api('/api/voice/key', { token, body: {} })).json.key as string;
+  const asterisk = (p: string) => fetch(`${base}${p}`, { method: p.startsWith('/api/voice/route') ? 'GET' : 'POST', headers: { authorization: `Bearer ${voiceKey}` }, ...(p.startsWith('/api/voice/route') ? {} : { body: 'x=1' }) });
+  mark = sent.length;
+  ok("T7: Asterisk «kim javob beradi» so'radi (raqam bilan)", (await asterisk('/api/voice/route?phone=998944447777')).status === 200);
+  microsip('incoming', '998944447777');
+  await sleep(600);
+  microsip('end', '998944447777');
+  await sleep(2500);
+  calls = (await api('/api/calls', { token })).json.calls;
+  ok("T7: administrator MicroSIP'da ko'tarmadi, qo'ng'iroq AI'da davom etdi — «o'tkazib yuborilgan» so'rovi ochilmadi, takror yozuv yo'q",
+    !to(STAFF, mark, '+998 94 444 77 77') && !calls.some((c: { phone: string }) => c.phone.includes('944447777')), JSON.stringify(calls.slice(0, 3)).slice(0, 300));
+  microsip('incoming', '998944448888');
+  await sleep(300);
+  microsip('answer', '998944448888');
+  microsip('start', '998944448888');
+  await sleep(600);
+  microsip('end', '998944448888');
+  await sleep(800);
+  const twin = await (await asterisk('/api/voice/answered?phone=998944448888&sec=5')).json() as { duplicate?: boolean };
+  calls = (await api('/api/calls', { token })).json.calls;
+  ok("T7: administrator MicroSIP'da ko'tardi — Asterisk'ning «ko'tardi» xabari ikkinchi yozuv ochmadi (MicroSIP'niki yozuvi bilan qoladi)",
+    twin.duplicate === true && calls.filter((c: { phone: string }) => c.phone.includes('944448888')).length === 1, JSON.stringify(twin));
 
   console.log('\n# Uzish');
   // Ochiq so'rov (oldingisi qo'ng'iroqdan keyin o'zi yopildi): uzilgach uning kartasida «📞 Kompyuterdan» bo'lmasligi kerak

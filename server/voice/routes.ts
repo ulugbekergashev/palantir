@@ -20,6 +20,7 @@ import { phoneCalls } from '../phone/store';
 import { newVoiceKey, voiceKeyOwner } from './agentKey';
 import { applyLine, checkLine, connectZadarma, lineRouting, lineView, newAdminPassword, routeNow, saveRouting, saveTrunk, transferNow } from './line';
 import { adoptVoiceKey } from './serviceEnv';
+import { LINE_CALL_WINDOW_MS, markLineCall } from './lineCalls';
 import { ZadarmaError } from './zadarma';
 import { crewWorks } from '../../src/lib/crew';
 
@@ -176,7 +177,12 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
 
   // Agent: bo'sh vaqtlar (model o'qiydigan matn)
   // Asterisk har kiruvchi qo'ng'iroqda so'raydi (extensions.conf, [kiruvchi]): «admin:20» — avval administrator telefoni, yoki «ai»
-  app.get('/api/voice/route', asAgent((_req, res, biz) => { res.type('text/plain').send(routeNow(lineRouting(biz.id), new Date())); }));
+  // Raqam ham keladi (T7): administrator telefoni MicroSIP bo'lsa, uning yozuvi shu qo'ng'iroq bilan solishtiriladi (lineCalls.ts)
+  app.get('/api/voice/route', asAgent((req, res, biz) => {
+    const phone = MissedSchema.safeParse(req.query);
+    if (phone.success) markLineCall(biz.id, phone.data.phone);
+    res.type('text/plain').send(routeNow(lineRouting(biz.id), new Date()));
+  }));
   // AI qabulxona (sip_live.py): hozir administratorga o'tkaza oladimi — ish vaqtida «ai_transfer» rejimida necha soniya jiringlashi, bo'lmasa null
   app.get('/api/voice/handoff', asAgent((_req, res, biz) => { res.json({ ring: transferNow(lineRouting(biz.id), new Date()) }); }));
 
@@ -346,6 +352,9 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
     if (!p.success) return bad(res, p.error);
     if (calls.savedSince(biz.id, ago(HOUR_MS)) >= CALLS_PER_HOUR) return res.status(429).json({ error: "Juda ko'p qo'ng'iroq — keyinroq yuboring", code: 'limit' });
     const sec = Math.min(7200, p.data.sec ?? 0);
+    // Administrator MicroSIP'da ko'targan (u Asterisk'ning administrator telefoni): yozuv bilan qatori MicroSIP'da bor — ikkinchisi ochilmaydi (T7)
+    const twin = phoneCalls.microsipNear(biz.id, p.data.phone, Date.now() - sec * 1000, LINE_CALL_WINDOW_MS);
+    if (twin) return res.json({ call: { id: twin.id }, duplicate: true });
     const call = calls.create(biz.id, {
       phone: p.data.phone, name: null, startedAt: new Date(Date.now() - sec * 1000).toISOString(), durationSec: sec,
       outcome: "Administrator ko'tardi — telefonda gaplashdi", transcript: [], booked: null,

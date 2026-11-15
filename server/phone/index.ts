@@ -34,6 +34,7 @@ import { AUDIO_EXT, MIME, findRecording, moveRecording, pickRecording } from './
 import { STATION_RECORDINGS_DIR, queueDial, stationRecordings, stations, type Station } from './stations';
 import { RECORDINGS_DIR, phoneCalls, type PhoneCallRow } from './store';
 import { CALL_OUTCOME, CALL_OUTCOME_ICON, type CallOutcomeKey } from '../../src/lib/requests';
+import { lineCallNear } from '../voice/lineCalls';
 
 export { RECORDINGS_DIR };
 
@@ -196,6 +197,13 @@ async function finished(bizId: string, c: PhoneCallRow): Promise<void> {
   const digits = c.phone.replace(/\D/g, '');
   // Ichki raqam (101), «anonymous» — mijoz kartasi ochilmaydi
   if (digits.length < MIN_PHONE_DIGITS) return;
+  // MicroSIP — Asterisk liniyasining administrator telefoni, ko'tarilmadi: qo'ng'iroqqa AI javob berdi (yoki Asterisk o'zi «qayta
+  // qo'ng'iroq qiling» so'rovini ochadi). Bu yozuv — o'sha qo'ng'iroqning takrori: «o'tkazib yuborilgan» so'rov ochilmaydi (T7)
+  if (c.direction === 'in' && c.state === 'missed' && lineCallNear(bizId, c.phone, c.startedAt)) {
+    phoneCalls.remove(bizId, c.id);
+    console.log(`[telefon] ${c.id}: administrator ko'tarmadi — qo'ng'iroq AI liniyasida davom etdi, takror yozuv olib tashlandi`);
+    return;
+  }
   const lead = leadForPhone(biz, normPhone(c.phone) || c.phone, { name: null, source: "Qo'ng'iroq" });
   phoneCalls.setLead(bizId, c.id, lead.id, lead.name);
   // «Yo'qotildi»dagi mijoz o'zi qo'ng'iroq qildi (ko'tarilmagan bo'lsa ham) — faol ro'yxatga qaytadi (G3)
