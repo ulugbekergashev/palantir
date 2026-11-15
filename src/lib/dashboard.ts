@@ -72,6 +72,8 @@ export interface FunnelView {
   /** DentaCRM ulanganmi; linked — murojaat qilganlardan nechtasi bemorga bog'langan */
   crm: boolean;
   linked: number;
+  /** Davrda o'zi murojaat qilmagan, lekin biz o'zimiz qabulga yozgan bemorlar (chiquvchi qo'ng'iroq) — voronkada yo'q, KPI'da bor (G6) */
+  outreach?: number;
   inquiries: FunnelStep;
   answered: FunnelStep;
   booked: FunnelStep;

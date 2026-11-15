@@ -22,6 +22,18 @@ type Channel = 'instagram' | 'telegram' | 'call';
 
 interface Who { lead: string; channel: Channel; first: number; answered: boolean; booked: boolean; patientId: string | null }
 
+/**
+ * Palantir o'zi yozgan qabullar (yozishma, ovozli agent, qo'ng'iroq tahlili) — shu davr ichida, KPI «Qabulga yozildi» bilan
+ * bir xil manba: chiquvchi qo'ng'iroqda yozilgani ham (G6)
+ */
+function palantirBooked(bizId: string, fromIso: string, toIso: string): Set<string> {
+  return new Set([
+    ...sql.many('SELECT DISTINCT lead_id FROM replies WHERE business_id = ? AND booked_at >= ? AND booked_at < ?', x => String(x.lead_id), bizId, fromIso, toIso),
+    ...sql.many(`SELECT DISTINCT lead_id FROM calls WHERE business_id = ? AND lead_id IS NOT NULL AND started_at >= ? AND started_at < ?
+      AND (booked IS NOT NULL AND booked != '' OR analysis LIKE '%"outcome":"booked"%')`, x => String(x.lead_id), bizId, fromIso, toIso),
+  ]);
+}
+
 /** Davrdagi murojaat qilgan odamlar (yozgan yoki qo'ng'iroq qilgan) */
 function people(bizId: string, from: number, to: number): Map<string, Who> {
   const fromIso = new Date(from).toISOString(), toIso = new Date(to).toISOString();
@@ -41,13 +53,7 @@ function people(bizId: string, from: number, to: number): Map<string, Who> {
       AND EXISTS (SELECT 1 FROM inbox o WHERE o.business_id = i.business_id AND o.lead_id = i.lead_id AND o.direction = 'out' AND o.created_at > i.created_at
         AND o.created_at < strftime('%Y-%m-%dT%H:%M:%fZ', i.created_at, '+1 day'))`, x => String(x.lead_id), bizId, fromIso, toIso));
   for (const w of out.values()) w.answered = answeredMsg.has(w.lead) || calls.some(c => c.lead === w.lead && c.ended);
-  // Palantir o'zi yozgan qabullar (yozishma, ovozli agent, qo'ng'iroq tahlili) — shu davr ichida, KPI «Qabulga yozildi» bilan
-  // bir xil manba: chiquvchi qo'ng'iroqda yozilgani ham (G6)
-  const bookedLeads = new Set([
-    ...sql.many('SELECT DISTINCT lead_id FROM replies WHERE business_id = ? AND booked_at >= ? AND booked_at < ?', x => String(x.lead_id), bizId, fromIso, toIso),
-    ...sql.many(`SELECT DISTINCT lead_id FROM calls WHERE business_id = ? AND lead_id IS NOT NULL AND started_at >= ? AND started_at < ?
-      AND (booked IS NOT NULL AND booked != '' OR analysis LIKE '%"outcome":"booked"%')`, x => String(x.lead_id), bizId, fromIso, toIso),
-  ]);
+  const bookedLeads = palantirBooked(bizId, fromIso, toIso);
   for (const w of out.values()) w.booked = bookedLeads.has(w.lead);
   for (const w of out.values()) w.patientId = leads.get(bizId, w.lead)?.patientId ?? null;
   return out;
@@ -66,6 +72,10 @@ const empty = () => ({ instagram: 0, telegram: 0, call: 0 });
 export async function funnel(biz: BusinessRow, period: { from: string; to: string }, now = new Date()): Promise<FunnelView> {
   const from = new Date(`${period.from}T00:00:00`).getTime(), to = new Date(`${period.to}T00:00:00`).getTime() + DAY_MS;
   const who = [...people(biz.id, from, to).values()];
+  // Davrda o'zi murojaat qilmagan, lekin biz o'zimiz (chiquvchi qo'ng'iroq, qayta yozish) qabulga yozgan bemorlar: voronkaga kirmaydi,
+  // lekin KPI «Qabulga yozildi»da bor — farq panelda shu son bilan tushuntiriladi (G6)
+  const inFunnel = new Set(who.map(w => w.lead));
+  const outreach = [...palantirBooked(biz.id, new Date(from).toISOString(), new Date(to).toISOString())].filter(l => !inFunnel.has(l)).length;
   const step = (pick: (w: Who) => boolean) => {
     const byChannel = empty();
     for (const w of who) if (pick(w)) byChannel[w.channel]++;
@@ -74,7 +84,7 @@ export async function funnel(biz: BusinessRow, period: { from: string; to: strin
   const base = { inquiries: step(() => true), answered: step(w => w.answered) };
   const linked = who.filter(w => w.patientId);
   if (!crmConnected(biz.id)) {
-    return { crm: false, linked: 0, ...base, booked: step(w => w.booked), came: null, paid: null, revenue: null };
+    return { crm: false, linked: 0, outreach, ...base, booked: step(w => w.booked), came: null, paid: null, revenue: null };
   }
   // Qabullar: murojaat kunidan keyingi oy ichida; kelgan va to'lagani — bugungacha
   const today = iso(now);
@@ -83,7 +93,7 @@ export async function funnel(biz: BusinessRow, period: { from: string; to: strin
   try {
     days = await crmDays(biz.id, datesBetween(period.from, last));
   } catch (e) {
-    return { crm: true, linked: linked.length, ...base, booked: step(w => w.booked), came: null, paid: null, revenue: null, problem: (e as Error).message };
+    return { crm: true, linked: linked.length, outreach, ...base, booked: step(w => w.booked), came: null, paid: null, revenue: null, problem: (e as Error).message };
   }
   const byPatient = new Map<string, Who>();
   for (const w of linked) byPatient.set(w.patientId!, w);
@@ -106,7 +116,7 @@ export async function funnel(biz: BusinessRow, period: { from: string; to: strin
     }
   }
   return {
-    crm: true, linked: linked.length, ...base,
+    crm: true, linked: linked.length, outreach, ...base,
     booked: step(w => w.booked || booked.has(w.lead)), came: step(w => came.has(w.lead)), paid: step(w => paidBy.has(w.lead)),
     revenue: { total: revenue.instagram + revenue.telegram + revenue.call, byChannel: revenue },
   };

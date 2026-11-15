@@ -57,6 +57,7 @@ export function Funnel({ f, clinic }: { f: FunnelView | null; clinic: boolean })
           ))}
         </div>
       )}
+      {!!f.outreach && <p className="mt-3 text-xs text-slate-500" data-testid="funnel-outreach">Yana {f.outreach} ta bemorni o'zimiz (qo'ng'iroq qilib yoki yozib) qabulga yozdik — ular bu davrda o'zi murojaat qilmagan, shuning uchun voronkada yo'q («Qabulga yozildi» sonida bor).</p>}
       {f.crm && f.problem && <p className="mt-3 text-sm text-amber-700">DentaCRM javob bermadi — «keldi» va «to'ladi» hozircha yo'q: {f.problem}</p>}
       {!f.crm && clinic && <p className="mt-3 text-xs text-slate-500">DentaCRM ulansa — kim kelgani va qancha to'lagani ham ko'rinadi (qaysi kanal pul olib kelayotgani).</p>}
       {f.crm && !f.problem && top > 0 && <p className="mt-3 text-xs text-slate-500">Murojaat qilgan {top} kishidan {f.linked} tasi DentaCRM bemoriga bog'langan (telefon va ism bo'yicha).</p>}

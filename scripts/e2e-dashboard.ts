@@ -182,6 +182,18 @@ try {
   const f2 = (await api('/api/dashboard/funnel?period=today', { token })).json.funnel as FunnelView;
   ok("G6: «Qabulga yozildi» — odamlar: Ali ikki marta yozilsa ham bitta, Kamola chiquvchi qo'ng'iroqda; KPI va voronka bir xil (2)",
     k2.booked.value === 2 && f2.booked.total === 2, JSON.stringify({ kpi: k2.booked.value, funnel: f2.booked }));
+  // G6: bu davrda o'zi yozmagan Nodir — biz qo'ng'iroq qilib yozdik: KPI'da bor, voronkada yo'q; farq «o'zimiz yozdik» soni bilan aytiladi
+  const g6b = new DatabaseSync(join(dataDir, 'palantir.db'));
+  g6b.exec('PRAGMA busy_timeout = 5000');
+  const nodir = id();
+  g6b.prepare(`INSERT INTO leads (id, business_id, name, channel, stage, source, created_at, updated_at) VALUES (?, ?, 'Nodir', 'manual', 'lost', 'Qo''lda', ?, ?)`).run(nodir, bizId, ago(60 * 24 * 40), ago(60 * 24 * 40));
+  g6b.prepare(`INSERT INTO calls (id, business_id, phone, name, started_at, duration_sec, outcome, transcript, booked, created_at, source, direction, status, phone_key, answered_at, ended_at, analysis, lead_id)
+      VALUES (?, ?, '+998935557777', 'Nodir', ?, 60, '', '[]', NULL, ?, 'microsip', 'out', 'ended', '935557777', ?, ?, '{"outcome":"booked"}', ?)`).run(id(), bizId, ago(7), ago(7), ago(7), ago(7), nodir);
+  g6b.close();
+  const k3 = ((await api('/api/dashboard?period=today', { token })).json.dashboard as DashboardView).kpi;
+  const f3 = (await api('/api/dashboard/funnel?period=today', { token })).json.funnel as FunnelView;
+  ok("G6: o'zi murojaat qilmagan, biz qo'ng'iroq qilib yozgan bemor — KPI 3, voronka 2, farq «o'zimiz yozdik: 1» bilan tushuntiriladi",
+    k3.booked.value === 3 && f3.booked.total === 2 && f3.outreach === 1 && f3.inquiries.total === f2.inquiries.total, JSON.stringify({ kpi: k3.booked.value, funnel: f3.booked.total, outreach: f3.outreach }));
   // I6: Javohirga javob tayyor, egasining tasdig'ini kutyapti — «javobsiz» emas, «javob tayyor»
   const i6db = new DatabaseSync(join(dataDir, 'palantir.db'));
   i6db.exec('PRAGMA busy_timeout = 5000');
