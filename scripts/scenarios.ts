@@ -52,7 +52,9 @@ function startServer(): void {
       VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '', GEMINI_API_KEY: 'g-test', GEMINI_STT_URL: `http://127.0.0.1:${sttPort}/gemini`, MORNING_HOUR: String((new Date().getHours() + 12) % 24), WEB_SEARCH: '0',
       INBOX_DEBOUNCE_MS: '300', MINUTE_MS: '1500', TG_PERSONAL: '1', IG_VIA_BROWSER: '1', TG_USER_FAKE_URL: `http://127.0.0.1:${tgUserPort}`, IG_FAKE_URL: `http://127.0.0.1:${igPort}`, IG_POLL_MS: '700',
       CAMERA_ENTER_SEC: '1', CAMERA_LEAVE_SEC: '2', CAMERA_MIN_SESSION_SEC: '1', CRM_ALLOW_PRIVATE: '1',
-      // Loyihadagi .env faylidan haqiqiy xizmat kaliti sinovga o'tib qolmasin
+      // Loyihadagi .env umuman o'qilmaydi (e2e.ts kabi): aks holda dasturchining haqiqiy sozlamalari — AI rejimi (obuna), Hub kodi,
+      // litsenziya — sinov serveriga o'tib, u haqiqiy xizmatlarga ulanardi va ssenariylar yiqilardi. Asterisk'ka ham tegilmaydi
+      DOTENV: '0', ASTERISK_WSL: '0',
       GROQ_API_KEY: '',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -341,7 +343,7 @@ try {
     check("Telegram'dagi eski tugma endi hech narsani o'zgartirmaydi: «Bu tugma eskirgan»", sent.slice(mark).some(s => s.method === 'answerCallbackQuery' && textOf(s).includes('eskirgan')) && !sent.slice(mark).some(s => s.method === 'editMessageText') && (await brain()).qa.filter(k => k.question === 'Avtoturargoh bormi?').length === 1, JSON.stringify(sent.slice(mark).map(s => [s.method, textOf(s)])));
     const r = await customerSays(8105, 'Avtoturargoh bormi sizlarda?');
     step(`Boshqa mijoz so'radi → «${textOf(r.reply)}»`);
-    check("Palantir o'zi javob berdi", textOf(r.reply).includes("mashina qo'yadigan joy bor") && !r.card, textOf(r.reply));
+    check("Palantir o'zi javob berdi", textOf(r.reply).includes("mashina qo'yadigan joy bor") && !r.card, textOf(r.reply) || `egasiga karta: ${textOf(r.card).slice(0, 400).replace(/\n/g, " ¶ ")}`);
   });
 
   await scenario("Obsidian'da o'chirish: bilim o'chdi — Palantir yana egasidan so'raydi", async () => {
@@ -378,9 +380,11 @@ try {
     await sleep(400);
     const b = await brain();
     check("sahifa panelda va mundarijada ko'rinadi", b.pages.some(p => p.question === 'Implant') && vault.read('INDEKS.md').includes('[[Bilim/Implant|Implant]]'), b.pages.map(p => p.question).join(', '));
-    const r = await customerSays(8102, "Implant qanday qo'yiladi?");
+    // Yangi bemor: egasi yaqinda o'zi yozgan suhbatga AI aralashmaydi (javob faqat taklif) — sahifadan javobni toza tekshirish uchun
+    await enter(8114);
+    const r = await customerSays(8114, "Implant qanday qo'yiladi?");
     step(`Mijoz: «Implant qanday qo'yiladi?» → «${textOf(r.reply)}»`);
-    check('javob egasining sahifasidan', textOf(r.reply).includes('ikki bosqichda') && !r.card, textOf(r.reply));
+    check('javob egasining sahifasidan', textOf(r.reply).includes('ikki bosqichda') && !r.card, textOf(r.reply) || `egasiga karta: ${textOf(r.card).slice(0, 400).replace(/\n/g, " ¶ ")}`);
     if (viaObsidian) check("Obsidian: «Narxlar» sahifasiga Implant'dan havola bor, uzilgan havola yo'q", obs('backlinks', 'path=Narxlar.md').includes('Implant') && obs('unresolved', 'total') === '0', obs('backlinks', 'path=Narxlar.md'));
   });
 
@@ -450,8 +454,9 @@ try {
     check("sahifa papkada paydo bo'ldi va Obsidian uni o'qiydi", vault.files('Bilim').includes('Bilim/Oqartirish.md') && vault.read('Bilim/Oqartirish.md').includes('40 daqiqa'), vault.files('Bilim').join(', '));
     const twin = await ownerTells('Sahifa yoz {"title":"Biznes haqida","text":"Manzil: boshqa joy"}');
     check("ikkinchi «Biznes haqida» ochilmadi (mijozlarga ikki xil manzil ketmasin)", twin.includes('XATO') && vault.files('Bilim').filter(f => f.includes('Biznes haqida')).length === 1, twin);
-    const r = await customerSays(8102, 'Oqartirish qancha vaqt oladi?');
-    check('mijozga yordamchi yozgan sahifadan javob', textOf(r.reply).includes('40 daqiqa'), textOf(r.reply));
+    await enter(8115);
+    const r = await customerSays(8115, 'Oqartirish qancha vaqt oladi?');
+    check('mijozga yordamchi yozgan sahifadan javob', textOf(r.reply).includes('40 daqiqa'), textOf(r.reply) || `egasiga karta: ${textOf(r.card).slice(0, 400).replace(/\n/g, " ¶ ")}`);
   });
 
   await scenario("Fayl tashlash: egasi hujjat yuboradi — Obsidian'da ko'rinadi, tasdiqlagach bilimga aylanadi", async () => {
