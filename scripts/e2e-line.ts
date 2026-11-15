@@ -115,6 +115,12 @@ export async function lineApiTests(h: Harness): Promise<void> {
   const reqs = (await api('/api/requests', { token })).json.requests as { phone?: string; summary?: string; kind?: string; lead?: { phone?: string } }[];
   const cb = reqs.find(r => /AI qo'ng'iroqqa javob bera olmadi/.test(r.summary ?? ''));
   ok("liniya: qabulxonada «qayta qo'ng'iroq qiling» so'rovi, raqami bilan", cb?.kind === 'callback' && /935550077/.test(JSON.stringify(cb)), JSON.stringify(reqs).slice(0, 400));
+  // F12: administrator o'zi ko'tarib gaplashdi (Asterisk h) — jurnalda va mijoz kartasida iz qoladi
+  const answered = await fetch(`${base}/api/voice/answered?phone=998935550088&sec=42`, { method: 'POST', headers: { authorization: `Bearer ${key}` }, body: 'x=1' });
+  const adminCall = ((await api('/api/calls', { token })).json.calls as { phone: string; durationSec: number; outcome: string; leadId?: string | null }[]).find(c => c.phone.includes('935550088'));
+  ok("F12: administrator ko'targan qo'ng'iroq — jurnalda (42 s), mijoz kartasiga bog'langan; kalitsiz — 401",
+    answered.status === 200 && adminCall?.durationSec === 42 && /Administrator ko'tardi/.test(adminCall.outcome) && !!adminCall.leadId
+    && (await fetch(`${base}/api/voice/answered?phone=998935550088&sec=1`, { method: 'POST', headers: { authorization: `Bearer ${key}x` }, body: 'x=1' })).status === 401, JSON.stringify(adminCall));
   // F12: AI suhbatida raqam yashirin va bemor raqam aytmadi — so'rov baribir «So'rovlar»ga, izoh bilan (avval yo'qolardi)
   const hidden = await fetch(`${base}/api/voice/requests`, { method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify({ phone: '', kind: 'complaint', summary: "Shifokor kechikdi, shikoyat" }) });
   const hiddenReq = ((await api('/api/requests', { token })).json.requests as { summary?: string; phone?: string | null; kind?: string }[]).find(r => r.summary?.includes('Shifokor kechikdi'));

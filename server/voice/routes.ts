@@ -87,6 +87,8 @@ const REQUESTS_PER_HOUR = 30;
 const agentRequests = new Map<string, number[]>();
 const MISSED_AI = "AI qo'ng'iroqqa javob bera olmadi (xizmat ishlamadi yoki hamma liniya band), administrator ham ko'tarmadi. Qayta qo'ng'iroq qiling";
 const MissedSchema = z.object({ phone: z.string().trim().regex(/^\+?\d{7,15}$/, 'raqam: 7–15 ta raqam') });
+/** Administrator ko'targan qo'ng'iroq: raqam va suhbat soniyalari (Asterisk ANSWEREDTIME; bo'sh bo'lsa — 0) */
+const AnsweredSchema = MissedSchema.extend({ sec: z.coerce.number().int().min(0).optional().catch(0) });
 const esc = (s: string) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
 
 const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -330,6 +332,29 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
     const request = await agentRequest(biz, { phone: p.data.phone, kind: 'callback', summary: MISSED_AI });
     if (!request) return res.status(429).json(TOO_MANY);
     res.json({ request: { id: request.id } });
+  }));
+
+  // Asterisk (extensions.conf, [kiruvchi] h): administrator telefoni o'zi ko'tarib gaplashdi — qo'ng'iroq jurnalga va mijoz kartasiga
+  // (avval iz qolmasdi, F12). Suhbat yozilmaydi (administrator va bemor orasida) — faqat kim, qachon, qancha. Raqam va vaqt — manzilda
+  app.post('/api/voice/answered', asAgent(async (req, res, biz) => {
+    const p = AnsweredSchema.safeParse(req.query);
+    if (!p.success) return bad(res, p.error);
+    if (calls.savedSince(biz.id, ago(HOUR_MS)) >= CALLS_PER_HOUR) return res.status(429).json({ error: "Juda ko'p qo'ng'iroq — keyinroq yuboring", code: 'limit' });
+    const sec = Math.min(7200, p.data.sec ?? 0);
+    const call = calls.create(biz.id, {
+      phone: p.data.phone, name: null, startedAt: new Date(Date.now() - sec * 1000).toISOString(), durationSec: sec,
+      outcome: "Administrator ko'tardi — telefonda gaplashdi", transcript: [], booked: null,
+    });
+    const phone = normPhone(p.data.phone);
+    if (phone) {
+      try {
+        const lead = leadForPhone(biz, phone, { name: null, source: "Qo'ng'iroq" });
+        phoneCalls.setLead(biz.id, call.id, lead.id, null);
+      } catch (e) {
+        console.error("[ovoz] qo'ng'iroq kartaga bog'lanmadi:", (e as Error).message);
+      }
+    }
+    res.json({ call: { id: call.id } });
   }));
 
   // Agent: tugagan qo'ng'iroq
