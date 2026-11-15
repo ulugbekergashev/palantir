@@ -17,6 +17,6 @@ export function digestText(rows: DigestRow[]): string | null {
   return [
     `🤖 <b>Bugun Palantir o'zi ${rows.length} ta mijozga javob berdi</b> (${total} ta xabar):`,
     ...lines, ...more,
-    '', '<i>Yozishmalar: panel → Qabulxona → Yozishmalar. Qabullar va javob bilmagan savollar sizga darhol aytilgan.</i>',
+    '', '<i>Yozishmalar: panel → AI administrator → Yozishmalar. Qabullar va javob bilmagan savollar sizga darhol aytilgan.</i>',
   ].join('\n');
 }

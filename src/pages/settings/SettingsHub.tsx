@@ -114,7 +114,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
         </div>
       )}
       {active === 'instagram' && (
-        <Part title="Instagram Direct" hint="Mijozlar Instagram'da yozsa — Qabulxona javob beradi.">
+        <Part title="Instagram Direct" hint="Mijozlar Instagram'da yozsa — AI administrator javob beradi.">
           <InstagramOfficial status={status} onStatus={onStatus} notify={notify} />
           {status.instagram.enabled && !status.instagramApi.account && (
             // Shu yo'l bilan ulangan bo'lsa — ochiq: akkaunt va «Uzish» yopiq bo'lim ichida yashirinib qolmasin
@@ -126,7 +126,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
         </Part>
       )}
       {active === 'dentacrm' && (
-        <Part title="DentaCRM — qabullar va tushum" hint="Ulansa: Qabulxona qabulga yozadi, Tahlilchi tushumni ko'rsatadi, Kuzatuvchi kamerani qabullar bilan solishtiradi.">
+        <Part title="DentaCRM — qabullar va tushum" hint="Ulansa: AI administrator qabulga yozadi, Tahlilchi tushumni ko'rsatadi, Kuzatuvchi kamerani qabullar bilan solishtiradi.">
           <DentaCrm status={status} onStatus={onStatus} notify={notify} />
         </Part>
       )}

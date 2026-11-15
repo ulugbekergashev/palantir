@@ -229,7 +229,7 @@ console.log("\n# Mijozga yozish — Qabulxonaniki");
   const made = await runTool('draft_followup', { lead_ids: [lead.id], text: 'Assalomu alaykum, Ali! Qabulga yozilasizmi?' }, { biz: businesses.byId(biz.id)!, artifacts: artifacts as never });
   check("Qabulxona jamoada yo'q — mijozga xabar tayyorlanmaydi («+ Xodim qo'shish»)", () => {
     assert.equal(refused.isError, true);
-    assert.match(refused.content, /Qabulxonaning ishi, u jamoada yo'q/);
+    assert.match(refused.content, /AI administratorning ishi, u jamoada yo'q/);
   });
   check("Qabulxona jamoada — xabar tayyor (egasi «Yuborish»ni bosadi), Qabulxona jurnalida", () => {
     assert.equal(made.isError, false, made.content);
@@ -303,7 +303,7 @@ console.log("\n# Direktor: ertalabki xabar qayta yuborilsa (internet uzilgan) �
   check("bugungi tahlil bor — hisobot saqlanganidan qayta yig'iladi (AI'siz): muammo, takliflar, tugmalar", () => {
     assert.ok(again, 'hisobot yo\'q');
     assert.match(again!.html, /Javobsiz murojaatlar/);
-    assert.match(again!.html, /1\. <b>Qabulxona<\/b>: Narx so'raganga/);
+    assert.match(again!.html, /1\. <b>AI administrator<\/b>: Narx so'raganga/);
     assert.match(again!.html, /2\. <b>Egasi<\/b>|2\. <b>Sizga<\/b>|2\. <b>/);
     assert.equal(again!.buttons.flat().filter(x => x.data.startsWith('dv|')).length, 2);
   });

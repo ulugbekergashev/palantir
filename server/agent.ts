@@ -128,7 +128,7 @@ function customerVoice(b: BusinessRow, as?: CrewMember): string {
     rules.length ? `THE OWNER'S STANDING ORDERS FOR THE QABULXONA — follow them in every message to a customer:\n${rules.map(r => `- ${r}`).join('\n')}` : '',
     companyContext(b, 'customers'),
   ].filter(Boolean).join('\n\n');
-  return `<writing_to_customers>\nEvery message to a customer (draft_followup) is the Qabulxona's work, whoever asked for it: write it in the Qabulxona's voice and by its rules.${body ? `\n\n${body}` : ''}\n</writing_to_customers>`;
+  return `<writing_to_customers>\nEvery message to a customer (draft_followup) is the AI administrator's work, whoever asked for it: write it in the AI administrator's voice and by its rules.${body ? `\n\n${body}` : ''}\n</writing_to_customers>`;
 }
 
 /** Egasi bilan suhbat: kim jamoada (uning ishini uning asboblari bilan qilasiz), kim yo'q (ishini qilmaysiz — jamoaga olishni taklif qilasiz) */

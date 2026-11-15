@@ -100,27 +100,27 @@ try {
   const cardOf = (name: string) => teamCards.getByRole('link').filter({ has: page.getByText(name, { exact: true }) });
   await visible(cardOf('Direktor'));
   ok("bosh ekran: jamoada ikki xodim va «Xodim qo'shish» kartasi", await cardOf('Direktor').count() === 1 && await cardOf('Palantir').count() === 1
-    && await cardOf('Qabulxona').count() === 0 && (await cardOf("Xodim qo'shish").getAttribute('href'))?.endsWith('#/xodimlar'));
+    && await cardOf('AI administrator').count() === 0 && (await cardOf("Xodim qo'shish").getAttribute('href'))?.endsWith('#/xodimlar'));
   await shot('02-home-standart', true);
 
   console.log("\n# AI xodimlar: ishga olish");
   await cardOf("Xodim qo'shish").click();
   ok("«AI xodimlar»: bo'lim-bo'lim — jamoadagilar, olinadiganlar va tez kunda keladiganlar", await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 }))
     && await page.getByRole('region', { name: 'Boshqaruv' }).getByRole('article', { name: 'Direktor' }).getByText('Asosiy').isVisible()
-    && await page.getByRole('region', { name: 'Mijozlar va sotuv' }).getByRole('article', { name: 'Qabulxona' }).getByRole('button', { name: 'Ishga olish' }).isVisible()
+    && await page.getByRole('region', { name: 'Mijozlar va sotuv' }).getByRole('article', { name: 'AI administrator' }).getByRole('button', { name: 'Ishga olish' }).isVisible()
     && await page.getByRole('region', { name: 'HR' }).getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible()
     && await page.getByRole('article', { name: 'Video-meyker — tez kunda' }).count() === 0 && await page.getByRole('article', { name: 'Strateg — tez kunda' }).count() === 0
     // B9: mavjud ishni takrorlaydiganlar yo'q
     && (await Promise.all(['Mijozlarni qaytaruvchi', 'Kassa nazoratchisi', 'Sifat nazoratchisi'].map(n => page.getByRole('article', { name: `${n} — tez kunda` }).count()))).every(n => n === 0));
   ok("asosiy xodimni olib tashlab bo'lmaydi — Direktor kartasida «Olib tashlash» yo'q", await page.getByRole('article', { name: 'Direktor' }).getByRole('button', { name: 'Olib tashlash' }).count() === 0);
   await shot('02b-xodimlar', true);
-  for (const name of ['Qabulxona', 'Kuzatuvchi', 'Tahlilchi', 'Marketolog', 'Kontent-meyker', 'Targetolog']) {
+  for (const name of ['AI administrator', 'Kuzatuvchi', 'Tahlilchi', 'Marketolog', 'Kontent-meyker', 'Targetolog']) {
     const card = page.getByRole('article', { name, exact: true });
     await card.getByRole('button', { name: 'Ishga olish' }).click();
     await card.getByText('Jamoada').waitFor({ timeout: 8000 });
   }
   const hired = await menuItems();
-  ok("ishga olinganlar menyuda darhol paydo bo'ldi (Marketing — uchta xodim bitta bo'limda)", hired === "Bosh sahifa, Direktor, Qabulxona, Palantir, Kuzatuvchi, Tahlilchi, Marketing, Xodim qo'shish, Miya, Sozlamalar", hired);
+  ok("ishga olinganlar menyuda darhol paydo bo'ldi (Marketing — uchta xodim bitta bo'limda)", hired === "Bosh sahifa, Direktor, AI administrator, Palantir, Kuzatuvchi, Tahlilchi, Marketing, Xodim qo'shish, Miya, Sozlamalar", hired);
   const tracker = page.getByRole('article', { name: 'Kuzatuvchi', exact: true });
   await tracker.getByRole('button', { name: 'Olib tashlash' }).click();
   ok("olib tashlashdan oldin nima to'xtashi aytiladi", await visible(tracker.getByText(/kechki hisoboti to'xtaydi.*o'chmaydi/)));
@@ -216,9 +216,9 @@ try {
   console.log('\n# Qabulxona');
   await go('requests');
   ok("eski manzil (#/requests) Qabulxona → So'rovlar: bo'sh holat va xodimlar", await tabOn("So'rovlar").getAttribute('aria-current') === 'page'
-    && await visible(page.getByText("Ochiq so'rov yo'q")) && await visible(page.getByText('Qabulxona xodimlari')));
+    && await visible(page.getByText("Ochiq so'rov yo'q")) && await visible(page.getByText('Qabulxona xodimlari', { exact: true })));
   await go('qabulxona');
-  ok("qabulxona bugun: murojaat yo'q — nima bo'lishi va qanday sinash", await visible(page.getByRole('heading', { name: "Hali murojaat yo'q" })) && await page.getByRole('button', { name: "Qabulxonaga qo'ng'iroq qilish" }).isVisible());
+  ok("qabulxona bugun: murojaat yo'q — nima bo'lishi va qanday sinash", await visible(page.getByRole('heading', { name: "Hali murojaat yo'q" })) && await page.getByRole('button', { name: "AI administratorga qo'ng'iroq qilish" }).isVisible());
   await shot('06a-qabulxona', true);
 
   console.log('\n# Chap menyu: ixcham, yig\'iladi');
@@ -229,7 +229,7 @@ try {
   await rail().getByRole('button', { name: "Menyuni yig'ish" }).click();
   ok("yig'ilgan: faqat belgilar (68px), sahifa chapga suriladi, bo'limlar baribir nomi bilan topiladi", await railWidth() === 68
     && await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--rail').trim()) === '68px'
-    && await rail().getByRole('link', { name: 'Qabulxona', exact: true }).isVisible());
+    && await rail().getByRole('link', { name: 'AI administrator', exact: true }).isVisible());
   await shot('06b-menyu-yigilgan');
   await page.reload();
   await rail().waitFor();

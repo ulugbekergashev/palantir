@@ -18,7 +18,7 @@ export type CrewMember = typeof CREW[number];
 export const CORE: readonly CrewMember[] = ['direktor', 'yordamchi'];
 /** Xodim nomi (server xabarlarida; panel — components/team.tsx TEAM) */
 export const TEAM_NAME: Record<CrewMember, string> = {
-  direktor: 'Direktor', qabulxona: 'Qabulxona', yordamchi: 'Yordamchi', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', kontent: 'Kontent-meyker', target: 'Targetolog',
+  direktor: 'Direktor', qabulxona: 'AI administrator', yordamchi: 'Palantir', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', kontent: 'Kontent-meyker', target: 'Targetolog',
 };
 
 /** hired — egasi olgan yoki ishi ulangani uchun o'zi qo'shilgan; dismissed — egasi o'zi olib tashlagan (o'zi qaytib qo'shilmaydi) */

@@ -172,7 +172,7 @@ export function AnalystBody({ data }: { data: AnalystData | null }) {
                   <span className="flex h-9 w-9 items-center justify-center rounded-full bg-glass/[0.07] text-[12px] font-bold text-[#f2f0ea]">{t.name.slice(0, 2).toUpperCase()}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] text-[#f2f0ea]">{t.name}</span>
-                    <span className="block text-[12px] text-[#7d838f]">{t.role === 'owner' ? 'egasi' : 'qabulxona'}{t.closeMin != null ? ` · ${t.closeMin} daqiqada hal qiladi` : ''}</span>
+                    <span className="block text-[12px] text-[#7d838f]">{t.role === 'owner' ? 'egasi' : 'qabulxona xodimi'}{t.closeMin != null ? ` · ${t.closeMin} daqiqada hal qiladi` : ''}</span>
                   </span>
                   <span className="text-right"><span className="block tabular-nums text-[18px] font-semibold text-[#f2f0ea]">{t.closed}</span><span className="block text-[11px] text-[#7d838f]">hal qildi</span></span>
                 </li>

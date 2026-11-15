@@ -195,7 +195,7 @@ export async function orderApiTests(h: Harness): Promise<void> {
   await api('/api/chat', { token, body: { text: 'Eski mijozlarga qayta yozish matnini tayyorla' } });
   const withoutQ = lastOwnerReq();
   ok("Qabulxona olib tashlandi — mijozga yozilmaydi: asbob yo'q, ko'rsatmada «jamoaga oling»", !toolNames(withoutQ).includes('draft_followup')
-    && /Not hired[^\n]*Qabulxona/.test(withoutQ?.system ?? '') && !(withoutQ?.system ?? '').includes('<writing_to_customers>'), toolNames(withoutQ).join(','));
+    && /Not hired[^\n]*AI administrator/.test(withoutQ?.system ?? '') && !(withoutQ?.system ?? '').includes('<writing_to_customers>'), toolNames(withoutQ).join(','));
   await api('/api/crew', { token, body: { member: 'qabulxona', on: true } });
   ok('bugun jamoa: kamera hodisasi jurnalda va Kuzatuvchi sanadi', day.timeline.some(e => e.id === events[0].id) && fact(day, 'kuzatuvchi', 'Yozuv') >= 1 && fact(day, 'kuzatuvchi', 'Kamera') >= 1);
   ok("bugun jamoa: bajarilgan ish Yordamchida sanaldi", fact(day, 'yordamchi', 'Bajarildi') >= 1, day.members.find(m => m.member === 'yordamchi')?.summary);

@@ -77,7 +77,7 @@ const prepPlan = planText({ ...base, autoPrep: true, leads: [lead('w', 'Yozgan',
 ok("AI o'zi faqat bizga yozgan mijozga xabar tayyorlaydi; yozmaganiga — egasi tugma bilan", prepPlan.prep.join() === 'w' && prepPlan.buttons.length === 1 && prepPlan.buttons[0][0].data === 'fu|n');
 const noWriter = planText({ ...base, autoPrep: true, writer: false, leads: [lead('w', 'Yozgan', { updatedAt: iso(9), lastInboundAt: wrote }), lead('n', 'Yozmagan', { updatedAt: iso(9) })] })!;
 ok("Qabulxona jamoada yo'q — xabar tayyorlanmaydi, «✍️» tugmasi ham yo'q; kim yozishi aytiladi", !noWriter.prep.length && !noWriter.buttons.some(r => r.some(x => x.data.startsWith('fu|')))
-  && noWriter.html.includes("Qabulxonaning ishi") && noWriter.html.includes('Unutilgan'), noWriter.html.slice(-300));
+  && noWriter.html.includes("AI administratorning ishi") && noWriter.html.includes('Unutilgan'), noWriter.html.slice(-300));
 {
   const p = { html: '☀️ Reja', buttons: [[{ text: '✍️ Ali', data: 'fu|1' }]] }, d = { html: '🧭 Direktor', buttons: [[{ text: '✅ 1', data: 'dv|a' }]] };
   const one = joinMorning(p, d);
@@ -159,7 +159,7 @@ try {
   const morning = await waitFor('reja', () => toOwner(mark, 'Xayrli tong'));
   const mText = String(morning?.params.text ?? '');
   ok('reja keldi: bugungi qadam, unutilgan mijoz, vazifa', mText.includes('Tabassum klinikasi — taklif yuborish') && mText.includes('Unutilgan mijozlar (1)') && mText.includes('Eski mijoz') && mText.includes('Tabassum bilan uchrashuv'), mText.slice(0, 300));
-  ok("AI bor — «✍️» tugma o'rniga «Qabulxona 2 ta mijozga xabar tayyorlayapti» (mijozga yozish — Qabulxonaniki)", mText.includes('Qabulxona 2 ta mijozga xabar tayyorlayapti') && !buttons(morning).some(x => x.callback_data?.startsWith('fu|')), mText.slice(-200));
+  ok("AI bor — «✍️» tugma o'rniga «AI administrator 2 ta mijozga xabar tayyorlayapti» (mijozga yozish — uniki, B10)", mText.includes('AI administrator 2 ta mijozga xabar tayyorlayapti') && !buttons(morning).some(x => x.callback_data?.startsWith('fu|')), mText.slice(-200));
   const prepReq = await waitFor('tayyorgarlik', () => ai.requests.slice(aiBefore).find(r => JSON.stringify(r.messages).includes('Morning preparation')));
   const prepText = JSON.stringify(prepReq?.messages ?? '');
   ok("yordamchiga ertalabki topshiriq: faqat id'lar (ismlar emas), ikkala mijoz", !!prepReq && prepText.includes(a.id) && prepText.includes(b.id) && !prepText.includes('Eski mijoz'));
@@ -306,7 +306,7 @@ try {
     const approved = await api(`/api/director/moves/${toReception.id}`, { token, body: { decision: 'approve' } });
     const order = ((await api('/api/orders?member=qabulxona', { token })).json.orders as { text: string; spec: { kind: string }; active: boolean }[]).find(o => o.text.startsWith('Har yangi murojaatga'));
     const memo = ((await api('/api/notes', { token })).json.notes as { text: string; kind: string; tags: string[]; by: string }[]).find(n => n.tags.includes('direktor'));
-    ok("tasdiq: Qabulxonaga doimiy topshiriq bo'ldi", approved.status === 200 && approved.json.message.startsWith('Qabulxonaga topshirildi') && order?.spec.kind === 'standing' && order.active, JSON.stringify(approved.json.message));
+    ok("tasdiq: Qabulxonaga doimiy topshiriq bo'ldi", approved.status === 200 && approved.json.message.startsWith('AI administratorga topshirildi') && order?.spec.kind === 'standing' && order.active, JSON.stringify(approved.json.message));
     ok("tasdiq: Xotira'ga qaror yozildi (sabab, tekshirish sanasi, boshlang'ich qiymat)", memo?.kind === 'qaror' && memo.by === 'Siz (Direktor taklifi)' && memo.text.includes('Sabab: ulush 25%') && memo.text.includes('javob berilgan ulush 25%'), JSON.stringify(memo));
     ok('ikkinchi bosish ikkinchi topshiriq yaratmaydi', (await api(`/api/director/moves/${toReception.id}`, { token, body: { decision: 'approve' } })).json.message === 'Allaqachon topshirilgan'
       && ((await api('/api/orders?member=qabulxona', { token })).json.orders as { text: string }[]).filter(o => o.text.startsWith('Har yangi murojaatga')).length === 1);

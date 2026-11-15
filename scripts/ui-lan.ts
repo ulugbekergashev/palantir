@@ -91,7 +91,9 @@ try {
     ok('«Xodim panelni qayerdan ochadi»: klinika ichidagi manzil', (await box.textContent())?.includes(lan), (await box.textContent()) ?? '');
     await page.locator('#staff-name').fill('Dilnoza');
     await page.getByRole('button', { name: "Qo'shish" }).click();
-    await page.getByRole('button', { name: 'Qabulxona sifatida kirsin' }).click();
+    await page.getByRole('button', { name: 'Qabulxona xodimi sifatida kirsin' }).click();
+    // I9: login qatorning o'zida (ismdan taklif) — «Kirish berish» bilan tasdiqlanadi
+    await page.getByRole('button', { name: 'Kirish berish' }).click();
     const creds = page.getByTestId('staff-creds');
     await creds.waitFor({ timeout: 10_000 });
     await page.getByRole('button', { name: 'Nusxalash', exact: true }).click();

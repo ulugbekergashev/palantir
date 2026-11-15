@@ -58,7 +58,7 @@ export function RequestsPage({ notify, onChanged }: { notify: Notify; onChanged:
       {list === null ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /> : !list.length ? (
         <Card>
           <EmptyState icon={Inbox} title={which === 'open' ? "Ochiq so'rov yo'q" : "Yopilgan so'rov yo'q"}>
-            {which === 'open' ? "Mijoz Instagram yoki Telegram'da «qo'ng'iroq qiling» desa, raqam qoldirsa yoki shikoyat qilsa — shu yerda va qabulxonaning Telegram'ida paydo bo'ladi." : undefined}
+            {which === 'open' ? "Mijoz Instagram yoki Telegram'da «qo'ng'iroq qiling» desa, raqam qoldirsa yoki shikoyat qilsa — shu yerda va qabulxona xodimlarining Telegram'ida paydo bo'ladi." : undefined}
           </EmptyState>
         </Card>
       ) : (
@@ -123,12 +123,12 @@ function NewRequest({ notify, onDone }: { notify: Notify; onDone: () => void }) 
     if (!phone.trim() || !summary.trim()) return notify('Telefon va nima qilish kerakligini yozing', true);
     setBusy(true);
     api.openRequest({ kind, phone: phone.trim(), name: name.trim() || undefined, summary: summary.trim(), dueAt: dueAt || undefined })
-      .then(() => { notify("So'rov ochildi — qabulxonaga yuborildi"); onDone(); })
+      .then(() => { notify("So'rov ochildi — qabulxona xodimlariga yuborildi"); onDone(); })
       .catch(e => notify((e as Error).message, true))
       .finally(() => setBusy(false));
   };
   return (
-    <Card title="Yangi so'rov" description="Qabulxonaga Telegram'da karta bo'lib boradi va bajarilmaguncha eslatib turadi.">
+    <Card title="Yangi so'rov" description="Qabulxona xodimlariga Telegram'da karta bo'lib boradi va bajarilmaguncha eslatib turadi.">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Turi">
           <select value={kind} onChange={e => setKind(e.target.value as RequestKind)} className={inputClass}>

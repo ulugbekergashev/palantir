@@ -34,7 +34,7 @@ function Status({ line }: { line: Line }) {
   const s = line.status;
   const items = [
     { name: 'Telefon xizmati', on: s.asterisk, text: s.asterisk ? 'ishlayapti' : "o'chiq — o'rnatuvchiga ayting" },
-    { name: 'AI qabulxona', on: s.ai === true, text: s.ai ? "qo'ng'iroq kutyapti" : s.ai === false ? "to'xtagan — kompyuterni qayta yoqing" : 'tekshirilmadi' },
+    { name: 'AI administrator', on: s.ai === true, text: s.ai ? "qo'ng'iroq kutyapti" : s.ai === false ? "to'xtagan — kompyuterni qayta yoqing" : 'tekshirilmadi' },
     { name: 'Telefon raqami', on: s.trunk === 'registered', text: s.trunk === 'registered' ? `ulangan${line.trunk?.number ? ` · ${line.trunk.number}` : ''}` : s.trunk === 'failed' ? "ulanmadi — kalit yoki parolni tekshiring" : line.trunk ? 'tekshirilmoqda' : 'kiritilmagan' },
     { name: 'Egasi telefoni', on: s.phones.includes('egasi'), text: s.phones.includes('egasi') ? 'ulangan' : 'ulanmagan' },
     { name: 'Administrator telefoni', on: s.phones.includes('admin'), text: s.phones.includes('admin') ? 'ulangan' : 'ulanmagan' },
@@ -173,7 +173,7 @@ function Routing({ line, onLine, notify }: { line: Line; onLine: (l: Line) => vo
   return (
     <Block icon={<Waypoints className="h-[18px] w-[18px]" aria-hidden="true" />} title="Kim javob beradi" hint="Raqamga kelgan qo'ng'iroq kimga boradi. Kechasi va administrator ko'tarmasa — har doim AI, mijoz javobsiz qolmaydi.">
       <div className="flex flex-col gap-2">
-        {option('ai', 'Har doim AI qabulxona', 'Kunu tun AI javob beradi, qabulga yozadi, bilmaganini sizga so‘rov qilib qoldiradi.')}
+        {option('ai', 'Har doim AI administrator', 'Kunu tun AI javob beradi, qabulga yozadi, bilmaganini sizga so‘rov qilib qoldiradi.')}
         {option('ai_transfer', 'AI javob beradi, ish vaqtida kerak bo‘lsa — administratorga o‘tkazadi', 'AI javob bera olmasa yoki mijoz odam bilan gaplashmoqchi bo‘lsa, ish vaqtida qo‘ng‘iroqni administrator telefoniga o‘tkazadi; u ko‘tarmasa — AI so‘rov qoldiradi. Kechasi — faqat AI.')}
         {option('day_admin', 'Ish vaqtida — administrator, qolgan paytda — AI', 'Ish vaqtida avval administrator telefoni jiringlaydi; ko‘tarmasa yoki band bo‘lsa — AI javob beradi.')}
       </div>
@@ -235,7 +235,7 @@ function AdminPhone({ line, onLine, notify }: { line: Line; onLine: (l: Line) =>
             <button type="button" disabled={busy} onClick={() => { void make(); }} className="flex min-h-10 items-center gap-2 rounded-xl border border-glass/10 px-4 text-[13px] text-[#d9dbe1] hover:bg-glass/5 disabled:opacity-50">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}Yangi parol
             </button>
-            <p className="text-[12px] text-[#7d838f]">Sinash: shu telefondan «2» ni tering — qabulxona mijozdek javob beradi.</p>
+            <p className="text-[12px] text-[#7d838f]">Sinash: shu telefondan «2» ni tering — AI administrator mijozdek javob beradi.</p>
           </div>
         </>
       ) : (

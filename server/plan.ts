@@ -118,16 +118,16 @@ export function planText(p: PlanInput): Plan | null {
     // AI o'zi tayyorlamaganlar (AI o'chiq yoki mijoz bizga hech yozmagan) — egasi tugma bilan o'zi tanlaydi
     const byButton = forgotten.filter(l => !prep.includes(l.id));
     if (byButton.length && writer) {
-      out.push('Keyingi qadam qo\'yilmagan. Tugmani bossangiz — Qabulxona qayta yozish uchun xabar tayyorlaydi.');
+      out.push('Keyingi qadam qo\'yilmagan. Tugmani bossangiz — AI administrator qayta yozish uchun xabar tayyorlaydi.');
       for (const l of byButton.slice(0, MAX_FOLLOW_BUTTONS)) buttons.push([{ text: `✍️ ${cut(nameOf(l), 28)}`, data: `fu|${l.id}` }]);
     } else if (byButton.length) {
-      out.push("Keyingi qadam qo'yilmagan. Mijozlarga qayta yozish — Qabulxonaning ishi: uni panelda «+ Xodim qo'shish» orqali jamoaga oling.");
+      out.push("Keyingi qadam qo'yilmagan. Mijozlarga qayta yozish — AI administratorning ishi: uni panelda «+ Xodim qo'shish» orqali jamoaga oling.");
     }
   }
   // Har kuni qayta yozilmaydi: SILENT_LIMIT marta yozildi, javob yo'q — ro'yxatdan chiqdi; o'zi yozsa yoki qo'ng'iroq qilsa — qaytadi
   if (gaveUp) out.push('', `🔕 <b>${gaveUp} ta ${p.profile.customer.one}</b> ${SILENT_LIMIT} marta yozganimizga javob bermadi — «Yo'qotildi»ga o'tkazdim, endi har kuni yozmaymiz. O'zi yozsa yoki qo'ng'iroq qilsa — ro'yxatga qaytadi.`);
   // Sondan keyin birlik: «4 ta bemorga» (o'zbekchada «4 ta bemorlarga» emas)
-  if (prep.length) out.push('', `✍️ <b>Qabulxona ${prep.length} ta ${p.profile.customer.one}ga xabar tayyorlayapti</b> — bir daqiqada shu yerga «Yuborish» tugmasi bilan keladi.`);
+  if (prep.length) out.push('', `✍️ <b>AI administrator ${prep.length} ta ${p.profile.customer.one}ga xabar tayyorlayapti</b> — bir daqiqada shu yerga «Yuborish» tugmasi bilan keladi.`);
   if (p.recall) {
     out.push('', `🔁 <b>Qaytarish kerak:</b> ${p.recall} ta bemor 6–12 oy oldin kelgan va boshqa kelmagan. Administrator qo'ng'iroq qilib, ko'rikka chaqirsa — eng arzon yangi bemor shu.`);
     buttons.push([{ text: "📋 Bemorlar ro'yxati", data: 'rc|list' }]);

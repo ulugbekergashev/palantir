@@ -103,8 +103,8 @@ export function ReceptionToday({ data, reload, notify, status, onChanged, tick, 
         <div className="flex flex-col gap-5">
           {!limited && (
             <VoicePanel kind="customer" member="qabulxona" title="Mijoz bo'lib qo'ng'iroq qiling"
-              hint="Qabulxona sizga mijozdek javob beradi. Sinov: jadvalga yozilmaydi, so'rov ochilmaydi."
-              labels={{ start: "Qabulxonaga qo'ng'iroq qilish", stop: "Qo'ng'iroqni tugatish", speaking: 'Qabulxona gapiryapti' }} />
+              hint="AI administrator sizga mijozdek javob beradi. Sinov: jadvalga yozilmaydi, so'rov ochilmaydi."
+              labels={{ start: "AI administratorga qo'ng'iroq qilish", stop: "Qo'ng'iroqni tugatish", speaking: 'AI administrator gapiryapti' }} />
           )}
           <Panel title={`So'rovlar${data?.requests.length ? ` · ${data.requests.length}` : ''}`} action={<a href={hrefOf('qabulxona', 'sorovlar')} className="text-[13px] text-[#a3a9b5] no-underline hover:text-[#f2f0ea]">Hammasi →</a>}>
             {data?.requests.length ? <ul className="flex flex-col gap-2.5">{data.requests.slice(0, 4).map(r => <RequestCard key={r.id} r={r} notify={notify} onDone={changed} />)}</ul>
@@ -147,7 +147,7 @@ export function ReceptionToday({ data, reload, notify, status, onChanged, tick, 
           </ul>
         </Panel>
       </div>
-      {!limited && <AgentAsk member="qabulxona" placeholder="Qabulxonadan so'rang: «Bugun kim yozilgan?»" />}
+      {!limited && <AgentAsk member="qabulxona" placeholder="AI administratordan so'rang: «Bugun kim yozilgan?»" />}
     </div>
   );
 }

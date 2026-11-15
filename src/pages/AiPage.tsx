@@ -193,7 +193,7 @@ export function AiPage({ biz, now, team, crew, notify, tick, onChanged }: { biz:
             <a href={hrefOf('xodimlar')} className={`${addSpan} group flex min-h-[132px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-glass/15 p-4 text-center no-underline transition-colors hover:border-[#ff9a3c]/40 hover:bg-[#ff9a3c]/[0.04]`}>
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ff9a3c]/15 text-[#ffd9a0] transition-colors group-hover:bg-[#ff9a3c]/25"><Plus className="h-5 w-5" aria-hidden="true" /></span>
               <span className="text-[15px] font-semibold text-[#f2f0ea]">Xodim qo'shish</span>
-              <span className="text-xs text-[#9ba1ad]">Qabulxona, Marketing, kameralar va boshqalar</span>
+              <span className="text-xs text-[#9ba1ad]">AI administrator, Marketing, kameralar va boshqalar</span>
             </a>
           </div>
         </section>

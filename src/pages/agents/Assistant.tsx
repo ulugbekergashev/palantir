@@ -52,7 +52,7 @@ function Brief({ data, owner }: { data: AssistantData; owner: string }) {
   const lines: { tone: 'warn' | 'ok' | 'info'; text: string }[] = [];
   if (late.length) lines.push({ tone: 'warn', text: `${late.length} ta ish kechikdi — eng eskisi «${late[0].title.slice(0, 60)}» (${dayName(late[0].dueAt!)}).` });
   lines.push(today.length ? { tone: 'info', text: `Bugunga ${today.length} ta ish: ${today.slice(0, 2).map(t => `«${t.title.slice(0, 40)}»`).join(', ')}.` } : { tone: 'ok', text: "Bugunga yangi ish yo'q." });
-  if (data.requests) lines.push({ tone: 'warn', text: `Qabulxonada ${data.requests} ta so'rov sizni kutyapti.` });
+  if (data.requests) lines.push({ tone: 'warn', text: `${data.requests} ta so'rov sizni kutyapti (AI administrator → So'rovlar).` });
   if (data.drafts) lines.push({ tone: 'warn', text: `Mijozlarga ${data.drafts} ta javob tasdiqingizni kutyapti.` });
   if (data.docs[0]) lines.push({ tone: 'info', text: `Oxirgi hujjat: «${data.docs[0].title}».` });
   return (

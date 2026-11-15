@@ -105,10 +105,10 @@ try {
   await page.getByText('Xodimlar kirishi', { exact: true }).waitFor({ timeout: 15_000 });
   await page.locator('#staff-name').fill('Dilnoza');
   await page.getByRole('button', { name: "Qo'shish" }).click();
-  await page.getByRole('button', { name: 'Qabulxona sifatida kirsin' }).waitFor({ timeout: 10_000 });
+  await page.getByRole('button', { name: 'Qabulxona xodimi sifatida kirsin' }).waitFor({ timeout: 10_000 });
   let dialogs = 0;
   page.on('dialog', d => { dialogs++; void d.dismiss(); });
-  await page.getByRole('button', { name: 'Qabulxona sifatida kirsin' }).click();
+  await page.getByRole('button', { name: 'Qabulxona xodimi sifatida kirsin' }).click();
   // I9: login brauzerning prompt() oynasida emas — qatorning o'zida, ismdan taklif bilan
   await page.locator('#staff-login').waitFor({ timeout: 10_000 });
   ok("I9: login sahifaning o'zida so'raladi (prompt() yo'q), ismdan taklif — «dilnoza»", dialogs === 0 && await page.locator('#staff-login').inputValue() === 'dilnoza');
@@ -118,7 +118,7 @@ try {
   const text = (await creds.textContent()) ?? '';
   const staffPass = /parol: (\S+)/.exec(text)?.[1] ?? '';
   ok('xodimga login va parol bir marta ko\'rsatildi', text.includes('login: dilnoza') && staffPass.length >= 10);
-  ok("ro'yxatda: Qabulxona · dilnoza · hali kirmagan", ((await page.locator('main').textContent()) ?? '').includes('Qabulxona · dilnoza · hali kirmagan'));
+  ok("ro'yxatda: Qabulxona xodimi · dilnoza · hali kirmagan", ((await page.locator('main').textContent()) ?? '').includes('Qabulxona xodimi · dilnoza · hali kirmagan'));
   await shot(page, 'egasi-xodimlar');
 
   console.log('\n# Xodim kiradi — faqat Qabulxona');
@@ -131,7 +131,7 @@ try {
   await page.waitForFunction(() => window.location.hash.startsWith('#/qabulxona'), null, { timeout: 15_000 });
   ok('xodim to\'g\'ri Qabulxonaga tushdi', page.url().includes('#/qabulxona'));
   const nav = page.getByRole('navigation', { name: "Bo'limlar" });
-  ok("yon ustunda faqat Qabulxona: Yordamchi, Miya, Sozlamalar yo'q", await nav.getByRole('link', { name: 'Qabulxona' }).count() > 0
+  ok("yon ustunda faqat Qabulxona: Yordamchi, Miya, Sozlamalar yo'q", await nav.getByRole('link', { name: 'AI administrator' }).count() > 0
     && !(await nav.getByRole('link', { name: 'Miya' }).count()) && !(await nav.getByRole('link', { name: 'Sozlamalar' }).count()) && !(await nav.getByRole('link', { name: 'Palantir', exact: true }).count()));
   await page.goto(`${base}/#/sozlamalar`);
   await page.waitForFunction(() => window.location.hash.startsWith('#/qabulxona'), null, { timeout: 10_000 });
@@ -141,7 +141,7 @@ try {
   // I5: xodimga egasining tugmalari ko'rinmaydi (bosilsa jim 403 berardi) — rejim faqat o'qiladi
   ok("I5: xodimda javob rejimi tugmalari, «Mijoz bo'lib qo'ng'iroq», Yordamchiga savol, Nazorat, «ulash» yo'q; rejim — «egasi tanlaydi»",
     !(await page.getByRole('radio', { name: /Men tasdiqlayman|O'zi javob bersin/ }).count()) && !(await page.getByText("Mijoz bo'lib qo'ng'iroq qiling").count())
-    && !(await page.getByPlaceholder(/Qabulxonadan so'rang/).count()) && !(await page.getByText('Nazorat', { exact: true }).count())
+    && !(await page.getByPlaceholder(/AI administratordan so'rang/).count()) && !(await page.getByText('Nazorat', { exact: true }).count())
     && !(await page.getByRole('link', { name: 'ulash' }).count()) && await page.getByText('rejimni klinika egasi tanlaydi').isVisible());
   ok("I5: «Sizni kutyapti» o'rniga «Ochiq so'rov» (xodimga «Sizni kutyapti» yopiq)", await page.getByText("Ochiq so'rov").isVisible() && !(await page.getByText('Sizni kutyapti').count()));
   ok("I9: telefon ulanmagan, qo'ng'iroq bo'lmagan — «0 qo'ng'iroq» emas, «telefon ulanmagan»", await page.getByText('telefon ulanmagan').first().isVisible());

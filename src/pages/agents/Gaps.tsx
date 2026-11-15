@@ -25,7 +25,7 @@ export function Gaps({ notify, onChanged }: { notify: Notify; onChanged: () => v
       setBrain(r.brain);
       setOpen(null);
       setText('');
-      notify('Saqlandi — qabulxona endi shunday javob beradi');
+      notify('Saqlandi — AI administrator endi shunday javob beradi');
       onChanged();
     } catch (e) {
       notify((e as Error).message, true);

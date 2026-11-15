@@ -15,7 +15,7 @@ import { loginFrom } from '../setup/wizard';
 import { copyText } from '../../lib/clipboard';
 
 const ACCESS: Record<StaffAccess, { name: string; hint: string }> = {
-  reception: { name: 'Qabulxona', hint: "so'rovlar, yozishmalar, qo'ng'iroqlar, mijozlar" },
+  reception: { name: 'Qabulxona xodimi', hint: "so'rovlar, yozishmalar, qo'ng'iroqlar, mijozlar" },
   manager: { name: 'Boshqaruvchi', hint: 'hamma bo‘lim, Sozlamalar va kalitlardan tashqari' },
 };
 
