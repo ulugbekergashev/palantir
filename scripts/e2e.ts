@@ -47,6 +47,11 @@ const digestHas = (tgUserId: string): boolean => {
   const db = new DatabaseSync(join(dataDir, 'palantir.db'), { readOnly: true });
   try { return !!db.prepare('SELECT 1 FROM auto_digest d JOIN leads l ON l.id = d.lead_id WHERE l.tg_user_id = ?').get(tgUserId); } finally { db.close(); }
 };
+/** «Yetkazildi» vaqti bazada saqlanganmi — dastur qayta yonsa ham takrorlanmasin (E11) */
+const ackSaved = (tgUserId: string): boolean => {
+  const db = new DatabaseSync(join(dataDir, 'palantir.db'), { readOnly: true });
+  try { return !!db.prepare('SELECT 1 FROM lead_acks a JOIN leads l ON l.id = a.lead_id WHERE l.tg_user_id = ?').get(tgUserId); } finally { db.close(); }
+};
 const PORT = 3290;
 const server = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], {
   env: {
@@ -241,6 +246,7 @@ try {
   const question = await waitFor('savol egasiga', () => after(mark, OWNER, has('Stol narxi qancha?')));
   ok('mijoz savoli egasiga yetdi', !!question);
   ok('mijozga: «yetkazildi» javobi', await waitFor('yetkazildi', () => after(mark, CUSTOMER, has('yetkazildi'))));
+  ok("E11: «yetkazildi» vaqti bazada — qayta yonganda bir soat ichida takrorlanmaydi", ackSaved(String(CUSTOMER)));
   mark = sent.length;
   say(OWNER, "1 500 000 so'm, yetkazib berish bepul", question!.id);
   ok('egasining javobi mijozga ketdi', await waitFor('javob mijozga', () => after(mark, CUSTOMER, has("1 500 000 so'm"))));

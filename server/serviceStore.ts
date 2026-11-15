@@ -64,6 +64,21 @@ export const autoDigest = {
   clear: (businessId: string) => run('DELETE FROM auto_digest WHERE business_id = ?', businessId),
 };
 
+// ─── Bemorga «yetkazildi» (oxirgi marta qachon) ──────────────────────────────
+sql.exec('CREATE TABLE IF NOT EXISTS lead_acks (business_id TEXT NOT NULL, lead_id TEXT NOT NULL, at TEXT NOT NULL, PRIMARY KEY (business_id, lead_id))');
+
+/**
+ * «Xabaringiz yetkazildi» suhbatga soatiga bir marta boriladi. Vaqt bazada: xotirada tursa, dastur qayta yonganda
+ * bemor bir soat ichida ikkinchi «yetkazildi»ni olardi (E11)
+ */
+export const leadAcks = {
+  /** Oxirgi «yetkazildi» vaqti (ms), bo'lmasa 0 */
+  last: (businessId: string, leadId: string): number =>
+    one('SELECT at FROM lead_acks WHERE business_id = ? AND lead_id = ?', r => Date.parse(String(r.at)) || 0, businessId, leadId) ?? 0,
+  mark: (businessId: string, leadId: string) =>
+    run('INSERT INTO lead_acks (business_id, lead_id, at) VALUES (?, ?, ?) ON CONFLICT(business_id, lead_id) DO UPDATE SET at = excluded.at', businessId, leadId, nowIso()),
+};
+
 // ─── AI xarajati ─────────────────────────────────────────────────────────────
 sql.exec(`
 CREATE TABLE IF NOT EXISTS ai_usage (

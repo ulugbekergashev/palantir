@@ -22,7 +22,7 @@ import { containsSecret } from '../src/lib/secrets';
 import { takeOutcome } from './outcome';
 import { fileKeyboard } from './brain/learn';
 import { businesses, cameras, chatLog, leads, outbound, relays, replies, tasks, type BusinessRow, type LeadRow } from './db';
-import { optOuts } from './serviceStore';
+import { leadAcks, optOuts } from './serviceStore';
 import { moneyEntries } from './crm/moneyStore';
 import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index';
 import { docFileName, markdownToDocx } from './docx';
@@ -43,7 +43,7 @@ import { events } from './orders/store';
 import { remoteUrl } from './remote';
 import { ComputerError, openLoginWindow, runningJob, stopJob } from './computer/jobs';
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
-import { clearBotOutlets, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
+import { HOLD_EVERY_MS, clearBotOutlets, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 import { mediaLabel } from './inbox/media';
 import { registerButtons } from './botButtons';
 import { ContentError, setChannelOutlet } from './content/factory';
@@ -219,9 +219,6 @@ export function createBot(): BotService {
 
   // ─── Mijoz: havola, raqam, savol ───────────────────────────────────────────
   const contactKeyboard = Markup.keyboard([Markup.button.contactRequest('📞 Raqamni yuborish / Отправить номер')]).oneTime().resize();
-  /** Mijozga "yetkazildi" javobi soatiga bir marta (har xabarga emas) */
-  const acked = new Map<string, number>();
-
   /**
    * Havolasiz kelgan odam (botni qidiruvdan topgan, @nom bilan yozgan): o'rnatishda bitta faol biznes bo'lsa — o'sha klinikaning
    * mijozi. Bir nechta biznes bo'lsa qaysiniki ekani noma'lum — eski javob qoladi
@@ -303,9 +300,9 @@ export function createBot(): BotService {
     }
     // "O'zi javob bersin" rejimida javobning o'zi keladi; qolganida — yetkazilgani haqida (soatiga bir marta)
     if (replySettings(biz).mode === 'auto' && text) return;
-    const last = acked.get(lead.id) ?? 0;
-    if (Date.now() - last > 3600_000) {
-      acked.set(lead.id, Date.now());
+    // Soatiga bir marta; vaqt bazada — dastur qayta yonsa ham takrorlanmaydi (E11)
+    if (Date.now() - leadAcks.last(biz.id, lead.id) >= HOLD_EVERY_MS) {
+      leadAcks.mark(biz.id, lead.id);
       await ctx.reply(`Xabaringiz «${biz.profile.name}»ga yetkazildi ✅ Tez orada javob beramiz.\nСообщение передано, скоро ответим.`);
     }
   }

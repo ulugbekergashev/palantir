@@ -16,7 +16,7 @@ import type { AutoReply, InboxMessage, LeadChannel, ReplyBooking } from '../../s
 import { check } from '../../src/lib/compliance';
 import { iso } from '../../src/lib/week';
 import { businesses, inbox, leads, relays, replies, type BusinessRow, type ChannelPerson, type LeadRow, type ReplyRow } from '../db';
-import { autoDigest, notices, settings as store, waiting } from '../serviceStore';
+import { autoDigest, leadAcks, notices, settings as store, waiting } from '../serviceStore';
 import { cleanName, normPhone } from '../crm/logic';
 import { filterOptions, recordFix } from '../brain/index';
 import { ownerAnswered } from '../brain/learn';
@@ -259,8 +259,7 @@ export function whyNoReply(e: unknown): string {
 }
 
 /** «O'zi javob bersin»da AI javob bermagan bemorga «yetkazildi» — shu suhbatga ko'pi bilan shuncha vaqtda bir marta */
-const HOLD_EVERY_MS = 3600_000;
-const held = new Map<string, number>();
+export const HOLD_EVERY_MS = 3600_000;
 /** Shoshilinch belgilar (bemor matnida): «yetkazildi» bilan birga 103 eslatiladi */
 const URGENT = /qon\s*(ket|to'xta|oqa)|kuchli og'ri|chidab bo'lma|shish(ib|gan|di)|isitma|harorat|nafas|hushdan|кров|сильн\S* бол|не могу терпеть|опух|отек|отёк|температур|задыха/i;
 const foldApostrophe = (s: string) => s.replace(/[ʻʼ’‘`´]/g, "'");
@@ -277,8 +276,9 @@ async function holdCustomer(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage
   if (mode !== 'auto' || !fresh.length) return;
   // Instagram «so'rovlar» papkasidagi odam: unga yozish so'rovni qabul qiladi — buni egasi hal qilsin
   if (lead.channel === 'instagram' && lead.source?.includes("so'rov")) return;
-  if (Date.now() - (held.get(lead.id) ?? 0) < HOLD_EVERY_MS) return;
-  held.set(lead.id, Date.now());
+  // Oxirgi «yetkazildi» vaqti bazada (botniki bilan umumiy): dastur qayta yonsa ham bir soat ichida takrorlanmaydi (E11)
+  if (Date.now() - leadAcks.last(biz.id, lead.id) < HOLD_EVERY_MS) return;
+  leadAcks.mark(biz.id, lead.id);
   const urgent = isUrgent(fresh);
   const text = [
     holdLine(biz.profile.name),
