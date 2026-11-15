@@ -79,6 +79,16 @@ try {
   ok('Palantir ishga tushdi', await up(`${base}/api/health`));
   const other = await json<{ password: string }>(fetch(`${HUB}/admin/team`, post({ name: 'Jasur', login: 'jasur', role: 'installer' }, ADMIN_KEY)));
   const jasur = (await json<{ token: string }>(fetch(`${HUB}/admin/login`, post({ login: 'jasur', password: other.password })))).token;
+  // H8: o'rnatuvchi o'zi o'rnatgan (o'zi ulangan) kompyuterni ekrandagi kod bilan o'ziga biriktiradi; tasdiq — baribir asoschida
+  const joined = await json<{ clinicId: string }>(fetch(`${HUB}/api/register`, post({ machineId: 'A1B2-C3D4-E5F6-0718', name: 'Tabassum' })));
+  const claim = (machineId: string, token: string) => fetch(`${HUB}/admin/claim`, post({ machineId }, token));
+  const listOf = async (token: string) => (await json<{ clinics: { id: string; approved: boolean }[] }>(get(`${HUB}/admin/clinics`, token))).clinics;
+  ok("H8: biriktirishdan oldin o'rnatuvchi o'zi ulangan kompyuterni ko'rmaydi; noto'g'ri kod — 404", !!joined.clinicId && !(await listOf(installer.token)).some(c => c.id === joined.clinicId)
+    && (await claim('0000-0000-0000-0001', installer.token)).status === 404);
+  ok("H8: ekrandagi kod bilan biriktirdi — ro'yxatida «tasdiqlanmagan»; boshqa o'rnatuvchi olmaydi (409) va ko'rmaydi; tasdiqlay olmaydi (403)",
+    (await claim('a1b2-c3d4-e5f6-0718', installer.token)).status === 200 && (await listOf(installer.token)).find(c => c.id === joined.clinicId)?.approved === false
+    && (await claim('A1B2-C3D4-E5F6-0718', jasur)).status === 409 && !(await listOf(jasur)).some(c => c.id === joined.clinicId)
+    && (await fetch(`${HUB}/admin/clinics/${joined.clinicId}/approve`, post({ machineId: 'A1B2-C3D4-E5F6-0718' }, installer.token))).status === 403);
   const online = await until('klinika aloqada', async () => ((await json<{ clinics: { id: string; online: boolean }[] }>(get(`${HUB}/admin/clinics`, installer.token))).clinics.find(c => c.id === clinic.clinicId)?.online ? true : undefined), 20_000);
   ok('klinika Hub\'ga ulandi', !!online);
 

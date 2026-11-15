@@ -89,6 +89,10 @@ try {
   await hub.locator('#key button').click();
   await hub.locator('#bar').waitFor({ timeout: 10_000 });
   ok("o'rnatuvchiga «Jamoa» va «Jurnal» yo'q, «Yangi klinika» bor", !(await hub.locator('#tabTeam').isVisible()) && !(await hub.locator('#tabAudit').isVisible()) && await hub.locator('#new').isVisible());
+  // H8: o'zi o'rnatgan kompyuterni kod bilan biriktirish — o'rnatuvchida bor (asoschida yo'q); noto'g'ri kodga tushunarli javob
+  await hub.locator('#cm').fill('0000-0000-0000-0009');
+  await hub.locator('#claim button').click();
+  ok("H8: «O'zimga biriktirish» shakli bor, topilmagan kodga tushuntirish", await hub.locator('#claim').isVisible() && await hub.locator('#msg').getByText(/tasdiq kutayotgan kompyuter yo'q/).waitFor({ timeout: 5000 }).then(() => true, () => false));
   await shot(hub, 'hub-ornatuvchi');
 
   console.log('\n# Klinika: egasi xodimga kirish beradi');

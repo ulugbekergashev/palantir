@@ -77,6 +77,7 @@ li.ask{display:block}.ask p{margin:6px 0;white-space:pre-wrap;overflow-wrap:anyw
 <ul id="members"></ul></section>
 <section id="audit" hidden><h2>Jurnal</h2><ul id="log" class="log"></ul></section>
 <section id="help" hidden><h2 id="helpTitle">Yordam so'rovlari</h2><ul id="helpList"></ul></section>
+<form id="claim" hidden><input id="cm" placeholder="O'zim o'rnatgan kompyuter: ekrandagi kod XXXX-XXXX-XXXX-XXXX" maxlength="24" required><button>O'zimga biriktirish</button></form>
 <form id="new" hidden><input id="nm" placeholder="Kompyuter o'zi ulana olmasa: klinika nomi" maxlength="80" required><button>Yangi klinika</button></form>
 <div id="code" class="code" hidden></div>
 <div id="msg" role="status"></div>
@@ -112,6 +113,8 @@ async function load() {
   if (!r.ok) return say('Xato: ' + r.status);
   $('key').hidden = true;
   $('new').hidden = false;
+  // O'rnatuvchi o'zi o'rnatgan kompyuterni kod bilan biriktiradi (H8); asoschi hammasini ko'radi — unga kerak emas
+  $('claim').hidden = founder();
   const { clinics } = await r.json();
   // Bir xil kompyuter kodi bir nechta yozuvda — takror o'rnatish yoki kimdir kodni bilib soxta yozuv ochgan
   const seen = {};
@@ -396,6 +399,28 @@ function choose(c, li, btn, list) {
   say('Bu kompyuterda bir nechta biznes — qaysi biri?');
 }
 
+// O'rnatuvchi: o'zi o'rnatgan kompyuterni ekrandagi kod bilan biriktirish — ro'yxatida «tasdiqlanmagan» bo'lib ko'rinadi, asoschiga xabar (H8)
+$('claim').onsubmit = async e => {
+  e.preventDefault();
+  const machineId = $('cm').value.trim();
+  if (!machineId) return;
+  const b = $('claim').querySelector('button');
+  b.disabled = true;
+  try {
+    const r = await api('/admin/claim', { machineId });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) return load();
+    if (!r.ok) return say(j.error || 'Xato: ' + r.status);
+    $('cm').value = '';
+    say("Biriktirildi — kompyuter ro'yxatingizda. Asoschi tasdiqlagach panel va litsenziya ochiladi.");
+    load();
+  } catch {
+    say("Hub bilan aloqa yo'q");
+  } finally {
+    b.disabled = false;
+  }
+};
+
 // Yangi klinika: kod faqat shu javobda keladi — hubda saqlanmaydi, yo'qolsa yangi yozuv ochiladi
 $('new').onsubmit = async e => {
   e.preventDefault();
@@ -529,7 +554,7 @@ const ACTION = {
   'panel.javobsiz': 'panelga kirolmadi (klinika javob bermadi)', 'litsenziya.berildi': 'litsenziya berdi', 'klinika.tasdiqlandi': 'kompyuterni tasdiqladi',
   'klinika.ochirildi': "yozuvni o'chirdi", 'zaxira.yuklandi': 'zaxirani yukladi', 'diagnostika.oqildi': "diagnostikani o'qidi", 'yordam.javob': "yordam so'roviga javob berdi", 'yordam.qayta': 'javobni qayta yubordi',
   'jamoa.qoshildi': "jamoaga qo'shdi", 'jamoa.parol': 'yangi parol berdi', 'jamoa.yopildi': 'hisobni yopdi', 'jamoa.ochildi': 'hisobni ochdi', 'parol.almashdi': "o'z parolini almashtirdi",
-  'kirish.tiklandi': 'egasining kirishini tikladi', 'kirish.tiklanmadi': 'kirishni tiklay olmadi', 'klinika.kompyuter_almashdi': 'kompyuter kodini yangiladi',
+  'kirish.tiklandi': 'egasining kirishini tikladi', 'kirish.tiklanmadi': 'kirishni tiklay olmadi', 'klinika.kompyuter_almashdi': 'kompyuter kodini yangiladi', 'klinika.biriktirildi': "o'zi o'rnatgan kompyuterni biriktirdi",
 };
 let names = {};
 $('tabAudit').onclick = () => { $('audit').hidden = !$('audit').hidden; if (!$('audit').hidden) audit(); };

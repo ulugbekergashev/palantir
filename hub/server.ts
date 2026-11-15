@@ -654,6 +654,26 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     return send(res, 200, { license: done?.license ?? null });
   }
 
+  // O'rnatuvchi: o'zi o'rnatgan (o'zi ulangan, hali tasdiqlanmagan) kompyuterni ekrandagi kompyuter kodi bilan o'ziga biriktiradi (H8,
+  // egasi qarori): ro'yxatida «tasdiq kutyapti» bo'lib ko'rinadi, asoschiga Telegram'da xabar boradi. Tasdiqlash — baribir faqat asoschida
+  if (p === '/admin/claim' && req.method === 'POST') {
+    const who = memberOf(req, res); if (!who) return;
+    let body: { machineId?: unknown };
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    const machine = normalizeMachineId(String(body.machineId ?? ''));
+    if (!machine) return send(res, 400, { error: "Kompyuter kodi noto'g'ri yozilgan (XXXX-XXXX-XXXX-XXXX)" });
+    const row = db.prepare('SELECT id, name, created_by FROM clinics WHERE machine_id = ? AND COALESCE(approved, 0) = 0 ORDER BY created_at DESC').get(machine) as
+      { id: string; name: string; created_by: string | null } | undefined;
+    if (!row) return send(res, 404, { error: "Bu kodli, tasdiq kutayotgan kompyuter yo'q — kompyuter Hub'ga ulanganini (panelda «Hub») tekshiring" });
+    if (row.created_by && row.created_by !== who.id) return send(res, 409, { error: "Bu kompyuter boshqa o'rnatuvchiga biriktirilgan" });
+    if (!row.created_by) {
+      db.prepare('UPDATE clinics SET created_by = ? WHERE id = ?').run(who.id, row.id);
+      team.log(who, 'klinika.biriktirildi', row.id, machine);
+      if (who.role !== 'founder') void alert(`🔗 ${who.name} (o'rnatuvchi) «${row.name}» kompyuterini o'rnatdi va tasdiq kutyapti. Kompyuter kodi to'g'ri — ${cfg.publicUrl}/admin da «Tasdiqlash va aktivlashtirish»ni bosing.`);
+    }
+    return send(res, 200, { clinicId: row.id, approved: false });
+  }
+
   // Admin: o'zi ulangan kompyuterni tasdiqlash — sotuvchi egasidan panelidagi kompyuter kodini so'raydi va kiritadi. Kod maxfiy emas,
   // lekin uni faqat o'sha kompyuter oldida o'tirgan egasi aytadi: begona yozuv kim bilandir gaplashmasdan tasdiqlanib qolmaydi
   const approving = /^\/admin\/clinics\/([0-9a-f]{10})\/approve$/.exec(p);
