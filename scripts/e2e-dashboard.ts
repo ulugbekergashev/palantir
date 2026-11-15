@@ -206,6 +206,16 @@ try {
   ok("I6: tasdiq kutayotgan javobi bor Javohir — lentada «ready» (javob tayyor), jamoa kunida «javob tayyor — tasdiqingizni kutyapti»",
     d3.recent.find(r => r.kind === 'message' && r.who === 'Javohir')?.state === 'ready' && rec.includes('1 tasiga javob tayyor — tasdiqingizni kutyapti') && /tasi hali javobsiz/.test(rec), rec);
 
+  // Agentlar lentasi: AI administratorning ishi ham «Bugungi jurnal»da — bir bemorga bir qator, «yetkazildi» javob emas
+  type Feed = { member: string; title: string; at: string }[];
+  const feed = ((await api('/api/team/day', { token })).json as { timeline: Feed }).timeline;
+  const mine = feed.filter(e => e.member === 'qabulxona');
+  ok("lenta: AI administrator javoblari — «Javob berdi: Nodira · Telegram», Ali (2 xabar) bitta qatorda; faqat «yetkazildi» olgan Sherzod yo'q; so'rov ham bor",
+    mine.some(e => e.title === 'Javob berdi: Nodira · Telegram') && mine.filter(e => e.title.startsWith('Javob berdi: Ali Valiyev')).length === 1
+      && !mine.some(e => e.title.includes('Sherzod')) && mine.some(e => e.title === "So'rov qoldirdi: Javohir"), JSON.stringify(mine.map(e => e.title)));
+  ok('lenta: yangisi tepada', feed.every((e, i, all) => !i || all[i - 1].at >= e.at));
+
+
   console.log('\n# Ko\'rinish (headless)');
   const browser = await chromium.launch({ executablePath: CHROME });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: TIMEZONE, locale: 'uz-UZ' });

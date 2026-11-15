@@ -1,14 +1,15 @@
 /**
  * «Bugun jamoa nima qildi» — bosh ekranda, AI jamoa kartalari ostida: har xodimning bugungi ishi bir jumlada va raqamlarda,
  * yonida bugungi jurnal (hamma xodim yozuvlari). Ma'lumot serverda haqiqiy yozuvlardan yig'iladi (server/teamDay.ts), AI'siz.
- * Har daqiqada va biror ish bajarilganda (tick) yangilanadi.
+ * Har 20 soniyada va biror ish bajarilganda (tick) yangilanadi.
  */
 import { useEffect, useState } from 'react';
 import { api, type TeamDay as Day } from '../data/api';
 import { HUE, clock } from './agent';
 import { TEAM, memberHref } from './team';
 
-const POLL_MS = 60_000;
+/** Lenta «jonli»: ekran ochiq tursa shuncha vaqtda yangilanadi (so'rov arzon — AI'siz, bazadan) */
+const POLL_MS = 20_000;
 
 export function TeamDay({ tick = 0 }: { tick?: number }) {
   const [day, setDay] = useState<Day | null>(null);
@@ -54,7 +55,7 @@ export function TeamDay({ tick = 0 }: { tick?: number }) {
         {day.timeline.length > 0 && (
           <div className="rounded-2xl border border-glass/[0.08] bg-glass/[0.03] p-4">
             <h3 className="mb-3 text-[13px] font-semibold text-[#d9dbe1]">Bugungi jurnal</h3>
-            <ol className="flex flex-col gap-2.5">
+            <ol className="flex max-h-[560px] flex-col gap-2.5 overflow-y-auto pr-1" data-testid="team-feed">
               {day.timeline.map(e => (
                 <li key={e.id} className="flex gap-2.5 text-[13px]">
                   <span className="w-10 shrink-0 tabular-nums text-[#8a909c]">{clock(e.at)}</span>

@@ -22,6 +22,7 @@ import './content/video';
 import { isClinic } from '../src/data/industries';
 import { crmConnected } from './crm/index';
 import { events } from './orders/store';
+import { teamFeed } from './feed';
 import { CREW, crewHas, type CrewMember } from '../src/lib/crew';
 
 const isCrewMember = (m: string): m is CrewMember => (CREW as readonly string[]).includes(m);
@@ -33,7 +34,8 @@ export interface DayFact { label: string; value: number }
 export interface DayMember { member: OrderMember; summary: string; facts: DayFact[] }
 export interface TeamDay { date: string; members: DayMember[]; timeline: AgentEvent[] }
 
-const TIMELINE = 12;
+/** Lentada shuncha yozuv (AI administrator kuniga o'nlab bemorga javob beradi — 12 tasi bir soatga ham yetmasdi) */
+const TIMELINE = 30;
 
 const sentence = (parts: (string | false | 0)[]) => { const p = parts.filter(Boolean).join(', '); return p ? `${p.replace(/^./, c => c.toUpperCase())}.` : ''; };
 
@@ -139,7 +141,8 @@ export function teamDay(biz: BusinessRow, now = new Date()): TeamDay {
       ...(crewHas(biz, 'kontent') ? [content(biz, from)] : []), ...(crewHas(biz, 'target') ? [ads(biz, from)] : []),
     ],
     // Olib tashlangan xodimning yozuvlari (eski topshiriq, Direktor bergan ish) lentada ko'rinmaydi
-    timeline: events.since(biz.id, from, TIMELINE).filter(e => !isCrewMember(e.member) || crewHas(biz, e.member)),
+    // AI administratorning ishi (javoblar, qabul, telefon, so'rovlar) ham shu lentada — feed.ts
+    timeline: teamFeed(biz, from, TIMELINE, e => !isCrewMember(e.member) || crewHas(biz, e.member)),
   };
 }
 
