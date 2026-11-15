@@ -1,5 +1,5 @@
 py-tgcalls==3.0.0
-ntgcalls==3.0.3
+ntgcalls==3.0.7
 Telethon==1.45.0
 google-genai==2.31.0
 httpx==0.28.1
