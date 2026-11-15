@@ -20,6 +20,7 @@ import { businesses, connections, leads, type BusinessRow, type LeadRow } from '
 import { env } from '../env';
 import { open, seal } from '../secret';
 import { notifyOwner, onIncoming, onOwnerOutgoing, registerSender, replySettings } from './core';
+import { personalChats } from './personal';
 
 /** Telegram'dan kelgan xabar (haydovchidan mustaqil ko'rinishda) */
 export interface TgEvent {
@@ -300,7 +301,8 @@ export function refreshTelegramUser(): void {
 
 /** Mijoz bilan yozishmami yoki shaxsiy suhbatmi */
 function accept(biz: BusinessRow, e: TgEvent): boolean {
-  if (e.isBot || e.userId === SERVICE_ID) return false;
+  // Egasi «bemor emas — shaxsiy suhbat» deb belgilagan odam (personal.ts)
+  if (e.isBot || e.userId === SERVICE_ID || personalChats.has(biz.id, e.userId)) return false;
   const settings = replySettings(biz);
   if (settings.mode === 'off') return false;
   if (leads.byTelegram(biz.id, e.userId)) return true;

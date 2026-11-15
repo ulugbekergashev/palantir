@@ -34,6 +34,7 @@ import { awaitingReply, holdLine } from './hold';
 import { isMedia } from './media';
 import { digestText } from './digest';
 import { splitForInstagram } from './igRules';
+import { canMarkPersonal, personalRow } from './personal';
 
 export interface Sender {
   /** Shu mijozga shu kanal orqali yozish mumkinmi */
@@ -608,7 +609,9 @@ async function forward(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], n
   try {
     // Qabulxona xodimlari (bo'lsa) va egasi: kim birinchi ko'rsa — kartaga «Reply» qilib javob beradi
     // AI bilmagan savol — darhol; kechasi ovozsiz, agar shoshilinch bo'lmasa (B7)
-    sentTo = await deliverToTeam(biz, [...body, '', REPLY_HINT].join('\n'), undefined, undefined, nightNow() && !isUrgent(fresh));
+    // Egasining shaxsiy Telegram'idan kelgan odam do'st yoki qarindosh bo'lishi mumkin — «Bemor emas» tugmasi (E13)
+    const keyboard = canMarkPersonal(lead) ? Markup.inlineKeyboard([personalRow(lead.id)]).reply_markup : undefined;
+    sentTo = await deliverToTeam(biz, [...body, '', REPLY_HINT].join('\n'), keyboard, undefined, nightNow() && !isUrgent(fresh));
   } catch (e) {
     // Telegram hozir javob bermadi: mijozning xabari egasiga yetmay qolmasin — navbatga (javobni panelda beradi)
     console.error('[mijozlar] egasiga yetkazilmadi, navbatga qo\'yildi:', (e as Error).message);
@@ -670,7 +673,8 @@ async function card(biz: BusinessRow, lead: LeadRow, fresh: InboxMessage[], r: R
   };
   let sentTo: { chatId: string; messageId: number }[];
   try {
-    sentTo = await deliverToTeam(biz, html, merged?.keyboard ?? replyKeyboard(r), register);
+    const keyboard = merged?.keyboard ?? (canMarkPersonal(lead) ? { inline_keyboard: [...replyKeyboard(r).inline_keyboard, personalRow(lead.id)] } : replyKeyboard(r));
+    sentTo = await deliverToTeam(biz, html, keyboard, register);
   } catch (e) {
     // Karta ketmadi: taklif panelda turibdi — egasi buni bilishi uchun qisqa xabar navbatga qo'yiladi
     console.error("[mijozlar] karta ketmadi, navbatga qo'yildi:", (e as Error).message);

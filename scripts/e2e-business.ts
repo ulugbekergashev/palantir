@@ -13,7 +13,7 @@ const buttons = (s: Sent | undefined) => ((s?.params.reply_markup as { inline_ke
 const to = (chat: number, mark: number, needle: string) => sent.slice(mark).find(s => s.method === 'sendMessage' && Number(s.params.chat_id) === chat && textOf(s).includes(needle));
 
 // Boshqa sinovlarda ishlatilmagan id'lar (7101… — e2e-crm'dagi bot mijozlari: o'sha odam bo'lsa, karta bitta bo'lardi)
-const CUSTOMER = 7301, STRANGER = 7399;
+const CUSTOMER = 7301, FRIEND = 7302, STRANGER = 7399;
 
 export async function businessTests(h: Harness): Promise<void> {
   const { ok, api, token } = h;
@@ -63,6 +63,30 @@ export async function businessTests(h: Harness): Promise<void> {
   const aiSaw = ai.requests.slice(asked).some(q => JSON.stringify(q.messages).includes('Narxlar ro'));
   ok("rejim «o'chiq»: Business xabari baribir saqlanadi, AI javob tayyorlamaydi, egasiga karta yo'q (E12)", stored && !aiSaw && !to(OWNER, mark, 'Narxlar'));
   await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'draft', contacts: false, delayMin: 1 } });
+
+  // E13: egasining do'sti yozdi — Telegram kontaktmi aytmaydi; egasi kartadagi «Bemor emas»ni bosadi
+  const friendLead = async () => ((await api('/api/leads', { token })).json.leads as { id: string; name: string | null }[]).find(l => l.name === 'Sardor do\'st');
+  mark = sent.length;
+  businessMessage({ connectionId: 'bc-1', chatId: FRIEND, fromId: FRIEND, name: "Sardor do'st", text: 'Qalaysan, kechqurun choyga kelasanmi?' });
+  const friendCard = await waitFor("do'st kartasi", () => to(OWNER, mark, 'choyga'), 15_000);
+  const np = buttons(friendCard).find(b => b.callback_data?.startsWith('np|'));
+  ok("shaxsiy Telegram'dan kelgan odam kartasida «Bemor emas» tugmasi (E13)", !!np && !!(await friendLead()), JSON.stringify(buttons(friendCard)));
+  mark = sent.length;
+  press(OWNER, np!.callback_data!, friendCard!.id!);
+  const marked = await waitFor('belgilandi', () => sent.slice(mark).find(s => s.method === 'editMessageText' && textOf(s).includes('bemor emas')));
+  const undo = buttons(marked).find(b => b.callback_data?.startsWith('nu|'));
+  ok("«Bemor emas» — karta o'chirildi, xabar «bemor emas deb belgilandi» va «Qaytarish» tugmasi", !!marked && !!undo && !(await friendLead()), JSON.stringify(marked?.params).slice(0, 300));
+  mark = sent.length;
+  businessMessage({ connectionId: 'bc-1', chatId: FRIEND, fromId: FRIEND, name: "Sardor do'st", text: 'Javob ber, kutayapman' });
+  await new Promise(r => setTimeout(r, 2500));
+  ok("belgilangan odam yana yozdi — bemorlar ro'yxatiga ham, egasiga karta bo'lib ham tushmadi", !(await friendLead()) && !to(OWNER, mark, 'kutayapman'));
+  press(OWNER, undo!.callback_data!, marked!.params.message_id as number);
+  await new Promise(r => setTimeout(r, 300));
+  businessMessage({ connectionId: 'bc-1', chatId: FRIEND, fromId: FRIEND, name: "Sardor do'st", text: 'Tish og\'riyapti, yozilsam bo\'ladimi?' });
+  const back = await (async () => { for (let i = 0; i < 40; i++) { if (await friendLead()) return true; await new Promise(r => setTimeout(r, 100)); } return false; })();
+  ok("«Qaytarish» — keyingi xabaridan yana bemor", back);
+  const again = await friendLead();
+  if (again) await api(`/api/leads/${again.id}`, { method: 'DELETE', token });
 
   mark = sent.length;
   businessConnection({ id: 'bc-1', userId: OWNER, canReply: false });

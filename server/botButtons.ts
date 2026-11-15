@@ -24,6 +24,9 @@ import { answerSupport } from './supportAsk';
 import { answerPasswordReset } from './passwordReset';
 import { directorButton } from './director/telegram';
 import { mergeKeyboard } from './director/logic';
+import { forgetLead } from './forget';
+import { canMarkPersonal, personalChats, undoPersonalRow } from './inbox/personal';
+import { waiting } from './serviceStore';
 
 export interface ButtonDeps {
   handleOwner(ctx: Context, biz: BusinessRow, text: string, voice?: boolean, extra?: { display?: string; photo?: boolean }): Promise<void>;
@@ -71,6 +74,28 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
       await ctx.editMessageReplyMarkup(undefined).catch(() => {});
       await sendHtml(String(ctx.chat!.id), said).catch(() => {});
       return toast(ctx, code === 'pa' ? 'Yangi parol yuborildi' : "Parol o'zgarmadi");
+    }
+    // Egasining shaxsiy Telegram'iga yozgan do'st yoki qarindosh — «bemor emas» (E13, inbox/personal.ts). Faqat egasi bosadi:
+    // karta va yozishma o'chadi, keyingi xabarlari tushmaydi; «Qaytarish» — keyingi xabaridan yana bemor
+    if (code === 'np' || code === 'nu') {
+      if (!ownerBiz) return toast(ctx, 'Buni faqat klinika egasi belgilaydi');
+      if (code === 'nu') {
+        personalChats.remove(biz.id, id);
+        if (msg) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+        return toast(ctx, "Qaytarildi — bu odam keyingi safar yozsa, bemor sifatida tushadi", { show_alert: true });
+      }
+      const lead = leads.get(biz.id, id);
+      if (!lead?.tgUserId || !canMarkPersonal(lead)) return toast(ctx, 'Bu tugma eskirgan');
+      personalChats.add(biz.id, lead.tgUserId);
+      waiting.remove(biz.id, lead.id);
+      forgetLead(biz.id, lead.id);
+      const who = esc(lead.name || (lead.username ? `@${lead.username}` : 'Bu odam'));
+      if (msg) {
+        await tg.editMessageText(ctx.chat!.id, msg.message_id, undefined,
+          `🙅 <b>${who}</b> — bemor emas deb belgilandi.\nKartasi va yozishmasi o'chirildi; uning Telegram'ingizdagi xabarlari endi Palantir'ga tushmaydi.`,
+          { parse_mode: 'HTML', reply_markup: { inline_keyboard: [undoPersonalRow(lead.tgUserId)] } }).catch(ignoreUnchanged).catch(() => {});
+      }
+      return toast(ctx, 'Belgilandi — bemorlar ro\'yxatidan olindi');
     }
     if (code === 'jy') {
       if (id !== biz.id) return toast(ctx, 'Bu tugma eskirgan');

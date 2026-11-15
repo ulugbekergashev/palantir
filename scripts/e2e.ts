@@ -551,7 +551,9 @@ try {
   ok("...va o'zicha yubormaydi (egasi gaplashayotgan joyga aralashmaydi)", !tgUser.sent.some(m => m.to.userId === '6003'));
   mark = sent.length;
   tgUser.incoming(TG_SESSION, '6004', 'Chegirma bormi?', { name: 'Jamshid' });
-  ok("o'zi rejimida ham bilmagan narsasini egasidan so'raydi", await waitFor('karta', () => after(mark, OWNER, s => has('Jamshid')(s) && buttons(s).length === 2)));
+  // Yuborish va Kerak emas; shaxsiy Telegram'dan kelgani uchun — «Bemor emas» ham (E13)
+  ok("o'zi rejimida ham bilmagan narsasini egasidan so'raydi; shaxsiy Telegram'da «Bemor emas» tugmasi ham", await waitFor('karta', () => after(mark, OWNER, s => has('Jamshid')(s)
+    && buttons(s).filter(b => !b.callback_data?.startsWith('np|')).length === 2 && buttons(s).some(b => b.callback_data?.startsWith('np|')))));
   await sleep(2000);
   // Bemorga javob o'rniga faqat «xodimga yetkazildi» boradi — u jim qolmaydi (E1)
   const onlyHold = (userId: string) => { const got = tgUser.sent.filter(m => m.to.userId === userId); return got.length === 1 && got[0].text.includes('yetkazildi') && !got[0].text.includes('103'); };
