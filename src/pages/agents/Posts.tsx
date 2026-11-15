@@ -218,7 +218,7 @@ export function InstagramPosts({ status, notify, tick, onCount }: { status: Live
       <Panel title="Yangi Instagram posti">{list === null ? <Loader2 className="h-5 w-5 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" /> : <NewPost picture={picture} notify={notify} onCreated={() => setRev(n => n + 1)} />}</Panel>
       <Panel title="Instagram postlari">
         {list === null ? <Loader2 className="h-5 w-5 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" />
-          : !list.length ? <Quiet>Hali post yo'q. Yuqorida tayyorlang, «Reja»dagi mavzuda «Instagram»ni bosing yoki Yordamchiga ayting: «Ertangi kun uchun Instagram post tayyorla».</Quiet>
+          : !list.length ? <Quiet>Hali post yo'q. Yuqorida tayyorlang, «Reja»dagi mavzuda «Instagram»ni bosing yoki Palantir'ga ayting: «Ertangi kun uchun Instagram post tayyorla».</Quiet>
             : <ul className="flex flex-col gap-3">{list.map(p => <PostCard key={`${p.id}-${p.status}-${p.caption}`} p={p} notify={notify} onPosts={setList} />)}</ul>}
       </Panel>
     </div>

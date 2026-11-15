@@ -63,6 +63,8 @@ class WebBridge(Bridge):
             self.silence_ms = WAKE_SILENCE_MS
             self.call_limit_s = WAKE_LIMIT_S
         self.palantir.http.headers['Authorization'] = f'Bearer {token}'
+        # Panelda gapirilgan savolning javobi panelda qoladi — Telegram'ga ketmaydi (B3)
+        self.palantir.to_telegram = False
         self.who = who
         self.desk = Desk('', test=True) if customer else None
         self.tag = '[panel sinov] ' if customer else '[panel] '

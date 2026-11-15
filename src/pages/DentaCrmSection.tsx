@@ -62,9 +62,9 @@ export function DentaCrm({ status, onStatus, notify, initial }: DentaCrmProps) {
     return (
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-slate-600">Ulangan: <b>{account}</b>.{!problem && ' Yordamchi qabullar va tushumni shu yerdan oladi, bemorni qabulga yoza oladi.'}</p>
+          <p className="text-sm text-slate-600">Ulangan: <b>{account}</b>.{!problem && ' Palantir qabullar va tushumni shu yerdan oladi, bemorni qabulga yoza oladi.'}</p>
           <Button size="sm" variant="ghost" onClick={async () => {
-            if (!window.confirm("DentaCRM uzilsinmi? Yordamchi qabullar va tushumni ko'ra olmay qoladi.")) return;
+            if (!window.confirm("DentaCRM uzilsinmi? Palantir qabullar va tushumni ko'ra olmay qoladi.")) return;
             try { onStatus((await api.crmDisconnect()).status); } catch (err) { notify((err as Error).message, true); }
           }}><Unlink className="h-3.5 w-3.5" /> Uzish</Button>
         </div>
@@ -75,7 +75,7 @@ export function DentaCrm({ status, onStatus, notify, initial }: DentaCrmProps) {
   return (
     <>
       <p className="text-sm text-slate-600">
-        Klinikangiz DentaCRM'da ishlasa, ulang: «bugun nechta bemor?», «tushum qancha?», «Aliyevni ertaga 15:00 ga yoz» desangiz, yordamchi CRM'dan o'qiydi va unga yozadi.
+        Klinikangiz DentaCRM'da ishlasa, ulang: «bugun nechta bemor?», «tushum qancha?», «Aliyevni ertaga 15:00 ga yoz» desangiz, Palantir CRM'dan o'qiydi va unga yozadi.
         Parol shifrlangan holda shu kompyuterda saqlanadi.
       </p>
       <form onSubmit={connect} className="grid gap-2 sm:grid-cols-3">

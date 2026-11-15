@@ -167,7 +167,7 @@ export function AssistantDesk({ data, reload, notify, onChanged, owner }: { data
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
         <Brief data={data} owner={owner} />
         <VoicePanel kind="owner" member="yordamchi" title="Ovoz bilan ayting" hint="Bosing va gapiring: eslatma, hujjat, savol — hammasi."
-          labels={{ start: 'Yordamchi bilan gaplashish', stop: 'Suhbatni tugatish', speaking: 'Yordamchi gapiryapti' }} />
+          labels={{ start: 'Palantir bilan gaplashish', stop: 'Suhbatni tugatish', speaking: 'Palantir gapiryapti' }} />
       </div>
       <AgentAsk member="yordamchi" placeholder="Yoki yozing: «Aliyevga tijorat taklifi tayyorla»" chips={COMMANDS} />
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">

@@ -12,8 +12,8 @@ export function DocumentsCard({ notify }: { notify: Notify }) {
   useEffect(() => { api.documents().then(r => setList(r.documents)).catch(tell); }, []);
   if (!list) return null;
   return (
-    <Card title={`Hujjatlar${list.length ? ` (${list.length})` : ''}`} description="Yordamchi tayyorlagan shartnoma, taklif, hisob va xatlar. Word faylini yuklab oling; matni papkaning «Hujjatlar» bo'limida ham turadi.">
-      {!list.length ? <p className="text-sm text-slate-500">Hali hujjat yo'q. Yordamchiga ayting: «Aliyevga 20 ta stol uchun tijorat taklifi tayyorla».</p> : (
+    <Card title={`Hujjatlar${list.length ? ` (${list.length})` : ''}`} description="Palantir tayyorlagan shartnoma, taklif, hisob va xatlar. Word faylini yuklab oling; matni papkaning «Hujjatlar» bo'limida ham turadi.">
+      {!list.length ? <p className="text-sm text-slate-500">Hali hujjat yo'q. Palantir'ga ayting: «Aliyevga 20 ta stol uchun tijorat taklifi tayyorla».</p> : (
         <ul className="space-y-3">
           {list.map(d => (
             <li key={d.id}>

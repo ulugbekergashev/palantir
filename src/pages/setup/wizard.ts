@@ -14,7 +14,7 @@ export interface StepInfo { key: StepKey; title: string; lead: string; optional?
 export const STEPS: StepInfo[] = [
   { key: 'clinic', title: 'Klinika', lead: "Qaysi klinikani ulayapmiz. Manzil, ish vaqti va narxlarni keyin egasi Telegram'da aytadi — bot o'zi so'raydi." },
   { key: 'keys', title: 'Kalitlar', lead: "Bot tokeni, AI kalitlari, kamera manzili, DentaCRM havolasi — hammasini bitta maydonga qo'ying. Palantir har birining turini o'zi taniydi va darhol tekshiradi." },
-  { key: 'owner', title: "Egasining Telegram'i", lead: "Egasi yordamchi bilan shu botda gaplashadi: eslatmalar, ertalabki xulosa, mijozlarga javob takliflari unga keladi." },
+  { key: 'owner', title: "Egasining Telegram'i", lead: "Egasi Palantir bilan shu botda gaplashadi: eslatmalar, ertalabki xulosa, mijozlarga javob takliflari unga keladi." },
   { key: 'patients', title: "Bemorlar Telegram'i", lead: "Bemorlar botga havola orqali yozadi (Instagram bio, vizitka, reklama); egasining shaxsiy Telegram'iga yozganlar — Telegram Business orqali. Palantir ikkalasiga ham javob beradi." },
   { key: 'crm', title: 'DentaCRM', lead: "Qabullar, kelgan-kelmaganlar va tushum Palantir'ga shu yerdan keladi." },
   { key: 'tg', title: 'Shaxsiy Telegram', lead: "Klinika raqamidagi Telegram: mijozlar shu yerga yozadi. Palantir javob taklif qiladi, egasi tasdiqlamaguncha hech narsa yuborilmaydi." },

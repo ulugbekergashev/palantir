@@ -119,7 +119,7 @@ export function ContentPlanTab({ view, setView, notify }: Props) {
         </form>
       </Panel>
       <Panel title={view.plan.length ? `Mavzular (${view.plan.length})` : 'Mavzular'}>
-        {!view.plan.length ? <Quiet>Hali reja yo'q. «Reja tuzish»ni bosing yoki Yordamchiga ayting: «menga 25 ta post rejasini tuz». Marketologning oxirgi tadqiqotlari bo'lsa, reja ulardan ham g'oya oladi.</Quiet> : (
+        {!view.plan.length ? <Quiet>Hali reja yo'q. «Reja tuzish»ni bosing yoki Palantir'ga ayting: «menga 25 ta post rejasini tuz». Marketologning oxirgi tadqiqotlari bo'lsa, reja ulardan ham g'oya oladi.</Quiet> : (
           <ol className="flex flex-col gap-2.5">
             {view.plan.map(p => (
               <li key={p.id} className="rounded-2xl border border-glass/[0.06] bg-glass/[0.02] p-4">

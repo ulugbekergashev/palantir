@@ -20,7 +20,7 @@ const DRAFT_TTL_MS = 30 * 60_000;
 const NOT_WRITTEN: CrmErrorKind[] = ['unreachable', 'auth', 'forbidden', 'credentials', 'license', 'protocol'];
 const STATE: Record<MoneyStatus, string> = {
   draft: 'Hali tasdiqlanmagan', running: 'Hozir yozilmoqda — kuting', done: "Allaqachon CRM'ga yozilgan", cancelled: 'Bu taklif bekor qilingan',
-  failed: "Bu taklif yozilmagan — yordamchidan qayta so'rang", unknown: "Natijasi noma'lum — CRM'da tekshiring", undone: 'Bu yozuv ortga qaytarilgan',
+  failed: "Bu taklif yozilmagan — Palantir'dan qayta so'rang", unknown: "Natijasi noma'lum — CRM'da tekshiring", undone: 'Bu yozuv ortga qaytarilgan',
 };
 const INTERRUPTED = "Palantir ish paytida to'xtab qolgan — bu yozuvning holatini DentaCRM'da tekshiring";
 
@@ -39,7 +39,7 @@ const need = (biz: BusinessRow, id: string): MoneyRow => {
   if (!r) throw new Error('Topilmadi');
   return r;
 };
-const reason = (e: unknown) => (e instanceof CrmError ? e.message : "Ichki xato — yordamchidan qayta so'rang");
+const reason = (e: unknown) => (e instanceof CrmError ? e.message : "Ichki xato — Palantir'dan qayta so'rang");
 
 /** Panel va Telegram uchun ko'rinish; ortga qaytarish — faqat yozilgan kuni */
 export const entryView = (r: MoneyRow): MoneyEntry => ({
@@ -60,8 +60,8 @@ export async function confirmEntry(biz: BusinessRow, id: string): Promise<MoneyR
   const r = need(biz, id);
   if (r.status !== 'draft') throw new Error(STATE[r.status]);
   if (Date.now() - Date.parse(r.createdAt) > DRAFT_TTL_MS) {
-    moneyEntries.move(biz.id, id, ['draft'], 'cancelled', { note: "Taklif eskirdi — yordamchidan qayta so'rang" });
-    throw new Error("Bu taklif eskirgan (30 daqiqadan oshdi) — yordamchidan qayta so'rang");
+    moneyEntries.move(biz.id, id, ['draft'], 'cancelled', { note: "Taklif eskirdi — Palantir'dan qayta so'rang" });
+    throw new Error("Bu taklif eskirgan (30 daqiqadan oshdi) — Palantir'dan qayta so'rang");
   }
   // Ulanmagan CRM — hech narsa yozilmagan: taklif joyida qoladi
   if (!crmConnected(biz.id)) throw new Error("DentaCRM ulanmagan — panel → Ulanishlar'da ulang va qayta bosing");

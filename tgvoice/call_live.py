@@ -184,6 +184,9 @@ def up_24_to_48(pcm: bytes) -> bytes:
 
 
 class Palantir:
+    # Telefonda natijani ko'rsatib bo'lmaydi — hujjat va kech qolgan javob Telegram'ga; panelda (web_live.py) u Suhbat'ning o'zida qoladi (B3)
+    to_telegram = True
+
     def __init__(self):
         self.http = httpx.AsyncClient(base_url=PALANTIR, timeout=120)
 
@@ -199,9 +202,11 @@ class Palantir:
     async def ask(self, request: str) -> str:
         """Palantir yordamchisiga so'rov. Hujjat yoki kech qolgan javob — Palantir o'zi egasining Telegram'iga yuboradi (deliver)"""
         try:
-            r = await asyncio.wait_for(self.http.post('/api/chat', json={'text': request, 'phone': True, 'deliver': 'telegram'}), PALANTIR_WAIT_S)
+            body = {'text': request, 'phone': True, **({'deliver': 'telegram'} if self.to_telegram else {})}
+            r = await asyncio.wait_for(self.http.post('/api/chat', json=body), PALANTIR_WAIT_S)
         except asyncio.TimeoutError:
-            return "Bu ish biroz vaqt oladi: Palantir davom ettiryapti, tayyor bo'lgach natija egasining Telegram'iga keladi."
+            where = "egasining Telegram'iga keladi" if self.to_telegram else "panelda «Suhbat»da ko'rinadi"
+            return f"Bu ish biroz vaqt oladi: Palantir davom ettiryapti, tayyor bo'lgach natija {where}."
         if r.status_code != 200:
             return "Palantir hozir javob bera olmadi."
         body = r.json()

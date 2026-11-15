@@ -22,7 +22,7 @@ import { CrewArea } from './pages/CrewPage';
  * Ko'rinish qorong'i (index.css: .night).
  */
 const TITLES: Record<Area, string> = {
-  ai: 'Palantir', direktor: TEAM.direktor.name, qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
+  ai: 'Bosh sahifa', direktor: TEAM.direktor.name, qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
   tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', xodimlar: 'AI xodimlar', miya: 'Miya', sozlamalar: 'Sozlamalar',
 };
 

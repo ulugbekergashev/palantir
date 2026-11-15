@@ -72,7 +72,7 @@ export function mountCrew(app: Express, { asOwner, bad }: Deps): void {
   app.post('/api/crew', asOwner((req, res, biz) => {
     const p = Change.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
-    if (isCore(p.data.member) && !p.data.on) return res.status(409).json({ error: 'Direktor va Yordamchi — asosiy xodimlar, ular jamoadan chiqmaydi' });
+    if (isCore(p.data.member) && !p.data.on) return res.status(409).json({ error: 'Direktor va Palantir — asosiy xodimlar, ular jamoadan chiqmaydi' });
     // Pul ketayotgan reklama egasiz qolmasin: Targetolog chiqsa, kampaniyani paneldan to'xtatadigan joy qolmaydi
     if (p.data.member === 'target' && !p.data.on && adsStore.campaigns(biz.id).some(c => c.status === 'active')) {
       return res.status(409).json({ error: "Ishlab turgan reklama kampaniyasi bor — avval uni Targetolog sahifasida to'xtating" });

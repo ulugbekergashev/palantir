@@ -267,7 +267,7 @@ export function SettingsCard({ biz, offeringsRev, onSaved, notify }: { biz: Busi
     <Card title="Sozlamalar" description="Palantir sizga qanday murojaat qiladi va qaysi tilda yozadi. Manzil, ish vaqti, narxlar va boshqa bilimlar — «Ikkinchi miya»da.">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Biznes nomi"><TextInput value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} maxLength={60} /></Field>
-        <Field label="Egasi (yordamchi shunday murojaat qiladi)"><TextInput value={draft.ownerName} onChange={e => setDraft({ ...draft, ownerName: e.target.value })} maxLength={60} /></Field>
+        <Field label="Egasi (Palantir shunday murojaat qiladi)"><TextInput value={draft.ownerName} onChange={e => setDraft({ ...draft, ownerName: e.target.value })} maxLength={60} /></Field>
         <Field label="Soha" hint="Masalan: stomatologiya, restoran, o'quv markazi"><TextInput value={draft.industry} onChange={e => setDraft({ ...draft, industry: e.target.value })} maxLength={80} /></Field>
         <Field label="Yozish tili">
           <select className={`${controlClass} w-full`} value={draft.contentLang} onChange={e => setDraft({ ...draft, contentLang: e.target.value === 'ru' ? 'ru' : 'uz' })}>

@@ -161,7 +161,7 @@ export function CrewArea({ crew, onCrew, notify, owner }: { crew: Member[]; onCr
           <h1 className="text-[28px] font-bold leading-tight tracking-tight text-[#f2f0ea]">AI xodimlar</h1>
           <p className="mt-0.5 text-sm text-[#a3a9b5]">
             Jamoangizda {crew.length} ta xodim{free ? ` · yana ${free} tasini olish mumkin` : ''} · {UPCOMING.length} tasi tez kunda.
-            {' '}Kerakli xodimni ishga oling — u menyu va bosh ekranda paydo bo'ladi. Direktor va Yordamchi doim jamoada.
+            {' '}Kerakli xodimni ishga oling — u menyu va bosh ekranda paydo bo'ladi. Direktor va Palantir doim jamoada.
           </p>
         </div>
       </header>

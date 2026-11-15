@@ -170,7 +170,7 @@ function Facts({ brain, reload, fail }: { brain: BrainView; reload: () => unknow
     if (text.trim()) api.addNote(text.trim()).then(() => { setText(''); return reload(); }).catch(fail);
   };
   return (
-    <Card title="Faktlar" description="Doimiy narsalar: yetkazib berish shartlari, rekvizitlar, ish tartibi. Yordamchiga «eslab qol: …» deb aytsangiz ham shu yerga tushadi."
+    <Card title="Faktlar" description="Doimiy narsalar: yetkazib berish shartlari, rekvizitlar, ish tartibi. Palantir'ga «eslab qol: …» deb aytsangiz ham shu yerga tushadi."
       action={<a href={hrefOf('miya', 'xotira')} className="text-sm font-medium text-[#ffd9a0] no-underline hover:underline">Xotira: qarorlar, qoidalar, teglar →</a>}>
       <ul className="mb-3 space-y-1.5">
         {brain.facts.map(n => <Row key={n.id} label={n.text} onRemove={() => { api.deleteNote(n.id).then(reload).catch(fail); }}>{n.text}</Row>)}

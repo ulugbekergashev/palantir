@@ -28,7 +28,7 @@ export function setupSteps(status: LiveStatus, clinic: boolean, brain: BrainView
     },
     (clinic || !!status.crm.account) && {
       key: 'crm', done: !!status.crm.account && !status.crm.problem, href: '#/sozlamalar/dentacrm', go: 'DentaCRM', title: "DentaCRM'ni ulang",
-      text: status.crm.problem ?? "Qabullar, kelgan-kelmaganlar va tushum shu sahifada ko'rinadi; yordamchi bemorni qabulga yoza oladi.",
+      text: status.crm.problem ?? "Qabullar, kelgan-kelmaganlar va tushum shu sahifada ko'rinadi; Palantir bemorni qabulga yoza oladi.",
     },
     brain && missing && {
       key: 'knowledge', done: !missing.length && answered === total, href: '#/brain', go: 'Miya', title: "Palantir bilimini to'ldiring",

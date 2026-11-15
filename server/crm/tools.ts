@@ -151,7 +151,7 @@ Give either patient_id (from find_patient) or new_patient (only for someone who 
       if (ctx.fromPhoto) throw new ToolError(PHOTO_REFUSAL);
       if (ctx.unattended) throw new ToolError(UNATTENDED_REFUSAL);
       if ((ctx.crmWrites ?? 0) >= MAX_BOOKINGS_PER_TURN) throw new ToolError(`Bir javobda ko'pi bilan ${MAX_BOOKINGS_PER_TURN} ta qabul yoziladi — qolganini egasi alohida so'rasin`);
-      if (bookingsLeft(ctx.biz.id) <= 0) throw new ToolError("Bugungi chegara tugadi: yordamchi orqali bundan ortiq qabul yozilmaydi. Qolganini DentaCRM'da qo'lda yozing");
+      if (bookingsLeft(ctx.biz.id) <= 0) throw new ToolError("Bugungi chegara tugadi: Palantir orqali bundan ortiq qabul yozilmaydi. Qolganini DentaCRM'da qo'lda yozing");
       const now = stamp(new Date());
       const length = i.duration ?? DEFAULT_DURATION_MIN;
       const patients = await crm.patients();

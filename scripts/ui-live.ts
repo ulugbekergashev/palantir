@@ -94,12 +94,12 @@ try {
   // Logotip havolasi (rasm, matnsiz) ro'yxatga kirmaydi
   const menuItems = async () => (await rail().getByRole('link').allInnerTexts()).map(t => t.trim().split('\n')[0]).filter(Boolean).join(', ');
   const first = await menuItems();
-  ok("yangi biznes: menyuda jamoa faqat Direktor va Yordamchi, keyin «Xodim qo'shish», Miya, Sozlamalar", first === "Palantir, Direktor, Yordamchi, Xodim qo'shish, Miya, Sozlamalar", first);
+  ok("yangi biznes: menyuda jamoa faqat Direktor va Palantir (B3: bitta nom), keyin «Xodim qo'shish», Miya, Sozlamalar", first === "Bosh sahifa, Direktor, Palantir, Xodim qo'shish, Miya, Sozlamalar", first);
   const teamCards = page.getByRole('region', { name: 'AI jamoa' });
   // Karta — xodim nomi aniq shu bo'lgan havola («Xodim qo'shish» kartasining izohida ham xodim nomlari bor)
   const cardOf = (name: string) => teamCards.getByRole('link').filter({ has: page.getByText(name, { exact: true }) });
   await visible(cardOf('Direktor'));
-  ok("bosh ekran: jamoada ikki xodim va «Xodim qo'shish» kartasi", await cardOf('Direktor').count() === 1 && await cardOf('Yordamchi').count() === 1
+  ok("bosh ekran: jamoada ikki xodim va «Xodim qo'shish» kartasi", await cardOf('Direktor').count() === 1 && await cardOf('Palantir').count() === 1
     && await cardOf('Qabulxona').count() === 0 && (await cardOf("Xodim qo'shish").getAttribute('href'))?.endsWith('#/xodimlar'));
   await shot('02-home-standart', true);
 
@@ -118,7 +118,7 @@ try {
     await card.getByText('Jamoada').waitFor({ timeout: 8000 });
   }
   const hired = await menuItems();
-  ok("ishga olinganlar menyuda darhol paydo bo'ldi (Marketing — uchta xodim bitta bo'limda)", hired === "Palantir, Direktor, Qabulxona, Yordamchi, Kuzatuvchi, Tahlilchi, Marketing, Xodim qo'shish, Miya, Sozlamalar", hired);
+  ok("ishga olinganlar menyuda darhol paydo bo'ldi (Marketing — uchta xodim bitta bo'limda)", hired === "Bosh sahifa, Direktor, Qabulxona, Palantir, Kuzatuvchi, Tahlilchi, Marketing, Xodim qo'shish, Miya, Sozlamalar", hired);
   const tracker = page.getByRole('article', { name: 'Kuzatuvchi', exact: true });
   await tracker.getByRole('button', { name: 'Olib tashlash' }).click();
   ok("olib tashlashdan oldin nima to'xtashi aytiladi", await visible(tracker.getByText(/kechki hisoboti to'xtaydi.*o'chmaydi/)));
@@ -129,7 +129,7 @@ try {
   ok("jamoada yo'q xodim manzili bilan ochilsa — «AI xodimlar»ga (u yerda ishga olinadi)", await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 })) && page.url().endsWith('#/xodimlar'), page.url());
   await page.getByRole('article', { name: 'Kuzatuvchi', exact: true }).getByRole('button', { name: 'Ishga olish' }).click();
   await page.getByRole('article', { name: 'Kuzatuvchi', exact: true }).getByText('Jamoada').waitFor({ timeout: 8000 });
-  await nav('Palantir');
+  await nav('Bosh sahifa');
   await page.getByLabel("Palantir'ga yozing").waitFor({ timeout: 10000 });
   const items = (await menuItems()).split(', ');
   ok("menyu: «Quloq» tugmasi bor (o'chiq)", await rail().getByRole('button', { name: /Quloq/ }).getAttribute('aria-pressed') === 'false');
@@ -146,7 +146,7 @@ try {
   await shot('02a-home', true);
 
   console.log('\n# Yordamchi: suhbat');
-  await nav('Yordamchi');
+  await nav('Palantir');
   await tabOn('Suhbat').click();
   await page.getByLabel('Xabar', { exact: true }).waitFor({ timeout: 10000 });
   ok("suhbat: bosh ekranda yozilgan savol shu yerda (bitta suhbat)", await visible(page.locator('[data-chat-log]').getByText('Bugun nima qilishim kerak?').first()));
@@ -284,7 +284,7 @@ try {
   await live.getByText(/Ulangan kanallarning hammasi ishlayapti|ta kanal ishlamayapti/).waitFor({ timeout: 20000 });
   ok('jonli tekshiruv: bir bosishda har kanal holati (bot, AI, ulanmaganlar)',
     await live.getByText('Telegram bot').isVisible() && await live.getByText('Claude (AI)').isVisible() && await live.getByText('Ulanmagan:').isVisible());
-  await page.getByLabel('Egasi (yordamchi shunday murojaat qiladi)').fill('Aziz');
+  await page.getByLabel('Egasi (Palantir shunday murojaat qiladi)').fill('Aziz');
   await page.getByRole('button', { name: 'Saqlash', exact: true }).first().click();
   await page.getByText('Saqlandi').first().waitFor({ timeout: 10000 });
   ok('sozlamalar: egasining ismi saqlandi', true);
@@ -304,7 +304,7 @@ try {
   await shot('07-telegram');
 
   await go('sozlamalar/instagram');
-  ok("Instagram: rasmiy yo'l — hub kodi so'raladi; brauzer orqali — zaxira", await visible(page.getByText('Palantir Hub kodi')));
+  ok("Instagram: rasmiy yo'l — Palantir jamoasining serveri orqali (texnik «Hub kodi» so'zisiz, C7); brauzer orqali — zaxira", await visible(page.getByText("Instagram Palantir jamoasining serveri orqali ulanadi")));
   await page.getByText("Meta ilovasisiz — shu kompyuterdagi brauzer orqali").click();
   await page.getByRole('button', { name: "Instagram'ga kirish" }).click();
   ok("Instagram: oyna ochildi, panel kutyapti", await visible(page.getByText("o'sha oynada akkauntingizga kiring"), 10000));
@@ -534,7 +534,7 @@ try {
   await shot('09-mobile-chat');
   const box = await rail().boundingBox();
   ok("telefon: bo'limlar pastki panelda", !!box && box.y > 700, JSON.stringify(box));
-  await nav('Palantir');
+  await nav('Bosh sahifa');
   ok('telefon: pastki paneldan bosh ekranga', await visible(page.getByLabel("Palantir'ga yozing")) && page.url().endsWith('#/ai'));
   await shot('09b-mobile-home', true);
   const bar = await rail().evaluate(n => [...n.querySelectorAll('a, button')].filter(e => (e as HTMLElement).offsetParent !== null).map(e => e.getAttribute('aria-label') ?? e.textContent?.trim()));

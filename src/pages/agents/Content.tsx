@@ -153,7 +153,7 @@ export function ContentDrafts({ view, setView, notify }: { view: ContentView | n
       </Panel>
       <Panel title="Kanal qoralamalari">
         {!list.length
-          ? <Quiet>Hali qoralama yo'q. «Yangi qoralamalar»ni bosing yoki Yordamchiga ayting: «kanalimga bugungi yangiliklardan post tayyorla».</Quiet>
+          ? <Quiet>Hali qoralama yo'q. «Yangi qoralamalar»ni bosing yoki Palantir'ga ayting: «kanalimga bugungi yangiliklardan post tayyorla».</Quiet>
           : <ul className="flex flex-col gap-3">{list.map(d => <DraftCard key={`${d.id}-${d.status}-${d.text.length}`} d={d} channel={channel} notify={notify} setView={setView} />)}</ul>}
       </Panel>
     </div>

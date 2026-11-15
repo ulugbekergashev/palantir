@@ -192,7 +192,7 @@ export function AdsCampaigns({ view, setView, notify }: { view: AdsView | null; 
         </form>
       </Panel>
       <Panel title="Kampaniyalar">
-        {!view.campaigns.length ? <Quiet>Hali kampaniya yo'q. Yuqorida yozing yoki Yordamchiga ayting: «Implant reklamasini 50$ ga 7 kun Toshkentda ber».</Quiet>
+        {!view.campaigns.length ? <Quiet>Hali kampaniya yo'q. Yuqorida yozing yoki Palantir'ga ayting: «Implant reklamasini 50$ ga 7 kun Toshkentda ber».</Quiet>
           : <ul className="flex flex-col gap-3">{view.campaigns.map(c => <CampaignCard key={`${c.id}-${c.status}-${JSON.stringify(c.plan).length}`} c={c} view={view} setView={setView} notify={notify} />)}</ul>}
       </Panel>
     </div>

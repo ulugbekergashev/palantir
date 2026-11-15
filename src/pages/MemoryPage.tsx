@@ -131,7 +131,7 @@ export function MemoryPage({ notify }: { notify: Notify }) {
             : !shown.length ? (
               <div className="mx-auto mt-10 max-w-sm text-center">
                 <p className="text-[14px] text-[#d9dbe1]">{pool.length ? 'Bu filtr bo\'yicha yozuv yo\'q' : "Xotira hali bo'sh"}</p>
-                <p className="mt-1 text-[13px] text-[#8a909c]">Yordamchiga «eslab qol: …» deb ayting yoki «Yangi yozuv»ni bosing. Qaror, qoida va faktlarni AI har ishdan oldin o'qiydi.</p>
+                <p className="mt-1 text-[13px] text-[#8a909c]">Palantir'ga «eslab qol: …» deb ayting yoki «Yangi yozuv»ni bosing. Qaror, qoida va faktlarni AI har ishdan oldin o'qiydi.</p>
               </div>
             ) : (
               <ul className="flex flex-col gap-2">

@@ -228,7 +228,7 @@ export function InboxPage({ notify, onChanged, canForget = true, canSettings = t
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Mijozlar" description="Mijozlar va ular bilan yozishmalar — bot, shaxsiy Telegram va Instagram bir joyda. Yangi mijozni yordamchiga ayting: «Aziz, +998…, 2 ta stol so'radi — yozib qo'y».">
+      <PageHeader title="Mijozlar" description="Mijozlar va ular bilan yozishmalar — bot, shaxsiy Telegram va Instagram bir joyda. Yangi mijozni Palantir'ga ayting: «Aziz, +998…, 2 ta stol so'radi — yozib qo'y».">
         {!!threads?.length && (
           <select aria-label="Holat bo'yicha saralash" className={`${controlClass} h-8 text-xs`} value={stage} onChange={e => setStage(e.target.value as LeadStage | 'all')}>
             <option value="all">Hammasi ({threads.length})</option>

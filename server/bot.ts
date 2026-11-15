@@ -142,7 +142,7 @@ export function createBot(): BotService {
   async function handleOwner(ctx: Context, biz: BusinessRow, text: string, voice = false, extra: { display?: string; photo?: boolean } = {}) {
     // Ovozdan o'girilgan matn yoki rasm izohida ham kalit bo'lishi mumkin: modelga, jurnalga va bilimga ketmaydi
     if (containsSecret(text)) {
-      await ctx.reply("🔒 Bu xabarda maxfiy kalit (token, parol bilan manzil) bor — uni hech qayerga saqlamadim va yordamchiga bermadim. Kalitlarni Palantir o'rnatilgan kompyuterdagi panelga, «Ulash» sahifasiga kiriting.");
+      await ctx.reply("🔒 Bu xabarda maxfiy kalit (token, parol bilan manzil) bor — uni hech qayerga saqlamadim va AI'ga bermadim. Kalitlarni Palantir o'rnatilgan kompyuterdagi panelga, «Ulash» sahifasiga kiriting.");
       return;
     }
     // Birinchi kun suhbati ochiq bo'lsa (yoki egasi «savollar» desa) — gap javob deb olinadi va yordamchiga ketmaydi. Rasm tavsifi javob emas

@@ -60,7 +60,7 @@ export function summarize(p: MoneyPayload): { title: string; details: string[] }
 
 const DUPLICATE = "CRM'da shu kunda aynan shunday yozuv allaqachon bor — ikkinchi marta yozmadim. Haqiqatan yana bitta kerak bo'lsa, DentaCRM'da qo'lda kiriting";
 const same = (a: string | null, b: string) => (a ?? '').trim().toLowerCase() === b.trim().toLowerCase();
-const gone = (what: string) => new CrmError('invalid', `${what} CRM'da topilmadi — yordamchidan qayta so'rang`);
+const gone = (what: string) => new CrmError('invalid', `${what} CRM'da topilmadi — Palantir'dan qayta so'rang`);
 
 /** CRM'ga yozadi; qaytaradi — yaratilgan yozuvning id'si. Yozishdan oldin bemor/shifokor borligi va takror tekshiriladi */
 export async function writeEntry(crm: DentaCrm, p: MoneyPayload): Promise<string> {

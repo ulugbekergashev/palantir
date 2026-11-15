@@ -476,7 +476,7 @@ function rebuild(biz: BusinessRow, root: string): void {
   ].join('\n'));
   const priced = biz.profile.offerings.map(o => `| ${o.name.replace(/\|/g, '/')} | ${o.price ? o.price.toLocaleString('ru').replace(/\s/g, ' ') : '—'} |`);
   put(root, 'Narxlar.md', [
-    '# Narxlar', '', "> Bu sahifani Palantir narxlar jadvalidan yozadi (panel → «Ikkinchi miya» → Narxlar, yoki yordamchiga ayting). Bu yerda o'zgartirilgani saqlanmaydi.", '',
+    '# Narxlar', '', "> Bu sahifani Palantir narxlar jadvalidan yozadi (panel → «Ikkinchi miya» → Narxlar, yoki Palantir'ga ayting). Bu yerda o'zgartirilgani saqlanmaydi.", '',
     ...(priced.length ? ["| Xizmat | Narx (so'm) |", '|---|---|', ...priced] : ['Hali kiritilmagan.']), '',
   ].join('\n'));
 }

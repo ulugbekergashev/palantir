@@ -42,7 +42,7 @@ export function Rail({ area, team, crew, ownerName, onLogout, wake, allowed }: {
     try { localStorage.setItem(FOLD_KEY, folded ? '1' : '0'); } catch { /* xususiy oyna — eslab qolinmaydi */ }
   }, [folded]);
 
-  const home: Item[] = [{ area: 'ai' as Area, label: 'Palantir', icon: Sparkles }].filter(it => open(it.area));
+  const home: Item[] = [{ area: 'ai' as Area, label: 'Bosh sahifa', icon: Sparkles }].filter(it => open(it.area));
   // Bo'lim tugmasidagi nishon — ichidagi jamoadagi xodimlarniki bilan birga (Marketing: Marketolog, Kontent-meyker, Targetolog).
   // Bo'limda bitta xodim bo'lsa — tugma o'sha xodimning nomi bilan (faqat Kontent-meyker olingan — «Kontent-meyker»)
   const members: Item[] = RAIL_MEMBERS.flatMap(m => {

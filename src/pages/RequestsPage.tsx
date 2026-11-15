@@ -154,7 +154,7 @@ function TeamCard({ notify }: { notify: Notify }) {
   const add = () => { if (name.trim()) api.addStaff(name.trim()).then(t => { setTeam(t); setName(''); }).catch(fail); };
   const copy = (link: string) => copyText(link).then(() => notify('Havola nusxalandi — xodimga yuboring')).catch(() => notify(link));
   return (
-    <Card title="Qabulxona xodimlari" description="Xodim havolani o'z Telegram'ida ochadi — shundan keyin so'rovlar unga tugmali karta bo'lib keladi: «Bajarildi», «Ko'tarmadi», natijani yozish. Yordamchi bilan faqat egasi gaplashadi.">
+    <Card title="Qabulxona xodimlari" description="Xodim havolani o'z Telegram'ida ochadi — shundan keyin so'rovlar unga tugmali karta bo'lib keladi: «Bajarildi», «Ko'tarmadi», natijani yozish. Palantir bilan faqat egasi gaplashadi.">
       {team === null ? <Loader2 className="h-5 w-5 animate-spin text-slate-400" /> : (
         <>
           {!team.bot && <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Telegram bot ulanmagan — havola paydo bo'lishi uchun avval bot tokenini kiriting.</p>}
