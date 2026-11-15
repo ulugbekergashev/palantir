@@ -130,5 +130,25 @@ await check("B7: yig'ma navbati — mijoz bo'yicha guruhlanadi, yuborilgach toza
   assert.equal(autoDigest.list(biz.id).length, 0);
 });
 
+const { joinEvening, eveningOn } = await import('../server/evening');
+await check("B6: kechki qismlar — bitta xabar, tugma oxirida; sig'masa — bir nechta xabar, tugma oxirgisida", async () => {
+  const button = [[{ text: "Bugun aytadigan narsa yo'q", data: 'od|day' }]];
+  const one = joinEvening(['📷 kamera', '🤖 yig\'ma', '🌙 savol'], button);
+  assert.equal(one.length, 1);
+  assert.equal(one[0].html, "📷 kamera\n\n🤖 yig'ma\n\n🌙 savol");
+  assert.deepEqual(one[0].buttons, button);
+  const long = joinEvening(['x'.repeat(3000), 'y'.repeat(3000), '🌙 savol'], button);
+  assert.equal(long.length, 2);
+  assert.ok(!long[0].buttons && long[1].html.endsWith('🌙 savol') && long[1].buttons);
+  assert.deepEqual(joinEvening([]), []);
+});
+await check("B6: kechki belgi — alohida; saqlanmagan bo'lsa eski «ertalabki xulosa» bo'yicha (egasining tanlovi qoladi)", async () => {
+  const withProfile = (p: Partial<typeof biz.profile>) => ({ ...biz, profile: { ...biz.profile, ...p } });
+  assert.equal(eveningOn(withProfile({ morningBrief: undefined, eveningReport: undefined })), true);
+  assert.equal(eveningOn(withProfile({ morningBrief: false, eveningReport: undefined })), false);
+  assert.equal(eveningOn(withProfile({ morningBrief: false, eveningReport: true })), true);
+  assert.equal(eveningOn(withProfile({ morningBrief: true, eveningReport: false })), false);
+});
+
 console.log(failed ? `\n✗ ${failed} ta tekshiruv o'tmadi` : "\n✓ hammasi o'tdi");
 process.exit(failed ? 1 : 0);

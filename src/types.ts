@@ -47,8 +47,12 @@ export interface Business {
   website?: string;
   /** Hujjatlar, mijozlarga matnlar va ovoz qaysi tilda (bo'lmasa — o'zbekcha) */
   contentLang?: Lang;
-  /** Ertalabki qisqa xulosa (bugungi vazifalar, yangi mijozlar) */
+  /** Ertalabki xabar: kun rejasi va Direktor hisoboti */
   morningBrief?: boolean;
+  /** Kechki xabar: «Kun qanday o'tdi» va Palantir o'zi javob bergan mijozlar (bo'lmasa — morningBrief bo'yicha, server/evening.ts) */
+  eveningReport?: boolean;
+  /** Kechki xabarda kamera hisoboti (Kuzatuvchi jamoada va kamera ulangan bo'lsa; bo'lmasa — morningBrief bo'yicha) */
+  cameraReport?: boolean;
   /** Mijozlar yozganda (bot, shaxsiy Telegram, Instagram) Palantir qanday javob beradi */
   autoReply?: AutoReply;
   /** Qabulxona xodimlari ulangan bo'lsa ham so'rovlar (qo'ng'iroq qilish va h.k.) nusxasi egasiga keladimi (bo'lmasa — ha) */

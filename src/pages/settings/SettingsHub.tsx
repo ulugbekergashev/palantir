@@ -92,7 +92,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
 
       {active === 'asosiy' && (
         <div className="agent-body grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
-          <SettingsCard key={`${biz.name}|${biz.ownerName}|${biz.industry}|${biz.contentLang}|${biz.morningBrief}`} biz={biz} offeringsRev={offeringsRev} onSaved={onSaved} notify={notify} />
+          <SettingsCard key={`${biz.name}|${biz.ownerName}|${biz.industry}|${biz.contentLang}|${biz.morningBrief}|${biz.eveningReport}|${biz.cameraReport}`} biz={biz} offeringsRev={offeringsRev} onSaved={onSaved} notify={notify} />
           <div className="flex flex-col gap-5">
             <ReplyModeCard biz={biz} onBiz={onBiz} notify={notify} />
             <ClientLink status={status} notify={notify} />

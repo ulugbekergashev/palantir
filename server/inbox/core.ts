@@ -711,20 +711,15 @@ async function flush(r: ReplyRow): Promise<void> {
 }
 
 /**
- * Kechki yig'ma (B7): Palantir o'zi javob bergan suhbatlar — bitta xabar. Yuborilgach tozalanadi.
- * Qaytadi: yuborildimi (yig'ilgan narsa bo'lmasa — false)
+ * Kechki yig'ma matni (B7): Palantir o'zi javob bergan suhbatlar. Yubormaydi va tozalamaydi — kechki bitta xabarga qism bo'lib
+ * qo'shiladi (server/evening.ts, B6). Yig'ilgan narsa bo'lmasa — null
  */
-export async function sendAutoDigest(biz: BusinessRow): Promise<boolean> {
-  if (!owner || !biz.ownerChatId) return false;
+export function autoDigestHtml(biz: BusinessRow): string | null {
   const rows = autoDigest.list(biz.id).flatMap(r => {
     const lead = leads.get(biz.id, r.leadId);
     return lead ? [{ name: lead.name || (lead.username ? `@${lead.username}` : null) || lead.phone || 'Mijoz', channel: CHANNEL_LABEL[lead.channel], replies: r.replies }] : [];
   });
-  const html = digestText(rows);
-  if (!html) { autoDigest.clear(biz.id); return false; }
-  await owner.notify(biz, html);
-  autoDigest.clear(biz.id);
-  return true;
+  return digestText(rows);
 }
 
 export async function flushDue(): Promise<void> {

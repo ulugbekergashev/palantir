@@ -253,7 +253,12 @@ export function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b
 
 /** Forma emas, bir nechta sozlama: qolgan hamma narsa (manzil, ish vaqti, narxlar) — ikkinchi miyada */
 export function SettingsCard({ biz, offeringsRev, onSaved, notify }: { biz: Business; offeringsRev: string; onSaved: (b: Business, offeringsRev: string) => void; notify: Notify }) {
-  const saved = { name: biz.name, ownerName: biz.ownerName, industry: biz.industry, contentLang: biz.contentLang ?? 'uz', morningBrief: biz.morningBrief ?? true };
+  // Kechki belgilar alohida (B6); hali saqlanmagan bo'lsa — eski «ertalabki xulosa» bo'yicha (server/evening.ts bilan bir xil)
+  const morning = biz.morningBrief ?? true;
+  const saved = {
+    name: biz.name, ownerName: biz.ownerName, industry: biz.industry, contentLang: biz.contentLang ?? 'uz', morningBrief: morning,
+    eveningReport: biz.eveningReport ?? morning, cameraReport: biz.cameraReport ?? morning,
+  };
   const [draft, setDraft] = useState(saved);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const save = async () => {
@@ -275,10 +280,19 @@ export function SettingsCard({ biz, offeringsRev, onSaved, notify }: { biz: Busi
           </select>
         </Field>
       </div>
-      <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={draft.morningBrief} onChange={e => setDraft({ ...draft, morningBrief: e.target.checked })} />
-        Har kuni ertalab Telegram'ga qisqa xulosa yuborsin
-      </label>
+      <fieldset className="mt-3 space-y-2">
+        <legend className="mb-1 text-sm font-semibold text-slate-700">Telegram'ga har kuni</legend>
+        {([
+          ['morningBrief', "Ertalab: kun rejasi va Direktor xulosasi"],
+          ['eveningReport', "Kechqurun: kun yakuni — bugungi ishlar va Palantir o'zi javob bergan mijozlar"],
+          ['cameraReport', "Kechki xabarda kameralar hisoboti (Kuzatuvchi jamoada va kamera ulangan bo'lsa)"],
+        ] as const).map(([k, label]) => (
+          <label key={k} className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={draft[k]} onChange={e => setDraft({ ...draft, [k]: e.target.checked })} />
+            {label}
+          </label>
+        ))}
+      </fieldset>
       <Button className="mt-3" variant="primary" disabled={!dirty || !draft.name.trim()} onClick={() => { void save(); }}>Saqlash</Button>
     </Card>
   );

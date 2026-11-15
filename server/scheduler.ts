@@ -20,7 +20,8 @@ import { industryOf, isClinic } from '../src/data/industries';
 import { planText, type Plan, joinMorning, weeklyDue } from './plan';
 import { periodRange } from './crm/report';
 import { DAY_OUTCOME, askDay } from './outcome';
-import { flushDue, sendAutoDigest } from './inbox/core';
+import { flushDue } from './inbox/core';
+import { eveningCheck, eveningTick } from './evening';
 import { pollInstagram } from './inbox/instagram';
 import { syncTasks } from './brain/mirror';
 import { tgCall, tgCallEnabled } from './tgcall';
@@ -39,8 +40,6 @@ const ADS_WATCH_MS = 10 * 60_000;
 /** DentaCRM'dan qabulga kelgan bemorlar shu oraliqda tekshiriladi (stages.ts: syncVisits) */
 const VISITS_EVERY_MS = 30 * 60_000;
 const visitsCheckedAt = new Map<string, number>();
-/** Kechki yig'ma shu kuni yuborilgan bizneslar (B7) — yuborilgani bazadan tozalanadi, bu esa bir kechada ikkinchi xabar ketmasligi uchun */
-const digestDay = new Map<string, string>();
 /** Limit bosimi haqida egasiga aytilgan oyna (B5) — bir oynada bir marta */
 let pressureTold: number | null = null;
 
@@ -93,22 +92,6 @@ export async function sendEvening(bot: BotService, biz: BusinessRow, now = new D
 /** Ertalabki tayyorgarlik topshirig'i: faqat mijoz id'lari (ism va izohlar — begona matn — yordamchi asbob orqali o'qiydi) */
 export const prepPrompt = (ids: string[]): string =>
   `Morning preparation, without asking me anything. For each customer below, look them up with list_leads (lead_id). If Palantir can message them (reachable: true), prepare one short, warm follow-up that moves things forward with draft_followup — one call per customer, written for that customer and their next step. If they are not reachable, write in one line what I should say when I phone them. Set a next step with next_at for anyone who has none, and move an overdue next step to a sensible time after today's message — do it yourself, do not ask me. Then reply with a very short list: who, and what is ready. Customers: ${ids.join(', ')}.`;
-
-/** Kechki savol: bugungi vazifalar (bajarilgan va ochiq) va bugun qadami bo'lgan mijozlar; aytadigan narsa bo'lmasa — null */
-export function eveningCheck(biz: BusinessRow, now = new Date()): { html: string; taskIds: string[]; leadIds: string[] } | null {
-  const today = iso(now);
-  const dayTasks = tasks.list(biz.id, 'all', 300).filter(t => t.dueAt?.startsWith(today) && t.status !== 'cancelled');
-  const dayLeads = leads.active(biz.id).filter(l => l.nextAt?.startsWith(today));
-  if (!dayTasks.length && !dayLeads.length) return null;
-  const name = (l: { name: string | null; username: string | null; phone: string | null }) => l.name ?? (l.username ? `@${l.username}` : l.phone ?? "ismi yo'q");
-  const lines = [
-    ...dayTasks.slice(0, 8).map(t => `• ${t.status === 'done' ? '✅ ' : ''}${esc(t.title)}`),
-    ...dayLeads.slice(0, 8).map(l => `• ${esc(name(l))} — ${esc(l.nextStep ?? "bog'lanish")}`),
-  ];
-  const html = [`🌙 <b>Kun qanday o'tdi${biz.profile.ownerName ? `, ${esc(biz.profile.ownerName)}` : ''}?</b>`, '', 'Bugungi ishlar:', ...lines, '',
-    "Kim bilan gaplashdingiz, nima kelishildi? Yozing yoki ovozli ayting — mijozlar va vazifalarni o'zim yangilayman, ertangi qadamlarni qo'yaman."].join('\n');
-  return { html, taskIds: dayTasks.map(t => t.id), leadIds: dayLeads.map(l => l.id) };
-}
 
 export async function morningPlan(biz: BusinessRow, now = new Date(), opts: { weekly?: boolean } = {}): Promise<Plan | null> {
   const today = iso(now);
@@ -351,20 +334,8 @@ export function startScheduler(bot: BotService): () => void {
           void measure(biz).catch(e => console.error(`[jadval] natijalar (${biz.profile.name}):`, (e as Error).message));
         }
       }
-      // 3) Kechki savol: kun qanday o'tdi — egasining javobidan yordamchi mijoz va vazifalarni yangilaydi
-      const eveningHour = now.getHours(), day = iso(now);
-      if (env.aiEnabled && eveningHour >= env.eveningHour && eveningHour < env.eveningHour + 3) {
-        for (const biz of businesses.all()) {
-          if (!biz.active || !biz.ownerChatId || biz.eveningDate === day || biz.profile.morningBrief === false) continue;
-          try {
-            await sendEvening(bot, biz, now);
-          } catch (e) {
-            console.error(`[jadval] kechki savol (${biz.profile.name}):`, (e as Error).message);
-            if (transient(e)) break;
-          }
-          businesses.update(biz.id, { eveningDate: day });
-        }
-      }
+      // 3) Kechki BITTA xabar (B6): kamera hisoboti, «o'zi javob bersin» yig'masi (B7) va «Kun qanday o'tdi» — server/evening.ts
+      await eveningTick(bot, transient, now);
       // 3c) Obuna limitiga yaqin (B5): egasiga bir marta — qo'shimchalar to'xtadi, bemorlarga javob ishlayveradi
       const pausedUntil = extrasPausedUntil();
       if (pausedUntil && pressureTold !== pausedUntil) {
@@ -373,19 +344,6 @@ export function startScheduler(bot: BotService): () => void {
         for (const biz of businesses.all()) {
           if (!biz.active || !biz.ownerChatId) continue;
           await bot.sendText(biz.ownerChatId, `⏸ <b>Claude obunasi limitiga yaqin</b> — bemorlarga javob uchun joy qoldirib, Direktor tahlili va avtomatik kontent ${back} gacha to'xtatildi. Bemorlarga javob ishlayveradi; o'zingiz so'ragan ishlar ham.`).catch(() => {});
-        }
-      }
-      // 3b) «O'zi javob bersin» yig'masi (B7): Palantir bugun o'zi javob bergan suhbatlar — bitta xabar (har javobga alohida emas)
-      if (eveningHour >= env.eveningHour && eveningHour < env.eveningHour + 3) {
-        for (const biz of businesses.all()) {
-          if (!biz.active || !biz.ownerChatId || digestDay.get(biz.id) === day) continue;
-          try {
-            // Bo'sh bo'lsa — belgilanmaydi: kechki oraliqda keyinroq kelgan javoblar ham shu kuni aytiladi
-            if (await sendAutoDigest(biz)) digestDay.set(biz.id, day);
-          } catch (e) {
-            console.error(`[jadval] kechki yig'ma (${biz.profile.name}):`, (e as Error).message);
-            if (transient(e)) break;
-          }
         }
       }
       // 2) Ertalabki xulosa
