@@ -23,6 +23,8 @@ const PRICES: Record<string, { now: Price; next?: Price; from?: string }> = {
   'gemini-3.5-flash-lite': { now: [0.3, 2.5, 0.03] },
   'gemini-3.1-flash-lite': { now: [0.25, 1.5, 0.025] },
   'gemini-4-hydrogen': { now: [1.5, 7.5, 0.075] },
+  'gemini-4-argon': { now: [2, 10, 0.1], next: [4, 20, 0.2], from: '2026-12-01' },
+  'gemini-4-carbon': { now: [2, 10, 0.1], next: [4, 20, 0.2], from: '2026-12-01' },
 };
 const API_REVISION = '2026-05-20';
 const TIMEOUT_MS = 120_000;
