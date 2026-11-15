@@ -32,6 +32,10 @@ ok("ko'rsatish: +998 94 444 55 66", prettyPhone('+998944445566') === '+998 94 44
 const L = (o: Partial<{ tgUserId: string; igUserId: string; patientId: string; name: string }>) => ({ tgUserId: null, igUserId: null, patientId: null, name: null, ...o });
 ok('laqab («Dilya») va to\'liq ism — bir odam', samePerson(L({ name: 'Dilya', igUserId: 'i1' }), L({ name: 'Dilnoza Karimova', tgUserId: 't1' })));
 ok("ikki to'liq ism, umumiy so'z yo'q (oila a'zosi) — ikki odam", !samePerson(L({ name: 'Malika Yusupova' }), L({ name: 'Dilnoza Karimova' })) && namesFit('Dilnoza Karimova', 'Karimova Dilnoza'));
+ok("E6: bitta so'zli ism — umumiy so'z, laqab yoki bir xil ism mos; boshqa ism — boshqa odam (oila telefoni)",
+  !namesFit('Zarina', 'Vali Valiyev') && !namesFit('Zarina', 'Dilnoza') && namesFit('Mijoz', 'Dilnoza Karimova') && namesFit('Dilya', 'Dilnoza Karimova')
+  && namesFit('Дилноза', 'Dilnoza Karimova') && namesFit('Dilnoza', 'dilnoza') && namesFit(null, 'Vali Valiyev') && namesFit('Клиент', 'Zarina'));
+ok("E6: to'liq ismlar yozilishiga qaramay solishtiriladi (Valiev / Valiyev / Валиев)", namesFit('Valiev Vali', 'Vali Valiyev') && namesFit('Валиев Вали', 'Vali Valiyev'));
 ok('boshqa-boshqa Telegram akkaunt — ikki odam', !samePerson(L({ tgUserId: '1' }), L({ tgUserId: '2' })));
 ok("yozishmada aytilgan raqam faqat messenjersiz va bemorsiz kartani yig'adi (qo'ng'iroq, qo'lda) — E6",
   chatMergeable(L({})) && !chatMergeable(L({ tgUserId: '1' })) && !chatMergeable(L({ igUserId: 'i1' })) && !chatMergeable(L({ patientId: 'p1' })));

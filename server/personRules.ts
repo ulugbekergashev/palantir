@@ -2,20 +2,30 @@
  * Ikki mijoz kartasi bir odamnikimi — sof qoidalar (bazaga tegmaydi; people.ts va sinovlar ishlatadi).
  *
  * Telefon bir xil bo'lishi yetmaydi: bir telefonda oila a'zolari bo'ladi. Ziddiyat — boshqa-boshqa Telegram yoki Instagram akkaunt,
- * boshqa-boshqa DentaCRM bemori yoki ikkalasi ham to'liq (ism va familiya), lekin umumiy so'zi yo'q ism. Telegram va Instagram'dagi
- * ism ko'pincha laqab («Mijoz», «Dilya») — bitta so'zli ism ziddiyat emas.
+ * boshqa-boshqa DentaCRM bemori yoki umumiy so'zi yo'q ismlar. Telegram va Instagram'dagi ism ko'pincha laqab («Mijoz», «Dilya»):
+ * bitta so'zli ism umumiy so'z yoki bir xil boshlansa («Dilya» — «Dilnoza») mos, aks holda — boshqa odam (E6: oila telefonidagi
+ * «Zarina» va «Vali Valiyev» bir kartaga qo'shilardi — qo'shish qaytarilmaydi, takror karta esa zararsiz).
+ * Solishtirish yozilishiga qaramaydi: Valiyev / Valiev / Валиев (crm/logic nameKey).
  */
 import type { LeadRow } from './db';
-import { cleanName, resolvePatient, type Patient } from './crm/logic';
+import { cleanName, nameKey, resolvePatient, type Patient } from './crm/logic';
 import { phoneKey } from '../src/lib/phone';
 
 const words = (s: string | null) => cleanName(s ?? '').toLowerCase().split(' ').filter(w => w.length > 1);
 
+/** Ism o'rnida turadigan umumiy so'zlar (laqab ham emas): bunday karta istalgan ism bilan mos */
+const GENERIC = new Set(['mijoz', 'bemor', 'klient', 'client', 'kliyent', 'pasient', 'patient', 'user', 'foydalanuvchi', 'mexmon', 'guest', 'anonim', 'nomalum', 'admin']);
+/** Laqab: shuncha birinchi harfi bir xil («Dilya» — «Dilnoza», «Ali» — «Alisher») */
+const NICK_PREFIX = 3;
+const keys = (s: string | null) => words(s).map(nameKey).filter(Boolean);
+
 export function namesFit(a: string | null, b: string | null): boolean {
-  const [x, y] = [words(a), words(b)];
-  if (x.length < 2 || y.length < 2) return true;
-  const set = new Set(x);
-  return y.some(w => set.has(w));
+  const [x, y] = [keys(a), keys(b)];
+  if (!x.length || !y.length) return true;
+  if (x.length >= 2 && y.length >= 2) return y.some(w => x.includes(w));
+  if (x.some(w => GENERIC.has(w)) || y.some(w => GENERIC.has(w))) return true;
+  const nick = (w: string, v: string) => w.length >= NICK_PREFIX && v.length >= NICK_PREFIX && w.slice(0, NICK_PREFIX) === v.slice(0, NICK_PREFIX);
+  return x.some(w => y.some(v => w === v || nick(w, v)));
 }
 
 const differ = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a !== b;
