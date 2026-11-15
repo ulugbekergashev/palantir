@@ -11,13 +11,14 @@ import { adminApi, api, session, type AdminBusiness, type PhoneLine, type Profil
 import { Logo } from '../../components/Logo';
 import { Button, ButtonLink, Field, TextInput } from '../../components/ui';
 import { useFontsReady, useToast } from '../../lib/hooks';
-import type { KeyView, LiveStatus, SetupView } from '../../types';
+import type { Business, KeyView, LiveStatus, SetupView } from '../../types';
 import { StepCameras } from './StepCameras';
 import { StepClinic } from './StepClinic';
 import { StepCrm, StepInstagram, StepOwner, StepPatients, StepTelegram } from './StepConnections';
 import { StepDone, StepGaps } from './StepFinish';
 import { StepKeys, emptyRouted, type Routed } from './StepKeys';
 import { StepPhone } from './StepPhone';
+import { StepReply } from './StepReply';
 import { StepProfile } from './StepProfile';
 import { hrefOf } from '../../lib/nav';
 import { clock, leaveGuard, stepFromHash, stepHref, stepState, visibleSteps, type StepKey, type StepState, type WizardFacts } from './wizard';
@@ -148,15 +149,18 @@ function useCabinet(notify: Notify) {
   const [cameras, setCameras] = useState(0);
   const [phone, setPhone] = useState<PhoneLine | null>(null);
   const [routed, setRouted] = useState<Routed>(emptyRouted);
+  /** Klinika ma'lumotlari — javob rejimi (B2) shundan */
+  const [biz, setBiz] = useState<Business | null>(null);
   const refresh = useCallback(async () => {
     // Telefon liniyasi holati (Asterisk) sekinroq bo'lishi mumkin — boshqa qadamlarni kutdirmaydi
     api.phoneLine().then(r => setPhone(r.line)).catch(() => {});
     const [me, s, cams] = await Promise.all([api.me(), api.setup(), api.cameras()]);
     setStatus(me.status);
+    setBiz(me.business);
     setSetup(s.setup);
     setCameras(cams.cameras.filter(c => c.ip).length);
   }, []);
-  return { status, setStatus, setup, setSetup, cameras, setCameras, phone, setPhone, routed, setRouted, refresh, notify };
+  return { status, setStatus, setup, setSetup, cameras, setCameras, phone, setPhone, routed, setRouted, biz, setBiz, refresh, notify };
 }
 type Cabinet = ReturnType<typeof useCabinet>;
 
@@ -166,6 +170,7 @@ function cabinetStep(key: StepKey, c: Cabinet): ReactNode {
   switch (key) {
     case 'owner': return <StepOwner status={status!} refresh={refresh} notify={notify} />;
     case 'patients': return <StepPatients status={status!} notify={notify} />;
+    case 'reply': return <StepReply biz={c.biz} onBiz={c.setBiz} notify={notify} />;
     case 'crm': return <StepCrm status={status!} setup={setup} routed={routed} onStatus={c.setStatus} notify={notify} />;
     case 'cams': return <StepCameras setup={setup} routed={routed} onCount={c.setCameras} notify={notify} />;
     case 'tg': return <StepTelegram status={status!} setup={setup} routed={routed} refresh={refresh} notify={notify} />;
@@ -222,7 +227,7 @@ function ProfileWizard({ phase, onPhase }: { phase: ProfilePhase; onPhase: () =>
     );
   }
 
-  const facts: WizardFacts = { hasBiz: !!phase.name && phase.name !== DEFAULT_NAME, status: cab.status, setup: cab.setup, keys, cameras: cab.cameras, phone: cab.phone, profile: true };
+  const facts: WizardFacts = { hasBiz: !!phase.name && phase.name !== DEFAULT_NAME, status: cab.status, setup: cab.setup, keys, cameras: cab.cameras, phone: cab.phone, profile: true, replyChosen: !!cab.biz?.autoReply?.chosenAt };
   const logout = () => { session.set(null); window.location.hash = '#/'; window.location.reload(); };
   return (
     <Shell label={phase.name} facts={facts} stepKey={stepKey} onStep={setStepKey} onLogout={logout} back={{ href: hrefOf('sozlamalar'), label: 'Panelga qaytish' }} toast={toast} timer={phase.setup}>
@@ -311,7 +316,7 @@ function AdminWizard() {
 
   if (!authed) return <AdminGate onIn={() => setAuthed(true)} />;
 
-  const facts: WizardFacts = { hasBiz: !!bizId && entered, status: cab.status, setup: cab.setup, keys, cameras: cab.cameras, phone: cab.phone };
+  const facts: WizardFacts = { hasBiz: !!bizId && entered, status: cab.status, setup: cab.setup, keys, cameras: cab.cameras, phone: cab.phone, replyChosen: !!cab.biz?.autoReply?.chosenAt };
   const ready = entered && cab.status && cab.setup;
   const label = list && bizId ? list.find(b => b.id === bizId)?.name ?? '…' : null;
   return (

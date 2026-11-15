@@ -10,6 +10,8 @@ export const AutoReplySchema = z.object({
   mode: z.enum(['off', 'draft', 'auto']),
   contacts: z.boolean(),
   delayMin: z.number().int().min(0).max(120),
+  /** Egasi rejimni o'zi tanlagan vaqt (server yozadi — B2: usta tanlanmaguncha «Javob rejimi» qadami tayyor emas) */
+  chosenAt: z.string().max(40).optional(),
 });
 
 export const BusinessSchema = z.object({

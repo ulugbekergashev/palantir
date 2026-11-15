@@ -361,7 +361,11 @@ try {
   const setup = (await api('/api/setup', { token })).json.setup;
   ok('bo\'shliqlar: ikki narx va yozilmagan kunlar', setup.gaps.length === 2 && setup.gaps[0].options?.length === 2 && /shanba, yakshanba/.test(setup.gaps[1].question), JSON.stringify(setup.gaps.map((g: { question: string }) => g.question)));
   const kg = (await api('/api/business/knowledge-gaps', { token })).json.missing as string[];
+  const replyBefore = (await api('/api/me', { token })).json.business.autoReply;
   const toAuto = await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'auto', contacts: false, delayMin: 2 } });
+  const replyMe = (await api('/api/me', { token })).json.business.autoReply;
+  ok("B2: yangi klinikada rejim hali tanlanmagan (chosenAt yo'q); egasi tanlasa — vaqti yoziladi (usta qadami tayyor)",
+    replyBefore?.mode === 'draft' && !replyBefore.chosenAt && replyMe?.mode === 'auto' && !Number.isNaN(Date.parse(replyMe.chosenAt ?? '')), JSON.stringify({ replyBefore, replyMe }));
   ok("I1: bilim chala — «O'zi javob bersin» yonida aytiladi: ikki xil narx va ish vaqti (narxlar, manzil bor)", kg.join() === 'ikki xil yozilgan narx,ish vaqti' && toAuto.json.missing?.join() === kg.join(), JSON.stringify({ kg, put: toAuto.json.missing }));
   await api('/api/business/auto-reply', { method: 'PUT', token, body: { mode: 'draft', contacts: false, delayMin: 2 } });
   ok('egasida bor kanallar eslab qolindi (ulash qadamlari uchun)', setup.has.telegramPhone === '+998 90 123 45 67' && setup.has.cameras === 3 && setup.has.crm === 'dentacrm');

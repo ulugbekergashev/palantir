@@ -5,7 +5,7 @@
 import type { PhoneLine } from '../../data/api';
 import type { KeyView, LiveStatus, SetupView } from '../../types';
 
-export type StepKey = 'clinic' | 'keys' | 'owner' | 'patients' | 'crm' | 'cams' | 'tg' | 'ig' | 'phone' | 'gaps' | 'done';
+export type StepKey = 'clinic' | 'keys' | 'owner' | 'patients' | 'reply' | 'crm' | 'cams' | 'tg' | 'ig' | 'phone' | 'gaps' | 'done';
 /** ok — tayyor; warn — chala (keyin qaytsa ham bo'ladi); skip — bu klinikaga kerak emas; '' — hali qilinmagan */
 export type StepState = 'ok' | 'warn' | 'skip' | '';
 
@@ -16,8 +16,9 @@ export const STEPS: StepInfo[] = [
   { key: 'keys', title: 'Kalitlar', lead: "Bot tokeni, AI kalitlari, kamera manzili, DentaCRM havolasi — hammasini bitta maydonga qo'ying. Palantir har birining turini o'zi taniydi va darhol tekshiradi." },
   { key: 'owner', title: "Egasining Telegram'i", lead: "Egasi Palantir bilan shu botda gaplashadi: eslatmalar, ertalabki xulosa, mijozlarga javob takliflari unga keladi." },
   { key: 'patients', title: "Bemorlar Telegram'i", lead: "Bemorlar botga havola orqali yozadi (Instagram bio, vizitka, reklama); egasining shaxsiy Telegram'iga yozganlar — Telegram Business orqali. Palantir ikkalasiga ham javob beradi." },
+  { key: 'reply', title: 'Javob rejimi', lead: "Bemorlarga AI administrator o'zi javob beradimi yoki har javobni egasi tasdiqlaydimi — egasi bilan birga tanlang. Keyin Sozlamalarda o'zgartirsa bo'ladi." },
   { key: 'crm', title: 'DentaCRM', lead: "Qabullar, kelgan-kelmaganlar va tushum Palantir'ga shu yerdan keladi." },
-  { key: 'tg', title: 'Shaxsiy Telegram', lead: "Klinika raqamidagi Telegram: mijozlar shu yerga yozadi. Palantir javob taklif qiladi, egasi tasdiqlamaguncha hech narsa yuborilmaydi." },
+  { key: 'tg', title: 'Shaxsiy Telegram', lead: "Klinika raqamidagi Telegram: mijozlar shu yerga yozadi. Palantir tanlangan javob rejimi bo'yicha o'zi javob beradi yoki egasiga taklif qiladi." },
   { key: 'ig', title: 'Instagram', lead: "Instagram Direct'dagi yozishmalar ham shu navbatga tushadi." },
   { key: 'phone', title: 'Telefon', lead: "Klinika raqamiga kelgan qo'ng'iroqlarga AI javob beradi. Uztelecom raqami — shartnomadagi server, raqam va parol; Zadarma — kabinetdagi Key va Secret (qolganini Palantir o'zi sozlaydi)." },
   { key: 'gaps', title: "Bo'shliqlar", lead: "Palantir hamma ma'lumotni tekshirib, yetishmagan va bir-biriga zid joylarni topdi. Egasiga Telegram'da bittalab so'raydi — egasi tugmani bosib javob beradi." },
@@ -53,6 +54,8 @@ export interface WizardFacts {
   phone: PhoneLine | null;
   /** Bitta kompyuter — bitta profil (server/profile.ts): klinika tanlanmaydi, kalitlar — profilniki */
   profile?: boolean;
+  /** Javob rejimini egasi tanlaganmi (autoReply.chosenAt): standart holat — hali tanlanmagan (B2) */
+  replyChosen?: boolean;
 }
 
 export function stepState(key: StepKey, f: WizardFacts): StepState {
@@ -69,6 +72,7 @@ export function stepState(key: StepKey, f: WizardFacts): StepState {
     case 'owner': return s?.ownerLinked ? 'ok' : '';
     // Bot havolasi bor — bemorlar yoza oladi; Telegram Business — qo'shimcha (C2)
     case 'patients': return s?.telegramBusiness.account || (s?.bot && s.generalLink) ? 'ok' : '';
+    case 'reply': return f.replyChosen ? 'ok' : '';
     case 'crm':
       if (s?.crm.account) return s.crm.problem ? 'warn' : 'ok';
       return setup?.has.crm === 'none' || setup?.has.crm === 'other' ? 'skip' : '';

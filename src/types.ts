@@ -75,6 +75,8 @@ export interface AutoReply {
   /** Shaxsiy Telegram: kontaktlardagi odamlarga ham javob bersinmi (odatda — yo'q, ular tanishlar) */
   contacts: boolean;
   delayMin: number;
+  /** Egasi rejimni o'zi tanlagan vaqt (server yozadi). Yo'q — standart holat, hali tanlanmagan (ulash ustasi so'raydi, B2) */
+  chosenAt?: string;
 }
 
 // ─── Yordamchi ishlari ───────────────────────────────────────────────────────

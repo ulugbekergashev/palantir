@@ -157,6 +157,14 @@ try {
   ok("C2: «Bemorlar Telegram'i» — bemorlar uchun bot havolasi va Telegram Business yo'riqnomasi", await page.getByText('Bemorlar uchun havola').isVisible()
     && await page.getByText(/t\.me\/palantir_test_bot/).first().isVisible() && await page.getByText('Telegram Business').first().isVisible());
   await shot(page, 'usta-bemorlar-telegram');
+  // B2: javob rejimi egasi bilan aniq tanlanadi — hech biri oldindan belgilanmagan
+  await page.getByRole('button', { name: 'Davom etish' }).click();
+  const autoRadio = page.getByRole('radio', { name: /AI o'zi javob bersin/ }), draftRadio = page.getByRole('radio', { name: /Men tasdiqlayman/ });
+  ok("B2: «Javob rejimi» qadami — ikki variant, hech biri tanlanmagan", await autoRadio.getAttribute('aria-checked') === 'false' && await draftRadio.getAttribute('aria-checked') === 'false'
+    && await page.getByText(/Egasi bilan gaplashib, birini tanlang/).isVisible());
+  await draftRadio.click();
+  ok("B2: «Men tasdiqlayman» tanlandi va saqlandi", await page.waitForFunction(() => document.querySelector('[role=radio][aria-checked=true]')?.textContent?.includes('Men tasdiqlayman'), null, { timeout: 8000 }).then(() => true, () => false));
+  await shot(page, 'usta-javob-rejimi');
   await page.getByRole('button', { name: 'Davom etish' }).click();
   ok("DentaCRM: manzil va parol kalitlar maydonidan o'tdi", (await page.getByLabel('DentaCRM manzili').inputValue()).includes(String(crmPort)) && (await page.getByLabel('DentaCRM paroli').inputValue()) === CRM_LOGIN.password);
   await page.getByLabel('DentaCRM logini').fill(CRM_LOGIN.username);
@@ -213,7 +221,7 @@ try {
 
   await page.getByRole('button', { name: 'Yakunlash' }).click();
   await shot(page, 'usta-yakun');
-  ok('yakun: tayyor qadamlar sanaldi («10 qadamdan N tasi tayyor» — sarlavhadagi «N-qadam / 11» bilan adashmasin, I2)', await page.getByText(/10 qadamdan \d+ tasi tayyor/).isVisible());
+  ok('yakun: tayyor qadamlar sanaldi («11 qadamdan N tasi tayyor» — sarlavhadagi «N-qadam / 12» bilan adashmasin, I2)', await page.getByText(/11 qadamdan \d+ tasi tayyor/).isVisible());
   await page.getByRole('link', { name: "Kabinetga o'tish" }).click();
   ok("«Kabinetga o'tish» — klinika kabineti ochildi (qayta kirishsiz)", await page.getByLabel("Palantir'ga yozing").waitFor({ timeout: 8000 }).then(() => true, () => false));
   await shot(page, 'kabinet');

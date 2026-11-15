@@ -822,7 +822,8 @@ export function createApp(bot: BotService) {
   app.put('/api/business/auto-reply', asBiz((req, res, biz) => {
     const p = AutoReplySchema.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
-    const profile = { ...biz.profile, autoReply: p.data };
+    // Shu yo'l — egasining tanlovi (usta yoki Sozlamalar): rejim endi standart emas, aniq tanlangan (B2)
+    const profile = { ...biz.profile, autoReply: { ...p.data, chosenAt: new Date().toISOString() } };
     businesses.update(biz.id, { profile });
     res.json({ business: profile, missing: missingBasics(biz) });
   }));
