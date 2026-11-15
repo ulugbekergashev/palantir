@@ -61,6 +61,7 @@ function Status({ line, onLine, notify }: LineProps) {
         </div>
       ))}
       {s.note && <p className="text-[12px] text-[#fde2b0] sm:col-span-2 xl:col-span-5">{s.note}</p>}
+      {!line.geminiKey && <p role="alert" className="rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[13px] leading-snug text-red-200 sm:col-span-2 xl:col-span-5">Telefonda AI Gemini orqali gapiradi — Gemini kaliti kiritilmagan, qo'ng'iroqlarga AI javob bermaydi (administratorga o'tadi). Kalitni o'rnatuvchi kiritadi.</p>}
       {s.trunk === 'failed' && s.reason && <p role="status" className="rounded-xl bg-amber-400/10 px-3.5 py-2.5 text-[13px] leading-snug text-amber-200 sm:col-span-2 xl:col-span-5">Raqam ulanmadi: {s.reason}</p>}
       {line.trunk && (
         <div className="flex items-center gap-3 sm:col-span-2 xl:col-span-5">

@@ -14,7 +14,7 @@ export interface KeyInfo { name: KeyName; label: string; where: string; required
 export const KEYS: KeyInfo[] = [
   { name: 'BOT_TOKEN', label: 'Telegram bot tokeni', where: "@BotFather → /newbot (har klinikaga alohida bot)", required: true },
   { name: 'ANTHROPIC_API_KEY', label: 'Claude kaliti', where: "platform.claude.com → API keys (pullik; Claude obunasi o'rniga)", required: true },
-  { name: 'GEMINI_API_KEY', label: 'Gemini kaliti', where: 'aistudio.google.com → Get API key (ovozli xabarlar, video diktori)' },
+  { name: 'GEMINI_API_KEY', label: 'Gemini kaliti', where: "aistudio.google.com → Get API key (telefonda AI ovozi uchun shart; ovozli xabarlar, video diktori)" },
   { name: 'GROQ_API_KEY', label: 'Groq kaliti', where: 'console.groq.com → API keys (zaxira ovoz)' },
   { name: 'VOICELAB_API_KEY', label: 'VoiceLab kaliti', where: "voicelab.uz → Dasturchi → API kalit (o'zbek ovozi)" },
   { name: 'SPEECHLAB_API_KEY', label: 'SpeechLab kaliti', where: "speechlab.uz → Integratsiyalar → API (qo'ng'iroq qilib eslatish)" },

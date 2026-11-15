@@ -175,6 +175,11 @@ try {
   await page.getByRole('button', { name: 'Davom etish' }).click();
   await shot(page, 'usta-instagram');
   await page.getByRole('button', { name: 'Davom etish' }).click();
+  // T4: Uztelecom — birinchi yorliq (ko'pchilik klinika); login so'ralmaydi
+  ok("T4: telefon qadamida Uztelecom yorlig'i birinchi, softswitch va raqam so'raladi",
+    await page.getByRole('tab', { name: 'Uztelecom' }).getAttribute('aria-selected') === 'true' && await page.getByLabel('Softswitch manzili (server)').isVisible() && !(await page.getByLabel('Login', { exact: true }).count()));
+  ok("T4: Gemini kaliti kiritilmagan — «telefonda AI javob bermaydi» ogohlantirishi", await page.getByRole('alert').filter({ hasText: 'Gemini kaliti kiritilmagan' }).isVisible());
+  await page.getByRole('tab', { name: 'Zadarma' }).click();
   await page.getByLabel('Key').fill(ZADARMA.key);
   await page.getByLabel('Secret').fill(ZADARMA.secret);
   await page.getByRole('button', { name: 'Ulash', exact: true }).click();

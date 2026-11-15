@@ -66,6 +66,8 @@ export interface PhoneLine {
   provider: 'zadarma' | 'manual' | null;
   routing: { mode: 'ai' | 'ai_transfer' | 'day_admin'; ring: number; days: number[]; from: string; to: string };
   admin: { server: string; login: string; password: string | null };
+  /** Telefondagi AI Gemini orqali gapiradi — kalitsiz qo'ng'iroqqa AI javob bermaydi */
+  geminiKey: boolean;
   /** reason — raqam ulanmagan bo'lsa, nega (Asterisk jurnalidan, odam tilida) */
   status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; ai: boolean | null; note: string | null; reason?: string | null };
 }

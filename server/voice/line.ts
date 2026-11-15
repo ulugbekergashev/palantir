@@ -13,6 +13,7 @@ import { connect } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import { join, resolve } from 'node:path';
 import { connections, type BusinessRow } from '../db';
+import { env } from '../env';
 import { open, seal } from '../secret';
 
 import { LINE_MODES, type LineMode, type LineRouting } from './route';
@@ -32,6 +33,8 @@ export interface LineView {
   routing: LineRouting;
   /** Administrator telefoni uchun SIP akkaunt (Zoiper): server — shu kompyuterning ichki tarmoqdagi manzili */
   admin: { server: string; login: string; password: string | null };
+  /** Telefondagi AI Gemini Live orqali gapiradi (tgvoice/sip_live.py): kalitsiz qo'ng'iroqqa AI javob bermaydi — administratorga o'tadi */
+  geminiKey: boolean;
   /** Asterisk holati: ishlayaptimi, shahar raqami ro'yxatdan o'tganmi, qaysi telefonlar ulangan */
   /** ai — AI ovoz xizmati qo'ng'iroq qabul qilyaptimi (null — tekshirilmadi); reason — raqam ulanmagan bo'lsa, nega (Asterisk jurnalidan) */
   status: { asterisk: boolean; trunk: TrunkState; phones: string[]; ai: boolean | null; note: string | null; reason?: string | null };
@@ -133,6 +136,8 @@ export function lineProblemOf(s: LineView['status']): string | null {
 const authOf = (a: Record<string, string>): TrunkAuth => a.auth === 'ip' ? 'ip' : 'password';
 const operatorOf = (a: Record<string, string>): LineOperator => a.operator === 'uztelecom' ? 'uztelecom' : 'other';
 
+export const GEMINI_MISSING = "Gemini kaliti kiritilmagan — telefonda AI javob bermaydi, qo'ng'iroqlar administratorga o'tadi. Kalitni o'rnatuvchi kiritadi (ulash ustasi → «Kalitlar»)";
+
 const ZADARMA_CHECK_MS = Number(process.env.ZADARMA_CHECK_MS) || 3_600_000;
 const zadarmaSeen = new Map<string, { at: number; problem: string | null }>();
 
@@ -147,7 +152,9 @@ export async function lineChecks(bizId: string, now = Date.now()): Promise<{ key
   // kompyuterda raqam fayllari yo'q (H5) — Asterisk'ka yetkaziladi
   const restored = restoreLineConf(bizId, a);
   if (writePalantirConf() || restored || shippedDue(now)) await applyLine().catch(e => console.error('[telefon] kalit Asterisk\'ka yozilmadi:', (e as Error).message));
-  const out = [{ key: 'phone_line', label: 'Telefon liniyasi', problem: lineProblemOf(await lineStatus(authOf(a))) }];
+  // Kalitsiz AI ovoz xizmati ham «to'xtagan» ko'rinadi — egasiga asl sababi aytiladi
+  const problem = env.geminiKey ? lineProblemOf(await lineStatus(authOf(a))) : GEMINI_MISSING;
+  const out = [{ key: 'phone_line', label: 'Telefon liniyasi', problem }];
   const keys = zadarmaKeysOf(bizId);
   if (a.provider === 'zadarma' && keys && a.number) {
     const seen = zadarmaSeen.get(bizId);
@@ -170,6 +177,7 @@ export async function lineView(biz: BusinessRow, withStatus = true): Promise<Lin
     provider: a.host ? (a.provider === 'zadarma' || a.host.trim().toLowerCase() === ZADARMA_HOST ? 'zadarma' : 'manual') : null,
     routing: lineRouting(biz.id),
     admin: { server: lanIp(), login: 'admin', password: s.admin ?? null },
+    geminiKey: !!env.geminiKey,
     status: withStatus ? await lineStatus(authOf(a)) : { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: null },
   };
 }
