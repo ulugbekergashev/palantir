@@ -73,7 +73,7 @@ export async function readNumbers(biz: BusinessRow, now = new Date()): Promise<N
 const TEAM_LINES: Record<MoveMember, string> = {
   qabulxona: 'qabulxona: answers customers in Telegram, Instagram and phone, and writes every message to a customer — follow-ups to forgotten customers too (as drafts the owner sends). Your task becomes a standing instruction it follows in every customer message (how to answer, what to offer next, whom to write to again, when to hand over to a person).',
   yordamchi: "yordamchi: the owner's assistant. A standing instruction for its daily work: the owner's tasks and reminders, documents, keeping customer records up to date.",
-  tahlilchi: 'tahlilchi: numbers and reports. A standing instruction for what to watch and report.',
+  tahlilchi: "tahlilchi: numbers and reports; every Monday it analyses what customers asked about (topics, unanswered questions, objections) and sends the owner a summary. A standing instruction for what to watch in that weekly analysis and report (a topic, a service, a kind of complaint).",
   marketolog: 'marketolog: market research through Meta AI — competitors, the business\'s Instagram account, what works in this field; measures how published posts did; its findings feed the content plan. A standing instruction for what to research.',
   kontent: 'kontent: makes Telegram channel and Instagram posts and short videos, keeps the content plan. A standing instruction for what to post about and how (topics to push, what to stop); the owner still approves every post.',
   target: 'target: runs Meta ads within the owner\'s limits. A standing instruction for campaigns (which service to advertise, audience, what to stop); budgets and launches are always approved by the owner.',
@@ -83,10 +83,11 @@ const TEAM_LINES: Record<MoveMember, string> = {
 
 /**
  * Topshirig'ini haqiqatan o'qiydiganlar: Qabulxona (har mijoz javobida), Yordamchi (egasi bilan suhbatda), Kuzatuvchi (kamera
- * kadrlarida — orders/look.ts), Kontent-meyker va Targetolog (reja, post, reklama rejasi — company.ts standingFor) va egasining o'zi.
- * Tahlil va marketing fon ishlari doimiy topshiriqni o'qimaydi — ularga «topshirildi» deyish yolg'on bo'lardi; bunday taklif egasiga beriladi
+ * kadrlarida — orders/look.ts), Kontent-meyker va Targetolog (reja, post, reklama rejasi — company.ts standingFor), Tahlilchi (haftalik
+ * talab tahlili va chuqur tahlil — insights/analyze.ts analystFocus) va egasining o'zi. Marketologning o'zi ishlaydigan fon ishi yo'q
+ * (faqat jadvalli topshiriq yoki egasi so'raganda) — doimiy qoida uni ishga tushirmaydi, «topshirildi» deyish yolg'on bo'lardi: taklif egasiga
  */
-const ORDER_READERS: readonly MoveMember[] = ['qabulxona', 'yordamchi', 'kuzatuvchi', 'kontent', 'target', 'egasi'];
+const ORDER_READERS: readonly MoveMember[] = ['qabulxona', 'yordamchi', 'tahlilchi', 'kuzatuvchi', 'kontent', 'target', 'egasi'];
 /** Topshiriq beriladigan xodimlar: jamoaga olinganlari (topshiriqni o'qiydiganlaridan) va egasining o'zi */
 export const moveMembersOf = (biz: BusinessRow): MoveMember[] => MOVE_MEMBERS.filter(m => ORDER_READERS.includes(m) && (m === 'egasi' || crewHas(biz, m)));
 

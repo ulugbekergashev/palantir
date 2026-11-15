@@ -13,6 +13,7 @@ import { newId, sql, type BusinessRow } from '../db';
 import { env } from '../env';
 import { buildDataset } from './dataset';
 import { staleReason } from './rerun';
+import { analystFocus } from './analyze';
 import type { Dataset } from './tables';
 
 export interface Finding { title: string; metric: string; detail: string; evidence: string; action: string; impact: 'high' | 'medium' | 'low'; chart: string | null }
@@ -102,7 +103,7 @@ export async function runDeepAnalysis(biz: BusinessRow, { days = 365, prepared, 
     for (const f of data.files.filter(x => x.rows)) uploaded.push((await client.files.upload({ file: await toFile(Buffer.from(f.csv, 'utf8'), f.name, { type: 'text/csv' }) })).id);
     const messages: Anthropic.Beta.BetaMessageParam[] = [{
       role: 'user',
-      content: [{ type: 'text', text: `${describe(data)}\n\nBusiness: ${biz.profile.name} (${biz.profile.industry || 'industry not set'}).` }, ...uploaded.map(id => ({ type: 'container_upload' as const, file_id: id }))],
+      content: [{ type: 'text', text: `${describe(data)}\n\nBusiness: ${biz.profile.name} (${biz.profile.industry || 'industry not set'}).${analystFocus(biz.id)}` }, ...uploaded.map(id => ({ type: 'container_upload' as const, file_id: id }))],
     }];
     let container: string | undefined, final = '';
     const outputs: string[] = [];

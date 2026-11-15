@@ -12,6 +12,7 @@ import { env } from '../env';
 import { collectDemand, type DemandData } from './collect';
 import { LIMITS, SCHEMA, shape, stripIds, systemPrompt, type Group, type RawGroup } from './logic';
 import { withLane } from '../subscription/pressure';
+import { orders } from '../orders/store';
 
 export interface Insights {
   days: number; from: string; to: string; createdAt: string;
@@ -46,6 +47,17 @@ function empty(days: number, from: string, to: string, data: DemandData, headlin
   return { days, from, to, createdAt: new Date().toISOString(), totals: { items: data.items.length, ...data.totals }, headline, themes: [], unanswered: [], objections: [], actions: [], hours: data.hours, days7: data.days };
 }
 
+const MAX_FOCUS = 10;
+/**
+ * Tahlilchining doimiy topshiriqlari (egasi panelda bergan yoki Direktor taklifidan): haftalik talab tahlili va chuqur tahlil shularga
+ * alohida qaraydi. Ma'lumotda bo'lmasa — o'ylab topilmaydi. Shu sababli Direktor Tahlilchiga ham topshiriq beradi (director/index.ts)
+ */
+export function analystFocus(bizId: string): string {
+  const list = orders.standing(bizId, 'tahlilchi').slice(0, MAX_FOCUS);
+  if (!list.length) return '';
+  return `\n\n<owner_focus>\nThe owner asked the analyst to watch these (standing instructions; some were proposed by the AI director and approved by the owner). When the data shows something about them, give it extra attention in the headline and actions. If the data shows nothing about one, do not invent it:\n${list.map(r => `- ${r.replace(/[<>]/g, ' ').replace(/\s+/g, ' ').slice(0, 300)}`).join('\n')}\n</owner_focus>`;
+}
+
 /** Oxirgi `days` kun (bugun ham) tahlili; murojaat kam bo'lsa model chaqirilmaydi */
 export async function analyzeDemand(biz: BusinessRow, days: number, now = new Date()): Promise<Insights> {
   const from = new Date(`${iso(new Date(now.getTime() - (days - 1) * 86_400_000))}T00:00:00`), to = now;
@@ -62,7 +74,7 @@ export async function analyzeDemand(biz: BusinessRow, days: number, now = new Da
     model: env.aiModel,
     max_tokens: 12_000,
     system: systemPrompt(lang),
-    messages: [{ role: 'user', content: `Business: ${biz.profile.name} (${biz.profile.industry || 'industry not set'})\nPeriod: ${range.from} — ${range.to}\n\n<items>\n${data.items.map(i => `[${i.id}] ${i.text}`).join('\n')}\n</items>` }],
+    messages: [{ role: 'user', content: `Business: ${biz.profile.name} (${biz.profile.industry || 'industry not set'})\nPeriod: ${range.from} — ${range.to}\n\n<items>\n${data.items.map(i => `[${i.id}] ${i.text}`).join('\n')}\n</items>${analystFocus(biz.id)}` }],
     thinking: { type: 'adaptive', display: 'omitted' },
     output_config: { effort: 'high', format: { type: 'json_schema', schema: SCHEMA } },
   }));

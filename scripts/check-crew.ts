@@ -129,9 +129,9 @@ check("Direktor faqat jamoadagi xodimga va egasiga taklif beradi", () => {
   ] }, numbers, members);
   assert.deepEqual(plan.moves.map(m => m.member), ['qabulxona']);
 });
-check("Direktor topshiriqni o'qimaydigan xodimga bermaydi (tahlil, marketing fon ishlari) — u egasiga; Kontent-meyker va Targetolog o'qiydi", () => {
+check("Direktor Marketologga bermaydi (o'zi ishlaydigan fon ishi yo'q) — u egasiga; Tahlilchi, Kontent-meyker va Targetolog o'qiydi", () => {
   businesses.update(biz.id, { crew: JSON.stringify({ hired: ['qabulxona', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'kontent', 'target'], dismissed: [] }) });
-  assert.deepEqual(moveMembersOf(businesses.byId(biz.id)!), ['qabulxona', 'yordamchi', 'kontent', 'target', 'kuzatuvchi', 'egasi']);
+  assert.deepEqual(moveMembersOf(businesses.byId(biz.id)!), ['qabulxona', 'yordamchi', 'tahlilchi', 'kontent', 'target', 'kuzatuvchi', 'egasi']);
 });
 {
   const { companyContext } = await import('../server/company');
@@ -144,6 +144,13 @@ check("Direktor topshiriqni o'qimaydigan xodimga bermaydi (tahlil, marketing fon
     assert.ok(content.includes('<owner_standing_orders>') && content.includes('bolalar stomatologiyasi') && !content.includes('Implant reklamasini'), content);
     assert.ok(ads.includes('Implant reklamasini') && !ads.includes('bolalar stomatologiyasi'), ads);
     assert.ok(!customers.includes('owner_standing_orders'), customers);
+  });
+  const { analystFocus } = await import('../server/insights/analyze');
+  check("Tahlilchi topshirig'i haftalik va chuqur tahlilga yetadi; boshqa xodimnikisi aralashmaydi", () => {
+    assert.equal(analystFocus(biz.id), '');
+    orders.create(biz.id, 'tahlilchi', "Breket haqidagi savollarni alohida kuzat", { kind: 'standing' }, 'x');
+    const f = analystFocus(biz.id);
+    assert.ok(f.includes('<owner_focus>') && f.includes('Breket') && !f.includes('bolalar stomatologiyasi') && !f.includes('Implant reklamasini'), f);
   });
 }
 

@@ -68,8 +68,12 @@ export async function insightsApiTests(h: Harness): Promise<void> {
   await report('+998901110101', 'Implant narxi qancha turadi?');
   await report('+998901110102', 'Bolalar uchun tish tozalash narxi qancha?');
   await report('+998901110103', 'Shanba kuni ishlaysizlarmi?');
+  // Tahlilchining doimiy topshirig'i (egasi yoki Direktor) — tahlil so'roviga «owner_focus» bo'lib boradi
+  const focus = await api('/api/orders', { token, body: { member: 'tahlilchi', text: 'Bolalar uchun xizmatlar haqidagi savollarni alohida kuzat', spec: { kind: 'standing' }, summary: 'Bolalar savollari' } });
   ai.insights.length = 0;
   const run = await api('/api/insights', { token, body: { days: 7 } });
+  ok("tahlil: Tahlilchining doimiy topshirig'i modelga «owner_focus» bo'lib bordi", focus.status === 200 && (ai.insights[0] ?? '').includes('<owner_focus>') && (ai.insights[0] ?? '').includes('Bolalar uchun xizmatlar'), (ai.insights[0] ?? '').slice(-400));
+  if (focus.json.order?.id) await api(`/api/orders/${focus.json.order.id}`, { method: 'DELETE', token });
   const x = run.json.insights as { totals: { items: number; messages: number }; themes: { name: string; count: number }[]; actions: unknown[]; hours: number[] } | undefined;
   const sent = ai.insights[0] ?? '';
   ok("tahlil: modelga yozishmalar va qo'ng'iroqlar raqamli band bo'lib bordi (mijozning gapi bilan)", run.status === 200 && /\[c\d+\] Caller: Implant narxi qancha turadi\?/.test(sent), sent.slice(0, 300));
