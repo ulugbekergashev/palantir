@@ -43,6 +43,8 @@
     "test:content": "tsx scripts/check-content.ts",
     "test:crew": "tsx scripts/check-crew.ts",
     "test:analyst": "tsx scripts/check-analyst.ts",
+    "test:people": "tsx scripts/check-people.ts",
+    "test:backup": "tsx scripts/check-backup.ts",
     "test:strangers": "tsx scripts/check-strangers.ts",
     "test:watchdog": "tsx scripts/check-watchdog.ts",
     "test:monitor": "tsx scripts/check-monitor.ts",

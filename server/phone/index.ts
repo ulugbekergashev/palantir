@@ -13,7 +13,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { phoneKey, prettyPhone } from '../../src/lib/phone';
-import { businesses, leads, type BusinessRow } from '../db';
+import { businesses, leads, type BusinessRow, type LeadRow } from '../db';
+import { shareWord } from '../personRules';
 import { normPhone } from '../crm/logic';
 import { env, voiceEnabled } from '../env';
 import { notifyOwner } from '../inbox/core';
@@ -287,6 +288,15 @@ export function stationRecording(station: Station): void {
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const OUTCOME_LABEL = Object.fromEntries((Object.keys(CALL_OUTCOME) as CallOutcomeKey[]).map(k => [k, k === 'other' ? '•' : `${CALL_OUTCOME_ICON[k]} ${CALL_OUTCOME[k]}`])) as Record<CallOutcomeKey, string>;
 
+/**
+ * Umumiy telefon (oila): qo'ng'iroq raqam bo'yicha bir kartaga yozilgan, suhbatdan esa kim gaplashgani ma'lum bo'ldi — shu
+ * telefondagi boshqa karta o'sha ismga mos bo'lsa (hozirgisi mos bo'lmasa), qo'ng'iroq o'sha kartaga o'tadi (F12)
+ */
+function cardByName(bizId: string, lead: LeadRow | undefined, name: string | null): LeadRow | undefined {
+  if (!lead?.phone || !name || shareWord(lead.name, name)) return lead;
+  return leads.byPhone(bizId, lead.phone).find(l => l.id !== lead.id && shareWord(l.name, name)) ?? lead;
+}
+
 /** Yozuv → matn → tahlil → mijoz kartasi, so'rov, egasiga xabar. Xato bo'lsa — «failed» (panelda ko'rinadi) */
 export async function review(bizId: string, callId: string): Promise<void> {
   const biz = businesses.byId(bizId);
@@ -304,7 +314,8 @@ export async function review(bizId: string, callId: string): Promise<void> {
   }
   const { analysis: a, request } = found;
   phoneCalls.setReview(bizId, callId, 'done', a);
-  const lead = c.leadId ? leads.get(bizId, c.leadId) : undefined;
+  const lead = cardByName(bizId, c.leadId ? leads.get(bizId, c.leadId) : undefined, a.customerName);
+  if (lead && lead.id !== c.leadId) phoneCalls.setLead(bizId, c.id, lead.id, lead.name);
   if (lead) {
     leads.update(bizId, lead.id, {
       ...(a.customerName && !lead.name ? { name: a.customerName } : {}),

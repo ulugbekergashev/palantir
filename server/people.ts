@@ -104,6 +104,9 @@ export function phoneChanged(biz: BusinessRow, leadId: string, trust: PhoneTrust
   return lead;
 }
 
+/** Karta oxirgi marta qachon faol bo'lgan: mijoz yozgani yoki kartadagi o'zgarish */
+const activeAt = (l: LeadRow): string => ((l.lastInboundAt ?? '') > l.updatedAt ? l.lastInboundAt! : l.updatedAt);
+
 /** phoneChanged, lekin bemor qidiruvi qisqa kutiladi: xodimga ketadigan kartada «DentaCRM bemori» ko'rinsin */
 export async function settlePerson(biz: BusinessRow, leadId: string, trust: PhoneTrust = 'verified'): Promise<LeadRow | undefined> {
   const { lead } = mergeByPhone(biz.id, leadId, trust);
@@ -114,9 +117,13 @@ export async function settlePerson(biz: BusinessRow, leadId: string, trust: Phon
   return lead ? leads.get(biz.id, lead.id) : undefined;
 }
 
-/** Telefon bo'yicha karta: bir odamniki bo'lsa — o'sha (eng eskisi), bo'lmasa — yangisi ochiladi */
+/**
+ * Telefon bo'yicha karta: bir odamniki bo'lsa — o'sha (eng eskisi), bo'lmasa — yangisi ochiladi. Bir telefonda bir nechta karta
+ * (oila telefoni) va ism noma'lum (MicroSIP qo'ng'irog'i) — eng so'nggi faol karta: avval doim eng eskisiga yozilardi (F12)
+ */
 export function leadForPhone(biz: BusinessRow, phone: string, v: { name: string | null; source: string; note?: string | null }): LeadRow {
   const same = leads.byPhone(biz.id, phone).filter(l => namesFit(l.name, v.name));
+  if (same.length > 1 && !v.name) return [...same].sort((a, b) => (activeAt(b) > activeAt(a) ? 1 : activeAt(b) < activeAt(a) ? -1 : 0))[0];
   if (same.length) return same[0];
   const added = leads.add(biz.id, { name: v.name, phone, note: v.note ?? null, source: v.source });
   return phoneChanged(biz, added.id) ?? added;
