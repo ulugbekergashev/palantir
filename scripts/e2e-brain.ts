@@ -146,6 +146,14 @@ export async function brainApiTests(h: Harness): Promise<void> {
   ok("ovozli agent: nomida filtr so'zi bor xizmat ham aytilmaydi, qolgan narxlar joyida", pricey.status === 200 && !saidPrices.includes('Eng yaxshi lak') && saidPrices.includes('Vinir: 1500000'), saidPrices.slice(0, 200));
   await api(`/api/brain/prices/${brainOf(pricey).prices.find(o => o.name === 'Eng yaxshi lak')?.id}`, { method: 'DELETE', token });
 
+  // F7: narxi kiritilmagan xizmat ham telefondagi AI'ga — «bor, narxi ko'rikda» (aks holda «bunday xizmat yo'q» deb bemorni qaytarardi)
+  // (Narxlar ro'yxatidagi 0 — «bepul» fakti; narxi kiritilmagan xizmat — profilda, egasi narxini yozmagan)
+  const prof = (await api('/api/me', { token })).json;
+  const free = await api('/api/business', { method: 'PUT', token, body: { ...prof.business, offeringsRev: prof.offeringsRev, offerings: [...prof.business.offerings, { id: 'narxsiz1', name: 'Breket', price: 0 }] } });
+  const saidFree = String((await api('/api/voice/knowledge', { token: key })).json.knowledge);
+  ok("ovozli agent: narxi kiritilmagan xizmat ham bor deb aytiladi, narxi o'ylab topilmaydi", free.status === 200 && /Narxi kiritilmagan xizmatlar[^\n]*\n(- [^\n]*\n)*- Breket/.test(saidFree) && !saidFree.includes('Breket: 0'), `${free.status} ${saidFree.slice(0, 400)}`);
+  await api('/api/brain/prices/narxsiz1', { method: 'DELETE', token });
+
   const removed = await api(`/api/brain/${qaId}`, { method: 'DELETE', token });
   ok("miya: o'chirildi", removed.status === 200 && !brainOf(removed).qa.length && (await api(`/api/brain/${qaId}`, { method: 'DELETE', token })).status === 404);
 }

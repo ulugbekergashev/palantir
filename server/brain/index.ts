@@ -243,7 +243,14 @@ export function knowledgeText(biz: BusinessRow): string {
   // Matn agentga qanday ko'rinishda ketsa (plain: ko'rinmas belgilar va qator uzilishlarisiz), shu ko'rinishda tekshiriladi
   const opts = filterOptions(biz);
   const sayable = (text: string) => check(plain(text, 100_000), opts).length === 0;
+  const named = (o: { name: string; nameRu?: string | null }) => `${o.name}${o.nameRu ? ` / ${o.nameRu}` : ''}`;
   const priced = p.offerings.filter(o => o.price > 0 && sayable(o.name));
+  // Narxi kiritilmagan xizmat ham — klinikada bor: aks holda AI «bizda bunday xizmat yo'q» deb bemorni qaytarib yuborardi (F7)
+  const unpriced = p.offerings.filter(o => !(o.price > 0) && sayable(o.name));
+  // Kim nima qiladi («implantni kim qo'yadi?»): yozishmadagi kabi jamoa ro'yxati
+  const team = p.team.map(m => `${m.name} — ${m.role}${m.years ? `, ${m.years} yil tajriba` : ''}`).filter(sayable);
+  // Egasi mijozlar bilan qanday gaplashishni xohlaydi (yozishmadagi «uslub»): telefonda ham shu ohang
+  const tone = plain(style.get(biz.id), LIMITS.style);
   const all = knowledge.list(biz.id).flatMap(k => (k.kind === 'page' ? (sayable(k.question) ? [{ ...k, answer: k.answer.split('\n').filter(sayable).join('\n') }] : []) : k.kind === 'qa' && !sayable(k.answer) ? [] : [k]));
   const qa = approvedAnswers(all);
   // Qatorlar birlashtirilgach paydo bo'lgan ibora ham («eng» bir qatorda, «yaxshi» keyingisida) o'tib ketmasin
@@ -252,7 +259,10 @@ export function knowledgeText(biz: BusinessRow): string {
   const rules = orders.standing(biz.id, 'qabulxona').filter(sayable);
   return [
     `Nomi: ${p.name}`,
-    priced.length ? `Narxlar (so'm):\n${priced.map(o => `- ${o.name}: ${o.price}`).join('\n')}` : "Narxlar: kiritilmagan — narxni aytmang, administrator aniqlab qayta qo'ng'iroq qiladi deng.",
+    priced.length ? `Narxlar (so'm):\n${priced.map(o => `- ${named(o)}: ${o.price}`).join('\n')}` : "Narxlar: kiritilmagan — narxni aytmang, administrator aniqlab qayta qo'ng'iroq qiladi deng.",
+    unpriced.length ? `Narxi kiritilmagan xizmatlar (klinikada bor — narxini aytmang, «narxi ko'rikda aniqlanadi» deng va ko'rikka yozing):\n${unpriced.map(o => `- ${named(o)}`).join('\n')}` : '',
+    team.length ? `Jamoa:\n${team.map(t => `- ${t}`).join('\n')}` : '',
+    tone && sayable(tone) ? `Egasi mijozlar bilan shunday gaplashishni xohlaydi: ${tone}` : '',
     facts.length ? `Faktlar:\n${facts.map(f => `- ${f.text}`).join('\n')}` : '',
     qa.length ? `Savol-javoblar (egasi tasdiqlagan):\n${qa.map(k => `- Savol: ${line(k.question, LIMITS.question)}\n  Javob: ${line(k.answer, LIMITS.answer)}`).join('\n')}` : '',
     pages.length ? `Biznes haqida sahifalar (manzil, ish vaqti va boshqalar):\n${pages.map(p => `- ${p}`).join('\n')}` : '',
