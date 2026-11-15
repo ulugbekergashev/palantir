@@ -96,9 +96,16 @@ def call_uuid(raw: bytes) -> str:
     return f'{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}'
 
 
+# Boshqa Asterisk nusxasi (sinov: scripts/check-dialplan.ts — vaqtinchalik nusxa o'z sozlamasi bilan): asterisk -C <fayl>
+ASTERISK_CONF = env('SIP_ASTERISK_CONF', '-')
+
+
 async def asterisk(command: str) -> str:
-    """Asterisk buyrug'i (WSL ichida; Linux'da — to'g'ridan-to'g'ri). Fonda: oyna ochilmaydi"""
-    argv = ['wsl.exe', '-d', DISTRO, '--', 'asterisk', '-rx', command] if os.name == 'nt' else ['asterisk', '-rx', command]
+    """Asterisk buyrug'i (WSL ichida; Linux'da — to'g'ridan-to'g'ri). Fonda: oyna ochilmaydi.
+    WSL'da --exec: buyruq qobiqdan qayta o'tmaydi (aks holda qo'shtirnoq va $ belgilari buziladi); --exec PATH'da /usr/sbin yo'q —
+    to'liq yo'l (Ubuntu paketi shu yerga o'rnatadi)"""
+    extra = ['-C', ASTERISK_CONF] if ASTERISK_CONF != '-' else []
+    argv = ['wsl.exe', '-d', DISTRO, '--exec', '/usr/sbin/asterisk', *extra, '-rx', command] if os.name == 'nt' else ['asterisk', *extra, '-rx', command]
     proc = await asyncio.create_subprocess_exec(*argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
                                                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     out, _ = await asyncio.wait_for(proc.communicate(), 10)
@@ -106,6 +113,38 @@ async def asterisk(command: str) -> str:
 
 
 NO_CHANNEL = 'kanal topilmadi'
+
+
+def orphaned_calls(channels: str, port: int) -> list[tuple[str, str]]:
+    """«core show channels concise» dan AI'si yo'q qo'ng'iroqlar: shu portdagi AudioSocket'da turgan kanal va rejim (id'ning 1-raqami).
+    Dastur endigina ishga tushgan bo'lsa, ular oldingi nusxadan qolgan (u yiqilgan yoki yangilanishda o'chirilgan): Asterisk 20.6
+    AudioSocket ulanish go'shaksiz yopilganini sezmaydi — mijoz jimlikda qoladi, so'rov ham ochilmaydi"""
+    found = []
+    for line in channels.splitlines():
+        # Kanal!Kontekst!Raqam!Qadam!Holat!Ilova!Ilova argumenti!…  — argument: «<id>,127.0.0.1:9092»
+        parts = line.split('!')
+        if len(parts) > 6 and parts[5] == 'AudioSocket' and parts[6].endswith(f':{port}'):
+            found.append((parts[0], parts[6][:1]))
+    return found
+
+
+async def rescue_orphans() -> None:
+    """Ishga tushganda (qo'ng'iroq qabul qilishdan oldin): oldingi nusxadan qolgan qo'ng'iroqlar — mijoz administratorga ([yordam]:
+    jiringlaydi, ko'tarmasa uzr va «qayta qo'ng'iroq qiling» so'rovi), egasiniki — uziladi"""
+    try:
+        channels = await asterisk('core show channels concise')
+    except (OSError, asyncio.TimeoutError) as e:
+        log('—', f"oldingi qo'ng'iroqlar tekshirilmadi: {type(e).__name__}")
+        return
+    for chan, mode in orphaned_calls(channels, PORT):
+        if mode in CUSTOMERS:
+            ring = 0 if mode == MISSED else RESCUE_RING_S
+            out = await asterisk(f'channel redirect {chan} yordam,{ring},1')
+            done = 'redirected' in out.lower()
+            log('—', f"AI'siz qolgan mijoz qo'ng'irog'i (oldingi ishga tushishdan) — administratorga: {'burildi' if done else out.strip()[:120]}")
+        else:
+            await asterisk(f'channel request hangup {chan}')
+            log('—', "AI'siz qolgan egasi qo'ng'irog'i (oldingi ishga tushishdan) — uzildi")
 
 
 async def redirect_to_operator(uuid: str, ring: int, context: str = 'operator') -> str | None:
@@ -470,6 +509,9 @@ async def main():
     sys.stdout.reconfigure(encoding='utf-8')
     wsl = keep_wsl_alive() if os.name == 'nt' else None
     server = Server()
+    # Qabul qilishdan oldin: yangi qo'ng'iroq bilan adashtirilmaydi (port hali yopiq — yangisi [yordam] ga o'zi boradi)
+    if os.name != 'nt' or wsl:
+        await rescue_orphans()
     srv = await asyncio.start_server(server.handle, HOST, PORT)
     log('—', f"telefon liniyasi tayyor: {HOST}:{PORT}, bir vaqtda {MAX_CALLS} tagacha qo'ng'iroq; "
              f"AI qabulxona: {'yoqiq' if server.reception else 'o‘chiq (VOICE_AGENT_KEY yo‘q)'}")

@@ -56,7 +56,34 @@ def bridge(mode: str = CUSTOMER, app: bool = False) -> PhoneBridge:
     return PhoneBridge(Writer(), mode, '998935550011', '', 1, 'abcd-uuid', app)
 
 
+async def orphan_tests():
+    """Ishga tushishda: oldingi nusxadan AI'siz qolgan qo'ng'iroqlar (Asterisk 20.6 AudioSocket uzilganini sezmaydi)"""
+    concise = '\n'.join([
+        'Local/998901112233@shahar-00000001;2!ai!s!13!Up!AudioSocket!20129989011122331234-5678-…,127.0.0.1:9092!998901112233!!!3!12!!',
+        'Local/101@egasi-00000002;2!ai!s!13!Up!AudioSocket!10301010000000000000-…,127.0.0.1:9092!101!!!3!40!!',
+        'Local/998907778899@shahar-00000003;2!ai!s!13!Up!AudioSocket!3012…,127.0.0.1:9096!998907778899!!!3!5!!',
+        'PJSIP/admin-00000004!yordam!20!4!Ring!Dial!PJSIP/admin,20!998901112233!!!3!2!!',
+    ])
+    found = sip_live.orphaned_calls(concise, 9092)
+    ok("AI'siz qolganlar: faqat shu portdagi AudioSocket kanallari, rejimi bilan (boshqa port, Dial — yo'q)",
+       found == [('Local/998901112233@shahar-00000001;2', '2'), ('Local/101@egasi-00000002;2', '1')], str(found))
+    sent: list[str] = []
+
+    async def fake_asterisk(cmd: str) -> str:
+        sent.append(cmd)
+        return concise if cmd == 'core show channels concise' else 'Channel Local/x redirected'
+    real = sip_live.asterisk
+    sip_live.asterisk = fake_asterisk
+    try:
+        await sip_live.rescue_orphans()
+    finally:
+        sip_live.asterisk = real
+    ok(f"mijoz — [yordam] ga ({RESCUE_RING_S} s jiringlaydi), egasi — uziladi",
+       sent[1:] == [f'channel redirect Local/998901112233@shahar-00000001;2 yordam,{RESCUE_RING_S},1', 'channel request hangup Local/101@egasi-00000002;2'], str(sent))
+
+
 async def main():
+    await orphan_tests()
     calls = fake(None)
     b = bridge()
     b.failure = 'ConnectionClosedError: 1011'
