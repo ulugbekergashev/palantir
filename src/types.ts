@@ -385,6 +385,22 @@ export interface ClinicDay {
   unpaid: { total: number; count: number };
 }
 
+/**
+ * Bosh ekrandagi «Bugun klinikada» (GET /api/crm/money): bugungi tushum (yangi pul, balansdan to'lov emas), to'lovlar soni, kelganlar
+ * (total — bekor qilinmagan qabullar), to'lanmagan qarz va oxirgi 7 kunning ish kunlaridagi o'rtacha tushum (ish kuni bo'lmasa — null)
+ */
+export interface ClinicMoney {
+  date: string;
+  revenue: number;
+  payments: number;
+  came: number;
+  total: number;
+  expected: number;
+  unpaid: { total: number; count: number };
+  avgRevenue: number | null;
+  openDays: number;
+}
+
 /** Kamera zonasi: kadrning ulushlarida berilgan to'rtburchak (0..1). chair — kreslo, desk — kassa stoli */
 /**
  * chair — kreslo, desk — kassa stoli, waiting — kutish joyi (har odamning kutishi alohida sanaladi),

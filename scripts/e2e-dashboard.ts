@@ -216,6 +216,14 @@ try {
   ok('lenta: yangisi tepada', feed.every((e, i, all) => !i || all[i - 1].at >= e.at));
 
 
+  // «Bugun klinikada» (bosh ekran): tushum — yangi pul; balansdan to'lov (oldingi avans) qo'shilmaydi
+  crm.transactions.push({ id: 'tpbal', patientName: 'Ali Valiyev', patientId: 'p1', date: iso(new Date()), amount: 50_000, type: 'Balance', service: 'Plomba', status: 'Paid', clinicId: 'c1', doctorId: 'd1', doctorName: 'Rustam Rustamov', discountAmount: 0 });
+  const money = (await api('/api/crm/money', { token })).json.money as import('../src/types').ClinicMoney;
+  // Soxta DentaCRM'da bugun: naqd 300 000, karta 500 000, avans 150 000 (+ Alining 300 000) — 4 to'lov; balansdan 200 000 va 50 000 — kirmaydi;
+  // to'lanmagan: 400 000 (kutilmoqda) + 100 000 (muddati o'tgan)
+  ok("bugun klinikada: tushum 1 250 000 (balansdan to'lov kirmaydi), 4 to'lov, qarz 500 000 (2 ta), kelganlar",
+    money?.revenue === 1_250_000 && money.payments === 4 && money.unpaid.total === 500_000 && money.unpaid.count === 2 && money.came >= 1 && money.total >= money.came, JSON.stringify(money));
+
   console.log('\n# Ko\'rinish (headless)');
   const browser = await chromium.launch({ executablePath: CHROME });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: TIMEZONE, locale: 'uz-UZ' });
@@ -255,6 +263,16 @@ try {
   await page.waitForTimeout(400);
   await page.screenshot({ path: join(OUT, 'client-card.png'), fullPage: true });
   ok("panel: mijoz kartasi — kanallar, DentaCRM bemori, yaqin qabul, qo'ng'iroq yozuvi", await page.getByText('Yaqin qabullar').isVisible() && await page.getByText("Qo'ng'iroqlar").first().isVisible());
+  await page.goto(`${base}/#/ai`, { waitUntil: 'networkidle' });
+  await page.getByTestId('money-revenue').waitFor({ timeout: 10000 });
+  ok("bosh ekran: «Bugun klinikada» — tushum, to'lovlar va qarz", (await page.getByTestId('money-revenue').innerText()).includes("1 250 000 so'm")
+    && (await page.getByTestId('money-payments').innerText()).includes('4 ta') && (await page.getByTestId('money-unpaid').innerText()).includes("500 000 so'm"));
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.waitForTimeout(400);
+  await page.getByTestId('money-revenue').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: join(OUT, 'home-money-390.png') });
+  ok("bosh ekran telefonda: gorizontal siljish yo'q", await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 1);
+  await page.setViewportSize({ width: 1440, height: 1000 });
   ok("sahifada JS xatosi yo'q", !errors.length, errors.join(' | '));
   await browser.close();
 

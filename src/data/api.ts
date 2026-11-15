@@ -1,5 +1,5 @@
 import type { CrewMember } from '../lib/crew';
-import type { BrainView, Call, Camera, CameraAccuracy, CameraSummary, CameraTiming, CameraZone, ClinicDay, ZoneNow } from '../types';
+import type { BrainView, Call, Camera, CameraAccuracy, CameraSummary, CameraTiming, CameraZone, ClinicDay, ClinicMoney, ZoneNow } from '../types';
 import type { PriceLine } from '../lib/prices';
 import type { AnketaData } from '../lib/anketa';
 import type { KeyName } from '../lib/secrets';
@@ -360,6 +360,8 @@ export const api = {
   crmFind: () => call<{ url: string | null }>('/crm/find'),
   /** Klinikaning kuni (bosh sahifa). 409 — DentaCRM ulanmagan, 502 — javob bermayapti */
   crmDay: (date?: string) => call<{ day: ClinicDay }>(`/crm/day${date ? `?date=${date}` : ''}`),
+  /** Bosh ekrandagi «Bugun klinikada»: tushum, to'lovlar, kelganlar, qarz; DentaCRM ulanmagan — 409 */
+  clinicMoney: () => call<{ money: ClinicMoney }>('/crm/money'),
   igLogin: () => call<{ status: LiveStatus }>('/instagram/login', { body: {} }),
   igCancel: () => call<{ ok: true }>('/instagram/cancel', { body: {} }),
   igDisconnect: () => call<{ status: LiveStatus }>('/instagram', { method: 'DELETE' }),

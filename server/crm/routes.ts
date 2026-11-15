@@ -5,12 +5,13 @@ import { resetConversation } from '../agent';
 import { loginBlocked, loginFailed } from '../auth';
 import type { BusinessRow } from '../db';
 import type { LiveStatus } from '../../src/types';
-import { iso } from '../../src/lib/week';
+import { addDays, iso } from '../../src/lib/week';
 import { CrmError } from './dentacrm';
 import { connectCrm, crmConnected, disconnectCrm, withCrm } from './index';
 import { daySummary, isRealDate } from './logic';
 import { env } from '../env';
 import { findLocalCrm } from './find';
+import { MONEY_PAST_DAYS, clinicMoney } from './today';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -58,6 +59,23 @@ export function mountCrm(app: Express, { asBiz, bad, fail, statusOf }: Deps): vo
     disconnectCrm(biz.id);
     resetConversation(biz.id);
     res.json({ status: statusOf(biz.id, req) });
+  }));
+
+  /**
+   * Bosh ekrandagi «Bugun klinikada»: bugungi tushum, to'lovlar, kelganlar, qarz va 7 kunlik o'rtacha (today.ts). O'tgan kunlar keshda
+   * (dentacrm.ts day), shuning uchun har yangilanishda faqat bugun so'raladi
+   */
+  app.get('/api/crm/money', asBiz(async (_req, res, biz) => {
+    if (!crmConnected(biz.id)) return res.status(409).json({ error: 'DentaCRM ulanmagan' });
+    const today = iso(new Date());
+    const past = Array.from({ length: MONEY_PAST_DAYS }, (_, i) => iso(addDays(new Date(), -(i + 1))));
+    try {
+      const money = await withCrm(biz.id, async crm => clinicMoney(await crm.day(today), await Promise.all(past.map(d => crm.day(d)))));
+      res.json({ money });
+    } catch (e) {
+      if (e instanceof CrmError) return fail(res, e, 502);
+      throw e;
+    }
   }));
 
   /** Panel bosh sahifasi: klinikaning kuni — qabullar shifokorlar bo'yicha, kelgan/kelmagan, tushum (yordamchining clinic_day asbobi bilan bir xil hisob) */

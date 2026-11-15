@@ -15,6 +15,7 @@ import { Markdown } from '../components/Markdown';
 import { useVoice, type VoiceMode } from '../lib/useVoice';
 import { Attention } from '../components/Attention';
 import { GoalsStrip } from '../components/Goals';
+import { ClinicMoneyStrip } from '../components/ClinicMoney';
 import { dotClass } from '../components/agent';
 import { TeamDay } from '../components/TeamDay';
 import { hrefOf } from '../lib/nav';
@@ -34,7 +35,7 @@ const STATE_TEXT: Record<VoiceMode, string> = {
 
 const greeting = (h: number) => (h < 5 ? 'Xayrli tun' : h < 12 ? 'Xayrli tong' : h < 18 ? 'Xayrli kun' : 'Xayrli kech');
 
-export function AiPage({ biz, now, team, crew, notify, tick, onChanged }: { biz: Business; status: LiveStatus; now: Date; team: Record<Member, MemberState> | null; crew: Member[]; notify: Notify; tick: number; onChanged: () => void }) {
+export function AiPage({ biz, status, now, team, crew, notify, tick, onChanged }: { biz: Business; status: LiveStatus; now: Date; team: Record<Member, MemberState> | null; crew: Member[]; notify: Notify; tick: number; onChanged: () => void }) {
   const { mode, active, you, ai, cards, error, toggle, orb, push, setYou, setAi, setError, nextId } = useVoice('owner');
   const [typed, setTyped] = useState('');
   const [busyText, setBusyText] = useState(false);
@@ -157,6 +158,9 @@ export function AiPage({ biz, now, team, crew, notify, tick, onChanged }: { biz:
 
         {/* Maqsadlar — Direktorda qo'yilgan bo'lsa (bo'lmasa ko'rinmaydi) */}
         <div className="mt-8 w-full max-w-3xl"><GoalsStrip tick={tick} /></div>
+
+        {/* Bugungi pul va kelganlar — DentaCRM ulangan bo'lsa (Boshqaruv markazi) */}
+        {!!status.crm.account && <div className="mt-3 w-full max-w-3xl"><ClinicMoneyStrip tick={tick} /></div>}
 
         {/* AI jamoa — har biri o'z ishida */}
         <section aria-label="AI jamoa" className="mt-14 w-full">
