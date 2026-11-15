@@ -48,7 +48,7 @@ function migrateCoreReception(db: DatabaseSync): void {
     }
     if (!lines) continue;
     const line = db.prepare("SELECT meta FROM connections WHERE business_id = ? AND kind = 'sip_line'").get(r.id) as { meta: string } | undefined;
-    if (line) db.prepare("UPDATE connections SET meta = ? WHERE business_id = ? AND kind = 'sip_line'").run(JSON.stringify({ ...(parse(line.meta) ?? {}), mode: 'human' }), r.id);
+    if (line) db.prepare("UPDATE connections SET meta = ? WHERE business_id = ? AND kind = 'sip_line'").run(JSON.stringify({ ...parse(line.meta), mode: 'human' }), r.id);
   }
 }
 
