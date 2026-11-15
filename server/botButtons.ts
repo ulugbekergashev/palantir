@@ -13,7 +13,8 @@ import { cancelEntry, confirmEntry, undoEntry } from './crm/actions';
 import { recallPatients } from './crm/index';
 import { patientName } from './crm/logic';
 import { businesses, leads, outbound, tasks, type BusinessRow } from './db';
-import { approveReply, dismissReply, notifyOwner } from './inbox/core';
+import { approveReply, DEFAULT_REPLY, dismissReply, notifyOwner } from './inbox/core';
+import { OFFER_CODE } from './inbox/autonomy';
 import { cancelPost, posts, publishPost } from './marketing/posts';
 import { ContentError, cancelDraft, publishDraft } from './content/factory';
 import { TargetError, cancel as cancelCampaign, launch as launchCampaign, pause as pauseCampaign } from './ads/campaigns';
@@ -291,6 +292,17 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
       if (!result.done) return toast(ctx, cut(result.text, 190), { show_alert: true });
       if (msg) await tg.editMessageText(biz.ownerChatId!, msg.message_id, undefined, result.text, { parse_mode: 'HTML' }).catch(ignoreUnchanged).catch(() => {});
       return toast(ctx, code === 'kp' ? 'Narxlar jadvalga tushdi' : 'Namuna saqlandi');
+    }
+
+    // AI administrator avtonomiyasi (inbox/autonomy.ts): egasi «o'zi javob bersin»ga o'tkazadi yoki hozircha qoldiradi — faqat egasi
+    if (code === OFFER_CODE && ownerBiz) {
+      if (id === 'on') {
+        const cur = businesses.byId(biz.id)!;
+        const autoReply = { ...DEFAULT_REPLY, ...cur.profile.autoReply, mode: 'auto' as const, chosenAt: new Date().toISOString() };
+        businesses.update(biz.id, { profile: { ...cur.profile, autoReply } });
+      }
+      if (msg) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      return toast(ctx, id === 'on' ? "✅ Endi AI administrator mijozlarga o'zi javob beradi" : 'Mayli — javoblarni siz tasdiqlaysiz', { show_alert: id === 'on' });
     }
 
     if (code === 'ra' || code === 'rx') {

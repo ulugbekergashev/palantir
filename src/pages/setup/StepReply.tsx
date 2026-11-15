@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../data/api';
 import { Card, controlClass } from '../../components/ui';
+import { ReplyTrust } from '../TelegramPage';
 import type { AutoReply, Business, ReplyMode } from '../../types';
 
 type Notify = (text: string, error?: boolean) => void;
@@ -41,6 +42,7 @@ export function StepReply({ biz, onBiz, notify }: { biz: Business | null; onBiz:
             </button>
           ))}
         </div>
+        <ReplyTrust mode={v.mode} />
         {!chosen && (
           <p className="mt-3 text-sm text-slate-500">
             {biz.autoReply?.mode === 'off' ? 'Hozir javob o\'chiq.' : biz.autoReply?.mode === 'auto' ? "Hozir AI o'zi javob beradi." : 'Hozir standart holat — javoblarni egasi tasdiqlaydi.'} Egasi bilan gaplashib, birini tanlang.

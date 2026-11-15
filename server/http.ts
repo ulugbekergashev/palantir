@@ -29,6 +29,7 @@ import { SilenceError, transcribe } from './stt';
 import { FileError, MAX_FILE_BYTES, intakeText, takeFile } from './intake/index';
 import { INTERVIEW_START, interviewReply, interviewStart, interviewing } from './brain/interview';
 import { approveReply, dismissReply, ownerWrites, replySettings } from './inbox/core';
+import { trustOf } from './inbox/autonomy';
 import { cancelInstagramLogin, disconnectInstagram, instagramAvailable, instagramStatus, startInstagramLogin } from './inbox/instagram';
 import { cancelMetaAiLogin, disconnectMetaAi, metaAiStatus, startMetaAiLogin } from './marketing/metaAi';
 import { disconnectInstagramApi, instagramApiConnectUrl, instagramApiStatus } from './inbox/instagramApi';
@@ -829,6 +830,8 @@ export function createApp(bot: BotService) {
   }));
   // «O'zi javob bersin» yonida: Palantir hali nimani bilmaydi (narx, manzil, ish vaqti) — bilimsiz yoqilsa ogohlantirish (I1)
   app.get('/api/business/knowledge-gaps', asBiz((_req, res, biz) => { res.json({ missing: missingBasics(biz) }); }));
+  // AI administratorga ishonch (L0–L4): so'nggi takliflardan nechtasi o'zgarishsiz yuborilgan — «Mijozlarga javob» kartasida (inbox/autonomy.ts)
+  app.get('/api/business/autonomy', asBiz((_req, res, biz) => { res.json({ trust: trustOf(biz.id) }); }));
 
   /** Bir so'rovda ko'rsatiladigan yozishmalar (va alohida — yozishmasiz mijozlar) chegarasi */
   const INBOX_LIMIT = 200;

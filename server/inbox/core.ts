@@ -35,6 +35,8 @@ import { isMedia } from './media';
 import { digestText } from './digest';
 import { splitForInstagram } from './igRules';
 import { canMarkPersonal, personalRow } from './personal';
+import { autonomyOffer, recordOutcome } from './autonomy';
+import { missingBasics } from '../setup/gaps';
 
 export interface Sender {
   /** Shu mijozga shu kanal orqali yozish mumkinmi */
@@ -835,12 +837,22 @@ export async function approveReply(biz: BusinessRow, id: string): Promise<void> 
   await settleCard(biz, r, r.booking ? `✅ Qabulga yozildi va yuborildi\n📅 ${esc(bookingLine(r.booking))}`
     : r.change ? `✅ ${r.change.kind === 'move' ? "Ko'chirildi" : 'Bekor qilindi'} va yuborildi\n🔁 ${esc(changeLine(r.change))}` : '✅ Yuborildi');
   if (booking || change) await forwardMissed(biz, lead, startedAt);
+  // L1 → L2: o'zgarishsiz yuborilgan taklif — ishonch hisobiga; yetarli bo'lsa egasiga «o'zi javob bersinmi?» (autonomy.ts)
+  recordOutcome(biz.id, id, 'clean');
+  await offerAutonomy(biz);
+}
+
+async function offerAutonomy(biz: BusinessRow): Promise<void> {
+  const fresh = businesses.byId(biz.id) ?? biz;
+  const offer = autonomyOffer(biz.id, replySettings(fresh).mode, missingBasics(fresh));
+  if (offer) await notifyOwner(fresh, offer.html, offer.keyboard);
 }
 
 export async function dismissReply(biz: BusinessRow, id: string): Promise<void> {
   const r = replies.get(biz.id, id);
   if (!r) throw new Error('Topilmadi');
   if (!replies.move(biz.id, id, ['pending', 'scheduled'], 'dismissed')) throw new Error('Bu taklif allaqachon hal qilingan');
+  recordOutcome(biz.id, id, 'rejected');
   await settleCard(biz, r, '✖️ Yuborilmadi');
 }
 
@@ -856,6 +868,8 @@ export async function dismissReply(biz: BusinessRow, id: string): Promise<void> 
 export async function ownerWrites(biz: BusinessRow, lead: LeadRow, text: string, draftId?: string, staff?: string | null): Promise<LeadChannel> {
   const draft = draftId ? replies.get(biz.id, draftId) : undefined;
   const ch = await sendToLead(biz, lead, text, 'owner');
+  // Tayyor taklif o'rniga odam o'zi yozdi — AI'ga ishonch hisobida «tuzatilgan» (autonomy.ts)
+  if (draft && draft.leadId === lead.id && draft.status === 'pending') recordOutcome(biz.id, draft.id, 'fixed');
   // So'ralgan savolga javob — bilim taklifi; oddiy tayyor javob o'rniga yozilgani — tuzatish (faqat egasiniki)
   if (!staff && draft && draft.leadId === lead.id && draft.status === 'pending' && !draft.question && !draft.booking && !draft.change && draft.text !== HOLD_TEXT) recordFix(biz, draft.text, text);
   ownerAnswered(biz, lead, text, (html, keyboard) => notifyOwner(biz, html, keyboard), staff ?? null);

@@ -42,9 +42,14 @@ export async function businessTests(h: Harness): Promise<void> {
   const lead = await leadOf();
   ok("mijoz egasining shaxsiy chatiga yozdi — karta (Telegram, Business), egasiga javob taklifi", !!card && lead?.channel === 'telegram' && lead.name === 'Jamshid', JSON.stringify(lead));
   mark = sent.length;
+  // Shu biznesda boshqa sinovlar ham taklif yuborgan/rad etgan — hisob oldin va keyin solishtiriladi
+  const trustBefore = (await api('/api/business/autonomy', { token })).json.trust as { decided: number; clean: number };
   press(OWNER, buttons(card).find(b => b.callback_data?.startsWith('ra|'))!.callback_data!, card!.id!);
   const out = await waitFor('egasi nomidan', () => sent.slice(mark).find(s => s.method === 'sendMessage' && Number(s.params.chat_id) === CUSTOMER));
   ok("«Yuborish» → egasi nomidan: business_connection_id bilan, mijozning chatiga", out?.params.business_connection_id === 'bc-1' && textOf(out).includes('10:00'), JSON.stringify(out?.params));
+  const trust = (await api('/api/business/autonomy', { token })).json.trust;
+  ok("L0–L4: o'zgarishsiz yuborilgan taklif AI administratorga ishonch hisobida (bittaga ko'paydi, toza)", trust?.decided === trustBefore.decided + 1 && trust.clean === trustBefore.clean + 1,
+    JSON.stringify({ trustBefore, trust }));
 
   // Telegram botning o'zi yozganini ham business_message qilib qaytaradi — aks-sado
   businessMessage({ connectionId: 'bc-1', chatId: CUSTOMER, fromId: OWNER, text: textOf(out), viaBot: true });

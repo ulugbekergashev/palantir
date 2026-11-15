@@ -40,6 +40,8 @@ export interface AnalystWeekView {
 }
 /** Talab tahlili (server/insights/analyze.ts): sonlar bandlardan kodda sanalgan */
 export interface DemandGroup { name: string; count: number; share: number; examples: string[] }
+/** AI administratorga ishonch (server/inbox/autonomy.ts): so'nggi window taklifdan clean tasi o'zgarishsiz yuborilgan; ready — «o'zi javob bersin»ga tayyor */
+export interface Trust { decided: number; clean: number; window: number; pass: number; ready: boolean }
 export interface Insights {
   days: number; from: string; to: string; createdAt: string;
   totals: { items: number; messages: number; calls: number; requests: number };
@@ -349,6 +351,7 @@ export const api = {
   setAutoReply: (v: AutoReply) => call<{ business: Business; missing: string[] }>('/business/auto-reply', { method: 'PUT', body: v }),
   /** Palantir hali bilmaydigan asosiy narsalar (narxlar, manzil, ish vaqti) — «O'zi javob bersin» yonida ogohlantirish */
   knowledgeGaps: () => call<{ missing: string[] }>('/business/knowledge-gaps'),
+  autonomy: () => call<{ trust: Trust }>('/business/autonomy'),
 
   tgStart: (phone: string) => call<{ ok: true }>('/telegram-user/start', { body: { phone } }),
   tgCode: (code: string) => call<{ account?: string; password?: true }>('/telegram-user/code', { body: { code } }),

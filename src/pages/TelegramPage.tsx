@@ -2,7 +2,7 @@
 import { useEffect, useEffectEvent, useState, type FormEvent } from 'react';
 import { Copy, ExternalLink, Loader2, Unlink } from 'lucide-react';
 import type { AutoReply, Business, LiveStatus, ReplyMode } from '../types';
-import { api } from '../data/api';
+import { api, type Trust } from '../data/api';
 import type { Notify } from '../components/Artifacts';
 import { Button, ButtonLink, Card, Field, TextInput, controlClass } from '../components/ui';
 import { copyText } from '../lib/clipboard';
@@ -203,6 +203,17 @@ const MODES: { value: ReplyMode; title: string; text: string }[] = [
   { value: 'off', title: "O'chiq", text: "Palantir mijozlarga javob tayyorlamaydi (bot xabarlari sizga shunchaki yetkaziladi)." },
 ];
 
+/** AI administratorga ishonch (server/inbox/autonomy.ts): egasi takliflarning nechtasini o'zgartirmasdan yuborgan — «o'zi javob bersin»ga yo'l */
+export function ReplyTrust({ mode }: { mode: ReplyMode }) {
+  const [t, setT] = useState<Trust | null>(null);
+  useEffect(() => { api.autonomy().then(r => setT(r.trust)).catch(() => {}); }, [mode]);
+  if (!t?.decided) return null;
+  const hint = mode !== 'draft' ? ''
+    : t.ready ? " AI administrator o'zi javob berishga tayyor ko'rinadi — «O'zi javob bersin»ni yoqib ko'ring."
+    : ` ${t.window} tadan ${t.pass} tasi o'zgarishsiz bo'lsa, «O'zi javob bersin»ni o'zimiz taklif qilamiz.`;
+  return <p className="mt-3 text-sm text-slate-600">So'nggi {t.decided} ta javob taklifidan <b>{t.clean} tasi</b> o'zgartirmasdan yuborilgan.{hint}</p>;
+}
+
 export function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b: Business) => void; notify: Notify }) {
   const v: AutoReply = { mode: 'draft', contacts: false, delayMin: 2, ...biz.autoReply };
   // Palantir hali bilmaydigan asosiy narsalar: «O'zi javob bersin» bilimsiz yoqilsa — ogohlantirish (I1)
@@ -227,6 +238,7 @@ export function ReplyModeCard({ biz, onBiz, notify }: { biz: Business; onBiz: (b
           </button>
         ))}
       </div>
+      <ReplyTrust mode={v.mode} />
       {v.mode === 'auto' && missing.length > 0 && (
         <p role="alert" className="mt-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
           Palantir hali bilmaydi: <b>{missing.join(', ')}</b>. Mijoz shularni so'rasa, o'zi javob bera olmaydi — har safar sizga uzatadi.
