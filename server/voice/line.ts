@@ -6,7 +6,7 @@
  *   Administrator telefoni: Zoiper'da login «admin», paroli shu yerda yaratiladi (pjsip_admin.conf).
  * Parollar bazada shifrlangan (secret.ts); Asterisk'ning o'zi ochiq matn talab qiladi — fayllar faqat shu kompyuterda.
  */
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
@@ -35,6 +35,8 @@ export interface LineView {
   admin: { server: string; login: string; password: string | null };
   /** Telefondagi AI Gemini Live orqali gapiradi (tgvoice/sip_live.py): kalitsiz qo'ng'iroqqa AI javob bermaydi — administratorga o'tadi */
   geminiKey: boolean;
+  /** Shu kompyuterda telefon xizmatini (WSL + Asterisk) paneldan o'rnatsa bo'ladi — install/Telefon.cmd bor (C1: exe uni o'rnatmaydi) */
+  installable: boolean;
   /** Asterisk holati: ishlayaptimi, shahar raqami ro'yxatdan o'tganmi, qaysi telefonlar ulangan */
   /** ai — AI ovoz xizmati qo'ng'iroq qabul qilyaptimi (null — tekshirilmadi); reason — raqam ulanmagan bo'lsa, nega (Asterisk jurnalidan) */
   status: { asterisk: boolean; trunk: TrunkState; phones: string[]; ai: boolean | null; note: string | null; reason?: string | null };
@@ -63,6 +65,14 @@ export function lineRouting(bizId: string): LineRouting {
     from: m.from || DEFAULT_ROUTING.from,
     to: m.to || DEFAULT_ROUTING.to,
   };
+}
+
+/** Telefon xizmatining o'rnatgichi (install/Telefon.cmd — WSL, Ubuntu, Asterisk; qayta ishga tushirilsa bor narsani o'tkazib yuboradi) */
+const TELEFON_CMD = resolve('install', 'Telefon.cmd');
+export const canInstallPhone = (): boolean => ENABLED && existsSync(TELEFON_CMD);
+/** O'rnatish oynasini shu kompyuter ekranida ochadi (administrator huquqi so'raladi; WSL birinchi marta bo'lsa — qayta yoqish) */
+export function launchPhoneInstall(): void {
+  spawn('cmd.exe', ['/d', '/c', `start "Palantir telefon" "${TELEFON_CMD}"`], { detached: true, stdio: 'ignore', windowsVerbatimArguments: true }).unref();
 }
 
 /** Telefonda AI qo'ng'iroq oladimi: «Faqat administrator» rejimida — yo'q (AI administrator jamoadan chiqmaydi — B1) */
@@ -183,6 +193,7 @@ export async function lineView(biz: BusinessRow, withStatus = true): Promise<Lin
     routing: lineRouting(biz.id),
     admin: { server: lanIp(), login: 'admin', password: s.admin ?? null },
     geminiKey: !!env.geminiKey,
+    installable: canInstallPhone(),
     status: withStatus ? await lineStatus(authOf(a)) : { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: null },
   };
 }

@@ -150,6 +150,12 @@ export async function lineApiTests(h: Harness): Promise<void> {
   ok('liniya: kirishsiz — 401', (await api('/api/phone/line')).status === 401);
   const first = await api('/api/phone/line', { token });
   ok("liniya: boshida raqam yo'q, «har doim AI», sinov serverida Asterisk o'chiq", first.status === 200 && first.json.line?.trunk === null && first.json.line.routing.mode === 'ai' && first.json.line.status.asterisk === false, JSON.stringify(first.json));
+  // C1: telefon xizmatini paneldan o'rnatish — faqat klinika kompyuterining o'zida (sinov serverida ASTERISK_WSL=0: hech narsa ochilmaydi)
+  ok("C1: o'rnatish tugmasi — telefon o'rnatib bo'lmaydigan serverda ko'rinmaydi", first.json.line?.installable === false);
+  const viaProxy = await fetch(`${base}/api/phone/install`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.7' }, body: '{}' });
+  ok("C1: proksi/Hub orqali — 403 (o'rnatish oynasi faqat shu kompyuterda ochiladi)", viaProxy.status === 403);
+  const noPhone = await api('/api/phone/install', { token, body: {} });
+  ok("C1: shu kompyuterdan, lekin telefon o'rnatib bo'lmaydi — 409, hech narsa ishga tushmaydi", noPhone.status === 409, JSON.stringify(noPhone.json));
 
   ok("liniya: noto'g'ri vaqt — 400", (await api('/api/phone/line/routing', { method: 'PUT', token, body: { mode: 'day_admin', ring: 20, days: [1], from: '25:00', to: '20:00' } })).status === 400);
   const day = await api('/api/phone/line/routing', { method: 'PUT', token, body: { mode: 'day_admin', ring: 15, days: [1, 2, 3, 4, 5, 6, 7], from: '00:00', to: '23:59' } });

@@ -18,7 +18,7 @@ import { leadForPhone } from '../people';
 import { openRequest, settleByBooking } from '../requests/index';
 import { phoneCalls } from '../phone/store';
 import { newVoiceKey, voiceKeyOwner } from './agentKey';
-import { applyLine, checkLine, connectZadarma, lineRouting, lineView, newAdminPassword, phoneAiOn, routeNow, saveRouting, saveTrunk, transferNow } from './line';
+import { applyLine, canInstallPhone, checkLine, connectZadarma, launchPhoneInstall, lineRouting, lineView, newAdminPassword, phoneAiOn, routeNow, saveRouting, saveTrunk, transferNow } from './line';
 import { adoptVoiceKey } from './serviceEnv';
 import { LINE_CALL_WINDOW_MS, markLineCall } from './lineCalls';
 import { ZadarmaError } from './zadarma';
@@ -26,6 +26,8 @@ import { ZadarmaError } from './zadarma';
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
   asBiz: (fn: (req: Request, res: Response, biz: BusinessRow) => unknown) => Handler;
+  /** So'rov shu kompyuterning o'zidan (Hub va proksi orqali emas) — shu kompyuterda dastur ochish faqat shunda */
+  fromThisPc: (req: Request) => boolean;
   bad: (res: Response, error: z.ZodError) => unknown;
 }
 
@@ -117,7 +119,7 @@ const RoutingSchema = z.object({
   days: z.array(z.number().int().min(1).max(7)).max(7), from: HHMM, to: HHMM,
 });
 
-export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
+export function mountVoice(app: Express, { asBiz, bad, fromThisPc }: Deps): void {
   const asAgent = (fn: (req: Request, res: Response, biz: BusinessRow) => unknown): Handler => (req, res) => {
     const biz = bizOf(req);
     if (!biz) return res.status(401).json({ error: "Kalit noto'g'ri" });
@@ -216,6 +218,13 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   }));
   // «Tekshirish»: Asterisk operatorga hozir qayta murojaat qiladi — raqam ulandimi, ulanmasa nega
   app.post('/api/phone/line/check', asBiz(async (_req, res, biz) => { res.json({ line: await checkLine(biz) }); }));
+  // C1: exe telefon xizmatini o'rnatmaydi — o'rnatuvchi ustadan yoki Sozlamalardan bosadi, o'rnatish oynasi shu kompyuterda ochiladi
+  app.post('/api/phone/install', asBiz((req, res) => {
+    if (!fromThisPc(req)) return res.status(403).json({ error: "Telefon xizmati faqat klinika kompyuterining o'zida o'rnatiladi — panelni o'sha kompyuterda oching" });
+    if (!canInstallPhone()) return res.status(409).json({ error: "Bu kompyuterda telefon xizmatini o'rnatib bo'lmaydi (faqat Windows klinika kompyuterida)" });
+    launchPhoneInstall();
+    res.json({ started: true });
+  }));
   app.put('/api/phone/line/routing', asBiz(async (req, res, biz) => {
     const p = RoutingSchema.safeParse(req.body);
     if (!p.success) return bad(res, p.error);

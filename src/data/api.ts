@@ -70,6 +70,8 @@ export interface PhoneLine {
   admin: { server: string; login: string; password: string | null };
   /** Telefondagi AI Gemini orqali gapiradi — kalitsiz qo'ng'iroqqa AI javob bermaydi */
   geminiKey: boolean;
+  /** Telefon xizmatini paneldan o'rnatsa bo'ladi (shu kompyuterda install/Telefon.cmd bor) */
+  installable: boolean;
   /** AI administrator jamoada — yo'q bo'lsa qo'ng'iroqqa faqat administrator javob beradi */
   /** reason — raqam ulanmagan bo'lsa, nega (Asterisk jurnalidan, odam tilida) */
   status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; ai: boolean | null; note: string | null; reason?: string | null };
@@ -231,6 +233,7 @@ export const api = {
   // ─── Telefon liniyasi (Asterisk): shahar raqami, kim javob beradi, administrator telefoni ───
   phoneLine: () => call<{ line: PhoneLine }>('/phone/line'),
   savePhoneTrunk: (t: { host: string; port: number; login: string; number: string; password?: string; auth: 'password' | 'ip'; operator: 'uztelecom' | 'other' }) => call<{ line: PhoneLine; warning: string | null }>('/phone/line/trunk', { method: 'PUT', body: t }),
+  installPhone: () => call<{ started: boolean }>('/phone/install', { method: 'POST', body: {} }),
   checkPhoneLine: () => call<{ line: PhoneLine }>('/phone/line/check', { body: {} }),
   connectZadarma: (z: { key: string; secret: string; number?: string }) => call<{ line: PhoneLine; warning: string | null; zadarma: { number: string; balance: number; currency: string; channels: number | null } }>('/phone/line/zadarma', { body: z }),
   savePhoneRouting: (r: PhoneLine['routing']) => call<{ line: PhoneLine }>('/phone/line/routing', { method: 'PUT', body: r }),

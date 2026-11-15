@@ -203,6 +203,14 @@ export function createApp(bot: BotService) {
 
   // Masofadan (hub orqali) kelgan so'rov: shu jarayonning siri bilan belgilanadi (remote.ts) — tarmoqdagi begona kalla bilan soxtalashtirib bo'lmaydi
   const isRemote = (req: Request) => req.get(RELAY_HEADER) === RELAY_SECRET;
+  /**
+   * So'rov shu kompyuterning o'zidan (127.0.0.1): Hub orqali emas va shu kompyuterdagi tunnel/proksi orqali emas (ular ham 127.0.0.1 dan
+   * keladi — internetdan kelgan bo'lishi mumkin). Parolsiz sozlash va shu kompyuterda dastur ishga tushirish faqat shunda
+   */
+  const fromThisPc = (req: Request): boolean => {
+    const proxied = !!(req.get('x-forwarded-for') || req.get('forwarded') || req.get('x-real-ip') || req.get('cf-connecting-ip'));
+    return !isRemote(req) && !proxied && LOCAL_PEER.test(String(req.socket.remoteAddress ?? ''));
+  };
   /** Kirish urinishlarini sanash kaliti: masofadan — telefonning haqiqiy manzili (hub aytadi), «hub/» bilan: shu kompyuterga berilgan yengillik tegmasin */
   const clientKey = (req: Request) => (isRemote(req) ? `hub/${req.get(CLIENT_HEADER) ?? '?'}` : String(req.ip));
   /** Hub admin kaliti bilan ochilgan so'rov (remote.ts): faqat jamoa kirishini olish uchun */
@@ -346,10 +354,7 @@ export function createApp(bot: BotService) {
   // masofadan o'rnatuvchi Hub'dagi «Panelni ochish» bilan kiradi (/api/login/support)
   app.post('/api/login/setup', (req, res) => {
     if (!inSetup()) return res.status(409).json({ error: 'Profil egasiga topshirilgan — login va parol bilan kiring' });
-    const peer = String(req.socket.remoteAddress ?? '');
-    // Shu kompyuterdagi tunnel yoki proksi (cloudflared, nginx) ham 127.0.0.1 dan keladi — u orqali internetdan parolsiz kirilmasin
-    const proxied = !!(req.get('x-forwarded-for') || req.get('forwarded') || req.get('x-real-ip') || req.get('cf-connecting-ip'));
-    if (isRemote(req) || proxied || !LOCAL_PEER.test(peer)) return res.status(403).json({ error: "Sozlash faqat shu kompyuterning o'zidan yoki Palantir Hub orqali" });
+    if (!fromThisPc(req)) return res.status(403).json({ error: "Sozlash faqat shu kompyuterning o'zidan yoki Palantir Hub orqali" });
     const biz = theProfile();
     if (!biz) return res.status(404).json({ error: "Profil yo'q — serverni qayta yoqing" });
     res.json({ token: issueToken(biz.id, 'business', SETUP_SESSION_DAYS, biz.tokenVer) });
@@ -805,7 +810,7 @@ export function createApp(bot: BotService) {
   mountLive(app, { asBiz, asAdmin, bad });
   mountCrm(app, { asBiz, bad, fail, statusOf: (bizId, req) => statusFor(req, businesses.byId(bizId)!) });
   mountCamera(app, { asBiz, bad });
-  mountVoice(app, { asBiz, bad });
+  mountVoice(app, { asBiz, bad, fromThisPc });
   mountRequests(app, { asBiz, bad, bot });
   mountTeamAccess(app, { asOwner, bad });
   mountHelp(app, { asBiz, bad, fail, asker: req => { const s = sessionOf(req); return { support: !!s?.support, staffName: s?.staff?.name ?? null }; } });

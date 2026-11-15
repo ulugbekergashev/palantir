@@ -103,6 +103,12 @@ export function StepPhone({ line, onLine, notify }: StepProps) {
       {line && !line.status.asterisk && (
         <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
           Telefon xizmati bu kompyuterda ishlamayapti{line.status.note ? ` (${line.status.note})` : ''}. Raqamni hozir kiritsangiz ham bo'ladi — xizmat ishga tushganda raqam o'zi ulanadi.
+          {line.installable && (
+            <span className="mt-2 flex flex-wrap items-center gap-3">
+              <Button onClick={() => { api.installPhone().then(() => notify("O'rnatish oynasi ochildi — undagi ko'rsatmalarga amal qiling"), e => notify((e as Error).message, true)); }}>Telefon xizmatini o'rnatish</Button>
+              <span className="text-xs">Shu kompyuterda o'rnatish oynasi ochiladi: administrator huquqi so'raladi, internet kerak (10–20 daqiqa). Birinchi marta kompyuter qayta yoqilishi mumkin — Windows'ga kirgach o'rnatish o'zi davom etadi.</span>
+            </span>
+          )}
         </p>
       )}
       {line && <LineState line={line} />}

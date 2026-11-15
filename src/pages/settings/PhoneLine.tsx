@@ -43,10 +43,14 @@ function Status({ line, onLine, notify }: LineProps) {
       notify(t === 'registered' ? 'Raqam ulangan — qo‘ng‘iroq qabul qiladi' : r.line.status.reason ?? r.line.status.note ?? 'Raqam hali ulanmadi', t !== 'registered');
     } catch (e) { notify((e as Error).message, true); } finally { setBusy(false); }
   };
+  // C1: exe telefon xizmatini o'rnatmaydi — o'rnatuvchi shu yerdan o'rnatadi (o'rnatish oynasi shu kompyuterda ochiladi)
+  const install = async () => {
+    try { await api.installPhone(); notify("O'rnatish oynasi ochildi — undagi ko'rsatmalarga amal qiling"); } catch (e) { notify((e as Error).message, true); }
+  };
   const trunkText = s.trunk === 'registered' ? `ulangan${line.trunk?.number ? ` · ${line.trunk.number}` : ''}`
     : s.trunk === 'failed' ? 'ulanmadi — sababi pastda' : line.trunk ? 'tekshirilmoqda' : 'kiritilmagan';
   const items = [
-    { name: 'Telefon xizmati', on: s.asterisk, text: s.asterisk ? 'ishlayapti' : "o'chiq — o'rnatuvchiga ayting" },
+    { name: 'Telefon xizmati', on: s.asterisk, text: s.asterisk ? 'ishlayapti' : line.installable ? "o'rnatilmagan yoki o'chiq" : "o'chiq — o'rnatuvchiga ayting" },
     { name: 'AI administrator', on: s.ai === true, text: s.ai ? "qo'ng'iroq kutyapti" : s.ai === false ? "to'xtagan — kompyuterni qayta yoqing" : 'tekshirilmadi' },
     { name: 'Telefon raqami', on: s.trunk === 'registered', text: trunkText },
     { name: 'Egasi telefoni', on: s.phones.includes('egasi'), text: s.phones.includes('egasi') ? 'ulangan' : 'ulanmagan' },
@@ -61,6 +65,12 @@ function Status({ line, onLine, notify }: LineProps) {
         </div>
       ))}
       {s.note && <p className="text-[12px] text-[#fde2b0] sm:col-span-2 xl:col-span-5">{s.note}</p>}
+      {!s.asterisk && line.installable && (
+        <div className="flex flex-wrap items-center gap-3 sm:col-span-2 xl:col-span-5">
+          <button type="button" onClick={() => { void install(); }} className="flex min-h-10 items-center gap-2 rounded-xl bg-[#3fd6c3] px-4 text-[13px] font-semibold text-[#07080b]">Telefon xizmatini o'rnatish</button>
+          <p className="max-w-xl text-[12px] text-[#7d838f]">Shu kompyuterda o'rnatish oynasi ochiladi: administrator huquqi so'raladi, internet kerak (10–20 daqiqa). Birinchi marta kompyuter qayta yoqilishi mumkin — Windows'ga kirgach o'rnatish o'zi davom etadi.</p>
+        </div>
+      )}
       {!line.geminiKey && <p role="alert" className="rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[13px] leading-snug text-red-200 sm:col-span-2 xl:col-span-5">Telefonda AI Gemini orqali gapiradi — Gemini kaliti kiritilmagan, qo'ng'iroqlarga AI javob bermaydi (administratorga o'tadi). Kalitni o'rnatuvchi kiritadi.</p>}
       {s.trunk === 'failed' && s.reason && <p role="status" className="rounded-xl bg-amber-400/10 px-3.5 py-2.5 text-[13px] leading-snug text-amber-200 sm:col-span-2 xl:col-span-5">Raqam ulanmadi: {s.reason}</p>}
       {line.trunk && (
