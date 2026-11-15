@@ -115,17 +115,31 @@ function extract(zip, dir) {
 const freePort = () => new Promise(done => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => done(port)); }); });
 
 const health = async port => {
-  try { return await (await fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(3_000) })).json(); } catch { return null; }
+  try { return await (await fetch(`http://127.0.0.1:${port}/api/health?deep=1`, { signal: AbortSignal.timeout(10_000) })).json(); } catch { return null; }
 };
 /** Oxirgi sog'lik javobi: qaytarishda sababi aniq bo'lsin (nashr ko'tarildi, lekin bot ulanmadi) */
 let lastHealth = null;
 
-/** needBot — yangilashdan oldin bot ulangan edi: yangi nashrda ham ulanishi shart (server tirik, bot o'lik — klinika xabar ololmaydi) */
-async function healthy(port, version, ms, streak = 1, needBot = false) {
+/**
+ * Yangilashdan oldin ishlagan bo'lsa — yangi nashrda ham ishlashi shart bo'lganlar (server tirik, lekin bular o'lik — klinika ishlamaydi).
+ * Eski nashrlar bularni aytmaydi (maydon yo'q) — talab ham yo'q
+ */
+const NEEDS = {
+  botOnline: 'Telegram bot ulanmadi',
+  aiReady: "AI ishlamayapti (Claude dasturi yoki obunaga kirish)",
+  phoneAi: "telefon AI xizmati (sip_live.py) qo'ng'iroq qabul qilmayapti",
+};
+/** Hozir ishlayotganlar ro'yxati (sog'lik javobidan) */
+const working = j => Object.keys(NEEDS).filter(k => j?.[k] === true);
+/** Yangi nashrda ishlamay qolgani (birinchisi) — qaytarish sababi uchun */
+const missing = (j, needs) => needs.find(k => j?.[k] !== true) ?? null;
+
+/** needs — yangilashdan oldin ishlagan narsalar (working): yangi nashrda ham hammasi ishlashi shart */
+async function healthy(port, version, ms, streak = 1, needs = []) {
   let good = 0;
   for (const end = Date.now() + ms; Date.now() < end; await sleep(1_000)) {
     const j = lastHealth = await health(port);
-    good = j?.ok && j.version === version && (!needBot || j.botOnline === true) ? good + 1 : 0;
+    good = j?.ok && j.version === version && !missing(j, needs) ? good + 1 : 0;
     if (good >= streak) return true;
   }
   return false;
@@ -289,23 +303,24 @@ async function main() {
     const roots = [...new Set([...files.roots, ...oldRoots, 'files.json'])].filter(r => r !== 'node_modules' || !lstatSync(join(staging, 'node_modules')).isSymbolicLink());
     const schemaBefore = userVersion(DB_FILE);
     const since = Date.now();
-    // Hozirgi nashrda bot ulangan bo'lsa — yangisida ham ulanishi kutiladi (eski nashrlar botOnline aytmaydi — talab yo'q)
-    const needBot = (await health(PORT))?.botOnline === true;
+    // Hozirgi nashrda bot, AI, telefon AI ishlayotgan bo'lsa — yangisida ham ishlashi kutiladi (H1)
+    const needs = working(await health(PORT));
+    if (needs.length) log(`yangi nashrda ham ishlashi kerak: ${needs.join(', ')}`);
     log('nazoratchi to\'xtatilmoqda');
     supervisor(['stop']);
     const backup = join(WORK, 'oldingi');
     const moved = swap(staging, roots, tracked, backup);
     log(`fayllar almashtirildi (${roots.length} ta ildiz; saqlangan ish fayllari: ${moved.length})`);
     startSupervisor();
-    if (await healthy(PORT, manifest.version, HEALTHY_MS, HEALTHY_STREAK, needBot)) {
+    if (await healthy(PORT, manifest.version, HEALTHY_MS, HEALTHY_STREAK, needs)) {
       saveState({ from, to: manifest.version, result: 'ok' });
       rmSync(staging, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
       log(`yangilandi: ${manifest.version}`);
       return 0;
     }
 
-    const botDown = needBot && lastHealth?.ok && lastHealth.version === manifest.version && lastHealth.botOnline !== true;
-    const why = botDown ? "yangi nashrda Telegram bot ulanmadi" : 'yangi nashr ishga tushmadi';
+    const down = lastHealth?.ok && lastHealth.version === manifest.version ? missing(lastHealth, needs) : null;
+    const why = down ? `yangi nashrda ${NEEDS[down]}` : 'yangi nashr ishga tushmadi';
     log(`${why} (${Math.round(HEALTHY_MS / 1000)} soniya kutildi) — eskisiga qaytarilmoqda`);
     supervisor(['stop']);
     unswap(roots, backup, moved);

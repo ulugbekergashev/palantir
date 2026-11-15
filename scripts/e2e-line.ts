@@ -3,8 +3,9 @@
  * Asterisk so'raydigan /api/voice/route. Sinov serverida ASTERISK_WSL=0: haqiqiy Asterisk'ka ham, tgvoice/asterisk/ fayllariga ham tegilmaydi.
  */
 import { createServer } from 'node:http';
+import { createServer as tcpServer, type AddressInfo } from 'node:net';
 import { routeNow, transferNow, type LineRouting } from '../server/voice/route';
-import { lineProblemOf } from '../server/voice/line';
+import { aiListening, lineProblemOf, phoneConfigured } from '../server/voice/line';
 import { contactState, registrationState, trunkConf, trunkReason } from '../server/voice/trunk';
 import { forwardCodes, intlNumber } from '../src/lib/forwarding';
 import { accountProblem, zadarmaSign, type ZadarmaNumber } from '../server/voice/zadarma';
@@ -114,8 +115,36 @@ export function lineLogicTests(ok: Harness['ok']): void {
   ok("yo'naltirish: raqam noto'g'ri — kod chiqmaydi", forwardCodes('123') === null);
 }
 
+/** H1: yangilovchi /api/health?deep=1 ga qaraydi — AI va telefon AI yangi nashrda ham ishlashi shart */
+async function deepHealthTests(ok: Harness['ok'], base: string): Promise<void> {
+  console.log("\n# Chuqur sog'lik (yangilovchi uchun)");
+  const plain = await (await fetch(`${base}/api/health`)).json() as Record<string, unknown>;
+  const deep = await (await fetch(`${base}/api/health?deep=1`)).json() as Record<string, unknown>;
+  ok("sog'lik: oddiy so'rov tez — AI/telefon tekshirilmaydi", plain.ok === true && !('aiReady' in plain) && !('phoneAi' in plain), JSON.stringify(plain));
+  ok("sog'lik: deep — API kalitli AI tayyor, telefon liniyasi sozlanmagan (null)", deep.ok === true && deep.aiReady === true && deep.phoneAi === null, JSON.stringify(deep));
+  const saved = { pass: process.env.SIP_OWNER_PASSWORD, py: process.env.TG_CALL_PYTHON, port: process.env.SIP_BRIDGE_PORT };
+  try {
+    process.env.SIP_OWNER_PASSWORD = '';
+    process.env.TG_CALL_PYTHON = '/opt/py/python';
+    ok('telefon: parolsiz — liniya sozlanmagan', !phoneConfigured());
+    process.env.SIP_OWNER_PASSWORD = 'p';
+    ok('telefon: parol va Python bor — liniya sozlangan (nazoratchi sip_live.py ni yoqadi)', phoneConfigured());
+    const bridge = tcpServer(c => c.destroy());
+    await new Promise<void>(r => bridge.listen(0, '127.0.0.1', r));
+    process.env.SIP_BRIDGE_PORT = String((bridge.address() as AddressInfo).port);
+    ok("telefon AI: port ochiq — qo'ng'iroq qabul qilyapti", await aiListening());
+    await new Promise(r => bridge.close(r));
+    ok("telefon AI: xizmat to'xtagan — false", !(await aiListening()));
+  } finally {
+    for (const [k, v] of [['SIP_OWNER_PASSWORD', saved.pass], ['TG_CALL_PYTHON', saved.py], ['SIP_BRIDGE_PORT', saved.port]] as const) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+}
+
 export async function lineApiTests(h: Harness): Promise<void> {
   const { ok, api, base, token, otherToken } = h;
+  await deepHealthTests(ok, base);
   console.log("\n# Telefon liniyasi: panel va Asterisk yo'llari");
   ok('liniya: kirishsiz — 401', (await api('/api/phone/line')).status === 401);
   const first = await api('/api/phone/line', { token });

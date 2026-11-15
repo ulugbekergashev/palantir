@@ -103,12 +103,14 @@ const asterisk = (cmd: string) => wsl(['asterisk', '-rx', cmd]);
 const wslPath = (p: string) => p.replace(/^([A-Za-z]):/, (_, d: string) => `/mnt/${d.toLowerCase()}`).replace(/\\/g, '/');
 
 /** AI ovoz xizmati (tgvoice/sip_live.py) shu kompyuterda qo'ng'iroq qabul qilyaptimi — Asterisk unga ulanadigan port ochiqmi */
-const AI_PORT = Number(process.env.SIP_BRIDGE_PORT) || 9092;
-const aiListening = () => new Promise<boolean>(ok => {
-  const s = connect({ host: '127.0.0.1', port: AI_PORT, timeout: 1500 }, () => { s.destroy(); ok(true); });
+const aiPort = () => Number(process.env.SIP_BRIDGE_PORT) || 9092;
+export const aiListening = () => new Promise<boolean>(ok => {
+  const s = connect({ host: '127.0.0.1', port: aiPort(), timeout: 1500 }, () => { s.destroy(); ok(true); });
   s.on('error', () => ok(false));
   s.on('timeout', () => { s.destroy(); ok(false); });
 });
+/** Telefon liniyasi shu kompyuterda sozlanganmi — nazoratchi (scripts/supervise.mjs) sip_live.py ni yoqadigan shart bilan bir xil */
+export const phoneConfigured = (): boolean => !!(process.env.SIP_OWNER_PASSWORD && process.env.TG_CALL_PYTHON);
 
 /** Asterisk jurnalining oxiri — ro'yxatdan o'tish xabarlari (raqam nega ulanmagani). Jurnal fayli nomi versiyaga qarab har xil */
 const registrationLog = () => wsl(['sh', '-c', "cat /var/log/asterisk/messages /var/log/asterisk/messages.log 2>/dev/null | grep -i 'registration' | tail -n 20"]).catch(() => '');

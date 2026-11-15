@@ -9,7 +9,9 @@
  *   3) sinovda ko'tarilmaydigan nashr — yangilash bekor, ishlab turgan nashr to'xtamaydi;
  *   4) sinovdan o'tib, haqiqiy ishga tushishda yiqiladigan va bazani migratsiya qiladigan nashr — eski fayllar va baza qaytariladi;
  *   5) server ko'tariladi, lekin Telegram bot ulanmaydi (oldin ulangan edi) — eskisiga qaytariladi, sababi «bot»;
- *   6) bot bilan ishlaydigan oddiy nashr — o'rnatiladi (bot talabi sog'lom nashrni qaytarmaydi).
+ *   6) bot bilan ishlaydigan oddiy nashr — o'rnatiladi (bot talabi sog'lom nashrni qaytarmaydi);
+ *   7) obunadagi AI ishlab turgan edi, yangi nashrda Claude dasturi topilmaydi — eskisiga qaytariladi, sababi «AI» (H1);
+ *   8) AI bilan ishlaydigan oddiy nashr — o'rnatiladi.
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
@@ -32,7 +34,7 @@ const pem = (k: { export: (o: { type: 'spki' | 'pkcs8'; format: 'pem' }) => stri
 const keys = generateKeyPairSync('ed25519'), stranger = generateKeyPairSync('ed25519');
 const PRIVATE = pem(keys.privateKey, 'pkcs8'), PUBLIC = pem(keys.publicKey, 'spki'), STRANGER = pem(stranger.privateKey, 'pkcs8');
 const git = (...args: string[]) => execFileSync('git', args, { cwd: SRC, env: { ...process.env, GIT_AUTHOR_NAME: 'sinov', GIT_AUTHOR_EMAIL: 's@s', GIT_COMMITTER_NAME: 'sinov', GIT_COMMITTER_EMAIL: 's@s' }, stdio: 'pipe' });
-const appHealth = async () => { try { return await (await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(2_000) })).json() as { ok: boolean; version: string; botOnline?: boolean }; } catch { return null; } };
+const appHealth = async () => { try { return await (await fetch(`http://127.0.0.1:${PORT}/api/health?deep=1`, { signal: AbortSignal.timeout(10_000) })).json() as { ok: boolean; version: string; botOnline?: boolean; aiReady?: boolean | null }; } catch { return null; } };
 async function until<T>(what: string, fn: () => Promise<T | null | undefined | false>, ms: number): Promise<T | undefined> {
   for (const end = Date.now() + ms; Date.now() < end; await sleep(300)) { const v = await fn(); if (v) return v; }
   console.log(`    (kutildi, bo'lmadi: ${what})`);
@@ -184,6 +186,28 @@ try {
   const normal = await update('v6');
   const now6 = await appHealth();
   ok('yangilandi (kod 0): 9.0.6, bot ulangan, holat — ok', normal.code === 0 && now6?.version === '9.0.6' && now6.botOnline === true && holat().result === 'ok', normal.out.split('\n').slice(-2).join(' | '));
+
+  console.log("\n# 7. Obunadagi AI ishlab turgan edi — yangi nashrda Claude dasturi topilmaydi");
+  // Klinika o'z obunasida (soxta claude — kirilgan); nazoratchi yangi sozlamalar bilan qayta yoqiladi
+  const claudeState = join(work, 'claude.json');
+  writeFileSync(claudeState, JSON.stringify({ loggedIn: true, plan: 'max' }));
+  writeFileSync(join(APP, '.env'), `${readFileSync(join(APP, '.env'), 'utf8')}AI_ENGINE=subscription\nCLAUDE_BIN=${join(REPO, 'scripts', 'fake-claude.mjs')}\nFAKE_CLAUDE_STATE=${claudeState}\n`);
+  spawnSync(process.execPath, ['scripts/supervise.mjs', 'stop'], { cwd: APP, stdio: 'ignore', env: { ...process.env, DOTENV: '' } });
+  spawn(process.execPath, ['scripts/supervise.mjs'], { cwd: APP, stdio: 'ignore', env: { ...process.env, DOTENV: '', HUB_AUTO: '0', PALANTIR_HUB: '' } });
+  ok("9.0.6 obunadagi AI bilan ishlayapti (/api/health?deep=1: aiReady)", await until('ai', async () => { const j = await appHealth(); return j?.aiReady === true && j.botOnline === true; }, 60_000));
+  const cli = join(SRC, 'server', 'subscription', 'cli.ts');
+  // Sinovda (bareEnv, AI o'chiq) o'tadi, haqiqiy ishga tushishda Claude dasturi «topilmaydi»
+  release('v7', '9.0.7', () => writeFileSync(cli, edit(readFileSync(cli, 'utf8'), 'const custom = process.env.CLAUDE_BIN?.trim();', "if (process.env.PALANTIR_DRY_RUN !== '1') return null; // buzuq nashr (sinov)\n  const custom = process.env.CLAUDE_BIN?.trim();")));
+  const ailess = await update('v7');
+  const back7 = await appHealth();
+  ok("eskisiga qaytarildi (kod 3): yana 9.0.6, AI tayyor; sababi — AI", ailess.code === 3 && back7?.version === '9.0.6' && back7.aiReady === true
+    && holat().result === 'qaytarildi' && /AI ishlamayapti/.test(holat().reason ?? ''), holat().reason);
+
+  console.log('\n# 8. AI bilan ishlaydigan oddiy nashr');
+  release('v8', '9.0.8', () => cpSync(join(REPO, 'server', 'subscription', 'cli.ts'), cli));
+  const withAi = await update('v8');
+  const now8 = await appHealth();
+  ok('yangilandi (kod 0): 9.0.8, AI va bot ishlayapti, holat — ok', withAi.code === 0 && now8?.version === '9.0.8' && now8.aiReady === true && now8.botOnline === true && holat().result === 'ok', withAi.out.split('\n').slice(-2).join(' | '));
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

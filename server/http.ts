@@ -68,6 +68,7 @@ import { mountTeamDay } from './teamDay';
 import { mountInsights } from './insights/routes';
 import { APP_VERSION } from './version';
 import { diagnostics, sendDiagnostics } from './diagnostics';
+import { deepHealth } from './health';
 
 type Handler = (req: Request, res: Response) => unknown;
 
@@ -270,7 +271,11 @@ export function createApp(bot: BotService) {
   const fail = (res: Response, e: unknown, code = 409) => res.status(code).json({ error: (e as Error).message });
 
   // botOnline — Telegram botni tanidi (token ishlayapti): yangilovchi yangi nashrda bot ham tirik ekanini shundan biladi (scripts/update.mjs)
-  app.get('/api/health', (_req, res) => { res.json({ ok: true, version: APP_VERSION, bot: bot.enabled, botOnline: !!bot.username(), ai: env.aiEnabled, voice: voiceEnabled() }); });
+  // ?deep=1 — AI va telefon AI ham tekshiriladi (server/health.ts): yangilovchi ular yangi nashrda ham ishlashini kutadi
+  app.get('/api/health', async (req, res) => {
+    const base = { ok: true, version: APP_VERSION, bot: bot.enabled, botOnline: !!bot.username(), ai: env.aiEnabled, voice: voiceEnabled() };
+    res.json(req.query.deep === '1' ? { ...base, ...(await deepHealth()) } : base);
+  });
 
   // ─── Kirish ────────────────────────────────────────────────────────────────
   app.post('/api/login', (req, res) => {
