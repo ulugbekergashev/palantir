@@ -83,10 +83,10 @@ const TEAM_LINES: Record<MoveMember, string> = {
 
 /**
  * Topshirig'ini haqiqatan o'qiydiganlar: Qabulxona (har mijoz javobida), Yordamchi (egasi bilan suhbatda), Kuzatuvchi (kamera
- * kadrlarida — orders/look.ts) va egasining o'zi. Kontent, reklama, tahlil va marketing fon ishlari doimiy topshiriqni o'qimaydi —
- * ularga «topshirildi» deyish yolg'on bo'lardi; bunday taklif egasiga beriladi
+ * kadrlarida — orders/look.ts), Kontent-meyker va Targetolog (reja, post, reklama rejasi — company.ts standingFor) va egasining o'zi.
+ * Tahlil va marketing fon ishlari doimiy topshiriqni o'qimaydi — ularga «topshirildi» deyish yolg'on bo'lardi; bunday taklif egasiga beriladi
  */
-const ORDER_READERS: readonly MoveMember[] = ['qabulxona', 'yordamchi', 'kuzatuvchi', 'egasi'];
+const ORDER_READERS: readonly MoveMember[] = ['qabulxona', 'yordamchi', 'kuzatuvchi', 'kontent', 'target', 'egasi'];
 /** Topshiriq beriladigan xodimlar: jamoaga olinganlari (topshiriqni o'qiydiganlaridan) va egasining o'zi */
 export const moveMembersOf = (biz: BusinessRow): MoveMember[] => MOVE_MEMBERS.filter(m => ORDER_READERS.includes(m) && (m === 'egasi' || crewHas(biz, m)));
 

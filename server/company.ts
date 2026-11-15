@@ -13,6 +13,7 @@ import type { BusinessRow } from './db';
 import { sameQuestion } from './brain/logic';
 import { vault } from './brain/vault';
 import { brandNotes, brandStore } from './content/brand';
+import { orders } from './orders/store';
 
 export type CompanyFor = 'content' | 'ads' | 'customers' | 'owner';
 
@@ -74,6 +75,23 @@ export function companyContext(biz: BusinessRow, forWhom: CompanyFor, { withBran
     services ? `Services and prices (mention a price only if it is in this list):\n${services}` : '',
     brand,
   ].filter(Boolean);
-  if (!parts.length) return '';
-  return `<company>\n${fence(parts.join('\n\n'))}\n</company>`;
+  const rules = standingFor(biz, forWhom);
+  if (!parts.length && !rules) return '';
+  return [parts.length ? `<company>\n${fence(parts.join('\n\n'))}\n</company>` : '', rules].filter(Boolean).join('\n\n');
+}
+
+/** Kontent va reklama ishlari kimning doimiy topshirig'ini o'qiydi (egasi panelda bergan yoki Direktor taklifidan) */
+const ORDERS_OF: Partial<Record<CompanyFor, 'kontent' | 'target'>> = { content: 'kontent', ads: 'target' };
+const MAX_ORDERS = 10;
+
+/**
+ * Kontent-meyker (reja, post, Instagram matni) va Targetolog (reklama rejasi) fon ishida ham egasining doimiy topshirig'iga amal qiladi —
+ * shuning uchun Direktor ularga topshiriq bera oladi (director/index.ts ORDER_READERS). Post va byudjetni baribir egasi tasdiqlaydi
+ */
+function standingFor(biz: BusinessRow, forWhom: CompanyFor): string {
+  const member = ORDERS_OF[forWhom];
+  const list = member ? orders.standing(biz.id, member).slice(0, MAX_ORDERS) : [];
+  if (!list.length) return '';
+  const lines = list.map(r => `- ${fence(r.replace(/\s+/g, ' ').slice(0, 300))}`).join('\n');
+  return `<owner_standing_orders>\nStanding instructions for this work from the owner (some proposed by the AI director and approved by the owner). Follow them unless they conflict with the brand or the price list:\n${lines}\n</owner_standing_orders>`;
 }
