@@ -1,15 +1,19 @@
 /**
- * Mijozga javobni (decide) Gemini'da baholash — model almashtirish qaroridan oldin, raqamlar bilan.
- * Shu jarayonda ko'prik ochiladi: Claude'ga ketadigan asbobsiz so'rov (matn, rasm, JSON shakli) Gemini'ga (Interactions API)
+ * AI ishlarini Gemini'da baholash — model almashtirish qaroridan oldin, raqamlar bilan.
+ * Shu jarayonda ko'prik ochiladi: Claude'ga ketadigan so'rov (matn, rasm, JSON shakli, asboblar) Gemini'ga (Interactions API)
  * aylantiriladi, keyin odatdagi baholash (eval-ai.ts) shu ko'prik orqali o'tadi — holatlar ham, tekshiruvlar ham bir xil.
- *   npm run eval:gemini -- gemini-3.5-flash-lite --yes --only mijoz-narx,mijoz-qabul
- * Faqat asbobsiz so'rovlar (mijozga javob, kamera kadri): egasining yordamchisi asboblar bilan ishlaydi — u bu yerda o'tmaydi.
- * GEMINI_API_KEY — .env dan (pullik kalitda pul ketadi, bepulida limit). eval-ai.ts ko'rsatgan narx Claude narxida sanaladi —
+ *   npm run eval:gemini -- gemini-3.8-flash --yes --only mijoz-narx,mijoz-qabul
+ *   npm run eval:gemini -- gemini-3.8-flash --script scripts/eval-tasks.ts --yes     (boshqa baholash skripti)
+ * Asboblar: faqat Palantir'ning o'zi bajaradiganlari (egasining yordamchisi); internet qidiruvi kabi Claude tomonidagilari — yo'q.
+ * GEMINI_API_KEY — .env dan (pullik kalitda pul ketadi, bepulida limit). Baholash skripti ko'rsatgan narx Claude narxida sanaladi —
  * Gemini'ning haqiqiy xarajati oxirida shu yerdan chiqadi.
  */
+import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseEnv } from 'node:util';
 
 /** Million token uchun dollar: kirish, chiqish (o'ylash ham), keshdan o'qish. next — e'lon qilingan yangi narx (from sanasidan) */
@@ -36,17 +40,29 @@ if (!key) { console.error("GEMINI_API_KEY yo'q (.env yoki muhitda)"); process.ex
 // eval-ai.ts --model ni AI_MODEL ga yozadi: hisobotda bir model, ko'prikda boshqasi bo'lib qolmasin
 if (evalArgs.includes('--model')) { console.error("--model kerak emas: model birinchi so'z bilan beriladi"); process.exit(1); }
 const root = (process.env.GEMINI_API_ROOT || 'https://generativelanguage.googleapis.com').replace(/\/$/, '');
+// --script <fayl>: eval-ai.ts o'rniga boshqa baholash skripti shu ko'prik orqali o'tadi
+const scriptAt = evalArgs.indexOf('--script');
+const script = scriptAt >= 0 ? evalArgs.splice(scriptAt, 2)[1] : 'scripts/eval-ai.ts';
+if (!script || !existsSync(script)) { console.error(`--script: fayl topilmadi (${script ?? ''})`); process.exit(1); }
 
-interface ClaudeBlock { type: string; text?: string; source?: { type: string; media_type: string; data: string } }
+interface ClaudeBlock {
+  type: string; text?: string; source?: { type: string; media_type: string; data: string };
+  /** tool_use */
+  id?: string; name?: string; input?: unknown;
+  /** tool_result */
+  tool_use_id?: string; content?: string | ClaudeBlock[]; is_error?: boolean;
+}
+interface ClaudeTool { type?: string; name: string; description?: string; input_schema?: unknown }
 interface ClaudeRequest {
   system?: string | { text: string }[];
   messages: { role: string; content: string | ClaudeBlock[] }[];
-  tools?: unknown[];
+  tools?: ClaudeTool[];
   max_tokens: number;
   output_config?: { effort?: string; format?: { type: string; schema: unknown } };
 }
 interface GeminiUsage { total_tokens?: number; total_input_tokens?: number; total_cached_tokens?: number; total_output_tokens?: number; total_thought_tokens?: number }
-interface GeminiReply { status?: string; error?: { message?: string }; usage?: GeminiUsage; steps?: { type?: string; content?: { type?: string; text?: string }[] }[] }
+interface GeminiStep { type?: string; id?: string; name?: string; arguments?: Record<string, unknown>; content?: { type?: string; text?: string }[] }
+interface GeminiReply { status?: string; error?: { message?: string }; usage?: GeminiUsage; steps?: GeminiStep[] }
 
 class Unsupported extends Error {}
 
@@ -55,18 +71,62 @@ function geminiBlock(b: ClaudeBlock): object {
   if (b.type === 'image' && b.source?.type === 'base64') return { type: 'image', data: b.source.data, mime_type: b.source.media_type };
   throw new Unsupported(`ko'prikda yo'q blok: ${b.type}`);
 }
+const blocksOf = (content: string | ClaudeBlock[]): ClaudeBlock[] => (typeof content === 'string' ? [{ type: 'text', text: content }] : content);
 
-/** Claude so'rovi → Gemini Interactions so'rovi. Asbobli yoki ko'p xabarli so'rov — Unsupported */
+/**
+ * Gemini o'z javobining qadamlarini (o'ylash imzosi bilan) keyingi so'rovda aynan qaytarishni talab qiladi, Claude shaklidagi
+ * suhbatda esa ular yo'q: asbob chaqiruvi id'si → o'sha javobning hamma qadamlari va asbob nomi shu yerda turadi
+ */
+const stepsByCall = new Map<string, GeminiStep[]>();
+const nameByCall = new Map<string, string>();
+
+/** Gemini asbob sxemasida qabul qilmaydigan kalit so'zlar (xossa nomlariga tegilmaydi) */
+const DROPPED_KEYWORDS = new Set<string>([]);
+function cleanSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(cleanSchema);
+  if (!schema || typeof schema !== 'object') return schema;
+  return Object.fromEntries(Object.entries(schema).filter(([k]) => !DROPPED_KEYWORDS.has(k)).map(([k, v]) => [
+    k,
+    k === 'properties' && v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([name, s]) => [name, cleanSchema(s)])) : cleanSchema(v),
+  ]));
+}
+
+function geminiTool(t: ClaudeTool): object {
+  if (t.type && t.type !== 'custom') throw new Unsupported(`ko'prikda yo'q asbob turi: ${t.type}`);
+  return { type: 'function', name: t.name, description: t.description ?? '', parameters: cleanSchema(t.input_schema ?? { type: 'object', properties: {} }) };
+}
+
+/** Yordamchining oldingi javobi → Gemini qadamlari: asbob chaqirgan javob — saqlangan asl qadamlari bilan, matnligi — matn qadami */
+function assistantSteps(blocks: ClaudeBlock[]): object[] {
+  const calls = blocks.filter(b => b.type === 'tool_use');
+  if (!calls.length) {
+    const text = blocks.filter(b => b.type === 'text').map(b => b.text ?? '').join('');
+    return text ? [{ type: 'model_output', content: [{ type: 'text', text }] }] : [];
+  }
+  const kept = stepsByCall.get(calls[0].id ?? '');
+  if (!kept) throw new Unsupported("suhbatda boshqa modelning asbob chaqiruvi bor — ko'prik faqat o'zi orqali o'tgan suhbatni davom ettiradi");
+  return kept;
+}
+
+function userSteps(blocks: ClaudeBlock[]): object[] {
+  const results = blocks.filter(b => b.type === 'tool_result').map(b => ({
+    type: 'function_result', name: nameByCall.get(b.tool_use_id ?? '') ?? '', call_id: b.tool_use_id,
+    result: blocksOf(b.content ?? '').map(c => (c.type === 'text' ? { type: 'text', text: `${b.is_error ? 'ERROR: ' : ''}${c.text ?? ''}` } : geminiBlock(c))),
+  }));
+  const rest = blocks.filter(b => b.type !== 'tool_result');
+  return [...results, ...(rest.length ? [{ type: 'user_input', content: rest.map(geminiBlock) }] : [])];
+}
+
+/** Claude so'rovi → Gemini Interactions so'rovi (suhbat to'liq yuboriladi, Google tomonda saqlanmaydi) */
 function toGemini(q: ClaudeRequest): object {
-  if (q.tools?.length || q.messages.length !== 1 || q.messages[0].role !== 'user') throw new Unsupported("ko'prik faqat asbobsiz, bitta xabarli so'rovni o'tkazadi");
-  const { content } = q.messages[0];
-  const blocks = typeof content === 'string' ? [{ type: 'text', text: content }] : content;
   const system = typeof q.system === 'string' ? q.system : (q.system ?? []).map(b => b.text).join('\n\n');
   const format = q.output_config?.format;
   return {
     model,
+    store: false,
     ...(system ? { system_instruction: system } : {}),
-    input: [{ type: 'user_input', content: blocks.map(geminiBlock) }],
+    input: q.messages.flatMap(m => (m.role === 'assistant' ? assistantSteps(blocksOf(m.content)) : userSteps(blocksOf(m.content)))),
+    ...(q.tools?.length ? { tools: q.tools.map(geminiTool) } : {}),
     ...(format?.type === 'json_schema' ? { response_format: { type: 'text', mime_type: 'application/json', schema: format.schema } } : {}),
     generation_config: { thinking_level: THINKING[q.output_config?.effort ?? 'medium'] ?? 'medium', max_output_tokens: q.max_tokens },
   };
@@ -106,15 +166,22 @@ const bridgeErrors: string[] = [];
 
 /** Gemini javobi → Claude xabari shaklida (eval-ai.ts va server kodi shuni kutadi) */
 function toClaude(j: GeminiReply): object {
-  const text = (j.steps ?? []).flatMap(s => s.content ?? []).filter(c => c.type === 'text' && c.text).map(c => c.text).join('');
+  const steps = j.steps ?? [];
+  const text = steps.flatMap(s => s.content ?? []).filter(c => c.type === 'text' && c.text).map(c => c.text).join('');
+  const calls = steps.filter(s => s.type === 'function_call');
+  // Bular modelning javobi emas — ko'prik xatosi bo'lib sanalsin (bo'sh javob «model adashdi» deb o'tib ketmasin)
+  if (j.status === 'failed' || j.status === 'cancelled') throw new Error(`Gemini javobi tugallanmadi (${j.status})${j.error?.message ? `: ${j.error.message.slice(0, 300)}` : ''}`);
+  if (calls.some(c => !c.id || !c.name)) throw new Error("Gemini asbob chaqiruvi id yoki nomsiz keldi");
+  for (const c of calls) { stepsByCall.set(c.id!, steps); nameByCall.set(c.id!, c.name!); }
   const u = j.usage ?? {};
   const cached = u.total_cached_tokens ?? 0, input = (u.total_input_tokens ?? 0) - cached;
   // O'ylash tokenlari ham chiqish narxida. Jami − kirish: o'ylash chiqish ichida sanalsa ham, alohida sanalsa ham ikki marta qo'shilmaydi
   const output = u.total_tokens !== undefined ? u.total_tokens - (u.total_input_tokens ?? 0) : (u.total_output_tokens ?? 0) + (u.total_thought_tokens ?? 0);
   total.input += input; total.cached += cached; total.output += output;
   return {
-    id: 'msg_gemini', type: 'message', role: 'assistant', model, content: [{ type: 'text', text }],
-    stop_reason: j.status === 'completed' ? 'end_turn' : 'max_tokens', stop_sequence: null,
+    id: 'msg_gemini', type: 'message', role: 'assistant', model,
+    content: [...(text || !calls.length ? [{ type: 'text', text }] : []), ...calls.map(c => ({ type: 'tool_use', id: c.id, name: c.name, input: c.arguments ?? {} }))],
+    stop_reason: calls.length ? 'tool_use' : j.status === 'completed' ? 'end_turn' : 'max_tokens', stop_sequence: null,
     usage: { input_tokens: input, output_tokens: output, cache_read_input_tokens: cached, cache_creation_input_tokens: 0 },
   };
 }
@@ -125,7 +192,11 @@ async function readJson(req: IncomingMessage): Promise<ClaudeRequest> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as ClaudeRequest;
 }
 
+/** Ko'prik faqat shu jarayonning so'rovlarini o'tkazadi: kompyuterdagi boshqa dastur yoki sahifa Gemini kaliti hisobidan so'ray olmasin */
+const bridgeToken = randomUUID();
+
 const bridge = createServer(async (req, res) => {
+  if (req.headers['x-api-key'] !== bridgeToken) { res.writeHead(401).end(); return; }
   total.calls++;
   try {
     const reply = toClaude(await askGemini(toGemini(await readJson(req))));
@@ -153,9 +224,9 @@ process.on('exit', () => {
 });
 
 Object.assign(process.env, {
-  ANTHROPIC_BASE_URL: `http://127.0.0.1:${(bridge.address() as AddressInfo).port}`, ANTHROPIC_API_KEY: 'koprik', ANTHROPIC_AUTH_TOKEN: '',
+  ANTHROPIC_BASE_URL: `http://127.0.0.1:${(bridge.address() as AddressInfo).port}`, ANTHROPIC_API_KEY: bridgeToken, ANTHROPIC_AUTH_TOKEN: '',
   AI_MODEL: model, AI_ENGINE: 'api',
 });
 process.argv = [process.argv[0], process.argv[1], ...evalArgs];
-await import('../eval-ai');
+await import(pathToFileURL(resolve(script)).href);
 bridge.close();
