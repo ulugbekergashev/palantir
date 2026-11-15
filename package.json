@@ -69,6 +69,7 @@
     "test:update": "tsx scripts/e2e-update.ts",
     "eval:ai": "tsx scripts/eval-ai.ts",
     "eval:tasks": "tsx scripts/eval-tasks.ts",
+    "eval:hard": "tsx scripts/eval-hard.ts",
     "eval:gemini": "tsx scripts/eval/gemini.ts",
     "test:tgcall": "tsx scripts/e2e-tgcall.ts",
     "test:ipcam": "tsx scripts/e2e-ipcam.ts",
