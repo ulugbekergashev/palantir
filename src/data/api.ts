@@ -451,13 +451,14 @@ export interface AdminBusiness {
 }
 
 /** Bir biznesning bir kunlik AI xarajati (taxminiy dollar — server narxlar jadvalidan hisoblaydi) */
-export interface AdminUsage { day: string; businessId: string; business: string; calls: number; input: number; output: number; cacheRead: number; cacheWrite: number; usd: number }
+/** usd — jami (Claude taxminiy + Gemini); geminiUsd — Gemini zaxirasi (obuna limitida; bu pul haqiqatan Google hisobidan ketadi) */
+export interface AdminUsage { day: string; businessId: string; business: string; calls: number; input: number; output: number; cacheRead: number; cacheWrite: number; usd: number; geminiUsd: number }
 
 export const adminApi = {
   login: (password: string) => call<{ token: string }>('/admin/login', { body: { password }, admin: true }),
   businesses: () => call<{ businesses: AdminBusiness[] }>('/admin/businesses', { admin: true }),
   create: (b: { name: string; industry: string; login: string; password: string }) => call<{ id: string }>('/admin/businesses', { body: b, admin: true }),
-  usage: () => call<{ model: string; usage: AdminUsage[] }>('/admin/usage', { admin: true }),
+  usage: () => call<{ model: string; subscription?: boolean; usage: AdminUsage[] }>('/admin/usage', { admin: true }),
   diagnostics: () => call<{ sent: true; file: string } | { sent: false; name: string; text: string }>('/admin/diag', { body: {}, admin: true }),
   update: (id: string, patch: { active?: boolean; password?: string }) => call<{ ok: true }>(`/admin/businesses/${id}`, { method: 'PATCH', body: patch, admin: true }),
   keys: () => call<{ keys: KeyView[] }>('/admin/keys', { admin: true }),

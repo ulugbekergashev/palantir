@@ -78,6 +78,19 @@ if (env.geminiKey) {
   resetPressure();
 } else console.log("\n7) GEMINI_API_KEY yo'q — Gemini zaxirasi tekshiruvi o'tkazib yuborildi");
 
+// Limit tufayli keyinga qolgan gap: navbat ochilganda Palantir o'zi bajaradi (scheduler.ts runDeferred)
+const { deferred } = await import('../server/subscription/deferred');
+const { runDeferred } = await import('../server/scheduler');
+const { chatLog } = await import('../server/db');
+deferred.add({ businessId: biz.id, channel: 'web', text: "Qaysi vazifalarim bor? Bir gapda ayting.", display: '⏰ Kechiktirilgan savol', lane: 'live', until: Date.now() - 1000, own: true });
+const t6 = Date.now();
+const ran = await runDeferred({ enabled: false } as never);
+const last = chatLog.recent(biz.id, 2).at(-1);
+console.log(`\n8) ${((Date.now() - t6) / 1000).toFixed(1)} s → kechiktirilgan ish bajarildi: ${ran} ta; javob: ${last?.text ?? "yo'q"}`);
+assert.equal(ran, 1, 'kechiktirilgan ish bajarilmadi');
+assert.equal(deferred.list(biz.id).length, 0, 'navbatdan olinmadi');
+assert.match(String(last?.text), /Akmal/i);
+
 console.log('\nJonli tekshiruv o\'tdi');
 // process.exit emas: Windows'da fetch ulanishi yopilayotganda chiqilsa Node yiqiladi (UV_HANDLE_CLOSING) — jarayon o'zi tugaydi
 process.exitCode = 0;

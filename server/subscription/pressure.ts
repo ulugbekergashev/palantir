@@ -109,13 +109,13 @@ export const laneOpen = (lane: Lane, now = Date.now()): boolean => laneClosedUnt
 const LANE_WORK: Record<Lane, string> = {
   background: 'fondagi ishlar', heavy: 'bu katta ish', live: 'bu ish', patient: 'bemorlarga javob',
 };
-/** Egasiga: nega hozir emas va qachon (Toshkent vaqti; ertaga yoki keyin bo'lsa — sanasi bilan) */
-export function pausedText(lane: Lane, at: number, now = Date.now()): string {
+/** Egasiga: nega hozir emas va qachon (Toshkent vaqti; ertaga yoki keyin bo'lsa — sanasi bilan). queued — ish navbatga qo'yildi, o'zi bajariladi */
+export function pausedText(lane: Lane, at: number, now = Date.now(), queued = false): string {
   const d = new Date(at), share = busiestShare(now);
   const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tashkent' });
   const day = d.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tashkent' }) === new Date(now).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tashkent' })
     ? '' : `${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'numeric', timeZone: 'Asia/Tashkent' })} `;
-  return `Claude obunasi limitiga yaqin${share !== null ? ` (${Math.round(share * 100)}%)` : ''} — limit bemorlarga javob uchun saqlanyapti. ${LANE_WORK[lane][0].toUpperCase()}${LANE_WORK[lane].slice(1)} ${day}${time} dan keyin ishlaydi — o'shanda qayta so'rang.`;
+  return `Claude obunasi limitiga yaqin${share !== null ? ` (${Math.round(share * 100)}%)` : ''} — limit bemorlarga javob uchun saqlanyapti. ${LANE_WORK[lane][0].toUpperCase()}${LANE_WORK[lane].slice(1)} ${day}${time} dan keyin ishlaydi — ${queued ? "o'shanda o'zim bajarib, natijasini yuboraman." : "o'shanda qayta so'rang."}`;
 }
 
 /** Panel va jurnal uchun: eng band oyna ulushi (0..1) yoki null */

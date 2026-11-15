@@ -25,7 +25,8 @@ import { COMMON_RULES, industryOf, isClinic } from '../src/data/industries';
 import { chatGroups, memberGroups, runTool, toolDefinitions, type ToolCtx, type ToolGroup } from './tools';
 import { TEAM_NAME, crewHas, type CrewMember } from '../src/lib/crew';
 import { orders } from './orders/store';
-import { SubscriptionError, subscriptionOn, type SubscriptionReason } from './subscription/engine';
+import { PausedError, SubscriptionError, subscriptionOn, type SubscriptionReason } from './subscription/engine';
+import { deferred } from './subscription/deferred';
 import { currentLane, laneClosedUntil, pausedText, withLane } from './subscription/pressure';
 import { ownerTurn } from './subscription/owner';
 import { companyContext } from './company';
@@ -286,7 +287,14 @@ function ownerWords(bizId: string, text: string): string {
   return [...said, text].join('\n');
 }
 
-export function ask(bizId: string, channel: ChatEntry['channel'], text: string, opts: { voice?: boolean; /** Jurnalda ko'rinadigan matn (rasm yuborilganda: tavsif emas, qisqa belgi) */ display?: string; /** Gap rasm tavsifi bilan kelgan (toolkit.ts: fromPhoto) */ photo?: boolean; /** Jonli telefon qo'ng'irog'i: javob ovoz chiqarib o'qiladi */ phone?: boolean; /** Jadvaldagi topshiriq: egasi kuzatmayapti (toolkit.ts: unattended) */ unattended?: boolean; /** Topshiriq bajaruvchi xodim: alohida suhbat (egasi bilan suhbatga aralashmaydi), faqat uning asboblari */ as?: CrewMember } = {}): Promise<Reply> {
+/**
+ * Limit tufayli keyinga qolgan gapni navbatga qo'ysa bo'ladimi: egasi o'zi yozgan (Telegram, panel). Qo'ng'iroq (tugagan), jadvaldagi
+ * ish (jadval o'zi qayta uradi), rasm tavsifi (begona matn) va Palantir o'zi yozgan so'rov (noDefer: ertalabki tayyorgarlik) — yo'q
+ */
+const deferrable = (channel: ChatEntry['channel'], o: { phone?: boolean; unattended?: boolean; as?: CrewMember; photo?: boolean; noDefer?: boolean }): channel is 'telegram' | 'web' =>
+  (channel === 'telegram' || channel === 'web') && !o.phone && !o.unattended && !o.as && !o.photo && !o.noDefer;
+
+export function ask(bizId: string, channel: ChatEntry['channel'], text: string, opts: { /** Palantir o'zi yozgan so'rov: limit tufayli navbatga qo'yilmaydi (deferred.ts) */ noDefer?: boolean; voice?: boolean; /** Jurnalda ko'rinadigan matn (rasm yuborilganda: tavsif emas, qisqa belgi) */ display?: string; /** Gap rasm tavsifi bilan kelgan (toolkit.ts: fromPhoto) */ photo?: boolean; /** Jonli telefon qo'ng'irog'i: javob ovoz chiqarib o'qiladi */ phone?: boolean; /** Jadvaldagi topshiriq: egasi kuzatmayapti (toolkit.ts: unattended) */ unattended?: boolean; /** Topshiriq bajaruvchi xodim: alohida suhbat (egasi bilan suhbatga aralashmaydi), faqat uning asboblari */ as?: CrewMember } = {}): Promise<Reply> {
   return serial(bizId, async () => {
     const found = businesses.byId(bizId);
     if (!found) throw new Error('Biznes topilmadi');
@@ -322,6 +330,8 @@ export function ask(bizId: string, channel: ChatEntry['channel'], text: string, 
         if (e instanceof RestartableError) return attempt(true);
         throw e;
       });
+      // Egasi o'zi qayta so'rab, bajarildi — navbatdagi nusxasi ikkinchi marta bajarilmasin
+      if (deferrable(channel, opts)) deferred.dropText(biz.id, text);
       return finish(r.text, r.artifacts);
     } catch (e) {
       const partial = e instanceof PartialError ? e : null;
@@ -329,7 +339,10 @@ export function ask(bizId: string, channel: ChatEntry['channel'], text: string, 
       // Jurnalga qisqa va aniq: holat kodi va xizmat aytgan sabab (kalit yoki so'rov matni yozilmaydi). Limitni tejash — xato emas
       if (cause instanceof SubscriptionError && cause.reason === 'paused') console.log('[ai] limitga yaqin — ish keyinroqqa qoldi');
       else console.error('[ai]', cause instanceof Anthropic.APIError ? `${cause.status ?? 'aloqa'}: ${cause.message}` : cause);
-      const reason = friendlyError(cause);
+      // Egasining gapi navbatga: limit ochilganda o'zi bajariladi (scheduler.ts runDeferred) — egasi qayta so'ramaydi
+      const queued = !partial?.artifacts.length && cause instanceof PausedError && deferrable(channel, opts)
+        && deferred.add({ businessId: biz.id, channel, text, display: opts.display ?? text, lane: cause.lane, until: cause.until, own: true });
+      const reason = queued && cause instanceof PausedError ? pausedText(cause.lane, cause.until, Date.now(), true) : friendlyError(cause);
       return finish(partial?.artifacts.length ? `Ish qisman bajarildi. ${reason}` : reason, partial?.artifacts ?? [], !partial?.artifacts.length);
     }
   });
@@ -343,7 +356,7 @@ async function viaSubscription(biz: BusinessRow, userText: string, opts: { photo
   // Obuna limiti (pressure.ts): egasining savoli — live, jadvaldagi topshiriq — fondagi ish. Ichidagi asboblar (video, hujjat) shu navbatda
   const lane = currentLane() ?? (opts.unattended ? 'background' : 'live');
   const closed = laneClosedUntil(lane);
-  if (closed !== null) throw new SubscriptionError('paused', pausedText(lane, closed));
+  if (closed !== null) throw new PausedError(pausedText(lane, closed), lane, closed);
   try {
     const text = await withLane(lane, () => ownerTurn({ biz, setKey: set.key, groups: set.groups, crm, userText, phone: !!opts.phone, idleMs: IDLE_MS, ctx, buildSystem: b => buildSystem(b, opts.as), ephemeral: !!opts.as }));
     return { text, artifacts: ctx.artifacts };

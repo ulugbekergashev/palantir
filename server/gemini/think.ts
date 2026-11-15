@@ -18,6 +18,27 @@ const THINKING: Record<string, string> = { low: 'low', medium: 'medium', high: '
 
 export class GeminiError extends Error {}
 
+/**
+ * Narx: million token uchun dollar — kirish, chiqish (o'ylash ham), keshdan o'qish (rasmiy sahifa, 2026-11-15).
+ * next — e'lon qilingan yangi narx (from sanasidan). Ro'yxatda yo'q model — 3.8 Flash narxida
+ */
+const PRICES: Record<string, { now: [number, number, number]; next?: [number, number, number]; from?: string }> = {
+  'gemini-3.8-flash': { now: [0.75, 3.75, 0.075], next: [1.5, 7.5, 0.15], from: '2027-01-01' },
+  'gemini-4-hydrogen': { now: [1.5, 7.5, 0.075] },
+  'gemini-4-argon': { now: [2, 10, 0.1], next: [4, 20, 0.2], from: '2026-12-01' },
+};
+/** Gemini zaxirasining xarajati ($) — ai_usage dagi «gemini» qatori uchun (day — o'sha kun, narx o'zgarishi hisobga olinadi) */
+export function geminiCostUsd(u: { input: number; output: number; cacheRead: number }, day: string, model = env.geminiTextModel): number {
+  const p = PRICES[model] ?? PRICES['gemini-3.8-flash'];
+  const [inPrice, outPrice, readPrice] = p.next && p.from && day >= p.from ? p.next : p.now;
+  return (u.input * inPrice + u.cacheRead * readPrice + u.output * outPrice) / 1_000_000;
+}
+/** ai_usage da Gemini zaxirasi tokenlari shu ish turi nomi bilan yoziladi (so'rovlar soni — asl ish turida, kunlik chegara uchun) */
+export const GEMINI_USAGE_KIND = 'gemini';
+const GEMINI_ID = 'gemini';
+/** Javob Gemini zaxirasidanmi */
+export const fromGemini = (m: { id?: string }): boolean => m.id === GEMINI_ID;
+
 export const geminiReady = (): boolean => !!env.geminiKey;
 
 interface GeminiUsage { total_tokens?: number; total_input_tokens?: number; total_cached_tokens?: number; total_output_tokens?: number; total_thought_tokens?: number }
@@ -63,7 +84,7 @@ export function claudeMessage(j: GeminiReply, model = env.geminiTextModel): Anth
   // O'ylash tokenlari ham chiqish hisobida: jami − kirish (ikki marta sanalmaydi)
   const output = u.total_tokens !== undefined ? u.total_tokens - (u.total_input_tokens ?? 0) : (u.total_output_tokens ?? 0) + (u.total_thought_tokens ?? 0);
   return {
-    id: 'gemini', type: 'message', role: 'assistant', model, container: null, context_management: null,
+    id: GEMINI_ID, type: 'message', role: 'assistant', model, container: null, context_management: null,
     content: [{ type: 'text', text, citations: null }],
     stop_reason: j.status === 'completed' || !j.status ? 'end_turn' : 'max_tokens', stop_sequence: null,
     usage: { input_tokens: (u.total_input_tokens ?? 0) - cached, output_tokens: output, cache_read_input_tokens: cached, cache_creation_input_tokens: 0 },

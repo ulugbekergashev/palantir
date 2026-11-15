@@ -14,7 +14,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { query, type EffortLevel, type McpSdkServerConfigWithInstance, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { env } from '../env';
 import { APP_VERSION } from '../version';
-import { notePressure } from './pressure';
+import { notePressure, type Lane } from './pressure';
 
 /**
  * auth — obunaga kirilmagan; limit — obuna limiti tugagan; paused — limitga yaqin, bu ish keyinroq (xabarda vaqti; pressure.ts);
@@ -24,6 +24,11 @@ export type SubscriptionReason = 'auth' | 'limit' | 'paused' | 'unsupported' | '
 export class SubscriptionError extends Error {
   /** sessionId — xato bo'lgan SDK sessiyasi (unda bajarilgan asboblar bor bo'lishi mumkin: keyingi gap shu sessiyani davom ettiradi) */
   constructor(readonly reason: SubscriptionReason, message: string, readonly sessionId: string | null = null) { super(message); }
+}
+
+/** Limitga yaqin: shu navbat until (ms) gacha yopiq (pressure.ts). Egasining ishi navbatga qo'yilib, o'shanda o'zi bajariladi (deferred.ts) */
+export class PausedError extends SubscriptionError {
+  constructor(message: string, readonly lane: Lane, readonly until: number) { super('paused', message); }
 }
 
 export const subscriptionOn = (): boolean => env.aiEngine === 'subscription';

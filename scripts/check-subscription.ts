@@ -371,6 +371,105 @@ await check("limit yopgan navbatda: egasining ishi Gemini'ga ketmaydi — vaqti 
   assert.match(String(aiProblem(zbiz.id)), /limiti tugadi/, "kalitsiz ham nazoratga tushadi");
   resetPressure();
 });
+await check("Gemini tokenlari alohida «gemini» qatorida va Gemini narxida (2027-01-01 dan ikki baravar)", async () => {
+  const { geminiCostUsd } = await import('../server/gemini/think');
+  const row = aiUsage.since(iso(new Date())).find(r => r.businessId === zbiz.id && r.kind === 'gemini');
+  assert.ok(row && row.input > 0 && row.calls === 0, "gemini qatori: tokenlar bor, so'rovlar asl ish turida");
+  const u = { input: 1_000_000, output: 1_000_000, cacheRead: 0 };
+  assert.equal(geminiCostUsd(u, '2026-12-31', 'gemini-3.8-flash'), 4.5);
+  assert.equal(geminiCostUsd(u, '2027-01-01', 'gemini-3.8-flash'), 9);
+});
+
+const { deferred, toolKey } = await import('../server/subscription/deferred');
+const { runTool } = await import('../server/tools');
+const { runDeferred } = await import('../server/scheduler');
+const noBot = { enabled: false } as never;
+const clearQueue = () => { for (const d of deferred.list(zbiz.id)) deferred.done(d.id); };
+
+await check("limit tufayli rad etilgan egasining gapi navbatga qo'yiladi (bir marta), «o'zim bajaraman» deyiladi; navbat ochilmaguncha bajarilmaydi", async () => {
+  const now = Date.now();
+  resetPressure();
+  clearQueue();
+  notePressure(event(0.98, 0.3, now, 100) as never, now);
+  const r = await ask(zbiz.id, 'telegram', 'Oylik hisobot tayyorla');
+  assert.match(r.text, /o'zim bajarib, natijasini yuboraman/);
+  await ask(zbiz.id, 'telegram', 'Oylik hisobot tayyorla');
+  const q = deferred.list(zbiz.id).filter(d => d.text === 'Oylik hisobot tayyorla');
+  assert.equal(q.length, 1, 'takror navbatga ikki marta tushmaydi');
+  assert.equal(q[0].own, true);
+  assert.equal(q[0].lane, 'live');
+  // Qo'ng'iroqdagi gap navbatga qo'yilmaydi (qo'ng'iroq tugagan)
+  await ask(zbiz.id, 'telegram', "Qo'ng'iroqdagi savol", { phone: true });
+  assert.equal(deferred.list(zbiz.id).some(d => d.text === "Qo'ng'iroqdagi savol"), false);
+  // Vaqti hali kelmagan — bajarilmaydi; vaqti o'tgan, lekin navbat hali yopiq (masalan, haftalik oyna) — ham bajarilmaydi, navbatda qoladi
+  assert.equal(await runDeferred(noBot, now), 0);
+  deferred.add({ businessId: zbiz.id, channel: 'telegram', text: 'Eski ish', display: 'Eski ish', lane: 'live', until: now - 1000, own: true });
+  assert.equal(await runDeferred(noBot, now), 0);
+  assert.equal(deferred.list(zbiz.id).length, 2);
+  clearQueue();
+  resetPressure();
+});
+
+await check("katta asbob (hujjat) limit tufayli bajarilmasa — faqat o'sha asbob navbatga (bilim/CRM'ga yozmaydigan rejimda); jadvaldagi ishda — yo'q", async () => {
+  const now = Date.now();
+  resetPressure();
+  clearQueue();
+  notePressure(event(0.93, 0.3, now, 100) as never, now);
+  const input = { title: 'Narxlar', kind: 'price_list', brief: 'Implant 5 mln' };
+  const out = await withLane('live', () => runTool('create_document', input, { biz: zbiz, artifacts: [] }));
+  assert.equal(out.isError, true);
+  assert.match(out.content, /o'zim bajarib.*qayta chaqirmang/);
+  const q = deferred.list(zbiz.id);
+  assert.equal(q.length, 1);
+  assert.equal(q[0].own, false);
+  assert.equal(q[0].lane, 'heavy');
+  assert.equal(q[0].tool, 'create_document');
+  assert.deepEqual(JSON.parse(q[0].input!), input, "kirish to'liq saqlanadi (kesilmaydi)");
+  // Boshqa kirish bilan — alohida ish (kalit kirish xeshidan)
+  await withLane('live', () => runTool('create_document', { ...input, title: 'Narxlar 2' }, { biz: zbiz, artifacts: [] }));
+  assert.equal(deferred.list(zbiz.id).length, 2);
+  clearQueue();
+  const scheduled = await withLane('live', () => runTool('create_document', input, { biz: zbiz, artifacts: [], unattended: true }));
+  assert.match(scheduled.content, /qayta so'rang/);
+  assert.equal(deferred.list(zbiz.id).length, 0, 'jadvaldagi ish navbatga tushmaydi');
+  resetPressure();
+});
+
+await check("navbatdagi asbob modelsiz bajariladi: vazifa yaratiladi; bilimga yozish (remember) — begona matn rejimida rad; navbatdan o'chadi", async () => {
+  const { tasks } = await import('../server/db');
+  const now = Date.now();
+  resetPressure();
+  clearQueue();
+  const add = (tool: string, input: unknown) => deferred.add({ businessId: zbiz.id, channel: 'telegram', lane: 'heavy', until: now - 1000, own: false, text: toolKey(tool, input), tool, input: JSON.stringify(input), display: tool });
+  add('create_task', { title: 'Kechiktirilgan vazifa' });
+  add('remember', { fact: "Narx 1 so'm" });
+  assert.equal(await runDeferred(noBot, now), 2);
+  assert.ok(tasks.list(zbiz.id).some(t => t.title === 'Kechiktirilgan vazifa'));
+  const { facts } = await import('../server/brain/vault');
+  assert.equal(JSON.stringify(facts.list(zbiz.id)).includes("Narx 1 so'm"), false, "bilimga yozilmadi");
+  assert.equal(deferred.list(zbiz.id).length, 0);
+});
+
+await check("navbatdagi ish yana limitga tushsa — navbatda qoladi (urinish sanaladi, egasiga xabar yo'q); 3 urinishdan keyin — voz kechiladi", async () => {
+  const now = Date.now();
+  resetPressure();
+  clearQueue();
+  // Katta ish navbati yopiq; ish «live» navbatda turibdi — bajarishga olinadi, ichida hujjat yana limitga tushadi
+  notePressure(event(0.93, 0.3, now, 100) as never, now);
+  const input = { title: 'Narxlar', kind: 'price_list', brief: 'Implant 5 mln' };
+  deferred.add({ businessId: zbiz.id, channel: 'telegram', lane: 'live', until: now - 1000, own: false, text: toolKey('create_document', input), tool: 'create_document', input: JSON.stringify(input), display: 'Hujjat' });
+  assert.equal(await runDeferred(noBot, now), 0);
+  const [left] = deferred.list(zbiz.id);
+  assert.ok(left && !left.claimed && left.attempts === 1, `navbatda qoldi: ${JSON.stringify(left)}`);
+  assert.equal(left.lane, 'heavy');
+  // Urinishlar tugagan ish — bajarilmaydi, o'chiriladi
+  clearQueue();
+  deferred.add({ businessId: zbiz.id, channel: 'telegram', lane: 'live', until: now - 1000, own: true, text: 'Eski', display: 'Eski', attempts: 3 });
+  assert.equal(await runDeferred(noBot, now), 0);
+  assert.equal(deferred.list(zbiz.id).length, 0);
+  resetPressure();
+});
+
 fakeGemini.closeAllConnections();
 fakeGemini.close();
 

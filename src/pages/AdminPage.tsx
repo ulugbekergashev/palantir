@@ -14,11 +14,12 @@ const tokens = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} m
 function UsageTable({ rows }: { rows: AdminUsage[] }) {
   if (!rows.length) return <p className="py-4 text-center text-sm text-slate-500">Hali AI so'rovlari bo'lmagan</p>;
   const total = rows.reduce((sum, r) => sum + r.usd, 0);
+  const gemini = rows.reduce((sum, r) => sum + (r.geminiUsd ?? 0), 0);
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="text-left text-xs text-slate-400">
-          <tr><th className="py-2 pr-3">Kun</th><th className="pr-3">Biznes</th><th className="pr-3 text-right">So'rovlar</th><th className="pr-3 text-right">Kirish</th><th className="pr-3 text-right">Chiqish</th><th className="text-right">≈ $</th></tr>
+          <tr><th className="py-2 pr-3">Kun</th><th className="pr-3">Biznes</th><th className="pr-3 text-right">So'rovlar</th><th className="pr-3 text-right">Kirish</th><th className="pr-3 text-right">Chiqish</th><th className="pr-3 text-right" title="Claude obunasi limitida bemorlarga javob, qo'ng'iroq va kamera Gemini zaxirasida — bu pul Google hisobidan ketadi">Gemini $</th><th className="text-right">≈ $</th></tr>
         </thead>
         <tbody className="divide-y divide-slate-100 tabular-nums">
           {rows.map(r => (
@@ -28,12 +29,13 @@ function UsageTable({ rows }: { rows: AdminUsage[] }) {
               <td className="pr-3 text-right">{r.calls}</td>
               <td className="pr-3 text-right text-slate-600">{tokens(r.input + r.cacheRead + r.cacheWrite)}</td>
               <td className="pr-3 text-right text-slate-600">{tokens(r.output)}</td>
+              <td className="pr-3 text-right text-slate-600">{r.geminiUsd ? r.geminiUsd.toFixed(2) : '—'}</td>
               <td className="text-right font-semibold">{r.usd.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          <tr className="border-t border-slate-200"><td colSpan={5} className="py-2 pr-3 text-right text-slate-500">Jami</td><td className="text-right font-extrabold tabular-nums">{total.toFixed(2)}</td></tr>
+          <tr className="border-t border-slate-200"><td colSpan={5} className="py-2 pr-3 text-right text-slate-500">Jami</td><td className="pr-3 text-right font-semibold tabular-nums">{gemini.toFixed(2)}</td><td className="text-right font-extrabold tabular-nums">{total.toFixed(2)}</td></tr>
         </tfoot>
       </table>
     </div>
@@ -63,8 +65,8 @@ function AdminPanel() {
     if (err.status === 401) { session.setAdmin(null); setAuthed(false); }
     setMsg({ text: err.message, error: true });
   };
-  const [usage, setUsage] = useState<{ model: string; rows: AdminUsage[] } | null>(null);
-  const load = () => Promise.all([adminApi.businesses(), adminApi.usage()]).then(([b, u]) => { setList(b.businesses); setUsage({ model: u.model, rows: u.usage }); }).catch(fail);
+  const [usage, setUsage] = useState<{ model: string; subscription: boolean; rows: AdminUsage[] } | null>(null);
+  const load = () => Promise.all([adminApi.businesses(), adminApi.usage()]).then(([b, u]) => { setList(b.businesses); setUsage({ model: u.model, subscription: !!u.subscription, rows: u.usage }); }).catch(fail);
   useEffect(() => { if (authed) void load(); }, [authed]);
 
   const signIn = async (e: FormEvent) => {
@@ -155,7 +157,9 @@ function AdminPanel() {
         )}
       </Card>
 
-      <Card title="AI xarajati — oxirgi 7 kun" description={usage ? `Model: ${usage.model}. Dollar taxminiy: aniq hisob va qoldiq — platform.claude.com` : undefined}>
+      <Card title="AI xarajati — oxirgi 7 kun" description={usage ? (usage.subscription
+        ? `Model: ${usage.model}, Claude obunasi — Claude'ning dollari taxminiy, to'lov oylik. Haqiqiy pul — «Gemini $» ustunida (obuna limitidagi zaxira)`
+        : `Model: ${usage.model}. Dollar taxminiy: aniq hisob va qoldiq — platform.claude.com`) : undefined}>
         {usage ? <UsageTable rows={usage.rows} /> : <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" />}
       </Card>
 

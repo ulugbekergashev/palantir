@@ -30,7 +30,11 @@ import { watchAll as watchAds } from './ads/campaigns';
 import { directorReport } from './director/telegram';
 import { weeklyDemand } from './director/team';
 import { analystMorning } from './analyst/weekly';
-import { extrasPaused, extrasPausedUntil, withLane } from './subscription/pressure';
+import { extrasPaused, extrasPausedUntil, laneOpen, withLane } from './subscription/pressure';
+import { MAX_ATTEMPTS, deferred } from './subscription/deferred';
+import { ask } from './agent';
+import { runTool } from './tools';
+import type { Artifact } from '../src/types';
 import { crewHas, crewWorks } from '../src/lib/crew';
 import { crewFromData } from './crew';
 import { measure, measureDue } from './marketing/results';
@@ -44,6 +48,57 @@ const VISITS_EVERY_MS = 30 * 60_000;
 const visitsCheckedAt = new Map<string, number>();
 /** Limit bosimi haqida egasiga aytilgan oyna (B5) — bir oynada bir marta */
 let pressureTold: number | null = null;
+let deferredBusy = false;
+
+/**
+ * Limit tufayli keyinga qolgan ishlar (subscription/deferred.ts): vaqti kelgan va navbati ochiq bo'lganlari birin-ketin bajariladi.
+ * Egasining gapi — yordamchiga qayta; asbob ishi — o'sha asbob modelsiz (bilim va CRM'ga yozmaydigan rejimda: kirish begona matn
+ * bo'lishi mumkin). Yana limitga tushsa — navbatda qoladi va egasiga yangi xabar ketmaydi; MAX_ATTEMPTS dan keyin — «bajarib bo'lmadi».
+ * Natija — Telegram'ga (egasi ulangan bo'lsa; panel suhbatida ham jurnalda ko'rinadi). Qaytadi: nechta ish tugadi
+ */
+export async function runDeferred(bot: BotService, now = Date.now()): Promise<number> {
+  let finished = 0;
+  for (const d of deferred.due(now)) {
+    if (!laneOpen(d.lane, now)) continue;
+    const biz = businesses.byId(d.businessId);
+    if (!biz?.active) continue;
+    if (d.attempts >= MAX_ATTEMPTS) {
+      deferred.done(d.id);
+      await tellOwner(bot, biz, `⏰ **Kechiktirilgan ish bajarilmadi:** ${d.display.slice(0, 300)} — Claude limiti bir necha marta yana tugadi. Iltimos, keyinroq o'zingiz qayta so'rang.`, []);
+      continue;
+    }
+    if (!deferred.claim(d.id, now)) continue;
+    let text: string, artifacts: Artifact[] = [];
+    try {
+      if (d.tool) {
+        const ctx = { biz, artifacts: [] as Artifact[], fromPhoto: true };
+        const out = await withLane(d.lane, () => runTool(d.tool!, JSON.parse(d.input ?? '{}'), ctx));
+        text = out.isError ? `bajarilmadi — ${out.content}` : 'tayyor.';
+        artifacts = ctx.artifacts;
+      } else {
+        const reply = await ask(biz.id, d.channel, d.text, { display: d.display });
+        text = reply.text;
+        artifacts = reply.artifacts;
+      }
+    } catch (e) {
+      console.error('[obuna] kechiktirilgan ish:', (e as Error).message);
+      text = "bajarilmadi — ichki xato. Iltimos, qayta so'rang.";
+    }
+    // Yana limitga tushib, navbatga qaytgan (add() olinganlikni bekor qiladi) — egasiga hozir hech narsa yuborilmaydi
+    const back = deferred.byText(biz.id, d.text);
+    if (back && !back.claimed) continue;
+    deferred.done(d.id);
+    finished++;
+    await tellOwner(bot, biz, `⏰ **Limit tufayli kechiktirilgan ish:** ${d.display.slice(0, 300)}\n\n${text}`, artifacts);
+  }
+  return finished;
+}
+
+/** Egasiga Telegram'da (ulangan bo'lsa). deliverReply matnni o'zi Telegram HTML'iga aylantiradi (tgHtml) — bu yerda oddiy matn */
+async function tellOwner(bot: BotService, biz: BusinessRow, text: string, artifacts: Artifact[]): Promise<void> {
+  if (!bot.enabled || !biz.ownerChatId) return;
+  await bot.deliverReply(biz, text, artifacts).catch(e => console.error('[obuna] kechiktirilgan ish Telegram:', (e as Error).message));
+}
 
 /**
  * Ertalabki ish rejasi (plan.ts): vazifalar, mijozlarning keyingi qadamlari, unutilgan mijozlar, tasdiq kutayotganlar,
@@ -277,6 +332,12 @@ export function startScheduler(bot: BotService): () => void {
   let remindRetryAt = 0;
   const remindRetryMs = Math.min(60_000, env.tickMs * 2);
   const tick = async () => {
+    // Limit tufayli keyinga qolgan egasining ishlari: navbati ochilgani — o'zi bajariladi (fonda, jadval kutmaydi). Botsiz ham:
+    // paneldan so'ralgan ish natijasi panel suhbatiga yoziladi
+    if (!deferredBusy) {
+      deferredBusy = true;
+      void runDeferred(bot).catch(e => console.error('[obuna] kechiktirilgan ishlar:', (e as Error).message)).finally(() => { deferredBusy = false; });
+    }
     // Bot hali ulanmagan (token ulash ustasida keyin kiritiladi) — jadval kutib turadi, token kelgach o'zi ishlay boshlaydi
     if (running || !bot.enabled) return;
     running = true;

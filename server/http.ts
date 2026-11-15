@@ -13,6 +13,8 @@ import { lanHost, lanMode, lanPeer } from './lan';
 import { activate, licenseStatus } from './license';
 import type { BotService } from './bot';
 import { costUsd } from './claude';
+import { GEMINI_USAGE_KIND, geminiCostUsd } from './gemini/think';
+import { subscriptionOn } from './subscription/engine';
 import { cancelEntry, confirmEntry, entryView, undoEntry } from './crm/actions';
 import { facts as notes, refresh as refreshVault } from './brain/vault';
 import { syncTasks } from './brain/mirror';
@@ -931,13 +933,20 @@ export function createApp(bot: BotService) {
   /** AI xarajati: oxirgi kunlar, biznes va kun bo'yicha (so'rovlar soni, tokenlar, taxminiy dollar) */
   app.get('/api/admin/usage', asAdmin((_req, res) => {
     const names = new Map(businesses.all().map(b => [b.id, b.profile.name]));
-    const days = new Map<string, { day: string; businessId: string; business: string; calls: number; input: number; output: number; cacheRead: number; cacheWrite: number }>();
+    const days = new Map<string, { day: string; businessId: string; business: string; calls: number; input: number; output: number; cacheRead: number; cacheWrite: number; claude: number; gemini: number }>();
     for (const r of aiUsage.since(iso(new Date(Date.now() - (USAGE_DAYS - 1) * 86_400_000)))) {
       const key = `${r.day}|${r.businessId}`;
-      const d = days.get(key) ?? { day: r.day, businessId: r.businessId, business: names.get(r.businessId) ?? r.businessId, calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-      days.set(key, { ...d, calls: d.calls + r.calls, input: d.input + r.input, output: d.output + r.output, cacheRead: d.cacheRead + r.cacheRead, cacheWrite: d.cacheWrite + r.cacheWrite });
+      const d = days.get(key) ?? { day: r.day, businessId: r.businessId, business: names.get(r.businessId) ?? r.businessId, calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, claude: 0, gemini: 0 };
+      // Gemini zaxirasi (obuna limitida) — alohida qator, Gemini narxida: bu pul haqiqatan Google hisobidan ketadi
+      const gem = r.kind === GEMINI_USAGE_KIND;
+      days.set(key, {
+        ...d, calls: d.calls + r.calls, input: d.input + r.input, output: d.output + r.output, cacheRead: d.cacheRead + r.cacheRead, cacheWrite: d.cacheWrite + r.cacheWrite,
+        claude: d.claude + (gem ? 0 : costUsd(r)), gemini: d.gemini + (gem ? geminiCostUsd(r, r.day) : 0),
+      });
     }
-    res.json({ model: env.aiModel, usage: [...days.values()].map(d => ({ ...d, usd: Math.round(costUsd(d) * 100) / 100 })) });
+    const cents = (n: number) => Math.round(n * 100) / 100;
+    // Obunada Claude'ning dollari taxminiy (oylik to'lov): haqiqiy pul — faqat Gemini ustunida
+    res.json({ model: env.aiModel, subscription: subscriptionOn(), usage: [...days.values()].map(({ claude, gemini, ...d }) => ({ ...d, usd: cents(claude + gemini), geminiUsd: cents(gemini) })) });
   }));
 
   /** Diagnostika: hub kodi bo'lsa — hubga (sotuvchi oladi); bo'lmasa — matnning o'zi (panel faylga yuklab beradi) */

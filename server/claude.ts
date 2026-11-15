@@ -4,9 +4,9 @@ import { iso } from '../src/lib/week';
 import { type BusinessRow } from './db';
 import { aiUsage, type AiUsageRow } from './serviceStore';
 import { env } from './env';
-import { SubscriptionError, apiKeyPresent, plainRequest, subscriptionMessage, subscriptionOn, type PlainRequest, type TokenUsage } from './subscription/engine';
+import { PausedError, SubscriptionError, apiKeyPresent, plainRequest, subscriptionMessage, subscriptionOn, type PlainRequest, type TokenUsage } from './subscription/engine';
 import { currentLane, laneClosedUntil, pausedText, type Lane } from './subscription/pressure';
-import { geminiMessage, geminiReady } from './gemini/think';
+import { GEMINI_USAGE_KIND, fromGemini, geminiMessage, geminiReady } from './gemini/think';
 
 let client: Anthropic | null = null;
 export const claude = () => (client ??= new Anthropic({ maxRetries: 2, timeout: 600_000 }));
@@ -64,7 +64,7 @@ function viaSubscription(bizId: string, kind: AiKind, params: Params, req: Plain
       noteTrouble(bizId, e);
       throw e;
     }
-    throw new SubscriptionError('paused', pausedText(lane, closed));
+    throw new PausedError(pausedText(lane, closed), lane, closed);
   }
   return ask(bizId, kind, async () => {
     try {
@@ -89,8 +89,9 @@ export async function thinkStream(bizId: string, kind: AiKind, params: Params): 
   return ask(bizId, kind, () => claude().beta.messages.stream({ ...params, ...FALLBACK }).finalMessage());
 }
 
+/** Gemini zaxirasining tokenlari alohida qatorda (Gemini narxida sanaladi — pul aynan shu yerda ketadi, obuna esa oylik) */
 const ask = (bizId: string, kind: AiKind, send: () => Promise<Anthropic.Beta.BetaMessage>): Promise<Anthropic.Beta.BetaMessage> =>
-  metered(bizId, kind, send, ({ usage: u }) => ({ input: u.input_tokens, output: u.output_tokens, cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0 }));
+  metered(bizId, kind, send, ({ usage: u }) => ({ input: u.input_tokens, output: u.output_tokens, cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0 }), res => (fromGemini(res) ? GEMINI_USAGE_KIND : kind));
 
 /**
  * AI ishlamay qolgani (kanallar nazorati — monitor.ts): obunadan chiqib ketish, limit, rad etilgan kalit, tugagan mablag', bemorlarga
@@ -115,7 +116,7 @@ function noteTrouble(bizId: string, e: unknown): void {
 }
 
 /** Kunlik chegara va hisob: chegaradan oshsa — AiLimitError (so'rov yuborilmaydi); javobdan keyin tokenlar biznes hisobiga yoziladi */
-export async function metered<T>(bizId: string, kind: AiKind, send: () => Promise<T>, usageOf: (res: T) => TokenUsage): Promise<T> {
+export async function metered<T>(bizId: string, kind: AiKind, send: () => Promise<T>, usageOf: (res: T) => TokenUsage, rowKind: (res: T) => string = () => kind): Promise<T> {
   const day = iso(new Date()), limit = DAILY[kind]();
   if (aiUsage.calls(bizId, day, kind) >= limit) {
     if (kind === 'customer') aiTrouble.set(bizId, { problem: `Bemorlarga javobning bugungi chegarasi (${limit}) tugadi — ertagacha o'zingiz javob bering`, kind });
@@ -134,7 +135,10 @@ export async function metered<T>(bizId: string, kind: AiKind, send: () => Promis
   if (was && (was.kind === null || was.kind === kind)) aiTrouble.delete(bizId);
   // Hisob yozilmasa ham (disk to'lgan) pulli javob yo'qolmasin
   try {
-    aiUsage.tokens(bizId, day, kind, usageOf(res));
+    const row = rowKind(res);
+    // Alohida qator (masalan, Gemini) hali yo'q bo'lsa — yaratiladi: tokens() faqat bor qatorni yangilaydi
+    if (row !== kind) aiUsage.ensure(bizId, day, row);
+    aiUsage.tokens(bizId, day, row, usageOf(res));
   } catch (e) {
     console.error('[ai] xarajat hisobi yozilmadi:', (e as Error).message);
   }

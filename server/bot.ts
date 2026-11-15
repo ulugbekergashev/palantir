@@ -881,7 +881,8 @@ export function createBot(): BotService {
     },
     async prepareDay(biz, prompt, display) {
       if (!biz.ownerChatId) return;
-      const reply = await ask(biz.id, 'telegram', prompt, { display });
+      // Palantir o'zi yozgan so'rov: limit tufayli navbatga qo'yilmaydi (eskirgan «bugungi» tayyorgarlik keyingi kun chiqmasin)
+      const reply = await ask(biz.id, 'telegram', prompt, { display, noDefer: true });
       await deliver(biz, biz.ownerChatId, reply);
     },
     async startInterview(biz) {

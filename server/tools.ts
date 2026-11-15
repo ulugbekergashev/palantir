@@ -9,6 +9,9 @@
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
+import { PausedError } from './subscription/engine';
+import { deferred, toolKey } from './subscription/deferred';
+import { pausedText } from './subscription/pressure';
 import type { LeadStage, Task } from '../src/types';
 import { check } from '../src/lib/compliance';
 import { isClinic } from '../src/data/industries';
@@ -481,6 +484,19 @@ function journal(name: string, input: unknown, ctx: ToolCtx): void {
  */
 const OWN_DATA_TOOLS = new Set(['create_task', 'remember', 'forget', 'save_prices', 'read_page', 'write_page', 'create_document', 'draft_followup', 'free_slots', 'business_numbers', 'computer_stop']);
 
+/**
+ * Katta asbob (video, brend-buk, hujjat) limit tufayli bajarilmadi: faqat shu asbob o'sha kirish bilan navbatga qo'yiladi — limit
+ * ochilganda Palantir uni MODELSIZ qayta bajarib, natijani egasiga yuboradi (scheduler.ts runDeferred). Jadvaldagi ish (egasi
+ * kuzatmayapti) navbatga qo'yilmaydi — jadval o'zi qayta uradi
+ */
+function deferTool(name: string, input: unknown, ctx: ToolCtx, e: PausedError): ToolOutcome {
+  const queued = !ctx.unattended && !ctx.as && deferred.add({
+    businessId: ctx.biz.id, channel: ctx.biz.ownerChatId ? 'telegram' : 'web', lane: e.lane, until: e.until, own: false,
+    text: toolKey(name, input), tool: name, input: JSON.stringify(input), display: JOURNAL[name] ?? name,
+  });
+  return { content: `${pausedText(e.lane, e.until, Date.now(), queued)} Egasiga shuni ayting; bu asbobni hozir qayta chaqirmang.`, isError: true };
+}
+
 export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promise<ToolOutcome> {
   // Klinika asboblari faqat DentaCRM ulangan biznesda ishlaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin)
   if (isCrmTool(name) && !crmConnected(ctx.biz.id)) return { content: "DentaCRM ulanmagan — egasi panel → Ulanishlar'da ulashi kerak", isError: true };
@@ -503,6 +519,7 @@ export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promi
     return out;
   } catch (e) {
     if (e instanceof ToolError) return { content: e.message, isError: true };
+    if (e instanceof PausedError) return deferTool(name, parsed.data, ctx, e);
     console.error(`[asbob] ${name}:`, e);
     return { content: 'Ichki xato — egasiga qisqa ayting, qayta urinmang', isError: true };
   }

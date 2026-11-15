@@ -94,6 +94,9 @@ export const aiUsage = {
   /** So'rov yuborilishidan OLDIN sanaladi: javobsiz qolgan yoki uzilgan so'rov ham chegaraga kiradi */
   hit: (businessId: string, day: string, kind: string) =>
     run('INSERT INTO ai_usage (business_id, day, kind, calls) VALUES (?, ?, ?, 1) ON CONFLICT(business_id, day, kind) DO UPDATE SET calls = calls + 1', businessId, day, kind),
+  /** Faqat tokenlar yoziladigan qator (masalan, Gemini zaxirasi — so'rovlar soni asl ish turida sanaladi) */
+  ensure: (businessId: string, day: string, kind: string) =>
+    run('INSERT INTO ai_usage (business_id, day, kind, calls) VALUES (?, ?, ?, 0) ON CONFLICT(business_id, day, kind) DO NOTHING', businessId, day, kind),
   tokens: (businessId: string, day: string, kind: string, t: { input: number; output: number; cacheRead: number; cacheWrite: number }) =>
     run('UPDATE ai_usage SET input = input + ?, output = output + ?, cache_read = cache_read + ?, cache_write = cache_write + ? WHERE business_id = ? AND day = ? AND kind = ?', t.input, t.output, t.cacheRead, t.cacheWrite, businessId, day, kind),
   calls: (businessId: string, day: string, kind: string) => one('SELECT calls FROM ai_usage WHERE business_id = ? AND day = ? AND kind = ?', r => Number(r.calls), businessId, day, kind) ?? 0,
