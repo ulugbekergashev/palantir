@@ -12,12 +12,8 @@ If port = "" Then port = "3200"
 url = "http://localhost:" & port
 
 ' Nazoratchi o'zi tekshiradi: ishlab turgan bo'lsa ikkinchisi darhol chiqib ketadi. Windows vazifasi "Palantir" bor bo'lsa - shu
-' vazifa orqali: foydalanuvchi seansidan tashqarida, Windows'dan chiqilganda o'chmaydi (H10)
-If shell.Run("schtasks.exe /Query /TN Palantir", 0, True) = 0 Then
-  shell.Run "schtasks.exe /Run /TN Palantir", 0, True
-Else
-  shell.Run "cmd /c node scripts\supervise.mjs", 0, False
-End If
+' vazifa orqali: foydalanuvchi seansidan tashqarida, Windows'dan chiqilganda o'chmaydi (H10). Vazifa yo'q yoki o'chirilgan - shu seansda
+If shell.Run("schtasks.exe /Run /TN Palantir", 0, True) <> 0 Then shell.Run "cmd /c node scripts\supervise.mjs", 0, False
 
 ready = False
 For i = 1 To 60

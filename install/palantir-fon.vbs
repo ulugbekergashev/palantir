@@ -9,12 +9,8 @@ Set shell = CreateObject("WScript.Shell")
 root = fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))
 shell.CurrentDirectory = root
 ' Windows vazifasi "Palantir" bor bo'lsa (administrator bilan o'rnatilgan) - qo'lda yoqish ham shu vazifa orqali: Palantir
-' foydalanuvchi seansidan tashqarida ishlaydi va Windows'dan chiqilganda o'chmaydi (H10). Vazifa yo'q - avvalgidek shu seansda
-If shell.Run("schtasks.exe /Query /TN Palantir", 0, True) = 0 Then
-  shell.Run "schtasks.exe /Run /TN Palantir", 0, True
-Else
-  shell.Run "cmd /c node scripts\supervise.mjs", 0, False
-End If
+' foydalanuvchi seansidan tashqarida ishlaydi va Windows'dan chiqilganda o'chmaydi (H10). Vazifa yo'q yoki o'chirilgan - shu seansda
+If shell.Run("schtasks.exe /Run /TN Palantir", 0, True) <> 0 Then shell.Run "cmd /c node scripts\supervise.mjs", 0, False
 If AutoLogonJustNow() Then shell.Run "rundll32.exe user32.dll,LockWorkStation", 0, False
 
 ' Avtomatik kirish yoqilgan va kompyuter 5 daqiqadan kam oldin yongan - demak bu kirishni odam emas, Windows qildi
