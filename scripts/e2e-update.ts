@@ -14,7 +14,8 @@
  *   8) AI bilan ishlaydigan oddiy nashr — o'rnatiladi;
  *   9) ovoz xizmati kutubxonalari (tgvoice/requirements.txt) o'zgargan nashr — Python'ga o'rnatiladi (soxta pip), keyin yangilanadi;
  *  10) kutubxona o'rnatilmaydi — yangilash bekor, eski kutubxonalar qaytariladi, ishlab turgan nashr qoladi;
- *  11) kutubxonalar o'rnatildi, lekin nashr ishga tushmaydi — eskisiga qaytariladi, kutubxonalar ham eskisi.
+ *  11) kutubxonalar o'rnatildi, lekin nashr ishga tushmaydi — eskisiga qaytariladi, kutubxonalar ham eskisi;
+ *  12) papka band (Windows ko'chira olmaydi) — almashtirish yarim yo'lda: almashganlari qaytariladi, eski nashr qayta yonadi; keyin — o'tadi.
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
@@ -249,6 +250,22 @@ try {
   const calls11 = pipCalls().slice(before11);
   ok("eskisiga qaytarildi (kod 3): 9.0.9, kutubxonalar ham eskisi", broken11.code === 3 && now11?.version === '9.0.9' && holat().result === 'qaytarildi'
     && /eski kutubxonalar tiklandi/.test(holat().reason ?? '') && calls11.length === 2 && /yana-kutubxona/.test(calls11[0]) && /yangi-kutubxona==1\.0/.test(calls11[1]), `${holat().reason} | ${JSON.stringify(calls11)}`);
+
+  console.log("\n# 12. Papka band — almashtirish yarim yo'lda yiqiladi (2026-11-16, C: da: WSL jarayoni tgvoice'da turgan)");
+  // tgvoice'ni boshqa jarayon band qiladi (joriy papkasi shu yerda — Windows uni ko'chira olmaydi); undan oldingi ildizlar almashib ulguradi
+  release('v12', '9.0.12', () => cpSync(join(REPO, 'server', 'index.ts'), join(SRC, 'server', 'index.ts')));
+  const holder = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1e6)'], { cwd: join(APP, 'tgvoice'), stdio: 'ignore' });
+  const busy = await update('v12');
+  const now12 = await until("9.0.9 qayta yondi", async () => { const j = await appHealth(); return j?.version === '9.0.9' ? j : null; }, 60_000);
+  const filesVersion = () => (JSON.parse(readFileSync(join(APP, 'files.json'), 'utf8')) as { version: string }).version;
+  ok("bekor (kod 1): almashgan ildizlar qaytarildi, eski nashr qayta yondi (Palantir o'chiq qolmaydi), holat — haqiqati bilan",
+    busy.code === 1 && now12?.version === '9.0.9' && filesVersion() === '9.0.9' && holat().result === 'xato'
+    && /almashtirib bo'lmadi/.test(holat().reason ?? '') && /eski fayllar tiklandi/.test(holat().reason ?? ''), `${busy.code} | ${holat().reason}`);
+  ok("ish fayllari joyida (tgvoice/.venv, shahar raqami sozlamasi)", readFileSync(join(APP, 'tgvoice', '.venv', 'belgi.txt'), 'utf8') === 'venv' && existsSync(join(APP, 'tgvoice', 'asterisk', 'pjsip_shahar.conf')));
+  holder.kill();
+  await sleep(500);
+  const free = await update('v12');
+  ok("papka bo'shagach — keyingi urinishda yangilandi (9.0.12)", free.code === 0 && (await appHealth())?.version === '9.0.12' && holat().result === 'ok', free.out.split('\n').slice(-2).join(' | '));
 } catch (e) {
   ok(`sinov to'xtab qoldi: ${(e as Error).message}`, false);
 } finally {

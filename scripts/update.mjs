@@ -245,19 +245,62 @@ function carryOver(backup, rel, tracked, moved) {
   }
 }
 
+/** Almashtirish yarim yo'lda yiqildi (papka band — EBUSY va h.k.): qaysi ildizlar va ish fayllari allaqachon ko'chgani bilan */
+class SwapError extends Error {
+  constructor(cause, done, moved) { super(cause.message); this.done = done; this.moved = moved; }
+}
+
+/**
+ * Ildizlar almashtiriladi. Yiqilsa — SwapError (rollbackSwap shu bilan hammasini eski holiga qaytaradi): avval bir qismi almashib,
+ * qolgani eski qolardi — dastur ishga tushmas, nazoratchi ham yoqilmasdi (C: da 2026-11-16 bo'lgan)
+ */
 function swap(staging, roots, tracked, backup) {
   rmSync(backup, { recursive: true, force: true });
   mkdirSync(backup, { recursive: true });
-  const moved = [];
-  for (const r of roots) {
-    if (existsSync(join(ROOT, r))) move(join(ROOT, r), join(backup, r));
-    if (existsSync(join(staging, r))) move(join(staging, r), join(ROOT, r));
-  }
-  for (const r of roots) {
-    if (WHOLE.has(r) || !existsSync(join(backup, r)) || !statSync(join(backup, r)).isDirectory()) continue;
-    carryOver(backup, r, tracked, moved);
+  const moved = [], done = [];
+  try {
+    for (const r of roots) {
+      const hadOld = existsSync(join(ROOT, r));
+      if (hadOld) move(join(ROOT, r), join(backup, r));
+      done.push({ root: r, hadOld });
+      if (existsSync(join(staging, r))) move(join(staging, r), join(ROOT, r));
+    }
+    for (const r of roots) {
+      if (WHOLE.has(r) || !existsSync(join(backup, r)) || !statSync(join(backup, r)).isDirectory()) continue;
+      carryOver(backup, r, tracked, moved);
+    }
+  } catch (e) {
+    throw new SwapError(e, done, moved);
   }
   return moved;
+}
+
+/** Yarim yo'lda qolgan almashtirishni qaytaradi: ish fayllari eski joyiga, yangi ildizlar o'chadi, eskilari qaytadi (teskari tartibda) */
+function rollbackSwap(err, backup) {
+  for (const sub of err.moved) if (existsSync(join(ROOT, sub))) move(join(ROOT, sub), join(backup, sub));
+  for (const { root, hadOld } of [...err.done].reverse()) {
+    rmSync(join(ROOT, root), { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+    if (hadOld) move(join(backup, root), join(ROOT, root));
+  }
+}
+
+/**
+ * Telefon liniyasining WSL'i (Asterisk, sip_live.py yoqiq tutadigan jarayon) ichida joriy papkasi shu dastur papkasida bo'lgan jarayonlar
+ * to'xtatiladi: Windows ularning papkasini ko'chira olmaydi (EBUSY). Telefon xizmati nazoratchi bilan birga qayta yonadi
+ */
+function releaseWslHandles() {
+  if (process.platform !== 'win32') return;
+  const neutral = { cwd: process.env.SystemRoot || undefined, windowsHide: true, timeout: 30_000 };
+  const list = spawnSync('wsl.exe', ['-l', '-q'], { ...neutral, encoding: 'utf16le' });
+  if (list.status !== 0) return;
+  const have = String(list.stdout).replace(/\0/g, '').split(/\r?\n/).map(x => x.trim());
+  const distro = process.env.WSL_DISTRO || (have.includes('Palantir') ? 'Palantir' : have.includes('Cerebro') ? 'Cerebro' : ''); // eski nom
+  if (!distro || !have.includes(distro)) return;
+  const linuxRoot = '/mnt/' + ROOT[0].toLowerCase() + ROOT.slice(2).replace(/\\/g, '/');
+  const script = 'cd / && for p in /proc/[0-9]*; do c=$(readlink "$p/cwd" 2>/dev/null) || continue; case "$c" in "$1"|"$1"/*) n=$(basename "$p"); kill "$n" 2>/dev/null && echo "$n";; esac; done';
+  const r = spawnSync('wsl.exe', ['-d', distro, '-u', 'root', '--exec', 'sh', '-c', script, 'sh', linuxRoot], { ...neutral, encoding: 'utf8' });
+  const killed = String(r.stdout ?? '').trim().split(/\s+/).filter(Boolean);
+  if (killed.length) log(`WSL (${distro}): dastur papkasini band qilgan ${killed.length} ta jarayon to'xtatildi`);
 }
 
 function unswap(roots, backup, moved) {
@@ -352,7 +395,21 @@ async function main() {
       log('kutubxonalar o\'rnatildi');
     }
     const backup = join(WORK, 'oldingi');
-    const moved = swap(staging, roots, tracked, backup);
+    releaseWslHandles();
+    let moved;
+    try {
+      moved = swap(staging, roots, tracked, backup);
+    } catch (e) {
+      // Yarim yo'lda — almashganlari qaytariladi, eski nashr qayta yoqiladi (aks holda klinikada Palantir o'chiq qolardi)
+      let back = 'eski fayllar tiklandi';
+      try { if (e instanceof SwapError) rollbackSwap(e, backup); } catch (r) { back = `eski fayllarni ham tiklab bo'lmadi: ${r.message} — qo'lda: ${backup}`; }
+      back += pipBack();
+      startSupervisor();
+      const reason = `fayllarni almashtirib bo'lmadi: ${e.message}; ${back}`;
+      saveState({ from, to: manifest.version, result: 'xato', reason });
+      log(`yangilash bekor qilindi — ${reason}`);
+      return 1;
+    }
     log(`fayllar almashtirildi (${roots.length} ta ildiz; saqlangan ish fayllari: ${moved.length})`);
     startSupervisor();
     if (await healthy(PORT, manifest.version, HEALTHY_MS, HEALTHY_STREAK, needs)) {
