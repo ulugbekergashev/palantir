@@ -68,6 +68,8 @@ export interface PhoneLine {
   admin: { server: string; login: string; password: string | null };
   /** Telefondagi AI Gemini orqali gapiradi — kalitsiz qo'ng'iroqqa AI javob bermaydi */
   geminiKey: boolean;
+  /** AI administrator jamoada — yo'q bo'lsa qo'ng'iroqqa faqat administrator javob beradi */
+  aiOn: boolean;
   /** reason — raqam ulanmagan bo'lsa, nega (Asterisk jurnalidan, odam tilida) */
   status: { asterisk: boolean; trunk: 'none' | 'registered' | 'failed' | 'unknown'; phones: string[]; ai: boolean | null; note: string | null; reason?: string | null };
 }

@@ -58,6 +58,9 @@ export function lineLogicTests(ok: Harness['ok']): void {
   ok("liniya: «kerak bo'lsa o'tkazadi» — qo'ng'iroqni ish vaqtida ham AI oladi", routeNow(SOFT, at('2026-10-19', '12:00')) === 'ai');
   ok("liniya: ish vaqtida AI administratorga o'tkaza oladi (20 soniya)", transferNow(SOFT, at('2026-10-19', '12:00')) === 20);
   ok("liniya: kechasi va dam olish kuni o'tkazilmaydi", transferNow(SOFT, at('2026-10-19', '21:00')) === null && transferNow(SOFT, at('2026-10-25', '12:00')) === null);
+  ok("A3: AI administrator jamoada yo'q — har qanday rejimda faqat administrator (kamida 45 s), kechasi ham; AI'ga o'tmaydi",
+    routeNow({ ...DAY, mode: 'ai' }, at('2026-10-19', '12:00'), false) === 'human:45' && routeNow(DAY, at('2026-10-19', '23:00'), false) === 'human:45'
+      && routeNow({ ...DAY, ring: 60 }, at('2026-10-19', '12:00'), false) === 'human:60');
   ok("liniya: boshqa rejimlarda AI o'tkazmaydi", transferNow(DAY, at('2026-10-19', '12:00')) === null && transferNow({ ...DAY, mode: 'ai' }, at('2026-10-19', '12:00')) === null);
 
   console.log("\n# Telefon liniyasi: nazorat (egasiga xabar)");

@@ -3,6 +3,7 @@
  *   ai          — har doim AI;
  *   ai_transfer — har doim AI; ish vaqtida AI javob bera olmasa (yoki mijoz odam so'rasa) — administratorga o'tkazadi;
  *   day_admin   — ish vaqtida avval administrator, qolgan paytda AI.
+ * AI administrator (Qabulxona) jamoadan olib tashlangan bo'lsa — rejimdan qat'i nazar faqat administrator: «human:45» (A3)
  */
 export type LineMode = 'ai' | 'ai_transfer' | 'day_admin';
 export interface LineRouting { mode: LineMode; ring: number; days: number[]; from: string; to: string }
@@ -17,8 +18,15 @@ function inHours(r: LineRouting, at: Date): boolean {
   return r.days.includes(day) && (a <= b ? m >= a && m < b : m >= a || m < b);
 }
 
-/** Hozir kim javob beradi (sof funksiya): «admin:20» — avval administrator 20 soniya, «ai» — darhol AI */
-export function routeNow(r: LineRouting, at: Date): string {
+/** AI yo'q paytda administrator telefoni shuncha jiringlaydi; ko'tarilmasa — uzr va «qayta qo'ng'iroq qiling» so'rovi */
+export const HUMAN_RING_SEC = 45;
+
+/**
+ * Hozir kim javob beradi (sof funksiya): «admin:20» — avval administrator 20 soniya (keyin AI), «ai» — darhol AI,
+ * «human:45» — faqat administrator (AI jamoada yo'q; ko'tarmasa — AI emas, «qayta qo'ng'iroq qiling» so'rovi)
+ */
+export function routeNow(r: LineRouting, at: Date, aiOn = true): string {
+  if (!aiOn) return `human:${Math.max(r.ring, HUMAN_RING_SEC)}`;
   return r.mode === 'day_admin' && inHours(r, at) ? `admin:${r.ring}` : 'ai';
 }
 

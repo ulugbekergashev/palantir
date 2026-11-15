@@ -181,7 +181,8 @@ export function mountVoice(app: Express, { asBiz, bad }: Deps): void {
   app.get('/api/voice/route', asAgent((req, res, biz) => {
     const phone = MissedSchema.safeParse(req.query);
     if (phone.success) markLineCall(biz.id, phone.data.phone);
-    res.type('text/plain').send(routeNow(lineRouting(biz.id), new Date()));
+    // Qabulxona (AI administrator) jamoadan olib tashlangan — telefonda ham AI javob bermaydi (A3)
+    res.type('text/plain').send(routeNow(lineRouting(biz.id), new Date(), crewWorks(biz, 'qabulxona')));
   }));
   // AI qabulxona (sip_live.py): hozir administratorga o'tkaza oladimi — ish vaqtida «ai_transfer» rejimida necha soniya jiringlashi, bo'lmasa null
   app.get('/api/voice/handoff', asAgent((_req, res, biz) => { res.json({ ring: transferNow(lineRouting(biz.id), new Date()) }); }));

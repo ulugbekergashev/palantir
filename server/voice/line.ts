@@ -14,6 +14,7 @@ import { networkInterfaces } from 'node:os';
 import { join, resolve } from 'node:path';
 import { connections, type BusinessRow } from '../db';
 import { env } from '../env';
+import { crewWorks } from '../../src/lib/crew';
 import { open, seal } from '../secret';
 
 import { LINE_MODES, type LineMode, type LineRouting } from './route';
@@ -35,6 +36,8 @@ export interface LineView {
   admin: { server: string; login: string; password: string | null };
   /** Telefondagi AI Gemini Live orqali gapiradi (tgvoice/sip_live.py): kalitsiz qo'ng'iroqqa AI javob bermaydi — administratorga o'tadi */
   geminiKey: boolean;
+  /** AI administrator (Qabulxona) jamoada: yo'q bo'lsa qo'ng'iroqqa faqat administrator javob beradi (A3) */
+  aiOn: boolean;
   /** Asterisk holati: ishlayaptimi, shahar raqami ro'yxatdan o'tganmi, qaysi telefonlar ulangan */
   /** ai — AI ovoz xizmati qo'ng'iroq qabul qilyaptimi (null — tekshirilmadi); reason — raqam ulanmagan bo'lsa, nega (Asterisk jurnalidan) */
   status: { asterisk: boolean; trunk: TrunkState; phones: string[]; ai: boolean | null; note: string | null; reason?: string | null };
@@ -178,6 +181,7 @@ export async function lineView(biz: BusinessRow, withStatus = true): Promise<Lin
     routing: lineRouting(biz.id),
     admin: { server: lanIp(), login: 'admin', password: s.admin ?? null },
     geminiKey: !!env.geminiKey,
+    aiOn: crewWorks(biz, 'qabulxona'),
     status: withStatus ? await lineStatus(authOf(a)) : { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: null },
   };
 }

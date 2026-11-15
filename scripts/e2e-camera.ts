@@ -107,7 +107,7 @@ export function cameraLogicTests(ok: Ok): void {
 
 /** Kamera va ovozli agent yo'llari: haqiqiy server, soxta DentaCRM */
 export async function cameraApiTests(h: Harness): Promise<void> {
-  const { ok, api, token, otherToken } = h;
+  const { ok, api, base, token, otherToken } = h;
   console.log("\n# Kamera va ovozli agent: yo'llar");
   ok('kamera: kirishsiz — 401', (await api('/api/cameras')).status === 401);
   const made = await api('/api/cameras', { token, body: { name: 'Kabinet 1' } });
@@ -171,6 +171,9 @@ export async function cameraApiTests(h: Harness): Promise<void> {
   const offBook = await api('/api/voice/book', { token: key, body: { doctorId: 'd1', date: '2026-10-12', time: '10:00', name: 'Bobur Karimov', phone: '901234567' } });
   ok("ovoz: Qabulxona olib tashlangan — jadval va qabul yo'q (handoff)", offSlots.status === 409 && offSlots.json.code === 'handoff' && offBook.status === 409 && offBook.json.code === 'handoff',
     `${offSlots.status} ${offSlots.json.code} / ${offBook.status} ${offBook.json.code}`);
+  // A3: liniyaga kelgan qo'ng'iroqni AI umuman olmaydi — Asterisk faqat administratorni jiringlatadi
+  const offRoute = await fetch(`${base}/api/voice/route?phone=998901234567`, { headers: { authorization: `Bearer ${key}` } });
+  ok("A3: Qabulxona olib tashlangan — Asterisk'ka «faqat administrator» (AI qo'ng'iroqni olmaydi)", /^human:\d+$/.test(await offRoute.text()));
   await api('/api/crew', { token, body: { member: 'qabulxona', on: true } });
   ok("ovoz: Qabulxona qaytdi — jadval yana keladi", (await api('/api/voice/slots', { token: key })).status === 200);
 
