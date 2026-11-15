@@ -26,6 +26,7 @@ import { chatGroups, memberGroups, runTool, toolDefinitions, type ToolCtx, type 
 import { TEAM_NAME, crewHas, type CrewMember } from '../src/lib/crew';
 import { orders } from './orders/store';
 import { SubscriptionError, subscriptionOn, type SubscriptionReason } from './subscription/engine';
+import { currentLane, laneClosedUntil, pausedText, withLane } from './subscription/pressure';
 import { ownerTurn } from './subscription/owner';
 import { companyContext } from './company';
 import { crewFromData } from './crew';
@@ -245,6 +246,7 @@ const textOf = (content: Anthropic.Beta.BetaContentBlock[]) =>
 const SUBSCRIPTION_REASONS: Record<SubscriptionReason, string> = {
   auth: "Claude obunasiga kirilmagan: shu kompyuterda terminalda `claude` ni ochib /login qiling (yoki CLAUDE_CODE_OAUTH_TOKEN qo'ying).",
   limit: 'Claude obunasining limiti tugadi — limit yangilangach davom etamiz.',
+  paused: 'Claude obunasi limitiga yaqin — bu ish limit yangilangach ishlaydi.',
   unsupported: "Bu ish obunada ishlamaydi — buning uchun API kalit (ANTHROPIC_API_KEY) kerak.",
   timeout: "Obuna javobi juda uzoq kutildi — ish chala qolgan bo'lishi mumkin. Qisqaroq qilib qayta yozing.",
   failed: "Obuna orqali javob olinmadi. Birozdan keyin qayta yozing.",
@@ -252,7 +254,8 @@ const SUBSCRIPTION_REASONS: Record<SubscriptionReason, string> = {
 
 /** Egasiga tushunarli sabab. Hisob va kalit muammolari «band» deb yashirilmaydi: ularni kutish tuzatmaydi */
 export function friendlyError(e: unknown): string {
-  if (e instanceof SubscriptionError) return SUBSCRIPTION_REASONS[e.reason];
+  // «Keyinroq» xabarida aniq vaqt bor (pressure.ts pausedText)
+  if (e instanceof SubscriptionError) return e.reason === 'paused' && e.message ? e.message : SUBSCRIPTION_REASONS[e.reason];
   if (e instanceof AiLimitError) return `Bugungi AI chegarasi tugadi (kuniga ${e.limit} ta so'rov). Ertaga davom etamiz; chegarani administrator oshirishi mumkin.`;
   if (e instanceof Anthropic.APIConnectionError) return "AI bilan aloqa yo'q (internetni tekshiring). Birozdan keyin qayta yozing.";
   if (e instanceof Anthropic.APIError) {
@@ -323,8 +326,9 @@ export function ask(bizId: string, channel: ChatEntry['channel'], text: string, 
     } catch (e) {
       const partial = e instanceof PartialError ? e : null;
       const cause = partial ? partial.cause : e;
-      // Jurnalga qisqa va aniq: holat kodi va xizmat aytgan sabab (kalit yoki so'rov matni yozilmaydi)
-      console.error('[ai]', cause instanceof Anthropic.APIError ? `${cause.status ?? 'aloqa'}: ${cause.message}` : cause);
+      // Jurnalga qisqa va aniq: holat kodi va xizmat aytgan sabab (kalit yoki so'rov matni yozilmaydi). Limitni tejash — xato emas
+      if (cause instanceof SubscriptionError && cause.reason === 'paused') console.log('[ai] limitga yaqin — ish keyinroqqa qoldi');
+      else console.error('[ai]', cause instanceof Anthropic.APIError ? `${cause.status ?? 'aloqa'}: ${cause.message}` : cause);
       const reason = friendlyError(cause);
       return finish(partial?.artifacts.length ? `Ish qisman bajarildi. ${reason}` : reason, partial?.artifacts ?? [], !partial?.artifacts.length);
     }
@@ -336,8 +340,12 @@ async function viaSubscription(biz: BusinessRow, userText: string, opts: { photo
   const crm = crmConnected(biz.id);
   const set = toolsetFor(biz, opts.as);
   const ctx: ToolCtx = { biz, artifacts: [], fromPhoto: !!opts.photo, unattended: !!opts.unattended || !!opts.as, ownerSaid: opts.said, ...(opts.as ? { as: opts.as } : {}) };
+  // Obuna limiti (pressure.ts): egasining savoli — live, jadvaldagi topshiriq — fondagi ish. Ichidagi asboblar (video, hujjat) shu navbatda
+  const lane = currentLane() ?? (opts.unattended ? 'background' : 'live');
+  const closed = laneClosedUntil(lane);
+  if (closed !== null) throw new SubscriptionError('paused', pausedText(lane, closed));
   try {
-    const text = await ownerTurn({ biz, setKey: set.key, groups: set.groups, crm, userText, phone: !!opts.phone, idleMs: IDLE_MS, ctx, buildSystem: b => buildSystem(b, opts.as), ephemeral: !!opts.as });
+    const text = await withLane(lane, () => ownerTurn({ biz, setKey: set.key, groups: set.groups, crm, userText, phone: !!opts.phone, idleMs: IDLE_MS, ctx, buildSystem: b => buildSystem(b, opts.as), ephemeral: !!opts.as }));
     return { text, artifacts: ctx.artifacts };
   } catch (e) {
     throw ctx.artifacts.length ? new PartialError(e, ctx.artifacts) : e;

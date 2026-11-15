@@ -58,5 +58,26 @@ if (jpeg?.length) {
   assert.match(seen, /qizil|red|красн/i, "rasm ko'rilmadi");
 } else console.log("\n5) ffmpeg yo'q — rasm tekshiruvi o'tkazib yuborildi");
 
+// Obuna limiti: haqiqiy javoblardan ulush va yangilanish vaqti o'qildimi (subscription/pressure.ts)
+const { busiestShare, laneOpen, notePressure, resetPressure } = await import('../server/subscription/pressure');
+const share = busiestShare();
+console.log(`\n6) obuna limiti: eng band oyna ${share === null ? "noma'lum" : `${Math.round(share * 100)}%`} · fondagi ishlar ${laneOpen('background') ? 'ishlaydi' : 'kutyapti'}`);
+assert.notEqual(share, null, "obuna javobidan limit ulushi o'qilmadi");
+
+// Limit tugaganda bemorga javob Gemini zaxirasida (kalit .env da bo'lsa; faqat GEMINI_API_KEY o'qiladi)
+const { existsSync, readFileSync } = await import('node:fs');
+const { parseEnv } = await import('node:util');
+const { env } = await import('../server/env');
+env.geminiKey ||= (existsSync('.env') ? parseEnv(readFileSync('.env', 'utf8')).GEMINI_API_KEY : '') ?? '';
+if (env.geminiKey) {
+  notePressure({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: Math.floor(Date.now() / 1000) + 3600 });
+  const t5 = Date.now();
+  const g = await decide(biz, lead, thread);
+  console.log(`\n7) ${((Date.now() - t5) / 1000).toFixed(1)} s → limit tugagan, Gemini (${env.geminiTextModel}) javobi: ${g.action} — ${g.reply || g.question || g.noteForOwner}`);
+  assert.ok(['reply', 'ask_owner', 'ignore'].includes(g.action), `kutilmagan qaror: ${g.action}`);
+  resetPressure();
+} else console.log("\n7) GEMINI_API_KEY yo'q — Gemini zaxirasi tekshiruvi o'tkazib yuborildi");
+
 console.log('\nJonli tekshiruv o\'tdi');
-process.exit(0);
+// process.exit emas: Windows'da fetch ulanishi yopilayotganda chiqilsa Node yiqiladi (UV_HANDLE_CLOSING) — jarayon o'zi tugaydi
+process.exitCode = 0;

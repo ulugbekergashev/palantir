@@ -120,6 +120,8 @@ export const env = {
   /** Ovozli eslatma uchun VoiceLab ovozi (id). Berilmasa — o'zbek ovozlari ichidan «Lola» */
   voicelabVoice: process.env.VOICELAB_TTS_VOICE || '',
   geminiKey: process.env.GEMINI_API_KEY || '',
+  /** Claude obunasi limitiga yetganda bemorlarga javob, qo'ng'iroq tahlili va kamera shu Gemini modelida davom etadi (server/gemini/think.ts) */
+  geminiTextModel: process.env.GEMINI_TEXT_MODEL || 'gemini-3.8-flash',
   groqKey: process.env.GROQ_API_KEY || '',
   /** Kalitni tekshirish manzillari (ulash ustasi). Faqat sinov uchun almashtiriladi */
   anthropicRoot: (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, ''),

@@ -164,7 +164,7 @@ await check("har bir Palantir asbobi MCP asbobiga aylanadi va natija runTool orq
 });
 
 const { extrasPaused, extrasPausedUntil, notePressure, resetPressure } = await import('../server/subscription/pressure');
-await check("B5: limitga yaqin (ogohlantirish yoki 80%) — qo'shimchalar yangilanguncha to'xtaydi; 50% — ishlaydi; yangilangach — yana ishlaydi", () => {
+await check("B5: limitga yaqin (ogohlantirish yoki 85%) — qo'shimchalar yangilanguncha to'xtaydi; 50% — ishlaydi; yangilangach — yana ishlaydi", () => {
   const now = Date.parse('2026-11-15T10:00:00Z'), reset = Math.floor((now + 2 * 3_600_000) / 1000);
   resetPressure();
   assert.equal(extrasPaused(now), false);
@@ -187,5 +187,193 @@ await check("B5: obuna javobidagi limit belgisi bosim holatiga yoziladi", () => 
   resetPressure();
 });
 
+// ─── Limitni oxirigacha ishlatish (navbatlar) va Gemini zaxirasi ──────────────────
+
+const { busiestShare, currentLane, laneClosedUntil, laneOpen, pausedText, withLane } = await import('../server/subscription/pressure');
+const HOUR = 3_600_000;
+/** Obunaning haqiqiy javobi shaklida (2026-11-16 da jonli obunadan olingan): ulush — unifiedWindows ichida */
+const event = (five: number, week: number, now: number, weekLeftH = 29, status: 'allowed' | 'rejected' = 'allowed') => ({
+  status, resetsAt: Math.floor((now + 2 * HOUR) / 1000), rateLimitType: 'five_hour' as const,
+  unifiedWindows: { five_hour: { utilization: five, resetsAt: Math.floor((now + 2 * HOUR) / 1000), status }, seven_day: { utilization: week, resetsAt: Math.floor((now + weekLeftH * HOUR) / 1000), status: 'allowed' } },
+});
+
+await check("haqiqiy obuna javobi (unifiedWindows): ikkala oyna o'qiladi, 17% / 61% da hamma navbat ochiq", () => {
+  const now = Date.parse('2026-11-16T10:00:00Z');
+  resetPressure();
+  notePressure(event(0.17, 0.61, now) as never, now);
+  assert.equal(busiestShare(now), 0.61);
+  for (const lane of ['background', 'heavy', 'live', 'patient'] as const) assert.equal(laneOpen(lane, now), true, lane);
+});
+
+await check("navbatlar: 86% — fondagi to'xtaydi, 93% — katta ishlar ham, 98% — egasining savollari ham; bemorlar — faqat limit tugaganda", () => {
+  const now = Date.parse('2026-11-16T10:00:00Z'), reset = Math.floor((now + 2 * HOUR) / 1000) * 1000;
+  const open = (five: number, status: 'allowed' | 'rejected' = 'allowed') => {
+    resetPressure();
+    notePressure(event(five, 0.3, now, 100, status) as never, now);
+    return (['background', 'heavy', 'live', 'patient'] as const).map(l => laneOpen(l, now));
+  };
+  assert.deepEqual(open(0.84), [true, true, true, true]);
+  assert.deepEqual(open(0.86), [false, true, true, true]);
+  assert.deepEqual(open(0.93), [false, false, true, true]);
+  assert.deepEqual(open(0.98), [false, false, false, true]);
+  assert.deepEqual(open(1, 'rejected'), [false, false, false, false]);
+  assert.equal(laneClosedUntil('live', now), reset, 'qachon ochilishi — oyna yangilanishi');
+  assert.equal(laneOpen('live', reset + 1), true, 'yangilangach — yana ochiq');
+  resetPressure();
+});
+
+await check("haftalik sur'at: hafta boshida 60% ishlatilgan bo'lsa fondagi ishlar kutadi; hafta oxirida qolgan limit fondagi ishlarga beriladi", () => {
+  const now = Date.parse('2026-11-16T10:00:00Z');
+  resetPressure();
+  // 5 kun qoldi (haftaning 29% i o'tdi), 60% ishlatilgan — sur'atdan oldinda
+  notePressure(event(0.2, 0.6, now, 120) as never, now);
+  assert.equal(laneOpen('background', now), false);
+  assert.equal(laneOpen('heavy', now), true, "sur'at faqat fondagi ishlarga");
+  const back = laneClosedUntil('background', now)!;
+  const weekStart = now + 120 * HOUR - 7 * 24 * HOUR;
+  assert.ok(Math.abs(back - (weekStart + 0.5 * 7 * 24 * HOUR)) < 2000, "sur'at yetib oladigan payt");
+  // 10 soat qoldi, 80% — limit baribir yangilanadi: fondagi ishlar ishlasin
+  resetPressure();
+  notePressure(event(0.2, 0.8, now, 10) as never, now);
+  assert.equal(laneOpen('background', now), true);
+  resetPressure();
+});
+
+await check("ogohlantirish (allowed_warning) aniq ulush bilan kelsa — sun'iy 92% qilinmaydi; ulushsiz kelsa — ehtiyot uchun 92%", () => {
+  const now = Date.parse('2026-11-16T10:00:00Z');
+  resetPressure();
+  notePressure({ ...event(0.55, 0.3, now, 100), status: 'allowed_warning' } as never, now);
+  assert.equal(busiestShare(now), 0.55);
+  assert.equal(laneOpen('heavy', now), true);
+  resetPressure();
+  notePressure({ status: 'allowed_warning', rateLimitType: 'five_hour', resetsAt: Math.floor((now + HOUR) / 1000) }, now);
+  assert.equal(laneOpen('heavy', now), false);
+  resetPressure();
+});
+
+await check("server qayta yonganda oxirgi limit holati diskdan o'qiladi", async () => {
+  const { reloadPressure } = await import('../server/subscription/pressure');
+  const now = Date.now();
+  resetPressure();
+  notePressure(event(0.95, 0.4, now, 100) as never, now);
+  reloadPressure();
+  assert.equal(busiestShare(now), 0.95);
+  assert.equal(laneOpen('heavy', now), false);
+  resetPressure();
+  reloadPressure();
+  assert.equal(busiestShare(now), null);
+});
+
+await check("navbat konteksti: ichma-ich — kamroq muhimi qoladi, await'dan keyin ham saqlanadi", async () => {
+  assert.equal(currentLane(), undefined);
+  assert.equal(withLane('background', () => withLane('heavy', () => currentLane())), 'background');
+  assert.equal(withLane('live', () => withLane('heavy', () => currentLane())), 'heavy');
+  assert.equal(await withLane('patient', async () => { await new Promise(r => setTimeout(r, 5)); return currentLane(); }), 'patient');
+});
+
+await check("egasiga «keyinroq» xabari: foiz va Toshkent vaqti; ertaga bo'lsa — sanasi bilan", () => {
+  const now = Date.parse('2026-11-16T10:00:00Z');
+  resetPressure();
+  notePressure(event(0.93, 0.3, now, 100) as never, now);
+  assert.match(pausedText('heavy', Date.parse('2026-11-16T12:30:00Z'), now), /93%.*Bu katta ish 17:30 dan keyin/);
+  assert.match(pausedText('heavy', Date.parse('2026-11-17T01:00:00Z'), now), /17\.11 06:00/);
+  assert.match(friendlyError(new SubscriptionError('paused', pausedText('live', now + HOUR, now))), /limitiga yaqin/);
+  resetPressure();
+});
+
+const { geminiRequest, claudeMessage, GeminiError } = await import('../server/gemini/think');
+await check("Gemini zaxirasi: ko'rsatma, rasm, JSON shakli va chuqurlik o'tadi; asbobli so'rov — yo'q", () => {
+  const schema = { type: 'object', properties: { a: { type: 'string' } } };
+  const body = geminiRequest({
+    model: 'claude-opus-5-5', max_tokens: 500, system: [{ type: 'text', text: 'A' }, { type: 'text', text: 'B' }],
+    output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+    messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'eA==' } }, { type: 'text', text: 'nima?', cache_control: { type: 'ephemeral' } }] }],
+  }, 'gemini-3.8-flash') as Record<string, unknown>;
+  assert.equal(body.model, 'gemini-3.8-flash');
+  assert.equal(body.store, false);
+  assert.equal(body.system_instruction, 'A\n\nB');
+  assert.deepEqual(body.input, [{ type: 'user_input', content: [{ type: 'image', data: 'eA==', mime_type: 'image/jpeg' }, { type: 'text', text: 'nima?' }] }]);
+  assert.deepEqual(body.response_format, { type: 'text', mime_type: 'application/json', schema });
+  assert.deepEqual(body.generation_config, { thinking_level: 'low', max_output_tokens: 500 });
+  assert.throws(() => geminiRequest({ model: 'm', max_tokens: 1, tools: [{ name: 't', input_schema: { type: 'object' } }], messages: [{ role: 'user', content: 'x' }] }), GeminiError);
+});
+
+await check("Gemini javobi Claude javobi ko'rinishida: matn, tokenlar (o'ylash chiqishda); tugallanmagan javob — xato", () => {
+  const m = claudeMessage({ status: 'completed', steps: [{ type: 'thought' }, { type: 'model_output', content: [{ type: 'text', text: '{"a":' }, { type: 'text', text: '"1"}' }] }], usage: { total_tokens: 130, total_input_tokens: 100, total_cached_tokens: 40 } });
+  assert.equal(m.stop_reason, 'end_turn');
+  assert.deepEqual(m.content.map(b => (b.type === 'text' ? b.text : '')), ['{"a":"1"}']);
+  assert.deepEqual(m.usage, { input_tokens: 60, output_tokens: 30, cache_read_input_tokens: 40, cache_creation_input_tokens: 0 });
+  assert.equal(claudeMessage({ status: 'incomplete', steps: [] }).stop_reason, 'max_tokens');
+  assert.throws(() => claudeMessage({ status: 'failed', error: { message: 'x' } }), GeminiError);
+});
+
+// Soxta Gemini: so'rovni yozib oladi va JSON javob qaytaradi
+const { createServer } = await import('node:http');
+const { listen } = await import('./fakes');
+const seen: { key: string; body: Record<string, unknown> }[] = [];
+let geminiDown = false;
+const fakeGemini = createServer(async (req, res) => {
+  const chunks: Buffer[] = [];
+  for await (const c of req) chunks.push(c as Buffer);
+  seen.push({ key: String(req.headers['x-goog-api-key']), body: JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown> });
+  if (geminiDown) { res.writeHead(400, { 'Content-Type': 'application/json', Connection: 'close' }).end(JSON.stringify({ error: { message: 'API key not valid' } })); return; }
+  res.writeHead(200, { 'Content-Type': 'application/json', Connection: 'close' }).end(JSON.stringify({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: '{"reply":"Gemini"}' }] }], usage: { total_tokens: 12, total_input_tokens: 10 } }));
+});
+const geminiUrl = `http://127.0.0.1:${await listen(fakeGemini)}`;
+const { aiProblem, think } = await import('../server/claude');
+const { aiUsage } = await import('../server/serviceStore');
+const { ask } = await import('../server/agent');
+const { iso } = await import('../src/lib/week');
+const zbiz = businesses.create(`zaxira${Date.now()}`, 'x', { name: 'Sinov', ownerName: 'Aziz', industry: 'stomatologiya', phone: '', address: '', contentLang: 'uz', brand: { primary: '#000', accent: '#111' }, offerings: [], team: [] } as never);
+const plain = { model: 'claude-opus-5-5', max_tokens: 100, system: 'S', messages: [{ role: 'user' as const, content: 'salom' }] };
+const textIn = (m: { content: { type: string; text?: string }[] }) => m.content.map(b => b.text ?? '').join('');
+
+await check("limit yopgan navbatda: bemorga javob, qo'ng'iroq tahlili va kamera — Gemini'da (kalit bilan), hisobga yoziladi", async () => {
+  Object.assign(env, { geminiKey: 'gk-1', geminiApiRoot: geminiUrl });
+  const now = Date.now();
+  resetPressure();
+  notePressure(event(1, 0.5, now, 100, 'rejected') as never, now);
+  seen.length = 0;
+  const day = iso(new Date());
+  const before = aiUsage.calls(zbiz.id, day, 'customer');
+  assert.equal(textIn(await think(zbiz.id, 'customer', plain)), '{"reply":"Gemini"}');
+  assert.equal(textIn(await withLane('patient', () => think(zbiz.id, 'owner', plain))), '{"reply":"Gemini"}');
+  assert.equal(textIn(await think(zbiz.id, 'camera', plain)), '{"reply":"Gemini"}');
+  assert.equal(seen.length, 3);
+  assert.equal(seen[0].key, 'gk-1');
+  assert.equal(seen[0].body.model, env.geminiTextModel);
+  assert.equal(aiUsage.calls(zbiz.id, day, 'customer'), before + 1);
+  resetPressure();
+});
+
+await check("limit yopgan navbatda: egasining ishi Gemini'ga ketmaydi — vaqti aytilgan «keyinroq»; kalitsiz bemor — «limit tugadi»", async () => {
+  const now = Date.now();
+  resetPressure();
+  notePressure(event(0.93, 0.3, now, 100) as never, now);
+  seen.length = 0;
+  await assert.rejects(() => withLane('heavy', () => think(zbiz.id, 'owner', plain)), (e: unknown) => e instanceof SubscriptionError && e.reason === 'paused' && /dan keyin/.test(e.message));
+  // Egasining Telegram'dagi gapi (live) 93% da ishlaydi, 98% da — vaqti bilan rad
+  notePressure(event(0.98, 0.3, now, 100) as never, now);
+  const r = await ask(zbiz.id, 'telegram', 'salom');
+  assert.equal(r.failed, true);
+  assert.match(r.text, /limitiga yaqin.*dan keyin/);
+  assert.equal(seen.length, 0, "egasining ishi Gemini'ga ketmadi");
+  notePressure(event(1, 0.5, now, 100, 'rejected') as never, now);
+  // Gemini ham yiqilsa — xom Gemini xatosi emas, «limit tugadi» (nazorat va xodim shuni ko'radi)
+  geminiDown = true;
+  await assert.rejects(() => think(zbiz.id, 'customer', plain), (e: unknown) => e instanceof SubscriptionError && e.reason === 'limit');
+  assert.match(String(aiProblem(zbiz.id)), /limiti tugadi/);
+  geminiDown = false;
+  assert.equal(textIn(await think(zbiz.id, 'customer', plain)), '{"reply":"Gemini"}');
+  assert.equal(aiProblem(zbiz.id), null, 'Gemini javob bergach — muammo tiklandi');
+  Object.assign(env, { geminiKey: '' });
+  await assert.rejects(() => think(zbiz.id, 'customer', plain), (e: unknown) => e instanceof SubscriptionError && e.reason === 'limit');
+  assert.match(String(aiProblem(zbiz.id)), /limiti tugadi/, "kalitsiz ham nazoratga tushadi");
+  resetPressure();
+});
+fakeGemini.closeAllConnections();
+fakeGemini.close();
+
 console.log(failed ? `\n${failed} ta tekshiruv yiqildi` : '\nHammasi o\'tdi');
-process.exit(failed ? 1 : 0);
+// process.exit emas: Windows'da fetch ulanishi yopilayotganda chiqilsa Node yiqiladi (UV_HANDLE_CLOSING) — jarayon o'zi tugaydi
+process.exitCode = failed ? 1 : 0;

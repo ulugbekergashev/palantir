@@ -11,6 +11,7 @@ import { newId, sql, type BusinessRow } from '../db';
 import { env } from '../env';
 import { collectDemand, type DemandData } from './collect';
 import { LIMITS, SCHEMA, shape, stripIds, systemPrompt, type Group, type RawGroup } from './logic';
+import { withLane } from '../subscription/pressure';
 
 export interface Insights {
   days: number; from: string; to: string; createdAt: string;
@@ -56,14 +57,15 @@ export async function analyzeDemand(biz: BusinessRow, days: number, now = new Da
     return few;
   }
   const lang: Lang = biz.profile.contentLang === 'ru' ? 'ru' : 'uz';
-  const res: Anthropic.Beta.BetaMessage = await think(biz.id, 'owner', {
+  // Katta ish navbati (subscription/pressure.ts); haftalik jadvaldagisi — fondagi ish (scheduler.ts)
+  const res: Anthropic.Beta.BetaMessage = await withLane('heavy', () => think(biz.id, 'owner', {
     model: env.aiModel,
     max_tokens: 12_000,
     system: systemPrompt(lang),
     messages: [{ role: 'user', content: `Business: ${biz.profile.name} (${biz.profile.industry || 'industry not set'})\nPeriod: ${range.from} — ${range.to}\n\n<items>\n${data.items.map(i => `[${i.id}] ${i.text}`).join('\n')}\n</items>` }],
     thinking: { type: 'adaptive', display: 'omitted' },
     output_config: { effort: 'high', format: { type: 'json_schema', schema: SCHEMA } },
-  });
+  }));
   if (res.stop_reason === 'refusal') throw new Error("Tahlil qilinmadi (model rad etdi)");
   const text = res.content.flatMap(b => (b.type === 'text' ? [b.text] : [])).join('');
   const raw = JSON.parse(text) as { headline?: string; themes?: RawGroup[]; unanswered?: RawGroup[]; objections?: RawGroup[]; actions?: { title?: string; why?: string }[] };

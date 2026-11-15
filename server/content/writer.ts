@@ -12,6 +12,7 @@ import type { BusinessRow } from '../db';
 import { env } from '../env';
 import { companyContext } from '../company';
 import { ContentError, MAX_DRAFT } from './store';
+import { withLane } from '../subscription/pressure';
 import type { SourcePost } from './telegram';
 
 export interface DraftText { text: string; sourceUrl: string | null }
@@ -76,7 +77,8 @@ const textOf = (res: Anthropic.Beta.BetaMessage) =>
 
 /** Oddiy matnli so'rov (obunada ham ishlaydi): brend-buk, reja va video ssenariysi ham shu orqali */
 export async function askText(biz: BusinessRow, system: string, user: string, maxTokens = 8000): Promise<string> {
-  const res = await think(biz.id, 'owner', { model: env.aiModel, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }], output_config: { effort: 'medium' } });
+  // Katta ish navbati (subscription/pressure.ts): obuna limitiga yaqin bo'lsa — yangilangach
+  const res = await withLane('heavy', () => think(biz.id, 'owner', { model: env.aiModel, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }], output_config: { effort: 'medium' } }));
   if (res.stop_reason === 'max_tokens') console.error('[kontent] AI javobi chegarada kesildi:', maxTokens);
   if (res.stop_reason === 'refusal') {
     console.error('[kontent] AI rad etdi');

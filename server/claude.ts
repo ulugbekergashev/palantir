@@ -4,7 +4,9 @@ import { iso } from '../src/lib/week';
 import { type BusinessRow } from './db';
 import { aiUsage, type AiUsageRow } from './serviceStore';
 import { env } from './env';
-import { SubscriptionError, apiKeyPresent, plainRequest, subscriptionMessage, subscriptionOn, type TokenUsage } from './subscription/engine';
+import { SubscriptionError, apiKeyPresent, plainRequest, subscriptionMessage, subscriptionOn, type PlainRequest, type TokenUsage } from './subscription/engine';
+import { currentLane, laneClosedUntil, pausedText, type Lane } from './subscription/pressure';
+import { geminiMessage, geminiReady } from './gemini/think';
 
 let client: Anthropic | null = null;
 export const claude = () => (client ??= new Anthropic({ maxRetries: 2, timeout: 600_000 }));
@@ -33,10 +35,49 @@ type Params = Omit<Anthropic.Beta.MessageCreateParamsNonStreaming, 'betas' | 'fa
 export async function think(bizId: string, kind: AiKind, params: Params, betas: Anthropic.Beta.AnthropicBeta[] = []): Promise<Anthropic.Beta.BetaMessage> {
   if (subscriptionOn()) {
     const req = kind === 'computer' ? null : plainRequest(params);
-    if (req) return ask(bizId, kind, () => subscriptionMessage(req));
+    if (req) return viaSubscription(bizId, kind, params, req);
     if (!apiKeyPresent()) throw new SubscriptionError('unsupported', `Obunada ishlamaydigan so'rov (${kind}) — API kalit yo'q`);
   }
   return ask(bizId, kind, () => claude().beta.messages.create({ ...params, ...FALLBACK, betas: [...FALLBACK.betas, ...betas] }));
+}
+
+/** Ish navbati (subscription/pressure.ts): mijozga javob — har doim bemor navbati; qolgani — chaqiruvchi belgilagan yoki live */
+export const laneOf = (kind: AiKind): Lane => (kind === 'customer' ? 'patient' : currentLane() ?? 'live');
+/** Limit yopganda Gemini'da davom etadigan oddiy ishlar: bemorlarga javob, qo'ng'iroq tahlili (bemor navbati) va kamera */
+export const geminiBackup = (kind: AiKind, lane: Lane): boolean => (lane === 'patient' || kind === 'camera') && geminiReady();
+
+/**
+ * Obuna orqali. Navbati yopiq bo'lsa (limitga yaqin): oddiy ish — darrov Gemini'da, qolgani — vaqti aytilgan «keyinroq» xatosi.
+ * Obuna limit tufayli rad etsa — oddiy ish Gemini'da qayta so'raladi; Gemini ham yiqilsa — asl limit xatosi (nazorat uni ko'rsatsin)
+ */
+function viaSubscription(bizId: string, kind: AiKind, params: Params, req: PlainRequest): Promise<Anthropic.Beta.BetaMessage> {
+  const lane = laneOf(kind), backup = geminiBackup(kind, lane), closed = laneClosedUntil(lane);
+  if (closed !== null) {
+    // Gemini ham yiqilsa — «limit tugadi» (nazorat va xodimga xabar shuni ko'rsatsin), xom Gemini xatosi emas
+    if (backup) return ask(bizId, kind, () => geminiMessage(params).catch(g => {
+      console.error('[ai] Gemini zaxirasi ishlamadi:', (g as Error).message);
+      throw new SubscriptionError('limit', `Claude obunasi limitida, Gemini zaxirasi ham ishlamadi: ${(g as Error).message}`);
+    }));
+    // Bemor navbati faqat limit tugaganda yopiladi: xodimga «limit tugadi — o'zingiz javob bering» (inbox/core.ts whyNoReply)
+    if (lane === 'patient') {
+      const e = new SubscriptionError('limit', "Claude obunasining limiti tugadi, Gemini kaliti yo'q");
+      noteTrouble(bizId, e);
+      throw e;
+    }
+    throw new SubscriptionError('paused', pausedText(lane, closed));
+  }
+  return ask(bizId, kind, async () => {
+    try {
+      return await subscriptionMessage(req);
+    } catch (e) {
+      if (!backup || !(e instanceof SubscriptionError) || e.reason !== 'limit') throw e;
+      console.warn(`[ai] obuna limiti — ${kind} Gemini zaxirasida`);
+      return geminiMessage(params).catch(g => {
+        console.error('[ai] Gemini zaxirasi ham ishlamadi:', (g as Error).message);
+        throw e;
+      });
+    }
+  });
 }
 
 /**
@@ -65,6 +106,12 @@ function troubleOf(e: unknown): string | null {
   if (e instanceof Anthropic.APIError && (e.status === 401 || e.status === 403)) return `Claude kaliti rad etildi — bemorlarga javob to'xtadi. ${SETTINGS_HINT}`;
   if (e instanceof Anthropic.APIError && /credit balance/i.test(e.message)) return "Claude hisobida mablag' tugadi — bemorlarga javob to'xtadi";
   return null;
+}
+
+/** So'rov yuborilmay turib aniqlangan muammo (masalan, limit tugagan va Gemini kaliti yo'q) — nazoratga */
+function noteTrouble(bizId: string, e: unknown): void {
+  const problem = troubleOf(e);
+  if (problem) aiTrouble.set(bizId, { problem, kind: null });
 }
 
 /** Kunlik chegara va hisob: chegaradan oshsa — AiLimitError (so'rov yuborilmaydi); javobdan keyin tokenlar biznes hisobiga yoziladi */

@@ -11,6 +11,7 @@ import { profileText, think } from '../claude';
 import type { BusinessRow } from '../db';
 import { env } from '../env';
 import { transcribeDialog } from '../stt';
+import { withLane } from '../subscription/pressure';
 
 /** Tahlilga beriladigan matnning eng katta hajmi (taxminan 40 daqiqalik suhbat) */
 const MAX_TRANSCRIPT_CHARS = 40_000;
@@ -67,14 +68,15 @@ export async function analyseCall(biz: BusinessRow, audio: Buffer, mime: string,
 export async function analyseTranscript(biz: BusinessRow, text: string, speakers: boolean, call: CallInfo): Promise<CallFindings> {
   const transcript = text.length > MAX_TRANSCRIPT_CHARS ? `${text.slice(0, MAX_TRANSCRIPT_CHARS)}\n[... qisqartirildi]` : text;
   const head = `${call.direction === 'in' ? 'Incoming call from the customer' : 'Outgoing call by the business'}, ${stamp(new Date(call.startedAt)).replace('T', ' ')}, ${Math.round(call.durationSec)} s.`;
-  const res = await think(biz.id, 'owner', {
+  // Bemor navbati (subscription/pressure.ts): limitga yaqin bo'lsa ham to'xtamaydi, tugasa — Gemini zaxirasida
+  const res = await withLane('patient', () => think(biz.id, 'owner', {
     model: env.aiModel,
     max_tokens: 6000,
     system: CALL_SYSTEM + (isClinic(biz.profile.industry) ? MEDICAL_NOTE : ''),
     messages: [{ role: 'user', content: `<business_profile>\n${profileText(biz)}\n</business_profile>\n\n${head}\n\n<call_transcript>\n${transcript.replace(/<\/?call_transcript>/gi, '')}\n</call_transcript>` }],
     thinking: { type: 'adaptive', display: 'omitted' },
     output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-  });
+  }));
   if (res.stop_reason === 'refusal') throw new Error("yozuvni tahlil qilib bo'lmadi");
   if (res.stop_reason === 'max_tokens') throw new Error('tahlil uzilib qoldi (max_tokens)');
   const raw = res.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text').map(b => b.text).join('');

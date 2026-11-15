@@ -17,10 +17,10 @@ import { APP_VERSION } from '../version';
 import { notePressure } from './pressure';
 
 /**
- * auth — obunaga kirilmagan; limit — obuna limiti tugagan; unsupported — bu ish obunada yo'q (API kalit kerak);
- * timeout — javob juda uzoq kutildi; failed — boshqa xato
+ * auth — obunaga kirilmagan; limit — obuna limiti tugagan; paused — limitga yaqin, bu ish keyinroq (xabarda vaqti; pressure.ts);
+ * unsupported — bu ish obunada yo'q (API kalit kerak); timeout — javob juda uzoq kutildi; failed — boshqa xato
  */
-export type SubscriptionReason = 'auth' | 'limit' | 'unsupported' | 'timeout' | 'failed';
+export type SubscriptionReason = 'auth' | 'limit' | 'paused' | 'unsupported' | 'timeout' | 'failed';
 export class SubscriptionError extends Error {
   /** sessionId — xato bo'lgan SDK sessiyasi (unda bajarilgan asboblar bor bo'lishi mumkin: keyingi gap shu sessiyani davom ettiradi) */
   constructor(readonly reason: SubscriptionReason, message: string, readonly sessionId: string | null = null) { super(message); }

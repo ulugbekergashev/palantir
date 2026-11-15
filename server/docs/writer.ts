@@ -19,6 +19,7 @@ import { BRAIN_BUDGET, MAX_FILE_BYTES, SKIP, brainBlock, labelOf, pickBrain, typ
 import { blanks, missingKnown, missingSections, parseDraft, tableMath, textProblems } from './checks';
 import { playbook, reviewSystem, writerSystem, type DocKind } from './playbooks';
 import { fillWords } from './words';
+import { withLane } from '../subscription/pressure';
 
 const MAX_TOKENS = 16_000;
 const THREAD = 12;
@@ -93,7 +94,10 @@ export function autoProblems(md: string, p: Business, kind: DocKind, lang: Lang)
   return [...tableMath(md), ...missingKnown(md, knownFor(p, kind)), ...missingSections(md, playbook(kind).sections), ...textProblems(md, lang)];
 }
 
-export async function writeDocument(biz: BusinessRow, req: DocRequest): Promise<WrittenDoc> {
+/** Hujjat — katta ish navbatida (subscription/pressure.ts): obuna limitiga yaqin bo'lsa — yangilangach */
+export const writeDocument = (biz: BusinessRow, req: DocRequest): Promise<WrittenDoc> => withLane('heavy', () => writeNow(biz, req));
+
+async function writeNow(biz: BusinessRow, req: DocRequest): Promise<WrittenDoc> {
   const pb = playbook(req.kind);
   const today = iso(new Date());
   const facts = factsText(biz, req);

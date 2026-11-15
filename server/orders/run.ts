@@ -14,6 +14,7 @@ import { notifyOwner, notifyOwnerPhoto } from '../inbox/core';
 import { cameraFrame, onCameraFrame, onCameraLook } from '../camera/routes';
 import { waitFrame } from '../camera/waiting';
 import { checkFrame } from './look';
+import { withLane } from '../subscription/pressure';
 import { events, orders } from './store';
 import { SAME_DAY, dueAt, dueEvery } from './logic';
 import { watchFrame } from './watch';
@@ -71,7 +72,8 @@ export async function runLook(biz: BusinessRow, o: AgentOrder, quiet: boolean): 
   for (const cam of list) {
     const frame = await cameraFrame(biz.id, cam.id);
     if (!frame) { said.push(`${cam.name}: kadr olinmadi`); continue; }
-    const r = await checkFrame(biz.id, cam, spec.question, frame);
+    // Jadvaldagi kamera tekshiruvi — fondagi ish: obuna 85% dan oshsa Gemini zaxirasida (claude.ts geminiBackup), limit bemorlarga qoladi
+    const r = await withLane('background', () => checkFrame(biz.id, cam, spec.question, frame));
     said.push(`${cam.name}: ${r.answer}`);
     if (r.alert) {
       events.add(biz.id, { member: 'kuzatuvchi', orderId: o.id, level: 'warn', title: `${cam.name}: ${o.text.slice(0, 120)}`, body: r.answer, cameraId: cam.id }, frame);
