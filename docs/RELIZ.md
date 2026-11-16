@@ -1,5 +1,11 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.14 da yangi
+
+- **AI ish vaqtini o'ylab topmaydi:** ish vaqti saqlanmagan bo'lsa, AI aytgan soatlar bemorga o'zi ketmaydi — avval sizga keladi (oldin DentaCRM jadvalidagi sanalar tufayli ba'zan o'tib ketardi).
+- **Ish bo'yicha yozishmalar:** shaxsiy Telegram'ingizga yozgan yetkazib beruvchi, laboratoriya yoki hamkor — kartada «🤝 Ish bo'yicha». AI ularga javob bermaydi; 3 soat javob bermasangiz bitta eslatma, kechki xabarda kutayotganlar ro'yxati.
+- **Pul — faqat sizda:** AI bank, to'lov, pul o'tkazish va xaridga kirmaydi — bu kodda yopilgan, tugma bilan ham ochilmaydi. Pul haqida faqat ma'lumot va hisobot beradi.
+
 ## Bemorlar uchun
 
 - **Hech bir bemor javobsiz qolmaydi.** Kechasi ham, rasm, ovoz yoki lokatsiya yuborsa ham — javob yoki «yetkazildi» boradi. AI javob bera olmagan bemor panelda «javob kutyapti»da turadi.
