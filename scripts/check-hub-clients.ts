@@ -55,6 +55,32 @@ console.log("\n# Ishlash holati (to'lov nazorati)");
   ok("«active» da matn saqlanmaydi", opened.message === null);
 }
 
+console.log('\n# Tarif (modullar)');
+{
+  const M = '1111-2222-3333-4444', M2 = '5555-6666-7777-8888';
+  ok("tanlanmagan — hammasi (null), «tanlangan» emas", clients.access('t1').modules === null && !clients.access('t1').modulesSet);
+  ok("noma'lum modul yoki noto'g'ri shakl — rad", rejects(() => clients.setModules('t1', { modules: ['bank'] }, 'X'), 'Modullar') && rejects(() => clients.setModules('t1', {}, 'X'), 'Modullar'));
+  const set = clients.setModules('t1', { modules: ['telefon', 'tahlilchi'] }, 'Asoschi', M);
+  ok("saqlanadi (MODULES tartibida), holat o'zgarmaydi", JSON.stringify(set.modules) === '["tahlilchi","telefon"]' && set.modulesSet && set.state === 'active', JSON.stringify(set));
+  clients.setAccess('t1', { state: 'warn', message: "To'lov" }, 'Asoschi', M);
+  ok("holat almashsa tarif qoladi", JSON.stringify(clients.access('t1').modules) === '["tahlilchi","telefon"]' && clients.access('t1').state === 'warn');
+  clients.setAccess('t1', { state: 'active' }, 'Asoschi', M);
+  ok("o'sha kompyuter yangi yozuv olsa (qayta o'rnatish) — o'sha tarif", JSON.stringify(clients.grantFor('t2', M).modules) === '["tahlilchi","telefon"]' && clients.grantFor('t3', M2).modules === null);
+  clients.remove('t1');
+  ok("cheklangan tarifli yozuv o'chirilsa ham kompyuter tarifi qoladi", JSON.stringify(clients.grantFor('t2', M).modules) === '["tahlilchi","telefon"]');
+  clients.setModules('t2', { modules: 'all' }, 'Asoschi', M);
+  ok("yangi yozuvda «hammasi» tanlansa — o'shasi (eski cheklov emas)", clients.grantFor('t2', M).modules === null && clients.grantFor('t2', M).modulesSet);
+  clients.setModules('t4', { modules: [] }, 'Asoschi', M2);
+  ok("bo'sh ro'yxat — faqat asosiy xodimlar", JSON.stringify(clients.grantFor('t4', M2).modules) === '[]');
+  clients.setModules('t5', { modules: 'all' }, 'Asoschi', 'AAAA-0000-0000-0000');
+  clients.remove('t5');
+  ok("«hammasi» bo'lgan (cheklovsiz) yozuv o'chirilsa — qoldiq yo'q", clients.grantFor('t6', 'AAAA-0000-0000-0000').modulesSet === false);
+  clients.setAccess('t7', { state: 'blocked' }, 'Asoschi', 'BBBB-0000-0000-0000');
+  clients.setModules('t8', { modules: ['direktor'] }, 'Asoschi', 'BBBB-0000-0000-0000');
+  const g = clients.grantFor('t8', 'BBBB-0000-0000-0000');
+  ok("to'xtatish boshqa yozuvdan, tarif o'zinikidan — ikkalasi birga", g.state === 'blocked' && JSON.stringify(g.modules) === '["direktor"]', JSON.stringify(g));
+}
+
 console.log("\n# Ko'rsatkichlar");
 {
   clock = new Date('2026-11-14T08:10:00Z');

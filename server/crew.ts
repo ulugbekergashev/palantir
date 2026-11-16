@@ -11,7 +11,7 @@ import { staff } from './requests/store';
 import { vacancies } from './hr/store';
 import { trainings } from './hr/train';
 import type { LiveStatus } from '../src/types';
-import { CREW, crewList, inUse, isCore, parseCrew, setHired, withInUse, type CrewMember, type CrewSignals, type CrewState } from '../src/lib/crew';
+import { CREW, crewLicensed, crewList, inUse, isCore, parseCrew, setHired, withInUse, TEAM_NAME, type CrewMember, type CrewSignals, type CrewState } from '../src/lib/crew';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -47,13 +47,29 @@ function signals(biz: BusinessRow, status?: LiveStatus): CrewSignals {
   };
 }
 
+/** Tarifda yo'q xodimlar (sotuvchi Hub'da o'chirgan) — «AI xodimlar» sahifasida qulf bilan */
+export const lockedCrew = (): CrewMember[] => CREW.filter(m => !crewLicensed(m));
+
+/**
+ * Panelga ko'rinadigan jamoa. Pul ketayotgan reklama egasiz qolmasin: Targetolog tarifdan chiqsa ham, ishlab turgan kampaniyasi bo'lsa
+ * uning sahifasi qoladi — egasi kampaniyani to'xtata olsin (yangi kampaniya tuzish — tarif bilan)
+ */
+function visibleCrew(biz: BusinessRow, s: CrewState | null): CrewMember[] {
+  const list = crewList(s);
+  const keepTarget = !list.includes('target') && !!s?.hired.includes('target') && adsStore.campaigns(biz.id).some(c => c.status === 'active');
+  return keepTarget ? CREW.filter(m => m === 'target' || list.includes(m)) : list;
+}
+
 /** Ishdagi jamoa; ishi ulangan xodimlar shu yerda qo'shiladi (o'zgarsa — saqlanadi) */
 export function syncCrew(biz: BusinessRow, status: LiveStatus): CrewMember[] {
   const before = stateOf(biz);
   const next = withInUse(before, inUse(signals(biz, status)));
   if (next !== before) save(biz.id, next);
-  return crewList(next);
+  return visibleCrew(biz, next);
 }
+
+/** Heartbeat (sotuvchi Hub'da ko'radi): egasi jamoaga olgan xodimlar — tarifdan qat'i nazar, qaysi modulni ishlatayotgani */
+export const hiredCrew = (biz: BusinessRow): CrewMember[] => CREW.filter(m => !isCore(m) && !!stateOf(biz)?.hired.includes(m));
 
 /**
  * Egasi yozganda (yordamchi suhbati, topshiriq): bazada ishi paydo bo'lgan xodim jamoaga qo'shiladi — masalan kamera qo'shilgan bo'lsa,
@@ -76,6 +92,7 @@ export function mountCrew(app: Express, { asOwner, bad }: Deps): void {
   app.post('/api/crew', asOwner((req, res, biz) => {
     const p = Change.safeParse(req.body);
     if (!p.success) return bad(res, p.error);
+    if (p.data.on && !crewLicensed(p.data.member)) return res.status(409).json({ error: `${TEAM_NAME[p.data.member]} tarifingizda yo'q — qo'shish uchun sotuvchiga murojaat qiling`, code: 'tarif' });
     if (isCore(p.data.member) && !p.data.on) return res.status(409).json({ error: "AI administrator va Palantir — asosiy xodimlar, ular jamoadan chiqmaydi. Bemorlarga javob bermasin desangiz — Sozlamalarda javob rejimini «O'chiq» qiling" });
     // Pul ketayotgan reklama egasiz qolmasin: Targetolog chiqsa, kampaniyani paneldan to'xtatadigan joy qolmaydi
     if (p.data.member === 'target' && !p.data.on && adsStore.campaigns(biz.id).some(c => c.status === 'active')) {
@@ -83,6 +100,6 @@ export function mountCrew(app: Express, { asOwner, bad }: Deps): void {
     }
     const next = setHired(stateOf(biz), p.data.member, p.data.on);
     save(biz.id, next);
-    res.json({ crew: crewList(next) });
+    res.json({ crew: visibleCrew(biz, next), locked: lockedCrew() });
   }));
 }

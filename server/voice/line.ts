@@ -14,6 +14,7 @@ import { networkInterfaces } from 'node:os';
 import { join, resolve } from 'node:path';
 import { connections, type BusinessRow } from '../db';
 import { env } from '../env';
+import { moduleAllowed } from '../hubAccess';
 import { open, seal } from '../secret';
 
 import { LINE_MODES, type LineMode, type LineRouting } from './route';
@@ -35,6 +36,8 @@ export interface LineView {
   admin: { server: string; login: string; password: string | null };
   /** Telefondagi AI Gemini Live orqali gapiradi (tgvoice/sip_live.py): kalitsiz qo'ng'iroqqa AI javob bermaydi — administratorga o'tadi */
   geminiKey: boolean;
+  /** Telefonda AI javobi tarifda yo'q (sotuvchi Hub'da o'chirgan) — qo'ng'iroqlarni administrator oladi, rejim nima bo'lishidan qat'i nazar */
+  aiLocked: boolean;
   /** Shu kompyuterda telefon xizmatini (WSL + Asterisk) paneldan o'rnatsa bo'ladi — install/Telefon.cmd bor (C1: exe uni o'rnatmaydi) */
   installable: boolean;
   /** Asterisk holati: ishlayaptimi, shahar raqami ro'yxatdan o'tganmi, qaysi telefonlar ulangan */
@@ -75,8 +78,8 @@ export function launchPhoneInstall(): void {
   spawn('cmd.exe', ['/d', '/c', `start "Palantir telefon" "${TELEFON_CMD}"`], { detached: true, stdio: 'ignore', windowsVerbatimArguments: true }).unref();
 }
 
-/** Telefonda AI qo'ng'iroq oladimi: «Faqat administrator» rejimida — yo'q (AI administrator jamoadan chiqmaydi — B1) */
-export const phoneAiOn = (bizId: string): boolean => lineRouting(bizId).mode !== 'human';
+/** Telefonda AI qo'ng'iroq oladimi: «Faqat administrator» rejimida yoki tarifda telefon AI yo'q bo'lsa — yo'q (AI administrator jamoadan chiqmaydi — B1) */
+export const phoneAiOn = (bizId: string): boolean => moduleAllowed('telefon') && lineRouting(bizId).mode !== 'human';
 
 /** Shu kompyuterning ichki tarmoqdagi IPv4 manzili (Zoiper shu manzilga ulanadi) */
 function lanIp(): string {
@@ -193,6 +196,7 @@ export async function lineView(biz: BusinessRow, withStatus = true): Promise<Lin
     routing: lineRouting(biz.id),
     admin: { server: lanIp(), login: 'admin', password: s.admin ?? null },
     geminiKey: !!env.geminiKey,
+    aiLocked: !moduleAllowed('telefon'),
     installable: canInstallPhone(),
     status: withStatus ? await lineStatus(authOf(a)) : { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: null },
   };

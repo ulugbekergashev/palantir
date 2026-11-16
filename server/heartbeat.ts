@@ -7,11 +7,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { industryOf } from '../src/data/industries';
 import { crmConnected } from './crm/index';
-import { businesses } from './db';
+import { businesses, connections } from './db';
 import { freeMb } from './disk';
 import { lastOffsite } from './offsite';
 import { licenseStatus } from './license';
-import { accessRejected, accessView, noteAccess, tickAccess } from './hubAccess';
+import { accessRejected, accessView, licensedModules, noteAccess, tickAccess } from './hubAccess';
+import { hiredCrew } from './crew';
+import { MODULES, type Module } from '../hub/licenseKey';
 import { env } from './env';
 import { onKeyChange } from './keys';
 import { SCHEMA_VERSION } from './migrate';
@@ -51,7 +53,18 @@ export function heartbeatStatus() {
     // Amaldagi ishlash holati: sotuvchi buyrug'i yetib borganini va aloqasiz kunlarni ko'radi
     // rejected — Hub javobidagi imzo tekshiruvdan o'tmadi (kalit mos emas): sotuvchi 30 kun tugashidan oldin ko'rsin
     access: { ...(({ state, reason, offlineDays }) => ({ state, reason, offlineDays }))(accessView()), rejected: accessRejected() },
+    // Tarif: qaysi modul ishlatilyapti (sotuvchi taklif qilsin yoki o'chirishdan oldin ko'rsin) va qaysilariga ruxsat yetib kelgan
+    // (null — sotuvchi tanlamagan, hammasi ruxsat)
+    uses: usedModules(active),
+    modules: licensedModules(),
   };
+}
+
+/** Egasi jamoaga olgan AI xodimlar va telefon liniyasi ulangan bo'lsa — «telefon» */
+function usedModules(active: ReturnType<typeof businesses.all>): Module[] {
+  const used = new Set<string>(active.flatMap(b => hiredCrew(b)));
+  if (active.some(b => connections.get(b.id, 'sip_line')?.account?.host)) used.add('telefon');
+  return MODULES.filter(m => used.has(m));
 }
 
 /** Hub javobi: imzoli ishlash holati (hubAccess.ts) — bo'lmasa yoki buzuq bo'lsa e'tiborsiz */

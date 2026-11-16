@@ -29,6 +29,16 @@ export interface CrewState { hired: CrewMember[]; dismissed: CrewMember[] }
 export const isCrewMember = (v: unknown): v is CrewMember => typeof v === 'string' && (CREW as readonly string[]).includes(v);
 export const isCore = (m: CrewMember): boolean => CORE.includes(m);
 
+/**
+ * Tarif (sotuvchi Hub'da tanlaydi — server/hubAccess.ts, hub/licenseKey.ts MODULES): tarifda yo'q xodim jamoada ko'rinmaydi va fonda
+ * ishlamaydi, egasi uni ishga ololmaydi. Holat tarkibi (hired/dismissed) o'zgarmaydi — tarifga qaytsa, egasi qanday qoldirgan bo'lsa shunday.
+ * Server ishga tushganda tekshiruvchini beradi (setCrewLicense); berilmasa (panel, eski sinovlar) — hammasi ruxsat.
+ */
+let licensed: (m: CrewMember) => boolean = () => true;
+export function setCrewLicense(fn: (m: CrewMember) => boolean): void { licensed = fn; }
+/** Tarifda bormi. Asosiy xodimlar doim bor */
+export const crewLicensed = (m: CrewMember): boolean => isCore(m) || licensed(m);
+
 const only = (v: unknown): CrewMember[] => (Array.isArray(v) ? CREW.filter(m => v.includes(m) && !isCore(m)) : []);
 
 /** Bazadagi JSON. null — hali hisoblanmagan (eski baza yoki yangi biznes, panel hali ochilmagan) */
@@ -43,7 +53,7 @@ export function parseCrew(raw: string | null): CrewState | null {
 }
 
 /** Ishdagi jamoa — doim CREW tartibida, asosiylari bilan */
-export const crewList = (s: CrewState | null): CrewMember[] => CREW.filter(m => isCore(m) || !!s?.hired.includes(m));
+export const crewList = (s: CrewState | null): CrewMember[] => CREW.filter(m => isCore(m) || (!!s?.hired.includes(m) && crewLicensed(m)));
 
 /** Ishi ulangan xodimlarni qo'shadi (egasi olib tashlaganlaridan tashqari). Hech narsa o'zgarmasa — o'sha holat */
 export function withInUse(s: CrewState | null, inUse: readonly CrewMember[]): CrewState {
@@ -62,9 +72,9 @@ export function setHired(s: CrewState | null, m: CrewMember, on: boolean): CrewS
 }
 
 /** Fonda ishlaydimi: egasi olib tashlamagan bo'lsa. Holat hali hisoblanmagan (null) — hammasi ishlaydi: eski bazada avvalgidek */
-export const works = (s: CrewState | null, m: CrewMember): boolean => isCore(m) || !s || !s.dismissed.includes(m);
+export const works = (s: CrewState | null, m: CrewMember): boolean => isCore(m) || (crewLicensed(m) && (!s || !s.dismissed.includes(m)));
 /** Jamoada bormi (ishga olingan). Holat hali hisoblanmagan (null) — hammasi bor: eski bazada avvalgidek */
-export const hiredIn = (s: CrewState | null, m: CrewMember): boolean => isCore(m) || !s || s.hired.includes(m);
+export const hiredIn = (s: CrewState | null, m: CrewMember): boolean => isCore(m) || (crewLicensed(m) && (!s || s.hired.includes(m)));
 
 /** Bazadagi biznes yozuvi bo'yicha (server): fonda ishlash ruxsati — olib tashlangan xodim mijozga javob bermaydi, kamera xabarini yubormaydi */
 export const crewWorks = (biz: { crew: string | null }, m: CrewMember): boolean => works(parseCrew(biz.crew), m);

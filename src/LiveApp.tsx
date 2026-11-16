@@ -46,6 +46,7 @@ export default function LiveApp() {
   const [offeringsRev, setOfferingsRev] = useState('');
   const [who, setWho] = useState<Who | null>(null);
   const [crew, setCrew] = useState<Member[] | null>(null);
+  const [locked, setLocked] = useState<Member[]>([]);
   const [tick, setTick] = useState(0);
   const loaded = useRef(false);
   const main = useRef<HTMLElement>(null);
@@ -76,6 +77,7 @@ export default function LiveApp() {
       setOfferingsRev(r.offeringsRev);
       setWho(r.who);
       setCrew(r.crew);
+      setLocked(r.locked ?? []);
     }).catch(e => { if (!stale && !loaded.current) setError((e as Error).message); });
     return () => { stale = true; };
   }, [route.area]);
@@ -134,7 +136,7 @@ export default function LiveApp() {
           {area === 'tahlilchi' && <AnalystArea {...common} />}
           {area === 'marketolog' && <MarketingArea {...common} crew={crew} onStatus={setStatus} kontent={team?.kontent ?? null} target={team?.target ?? null} />}
           {area === 'rekruter' && <HrArea {...common} owner={who?.kind !== 'staff'} crew={crew} murabbiy={team?.murabbiy ?? null} />}
-          {area === 'xodimlar' && <CrewArea crew={crew} onCrew={setCrew} notify={notify} owner={who?.kind !== 'staff'} />}
+          {area === 'xodimlar' && <CrewArea crew={crew} locked={locked} onCrew={(c, l) => { setCrew(c); if (l) setLocked(l); }} notify={notify} owner={who?.kind !== 'staff'} />}
           {area === 'miya' && <MiyaArea tab={tab} notify={notify} />}
           {area === 'sozlamalar' && (
             <SettingsArea {...common} onStatus={setStatus} onBiz={setBiz} offeringsRev={offeringsRev} onSaved={(b, rev) => { setBiz(b); setOfferingsRev(rev); }} />

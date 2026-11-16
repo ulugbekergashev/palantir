@@ -70,6 +70,8 @@ export interface PhoneLine {
   admin: { server: string; login: string; password: string | null };
   /** Telefondagi AI Gemini orqali gapiradi — kalitsiz qo'ng'iroqqa AI javob bermaydi */
   geminiKey: boolean;
+  /** Telefonda AI javobi tarifda yo'q — qo'ng'iroqlarni administrator oladi (server/voice/line.ts) */
+  aiLocked?: boolean;
   /** Telefon xizmatini paneldan o'rnatsa bo'ladi (shu kompyuterda install/Telefon.cmd bor) */
   installable: boolean;
   /** AI administrator jamoada — yo'q bo'lsa qo'ng'iroqqa faqat administrator javob beradi */
@@ -177,9 +179,10 @@ export const api = {
   /** Parolni unutdi: yangi parol egasining Telegram'iga (server/passwordReset.ts) */
   forgotPassword: (login: string) => call<{ message: string }>('/login/forgot', { body: { login } }),
   /** crew — AI jamoa (src/lib/crew.ts): ishga olingan xodimlar, asosiylari bilan */
-  me: () => call<{ business: Business; status: LiveStatus; offeringsRev: string; who: Who; crew: CrewMember[] }>('/me'),
+  /** locked — tarifda yo'q xodimlar (sotuvchi Hub'da o'chirgan): «AI xodimlar» sahifasida qulf bilan */
+  me: () => call<{ business: Business; status: LiveStatus; offeringsRev: string; who: Who; crew: CrewMember[]; locked?: CrewMember[] }>('/me'),
   /** Xodimni ishga olish (on) yoki jamoadan olib tashlash */
-  setCrew: (member: CrewMember, on: boolean) => call<{ crew: CrewMember[] }>('/crew', { body: { member, on } }),
+  setCrew: (member: CrewMember, on: boolean) => call<{ crew: CrewMember[]; locked?: CrewMember[] }>('/crew', { body: { member, on } }),
   /** offeringsRev — xizmatlar ro'yxatining panel yuklagan nusxasi: shu orada boshqa joyda o'zgargan bo'lsa server rad etadi */
   saveBusiness: (b: Business, offeringsRev?: string) => call<{ business: Business; offeringsRev: string }>('/business', { method: 'PUT', body: { ...b, offeringsRev } }),
 

@@ -52,6 +52,10 @@
  *      (panel va AI xodimlar to'xtaydi, qo'ng'iroqlar administratorga). Heartbeat javobida — kompyuter kodiga imzolangan holat
  *      (licenseKey.ts issueAccess, LICENSE_SIGNING_KEY): Palantir faqat imzolisini qabul qiladi, 30 kun imzoli javob kelmasa o'zi to'xtaydi
  *      (server/hubAccess.ts). Tasdiqlangan mijozni o'chirish — nomini qayta yozib (confirm).
+ *  16. Tarif — modullar: POST /admin/clinics/<klinika>/modules (asoschi) {modules: [...] | 'all'} — qaysi AI xodimlar va telefon AI
+ *      yoqiq (licenseKey.ts MODULES). Shu imzoli holat ichida (f) boradi; tarifda yo'q xodim klinikada ko'rinmaydi va ishlamaydi.
+ *      Kompyuter kodiga bog'langan (clients.ts grantFor): qayta o'rnatib tarifdan qochib bo'lmaydi. Heartbeat'da klinika nimani
+ *      ishlatayotgani (uses) va qaysi ruxsat yetib kelgani (modules) keladi.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -73,7 +77,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { adminPage } from './admin.ts';
 import { CardError, CLIENT_KINDS, createClients, type ClientKind } from './clients.ts';
 import { createHelp, HelpError, type HelpRow } from './help.ts';
-import { issueAccess, issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
+import { isModule, issueAccess, issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
 import { createTeam, TeamError, type HubRole, type Member } from './team.ts';
 import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
 import { quietNow } from './quiet.ts';
@@ -426,7 +430,10 @@ function cleanStatus(v: unknown) {
   // Klinikada amalda qaysi holat (imzoli javob kelmay qolsa — «offline» sababi bilan): sotuvchi buyrug'i yetib borganini ko'radi
   const a = o.access ? record(o.access) : null;
   const access = a && ['active', 'warn', 'blocked'].includes(String(a.state)) ? { state: String(a.state), reason: text(a.reason, 20), offlineDays: num(a.offlineDays), rejected: a.rejected === true } : null;
-  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), label: text(o.label, 80), problems, lastUpdate, lastOffsite, license, setup: o.setup === true, kinds, industries, access, at: now() };
+  // Tarif (16-band): klinika ishlatayotgan modullar va unga yetib kelgan ruxsat (null — hammasi; eski nashr — maydon yo'q)
+  const uses = Array.isArray(o.uses) ? o.uses.filter(isModule).slice(0, 20) : null;
+  const modules = Array.isArray(o.modules) ? o.modules.filter(isModule).slice(0, 20) : o.modules === null ? null : undefined;
+  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), label: text(o.label, 80), problems, lastUpdate, lastOffsite, license, setup: o.setup === true, kinds, industries, access, uses, modules, at: now() };
 }
 
 /** Holat imzosi (15-band) — litsenziya kaliti bilan; bir marta o'qiladi */
@@ -774,9 +781,11 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       clinics: rows.map(r => ({
         id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at, machineId: r.machine_id, self: r.self === 1, approved: r.approved === 1,
         online: isOnline(r.seen_at), status: r.status ? JSON.parse(r.status) as unknown : null, card: cards.get(r.id) ?? null,
-        access: access.get(r.id) ?? { state: 'active', message: null, updatedAt: null, updatedBy: null },
+        access: access.get(r.id) ?? clients.access(r.id),
         // Shu kompyuter boshqa (o'chirilgan yoki takror) yozuvda to'xtatilgan — klinikaga ham «to'xtatilgan» boradi
         heldElsewhere: !!r.machine_id && access.get(r.id)?.state !== 'blocked' && clients.grantFor(r.id, r.machine_id).state === 'blocked',
+        // Klinikaga boradigan tarif (o'zida tanlanmagan bo'lsa — shu kompyuterning boshqa yozuvidagi tanlov)
+        plan: (({ modules, modulesSet }) => ({ modules, set: modulesSet, inherited: modulesSet && !access.get(r.id)?.modulesSet }))(r.machine_id ? clients.grantFor(r.id, r.machine_id) : clients.access(r.id)),
       })),
       // Boshqaruv markazi: so'nggi nashr («eski versiya» belgisi) va 14 kunlik grafik — o'rnatuvchiga ham (faqat sonlar)
       latest: latestRelease.version, history: who.role === 'founder' ? clients.history() : [],
@@ -813,6 +822,25 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
       const access = clients.setAccess(id, body, who.name, row.machine_id);
       team.log(who, 'mijoz.holati', id, access.state + (access.message ? ` — ${access.message}` : ''));
+      return send(res, 200, { access, signed: !!cfg.licenseKey });
+    } catch (e) {
+      if (e instanceof CardError) return send(res, e.code, { error: e.message });
+      throw e;
+    }
+  }
+
+  // Admin: tarif — modullar (16-band), faqat asoschi; klinika keyingi heartbeat'da (5 daqiqagacha) oladi
+  const moduling = /^\/admin\/clinics\/([0-9a-f]{10})\/modules$/.exec(p);
+  if (moduling && req.method === 'POST') {
+    const who = memberOf(req, res, 'founder'); if (!who) return;
+    const id = moduling[1];
+    const row = db.prepare('SELECT machine_id FROM clinics WHERE id = ?').get(id) as { machine_id: string | null } | undefined;
+    if (!row) return send(res, 404, { error: "Bunday klinika yo'q" });
+    let body: unknown;
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    try {
+      const access = clients.setModules(id, body, who.name, row.machine_id);
+      team.log(who, 'mijoz.tarifi', id, access.modules ? (access.modules.join(', ') || 'faqat asosiy xodimlar') : 'hammasi');
       return send(res, 200, { access, signed: !!cfg.licenseKey });
     } catch (e) {
       if (e instanceof CardError) return send(res, e.code, { error: e.message });
@@ -961,7 +989,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     clients.noteMachine(clinic, machine);
     // Shu kompyuter boshqa yozuvda to'xtatilgan bo'lsa ham — to'xtatilgan (qayta o'rnatib qochib bo'lmaydi)
     const a = clients.grantFor(clinic, machine);
-    return send(res, 200, { ok: true, access: issueAccess(machine, a.state, a.message ?? '', accessKey()) });
+    return send(res, 200, { ok: true, access: issueAccess(machine, a.state, a.message ?? '', accessKey(), Date.now(), a.modules) });
   }
 
   // Klinika: kalit ishlaydimi (ulash ustasidagi tekshiruv)

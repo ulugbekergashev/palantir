@@ -71,7 +71,8 @@ function Status({ line, onLine, notify }: LineProps) {
           <p className="max-w-xl text-[12px] text-[#7d838f]">Shu kompyuterda o'rnatish oynasi ochiladi: administrator huquqi so'raladi, internet kerak (10–20 daqiqa). Birinchi marta kompyuter qayta yoqilishi mumkin — Windows'ga kirgach o'rnatish o'zi davom etadi.</p>
         </div>
       )}
-      {!line.geminiKey && <p role="alert" className="rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[13px] leading-snug text-red-200 sm:col-span-2 xl:col-span-5">Telefonda AI Gemini orqali gapiradi — Gemini kaliti kiritilmagan, qo'ng'iroqlarga AI javob bermaydi (administratorga o'tadi). Kalitni o'rnatuvchi kiritadi.</p>}
+      {line.aiLocked && <p role="alert" className="rounded-xl bg-[#f5b454]/10 px-3.5 py-2.5 text-[13px] leading-snug text-[#f3dcb4] sm:col-span-2 xl:col-span-5">Telefonda AI javobi tarifingizda yo'q — hamma qo'ng'iroqlarni administrator oladi. Yoqish uchun sotuvchiga murojaat qiling.</p>}
+      {!line.aiLocked && !line.geminiKey && <p role="alert" className="rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[13px] leading-snug text-red-200 sm:col-span-2 xl:col-span-5">Telefonda AI Gemini orqali gapiradi — Gemini kaliti kiritilmagan, qo'ng'iroqlarga AI javob bermaydi (administratorga o'tadi). Kalitni o'rnatuvchi kiritadi.</p>}
       {s.trunk === 'failed' && s.reason && <p role="status" className="rounded-xl bg-amber-400/10 px-3.5 py-2.5 text-[13px] leading-snug text-amber-200 sm:col-span-2 xl:col-span-5">Raqam ulanmadi: {s.reason}</p>}
       {line.trunk && (
         <div className="flex items-center gap-3 sm:col-span-2 xl:col-span-5">

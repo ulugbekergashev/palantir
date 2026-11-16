@@ -9,7 +9,7 @@
  * Modul faqat baza bilan ishlaydi: scripts/check-hub-clients.ts uni xotiradagi baza bilan sinaydi.
  */
 import type { DatabaseSync } from 'node:sqlite';
-import { ACCESS_STATES, type AccessState } from './licenseKey.ts';
+import { ACCESS_STATES, MODULES, isModule, type AccessState, type Module } from './licenseKey.ts';
 
 /** Biznes turlari — src/data/industries.ts dagi IndustryKind bilan bir xil */
 export const CLIENT_KINDS = ['clinic', 'education', 'services', 'manufacturing', 'retail'] as const;
@@ -28,8 +28,17 @@ export interface ClientCard {
 }
 
 /** Ishlash holati (to'lov nazorati, licenseKey.ts issueAccess): yozuv yo'q — active */
-export interface ClientAccess { state: AccessState; message: string | null; updatedAt: string | null; updatedBy: string | null }
-const ACTIVE: ClientAccess = { state: 'active', message: null, updatedAt: null, updatedBy: null };
+/**
+ * modules — tarifdagi modullar (licenseKey.ts MODULES); null — hammasi. modulesSet — sotuvchi tanlaganmi (yo'q bo'lsa, shu kompyuterning
+ * boshqa yozuvidagi tanlov olinadi — qayta o'rnatib tarifdan qochib bo'lmaydi)
+ */
+export interface ClientAccess {
+  state: AccessState; message: string | null; updatedAt: string | null; updatedBy: string | null;
+  modules: Module[] | null; modulesSet: boolean; modulesAt: string | null;
+}
+const ACTIVE: ClientAccess = { state: 'active', message: null, updatedAt: null, updatedBy: null, modules: null, modulesSet: false, modulesAt: null };
+/** Bazadagi ko'rinish: NULL — tanlanmagan, '*' — hammasi (sotuvchi o'zi tanlagan), JSON massiv — ro'yxat */
+const ALL_MODULES = '*';
 const ACCESS_MESSAGE_MAX = 300;
 
 export interface DayStat { day: string; total: number; online: number; problems: number }
@@ -89,10 +98,19 @@ const view = (r: CardDb): ClientCard => ({
   owner: r.owner, phone: r.phone, city: r.city, plan: r.plan, paidUntil: r.paid_until, note: r.note, updatedAt: r.updated_at, updatedBy: r.updated_by,
 });
 
-type AccessDb = { state: string; message: string | null; updated_at: string; updated_by: string | null };
+type AccessDb = { state: string; message: string | null; updated_at: string; updated_by: string | null; modules: string | null; modules_at: string | null };
+const ACCESS_COLS = 'state, message, updated_at, updated_by, modules, modules_at';
+function parseModules(raw: string | null): Module[] | null {
+  if (raw === null || raw === ALL_MODULES) return null;
+  try {
+    const list = JSON.parse(raw) as unknown;
+    return Array.isArray(list) ? MODULES.filter(m => list.includes(m)) : null;
+  } catch { return null; }
+}
 const accessView = (r: AccessDb): ClientAccess => {
-  const state = ACCESS_STATES.find(s => s === r.state);
-  return state ? { state, message: r.message, updatedAt: r.updated_at, updatedBy: r.updated_by } : ACTIVE;
+  const state = ACCESS_STATES.find(s => s === r.state) ?? 'active';
+  return { state, message: state === 'active' ? null : r.message, updatedAt: r.updated_at, updatedBy: r.updated_by,
+    modules: parseModules(r.modules), modulesSet: r.modules !== null, modulesAt: r.modules_at };
 };
 
 export function createClients(db: DatabaseSync, now: () => Date = () => new Date()) {
@@ -102,6 +120,8 @@ CREATE TABLE IF NOT EXISTS client_access (clinic_id TEXT PRIMARY KEY, state TEXT
 CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NOT NULL, online INTEGER NOT NULL, problems INTEGER NOT NULL);`);
   const accessCols = new Set((db.prepare('PRAGMA table_info(client_access)').all() as { name: string }[]).map(c => c.name));
   if (!accessCols.has('machine_id')) db.exec('ALTER TABLE client_access ADD COLUMN machine_id TEXT');
+  if (!accessCols.has('modules')) db.exec('ALTER TABLE client_access ADD COLUMN modules TEXT');
+  if (!accessCols.has('modules_at')) db.exec('ALTER TABLE client_access ADD COLUMN modules_at TEXT');
 
   return {
     cards(): Map<string, ClientCard> {
@@ -128,10 +148,13 @@ CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NO
       return card;
     },
 
-    /** To'xtatilgan mijozning holati qoladi (kompyuter kodi bilan): o'sha kompyuter yangi yozuv ochib qayta ishlab ketmasin */
+    /**
+     * To'xtatilgan mijozning holati va cheklangan tarifi qoladi (kompyuter kodi bilan): o'sha kompyuter yangi yozuv ochib qayta ishlab
+     * ketmasin yoki tarifdan qochmasin
+     */
     remove(clinicId: string): void {
       db.prepare('DELETE FROM client_cards WHERE clinic_id = ?').run(clinicId);
-      db.prepare("DELETE FROM client_access WHERE clinic_id = ? AND (state <> 'blocked' OR machine_id IS NULL)").run(clinicId);
+      db.prepare(`DELETE FROM client_access WHERE clinic_id = ? AND (machine_id IS NULL OR (state <> 'blocked' AND COALESCE(modules, '${ALL_MODULES}') = '${ALL_MODULES}'))`).run(clinicId);
     },
 
     /**
@@ -140,10 +163,15 @@ CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NO
      */
     grantFor(clinicId: string, machineId: string): ClientAccess {
       const own = this.access(clinicId);
-      if (own.state === 'blocked') return own;
-      const r = db.prepare("SELECT state, message, updated_at, updated_by FROM client_access WHERE machine_id = ? AND clinic_id <> ? AND state = 'blocked' ORDER BY updated_at DESC LIMIT 1")
-        .get(machineId, clinicId) as AccessDb | undefined;
-      return r ? accessView(r) : own;
+      const other = (where: string, order: string) => {
+        const r = db.prepare(`SELECT ${ACCESS_COLS} FROM client_access WHERE machine_id = ? AND clinic_id <> ? AND ${where} ORDER BY ${order} DESC LIMIT 1`)
+          .get(machineId, clinicId) as AccessDb | undefined;
+        return r ? accessView(r) : null;
+      };
+      const blocked = own.state === 'blocked' ? own : other("state = 'blocked'", 'updated_at') ?? own;
+      // Tarif: o'z yozuvida tanlangan bo'lsa — o'shasi; yo'q bo'lsa — shu kompyuterning boshqa yozuvidagi oxirgi tanlov
+      const plan = own.modulesSet ? own : other('modules IS NOT NULL', 'modules_at') ?? own;
+      return { ...blocked, modules: plan.modules, modulesSet: plan.modulesSet, modulesAt: plan.modulesAt };
     },
 
     /** Heartbeat'dagi (yozuvga mos) kompyuter kodi — holat yozuvida eslab qolinadi */
@@ -152,12 +180,12 @@ CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NO
     },
 
     access(clinicId: string): ClientAccess {
-      const r = db.prepare('SELECT state, message, updated_at, updated_by FROM client_access WHERE clinic_id = ?').get(clinicId) as AccessDb | undefined;
+      const r = db.prepare(`SELECT ${ACCESS_COLS} FROM client_access WHERE clinic_id = ?`).get(clinicId) as AccessDb | undefined;
       return r ? accessView(r) : ACTIVE;
     },
 
     accessAll(): Map<string, ClientAccess> {
-      const rows = db.prepare('SELECT clinic_id, state, message, updated_at, updated_by FROM client_access').all() as (AccessDb & { clinic_id: string })[];
+      const rows = db.prepare(`SELECT clinic_id, ${ACCESS_COLS} FROM client_access`).all() as (AccessDb & { clinic_id: string })[];
       return new Map(rows.map(r => [r.clinic_id, accessView(r)]));
     },
 
@@ -174,7 +202,25 @@ CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NO
         .run(clinicId, state, message, at, by, machineId);
       // «Ochish» — shu kompyuterning boshqa (o'chirilgan yoki takror) yozuvlaridagi to'xtatish ham olib tashlanadi: sotuvchi uni ochdi
       if (state === 'active' && machineId) db.prepare("DELETE FROM client_access WHERE machine_id = ? AND clinic_id <> ? AND state = 'blocked'").run(machineId, clinicId);
-      return { state, message, updatedAt: at, updatedBy: by };
+      return this.access(clinicId);
+    },
+
+    /**
+     * Tarif: qaysi modullar yoqiq. modules — ro'yxat (bo'sh bo'lsa — faqat asosiy xodimlar) yoki 'all' (hammasi). Noma'lum modul — CardError 400.
+     * Holat (active/warn/blocked) o'zgarmaydi
+     */
+    setModules(clinicId: string, input: unknown, by: string, machineId: string | null = null): ClientAccess {
+      const o = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+      let stored: string;
+      if (o.modules === 'all') stored = ALL_MODULES;
+      else if (Array.isArray(o.modules) && o.modules.every(isModule)) stored = JSON.stringify(MODULES.filter(m => (o.modules as unknown[]).includes(m)));
+      else throw new CardError(400, `Modullar: «all» yoki ro'yxat (${MODULES.join(', ')})`);
+      const at = now().toISOString();
+      db.prepare(`INSERT INTO client_access (clinic_id, state, message, updated_at, updated_by, machine_id, modules, modules_at) VALUES (?, 'active', NULL, ?, ?, ?, ?, ?)
+        ON CONFLICT(clinic_id) DO UPDATE SET modules = excluded.modules, modules_at = excluded.modules_at, updated_by = excluded.updated_by,
+        machine_id = COALESCE(excluded.machine_id, client_access.machine_id)`)
+        .run(clinicId, at, by, machineId, stored, at);
+      return this.access(clinicId);
     },
 
     /** Joriy soat ko'rsatkichi (har chaqiruvda soat qatori yangilanadi); 30 kundan eskisi o'chadi */

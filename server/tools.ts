@@ -42,7 +42,7 @@ import { BRAND_DEFS, CONTENT_DEFS } from './content/tools';
 import { ADS_DEFS } from './ads/tools';
 import { NUMBER_DEFS } from './numbersTools';
 import { ToolError, assertOwnNumbers, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
-import { TEAM_NAME, crewHas, type CrewMember } from '../src/lib/crew';
+import { TEAM_NAME, crewHas, crewLicensed, type CrewMember } from '../src/lib/crew';
 import { events } from './orders/store';
 import { DOC_KINDS } from './docs/playbooks';
 import { writeDocument } from './docs/writer';
@@ -508,6 +508,7 @@ export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promi
   if (!d) return { content: `Noma'lum asbob: ${name}`, isError: true };
   // Mutaxassis jamoada emas — uning ishi qilinmaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin: eski suhbat, obuna)
   const owner = toolOwner(name);
+  if (owner && !crewLicensed(owner)) return { content: `Bu ${TEAM_NAME[owner]}ning ishi, u tarifda yo'q. Qo'shish uchun egasi sotuvchiga (Palantir) murojaat qilsin.`, isError: true };
   if (owner && !crewHas(ctx.biz, owner)) return { content: `Bu ${TEAM_NAME[owner]}ning ishi, u jamoada yo'q. Egasi uni panelda «+ Xodim qo'shish» orqali jamoaga olsin.`, isError: true };
   if (ctx.as && owner && owner !== ctx.as) return { content: `Bu ${TEAM_NAME[owner]}ning ishi — ${TEAM_NAME[ctx.as]} uni qilmaydi`, isError: true };
   const parsed = d.input.safeParse(input);

@@ -2,6 +2,7 @@
  * «AI xodimlar» (#/xodimlar): hamma AI xodim bitta joyda, bo'lim-bo'lim — jamoadagilari, ishga olinadiganlari va tez kunda keladiganlari.
  * Asosiy xodimlar — AI administrator va Palantir (olib tashlanmaydi), Direktor — standart; qolganini egasi shu yerda «+ Ishga olish» bilan qo'shadi va u menyu hamda bosh ekranda paydo bo'ladi.
  * Olib tashlangan xodim menyudan chiqadi va fonda ishlamaydi; ma'lumotlari o'chmaydi (qaytib olinsa — joyida).
+ * Tarifda yo'q xodim (sotuvchi Hub'da o'chirgan — server/crew.ts lockedCrew): qulf bilan, «Ishga olish» o'rniga «sotuvchiga murojaat».
  * Tez kunda keladigan xodim — UPCOMING ga bitta qator (o'z bo'limi bilan); ishlay boshlaganda bu yerdan olinib, jamoaga (components/team.tsx) o'tadi.
  */
 import { useState } from 'react';
@@ -53,7 +54,9 @@ const STOPS: Partial<Record<Member, string>> = {
 
 const CARD = 'relative flex min-w-0 flex-col gap-3 rounded-2xl border p-5';
 
-function MemberCard({ m, hired, canChange, onChange, notify }: { m: Member; hired: boolean; canChange: boolean; onChange: (crew: Member[]) => void; notify: Notify }) {
+type OnCrew = (crew: Member[], locked?: Member[]) => void;
+
+function MemberCard({ m, hired, locked, canChange, onChange, notify }: { m: Member; hired: boolean; locked: boolean; canChange: boolean; onChange: OnCrew; notify: Notify }) {
   const meta = TEAM[m], h = HUE[m], core = isCore(m);
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -61,7 +64,7 @@ function MemberCard({ m, hired, canChange, onChange, notify }: { m: Member; hire
     setBusy(true);
     try {
       const r = await api.setCrew(m, on);
-      onChange(r.crew);
+      onChange(r.crew, r.locked);
       setAsking(false);
       notify(on ? `${meta.name} jamoaga qo'shildi — menyuda va bosh ekranda` : `${meta.name} jamoadan olib tashlandi`);
     } catch (e) {
@@ -71,7 +74,7 @@ function MemberCard({ m, hired, canChange, onChange, notify }: { m: Member; hire
     }
   };
   return (
-    <article aria-label={meta.name} className={`${CARD} ${hired ? 'border-glass/12 bg-glass/[0.04]' : 'border-glass/10 bg-glass/[0.02]'}`}>
+    <article aria-label={meta.name} className={`${CARD} ${hired ? 'border-glass/12 bg-glass/[0.04]' : locked ? 'border-dashed border-glass/12 bg-glass/[0.015]' : 'border-glass/10 bg-glass/[0.02]'}`}>
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: `${h.a}1f`, color: h.text }}>
           <meta.icon className="h-5 w-5" aria-hidden="true" />
@@ -80,6 +83,11 @@ function MemberCard({ m, hired, canChange, onChange, notify }: { m: Member; hire
           <span className="text-[15px] font-semibold text-[#f2f0ea]">{meta.name}</span>
           <span className="truncate text-xs text-[#9ba1ad]">{meta.role}</span>
         </div>
+        {locked && !hired && (
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-glass/[0.06] px-2.5 py-0.5 text-[11.5px] font-semibold text-[#c9cbd2]">
+            <Lock className="h-3 w-3" aria-hidden="true" />Tarifda yo'q
+          </span>
+        )}
         {hired && (
           <span className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-400/10 px-2.5 py-0.5 text-[11.5px] font-semibold text-emerald-300">
             <Check className="h-3 w-3" aria-hidden="true" />{core ? 'Asosiy' : 'Jamoada'}
@@ -109,6 +117,8 @@ function MemberCard({ m, hired, canChange, onChange, notify }: { m: Member; hire
               </a>
               {!core && canChange && <button type="button" onClick={() => setAsking(true)} className="min-h-10 rounded-lg px-3 text-[13px] text-[#8a909c] hover:bg-glass/5 hover:text-[#d9dbe1]">Olib tashlash</button>}
             </>
+          ) : locked ? (
+            <p className="m-0 text-[13px] leading-snug text-[#8a909c]">Tarifingizga qo'shish uchun sotuvchiga murojaat qiling.</p>
           ) : canChange && (
             <button type="button" disabled={busy} onClick={() => { void change(true); }}
               className="flex min-h-10 items-center gap-1.5 rounded-lg bg-[#ff9a3c] px-3.5 text-[13px] font-semibold text-[#1a0f05] transition-colors hover:bg-[#ffb062] disabled:opacity-50">
@@ -142,11 +152,11 @@ function UpcomingCard({ u }: { u: Upcoming }) {
 }
 
 /** owner — faqat egasi (va o'rnatuvchi) xodim qo'sha oladi; klinika xodimi faqat ko'radi */
-export function CrewArea({ crew, onCrew, notify, owner }: { crew: Member[]; onCrew: (crew: Member[]) => void; notify: Notify; owner: boolean }) {
+export function CrewArea({ crew, locked = [], onCrew, notify, owner }: { crew: Member[]; locked?: Member[]; onCrew: OnCrew; notify: Notify; owner: boolean }) {
   const groups = (Object.keys(DEPARTMENTS) as Department[]).map(d => ({
     d, members: MEMBERS.filter(m => TEAM[m].department === d), soon: UPCOMING.filter(u => u.department === d),
   })).filter(g => g.members.length || g.soon.length);
-  const free = MEMBERS.filter(m => !crew.includes(m)).length;
+  const free = MEMBERS.filter(m => !crew.includes(m) && !locked.includes(m)).length;
   return (
     <div className="space-y-8">
       <header className="flex flex-wrap items-center gap-4 border-b border-glass/[0.06] pb-6">
@@ -165,7 +175,7 @@ export function CrewArea({ crew, onCrew, notify, owner }: { crew: Member[]; onCr
             {DEPARTMENTS[d].name}<span className="font-normal normal-case tracking-normal text-[#7d838f]">· {DEPARTMENTS[d].about}</span>
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {members.map(m => <MemberCard key={m} m={m} hired={crew.includes(m)} canChange={owner} onChange={onCrew} notify={notify} />)}
+            {members.map(m => <MemberCard key={m} m={m} hired={crew.includes(m)} locked={locked.includes(m)} canChange={owner} onChange={onCrew} notify={notify} />)}
             {soon.map(u => <UpcomingCard key={u.id} u={u} />)}
           </div>
         </section>

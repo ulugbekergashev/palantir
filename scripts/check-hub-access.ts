@@ -13,8 +13,10 @@ const pub = publicKey.export({ format: 'der', type: 'spki' }).toString('base64')
 process.env.LICENSE_PUBLIC_KEY = pub;
 process.env.LICENSE_MACHINE_ID = MACHINE;
 
-const { issueAccess, checkAccess } = await import('../hub/licenseKey');
-const { accessRejected, accessView, accessNotice, noteAccess, resetAccessCache, tickAccess, OFFLINE_BLOCK_DAYS, OFFLINE_WARN_DAYS } = await import('../server/hubAccess');
+const { issueAccess, checkAccess, MODULES } = await import('../hub/licenseKey');
+const { accessRejected, accessView, accessNotice, licensedModules, moduleAllowed, noteAccess, resetAccessCache, tickAccess, OFFLINE_BLOCK_DAYS, OFFLINE_WARN_DAYS } = await import('../server/hubAccess');
+const { CREW, CORE, crewHas, crewLicensed, crewList, crewWorks } = await import('../src/lib/crew');
+const { ADMIN_PLAN_JS } = await import('../hub/adminPlan');
 const { settings } = await import('../server/serviceStore');
 
 let failed = 0;
@@ -35,7 +37,7 @@ const esc = (s: string) => s.replace(/</g, '&lt;');
 console.log('\n# Imzo (hub/licenseKey.ts)');
 check("o'z kompyuteri uchun — o'qiladi, matn bilan", () => {
   const g = checkAccess(issueAccess(MACHINE, 'warn', "To'lov 1-dekabrgacha", privateKey, T0), MACHINE, pub);
-  assert.deepEqual(g, { state: 'warn', message: "To'lov 1-dekabrgacha", at: new Date(T0).toISOString() });
+  assert.deepEqual(g, { state: 'warn', message: "To'lov 1-dekabrgacha", at: new Date(T0).toISOString(), modules: null });
 });
 check('boshqa kompyuterniki — rad etiladi', () => assert.equal(checkAccess(issueAccess(OTHER, 'active', '', privateKey, T0), MACHINE, pub), null));
 check('begona kalit bilan imzolangan (soxta Hub) — rad etiladi', () => {
@@ -120,6 +122,60 @@ check("soat 40 kun oldinda bo'lsa ham yangi javob kelishi bilan — ishlaydi (o'
   fresh();
   noteAccess(at('active', T0), T0 + 40 * DAY);
   assert.equal(accessView(T0 + 40 * DAY).state, 'active');
+});
+
+console.log('\n# Tarif — modullar');
+check("modullar ro'yxati: asosiy bo'lmagan har AI xodim + telefon (Hub alohida joylanadi — src/ ni ko'rmaydi)", () => {
+  assert.deepEqual([...MODULES].filter(m => m !== 'telefon').sort(), CREW.filter(m => !CORE.includes(m)).sort());
+  assert.ok(MODULES.includes('telefon'));
+});
+check("Hub sahifasidagi ro'yxat (adminPlan.ts) — xuddi MODULES", () => {
+  const ids = [...ADMIN_PLAN_JS.matchAll(/^\s*\['([a-z]+)', '/gm)].map(m => m[1]);
+  assert.deepEqual([...ids].sort(), [...MODULES].sort());
+});
+check("imzoda: ro'yxat (MODULES tartibida); berilmasa — null (hammasi); bo'sh — faqat asosiylar", () => {
+  const g = checkAccess(issueAccess(MACHINE, 'active', '', privateKey, T0, ['telefon', 'tahlilchi']), MACHINE, pub);
+  assert.deepEqual(g?.modules, ['tahlilchi', 'telefon']);
+  assert.equal(checkAccess(issueAccess(MACHINE, 'active', '', privateKey, T0), MACHINE, pub)?.modules, null);
+  assert.deepEqual(checkAccess(issueAccess(MACHINE, 'active', '', privateKey, T0, []), MACHINE, pub)?.modules, []);
+});
+check("ro'yxatni o'zgartirib yoki olib tashlab (tarifni kengaytirib) bo'lmaydi — imzo buziladi", () => {
+  const [body, sig] = issueAccess(MACHINE, 'active', '', privateKey, T0, ['tahlilchi']).split('.');
+  const j = JSON.parse(Buffer.from(body, 'base64url').toString()) as Record<string, unknown>;
+  const forge = (o: Record<string, unknown>) => `${Buffer.from(JSON.stringify(o)).toString('base64url')}.${sig}`;
+  assert.equal(checkAccess(forge({ ...j, f: [...MODULES] }), MACHINE, pub), null);
+  const { f: _drop, ...noF } = j;
+  assert.equal(checkAccess(forge(noF), MACHINE, pub), null);
+});
+const biz = (hired: string[]) => ({ crew: JSON.stringify({ hired, dismissed: [] }) });
+check('Hub tanlamagan — hamma xodim ishlaydi (avvalgidek)', () => {
+  fresh();
+  assert.equal(licensedModules(), null);
+  assert.equal(moduleAllowed('telefon'), true);
+  assert.equal(crewHas(biz(['kuzatuvchi']), 'kuzatuvchi'), true);
+});
+check("tarifda yo'q xodim — jamoada ko'rinmaydi, fonda ishlamaydi; asosiylari doim bor; telefon AI yopiq", () => {
+  fresh();
+  noteAccess(issueAccess(MACHINE, 'active', '', privateKey, T0, ['tahlilchi']), T0);
+  const b = biz(['kuzatuvchi', 'tahlilchi', 'direktor']);
+  assert.equal(crewHas(b, 'kuzatuvchi'), false);
+  assert.equal(crewWorks(b, 'kuzatuvchi'), false);
+  assert.equal(crewWorks(b, 'direktor'), false);
+  assert.equal(crewHas(b, 'tahlilchi'), true);
+  assert.ok(crewHas(b, 'qabulxona') && crewHas(b, 'yordamchi') && crewLicensed('qabulxona'));
+  assert.deepEqual(crewList({ hired: ['kuzatuvchi', 'tahlilchi', 'direktor'], dismissed: [] }), ['qabulxona', 'yordamchi', 'tahlilchi']);
+  assert.equal(moduleAllowed('telefon'), false);
+});
+check("eski bazada ham (tarkib hali hisoblanmagan — null) tarifda yo'q xodim ishlamaydi", () => {
+  assert.equal(crewWorks({ crew: null }, 'kuzatuvchi'), false);
+  assert.equal(crewWorks({ crew: null }, 'tahlilchi'), true);
+});
+check("tarif saqlanadi (qayta ishga tushganda); kengaytirilsa — egasi olgan xodim o'z joyiga qaytadi", () => {
+  resetAccessCache();
+  assert.deepEqual(licensedModules(), ['tahlilchi']);
+  noteAccess(issueAccess(MACHINE, 'active', '', privateKey, T0 + DAY), T0 + DAY);
+  assert.equal(crewHas(biz(['kuzatuvchi']), 'kuzatuvchi'), true);
+  assert.equal(moduleAllowed('telefon'), true);
 });
 
 console.log('\n# Egasiga Telegram xabari');

@@ -23,7 +23,7 @@ import { adoptVoiceKey } from './serviceEnv';
 import { LINE_CALL_WINDOW_MS, markLineCall } from './lineCalls';
 import { ZadarmaError } from './zadarma';
 import { HUMAN_RING_SEC } from './route';
-import { accessBlocked } from '../hubAccess';
+import { accessBlocked, moduleAllowed } from '../hubAccess';
 
 type Handler = (req: Request, res: Response) => unknown;
 interface Deps {
@@ -184,8 +184,8 @@ export function mountVoice(app: Express, { asBiz, bad, fromThisPc }: Deps): void
   app.get('/api/voice/route', asAgent((req, res, biz) => {
     const phone = MissedSchema.safeParse(req.query);
     if (phone.success) markLineCall(biz.id, phone.data.phone);
-    // «Faqat administrator» rejimi — AI qo'ng'iroq olmaydi: «human:45» (A3, B1). Sotuvchi to'xtatgan bo'lsa ham (hubAccess.ts)
-    res.type('text/plain').send(accessBlocked() ? `human:${HUMAN_RING_SEC}` : routeNow(lineRouting(biz.id), new Date()));
+    // «Faqat administrator» rejimi — AI qo'ng'iroq olmaydi: «human:45» (A3, B1). Sotuvchi to'xtatgan yoki tarifda telefon AI yo'q bo'lsa ham (hubAccess.ts)
+    res.type('text/plain').send(accessBlocked() || !moduleAllowed('telefon') ? `human:${HUMAN_RING_SEC}` : routeNow(lineRouting(biz.id), new Date()));
   }));
   // AI qabulxona (sip_live.py): hozir administratorga o'tkaza oladimi — ish vaqtida «ai_transfer» rejimida necha soniya jiringlashi, bo'lmasa null
   app.get('/api/voice/handoff', asAgent((_req, res, biz) => { res.json({ ring: transferNow(lineRouting(biz.id), new Date()) }); }));

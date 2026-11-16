@@ -67,7 +67,7 @@ import { forgetLead } from './forget';
 import { telegramBusinessStatus } from './inbox/telegramBusiness';
 import { mountOrders } from './orders/routes';
 import { mountDirector } from './director/routes';
-import { mountCrew, syncCrew } from './crew';
+import { lockedCrew, mountCrew, syncCrew } from './crew';
 import { mountAttention } from './attention';
 import { mountTeamDay } from './teamDay';
 import { mountInsights } from './insights/routes';
@@ -508,7 +508,7 @@ export function createApp(bot: BotService) {
   app.get('/api/me', asBiz((req, res, biz) => {
     const st = statusFor(req, biz);
     // AI jamoa: ishi ulangan xodim shu yerda o'zi qo'shiladi (server/crew.ts)
-    res.json({ business: biz.profile, status: st, offeringsRev: offeringsRev(biz.profile.offerings), who: whoOf(req, biz), crew: syncCrew(biz, st) });
+    res.json({ business: biz.profile, status: st, offeringsRev: offeringsRev(biz.profile.offerings), who: whoOf(req, biz), crew: syncCrew(biz, st), locked: lockedCrew() });
   }));
 
   app.put('/api/business', asBiz((req, res, biz) => {

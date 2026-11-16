@@ -13,9 +13,13 @@
  * bloklab qo'ymaydi). Eski javobni qayta yuborish (soxta Hub) hisobni nolga tushirmaydi — Hub vaqti qat'iy yangi bo'lishi kerak.
  * Hub hech qachon imzoli holat bermagan bo'lsa (Hub yo'q yoki eski Hub) — hech narsa to'xtamaydi. Imzo rad etilsa (kalit mos emas) —
  * jurnalga va Hub'ga (heartbeat: access.rejected) — sotuvchi 30 kun tugashidan oldin ko'radi.
+ * Tarif (modullar): imzoli javobdagi ruxsat berilgan modullar (hub/licenseKey.ts MODULES) — tarifda yo'q AI xodim jamoada ko'rinmaydi va
+ * fonda ishlamaydi (src/lib/crew.ts setCrewLicense), «telefon» yo'q bo'lsa qo'ng'iroqni administrator oladi (voice/routes.ts, line.ts).
+ * Hub modul tanlamagan yoki hech qachon javob bermagan — hammasi ruxsat. Aloqasiz 30 kunda to'xtash tarifga bog'liq emas (yuqorida).
  * Saqlanadi: bazada (settings `hub.access`) — oxirgi imzoli javob va yig'ilgan aloqasiz vaqt; har o'qishda imzo qayta tekshiriladi.
  */
-import { checkAccess, type AccessGrant, type AccessState } from '../hub/licenseKey';
+import { checkAccess, type AccessGrant, type AccessState, type Module } from '../hub/licenseKey';
+import { setCrewLicense } from '../src/lib/crew';
 import { env } from './env';
 import { machineId } from './license';
 import { settings } from './serviceStore';
@@ -141,3 +145,14 @@ export function resetAccessCache(): void {
   cache = undefined;
   rejected = false;
 }
+
+/** Sotuvchi ruxsat bergan modullar; null — tanlanmagan (hammasi ruxsat) */
+export const licensedModules = (): Module[] | null => stored()?.grant.modules ?? null;
+/** Shu modul tarifdami */
+export function moduleAllowed(m: Module): boolean {
+  const list = licensedModules();
+  return !list || list.includes(m);
+}
+
+// AI jamoa (src/lib/crew.ts) tarifni shu yerdan biladi: asosiy bo'lmagan xodimning nomi — modul nomi bilan bir xil (MODULES)
+setCrewLicense(m => moduleAllowed(m as Module));

@@ -24,7 +24,7 @@ import { AccessBlockedError } from './hubAccess';
 import { crmClinicName, crmConnected } from './crm/index';
 import { COMMON_RULES, industryOf, isClinic } from '../src/data/industries';
 import { chatGroups, memberGroups, runTool, toolDefinitions, type ToolCtx, type ToolGroup } from './tools';
-import { TEAM_NAME, crewHas, type CrewMember } from '../src/lib/crew';
+import { TEAM_NAME, crewHas, crewLicensed, type CrewMember } from '../src/lib/crew';
 import { orders } from './orders/store';
 import { PausedError, SubscriptionError, subscriptionOn, type SubscriptionReason } from './subscription/engine';
 import { deferred } from './subscription/deferred';
@@ -138,11 +138,14 @@ function customerVoice(b: BusinessRow, as?: CrewMember): string {
 
 /** Egasi bilan suhbat: kim jamoada (uning ishini uning asboblari bilan qilasiz), kim yo'q (ishini qilmaysiz — jamoaga olishni taklif qilasiz) */
 function teamBlock(b: BusinessRow): string {
-  const hired = SPECIALISTS.filter(m => crewHas(b, m)), missing = SPECIALISTS.filter(m => !crewHas(b, m));
+  const hired = SPECIALISTS.filter(m => crewHas(b, m)), missing = SPECIALISTS.filter(m => !crewHas(b, m) && crewLicensed(m));
+  // Tarifda yo'q (sotuvchi o'chirgan): egasi o'zi qo'sha olmaydi — «+ Xodim qo'shish» emas, sotuvchiga
+  const locked = SPECIALISTS.filter(m => !crewLicensed(m));
   return `<team>
 You are the Yordamchi of the business's AI team. The specialists' work you do with their tools, and it is recorded in their journal.
 ${hired.length ? `Hired: ${hired.map(m => `${TEAM_NAME[m]} — ${ROLE[m]}`).join('; ')}.` : 'No specialists are hired yet.'}${missing.length ? `
-Not hired (you do not have their tools): ${missing.map(m => `${TEAM_NAME[m]} — ${ROLE[m]}`).join('; ')}. If the owner asks for such work, say in one sentence that it is that employee's job and they can add them in the panel with «+ Xodim qo'shish»; offer what you can do yourself (for example, write the text).` : ''}
+Not hired (you do not have their tools): ${missing.map(m => `${TEAM_NAME[m]} — ${ROLE[m]}`).join('; ')}. If the owner asks for such work, say in one sentence that it is that employee's job and they can add them in the panel with «+ Xodim qo'shish»; offer what you can do yourself (for example, write the text).` : ''}${locked.length ? `
+Not in the business's plan (you do not have their tools, and the owner cannot add them in the panel): ${locked.map(m => TEAM_NAME[m]).join(', ')}. If the owner asks for such work, say in one sentence that this employee is not in their plan and the seller (Palantir) can add it; offer what you can do yourself.` : ''}
 </team>`;
 }
 

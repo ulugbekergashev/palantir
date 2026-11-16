@@ -57,18 +57,30 @@ export function signingKey(text: string): KeyObject {
  *   active — to'liq ishlaydi; warn — panelda sotuvchining eslatmasi; blocked — panel va AI xodimlar to'xtaydi, qo'ng'iroqlar administratorga.
  * Shu imzo (litsenziya kaliti bilan) bo'lmasa, klinika soxta «Hub» qo'yib bloklashni olib tashlay olardi. Imzolanadi: kompyuter kodi,
  * holat, sotuvchining matni va Hub'dagi vaqt — eski «active» javobini qayta ishlatib bo'lmaydi (oflayn muddat shu vaqtdan sanaladi).
- *   Ko'rinish: base64url(JSON {m, s, t, at}) + '.' + base64url(Ed25519 imzo)
+ * Tarif (2-bosqich): f — klinikaga ruxsat berilgan modullar (MODULES). f yo'q — hammasi ruxsat (sotuvchi hali tanlamagan; 0.4.16 gacha
+ * Palantir f ni bilmaydi va e'tiborsiz qoldiradi — imzo baribir to'g'ri).
+ *   Ko'rinish: base64url(JSON {m, s, t, at, f?}) + '.' + base64url(Ed25519 imzo)
  */
 export type AccessState = 'active' | 'warn' | 'blocked';
 export const ACCESS_STATES: readonly AccessState[] = ['active', 'warn', 'blocked'];
-export interface AccessGrant { state: AccessState; message: string; at: string }
+/**
+ * Tarif bilan yoqiladigan modullar: asosiy xodimlardan (AI administrator, Palantir) tashqari AI xodimlar (src/lib/crew.ts CREW) va
+ * «telefon» — qo'ng'iroqqa AI javob beradi. Hub alohida joylanadi (src/ ni ko'rmaydi) — ro'yxat shu yerda; CREW bilan bir xilligini
+ * scripts/check-hub-access.ts tekshiradi.
+ */
+export const MODULES = ['direktor', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'kontent', 'target', 'rekruter', 'murabbiy', 'telefon'] as const;
+export type Module = typeof MODULES[number];
+export const isModule = (v: unknown): v is Module => typeof v === 'string' && (MODULES as readonly string[]).includes(v);
+/** modules — ruxsat berilganlari (MODULES tartibida); null — hammasi */
+export interface AccessGrant { state: AccessState; message: string; at: string; modules: Module[] | null }
 const accessBytes = (body: string) => Buffer.from(`palantir-holat\n${body}`);
 const ACCESS_MESSAGE_MAX = 300;
 
-export function issueAccess(machineId: string, state: AccessState, message: string, privateKey: KeyObject, now = Date.now()): string {
+export function issueAccess(machineId: string, state: AccessState, message: string, privateKey: KeyObject, now = Date.now(), modules: readonly Module[] | null = null): string {
   const m = normalizeMachineId(machineId);
   if (!m) throw new Error("Kompyuter kodi noto'g'ri");
-  const body = Buffer.from(JSON.stringify({ m, s: state, t: message.slice(0, ACCESS_MESSAGE_MAX), at: new Date(now).toISOString() })).toString('base64url');
+  const f = modules ? MODULES.filter(x => modules.includes(x)) : undefined;
+  const body = Buffer.from(JSON.stringify({ m, s: state, t: message.slice(0, ACCESS_MESSAGE_MAX), at: new Date(now).toISOString(), ...(f ? { f } : {}) })).toString('base64url');
   return `${body}.${sign(null, accessBytes(body), privateKey).toString('base64url')}`;
 }
 
@@ -80,9 +92,11 @@ export function checkAccess(token: string, machineId: string, publicKey = LICENS
   try {
     const pub = createPublicKey({ key: Buffer.from(publicKey, 'base64'), format: 'der', type: 'spki' });
     if (!verify(null, accessBytes(body), pub, Buffer.from(sig, 'base64url'))) return null;
-    const j = JSON.parse(Buffer.from(body, 'base64url').toString()) as { m?: unknown; s?: unknown; t?: unknown; at?: unknown };
+    const j = JSON.parse(Buffer.from(body, 'base64url').toString()) as { m?: unknown; s?: unknown; t?: unknown; at?: unknown; f?: unknown };
     const state = ACCESS_STATES.find(s => s === j.s);
     if (j.m !== m || !state || typeof j.at !== 'string' || !Number.isFinite(Date.parse(j.at))) return null;
-    return { state, message: typeof j.t === 'string' ? j.t.slice(0, ACCESS_MESSAGE_MAX) : '', at: j.at };
+    // f buzuq (massiv emas) — imzolangan bo'lsa ham hammasi yopiq emas, balki «tanlanmagan»: Hub'ning o'zi faqat massiv yozadi
+    const modules = Array.isArray(j.f) ? MODULES.filter(x => (j.f as unknown[]).includes(x)) : null;
+    return { state, message: typeof j.t === 'string' ? j.t.slice(0, ACCESS_MESSAGE_MAX) : '', at: j.at, modules };
   } catch { return null; }
 }

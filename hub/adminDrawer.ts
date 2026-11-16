@@ -52,7 +52,7 @@ function drawClient(scrollTop) {
     box.append(ul);
     parts.push(box);
   }
-  if (c.approved || c.heldElsewhere) parts.push(accessSect(c));
+  if (c.approved || c.heldElsewhere) parts.push(accessSect(c), planSect(c));
   const info = sect('Holat'), dl = el('dl', 'facts');
   fact(dl, 'Aloqa', c.online ? 'aloqada (' + ago(c.seenAt) + ')' : ago(c.seenAt));
   fact(dl, 'Nashr', s.version ? 'v' + s.version + (s.schema ? ' · baza ' + s.schema : '') : null);

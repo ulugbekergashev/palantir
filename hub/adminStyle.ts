@@ -163,6 +163,12 @@ box-shadow:-12px 0 40px rgba(0,0,0,.25);animation:slide .18s ease-out}
 .dim{opacity:.55}
 .meta{color:var(--faint);font-size:12px}
 .quote{margin:10px 0 6px;padding:8px 12px;border-left:3px solid var(--accent);background:var(--panel2);border-radius:6px;font-size:13px}
+.plan{list-style:none;margin:10px 0 4px;padding:0;display:grid;gap:2px}
+.plan li{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 8px;border-radius:8px}
+.plan li:hover{background:var(--panel2)}
+.chk{display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;min-height:32px}
+.chk input{width:18px;height:18px;accent-color:var(--accent);margin:0}
+.chk .name{font-weight:600}
 .sect .f.wide{display:block;margin-top:12px}
 .sect .f.wide textarea{width:100%;margin-top:6px}
 .sect>.actions{margin-top:8px}

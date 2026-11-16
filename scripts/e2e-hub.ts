@@ -203,6 +203,32 @@ try {
   await setAccess({ state: 'active' });
   const gotOpen = await until('klinikada ochildi', async () => { const l = await licNow(); return l.access?.state === 'active' ? l : undefined; }, 10_000);
   ok("«Ochish» — klinika yana to'liq ishlaydi, panel ochiq", !!gotOpen && (await fetch(`${base}/api/me`, asOwner)).status === 200);
+
+  console.log("\n# Tarif: sotuvchi AI xodimlar va telefon AI ni yoqadi/o'chiradi (imzoli holat ichida)");
+  const setPlan = (body: unknown, key: Record<string, string> = { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' }) =>
+    fetch(`${HUB}/admin/clinics/${clinic.clinicId}/modules`, { method: 'POST', headers: key, body: JSON.stringify(body) });
+  ok("tarifni kalitsiz qo'yib bo'lmaydi — 401; noma'lum modul — 400", (await setPlan({ modules: [] }, {})).status === 401 && (await setPlan({ modules: ['bank'] })).status === 400);
+  const planJ = await (await setPlan({ modules: ['tahlilchi', 'kontent'] })).json() as { access?: { modules: string[] | null }; signed?: boolean };
+  ok("asoschi tarifni saqladi", JSON.stringify(planJ.access?.modules) === '["tahlilchi","kontent"]' && planJ.signed === true, JSON.stringify(planJ));
+  type MeCrew = { crew: string[]; locked?: string[] };
+  const meNow = async () => await (await fetch(`${base}/api/me`, asOwner)).json() as MeCrew;
+  const limited = await until('klinikada tarif', async () => { const m = await meNow(); return m.locked?.includes('kuzatuvchi') ? m : undefined; }, 10_000);
+  ok("Palantir tarifni oldi: tarifda yo'q xodimlar qulfda, jamoada yo'q; asosiylari bor",
+    !!limited && ['direktor', 'kuzatuvchi', 'marketolog', 'target', 'rekruter', 'murabbiy'].every(m => limited.locked!.includes(m) && !limited.crew.includes(m))
+      && !limited.locked!.includes('tahlilchi') && limited.crew.includes('qabulxona') && limited.crew.includes('yordamchi'), JSON.stringify(limited));
+  const hireLocked = await fetch(`${base}/api/crew`, { method: 'POST', headers: { ...asOwner.headers, 'content-type': 'application/json' }, body: JSON.stringify({ member: 'kuzatuvchi', on: true }) });
+  const hireJ = await hireLocked.json() as { code?: string; error?: string };
+  ok("egasi tarifda yo'q xodimni ishga ololmaydi — 409, «sotuvchiga murojaat»", hireLocked.status === 409 && hireJ.code === 'tarif' && String(hireJ.error).includes('sotuvchi'), JSON.stringify(hireJ));
+  const lineJ = await (await fetch(`${base}/api/phone/line`, asOwner)).json() as { line?: { aiLocked?: boolean } };
+  ok("telefon AI tarifda yo'q — qo'ng'iroqlarni administrator oladi (telefon sahifasida aytiladi)", lineJ.line?.aiLocked === true, JSON.stringify(lineJ.line?.aiLocked));
+  const hubPlan = await until("Hub klinikadagi tarifni ko'radi", async () => (await adminList() as unknown as { id: string; status: { modules?: string[] | null; uses?: string[] } | null; plan?: { modules: string[] | null; set: boolean } }[])
+    .find(c => c.id === clinic.clinicId && JSON.stringify(c.status?.modules) === '["tahlilchi","kontent"]' && c.plan?.set === true), 10_000);
+  ok("Hub ro'yxatida: tanlangan tarif va klinikada amaldagisi bir xil, ishlatilayotgan modullar keladi", !!hubPlan && Array.isArray(hubPlan.status?.uses));
+  ok("tarif o'zgarishi jurnalda", ((await (await fetch(`${HUB}/admin/audit`, { headers: { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' } })).json()) as { audit: { action: string }[] }).audit.some(e => e.action === 'mijoz.tarifi'));
+  await setPlan({ modules: 'all' });
+  const full = await until('klinikada hammasi', async () => { const m = await meNow(); return m.locked && m.locked.length === 0 ? m : undefined; }, 10_000);
+  const lineAll = await (await fetch(`${base}/api/phone/line`, asOwner)).json() as { line?: { aiLocked?: boolean } };
+  ok("«Hammasini yoqish» — qulflar yo'q, telefon AI ochiq", !!full && lineAll.line?.aiLocked === false);
   // Kirishdan oldin (parol klinikada tekshiriladi) so'rov tanasi hub xotirasida turadi: katta va sekin tanalar bilan uni to'ldirib bo'lmasin
   /** Tanasining 1 KB i yuborilib, qolgani «kelayotgan» so'rov: 3 soniyada javob bo'lmasa — status 0 (hub kutib turibdi) */
   const slowPost = (declared: number) => new Promise<{ status: number; req: http.ClientRequest }>(done => {

@@ -52,11 +52,14 @@ try {
       version: c.version, schema: 3, startedAt: new Date(Date.now() - 5 * 3_600_000).toISOString(), diskFreeMb: c.disk ?? 48_000, businesses: 1, label: c.label,
       problems: c.problems ?? [], lastUpdate: c.update ?? { from: '0.4.14', to: c.version, result: 'ok', at: new Date().toISOString() },
       lastOffsite: { day: day(0), ok: true, size: 120000, at: new Date().toISOString() }, license: c.license ?? { activated: true, daysLeft: null }, setup: false, kinds: c.kinds, industries: [],
+      // Tarif (16-band): Tabassum kamera, telefon va Direktorni ishlatadi
+      uses: c.name === 'Tabassum Dental' ? ['direktor', 'tahlilchi', 'kuzatuvchi', 'telefon'] : ['direktor'], modules: null,
     }) });
     await fetch(`${HUB}/admin/clinics/${made.clinicId}/card`, { method: 'POST', headers: admin, body: JSON.stringify(c.card) });
     // To'lov nazorati: biri to'xtatilgan, biri eslatmada
     const access = c.name === 'Denta Smile' ? { state: 'blocked', message: "To'lov 2 oy kechikdi. Savol bo'lsa: +998 90 000 00 00" }
       : c.name === 'Smart English' ? { state: 'warn', message: "To'lov muddati yaqin — 4 kun qoldi" } : null;
+    if (c.name === 'Tabassum Dental') await fetch(`${HUB}/admin/clinics/${made.clinicId}/modules`, { method: 'POST', headers: admin, body: JSON.stringify({ modules: ['direktor', 'tahlilchi', 'kontent', 'telefon'] }) });
     if (access) await fetch(`${HUB}/admin/clinics/${made.clinicId}/access`, { method: 'POST', headers: admin, body: JSON.stringify(access) });
     if (c.name === 'Shifo Med') await fetch(`${HUB}/api/help`, { method: 'POST', headers: auth, body: JSON.stringify({ text: "Telefonda AI javob bermayapti, bemorlar administratorga tushyapti. Tekshirib bering.", by: 'Dilnoza' }) });
   }
@@ -82,6 +85,14 @@ try {
     await page.waitForSelector('#drawer:not([hidden]) #dBody .sect');
     await sleep(300);
     await page.screenshot({ path: `${OUT}/${label}-3-karta.png` });
+    await page.keyboard.press('Escape');
+    await page.click('#rows tr:has-text("Tabassum Dental")');
+    await page.waitForSelector('#drawer:not([hidden]) #dBody .sect');
+    await sleep(300);
+    const tarif = page.locator('#dBody .sect:has(h3:text("Tarif"))');
+    if (await tarif.count()) await tarif.scrollIntoViewIfNeeded();
+    else errors.push("Tabassum oynasida «Tarif» bo'limi yo'q: " + (await page.locator('#dBody .sect h3').allTextContents()).join(' | '));
+    await page.screenshot({ path: `${OUT}/${label}-6-tarif.png` });
     await page.keyboard.press('Escape');
     await page.click('#rows tr:has-text("Denta Smile")');
     await page.waitForSelector('#drawer:not([hidden]) #dBody .sect');
