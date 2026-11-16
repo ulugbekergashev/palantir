@@ -70,7 +70,7 @@ try {
   const hubProc = start('hub/server.ts', {
     PORT: String(HUB_PORT), HUB_DB: path.join(work, 'hub.db'), HUB_PUBLIC_URL: HUB, HUB_ADMIN_KEY: 'hub-admin-sinov-kaliti-0123456789',
     HUB_BOT_TOKEN: '777:HUB', HUB_ALERT_CHAT: String(ALERT_CHAT), HUB_TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`, HUB_OFFLINE_MS: '2500', HUB_WATCH_MS: '300', HUB_QUIET: '',
-    HUB_BACKUP_DIR: path.join(work, 'hub-zaxira'),
+    HUB_BACKUP_DIR: path.join(work, 'hub-zaxira'), HUB_RELEASE_URL: 'http://127.0.0.1:9/yoq',
     LICENSE_SIGNING_KEY: LICENSE.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64'),
   });
   ok('hub ishga tushdi', await up(`${HUB}/health`));
@@ -96,6 +96,20 @@ try {
   const seen = await until('holat', async () => (await adminList()).find(c => c.id === clinic.clinicId && c.status?.version), 15_000);
   ok(`admin ro'yxatida: aloqada, versiya ${VERSION}, baza v${SCHEMA_VERSION}, diskdagi joy`, !!seen && seen.online && seen.status!.version === VERSION && seen.status!.schema === SCHEMA_VERSION
     && seen.status!.diskFreeMb > 0 && Array.isArray(seen.status!.problems), JSON.stringify(seen?.status));
+
+  console.log('\n# Boshqaruv markazi: mijoz kartasi');
+  const cardUrl = `${HUB}/admin/clinics/${clinic.clinicId}/card`;
+  const founderKey = { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' };
+  ok("kartani kalitsiz yozib bo'lmaydi — 401", (await fetch(cardUrl, { method: 'POST', body: '{}' })).status === 401);
+  const badCard = await fetch(cardUrl, { method: 'POST', headers: founderKey, body: JSON.stringify({ paidUntil: '31.12.2026' }) });
+  ok("noto'g'ri sana — 400 va sababi", badCard.status === 400 && String((await badCard.json() as { error?: string }).error).includes('sana'));
+  const saved = await fetch(cardUrl, { method: 'POST', headers: founderKey, body: JSON.stringify({ owner: 'Akmal', phone: '+998901234567', city: 'Samarqand', kind: 'clinic', plan: '500000', paidUntil: '2026-12-01', note: 'sinov' }) });
+  type CardListed = { card: { owner: string; plan: number; paidUntil: string } | null };
+  const withCard = (await (await fetch(`${HUB}/admin/clinics`, { headers: founderKey })).json() as { clinics: (CardListed & { id: string })[]; latest: unknown; history: unknown[] });
+  const mineCard = withCard.clinics.find(c => c.id === clinic.clinicId)?.card;
+  ok("karta saqlandi va ro'yxatda keladi; so'nggi nashr va grafik maydonlari bor", saved.status === 200 && mineCard?.owner === 'Akmal' && mineCard.plan === 500000 && mineCard.paidUntil === '2026-12-01'
+    && 'latest' in withCard && Array.isArray(withCard.history), JSON.stringify(mineCard));
+  ok("yo'q mijozga karta — 404", (await fetch(`${HUB}/admin/clinics/0000000000/card`, { method: 'POST', headers: founderKey, body: '{}' })).status === 404);
 
   console.log('\n# Tashqi zaxira');
   const admin = { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' };
@@ -151,6 +165,9 @@ try {
   }
   await fetch(`${base}/api/admin/businesses`, { ...json({ name: 'Shifo Dent', login: 'shifo', password: 'secret12' }), headers: { 'content-type': 'application/json', authorization: `Bearer ${palantirAdmin}` } });
   const remoteLogin = await (await viaHub('/api/login', json({ login: 'shifo', password: 'secret12' }))).json() as { token?: string };
+  // Biznes ochildi — keyingi holatda uning turi (boshqaruv markazidagi filtr); «Shifo Dent» nomi va sohasi bo'yicha — klinika emas, savdo/xizmat
+  const kinded = await until('holatda biznes turi', async () => (await adminList()).find(c => c.id === clinic.clinicId && ((c.status as { kinds?: string[] } | null)?.kinds ?? []).length), 10_000);
+  ok("holatda biznes turi keladi (ma'lum turlardan)", !!kinded && ((kinded.status as unknown as { kinds: string[] }).kinds).every(k => ['clinic', 'education', 'services', 'manufacturing', 'retail'].includes(k)), JSON.stringify(kinded?.status));
   ok('egasi hub orqali login va parol bilan kirdi', !!remoteLogin.token && (await viaHub('/api/me', { headers: { authorization: `Bearer ${remoteLogin.token}` } })).status === 200);
   const closed = await Promise.all(['/api/admin/login', '/api/setup', '/api/voice/knowledge'].map(async p => (await viaHub(p, p === '/api/admin/login' ? json({ password: 'admin-pass-1' }) : {})).status));
   ok("masofadan yopiq: admin, ulash ustasi, ovozli agent yo'llari — 403", closed.every(c => c === 403), closed.join(','));

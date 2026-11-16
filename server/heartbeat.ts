@@ -5,6 +5,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { industryOf } from '../src/data/industries';
+import { crmConnected } from './crm/index';
 import { businesses } from './db';
 import { freeMb } from './disk';
 import { lastOffsite } from './offsite';
@@ -32,6 +34,9 @@ export function heartbeatStatus() {
     businesses: active.length,
     // Sotuvchi /admin ro'yxatida kompyuter nomi yonida ko'radi (ulash ustasida yozilgan biznes nomlari)
     label: active.map(b => b.profile.name).join(', ').slice(0, 80),
+    // Biznes turi (klinika, o'quv markazi, xizmat, ishlab chiqarish, savdo) — sotuvchining boshqaruv markazidagi filtr
+    kinds: [...new Set(active.map(b => industryOf(b.profile.industry, crmConnected(b.id)).kind))],
+    industries: active.map(b => b.profile.industry).filter(Boolean),
     problems: active.flatMap(b => openProblems(b.id).map(p => ({ business: b.profile.name, label: p.label, problem: p.problem, since: p.since }))),
     // Yangilovchining oxirgi natijasi (scripts/update.mjs): «qaytarildi» yoki «sinov» — sotuvchi bilsin
     lastUpdate: lastUpdate(),

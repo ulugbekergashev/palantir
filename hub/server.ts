@@ -45,6 +45,9 @@
  *  13. Yordam so'rash (help.ts): egasi muammoni yozadi (panel → Sozlamalar → Yordam yoki botda /yordam) → POST /api/help, xohlasa
  *      diagnostika bilan → sotuvchiga Telegram'da. GET /admin/help — ro'yxat (o'rnatuvchi — o'z klinikalari), POST
  *      /admin/help/<id>/answer — javob navbat orqali klinikaga (help_answer): egasining Telegramiga va panelga. Karantinda yopiq.
+ *  14. Boshqaruv markazi (admin.ts, clients.ts): /admin — hamma mijozlar (klinikalar va boshqa bizneslar), ko'rsatkichlar va 14 kunlik
+ *      grafik (soatlik client_stats), mijoz kartasi — POST /admin/clinics/<klinika>/card (asoschi): egasi, telefon, shahar, biznes turi,
+ *      tarif, to'langan sana, izoh. Holatda biznes turi (kinds) keladi; «so'nggi nashr» — HUB_RELEASE_URL/manifest.json (soatda bir marta).
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -64,6 +67,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { adminPage } from './admin.ts';
+import { CardError, CLIENT_KINDS, createClients, type ClientKind } from './clients.ts';
 import { createHelp, HelpError, type HelpRow } from './help.ts';
 import { issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
 import { createTeam, TeamError, type HubRole, type Member } from './team.ts';
@@ -107,6 +111,8 @@ const cfg = {
   trustProxy: process.env.HUB_TRUST_PROXY === '1',
   operator: process.env.HUB_OPERATOR || 'Palantir',
   contactEmail: process.env.HUB_CONTACT_EMAIL || '',
+  /** Klinikalar yangilanadigan joy (scripts/update.mjs dagi UPDATE_URL bilan bir xil): boshqaruv markazida «so'nggi nashr» */
+  releaseUrl: (process.env.HUB_RELEASE_URL || 'https://github.com/ulugbekergashev/palantir/releases/latest/download').replace(/\/+$/, ''),
 };
 const DIAG_KEEP = 10;
 /** Tashqi zaxira fayli shu belgi bilan boshlanadi (server/offsiteCrypto.ts) — boshqa narsa saqlanmaydi */
@@ -155,8 +161,12 @@ const stateSecret = ((): string => {
 const team = createTeam(db, stateSecret, () => cfg.adminKey);
 /** Yordam so'rovlari (help.ts, 13-band) */
 const help = createHelp(db);
+/** Mijoz kartalari va kunlik ko'rsatkichlar (clients.ts, 14-band) */
+const clients = createClients(db);
 
 const now = () => new Date().toISOString();
+/** Klinika so'nggi HUB_OFFLINE_MS ichida ko'ringan */
+const isOnline = (seenAt: string | null) => !!seenAt && Date.now() - Date.parse(seenAt) < cfg.offlineMs;
 /**
  * Klinika ulanish kodi — ko'rinishi src/lib/hubCode.ts dagi bilan bir xil (hub alohida joylanadi, shuning uchun nusxa).
  * «palantirhub.» bilan boshlanadi. 0.4.7 va undan eski Palantir faqat eski «phub.» ni o'qiydi: o'zi ulanishda u kod turini aytmaydi
@@ -406,7 +416,10 @@ function cleanStatus(v: unknown) {
   const lastOffsite = b ? { day: text(b.day, 10), ok: b.ok === true, size: num(b.size), error: text(b.error, 300), at: text(b.at, 40) } : null;
   const l = o.license ? record(o.license) : null;
   const license = l ? { activated: l.activated === true, daysLeft: num(l.daysLeft) } : null;
-  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), label: text(o.label, 80), problems, lastUpdate, lastOffsite, license, setup: o.setup === true, at: now() };
+  // Biznes turi (src/data/industries.ts) — boshqaruv markazidagi filtr; noma'lum qiymat tashlanadi
+  const kinds = (Array.isArray(o.kinds) ? o.kinds : []).filter((k): k is ClientKind => CLIENT_KINDS.includes(k as ClientKind)).slice(0, 10);
+  const industries = (Array.isArray(o.industries) ? o.industries : []).map(x => text(x, 60)).filter((x): x is string => !!x).slice(0, 10);
+  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), label: text(o.label, 80), problems, lastUpdate, lastOffsite, license, setup: o.setup === true, kinds, industries, at: now() };
 }
 
 /** OAuth holati: klinika, biznes, muddat — imzolangan (begona odam boshqa klinika nomidan ulay olmasin) */
@@ -727,6 +740,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     db.prepare('DELETE FROM accounts WHERE clinic_id = ?').run(id);
     db.prepare('DELETE FROM clinics WHERE id = ?').run(id);
     help.forget(id);
+    clients.remove(id);
     relayQueue.delete(id);
     for (const dir of [join(cfg.backupDir, id), join(cfg.diagDir, id)]) rmSync(dir, { recursive: true, force: true });
     team.log(who, 'klinika.ochirildi', id);
@@ -739,12 +753,33 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const rows = (db.prepare('SELECT id, name, created_at, seen_at, status, machine_id, self, approved, created_by FROM clinics ORDER BY created_at DESC').all() as
       { id: string; name: string; created_at: string; seen_at: string | null; status: string | null; machine_id: string | null; self: number | null; approved: number | null; created_by: string | null }[])
       .filter(r => who.role === 'founder' || r.created_by === who.id);
+    const cards = clients.cards();
     return send(res, 200, {
       clinics: rows.map(r => ({
         id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at, machineId: r.machine_id, self: r.self === 1, approved: r.approved === 1,
-        online: !!r.seen_at && Date.now() - Date.parse(r.seen_at) < cfg.offlineMs, status: r.status ? JSON.parse(r.status) as unknown : null,
+        online: isOnline(r.seen_at), status: r.status ? JSON.parse(r.status) as unknown : null, card: cards.get(r.id) ?? null,
       })),
+      // Boshqaruv markazi: so'nggi nashr («eski versiya» belgisi) va 14 kunlik grafik — o'rnatuvchiga ham (faqat sonlar)
+      latest: latestRelease.version, history: who.role === 'founder' ? clients.history() : [],
     });
+  }
+
+  // Admin: mijoz kartasi (egasi, telefon, shahar, tur, tarif, to'langan sana, izoh) — faqat asoschi yozadi
+  const carding = /^\/admin\/clinics\/([0-9a-f]{10})\/card$/.exec(p);
+  if (carding && req.method === 'POST') {
+    const who = memberOf(req, res, 'founder'); if (!who) return;
+    const id = carding[1];
+    if (!db.prepare('SELECT 1 FROM clinics WHERE id = ?').get(id)) return send(res, 404, { error: "Bunday klinika yo'q" });
+    let body: unknown;
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    try {
+      const card = clients.save(id, body, who.name);
+      team.log(who, 'karta.yangilandi', id);
+      return send(res, 200, { card });
+    } catch (e) {
+      if (e instanceof CardError) return send(res, e.code, { error: e.message });
+      throw e;
+    }
   }
 
   // Klinika: shifrlangan kunlik zaxira (hub ocha olmaydi) — oqim bilan faylga, hajmi cheklangan; oxirgi backupKeep tasi qoladi
@@ -1000,6 +1035,27 @@ async function alert(message: string): Promise<boolean> {
     return false;
   }
 }
+/** Soatlik ko'rsatkich (14 kunlik grafik): tasdiqlangan klinikalar, aloqadagilar va muammosi borlar */
+function snapshot(): void {
+  const rows = db.prepare('SELECT seen_at, status FROM clinics WHERE approved = 1').all() as { seen_at: string | null; status: string | null }[];
+  const troubled = rows.filter(r => {
+    if (!r.status) return false;
+    const s = JSON.parse(r.status) as { problems?: unknown[]; lastUpdate?: { result?: string } | null; lastOffsite?: { ok?: boolean } | null };
+    return !!s.problems?.length || (!!s.lastUpdate?.result && s.lastUpdate.result !== 'ok') || s.lastOffsite?.ok === false;
+  }).length;
+  clients.snapshot(rows.length, rows.filter(r => isOnline(r.seen_at)).length, troubled);
+}
+/** So'nggi nashr — klinikalar yangilanadigan manifestdan (scripts/update.mjs bilan bir manba); soatda bir marta */
+const latestRelease: { version: string | null; checkedAt: number } = { version: null, checkedAt: 0 };
+async function refreshLatest(): Promise<void> {
+  if (Date.now() - latestRelease.checkedAt < 3_600_000) return;
+  latestRelease.checkedAt = Date.now();
+  try {
+    const r = await fetch(`${cfg.releaseUrl}/manifest.json`, { signal: AbortSignal.timeout(15_000) });
+    const v = r.ok ? (await r.json() as { version?: unknown }).version : null;
+    if (typeof v === 'string' && /^\d+\.\d+\.\d+$/.test(v)) latestRelease.version = v;
+  } catch { /* keyingi soatda qayta */ }
+}
 let watching = false;
 async function watch(): Promise<void> {
   if (watching) return;
@@ -1017,6 +1073,8 @@ async function watch(): Promise<void> {
     for (const c of back) if (await alert(`✅ «${c.name}» yana aloqada.`)) db.prepare('UPDATE clinics SET alerted_at = NULL WHERE id = ?').run(c.id);
     // Yordam so'rovi sotuvchiga yetmagan bo'lsa (Telegram ishlamagan, bot sozlanmagan edi) — qayta
     if (cfg.botToken && cfg.alertChat) for (const h of help.unalerted()) await alertHelp(h);
+    snapshot();
+    void refreshLatest();
   } finally {
     watching = false;
   }
