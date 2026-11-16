@@ -11,6 +11,7 @@ import re
 import sys
 import time
 import uuid
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -35,6 +36,44 @@ LIVE_LANG = env('LIVE_LANG', 'uz-UZ')
 # O'lchovda (latency.py, 2026-10-17): gap tugagandan javobgacha 3.8-live standart ~1,6 s → shu sozlamalar bilan ~1,1 s
 LIVE_SILENCE_MS = int(env('LIVE_SILENCE_MS', '500'))   # shuncha jimlik — gap tugadi (300 — tezroq, lekin o'ylab to'xtaganda kesadi)
 LIVE_THINKING = int(env('LIVE_THINKING', '0'))          # o'ylash byudjeti: 0 — o'ylamasdan darhol javob
+LIVE_CONNECT_TRIES = 2                                  # Live ulanishi vaqtida ochilmasa (tarmoq sekin) — shuncha urinish
+# 2026-11-16: Live 10 s da ochilmay, panel va telefon «uzildi» bo'lardi. Sababi — tarmoqda IPv6 ko'p Google manzillariga yetmaydi,
+# Python esa manzillarni ketma-ket sinaydi (IPv6 birinchi, har biri ~20 s osiladi). Brauzer/curl kabi parallel — 0,25 s dan keyin keyingisi
+LIVE_HAPPY_EYEBALLS_S = 0.25
+LIVE_OPEN_TIMEOUT_S = 30
+_thinking_rejected = False                              # model o'ylash sozlamasini rad etdi — bu jarayonda boshqa yuborilmaydi
+
+
+def rejects_thinking(e: Exception) -> bool:
+    """Google modelni ogohlantirmasdan o'zgartirdi: 2026-11-16 dan gemini-3.8-live «Thinking budget/level is not supported» (1007) deb
+    ulanishni yopadi — panel ham, telefon AI ham ishlamay qoldi. Sozlamasiz qayta ulanadi"""
+    text = str(e)
+    return '1007' in text and 'hinking' in text and 'not supported' in text
+
+
+@asynccontextmanager
+async def live_session(client: genai.Client, config: types.LiveConnectConfig):
+    """Gemini Live seansi: o'ylash sozlamasi rad etilsa — usiz; ochilish vaqti tugasa — yana urinadi"""
+    global _thinking_rejected
+    api = client._api_client  # genai ulanish kutish vaqtini sozlashga yo'l bermaydi — ws_connect argumentlariga qo'shiladi
+    if isinstance(getattr(api, '_websocket_ssl_ctx', None), dict):
+        api._websocket_ssl_ctx = {**api._websocket_ssl_ctx, 'open_timeout': LIVE_OPEN_TIMEOUT_S, 'happy_eyeballs_delay': LIVE_HAPPY_EYEBALLS_S}
+    async with AsyncExitStack() as stack:
+        failures = 0
+        while True:
+            cfg = config.model_copy(update={'thinking_config': None}) if _thinking_rejected else config
+            try:
+                session = await stack.enter_async_context(client.aio.live.connect(model=LIVE_MODEL, config=cfg))
+                break
+            except Exception as e:
+                if not _thinking_rejected and rejects_thinking(e):
+                    _thinking_rejected = True
+                    continue
+                failures += 1
+                if failures >= LIVE_CONNECT_TRIES or not isinstance(e, (TimeoutError, OSError)):
+                    raise
+                await asyncio.sleep(1)
+        yield session
 UPLINK_FRAMES = 4                                       # Live'ga 40 ms bo'laklarda
 PALANTIR = env('PALANTIR_URL', 'http://127.0.0.1:3200')
 CALL_LIMIT_S = 300
@@ -552,7 +591,7 @@ class Bridge:
             realtime_input_config=types.RealtimeInputConfig(automatic_activity_detection=types.AutomaticActivityDetection(
                 end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH, silence_duration_ms=self.silence_ms, prefix_padding_ms=20,
                 **({'start_of_speech_sensitivity': self.start_sensitivity} if self.start_sensitivity else {}))))
-        async with client.aio.live.connect(model=LIVE_MODEL, config=config) as s:
+        async with live_session(client, config) as s:
             self.log('—', f"Gemini Live ulandi ({LIVE_MODEL}, {f'VoiceLab: {self.speaker.name}' if self.speaker else voice})")
             # Bo'sh kickoff — AI birinchi bo'lib gapirmaydi (panelda «Palantir» deb chaqirilganda: buyruq ovozda keladi)
             if kickoff:
