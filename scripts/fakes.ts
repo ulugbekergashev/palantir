@@ -544,7 +544,7 @@ function decide(messages: Msg[]): { content: Block[]; stop: string } {
   }
 
   // DentaCRM asboblari: kirish — egasining gapidagi JSON
-  const crmTool = ([['klinika kuni', 'clinic_day'], ['bemor top', 'find_patient'], ["bo'sh vaqt", 'free_slots'], ['qabulga yoz', 'book_appointment'], ['davr hisoboti', 'clinic_period'], ['klinika nazorati', 'clinic_alerts'], ['kamera hisobi', 'clinic_cameras'], ['kameraga qara', 'look_camera'], ['narxlarni saqla', 'save_prices'], ["namunani o'qi", 'read_sample'], ['sahifa yoz', 'write_page'], ["sahifani o'qi", 'read_page'], ["to'lov yoz", 'record_payment'], ['xarajat yoz', 'record_expense'], ['maosh ber', 'pay_doctor']] as const).find(([k]) => said.includes(k));
+  const crmTool = ([['klinika kuni', 'clinic_day'], ['bemor top', 'find_patient'], ["bo'sh vaqt", 'free_slots'], ['qabulga yoz', 'book_appointment'], ['davr hisoboti', 'clinic_period'], ['klinika nazorati', 'clinic_alerts'], ['kamera hisobi', 'clinic_cameras'], ['kameraga qara', 'look_camera'], ['narxlarni saqla', 'save_prices'], ["namunani o'qi", 'read_sample'], ['sahifa yoz', 'write_page'], ["sahifani o'qi", 'read_page'], ["to'lov yoz", 'record_payment'], ['xarajat yoz', 'record_expense'], ['maosh ber', 'pay_doctor'], ['kim javob kut', 'work_messages']] as const).find(([k]) => said.includes(k));
   if (crmTool) return call(crmTool[1], JSON.parse(/\{.*\}/s.exec(lastOwnerText(messages))?.[0] ?? '{}'));
 
   if (said.includes('namunadan sahifa')) return call('read_sample', JSON.parse(/\{.*\}/s.exec(lastOwnerText(messages))?.[0] ?? '{}'));

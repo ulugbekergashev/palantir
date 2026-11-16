@@ -1,5 +1,6 @@
 /**
- * Kechki BITTA xabar (B6, egasi qarori): kamera hisoboti, Palantir o'zi javob bergan mijozlar (B7) va «Kun qanday o'tdi» savoli.
+ * Kechki BITTA xabar (B6, egasi qarori): kamera hisoboti, Palantir o'zi javob bergan mijozlar (B7), javob kutayotgan ish xabarlari
+ * (Kotib, inbox/workChats.ts) va «Kun qanday o'tdi» savoli.
  * Avval uch alohida xabar edi (19:00 savol, kechki yig'ma, 20:00 kamera) va hammasi bitta «ertalabki xulosa» belgisiga bog'liq edi.
  *
  * Belgilar (profil): eveningReport — kun savoli va yig'ma, cameraReport — kamera qismi. Bo'lmasa — eski morningBrief bo'yicha:
@@ -16,6 +17,7 @@ import { DAY_OUTCOME, askDay } from './outcome';
 import { autoDigestHtml } from './inbox/core';
 import { autoDigest } from './serviceStore';
 import { cameraReport, cameraSentToday, markCameraSent } from './camera/report';
+import { workEveningHtml } from './inbox/workChats';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const EVENING_WINDOW_H = 3, CAMERA_WINDOW_H = 4;
@@ -26,6 +28,8 @@ const MESSAGE_MAX = 3900;
 const NO_NEWS = [[{ text: "Bugun aytadigan narsa yo'q", data: `od|${DAY_OUTCOME}` }]];
 
 const digestDay = new Map<string, string>();
+/** Kotib qismi (javob kutayotgan ish xabarlari) bugun yuborilganmi */
+const workDay = new Map<string, string>();
 const cameraRetryAt = new Map<string, number>();
 
 /** Kechki kun yakuni (savol va yig'ma) yoqilganmi */
@@ -75,6 +79,7 @@ async function eveningFor(bot: BotService, biz: BusinessRow, now: Date, withCame
   const askNow = on && env.aiEnabled && biz.eveningDate !== day;
   const check = askNow ? eveningCheck(biz, now) : null;
   const digest = on && digestDay.get(biz.id) !== day ? autoDigestHtml(biz) : null;
+  const work = on && workDay.get(biz.id) !== day ? workEveningHtml(biz.id, now.getTime()) : null;
   let camera: string | null = null;
   if (withCamera && !cameraSentToday(biz.id, day) && (cameraRetryAt.get(biz.id) ?? 0) <= now.getTime()) {
     try {
@@ -84,13 +89,14 @@ async function eveningFor(bot: BotService, biz: BusinessRow, now: Date, withCame
       console.error(`[kechki] kamera hisoboti (${biz.profile.name}):`, (e as Error).message);
     }
   }
-  const parts = [camera, digest, check?.html].filter((p): p is string => !!p);
+  const parts = [camera, digest, work, check?.html].filter((p): p is string => !!p);
   for (const m of joinEvening(parts, check ? NO_NEWS : undefined)) await bot.sendText(biz.ownerChatId!, m.html, m.buttons);
   // Yuborilgach belgilanadi: savol kuniga bir marta (aytadigan narsa bo'lmasa ham — avvalgidek), yig'ma va kamera — faqat yuborilganda
   if (check) askDay(biz, check.taskIds, check.leadIds);
   if (askNow) businesses.update(biz.id, { eveningDate: day });
   if (digest) { autoDigest.clear(biz.id); digestDay.set(biz.id, day); }
   if (camera) markCameraSent(biz.id, day);
+  if (work) workDay.set(biz.id, day);
   return parts.length > 0;
 }
 
@@ -114,6 +120,7 @@ export async function eveningTick(bot: BotService, transient: (e: unknown) => bo
       // yig'ma ertangi xabarga qoladi, kamera besh daqiqadan keyin yana
       businesses.update(biz.id, { eveningDate: iso(now) });
       digestDay.set(biz.id, iso(now));
+      workDay.set(biz.id, iso(now));
       cameraRetryAt.set(biz.id, now.getTime() + CAMERA_RETRY_MS);
     }
   }

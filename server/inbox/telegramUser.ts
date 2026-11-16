@@ -21,6 +21,7 @@ import { env } from '../env';
 import { open, seal } from '../secret';
 import { notifyOwner, onIncoming, onOwnerOutgoing, registerSender, replySettings } from './core';
 import { personalChats } from './personal';
+import { workChats } from './workChats';
 
 /** Telegram'dan kelgan xabar (haydovchidan mustaqil ko'rinishda) */
 export interface TgEvent {
@@ -312,6 +313,12 @@ function accept(biz: BusinessRow, e: TgEvent): boolean {
 function onEvent(bizId: string, e: TgEvent): void {
   const biz = businesses.byId(bizId);
   if (!biz?.active) return;
+  // Ish bo'yicha kontakt (workChats.ts): egasi yozsa — javob berildi, u yozsa — Kotib eslab qoladi; bemor emas, AI javob bermaydi
+  if (workChats.has(biz.id, e.userId)) {
+    if (e.out) workChats.answered(biz.id, e.userId);
+    else workChats.incoming(biz.id, e.userId, e.name ?? null, e.text, e.at ?? new Date().toISOString());
+    return;
+  }
   if (e.out) {
     onOwnerOutgoing(biz, 'telegram', { tgUserId: e.userId }, e.text, e.msgId, e.at);
     return;

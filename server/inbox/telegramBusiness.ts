@@ -15,6 +15,7 @@ import { businesses, connections, type BusinessRow, type LeadRow } from '../db';
 import { notifyOwner, onIncoming, onOwnerOutgoing, registerSender } from './core';
 import { staff } from '../requests/store';
 import { personalChats } from './personal';
+import { workChats } from './workChats';
 
 const KIND = 'tg_business';
 /** Bot olishi kerak bo'lgan yangilanishlar (bot.ts: allowedUpdates) — Telegraf 4.16 turlarida yo'q */
@@ -79,6 +80,8 @@ export function onBusinessMessage(m: BusinessMessage): void {
   const extId = `${m.chat.id}:${m.message_id}`;
   const at = m.date ? new Date(m.date * 1000).toISOString() : undefined;
   if (String(m.from?.id) === conn.account.userId) {
+    // Ish bo'yicha kontaktga egasi o'zi yozdi — Kotib uni «javob berildi» deb belgilaydi (workChats.ts)
+    if (workChats.has(biz.id, String(m.chat.id))) { workChats.answered(biz.id, String(m.chat.id)); return; }
     onOwnerOutgoing(biz, 'telegram', { tgUserId: String(m.chat.id) }, text, extId, at);
     return;
   }
@@ -86,6 +89,8 @@ export function onBusinessMessage(m: BusinessMessage): void {
   if (m.from?.is_bot || staff.byChat(String(m.chat.id))) return;
   // Egasi «bemor emas — shaxsiy suhbat» deb belgilagan odam (personal.ts)
   if (personalChats.has(biz.id, String(m.chat.id))) return;
+  // Ish bo'yicha yozgan (yetkazib beruvchi, hamkor) — bemor emas, AI javob bermaydi; Kotib javob kutayotganini eslab qoladi
+  if (workChats.has(biz.id, String(m.chat.id))) { workChats.incoming(biz.id, String(m.chat.id), nameOf(m.from) ?? null, text, at ?? new Date().toISOString()); return; }
   onIncoming(biz, { channel: 'telegram', person: { tgUserId: String(m.chat.id), name: nameOf(m.from), username: m.from?.username ?? null }, text, extId, source: 'Telegram (Business)', at });
 }
 

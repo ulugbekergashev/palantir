@@ -22,6 +22,7 @@ import { periodRange } from './crm/report';
 import { DAY_OUTCOME, askDay } from './outcome';
 import { flushDue } from './inbox/core';
 import { eveningCheck, eveningTick } from './evening';
+import { workTick } from './inbox/workChats';
 import { pollInstagram } from './inbox/instagram';
 import { syncTasks } from './brain/mirror';
 import { tgCall, tgCallEnabled } from './tgcall';
@@ -444,6 +445,8 @@ export function startScheduler(bot: BotService): () => void {
       }
       // 4) Litsenziya: panel yopilishiga 7, 3, 1 kun qolganda va yopilganda — egasiga Telegram'da (kunduzi — REQUEST_HOURS, har bosqichda bir marta)
       if (hour >= env.requestHours.from && hour < env.requestHours.to) await warnLicense(bot);
+      // 6) Kotib: ish bo'yicha yozgan (yetkazib beruvchi, hamkor) javob kutyapti — kunduzi bitta eslatma, AI'siz (inbox/workChats.ts)
+      if (hour >= env.requestHours.from && hour < env.requestHours.to && Date.now() >= remindRetryAt) await workTick((c, h, b) => bot.sendText(c, h, b), businesses.all(), transient);
     } catch (e) {
       console.error('[jadval]', e);
     } finally {

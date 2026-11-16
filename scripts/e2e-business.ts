@@ -13,7 +13,7 @@ const buttons = (s: Sent | undefined) => ((s?.params.reply_markup as { inline_ke
 const to = (chat: number, mark: number, needle: string) => sent.slice(mark).find(s => s.method === 'sendMessage' && Number(s.params.chat_id) === chat && textOf(s).includes(needle));
 
 // Boshqa sinovlarda ishlatilmagan id'lar (7101… — e2e-crm'dagi bot mijozlari: o'sha odam bo'lsa, karta bitta bo'lardi)
-const CUSTOMER = 7301, FRIEND = 7302, STRANGER = 7399;
+const CUSTOMER = 7301, FRIEND = 7302, WORK = 7303, STRANGER = 7399;
 
 export async function businessTests(h: Harness): Promise<void> {
   const { ok, api, token } = h;
@@ -92,6 +92,38 @@ export async function businessTests(h: Harness): Promise<void> {
   ok("«Qaytarish» — keyingi xabaridan yana bemor", back);
   const again = await friendLead();
   if (again) await api(`/api/leads/${again.id}`, { method: 'DELETE', token });
+
+  // Yordamchi asbobining natijasi (soxta Claude kalit so'z bo'yicha chaqiradi, fakes.ts)
+  const askTool = async (_name: string, input: unknown): Promise<string> => {
+    const before = ai.requests.length;
+    await api('/api/chat', { token, body: { text: `kim javob kutyapti ${JSON.stringify(input)}` } });
+    const last = ai.requests.slice(before).map(q => q.messages.at(-1)?.content).filter(Array.isArray).at(-1);
+    const block = last?.find(b => b.type === 'tool_result');
+    return String(block?.content ?? '');
+  };
+  // Kotib: ish bo'yicha yozgan (texnik laboratoriya) — «🤝 Ish bo'yicha»: bemor emas, AI javob bermaydi, egasi javobini kuzatadi
+  const labLead = async () => ((await api('/api/leads', { token })).json.leads as { name: string | null }[]).find(l => l.name === 'Aziz laboratoriya');
+  mark = sent.length;
+  businessMessage({ connectionId: 'bc-1', chatId: WORK, fromId: WORK, name: 'Aziz laboratoriya', text: 'Kronkalar tayyor, qachon olib ketasiz?' });
+  const labCard = await waitFor('laboratoriya kartasi', () => to(OWNER, mark, 'Kronkalar'), 15_000);
+  const nw = buttons(labCard).find(b => b.callback_data?.startsWith('nw|'));
+  ok("shaxsiy Telegram kartasida «Ish bo'yicha» tugmasi ham bor (Kotib)", !!nw && buttons(labCard).some(b => b.callback_data?.startsWith('np|')), JSON.stringify(buttons(labCard)));
+  mark = sent.length;
+  press(OWNER, nw!.callback_data!, labCard!.id!);
+  const workMarked = await waitFor('ish bo\'yicha', () => sent.slice(mark).find(s => s.method === 'editMessageText' && textOf(s).includes("ish bo'yicha deb belgilandi")));
+  ok("«Ish bo'yicha» — bemorlar ro'yxatidan olindi, «Qaytarish» tugmasi", !!workMarked && buttons(workMarked).some(b => b.callback_data?.startsWith('wu|')) && !(await labLead()));
+  mark = sent.length;
+  const askedBefore = ai.requests.length;
+  businessMessage({ connectionId: 'bc-1', chatId: WORK, fromId: WORK, name: 'Aziz laboratoriya', text: 'Javob bering, kuryer kutyapti' });
+  await new Promise(r => setTimeout(r, 2500));
+  ok("ish kontakti yana yozdi — bemor ham, karta ham emas, AI unga javob tayyorlamadi", !(await labLead()) && !to(OWNER, mark, 'kuryer')
+    && !ai.requests.slice(askedBefore).some(q => JSON.stringify(q.messages).includes('kuryer')));
+  const waitingNow = await askTool('work_messages', {});
+  ok("Yordamchi «kim javob kutyapti» deb so'rasa — laboratoriya, oxirgi xabari bilan", /Aziz laboratoriya/.test(waitingNow) && /kuryer/.test(waitingNow) && /"messages":2/.test(waitingNow), waitingNow.slice(0, 300));
+  businessMessage({ connectionId: 'bc-1', chatId: WORK, fromId: OWNER, name: 'Ega', text: 'Ertaga soat 10 da olib ketamiz' });
+  await new Promise(r => setTimeout(r, 800));
+  const afterAnswer = await askTool('work_messages', {});
+  ok("egasi o'z Telegram'idan javob berdi — kutayotganlar ro'yxatidan chiqdi", /"waiting_total":0/.test(afterAnswer), afterAnswer.slice(0, 200));
 
   mark = sent.length;
   businessConnection({ id: 'bc-1', userId: OWNER, canReply: false });

@@ -7,6 +7,7 @@ import { Markup } from 'telegraf';
 import type { InlineKeyboardButton } from 'telegraf/types';
 import type { LeadRow } from '../db';
 import { settings } from '../serviceStore';
+import { workRow } from './workChats';
 
 /** Egasining shaxsiy Telegram'i orqali kelgan mijozlar (bot va Instagram — har doim mijoz, ularga tugma chiqmaydi) */
 export const PERSONAL_SOURCES = ['Telegram (Business)', 'Telegram (shaxsiy)'];
@@ -34,5 +35,6 @@ export const personalChats = {
 export const canMarkPersonal = (lead: Pick<LeadRow, 'channel' | 'tgUserId' | 'source' | 'patientId'>): boolean =>
   lead.channel === 'telegram' && !!lead.tgUserId && !lead.patientId && PERSONAL_SOURCES.includes(lead.source ?? '');
 
-export const personalRow = (leadId: string): InlineKeyboardButton[] => [Markup.button.callback('🙅 Bemor emas — shaxsiy suhbat', `np|${leadId}`)];
+/** Ikki tanlov: do'st yoki qarindosh (umuman tushmaydi) va ish bo'yicha yozgan (Kotib kuzatadi, workChats.ts) */
+export const personalRow = (leadId: string): InlineKeyboardButton[] => [Markup.button.callback("🙅 Do'st, bemor emas", `np|${leadId}`), workRow(leadId)];
 export const undoPersonalRow = (tgUserId: string): InlineKeyboardButton[] => [Markup.button.callback('↩️ Qaytarish — bu bemor', `nu|${tgUserId}`)];

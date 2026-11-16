@@ -12,7 +12,7 @@ import { answerApproval, closeLoginWindow, stopJob } from './computer/jobs';
 import { cancelEntry, confirmEntry, undoEntry } from './crm/actions';
 import { recallPatients } from './crm/index';
 import { patientName } from './crm/logic';
-import { businesses, leads, outbound, tasks, type BusinessRow } from './db';
+import { businesses, inbox, leads, outbound, tasks, type BusinessRow } from './db';
 import { approveReply, DEFAULT_REPLY, dismissReply, notifyOwner } from './inbox/core';
 import { OFFER_CODE } from './inbox/autonomy';
 import { cancelPost, posts, publishPost } from './marketing/posts';
@@ -27,6 +27,9 @@ import { directorButton } from './director/telegram';
 import { mergeKeyboard } from './director/logic';
 import { forgetLead } from './forget';
 import { canMarkPersonal, personalChats, undoPersonalRow } from './inbox/personal';
+import { REMIND_AFTER_MS, undoWorkRow, workChats } from './inbox/workChats';
+
+const REMIND_HOURS = REMIND_AFTER_MS / 3600_000;
 import { waiting } from './serviceStore';
 
 export interface ButtonDeps {
@@ -97,6 +100,34 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
           { parse_mode: 'HTML', reply_markup: { inline_keyboard: [undoPersonalRow(lead.tgUserId)] } }).catch(ignoreUnchanged).catch(() => {});
       }
       return toast(ctx, 'Belgilandi — bemorlar ro\'yxatidan olindi');
+    }
+    // Ish bo'yicha yozgan (yetkazib beruvchi, hamkor) — Kotib (inbox/workChats.ts). Faqat egasi: bemorlar ro'yxatidan olinadi,
+    // AI javob bermaydi, egasi javob bermasa — eslatadi. wd — «javob shart emas», wu — qaytarish (keyingi xabaridan yana bemor)
+    if (code === 'nw' || code === 'wd' || code === 'wu') {
+      if (!ownerBiz) return toast(ctx, 'Buni faqat klinika egasi belgilaydi');
+      if (code === 'wd') {
+        workChats.answered(biz.id, id);
+        return toast(ctx, "Belgilandi — bu xabar uchun boshqa eslatmayman");
+      }
+      if (code === 'wu') {
+        workChats.remove(biz.id, id);
+        if (msg) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+        return toast(ctx, "Qaytarildi — bu odam keyingi safar yozsa, bemor sifatida tushadi", { show_alert: true });
+      }
+      const lead = leads.get(biz.id, id);
+      if (!lead?.tgUserId || !canMarkPersonal(lead)) return toast(ctx, 'Bu tugma eskirgan');
+      // Egasi hali javob bermagan xabar — kuzatuv shundan boshlanadi
+      const last = inbox.last(biz.id, lead.id);
+      const name = lead.name || (lead.username ? `@${lead.username}` : '');
+      workChats.add(biz.id, lead.tgUserId, name, last?.direction === 'in' ? { text: last.text, at: last.createdAt } : null);
+      waiting.remove(biz.id, lead.id);
+      forgetLead(biz.id, lead.id);
+      if (msg) {
+        await tg.editMessageText(ctx.chat!.id, msg.message_id, undefined,
+          `🤝 <b>${esc(name || 'Bu odam')}</b> — ish bo'yicha deb belgilandi (bemor emas).\nUnga AI javob bermaydi. Siz ${REMIND_HOURS} soat ichida Telegram'ingizdan javob bermasangiz — eslataman; kechki xabarda ham «javob kutayotganlar» bo'ladi.`,
+          { parse_mode: 'HTML', reply_markup: { inline_keyboard: [undoWorkRow(lead.tgUserId)] } }).catch(ignoreUnchanged).catch(() => {});
+      }
+      return toast(ctx, "Belgilandi — ish bo'yicha");
     }
     if (code === 'jy') {
       if (id !== biz.id) return toast(ctx, 'Bu tugma eskirgan');
