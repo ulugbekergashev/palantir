@@ -30,9 +30,10 @@ RATE = 48000                      # Telegram tomoni: 48 kHz, mono, 16-bit, 10 ms
 FRAME_BYTES = RATE // 100 * 2
 LIVE_IN_RATE = 16000              # Gemini Live kirishi
 LIVE_MODEL = env('LIVE_MODEL', 'gemini-3.8-live')
-# Ovoz: «standart» — nom berilmaydi, faqat til kodi (sinovda o'zbekchani eng tabiiy shunday aytdi, 2026-10-18);
-# Telefon.md dagi «ovoz:» qatori ustun. Eslatma: Google standart ovozni ogohlantirmasdan o'zgartirishi mumkin
+# Ovoz: «standart» — STANDARD_VOICE. Egasi namunalarni quloq bilan solishtirib tanladi (2026-11-16): nomsiz ovozdan ko'ra
+# Leda jonliroq eshitildi. Telefon.md dagi «ovoz:» qatori ustun; «nomsiz» — Gemini o'zi tanlaydi (avvalgi standart)
 LIVE_VOICE = env('LIVE_VOICE', 'standart')
+STANDARD_VOICE = env('STANDARD_VOICE', 'Leda')
 LIVE_LANG = env('LIVE_LANG', 'uz-UZ')
 # O'lchovda (latency.py, 2026-10-17): gap tugagandan javobgacha 3.8-live standart ~1,6 s → shu sozlamalar bilan ~1,1 s
 LIVE_SILENCE_MS = int(env('LIVE_SILENCE_MS', '500'))   # shuncha jimlik — gap tugadi (300 — tezroq, lekin o'ylab to'xtaganda kesadi)
@@ -101,10 +102,13 @@ PALANTIR_WAIT_S = 9
 UZ_TZ = timezone(timedelta(hours=5))   # O'zbekistonda yozgi vaqt yo'q
 WEEKDAYS = ['dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba', 'yakshanba']
 # Ohang va talaffuz — egasi bilan ham, mijoz bilan ham (sip_live.py) bir xil
-SPEECH = """Ohang: ona tili o'zbek tili bo'lgan toshkentlik xushmuomala yordamchidek — matnni o'qib bergandek emas, jonli suhbatdek.
-Savolda ohang ko'tariladi, gap oxirida yumshoq tushadi, so'zlar orasida tabiiy kichik pauzalar, kerak joyda tabassum bilan.
-Talaffuz: o'zbek adabiy (Toshkent) talaffuzi — rus yoki turk talaffuzida emas. Urg'u ko'pincha so'zning oxirgi bo'g'inida: a-KA, rah-MAT, e-shi-ta-MAN.
-«aka» so'zida «k» qattiq va toza — hech qachon «akya» emas. «q» — chuqur bo'g'iz tovushi, «k» dan farqli; «g'» — yumshoq g'ayn; «x» — «h» dan farqli."""
+# Kitobiy adabiy talaffuz «robot» bo'lib eshitiladi; jonli call-markaz ovozi — shahar Toshkent nutqi (yumshoq «q», «g'»,
+# oy nomlari ruscha ohangda). Yozib qo'yilgan «a-a» sun'iyligi bilinib qoladi — shuning uchun to'ldiruvchi tovush taqiqlangan
+SPEECH = """Ohang: Toshkent shahrida o'sgan, o'zbek va rus tilini birday biladigan xushmuomala call-markaz xodimidek — matnni o'qib bergandek emas, har kuni shu ishni qiladigan jonli odamdek.
+Ovoz yumshoq, tiniq, xotirjam va o'ziga ishongan; tezlik o'rtachadan sal tezroq, so'zlar ravon ulanadi. Savolda ohang ko'tariladi, gap oxirida yumshoq tushadi; gap boshida yengil nafas, so'zlar orasida tabiiy kichik pauzalar.
+Talaffuz: kitobiy emas, Toshkent shahar og'zaki nutqi — turk talaffuzida emas. «q» va «g'» yumshoq va yengil (bo'g'izdan qattiq chiqarma), lekin «q» «k» ga aylanib qolmasin; «o'» chuqur emas, yumshoq; «x» — «h» dan farqli.
+Oy nomlari va otasining ismi shaharliklar aytgandek: «noyabr» — «nayábr», «Rajabovich» — ruscha urg'u bilan. Boshqa so'zlarda urg'u ko'pincha oxirgi bo'g'inda: a-KA, rah-MAT, e-shi-ta-MAN. «aka» so'zida «k» qattiq va toza — hech qachon «akya» emas.
+«a-a», «e-e», «hmm» kabi to'ldiruvchi tovush qo'shma — sun'iy eshitiladi; o'ylash kerak bo'lsa, qisqa jim pauza qil."""
 # Telefon liniyasida shovqin va karnaydan qaytgan o'z ovozing «gap» bo'lib keladi (ko'pincha boshqa tilda, ma'nosiz bo'lak)
 NOISE = """Eshitganing tushunarsiz bo'lak, o'zbek va rus tilidan boshqa tildagi gap (turkcha, hindcha…) yoki ma'nosiz so'z bo'lsa — bu liniya shovqini yoki o'z ovozingning
 aks-sadosi, odamning gapi emas: unga javob berma, jim tur va kutishda davom et. «Faqat o'zbek tilida gaplashaman» dema.
@@ -201,10 +205,13 @@ class VoiceLabVoice:
 
 
 def speech_config(voice: str) -> types.SpeechConfig:
-    """«standart» (yoki bo'sh) — ovoz nomisiz, faqat til kodi; aks holda — Gemini'ning shu nomli ovozi"""
-    named = voice.strip() and voice.strip().lower() not in ('standart', 'default')
+    """«standart» (yoki bo'sh) — STANDARD_VOICE; «nomsiz» — ovoz nomisiz, faqat til kodi; aks holda — Gemini'ning shu nomli ovozi"""
+    name = voice.strip()
+    if name.lower() in ('', 'standart', 'default'):
+        name = STANDARD_VOICE
+    named = name.lower() != 'nomsiz'
     return types.SpeechConfig(
-        voice_config=types.VoiceConfig(prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice.strip())) if named else None,
+        voice_config=types.VoiceConfig(prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=name)) if named else None,
         **({'language_code': LIVE_LANG} if LIVE_LANG else {}))
 
 
