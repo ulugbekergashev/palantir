@@ -1,5 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.15 da yangi
+
+- **Telefondagi AI va paneldagi ovozli suhbat yana ishlaydi:** Google ovozli modelini o'zgartirgani va ba'zi internet tarmoqlaridagi (IPv6) muammo tufayli AI ulanmay, qo'ng'iroqlar administratorga o'tib ketayotgan edi.
+- **HR bo'limi:** Rekruter — vakansiya matni va savollar, nomzodlar botda javob beradi, AI baho va xulosa beradi, chaqirish yoki rad etish — faqat sizning tugmangiz bilan. Murabbiy — xodimga klinikangizning o'z bilimidan darslar va test, natijasi sizga keladi.
+
 ## 0.4.14 da yangi
 
 - **AI ish vaqtini o'ylab topmaydi:** ish vaqti saqlanmagan bo'lsa, AI aytgan soatlar bemorga o'zi ketmaydi — avval sizga keladi (oldin DentaCRM jadvalidagi sanalar tufayli ba'zan o'tib ketardi).
