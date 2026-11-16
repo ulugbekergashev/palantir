@@ -12,6 +12,7 @@ import { env } from './env';
 import { notifyOwner } from './inbox/core';
 import { hubProblem } from './inbox/instagramApi';
 import { phoneProblem } from './phone/index';
+import { voiceAiProblem } from './voice/health';
 import { lineChecks } from './voice/line';
 import { isNight, type DayHours } from './requests/timing';
 
@@ -43,6 +44,8 @@ async function checks(biz: BusinessRow, now: number, disk: string | null): Promi
   const ig = connections.get(biz.id, 'instagram_api');
   if (ig) out.push({ key: 'instagram_api', label: 'Instagram (rasmiy)', problem: hubProblem(now) ?? ig.meta.problem ?? null });
   out.push({ key: 'phone', label: 'Telefon (MicroSIP)', problem: phoneProblem(biz.id) });
+  // Telefon AI va panel ovozi (Gemini Live): oxirgi ulanish yiqilgan bo'lsa (voice/health.ts) — bitta kompyuter, har biznesda ko'rinadi
+  out.push({ key: 'voice_ai', label: 'Ovozli AI (Gemini)', problem: voiceAiProblem(now) });
   // Telefon liniyasi (Asterisk + raqam) va Zadarma hisobi: uzilsa yoki to'lov yaqinlashib balans yetmasa
   out.push(...await lineChecks(biz.id, now).catch(() => []));
   for (const cam of cameras.list(biz.id)) {

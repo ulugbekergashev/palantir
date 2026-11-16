@@ -6,6 +6,7 @@ Odatda Palantir o'zi ishga tushiradi (eslatma vaqtida, server/tgcall.ts)."""
 import array
 import asyncio
 import faulthandler
+import json
 import os
 import re
 import sys
@@ -23,7 +24,7 @@ from pytgcalls.types import CallConfig, Device, Direction, ExternalMedia, MediaS
 from pytgcalls.types.raw import AudioParameters
 from telethon import TelegramClient
 
-from common import ROOT, SESSION, env
+from common import ROOT, SESSION, VOICE_STATUS_FILE, env
 
 RATE = 48000                      # Telegram tomoni: 48 kHz, mono, 16-bit, 10 ms bo'laklar
 FRAME_BYTES = RATE // 100 * 2
@@ -71,9 +72,22 @@ async def live_session(client: genai.Client, config: types.LiveConnectConfig):
                     continue
                 failures += 1
                 if failures >= LIVE_CONNECT_TRIES or not isinstance(e, (TimeoutError, OSError)):
+                    voice_status(False, f'{type(e).__name__}: {e}')
                     raise
                 await asyncio.sleep(1)
+        voice_status(True)
         yield session
+
+
+def voice_status(ok: bool, error: str = '') -> None:
+    """Oxirgi Live ulanish natijasi — Palantir kanallar nazorati o'qiydi (server/voice/health.ts): yiqilsa egasi va Hub ko'radi.
+    Yozib bo'lmasa — suhbatga xalaqit bermaydi"""
+    try:
+        tmp = VOICE_STATUS_FILE.with_suffix('.tmp')
+        tmp.write_text(json.dumps({'ok': ok, 'error': error[:300], 'at': datetime.now(timezone.utc).isoformat()}), encoding='utf-8')
+        os.replace(tmp, VOICE_STATUS_FILE)
+    except OSError:
+        pass
 UPLINK_FRAMES = 4                                       # Live'ga 40 ms bo'laklarda
 PALANTIR = env('PALANTIR_URL', 'http://127.0.0.1:3200')
 CALL_LIMIT_S = 300

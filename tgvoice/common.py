@@ -26,6 +26,8 @@ def _parse(path: Path) -> dict[str, str]:
 
 _DOT = _parse(ENV_FILE)
 SERVICE_FILE = (ROOT.parent / _DOT.get('DATA_DIR', 'data')).resolve() / 'ovoz.env'
+# Ovozli AI salomatligi (server/voice/health.ts o'qiydi): Palantir ishga tushirganda DATA_DIR muhitda bo'lishi mumkin — u ustun
+VOICE_STATUS_FILE = (ROOT.parent / (os.environ.get('DATA_DIR') or _DOT.get('DATA_DIR', 'data'))).resolve() / 'ovoz-holat.json'
 _service: dict[str, str] = {}
 _service_mtime = -1.0
 
