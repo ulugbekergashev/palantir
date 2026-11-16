@@ -67,6 +67,7 @@
     "hub": "tsx hub/server.ts",
     "hub:deploy": "tsx scripts/deploy-hub.ts",
     "hub:demo": "tsx scripts/hub-demo.ts",
+    "hub:yorliq": "tsx scripts/hub-yorliq.ts",
     "test:hub": "tsx scripts/e2e-hub.ts",
     "test:hub-clients": "tsx scripts/check-hub-clients.ts",
     "test:profile": "tsx scripts/e2e-profile.ts",

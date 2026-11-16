@@ -29,8 +29,9 @@ const MARKUP = `
     <h1>Boshqaruv markazi</h1>
     <p>Hamma mijozlar — klinikalar va boshqa bizneslar — bitta joyda.</p>
     <label class="f">Login<input id="lg" placeholder="Asosiy kalit bilan — bo'sh qoldiring" autocomplete="username" maxlength="40"></label>
-    <label class="f">Parol<input id="k" type="password" autocomplete="current-password" required></label>
+    <label class="f">Parol<input id="k" type="password" autocomplete="current-password" required autofocus></label>
     <button class="btn">Kirish</button>
+    <small class="meta">Ish stolidagi «Palantir Hub» yorlig'i asosiy kalitni nusxalaydi — Ctrl+V va Enter.</small>
   </form>
 </div>
 
