@@ -79,6 +79,17 @@ console.log('\n# Tarif (modullar)');
   clients.setModules('t8', { modules: ['direktor'] }, 'Asoschi', 'BBBB-0000-0000-0000');
   const g = clients.grantFor('t8', 'BBBB-0000-0000-0000');
   ok("to'xtatish boshqa yozuvdan, tarif o'zinikidan — ikkalasi birga", g.state === 'blocked' && JSON.stringify(g.modules) === '["direktor"]', JSON.stringify(g));
+  // Eski yozuv: to'xtatilgan + cheklangan tarif; kompyuter qayta o'rnatib yangi yozuv oldi, sotuvchi yangisini «Ochish» qildi
+  const C = 'CCCC-0000-0000-0000';
+  clients.setModules('o1', { modules: ['tahlilchi'] }, 'Ali', C);
+  clients.setAccess('o1', { state: 'blocked' }, 'Ali', C);
+  clients.setAccess('o2', { state: 'active' }, 'Vali', C);
+  const o = clients.grantFor('o2', C);
+  ok("«Ochish» boshqa yozuvdagi to'xtatishni oladi, lekin o'sha kompyuter tarifi qoladi", o.state === 'active' && JSON.stringify(o.modules) === '["tahlilchi"]', JSON.stringify(o));
+  clients.setAccess('o3', { state: 'blocked', message: "To'lov" }, 'Ali');
+  clients.setModules('o3', { modules: 'all' }, 'Vali');
+  const a3 = clients.access('o3');
+  ok("tarif o'zgarsa holat muallifi o'zgarmaydi (tarifniki alohida)", a3.updatedBy === 'Ali' && a3.modulesBy === 'Vali' && a3.state === 'blocked', JSON.stringify(a3));
 }
 
 console.log("\n# Ko'rsatkichlar");

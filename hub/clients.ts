@@ -34,9 +34,9 @@ export interface ClientCard {
  */
 export interface ClientAccess {
   state: AccessState; message: string | null; updatedAt: string | null; updatedBy: string | null;
-  modules: Module[] | null; modulesSet: boolean; modulesAt: string | null;
+  modules: Module[] | null; modulesSet: boolean; modulesAt: string | null; modulesBy: string | null;
 }
-const ACTIVE: ClientAccess = { state: 'active', message: null, updatedAt: null, updatedBy: null, modules: null, modulesSet: false, modulesAt: null };
+const ACTIVE: ClientAccess = { state: 'active', message: null, updatedAt: null, updatedBy: null, modules: null, modulesSet: false, modulesAt: null, modulesBy: null };
 /** Bazadagi ko'rinish: NULL — tanlanmagan, '*' — hammasi (sotuvchi o'zi tanlagan), JSON massiv — ro'yxat */
 const ALL_MODULES = '*';
 const ACCESS_MESSAGE_MAX = 300;
@@ -98,8 +98,8 @@ const view = (r: CardDb): ClientCard => ({
   owner: r.owner, phone: r.phone, city: r.city, plan: r.plan, paidUntil: r.paid_until, note: r.note, updatedAt: r.updated_at, updatedBy: r.updated_by,
 });
 
-type AccessDb = { state: string; message: string | null; updated_at: string; updated_by: string | null; modules: string | null; modules_at: string | null };
-const ACCESS_COLS = 'state, message, updated_at, updated_by, modules, modules_at';
+type AccessDb = { state: string; message: string | null; updated_at: string; updated_by: string | null; modules: string | null; modules_at: string | null; modules_by: string | null };
+const ACCESS_COLS = 'state, message, updated_at, updated_by, modules, modules_at, modules_by';
 function parseModules(raw: string | null): Module[] | null {
   if (raw === null || raw === ALL_MODULES) return null;
   try {
@@ -110,7 +110,7 @@ function parseModules(raw: string | null): Module[] | null {
 const accessView = (r: AccessDb): ClientAccess => {
   const state = ACCESS_STATES.find(s => s === r.state) ?? 'active';
   return { state, message: state === 'active' ? null : r.message, updatedAt: r.updated_at, updatedBy: r.updated_by,
-    modules: parseModules(r.modules), modulesSet: r.modules !== null, modulesAt: r.modules_at };
+    modules: parseModules(r.modules), modulesSet: r.modules !== null, modulesAt: r.modules_at, modulesBy: r.modules_by };
 };
 
 export function createClients(db: DatabaseSync, now: () => Date = () => new Date()) {
@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NO
   if (!accessCols.has('machine_id')) db.exec('ALTER TABLE client_access ADD COLUMN machine_id TEXT');
   if (!accessCols.has('modules')) db.exec('ALTER TABLE client_access ADD COLUMN modules TEXT');
   if (!accessCols.has('modules_at')) db.exec('ALTER TABLE client_access ADD COLUMN modules_at TEXT');
+  if (!accessCols.has('modules_by')) db.exec('ALTER TABLE client_access ADD COLUMN modules_by TEXT');
 
   return {
     cards(): Map<string, ClientCard> {
@@ -171,7 +172,7 @@ CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NO
       const blocked = own.state === 'blocked' ? own : other("state = 'blocked'", 'updated_at') ?? own;
       // Tarif: o'z yozuvida tanlangan bo'lsa — o'shasi; yo'q bo'lsa — shu kompyuterning boshqa yozuvidagi oxirgi tanlov
       const plan = own.modulesSet ? own : other('modules IS NOT NULL', 'modules_at') ?? own;
-      return { ...blocked, modules: plan.modules, modulesSet: plan.modulesSet, modulesAt: plan.modulesAt };
+      return { ...blocked, modules: plan.modules, modulesSet: plan.modulesSet, modulesAt: plan.modulesAt, modulesBy: plan.modulesBy };
     },
 
     /** Heartbeat'dagi (yozuvga mos) kompyuter kodi — holat yozuvida eslab qolinadi */
@@ -200,8 +201,12 @@ CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NO
         ON CONFLICT(clinic_id) DO UPDATE SET state = excluded.state, message = excluded.message, updated_at = excluded.updated_at, updated_by = excluded.updated_by,
         machine_id = COALESCE(excluded.machine_id, client_access.machine_id)`)
         .run(clinicId, state, message, at, by, machineId);
-      // «Ochish» — shu kompyuterning boshqa (o'chirilgan yoki takror) yozuvlaridagi to'xtatish ham olib tashlanadi: sotuvchi uni ochdi
-      if (state === 'active' && machineId) db.prepare("DELETE FROM client_access WHERE machine_id = ? AND clinic_id <> ? AND state = 'blocked'").run(machineId, clinicId);
+      // «Ochish» — shu kompyuterning boshqa (o'chirilgan yoki takror) yozuvlaridagi to'xtatish ham olib tashlanadi: sotuvchi uni ochdi.
+      // Qator o'chirilmaydi — unda shu kompyuterning tarifi (modules) bo'lishi mumkin: o'chsa, «ochish» tarifni ham jimgina bekor qilardi
+      if (state === 'active' && machineId) {
+        db.prepare("UPDATE client_access SET state = 'active', message = NULL, updated_at = ?, updated_by = ? WHERE machine_id = ? AND clinic_id <> ? AND state = 'blocked'")
+          .run(at, by, machineId, clinicId);
+      }
       return this.access(clinicId);
     },
 
@@ -216,10 +221,11 @@ CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NO
       else if (Array.isArray(o.modules) && o.modules.every(isModule)) stored = JSON.stringify(MODULES.filter(m => (o.modules as unknown[]).includes(m)));
       else throw new CardError(400, `Modullar: «all» yoki ro'yxat (${MODULES.join(', ')})`);
       const at = now().toISOString();
-      db.prepare(`INSERT INTO client_access (clinic_id, state, message, updated_at, updated_by, machine_id, modules, modules_at) VALUES (?, 'active', NULL, ?, ?, ?, ?, ?)
-        ON CONFLICT(clinic_id) DO UPDATE SET modules = excluded.modules, modules_at = excluded.modules_at, updated_by = excluded.updated_by,
+      // Holat muallifi (updated_by/updated_at) o'zgarmaydi — tarifniki alohida (modules_by/modules_at)
+      db.prepare(`INSERT INTO client_access (clinic_id, state, message, updated_at, updated_by, machine_id, modules, modules_at, modules_by) VALUES (?, 'active', NULL, ?, NULL, ?, ?, ?, ?)
+        ON CONFLICT(clinic_id) DO UPDATE SET modules = excluded.modules, modules_at = excluded.modules_at, modules_by = excluded.modules_by,
         machine_id = COALESCE(excluded.machine_id, client_access.machine_id)`)
-        .run(clinicId, at, by, machineId, stored, at);
+        .run(clinicId, at, machineId, stored, at, by);
       return this.access(clinicId);
     },
 

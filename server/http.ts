@@ -67,7 +67,7 @@ import { forgetLead } from './forget';
 import { telegramBusinessStatus } from './inbox/telegramBusiness';
 import { mountOrders } from './orders/routes';
 import { mountDirector } from './director/routes';
-import { lockedCrew, mountCrew, syncCrew } from './crew';
+import { lockedCrew, mountCrew, syncCrew, tariffGuard } from './crew';
 import { mountAttention } from './attention';
 import { mountTeamDay } from './teamDay';
 import { mountInsights } from './insights/routes';
@@ -248,6 +248,8 @@ export function createApp(bot: BotService) {
     }
     next();
   });
+  // Tarifda yo'q AI xodimning o'zgartiruvchi yo'llari yopiq (crew.ts tariffGuard)
+  app.use(tariffGuard);
   // Klinika xodimi: faqat huquqi yetadigan bo'limlar (access.ts)
   app.use((req, res, next) => {
     if (!req.path.toLowerCase().startsWith('/api/')) return next();

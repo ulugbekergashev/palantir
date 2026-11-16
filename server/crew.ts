@@ -68,6 +68,40 @@ export function syncCrew(biz: BusinessRow, status: LiveStatus): CrewMember[] {
   return visibleCrew(biz, next);
 }
 
+/**
+ * Tarif himoyasi API darajasida: tarifda yo'q xodimning o'zgartiruvchi yo'llari (POST/PUT/PATCH/DELETE) — 403 «tarif». Menyuni yashirish
+ * yetmaydi: brauzerdan to'g'ridan-to'g'ri so'rov yuborib ishlatib bo'lmasin. O'qish (GET) ochiq — egasining ma'lumoti yashirilmaydi.
+ * Ochiq qoladigan xavfsiz amallar (SAFE): reklamani to'xtatish/o'chirish va limit (pul egasiz qolmasin), kamerani o'chirish, kursni bekor
+ * qilish, vakansiyani yopish; brend-buk — butun jamoaniki
+ */
+const GUARDED: [RegExp, CrewMember][] = [
+  [/^\/api\/(content|posts)(\/|$)/, 'kontent'],
+  [/^\/api\/ads(\/|$)/, 'target'],
+  [/^\/api\/cameras(\/|$)/, 'kuzatuvchi'],
+  [/^\/api\/(director|goals)(\/|$)/, 'direktor'],
+  [/^\/api\/hr\/(vacancies|candidates)(\/|$)/, 'rekruter'],
+  [/^\/api\/hr\/trainings(\/|$)/, 'murabbiy'],
+  [/^\/api\/insights(\/|$)/, 'tahlilchi'],
+  [/^\/api\/results(\/|$)/, 'marketolog'],
+];
+const SAFE = /^\/api\/(content\/brand|ads\/campaigns\/[^/]+\/pause$|ads\/limits$|hr\/trainings\/[^/]+\/cancel$|hr\/vacancies\/[^/]+\/close$)/;
+const SAFE_DELETE = /^\/api\/(ads\/campaigns\/[^/]+|ads\/connect|cameras\/[^/]+)$/;
+
+/** Shu so'rovni tarif yopadimi: yopsa — xodim, aks holda null */
+export function tariffBlocks(method: string, rawPath: string): CrewMember | null {
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return null;
+  const path = rawPath.toLowerCase();
+  if (SAFE.test(path) || (method === 'DELETE' && SAFE_DELETE.test(path))) return null;
+  const hit = GUARDED.find(([re]) => re.test(path));
+  return hit && !crewLicensed(hit[1]) ? hit[1] : null;
+}
+
+export function tariffGuard(req: Request, res: Response, next: () => void): unknown {
+  const m = tariffBlocks(req.method, req.path);
+  if (!m) return next();
+  return res.status(403).json({ error: `${TEAM_NAME[m]} tarifingizda yo'q — qo'shish uchun sotuvchiga murojaat qiling`, code: 'tarif' });
+}
+
 /** Heartbeat (sotuvchi Hub'da ko'radi): egasi jamoaga olgan xodimlar — tarifdan qat'i nazar, qaysi modulni ishlatayotgani */
 export const hiredCrew = (biz: BusinessRow): CrewMember[] => CREW.filter(m => !isCore(m) && !!stateOf(biz)?.hired.includes(m));
 

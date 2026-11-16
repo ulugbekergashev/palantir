@@ -33,7 +33,7 @@ function planSect(c) {
   const head = el('div', 'row');
   head.append(el('span', 'pill ' + (plan.modules ? 'warn' : 'ok'), plan.modules ? on + ' / ' + PLAN_MODULES.length + ' yoqiq' : 'Hammasi yoqiq'));
   if (plan.inherited) head.append(el('small', 'meta', "shu kompyuterning boshqa yozuvidagi tanlov"));
-  else if (c.access && c.access.modulesAt) head.append(el('small', 'meta', (c.access.updatedBy || '—') + ' · ' + ago(c.access.modulesAt)));
+  else if (c.access && c.access.modulesAt) head.append(el('small', 'meta', (c.access.modulesBy || '—') + ' · ' + ago(c.access.modulesAt)));
   box.append(head, el('div', 'meta', "AI administrator va Palantir — doim bor. O'chirilgan xodim menyudan chiqadi va ishlamaydi; ma'lumoti o'chmaydi."));
   const note = planNote(c);
   if (note) box.append(el('div', 'meta', note));

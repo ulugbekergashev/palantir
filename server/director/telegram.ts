@@ -4,6 +4,7 @@
  * tekshirilgan qaror natijasi.
  */
 import { addDays, iso } from '../../src/lib/week';
+import { crewWorks } from '../../src/lib/crew';
 import type { BusinessRow } from '../db';
 import { env } from '../env';
 import { approveMove, declineMove, DirectorError, directorMoves, directorRuns, runDirector } from './index';
@@ -18,6 +19,8 @@ interface Sender { sendText(chatId: string, html: string, buttons?: { text: stri
  * yig'iladi: aks holda qayta yuborilgan xabarda faqat kun rejasi qolib, Direktor takliflari tushib qolardi
  */
 export async function directorReport(biz: BusinessRow, now = new Date()): Promise<{ html: string; buttons: { text: string; data: string }[][] } | null> {
+  // Direktor tarifda yo'q yoki egasi olib tashlagan — ertalabki tahlil ham, takliflar ham yo'q
+  if (!crewWorks(biz, 'direktor')) return null;
   const today = directorRuns.onDay(biz.id, iso(now));
   if (today) return storedReport(biz, today);
   if (!env.aiEnabled) return null;

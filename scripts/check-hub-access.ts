@@ -17,6 +17,7 @@ const { issueAccess, checkAccess, MODULES } = await import('../hub/licenseKey');
 const { accessRejected, accessView, accessNotice, licensedModules, moduleAllowed, noteAccess, resetAccessCache, tickAccess, OFFLINE_BLOCK_DAYS, OFFLINE_WARN_DAYS } = await import('../server/hubAccess');
 const { CREW, CORE, crewHas, crewLicensed, crewList, crewWorks } = await import('../src/lib/crew');
 const { ADMIN_PLAN_JS } = await import('../hub/adminPlan');
+const { tariffBlocks } = await import('../server/crew');
 const { settings } = await import('../server/serviceStore');
 
 let failed = 0;
@@ -165,6 +166,27 @@ check("tarifda yo'q xodim — jamoada ko'rinmaydi, fonda ishlamaydi; asosiylari 
   assert.ok(crewHas(b, 'qabulxona') && crewHas(b, 'yordamchi') && crewLicensed('qabulxona'));
   assert.deepEqual(crewList({ hired: ['kuzatuvchi', 'tahlilchi', 'direktor'], dismissed: [] }), ['qabulxona', 'yordamchi', 'tahlilchi']);
   assert.equal(moduleAllowed('telefon'), false);
+});
+check("API: tarifda yo'q xodimning o'zgartiruvchi yo'llari yopiq; o'qish va xavfsiz amallar (reklamani to'xtatish, o'chirish) ochiq", () => {
+  // Hozirgi tarif: faqat tahlilchi
+  assert.equal(tariffBlocks('POST', '/api/content/run'), 'kontent');
+  assert.equal(tariffBlocks('POST', '/api/director/run'), 'direktor');
+  assert.equal(tariffBlocks('POST', '/API/Ads/plan'), 'target');
+  assert.equal(tariffBlocks('POST', '/api/ads/campaigns/k1/launch'), 'target');
+  assert.equal(tariffBlocks('POST', '/api/ads/campaigns/k1/resume'), 'target');
+  assert.equal(tariffBlocks('POST', '/api/cameras'), 'kuzatuvchi');
+  assert.equal(tariffBlocks('POST', '/api/hr/vacancies'), 'rekruter');
+  assert.equal(tariffBlocks('POST', '/api/hr/trainings'), 'murabbiy');
+  assert.equal(tariffBlocks('POST', '/api/results/refresh'), 'marketolog');
+  assert.equal(tariffBlocks('POST', '/api/insights'), null);
+  assert.equal(tariffBlocks('GET', '/api/content/drafts'), null);
+  assert.equal(tariffBlocks('POST', '/api/ads/campaigns/k1/pause'), null);
+  assert.equal(tariffBlocks('DELETE', '/api/ads/campaigns/k1'), null);
+  assert.equal(tariffBlocks('PUT', '/api/ads/limits'), null);
+  assert.equal(tariffBlocks('DELETE', '/api/cameras/c1'), null);
+  assert.equal(tariffBlocks('POST', '/api/hr/trainings/t1/cancel'), null);
+  assert.equal(tariffBlocks('PUT', '/api/content/brand'), null);
+  assert.equal(tariffBlocks('POST', '/api/chat'), null);
 });
 check("eski bazada ham (tarkib hali hisoblanmagan — null) tarifda yo'q xodim ishlamaydi", () => {
   assert.equal(crewWorks({ crew: null }, 'kuzatuvchi'), false);

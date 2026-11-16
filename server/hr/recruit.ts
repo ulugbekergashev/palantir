@@ -192,7 +192,8 @@ export async function scoreCandidate(biz: BusinessRow, v: Vacancy, c: Candidate)
 
 async function scoreAndTell(biz: BusinessRow, v: Vacancy, c: Candidate): Promise<void> {
   let score: number | null = null, summary = '';
-  if (env.aiEnabled) {
+  // Rekruter tarifdan chiqqan bo'lsa: boshlangan nomzod javoblari egasiga baribir boradi, lekin AI baho berilmaydi
+  if (env.aiEnabled && crewWorks(biz, 'rekruter')) {
     try { ({ score, summary } = await scoreCandidate(biz, v, c)); } catch (e) {
       console.error('[rekruter] baholash:', (e as Error).message);
       summary = "AI baholay olmadi — javoblarni o'zingiz ko'ring";

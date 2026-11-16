@@ -781,11 +781,16 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       clinics: rows.map(r => ({
         id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at, machineId: r.machine_id, self: r.self === 1, approved: r.approved === 1,
         online: isOnline(r.seen_at), status: r.status ? JSON.parse(r.status) as unknown : null, card: cards.get(r.id) ?? null,
-        access: access.get(r.id) ?? clients.access(r.id),
-        // Shu kompyuter boshqa (o'chirilgan yoki takror) yozuvda to'xtatilgan — klinikaga ham «to'xtatilgan» boradi
-        heldElsewhere: !!r.machine_id && access.get(r.id)?.state !== 'blocked' && clients.grantFor(r.id, r.machine_id).state === 'blocked',
-        // Klinikaga boradigan tarif (o'zida tanlanmagan bo'lsa — shu kompyuterning boshqa yozuvidagi tanlov)
-        plan: (({ modules, modulesSet }) => ({ modules, set: modulesSet, inherited: modulesSet && !access.get(r.id)?.modulesSet }))(r.machine_id ? clients.grantFor(r.id, r.machine_id) : clients.access(r.id)),
+        ...(() => {
+          const own = access.get(r.id) ?? clients.access(r.id), grant = r.machine_id ? clients.grantFor(r.id, r.machine_id) : own;
+          return {
+            access: own,
+            // Shu kompyuter boshqa (o'chirilgan yoki takror) yozuvda to'xtatilgan — klinikaga ham «to'xtatilgan» boradi
+            heldElsewhere: own.state !== 'blocked' && grant.state === 'blocked',
+            // Klinikaga boradigan tarif (o'zida tanlanmagan bo'lsa — shu kompyuterning boshqa yozuvidagi tanlov)
+            plan: { modules: grant.modules, set: grant.modulesSet, inherited: grant.modulesSet && !own.modulesSet },
+          };
+        })(),
       })),
       // Boshqaruv markazi: so'nggi nashr («eski versiya» belgisi) va 14 kunlik grafik — o'rnatuvchiga ham (faqat sonlar)
       latest: latestRelease.version, history: who.role === 'founder' ? clients.history() : [],

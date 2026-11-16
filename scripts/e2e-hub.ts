@@ -219,6 +219,9 @@ try {
   const hireLocked = await fetch(`${base}/api/crew`, { method: 'POST', headers: { ...asOwner.headers, 'content-type': 'application/json' }, body: JSON.stringify({ member: 'kuzatuvchi', on: true }) });
   const hireJ = await hireLocked.json() as { code?: string; error?: string };
   ok("egasi tarifda yo'q xodimni ishga ololmaydi — 409, «sotuvchiga murojaat»", hireLocked.status === 409 && hireJ.code === 'tarif' && String(hireJ.error).includes('sotuvchi'), JSON.stringify(hireJ));
+  const directRun = await fetch(`${base}/api/director/run`, { method: 'POST', headers: { ...asOwner.headers, 'content-type': 'application/json' }, body: '{}' });
+  ok("menyuni chetlab to'g'ridan-to'g'ri so'rov ham yopiq — Direktorni ishga tushirib bo'lmaydi (403 «tarif»)",
+    directRun.status === 403 && (await directRun.json() as { code?: string }).code === 'tarif', String(directRun.status));
   const lineJ = await (await fetch(`${base}/api/phone/line`, asOwner)).json() as { line?: { aiLocked?: boolean } };
   ok("telefon AI tarifda yo'q — qo'ng'iroqlarni administrator oladi (telefon sahifasida aytiladi)", lineJ.line?.aiLocked === true, JSON.stringify(lineJ.line?.aiLocked));
   const hubPlan = await until("Hub klinikadagi tarifni ko'radi", async () => (await adminList() as unknown as { id: string; status: { modules?: string[] | null; uses?: string[] } | null; plan?: { modules: string[] | null; set: boolean } }[])
