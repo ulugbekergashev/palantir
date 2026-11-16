@@ -28,9 +28,9 @@ const dbFile = join(work, 'hub.db');
   }
   db.close();
 }
-const hub = spawn(process.execPath, ['--import', 'tsx', 'D:/Projects/cerebro/hub/server.ts'], {
+const hub = spawn(process.execPath, ['--import', 'tsx', 'hub/server.ts'], {
   env: { ...process.env, PORT: String(PORT), HUB_DB: dbFile, HUB_ADMIN_KEY: KEY, HUB_PUBLIC_URL: HUB, HUB_RELEASE_URL: 'http://127.0.0.1:9/yoq', HUB_OFFLINE_MS: '600000' },
-  stdio: 'ignore', cwd: 'D:/Projects/cerebro',
+  stdio: 'ignore', cwd: process.cwd(),
 });
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const admin = { authorization: `Bearer ${KEY}` };
