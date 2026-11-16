@@ -35,6 +35,8 @@ LIVE_MODEL = env('LIVE_MODEL', 'gemini-3.8-live')
 LIVE_VOICE = env('LIVE_VOICE', 'standart')
 STANDARD_VOICE = env('STANDARD_VOICE', 'Leda')
 LIVE_LANG = env('LIVE_LANG', 'uz-UZ')
+# Eshitish tillari (transkripsiya uchun ishora): ishorasiz «Что?» — «¿Qué?» bo'lib yozilardi. Bo'sh — o'zi aniqlaydi
+HEAR_LANGS = [c.strip() for c in env('LIVE_HEAR_LANGS', 'uz-UZ,ru-RU').split(',') if c.strip()]
 # O'lchovda (latency.py, 2026-10-17): gap tugagandan javobgacha 3.8-live standart ~1,6 s → shu sozlamalar bilan ~1,1 s
 LIVE_SILENCE_MS = int(env('LIVE_SILENCE_MS', '500'))   # shuncha jimlik — gap tugadi (300 — tezroq, lekin o'ylab to'xtaganda kesadi)
 LIVE_THINKING = int(env('LIVE_THINKING', '0'))          # o'ylash byudjeti: 0 — o'ylamasdan darhol javob
@@ -43,7 +45,17 @@ LIVE_CONNECT_TRIES = 2                                  # Live ulanishi vaqtida 
 # Python esa manzillarni ketma-ket sinaydi (IPv6 birinchi, har biri ~20 s osiladi). Brauzer/curl kabi parallel — 0,25 s dan keyin keyingisi
 LIVE_HAPPY_EYEBALLS_S = 0.25
 LIVE_OPEN_TIMEOUT_S = 30
+_hear_rejected = False                                 # model eshitish tillari ishorasini rad etdi — bu jarayonda usiz
 _thinking_rejected = False                              # model o'ylash sozlamasini rad etdi — bu jarayonda boshqa yuborilmaydi
+
+
+# Live transkripsiyasidagi xizmat belgilari: «<no speech>», «<noise>», «{pause}», «[silence]» — so'z emas, ekranga ham, jurnalga ham,
+# VoiceLab ovoziga ham bormaydi (aks holda panelda «<no speech> {pause}» yozilib, VoiceLab uni o'qib berardi)
+_MARKUP = re.compile(r'<[A-Za-z][A-Za-z _-]{0,30}>|\{[A-Za-z][A-Za-z _-]{0,30}\}|\[(?:noise|silence|music|laughter|inaudible|pause|no[ _]speech|unclear)[^\]\n]{0,20}\]', re.I)
+
+
+def clean_transcript(text: str) -> str:
+    return re.sub(r'[ \t]{2,}', ' ', _MARKUP.sub(' ', text)).strip()
 
 
 def rejects_thinking(e: Exception) -> bool:
@@ -53,10 +65,16 @@ def rejects_thinking(e: Exception) -> bool:
     return '1007' in text and 'hinking' in text and 'not supported' in text
 
 
+def rejects_config(e: Exception) -> bool:
+    """Sozlama rad etildi (1007 — noto'g'ri argument): eshitish tillari ishorasi bu modelda yo'q bo'lsa — usiz qayta ulanadi"""
+    text = str(e)
+    return '1007' in text or 'anguage' in text
+
+
 @asynccontextmanager
 async def live_session(client: genai.Client, config: types.LiveConnectConfig):
     """Gemini Live seansi: o'ylash sozlamasi rad etilsa — usiz; ochilish vaqti tugasa — yana urinadi"""
-    global _thinking_rejected
+    global _thinking_rejected, _hear_rejected
     api = client._api_client  # genai ulanish kutish vaqtini sozlashga yo'l bermaydi — ws_connect argumentlariga qo'shiladi
     if isinstance(getattr(api, '_websocket_ssl_ctx', None), dict):
         api._websocket_ssl_ctx = {**api._websocket_ssl_ctx, 'open_timeout': LIVE_OPEN_TIMEOUT_S, 'happy_eyeballs_delay': LIVE_HAPPY_EYEBALLS_S}
@@ -64,12 +82,17 @@ async def live_session(client: genai.Client, config: types.LiveConnectConfig):
         failures = 0
         while True:
             cfg = config.model_copy(update={'thinking_config': None}) if _thinking_rejected else config
+            if _hear_rejected:
+                cfg = cfg.model_copy(update={'input_audio_transcription': types.AudioTranscriptionConfig()})
             try:
                 session = await stack.enter_async_context(client.aio.live.connect(model=LIVE_MODEL, config=cfg))
                 break
             except Exception as e:
                 if not _thinking_rejected and rejects_thinking(e):
                     _thinking_rejected = True
+                    continue
+                if not _hear_rejected and HEAR_LANGS and rejects_config(e):
+                    _hear_rejected = True
                     continue
                 failures += 1
                 if failures >= LIVE_CONNECT_TRIES or not isinstance(e, (TimeoutError, OSError)):
@@ -432,7 +455,7 @@ class Bridge:
 
     def flush_text(self):
         for who, parts in (('Siz', self._heard), ('Palantir', self._said)):
-            if parts and (text := ''.join(parts).strip()):
+            if parts and (text := clean_transcript(''.join(parts))):
                 self.log(who, text)
                 self.note(who, text)
             parts.clear()
@@ -453,14 +476,16 @@ class Bridge:
                     if self._said:
                         self.flush_text()
                     self._heard.append(sc.input_transcription.text)
-                    self.on_partial('Siz', ''.join(self._heard))
+                    if heard := clean_transcript(''.join(self._heard)):
+                        self.on_partial('Siz', heard)
                 if sc.output_transcription and sc.output_transcription.text:
                     if self._heard:
                         self.flush_text()
                     self._said.append(sc.output_transcription.text)
-                    self.on_partial('Palantir', ''.join(self._said))
-                    if self.speaker:
-                        self.feed(sc.output_transcription.text)
+                    if said := clean_transcript(''.join(self._said)):
+                        self.on_partial('Palantir', said)
+                    if self.speaker and (chunk := clean_transcript(sc.output_transcription.text)):
+                        self.feed(chunk)
                 if sc.model_turn and not self.speaker:  # VoiceLab ovozida Gemini'ning o'z ovozi ishlatilmaydi
                     for p in sc.model_turn.parts:
                         if p.inline_data and p.inline_data.data:
@@ -607,7 +632,8 @@ class Bridge:
         config = types.LiveConnectConfig(
             response_modalities=['AUDIO'], tools=tools, system_instruction=system,
             speech_config=speech_config(voice),
-            input_audio_transcription=types.AudioTranscriptionConfig(), output_audio_transcription=types.AudioTranscriptionConfig(),
+            input_audio_transcription=types.AudioTranscriptionConfig(**({'language_codes': HEAR_LANGS} if HEAR_LANGS else {})),
+            output_audio_transcription=types.AudioTranscriptionConfig(),
             thinking_config=types.ThinkingConfig(thinking_budget=LIVE_THINKING),
             realtime_input_config=types.RealtimeInputConfig(automatic_activity_detection=types.AutomaticActivityDetection(
                 end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH, silence_duration_ms=self.silence_ms, prefix_padding_ms=20,
