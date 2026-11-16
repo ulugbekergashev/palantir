@@ -4,6 +4,7 @@ import { iso } from '../src/lib/week';
 import { type BusinessRow } from './db';
 import { aiUsage, type AiUsageRow } from './serviceStore';
 import { env } from './env';
+import { AccessBlockedError, accessBlocked } from './hubAccess';
 import { PausedError, SubscriptionError, apiKeyPresent, plainRequest, subscriptionMessage, subscriptionOn, type PlainRequest, type TokenUsage } from './subscription/engine';
 import { currentLane, laneClosedUntil, pausedText, type Lane } from './subscription/pressure';
 import { GEMINI_USAGE_KIND, fromGemini, geminiMessage, geminiReady } from './gemini/think';
@@ -117,6 +118,8 @@ function noteTrouble(bizId: string, e: unknown): void {
 
 /** Kunlik chegara va hisob: chegaradan oshsa — AiLimitError (so'rov yuborilmaydi); javobdan keyin tokenlar biznes hisobiga yoziladi */
 export async function metered<T>(bizId: string, kind: AiKind, send: () => Promise<T>, usageOf: (res: T) => TokenUsage, rowKind: (res: T) => string = () => kind): Promise<T> {
+  // Sotuvchi to'xtatgan (hubAccess.ts): hech qanday AI so'rovi ketmaydi — bemor xabarlari xodimga «o'zingiz javob bering» bo'lib boradi
+  if (accessBlocked()) throw new AccessBlockedError();
   const day = iso(new Date()), limit = DAILY[kind]();
   if (aiUsage.calls(bizId, day, kind) >= limit) {
     if (kind === 'customer') aiTrouble.set(bizId, { problem: `Bemorlarga javobning bugungi chegarasi (${limit}) tugadi — ertagacha o'zingiz javob bering`, kind });

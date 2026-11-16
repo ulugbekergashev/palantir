@@ -21,6 +21,7 @@ import { cleanName, normPhone } from '../crm/logic';
 import { filterOptions, recordFix } from '../brain/index';
 import { ownerAnswered } from '../brain/learn';
 import { AiLimitError } from '../claude';
+import { AccessBlockedError } from '../hubAccess';
 import { SubscriptionError } from '../subscription/engine';
 import { bookForCustomer, bookingLine, changeLine, changeVisit, checkBooking, checkChange } from '../crm/reception';
 import { env } from '../env';
@@ -255,6 +256,7 @@ const unanswered = (thread: InboxMessage[]) => {
 
 /** AI javob tayyorlay olmadi: xodimga sababi (obuna limiti yoki kirilmagani — kutish yoki qayta kirish kerakligini bilsin) */
 export function whyNoReply(e: unknown): string {
+  if (e instanceof AccessBlockedError) return "Palantir to'xtatilgan (sotuvchi) — AI javob bermaydi, bu xabarga o'zingiz javob bering";
   if (e instanceof AiLimitError) return "Bugungi AI chegarasi tugadi — bu xabarga o'zingiz javob bering";
   if (e instanceof SubscriptionError && e.reason === 'limit') return "Claude obunasining limiti tugadi — limit yangilanguncha o'zingiz javob bering";
   if (e instanceof SubscriptionError && e.reason === 'auth') return "Claude obunasiga kirilmagan — Palantir javob tayyorlay olmadi, o'zingiz javob bering";

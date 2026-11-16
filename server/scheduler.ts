@@ -14,6 +14,7 @@ import { speak, speechEnabled } from './tts';
 import { businesses, leads, outbound, publicLead, replies, tasks, type BusinessRow } from './db';
 import { notices, settings } from './serviceStore';
 import { licenseStatus } from './license';
+import { accessBlocked, accessNotice, accessView } from './hubAccess';
 import { env } from './env';
 import { crmBriefLines, crmConnected, crmWeekLine, recallPatients } from './crm/index';
 import { industryOf, isClinic } from '../src/data/industries';
@@ -321,6 +322,29 @@ async function warnLicense(bot: BotService): Promise<void> {
   settings.set(LICENSE_WARNED, String(step));
 }
 
+const ACCESS_TOLD = 'hub.access.told';
+/**
+ * Sotuvchi qo'ygan ishlash holati (hubAccess.ts) o'zgardi — egasiga bir marta: eslatma, to'xtatildi yoki yana ochildi. Birinchi marta
+ * (hali hech narsa aytilmagan) «to'liq ishlaydi» aytilmaydi. Belgi — holat, sabab va matn: sotuvchi matnni almashtirsa, yana aytiladi
+ */
+export async function warnAccess(bot: BotService, now = Date.now()): Promise<void> {
+  const v = accessView(now);
+  const mark = v.state === 'active' ? 'active' : `${v.state}|${v.reason}|${v.message}`;
+  const told = settings.all().find(r => r.name === ACCESS_TOLD)?.value;
+  if (told === mark || (!told && mark === 'active')) return;
+  const html = accessNotice(v, esc);
+  for (const b of businesses.all()) {
+    if (!b.active || !b.ownerChatId) continue;
+    try {
+      await bot.sendText(b.ownerChatId, html);
+    } catch (e) {
+      console.error('[jadval] ishlash holati xabari:', (e as Error).message);
+      if (transient(e)) return;
+    }
+  }
+  settings.set(ACCESS_TOLD, mark);
+}
+
 export function startScheduler(bot: BotService): () => void {
   const stopInbox = startInbox();
   let running = false;
@@ -335,7 +359,8 @@ export function startScheduler(bot: BotService): () => void {
   const tick = async () => {
     // Limit tufayli keyinga qolgan egasining ishlari: navbati ochilgani — o'zi bajariladi (fonda, jadval kutmaydi). Botsiz ham:
     // paneldan so'ralgan ish natijasi panel suhbatiga yoziladi
-    if (!deferredBusy) {
+    // Sotuvchi to'xtatgan (hubAccess.ts): navbatdagi AI ishlari kutib turadi — ochilganda o'zi bajariladi
+    if (!deferredBusy && !accessBlocked()) {
       deferredBusy = true;
       void runDeferred(bot).catch(e => console.error('[obuna] kechiktirilgan ishlar:', (e as Error).message)).finally(() => { deferredBusy = false; });
     }
@@ -344,6 +369,8 @@ export function startScheduler(bot: BotService): () => void {
     running = true;
     try {
       const now = new Date();
+      // Sotuvchi to'xtatgan: AI ishlari (kontent-zavod, ertalabki Direktor tahlili) boshlanmaydi; eslatmalar va xabarlar ishlayveradi
+      const stopped = accessBlocked();
       // 0) Obsidian'dagi Vazifalar.md: egasi belgilagan, surgan yoki qo'shgani — eslatmalardan oldin bazaga
       for (const b of businesses.all()) if (b.active) syncTasks(b.id);
       // 1) Eslatmalar
@@ -386,7 +413,7 @@ export function startScheduler(bot: BotService): () => void {
       // 4) Kontent-zavod (avtomatik rejim): har kuni ertalab qoralamalar — fonda (AI yozishi bir necha o'n soniya, jadval kutmaydi).
       // Egasi Telegram'dagi kartani tasdiqlamaguncha kanalga hech narsa chiqmaydi
       const contentHour = now.getHours(), contentDay = iso(now);
-      if (env.aiEnabled && Date.now() >= remindRetryAt && contentHour >= env.morningHour + 1 && contentHour < env.morningHour + 8) {
+      if (env.aiEnabled && !stopped && Date.now() >= remindRetryAt && contentHour >= env.morningHour + 1 && contentHour < env.morningHour + 8) {
         for (const biz of businesses.all()) {
           if (!biz.active || !biz.ownerChatId || !crewWorks(biz, 'kontent') || !factoryDue(biz.id, now) || extrasPaused()) continue;
           void withLane('background', () => runFactory(biz)).catch(async e => {
@@ -421,7 +448,7 @@ export function startScheduler(bot: BotService): () => void {
       // 2) Ertalabki xulosa
       // Server ertalab o'chiq bo'lgan bo'lsa, kechqurun "xayrli tong" yubormaydi
       const hour = now.getHours();
-      if (hour >= env.morningHour && hour < env.morningHour + 4 && Date.now() >= briefRetryAt) {
+      if (!stopped && hour >= env.morningHour && hour < env.morningHour + 4 && Date.now() >= briefRetryAt) {
         const today = iso(now);
         for (const biz of businesses.all()) {
           if (!biz.active || !biz.ownerChatId || biz.briefDate === today || biz.profile.morningBrief === false || morningBusy.has(biz.id)) continue;
@@ -445,6 +472,8 @@ export function startScheduler(bot: BotService): () => void {
       }
       // 4) Litsenziya: panel yopilishiga 7, 3, 1 kun qolganda va yopilganda — egasiga Telegram'da (kunduzi — REQUEST_HOURS, har bosqichda bir marta)
       if (hour >= env.requestHours.from && hour < env.requestHours.to) await warnLicense(bot);
+      // 4a) Sotuvchi qo'ygan ishlash holati o'zgardi (to'xtatildi, eslatma, ochildi) — egasiga bir marta, kunduzi
+      if (hour >= env.requestHours.from && hour < env.requestHours.to) await warnAccess(bot);
       // 6) Kotib: ish bo'yicha yozgan (yetkazib beruvchi, hamkor) javob kutyapti — kunduzi bitta eslatma, AI'siz (inbox/workChats.ts)
       if (hour >= env.requestHours.from && hour < env.requestHours.to && Date.now() >= remindRetryAt) await workTick((c, h, b) => bot.sendText(c, h, b), businesses.all(), transient);
     } catch (e) {

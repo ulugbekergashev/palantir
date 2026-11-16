@@ -9,6 +9,7 @@
  * Modul faqat baza bilan ishlaydi: scripts/check-hub-clients.ts uni xotiradagi baza bilan sinaydi.
  */
 import type { DatabaseSync } from 'node:sqlite';
+import { ACCESS_STATES, type AccessState } from './licenseKey.ts';
 
 /** Biznes turlari — src/data/industries.ts dagi IndustryKind bilan bir xil */
 export const CLIENT_KINDS = ['clinic', 'education', 'services', 'manufacturing', 'retail'] as const;
@@ -25,6 +26,11 @@ export interface ClientCard {
   note: string | null;
   updatedAt: string; updatedBy: string | null;
 }
+
+/** Ishlash holati (to'lov nazorati, licenseKey.ts issueAccess): yozuv yo'q — active */
+export interface ClientAccess { state: AccessState; message: string | null; updatedAt: string | null; updatedBy: string | null }
+const ACTIVE: ClientAccess = { state: 'active', message: null, updatedAt: null, updatedBy: null };
+const ACCESS_MESSAGE_MAX = 300;
 
 export interface DayStat { day: string; total: number; online: number; problems: number }
 
@@ -83,10 +89,19 @@ const view = (r: CardDb): ClientCard => ({
   owner: r.owner, phone: r.phone, city: r.city, plan: r.plan, paidUntil: r.paid_until, note: r.note, updatedAt: r.updated_at, updatedBy: r.updated_by,
 });
 
+type AccessDb = { state: string; message: string | null; updated_at: string; updated_by: string | null };
+const accessView = (r: AccessDb): ClientAccess => {
+  const state = ACCESS_STATES.find(s => s === r.state);
+  return state ? { state, message: r.message, updatedAt: r.updated_at, updatedBy: r.updated_by } : ACTIVE;
+};
+
 export function createClients(db: DatabaseSync, now: () => Date = () => new Date()) {
   db.exec(`CREATE TABLE IF NOT EXISTS client_cards (clinic_id TEXT PRIMARY KEY, kind TEXT, owner TEXT, phone TEXT, city TEXT, plan INTEGER,
   paid_until TEXT, note TEXT, updated_at TEXT NOT NULL, updated_by TEXT);
+CREATE TABLE IF NOT EXISTS client_access (clinic_id TEXT PRIMARY KEY, state TEXT NOT NULL, message TEXT, updated_at TEXT NOT NULL, updated_by TEXT, machine_id TEXT);
 CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NOT NULL, online INTEGER NOT NULL, problems INTEGER NOT NULL);`);
+  const accessCols = new Set((db.prepare('PRAGMA table_info(client_access)').all() as { name: string }[]).map(c => c.name));
+  if (!accessCols.has('machine_id')) db.exec('ALTER TABLE client_access ADD COLUMN machine_id TEXT');
 
   return {
     cards(): Map<string, ClientCard> {
@@ -113,8 +128,53 @@ CREATE TABLE IF NOT EXISTS client_stats (hour TEXT PRIMARY KEY, total INTEGER NO
       return card;
     },
 
+    /** To'xtatilgan mijozning holati qoladi (kompyuter kodi bilan): o'sha kompyuter yangi yozuv ochib qayta ishlab ketmasin */
     remove(clinicId: string): void {
       db.prepare('DELETE FROM client_cards WHERE clinic_id = ?').run(clinicId);
+      db.prepare("DELETE FROM client_access WHERE clinic_id = ? AND (state <> 'blocked' OR machine_id IS NULL)").run(clinicId);
+    },
+
+    /**
+     * Klinikaga beriladigan holat: o'z yozuvi; shu kompyuter kodi boshqa (masalan o'chirilgan yoki qayta ro'yxatdan o'tgan) yozuvda
+     * to'xtatilgan bo'lsa — to'xtatilgan. Qayta o'rnatib, yangi yozuv olib bloklashdan qochib bo'lmaydi
+     */
+    grantFor(clinicId: string, machineId: string): ClientAccess {
+      const own = this.access(clinicId);
+      if (own.state === 'blocked') return own;
+      const r = db.prepare("SELECT state, message, updated_at, updated_by FROM client_access WHERE machine_id = ? AND clinic_id <> ? AND state = 'blocked' ORDER BY updated_at DESC LIMIT 1")
+        .get(machineId, clinicId) as AccessDb | undefined;
+      return r ? accessView(r) : own;
+    },
+
+    /** Heartbeat'dagi (yozuvga mos) kompyuter kodi — holat yozuvida eslab qolinadi */
+    noteMachine(clinicId: string, machineId: string): void {
+      db.prepare('UPDATE client_access SET machine_id = ? WHERE clinic_id = ? AND COALESCE(machine_id, \'\') <> ?').run(machineId, clinicId, machineId);
+    },
+
+    access(clinicId: string): ClientAccess {
+      const r = db.prepare('SELECT state, message, updated_at, updated_by FROM client_access WHERE clinic_id = ?').get(clinicId) as AccessDb | undefined;
+      return r ? accessView(r) : ACTIVE;
+    },
+
+    accessAll(): Map<string, ClientAccess> {
+      const rows = db.prepare('SELECT clinic_id, state, message, updated_at, updated_by FROM client_access').all() as (AccessDb & { clinic_id: string })[];
+      return new Map(rows.map(r => [r.clinic_id, accessView(r)]));
+    },
+
+    /** Holatni almashtiradi (sotuvchining matni — klinika panelida va egasining Telegram'ida ko'rinadi); noto'g'ri holat — CardError 400 */
+    setAccess(clinicId: string, input: unknown, by: string, machineId: string | null = null): ClientAccess {
+      const o = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+      const state = ACCESS_STATES.find(s => s === o.state);
+      if (!state) throw new CardError(400, 'Holat: active, warn yoki blocked');
+      const message = state === 'active' ? null : clean(o.message, ACCESS_MESSAGE_MAX);
+      const at = now().toISOString();
+      db.prepare(`INSERT INTO client_access (clinic_id, state, message, updated_at, updated_by, machine_id) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(clinic_id) DO UPDATE SET state = excluded.state, message = excluded.message, updated_at = excluded.updated_at, updated_by = excluded.updated_by,
+        machine_id = COALESCE(excluded.machine_id, client_access.machine_id)`)
+        .run(clinicId, state, message, at, by, machineId);
+      // «Ochish» — shu kompyuterning boshqa (o'chirilgan yoki takror) yozuvlaridagi to'xtatish ham olib tashlanadi: sotuvchi uni ochdi
+      if (state === 'active' && machineId) db.prepare("DELETE FROM client_access WHERE machine_id = ? AND clinic_id <> ? AND state = 'blocked'").run(machineId, clinicId);
+      return { state, message, updatedAt: at, updatedBy: by };
     },
 
     /** Joriy soat ko'rsatkichi (har chaqiruvda soat qatori yangilanadi); 30 kundan eskisi o'chadi */

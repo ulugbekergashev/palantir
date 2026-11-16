@@ -11,6 +11,7 @@ import { checkPassword, hashPassword, issueToken, loginBlocked, loginFailed, log
 import { CLIENT_HEADER, RELAY_HEADER, RELAY_SECRET, SUPPORT_HEADER, remoteUrl } from './remote';
 import { lanHost, lanMode, lanPeer } from './lan';
 import { activate, licenseStatus } from './license';
+import { accessView } from './hubAccess';
 import type { BotService } from './bot';
 import { costUsd } from './claude';
 import { GEMINI_USAGE_KIND, geminiCostUsd } from './gemini/think';
@@ -264,6 +265,8 @@ export function createApp(bot: BotService) {
     if (!s) return res.status(401).json({ error: 'Qayta kiring' });
     // Kalitsiz ishlash muddati tugagan: panel yopiq (bot, kamera va boshqa xizmatlar ishlayveradi — license.ts)
     if (licenseStatus().blocked) return res.status(403).json({ error: 'Palantir aktivlashtirilmagan — kalitni kiriting', code: 'LITSENZIYA' });
+    // Sotuvchi to'xtatgan (hubAccess.ts): panel yopiq; Palantir jamoasi masofadan kirib yordam bera oladi
+    if (!s.support && accessView().state === 'blocked') return res.status(403).json({ error: "Palantir to'xtatilgan — sotuvchiga murojaat qiling", code: 'BLOK' });
     return fn(req, res, s.biz);
   };
   /** Faqat egasining o'zi (jamoa kirishi yoki xodim bilan emas): kirish va ruxsat sozlamalari */
@@ -319,7 +322,8 @@ export function createApp(bot: BotService) {
   // ─── Litsenziya ────────────────────────────────────────────────────────────
   // Kirishsiz: aktivlashtirish oynasi kirish sahifasidan oldin ham ko'rinadi (kompyuter kodi maxfiy emas). Kalitni soxtalashtirib
   // bo'lmaydi (sotuvchining imzosi) — urinishlar baribir sanaladi. Hub ham shu yo'llar orqali bir bosishda aktivlashtiradi
-  app.get('/api/license', (_req, res) => { res.json({ license: licenseStatus() }); });
+  // access — sotuvchi qo'ygan ishlash holati (hubAccess.ts); support — Palantir jamoasi kirgan (to'xtatilgan panel unga ochiq)
+  app.get('/api/license', (req, res) => { res.json({ license: licenseStatus(), access: accessView(), support: !!sessionOf(req)?.support }); });
   app.post('/api/license', (req, res) => {
     const key = `lic:${clientKey(req)}`;
     if (loginBlocked(key)) return res.status(429).json({ error: "Ko'p urinish — 15 daqiqadan keyin qayta urining" });

@@ -52,6 +52,7 @@ function drawClient(scrollTop) {
     box.append(ul);
     parts.push(box);
   }
+  if (c.approved || c.heldElsewhere) parts.push(accessSect(c));
   const info = sect('Holat'), dl = el('dl', 'facts');
   fact(dl, 'Aloqa', c.online ? 'aloqada (' + ago(c.seenAt) + ')' : ago(c.seenAt));
   fact(dl, 'Nashr', s.version ? 'v' + s.version + (s.schema ? ' · baza ' + s.schema : '') : null);
@@ -70,6 +71,83 @@ function drawClient(scrollTop) {
   body.replaceChildren(...parts);
   $('drawer').dataset.dirty = '0';
   if (scrollTop) body.scrollTop = 0;
+}
+
+// ─── To'lov va ishlash holati (hub/server.ts 15-band): eslatma, to'xtatish, ochish; tasdiqlangan mijozni o'chirish ───
+const ACCESS_TEXT = { active: 'Ishlayapti', warn: "Eslatma ko'rsatilmoqda", blocked: "To'xtatilgan" };
+const ACCESS_PILL = { active: 'ok', warn: 'warn', blocked: 'bad' };
+/** Buyruq klinikaga yetdimi: klinika keyingi heartbeat'da (5 daqiqagacha) oladi; 0.4.16 dan eskisi umuman bilmaydi */
+function appliedNote(c) {
+  const want = (c.access && c.access.state) || 'active', got = c.status && c.status.access;
+  if (!got) return want === 'active' ? null : "Klinika bu buyruqni hali tushunmaydi — 0.4.16 nashri kerak (kechasi o'zi yangilanadi)";
+  if (got.reason === 'offline') return 'Klinikada: Hub bilan aloqasiz ' + got.offlineDays + ' kun' + (got.state === 'blocked' ? " — o'zi to'xtagan" : '');
+  if (got.state === want) return want === 'active' ? null : 'Klinikada amalda';
+  return c.online ? 'Klinikaga 5 daqiqagacha yetadi' : "Klinika aloqada emas — ulanganda yetadi";
+}
+
+function accessSect(c) {
+  const a = c.access || { state: 'active' }, box = sect("To'lov va ishlash");
+  const head = el('div', 'row');
+  head.append(c.heldElsewhere && a.state !== 'blocked' ? el('span', 'pill bad', "To'xtatilgan — boshqa yozuvda") : el('span', 'pill ' + ACCESS_PILL[a.state], ACCESS_TEXT[a.state]));
+  if (a.updatedAt) head.append(el('small', 'meta', (a.updatedBy || '—') + ' · ' + ago(a.updatedAt)));
+  box.append(head);
+  if (a.message) box.append(el('blockquote', 'quote', '«' + a.message + '»'));
+  const note = appliedNote(c);
+  if (note) box.append(el('small', 'meta', note));
+  if (!founder()) return box;
+
+  const msg = el('textarea');
+  msg.maxLength = 300;
+  msg.rows = 2;
+  msg.placeholder = "Klinika ko'radigan matn: «To'lov muddati 1-dekabr. Savol bo'lsa: +998 …»";
+  msg.value = a.message || '';
+  msg.oninput = () => { $('drawer').dataset.dirty = '1'; };
+  const lbl = el('label', 'f wide', "Klinikaga xabar (panelda va egasining Telegram'ida)");
+  lbl.append(msg);
+  const btns = el('div', 'actions');
+  const add = (label, cls, state, ask) => {
+    const b = el('button', 'btn sm' + (cls ? ' ' + cls : ''), label);
+    b.type = 'button';
+    b.onclick = () => setAccess(c, state, msg.value.trim(), b, ask);
+    btns.append(b);
+  };
+  if (a.state !== 'warn') add("Eslatma ko'rsatish", 'ghost', 'warn', null);
+  if (a.state !== 'blocked') add("To'xtatish", 'danger', 'blocked', '«' + c.name + "» to'xtatilsinmi?\n\nPanel va AI xodimlar to'xtaydi, qo'ng'iroqlarni administrator oladi, bemor xabarlari xodimlarga boradi. Klinika 5 daqiqagacha oladi. «Ochish» bilan qaytariladi.");
+  if (a.state !== 'active' || c.heldElsewhere) add('Ochish', '', 'active', null);
+  else if (a.message) add("Matnni yangilash", 'ghost', 'active', null);
+  box.append(lbl, btns);
+  const del = el('button', 'btn sm danger', "Mijozni o'chirish");
+  del.type = 'button';
+  del.onclick = () => removeApproved(c, del);
+  const zone = el('div', 'row');
+  zone.append(del, el('small', 'meta', "Kompyuteri Hub'ga ulana olmaydi va 30 kundan keyin to'xtaydi"));
+  box.append(zone);
+  return box;
+}
+
+function setAccess(c, state, message, btn, ask) {
+  if (ask && !confirm(ask)) return;
+  return guarded(btn, async () => {
+    const r = await call('/admin/clinics/' + c.id + '/access', { state, message });
+    if (!r) return;
+    if (!r.ok) return say(r.j.error || 'Xato: ' + r.status);
+    c.access = r.j.access;
+    $('drawer').dataset.dirty = '0';
+    say({ active: 'Ochildi', warn: "Eslatma qo'yildi", blocked: "To'xtatildi" }[state] + (r.j.signed ? ' — klinika 5 daqiqagacha oladi' : " — Hub'da imzo kaliti yo'q, klinikaga yetmaydi"));
+    render();
+    drawClient(false);
+  });
+}
+
+function removeApproved(c, btn) {
+  const typed = prompt('«' + c.name + "» butunlay o'chiriladi: karta, zaxiralar, jurnal yozuvlari. Kompyuteri Hub'ga ulana olmaydi va 30 kundan keyin to'xtaydi.\n\nTasdiqlash uchun mijoz nomini aynan yozing:");
+  if (typed === null) return;
+  return guarded(btn, async () => {
+    const r = await call('/admin/clinics/' + c.id + '/delete', { confirm: typed.trim() });
+    if (!r) return;
+    say(r.ok ? "O'chirildi" : (r.j.error || 'Xato: ' + r.status));
+    if (r.ok) { closeClient(); load(); }
+  });
 }
 
 // ─── Mijoz kartasi (asoschi yozadi, o'rnatuvchi ko'radi) ───

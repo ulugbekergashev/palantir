@@ -104,6 +104,8 @@ export const apiBase = location.pathname.match(/^\/c\/[0-9a-f]{10}(?=\/)/)?.[0] 
 
 /** Litsenziya (server/license.ts): blocked — kalitsiz muddat tugadi, panel yopiq */
 export interface LicenseView { activated: boolean; machineId: string; issuedAt: string | null; daysLeft: number; blocked: boolean }
+/** Sotuvchi Hub'dan qo'ygan ishlash holati (server/hubAccess.ts) */
+export interface AccessView { state: 'active' | 'warn' | 'blocked'; message: string; reason: 'hub' | 'offline' | null; offlineDays: number | null }
 
 /** Palantir jamoasi kirishi: egasi ruxsat berganmi, hozirgi kirish jamoanikimi (mine), oxirgi kirishlar */
 /** allowed — doimiy ruxsat (so'ramasdan); until — egasi Telegram'da bergan bir martalik ruxsat shu paytgacha ochiq */
@@ -337,7 +339,7 @@ export const api = {
   changePassword: (current: string, next: string) => call<{ token: string }>('/account/password', { body: { current, next } }),
   signOutOthers: () => call<{ token: string }>('/account/sign-out-others', { body: {} }),
   /** Litsenziya: holat (kirishsiz) va kalitni kiritish */
-  license: () => call<{ license: LicenseView }>('/license'),
+  license: () => call<{ license: LicenseView; access?: AccessView; support?: boolean }>('/license'),
   activateLicense: (key: string) => call<{ license: LicenseView }>('/license', { body: { key } }),
   supportAccess: () => call<SupportAccessView>('/account/support'),
   setSupportAccess: (allowed: boolean) => call<{ allowed: boolean }>('/account/support', { method: 'PUT', body: { allowed } }),

@@ -11,6 +11,7 @@ import { businesses } from './db';
 import { freeMb } from './disk';
 import { lastOffsite } from './offsite';
 import { licenseStatus } from './license';
+import { accessRejected, accessView, noteAccess, tickAccess } from './hubAccess';
 import { env } from './env';
 import { onKeyChange } from './keys';
 import { SCHEMA_VERSION } from './migrate';
@@ -43,13 +44,27 @@ export function heartbeatStatus() {
     // Shifrlangan tashqi nusxa (offsite.ts): oxirgisi qachon va yetdimi
     lastOffsite: lastOffsite(),
     // Litsenziya (license.ts): sotuvchi Hub ro'yxatida ko'radi va bir bosishda beradi
-    license: (({ activated, daysLeft }) => ({ activated, daysLeft }))(licenseStatus()),
+    // Kompyuter kodi — Hub ishlash holatini shu kodga imzolab qaytaradi (hubAccess.ts)
+    license: (({ activated, daysLeft, machineId }) => ({ activated, daysLeft, machineId }))(licenseStatus()),
     // Egasiga hali topshirilmagan (profile.ts): sotuvchi «sozlanmoqda» deb ko'radi, panelga so'ramasdan kiradi
     setup: inSetup(),
+    // Amaldagi ishlash holati: sotuvchi buyrug'i yetib borganini va aloqasiz kunlarni ko'radi
+    // rejected — Hub javobidagi imzo tekshiruvdan o'tmadi (kalit mos emas): sotuvchi 30 kun tugashidan oldin ko'rsin
+    access: { ...(({ state, reason, offlineDays }) => ({ state, reason, offlineDays }))(accessView()), rejected: accessRejected() },
   };
 }
 
+/** Hub javobi: imzoli ishlash holati (hubAccess.ts) — bo'lmasa yoki buzuq bo'lsa e'tiborsiz */
+async function readReply(r: Response): Promise<void> {
+  try {
+    const j = await r.json() as { access?: unknown };
+    if (j && typeof j === 'object') noteAccess(j.access);
+  } catch { /* eski Hub — bo'sh yoki boshqa javob */ }
+}
+
 async function beat(): Promise<void> {
+  // Aloqasiz vaqt yig'iladi (Hub yo'q yoki javob bermasa ham) — hubAccess.ts
+  tickAccess();
   const hub = env.hub;
   if (!hub) return;
   try {
@@ -58,6 +73,7 @@ async function beat(): Promise<void> {
       body: JSON.stringify(heartbeatStatus()), signal: AbortSignal.timeout(15_000),
     });
     if (!r.ok) console.error(`[hub] holat qabul qilinmadi: ${r.status}`);
+    else await readReply(r);
   } catch {
     // Internet yo'q — /api/pull ham ko'rinmaydi, hub buni o'zi sezadi; keyingi safar yana
   }

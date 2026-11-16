@@ -48,6 +48,10 @@
  *  14. Boshqaruv markazi (admin.ts, clients.ts): /admin — hamma mijozlar (klinikalar va boshqa bizneslar), ko'rsatkichlar va 14 kunlik
  *      grafik (soatlik client_stats), mijoz kartasi — POST /admin/clinics/<klinika>/card (asoschi): egasi, telefon, shahar, biznes turi,
  *      tarif, to'langan sana, izoh. Holatda biznes turi (kinds) keladi; «so'nggi nashr» — HUB_RELEASE_URL/manifest.json (soatda bir marta).
+ *  15. Ishlash holati (to'lov nazorati): POST /admin/clinics/<klinika>/access (asoschi) — active / warn (panelda eslatma) / blocked
+ *      (panel va AI xodimlar to'xtaydi, qo'ng'iroqlar administratorga). Heartbeat javobida — kompyuter kodiga imzolangan holat
+ *      (licenseKey.ts issueAccess, LICENSE_SIGNING_KEY): Palantir faqat imzolisini qabul qiladi, 30 kun imzoli javob kelmasa o'zi to'xtaydi
+ *      (server/hubAccess.ts). Tasdiqlangan mijozni o'chirish — nomini qayta yozib (confirm).
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -69,7 +73,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { adminPage } from './admin.ts';
 import { CardError, CLIENT_KINDS, createClients, type ClientKind } from './clients.ts';
 import { createHelp, HelpError, type HelpRow } from './help.ts';
-import { issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
+import { issueAccess, issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
 import { createTeam, TeamError, type HubRole, type Member } from './team.ts';
 import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
 import { quietNow } from './quiet.ts';
@@ -419,8 +423,15 @@ function cleanStatus(v: unknown) {
   // Biznes turi (src/data/industries.ts) — boshqaruv markazidagi filtr; noma'lum qiymat tashlanadi
   const kinds = (Array.isArray(o.kinds) ? o.kinds : []).filter((k): k is ClientKind => CLIENT_KINDS.includes(k as ClientKind)).slice(0, 10);
   const industries = (Array.isArray(o.industries) ? o.industries : []).map(x => text(x, 60)).filter((x): x is string => !!x).slice(0, 10);
-  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), label: text(o.label, 80), problems, lastUpdate, lastOffsite, license, setup: o.setup === true, kinds, industries, at: now() };
+  // Klinikada amalda qaysi holat (imzoli javob kelmay qolsa — «offline» sababi bilan): sotuvchi buyrug'i yetib borganini ko'radi
+  const a = o.access ? record(o.access) : null;
+  const access = a && ['active', 'warn', 'blocked'].includes(String(a.state)) ? { state: String(a.state), reason: text(a.reason, 20), offlineDays: num(a.offlineDays), rejected: a.rejected === true } : null;
+  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), label: text(o.label, 80), problems, lastUpdate, lastOffsite, license, setup: o.setup === true, kinds, industries, access, at: now() };
 }
+
+/** Holat imzosi (15-band) — litsenziya kaliti bilan; bir marta o'qiladi */
+let accessKeyObj: ReturnType<typeof signingKey> | null = null;
+const accessKey = () => (accessKeyObj ??= signingKey(cfg.licenseKey));
 
 /** OAuth holati: klinika, biznes, muddat — imzolangan (begona odam boshqa klinika nomidan ulay olmasin) */
 const signState = (clinicId: string, businessId: string) => {
@@ -733,9 +744,14 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (removing && req.method === 'POST') {
     const who = memberOf(req, res, 'founder'); if (!who) return;
     const id = removing[1];
-    const clinic = db.prepare('SELECT approved FROM clinics WHERE id = ?').get(id) as { approved: number | null } | undefined;
+    const clinic = db.prepare('SELECT approved, name FROM clinics WHERE id = ?').get(id) as { approved: number | null; name: string } | undefined;
     if (!clinic) return send(res, 404, { error: "Bunday klinika yo'q" });
-    if (clinic.approved === 1) return send(res, 409, { error: "Tasdiqlangan klinika bu yerdan o'chirilmaydi" });
+    // Tasdiqlangan mijoz — faqat nomini qayta yozib (adashib bosilmasin): uning kompyuteri Hub'ga ulana olmaydi, 30 kundan keyin to'xtaydi
+    if (clinic.approved === 1) {
+      let body: unknown;
+      try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+      if (String(record(body).confirm ?? '').trim() !== clinic.name.trim()) return send(res, 409, { error: "Tasdiqlangan mijoz — o'chirish uchun nomini aynan yozing" });
+    }
     db.prepare('DELETE FROM events WHERE clinic_id = ?').run(id);
     db.prepare('DELETE FROM accounts WHERE clinic_id = ?').run(id);
     db.prepare('DELETE FROM clinics WHERE id = ?').run(id);
@@ -753,11 +769,14 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const rows = (db.prepare('SELECT id, name, created_at, seen_at, status, machine_id, self, approved, created_by FROM clinics ORDER BY created_at DESC').all() as
       { id: string; name: string; created_at: string; seen_at: string | null; status: string | null; machine_id: string | null; self: number | null; approved: number | null; created_by: string | null }[])
       .filter(r => who.role === 'founder' || r.created_by === who.id);
-    const cards = clients.cards();
+    const cards = clients.cards(), access = clients.accessAll();
     return send(res, 200, {
       clinics: rows.map(r => ({
         id: r.id, name: r.name, createdAt: r.created_at, seenAt: r.seen_at, machineId: r.machine_id, self: r.self === 1, approved: r.approved === 1,
         online: isOnline(r.seen_at), status: r.status ? JSON.parse(r.status) as unknown : null, card: cards.get(r.id) ?? null,
+        access: access.get(r.id) ?? { state: 'active', message: null, updatedAt: null, updatedBy: null },
+        // Shu kompyuter boshqa (o'chirilgan yoki takror) yozuvda to'xtatilgan — klinikaga ham «to'xtatilgan» boradi
+        heldElsewhere: !!r.machine_id && access.get(r.id)?.state !== 'blocked' && clients.grantFor(r.id, r.machine_id).state === 'blocked',
       })),
       // Boshqaruv markazi: so'nggi nashr («eski versiya» belgisi) va 14 kunlik grafik — o'rnatuvchiga ham (faqat sonlar)
       latest: latestRelease.version, history: who.role === 'founder' ? clients.history() : [],
@@ -776,6 +795,25 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       const card = clients.save(id, body, who.name);
       team.log(who, 'karta.yangilandi', id);
       return send(res, 200, { card });
+    } catch (e) {
+      if (e instanceof CardError) return send(res, e.code, { error: e.message });
+      throw e;
+    }
+  }
+
+  // Admin: ishlash holati (15-band) — faqat asoschi; klinika keyingi heartbeat'da (5 daqiqagacha) oladi
+  const accessing = /^\/admin\/clinics\/([0-9a-f]{10})\/access$/.exec(p);
+  if (accessing && req.method === 'POST') {
+    const who = memberOf(req, res, 'founder'); if (!who) return;
+    const id = accessing[1];
+    const row = db.prepare('SELECT machine_id FROM clinics WHERE id = ?').get(id) as { machine_id: string | null } | undefined;
+    if (!row) return send(res, 404, { error: "Bunday klinika yo'q" });
+    let body: unknown;
+    try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
+    try {
+      const access = clients.setAccess(id, body, who.name, row.machine_id);
+      team.log(who, 'mijoz.holati', id, access.state + (access.message ? ` — ${access.message}` : ''));
+      return send(res, 200, { access, signed: !!cfg.licenseKey });
     } catch (e) {
       if (e instanceof CardError) return send(res, e.code, { error: e.message });
       throw e;
@@ -914,7 +952,16 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     let body: unknown;
     try { body = JSON.parse((await readRaw(req))?.toString() || '{}'); } catch { return send(res, 400, { error: 'json' }); }
     db.prepare('UPDATE clinics SET status = ? WHERE id = ?').run(JSON.stringify(cleanStatus(body)), clinic);
-    return send(res, 200, { ok: true });
+    // Ishlash holati — klinika yuborgan kompyuter kodiga imzolanadi (15-band); imzo kaliti yo'q Hub holat bermaydi
+    const machine = normalizeMachineId(String(record(record(body).license).machineId ?? ''));
+    if (!machine || !cfg.licenseKey) return send(res, 200, { ok: true });
+    // Yozuvdagi kompyuter kodi boshqa — imzolanmaydi (begona kompyuter; Windows qayta o'rnatilgan bo'lsa — «Kompyuter almashdi»dan keyin)
+    const own = (db.prepare('SELECT machine_id FROM clinics WHERE id = ?').get(clinic) as { machine_id: string | null } | undefined)?.machine_id ?? null;
+    if (own && own !== machine) return send(res, 200, { ok: true });
+    clients.noteMachine(clinic, machine);
+    // Shu kompyuter boshqa yozuvda to'xtatilgan bo'lsa ham — to'xtatilgan (qayta o'rnatib qochib bo'lmaydi)
+    const a = clients.grantFor(clinic, machine);
+    return send(res, 200, { ok: true, access: issueAccess(machine, a.state, a.message ?? '', accessKey()) });
   }
 
   // Klinika: kalit ishlaydimi (ulash ustasidagi tekshiruv)

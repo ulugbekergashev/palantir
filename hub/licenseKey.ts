@@ -51,3 +51,38 @@ export function signingKey(text: string): KeyObject {
   const t = text.trim();
   return t.startsWith('-----') ? createPrivateKey(t) : createPrivateKey({ key: Buffer.from(t, 'base64'), format: 'der', type: 'pkcs8' });
 }
+
+/**
+ * Mijozning ishlash holati (to'lov nazorati) — Hub har heartbeat javobida beradi, Palantir tekshiradi (server/hubAccess.ts):
+ *   active — to'liq ishlaydi; warn — panelda sotuvchining eslatmasi; blocked — panel va AI xodimlar to'xtaydi, qo'ng'iroqlar administratorga.
+ * Shu imzo (litsenziya kaliti bilan) bo'lmasa, klinika soxta «Hub» qo'yib bloklashni olib tashlay olardi. Imzolanadi: kompyuter kodi,
+ * holat, sotuvchining matni va Hub'dagi vaqt — eski «active» javobini qayta ishlatib bo'lmaydi (oflayn muddat shu vaqtdan sanaladi).
+ *   Ko'rinish: base64url(JSON {m, s, t, at}) + '.' + base64url(Ed25519 imzo)
+ */
+export type AccessState = 'active' | 'warn' | 'blocked';
+export const ACCESS_STATES: readonly AccessState[] = ['active', 'warn', 'blocked'];
+export interface AccessGrant { state: AccessState; message: string; at: string }
+const accessBytes = (body: string) => Buffer.from(`palantir-holat\n${body}`);
+const ACCESS_MESSAGE_MAX = 300;
+
+export function issueAccess(machineId: string, state: AccessState, message: string, privateKey: KeyObject, now = Date.now()): string {
+  const m = normalizeMachineId(machineId);
+  if (!m) throw new Error("Kompyuter kodi noto'g'ri");
+  const body = Buffer.from(JSON.stringify({ m, s: state, t: message.slice(0, ACCESS_MESSAGE_MAX), at: new Date(now).toISOString() })).toString('base64url');
+  return `${body}.${sign(null, accessBytes(body), privateKey).toString('base64url')}`;
+}
+
+/** Shu kompyuter uchun sotuvchi imzolagan holat; aks holda (begona, buzilgan, boshqa kompyuterniki) — null */
+export function checkAccess(token: string, machineId: string, publicKey = LICENSE_PUBLIC_KEY): AccessGrant | null {
+  const [body, sig] = String(token).split('.');
+  const m = normalizeMachineId(machineId);
+  if (!body || !sig || !m) return null;
+  try {
+    const pub = createPublicKey({ key: Buffer.from(publicKey, 'base64'), format: 'der', type: 'spki' });
+    if (!verify(null, accessBytes(body), pub, Buffer.from(sig, 'base64url'))) return null;
+    const j = JSON.parse(Buffer.from(body, 'base64url').toString()) as { m?: unknown; s?: unknown; t?: unknown; at?: unknown };
+    const state = ACCESS_STATES.find(s => s === j.s);
+    if (j.m !== m || !state || typeof j.at !== 'string' || !Number.isFinite(Date.parse(j.at))) return null;
+    return { state, message: typeof j.t === 'string' ? j.t.slice(0, ACCESS_MESSAGE_MAX) : '', at: j.at };
+  } catch { return null; }
+}

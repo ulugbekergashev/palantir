@@ -20,6 +20,7 @@ import { facts as notes, style, vault as knowledge } from './brain/vault';
 import { businesses, chatLog, conversations, type BusinessRow } from './db';
 import { env } from './env';
 import { AiLimitError, profileText, think } from './claude';
+import { AccessBlockedError } from './hubAccess';
 import { crmClinicName, crmConnected } from './crm/index';
 import { COMMON_RULES, industryOf, isClinic } from '../src/data/industries';
 import { chatGroups, memberGroups, runTool, toolDefinitions, type ToolCtx, type ToolGroup } from './tools';
@@ -260,6 +261,7 @@ const SUBSCRIPTION_REASONS: Record<SubscriptionReason, string> = {
 export function friendlyError(e: unknown): string {
   // «Keyinroq» xabarida aniq vaqt bor (pressure.ts pausedText)
   if (e instanceof SubscriptionError) return e.reason === 'paused' && e.message ? e.message : SUBSCRIPTION_REASONS[e.reason];
+  if (e instanceof AccessBlockedError) return "Palantir to'xtatilgan — AI xodimlar ishlamaydi. Sotuvchiga murojaat qiling.";
   if (e instanceof AiLimitError) return `Bugungi AI chegarasi tugadi (kuniga ${e.limit} ta so'rov). Ertaga davom etamiz; chegarani administrator oshirishi mumkin.`;
   if (e instanceof Anthropic.APIConnectionError) return "AI bilan aloqa yo'q (internetni tekshiring). Birozdan keyin qayta yozing.";
   if (e instanceof Anthropic.APIError) {

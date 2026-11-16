@@ -34,6 +34,27 @@ console.log('\n# Karta');
   ok("o'chiriladi", clients.card('c1') === null);
 }
 
+console.log("\n# Ishlash holati (to'lov nazorati)");
+{
+  const M = 'AAAA-BBBB-CCCC-DDDD';
+  ok("yozuv yo'q — active", clients.access('k1').state === 'active' && clients.grantFor('k1', M).state === 'active');
+  ok("noto'g'ri holat — rad", rejects(() => clients.setAccess('k1', { state: 'yopiq' }, 'X'), 'Holat'));
+  const blocked = clients.setAccess('k1', { state: 'blocked', message: "  To'lov   yo'q " }, 'Asoschi', M);
+  ok("to'xtatildi: matn tozalanadi, kim qo'ygani yoziladi", blocked.state === 'blocked' && blocked.message === "To'lov yo'q" && blocked.updatedBy === 'Asoschi');
+  ok("ro'yxatda (accessAll)", clients.accessAll().get('k1')?.state === 'blocked');
+  ok("o'sha kompyuter yangi yozuv olsa (qayta o'rnatish) — baribir to'xtatilgan", clients.grantFor('k2', M).state === 'blocked' && clients.grantFor('k3', 'EEEE-0000-0000-0000').state === 'active');
+  clients.remove('k1');
+  ok("to'xtatilgan yozuv o'chirilsa ham kompyuter to'xtatilganligicha qoladi", clients.grantFor('k2', M).state === 'blocked');
+  clients.setAccess('k2', { state: 'active' }, 'Asoschi', M);
+  ok("yangi yozuvda «Ochish» — kompyuterning eski to'xtatishi ham olib tashlanadi", clients.grantFor('k2', M).state === 'active');
+  clients.setAccess('k4', { state: 'warn', message: 'Muddat yaqin' }, 'Asoschi');
+  clients.noteMachine('k4', 'FFFF-0000-0000-0000');
+  clients.setAccess('k4', { state: 'blocked' }, 'Asoschi');
+  ok("kompyuter kodi heartbeat'dan yoziladi (qo'lda ochilgan yozuv) va to'xtatishda saqlanib qoladi", clients.grantFor('k9', 'FFFF-0000-0000-0000').state === 'blocked');
+  const opened = clients.setAccess('k4', { state: 'active', message: 'kerak emas' }, 'Asoschi', 'FFFF-0000-0000-0000');
+  ok("«active» da matn saqlanmaydi", opened.message === null);
+}
+
 console.log("\n# Ko'rsatkichlar");
 {
   clock = new Date('2026-11-14T08:10:00Z');

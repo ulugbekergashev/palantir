@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { api, session, type LicenseView } from './data/api';
+import { api, session, type AccessView, type LicenseView } from './data/api';
 import { LoginPage } from './pages/LoginPage';
 import { ActivationPanel, LicenseReminder } from './components/License';
+import { AccessBanner, AccessBlockedScreen } from './components/HubAccess';
 
 const LiveApp = lazy(() => import('./LiveApp'));
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
@@ -24,26 +25,34 @@ export default function App() {
   const [authed, setAuthed] = useState(() => !!session.token());
   const [license, setLicense] = useState<LicenseView | null>(null);
   const [activating, setActivating] = useState(false);
+  // Sotuvchi Hub'dan qo'ygan holat (server/hubAccess.ts); support — Palantir jamoasi kirgan: to'xtatilgan panel unga ochiq
+  const [access, setAccess] = useState<AccessView | null>(null);
+  const [support, setSupport] = useState(false);
   useEffect(() => {
     const on = () => { setWhere(route()); setAuthed(!!session.token()); };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
-  const blocked = !!license?.blocked;
+  const accessStopped = access?.state === 'blocked' && !support;
+  const blocked = !!license?.blocked || accessStopped;
   useEffect(() => {
-    const check = () => { api.license().then(r => setLicense(r.license)).catch(() => {}); };
+    const check = () => {
+      api.license().then(r => { setLicense(r.license); setAccess(r.access ?? null); setSupport(!!r.support); }).catch(() => {});
+    };
     check();
     const t = setInterval(check, blocked ? LICENSE_WAIT_MS : LICENSE_CHECK_MS);
     return () => clearInterval(t);
-  }, [blocked]);
+  }, [blocked, authed]);
 
   // Anketa — egasining telefonidagi sahifa (kirishsiz): litsenziya u yerda ko'rsatilmaydi
   const showLicense = where !== 'anketa' && license && !license.activated;
   const activated = (l: LicenseView) => { setLicense(l); setActivating(false); };
   if (showLicense && license.blocked) return <ActivationPanel license={license} onActivated={activated} />;
+  if (where !== 'anketa' && accessStopped && access) return <AccessBlockedScreen access={access} />;
   return (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-slate-400"><Loader2 className="h-7 w-7 animate-spin" /></div>}>
       {showLicense && <LicenseReminder license={license} onOpen={() => setActivating(true)} />}
+      {where !== 'anketa' && access?.state === 'warn' && <AccessBanner access={access} />}
       {where === 'admin' ? <AdminPage />
         : where === 'setup' ? <SetupWizard />
         : where === 'anketa' ? <AnketaPage />

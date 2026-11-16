@@ -66,11 +66,18 @@ function alertsOf(c) {
     if (c.approved && lic && !lic.activated && typeof lic.daysLeft === 'number') add(lic.daysLeft <= 7 ? 'high' : lic.daysLeft <= 14 ? 'mid' : 'low', 'Litsenziyasiz — ' + lic.daysLeft + ' kun qoldi');
     const latest = latestVersion();
     if (c.approved && latest && s.version && cmpVer(s.version, latest) < 0) add('low', 'Eski nashr v' + s.version + ' (so\'nggisi v' + latest + ')');
+    // Klinika imzoli holatni uzoq olmayapti (Hub'ga ulanmayapti yoki aloqani uzgan) — 30 kunda o'zi to'xtaydi
+    if (s.access && s.access.rejected) add('high', "Klinika Hub holatini qabul qilmayapti (imzo kaliti mos emas) — 30 kunda o'zi to'xtaydi");
+    if (s.access && s.access.reason === 'offline') add('high', "Hub'dan holat " + s.access.offlineDays + ' kundan beri yetmayapti — ' + (s.access.state === 'blocked' ? "o'zi to'xtadi" : "30 kunda to'xtaydi"));
   }
+  const access = (c.access && c.access.state) || 'active';
+  if (c.heldElsewhere) add('high', "Bu kompyuter boshqa yozuvda to'xtatilgan — klinikada ham to'xtagan (ochish: shu yozuvda «Ochish»)");
+  if (access === 'blocked') add('mid', "To'xtatilgan" + (c.access.updatedBy ? ' (' + c.access.updatedBy + ')' : ''));
   if (c.card && c.card.paidUntil) {
     const d = daysTo(c.card.paidUntil);
-    if (d < 0) add('mid', "To'lov muddati o'tgan — " + dateText(c.card.paidUntil));
-    else if (d <= 5) add('low', "To'lov muddati " + d + ' kunda — ' + dateText(c.card.paidUntil));
+    // Muddat o'tgan, lekin ishlayapti — sotuvchi qaror qilsin (o'zi to'xtatilmaydi)
+    if (d < 0 && access !== 'blocked') add(access === 'warn' ? 'mid' : 'high', "To'lov muddati o'tgan — " + dateText(c.card.paidUntil) + (access === 'warn' ? ' (eslatma ko\'rsatilmoqda)' : " — eslatma yoki to'xtatish kerakmi?"));
+    else if (d >= 0 && d <= 5) add('low', "To'lov muddati " + d + ' kunda — ' + dateText(c.card.paidUntil));
   }
   return out;
 }
@@ -248,7 +255,7 @@ function payments(live) {
 }
 
 // ─── Mijozlar ───
-const STATES = { all: 'Hammasi', on: 'Aloqada', off: "Aloqa yo'q", trouble: 'Diqqat kerak', new: 'Tasdiqlanmagan yoki sozlanmoqda', license: 'Litsenziyasiz', old: 'Eski nashr', unpaid: "To'lov muddati o'tgan" };
+const STATES = { all: 'Hammasi', on: 'Aloqada', off: "Aloqa yo'q", trouble: 'Diqqat kerak', new: 'Tasdiqlanmagan yoki sozlanmoqda', license: 'Litsenziyasiz', old: 'Eski nashr', unpaid: "To'lov muddati o'tgan", stopped: "To'xtatilgan yoki eslatmada" };
 function matches(c) {
   const k = kindOf(c) || 'unknown';
   if (filters.kind !== 'all' && k !== filters.kind) return false;
@@ -258,6 +265,7 @@ function matches(c) {
     all: true, on: c.online && c.approved, off: c.approved && !c.online, trouble: al.some(a => a.level !== 'low'), new: st === 'new',
     license: !!(c.status && c.status.license && !c.status.license.activated), old: !!(latest && c.status && c.status.version && cmpVer(c.status.version, latest) < 0),
     unpaid: !!(c.card && c.card.paidUntil && daysTo(c.card.paidUntil) < 0),
+    stopped: !!(c.access && c.access.state !== 'active'),
   }[filters.state];
   if (!ok) return false;
   const q = filters.q.trim().toLowerCase();
@@ -310,7 +318,10 @@ function clientRow(c) {
   const licPill = !lic ? el('span', 'pill', '—') : lic.activated ? el('span', 'pill ok', 'bor') : el('span', 'pill ' + (lic.daysLeft <= 7 ? 'bad' : 'warn'), lic.daysLeft + ' kun');
   const latest = latestVersion();
   const ver = s.version ? el('span', 'pill ' + (latest && cmpVer(s.version, latest) < 0 ? 'warn' : ''), 'v' + s.version) : el('span', 'pill', '—');
-  const paid = card.paidUntil ? el('span', 'pill ' + (daysTo(card.paidUntil) < 0 ? 'bad' : daysTo(card.paidUntil) <= 5 ? 'warn' : 'ok'), dateText(card.paidUntil)) : el('span', 'pill', '—');
+  const access = (c.access && c.access.state) || 'active';
+  const paid = access === 'blocked' ? el('span', 'pill bad', "🔒 to'xtatilgan")
+    : card.paidUntil ? el('span', 'pill ' + (daysTo(card.paidUntil) < 0 ? 'bad' : daysTo(card.paidUntil) <= 5 || access === 'warn' ? 'warn' : 'ok'), (access === 'warn' ? '⚠ ' : '') + dateText(card.paidUntil))
+    : el('span', 'pill' + (access === 'warn' ? ' warn' : ''), access === 'warn' ? '⚠ eslatma' : '—');
   const high = al.filter(a => a.level !== 'low');
   const issue = high.length ? el('span', 'pill bad', high.length + ' ta') : el('span', 'pill ok', "yo'q");
   issue.title = high.map(a => a.text).join('\n');

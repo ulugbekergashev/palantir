@@ -1,5 +1,12 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.16 da yangi (tayyorlanmoqda)
+
+- **Sotuvchidan eslatma:** to'lov muddati yoki boshqa muhim gap bo'lsa, panel tepasida va Telegram'ingizda sotuvchining xabari ko'rinadi.
+- **Hisob to'xtatilsa:** panel va AI xodimlar to'xtaydi, lekin qo'ng'iroqlarni administrator telefoni oladi va bemorlarning xabarlari xodimlarga keladi — mijozlar javobsiz qolmaydi. Sotuvchi ochishi bilan hammasi bir necha daqiqada o'zi tiklanadi.
+- **Internet uzoq vaqt yo'q bo'lsa:** Palantir serveri bilan 23 kun aloqa bo'lmasa — eslatma, 30 kun — to'xtaydi; aloqa tiklanishi bilan o'zi ochiladi.
+- **Sotuvchi Hub'da ko'radi:** biznes turi (klinika, o'quv markazi, xizmat…) endi o'zi keladi.
+
 ## 0.4.15 da yangi
 
 - **Telefondagi AI va paneldagi ovozli suhbat yana ishlaydi:** Google ovozli modelini o'zgartirgani va ba'zi internet tarmoqlaridagi (IPv6) muammo tufayli AI ulanmay, qo'ng'iroqlar administratorga o'tib ketayotgan edi.

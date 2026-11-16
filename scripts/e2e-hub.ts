@@ -180,6 +180,29 @@ try {
   const localOk = (await fetch(`${base}/api/login`, json({ login: 'shifo', password: 'secret12' }))).status;
   ok("masofadan parol taxmin qilish — 8 tadan keyin 429, soxta X-Forwarded-For yordam bermaydi (klinikadagi kirishga tegmaydi)", tries.slice(0, 8).every(c => c === 401) && tries[8] === 429 && localOk === 200, tries.join(','));
   ok("noma'lum klinika — 404", (await fetch(`${HUB}/c/0000000000/api/health`)).status === 404);
+
+  console.log("\n# To'lov nazorati: sotuvchi to'xtatadi va ochadi (imzoli holat heartbeat javobida)");
+  const accessUrl = `${HUB}/admin/clinics/${clinic.clinicId}/access`;
+  const setAccess = (body: unknown, key: Record<string, string> = { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' }) => fetch(accessUrl, { method: 'POST', headers: key, body: JSON.stringify(body) });
+  ok("holatni kalitsiz qo'yib bo'lmaydi — 401; noto'g'ri holat — 400", (await setAccess({ state: 'blocked' }, {})).status === 401 && (await setAccess({ state: 'yopiq' })).status === 400);
+  const ownerToken = (await (await fetch(`${base}/api/login`, json({ login: 'shifo', password: 'secret12' }))).json() as { token?: string }).token;
+  const asOwner = { headers: { authorization: `Bearer ${ownerToken}` } };
+  type LicReply = { access?: { state: string; message: string; reason: string | null }; support?: boolean };
+  const licNow = async () => await (await fetch(`${base}/api/license`, asOwner)).json() as LicReply;
+  const stop = await setAccess({ state: 'blocked', message: "To'lov qilinmadi" });
+  const stopJ = await stop.json() as { access?: { state: string; message: string }; signed?: boolean };
+  ok("asoschi to'xtatdi (Hub'da imzo kaliti bor)", stop.status === 200 && stopJ.access?.state === 'blocked' && stopJ.signed === true, JSON.stringify(stopJ));
+  const gotStop = await until("klinikada to'xtatildi", async () => { const l = await licNow(); return l.access?.state === 'blocked' ? l : undefined; }, 10_000);
+  ok("Palantir imzoli holatni oldi: to'xtatilgan, sotuvchining matni bilan", gotStop?.access?.message === "To'lov qilinmadi" && gotStop.access.reason === 'hub' && gotStop.support === false, JSON.stringify(gotStop));
+  const panelStopped = await fetch(`${base}/api/me`, asOwner);
+  ok("egasining paneli yopiq — 403 BLOK", panelStopped.status === 403 && (await panelStopped.json() as { code?: string }).code === 'BLOK', String(panelStopped.status));
+  const hubSees = await until("Hub amaldagi holatni ko'radi", async () => (await adminList() as unknown as { id: string; status: { access?: { state: string } } | null; access?: { state: string } }[])
+    .find(c => c.id === clinic.clinicId && c.status?.access?.state === 'blocked' && c.access?.state === 'blocked'), 10_000);
+  ok("Hub ro'yxatida: buyruq va klinikada amaldagi holat — to'xtatilgan", !!hubSees);
+  ok("sotuvchi yozgan holat jurnalda", ((await (await fetch(`${HUB}/admin/audit`, { headers: { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' } })).json()) as { audit: { action: string }[] }).audit.some(e => e.action === 'mijoz.holati'));
+  await setAccess({ state: 'active' });
+  const gotOpen = await until('klinikada ochildi', async () => { const l = await licNow(); return l.access?.state === 'active' ? l : undefined; }, 10_000);
+  ok("«Ochish» — klinika yana to'liq ishlaydi, panel ochiq", !!gotOpen && (await fetch(`${base}/api/me`, asOwner)).status === 200);
   // Kirishdan oldin (parol klinikada tekshiriladi) so'rov tanasi hub xotirasida turadi: katta va sekin tanalar bilan uni to'ldirib bo'lmasin
   /** Tanasining 1 KB i yuborilib, qolgani «kelayotgan» so'rov: 3 soniyada javob bo'lmasa — status 0 (hub kutib turibdi) */
   const slowPost = (declared: number) => new Promise<{ status: number; req: http.ClientRequest }>(done => {
@@ -464,6 +487,10 @@ try {
   const delApproved = await fetch(`${HUB}/admin/clinics/${a.clinicId}/delete`, { method: 'POST', headers: admin });
   const delFake = await fetch(`${HUB}/admin/clinics/${b.clinicId}/delete`, { method: 'POST', headers: admin });
   ok("tasdiqlangan yozuv o'chirilmaydi, tasdiqlanmagani o'chadi", delApproved.status === 409 && delFake.status === 200 && !(await adminList()).some(c => c.id === b.clinicId));
+  const doomed = await (await fetch(`${HUB}/admin/clinics`, { method: 'POST', headers: admin, body: JSON.stringify({ name: 'Yopiladigan Dent' }) })).json() as { clinicId: string };
+  const delWrong = await fetch(`${HUB}/admin/clinics/${doomed.clinicId}/delete`, { method: 'POST', headers: admin, body: JSON.stringify({ confirm: 'Boshqa nom' }) });
+  const delRight = await fetch(`${HUB}/admin/clinics/${doomed.clinicId}/delete`, { method: 'POST', headers: admin, body: JSON.stringify({ confirm: 'Yopiladigan Dent' }) });
+  ok("tasdiqlangan mijoz — faqat nomini aynan yozib o'chadi", delWrong.status === 409 && delRight.status === 200 && !(await adminList()).some(c => c.id === doomed.clinicId), `${delWrong.status}/${delRight.status}`);
 
   console.log("\n# Ulangan kompyuterga qo'lda Hub kodi: Hub'da ikkinchi yozuv ochilmaydi");
   const SPARE_PORT = 3289, S = `http://127.0.0.1:${SPARE_PORT}`;
