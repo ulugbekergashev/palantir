@@ -53,6 +53,7 @@ function drawClient(scrollTop) {
     parts.push(box);
   }
   if (c.approved || c.heldElsewhere) parts.push(accessSect(c), planSect(c));
+  if (c.approved) parts.push(commandsSect(c));
   const info = sect('Holat'), dl = el('dl', 'facts');
   fact(dl, 'Aloqa', c.online ? 'aloqada (' + ago(c.seenAt) + ')' : ago(c.seenAt));
   fact(dl, 'Nashr', s.version ? 'v' + s.version + (s.schema ? ' · baza ' + s.schema : '') : null);
@@ -502,6 +503,8 @@ const ACTION = {
   'jamoa.qoshildi': "jamoaga qo'shdi", 'jamoa.parol': 'yangi parol berdi', 'jamoa.yopildi': 'hisobni yopdi', 'jamoa.ochildi': 'hisobni ochdi', 'parol.almashdi': "o'z parolini almashtirdi",
   'kirish.tiklandi': 'egasining kirishini tikladi', 'kirish.tiklanmadi': 'kirishni tiklay olmadi', 'klinika.kompyuter_almashdi': 'kompyuter kodini yangiladi', 'klinika.biriktirildi': "o'zi o'rnatgan kompyuterni biriktirdi",
   'karta.yangilandi': 'mijoz kartasini yangiladi',
+  'mijoz.holati': "to'lov holatini o'zgartirdi", 'mijoz.tarifi': "tarifni o'zgartirdi",
+  'buyruq.diag': "diagnostika so'radi", 'buyruq.restart': "Palantir'ni qayta ishga tushirdi", 'buyruq.update': 'yangilashni boshladi', 'buyruq.message': 'egasiga xabar yubordi',
 };
 async function audit() {
   const r = await api('/admin/audit').catch(() => null);

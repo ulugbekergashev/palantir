@@ -21,6 +21,7 @@
 import { ADMIN_APP_JS } from './adminApp.ts';
 import { ADMIN_DRAWER_JS } from './adminDrawer.ts';
 import { ADMIN_PLAN_JS } from './adminPlan.ts';
+import { ADMIN_COMMANDS_JS } from './adminCommands.ts';
 import { ADMIN_CSS } from './adminStyle.ts';
 
 const MARKUP = `
@@ -138,5 +139,5 @@ const MARKUP = `
 
 export function adminPage(): string {
   return `<!doctype html><html lang="uz"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Palantir Hub</title><link rel="icon" href="data:,"><style>${ADMIN_CSS}</style>${MARKUP}<script>${ADMIN_APP_JS}${ADMIN_DRAWER_JS}${ADMIN_PLAN_JS}</script>`;
+<title>Palantir Hub</title><link rel="icon" href="data:,"><style>${ADMIN_CSS}</style>${MARKUP}<script>${ADMIN_APP_JS}${ADMIN_DRAWER_JS}${ADMIN_PLAN_JS}${ADMIN_COMMANDS_JS}</script>`;
 }

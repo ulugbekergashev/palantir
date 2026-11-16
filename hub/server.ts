@@ -56,6 +56,10 @@
  *      yoqiq (licenseKey.ts MODULES). Shu imzoli holat ichida (f) boradi; tarifda yo'q xodim klinikada ko'rinmaydi va ishlamaydi.
  *      Kompyuter kodiga bog'langan (clients.ts grantFor): qayta o'rnatib tarifdan qochib bo'lmaydi. Heartbeat'da klinika nimani
  *      ishlatayotgani (uses) va qaysi ruxsat yetib kelgani (modules) keladi.
+ *  17. Masofadan amallar (commands.ts): POST /admin/clinics/<klinika>/command {action: diag | restart | update | message, text?} —
+ *      jamoa a'zosi (o'rnatuvchi — o'z mijoziga), faqat tasdiqlangan mijozga. Navbat orqali (command) ketadi; klinika bajarib
+ *      POST /api/command/<id> {ok, note, diag?} bilan qaytaradi (server/hubCommands.ts) va buyruq navbatdan olinadi. Qayta ishga
+ *      tushirish va yangilash 30 daqiqadan eskirsa bajarilmaydi; egasiga har amal Telegram'da aytiladi.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -77,6 +81,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { adminPage } from './admin.ts';
 import { CardError, CLIENT_KINDS, createClients, type ClientKind } from './clients.ts';
 import { createHelp, HelpError, type HelpRow } from './help.ts';
+import { CommandError, COMMAND_FRESH_MS, createCommands } from './commands.ts';
 import { isModule, issueAccess, issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
 import { createTeam, TeamError, type HubRole, type Member } from './team.ts';
 import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
@@ -171,6 +176,8 @@ const team = createTeam(db, stateSecret, () => cfg.adminKey);
 const help = createHelp(db);
 /** Mijoz kartalari va kunlik ko'rsatkichlar (clients.ts, 14-band) */
 const clients = createClients(db);
+/** Masofadan amallar (commands.ts, 17-band) */
+const commands = createCommands(db);
 
 const now = () => new Date().toISOString();
 /** Klinika so'nggi HUB_OFFLINE_MS ichida ko'ringan */
@@ -764,6 +771,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     db.prepare('DELETE FROM clinics WHERE id = ?').run(id);
     help.forget(id);
     clients.remove(id);
+    commands.remove(id);
     relayQueue.delete(id);
     for (const dir of [join(cfg.backupDir, id), join(cfg.diagDir, id)]) rmSync(dir, { recursive: true, force: true });
     team.log(who, 'klinika.ochirildi', id);
@@ -791,6 +799,8 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
             plan: { modules: grant.modules, set: grant.modulesSet, inherited: grant.modulesSet && !own.modulesSet },
           };
         })(),
+        // Masofadan amallar (17-band): oxirgi buyruqlar va natijasi
+        commands: commands.recent(r.id),
       })),
       // Boshqaruv markazi: so'nggi nashr («eski versiya» belgisi) va 14 kunlik grafik — o'rnatuvchiga ham (faqat sonlar)
       latest: latestRelease.version, history: who.role === 'founder' ? clients.history() : [],
@@ -851,6 +861,43 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
       if (e instanceof CardError) return send(res, e.code, { error: e.message });
       throw e;
     }
+  }
+
+  // Admin: masofadan amal (17-band) — diagnostika, qayta ishga tushirish, hozir yangilash, egasiga xabar. O'rnatuvchi — o'z mijozlariga
+  const commanding = /^\/admin\/clinics\/([0-9a-f]{10})\/command$/.exec(p);
+  if (commanding && req.method === 'POST') {
+    const who = memberOf(req, res); if (!who) return;
+    const id = commanding[1];
+    if (!db.prepare('SELECT 1 FROM clinics WHERE id = ?').get(id) || !mine(who, id)) return send(res, 404, { error: "Bunday klinika yo'q" });
+    // Karantin: tasdiqlanmagan yozuv — begona kompyuter bo'lishi mumkin; unga buyruq (va egasiga xabar) berilmaydi
+    if (!approved(id)) return send(res, 403, { error: QUARANTINE });
+    const body = await readJson(req);
+    if (!body) return send(res, 400, { error: 'json' });
+    try {
+      // Asosiy kalit (HUB_ADMIN_KEY) — shaxs emas: egasiga «Palantir jamoasi» deb boradi
+      const cmd = commands.create(id, body, who.id === 'kalit' ? null : who.name);
+      enqueue(id, 'command', { id: cmd.id, action: cmd.action, text: cmd.text, by: cmd.by, at: cmd.createdAt });
+      team.log(who, `buyruq.${cmd.action}`, id, cmd.id);
+      return send(res, 200, { command: cmd });
+    } catch (e) {
+      if (e instanceof CommandError) return send(res, e.code, { error: e.message });
+      throw e;
+    }
+  }
+  // Klinika: buyruq natijasi. Diagnostika matni shu yerda keladi (diagnostika ro'yxatiga ham tushadi). Bajarilgan buyruq navbatdan
+  // olib tashlanadi: qayta ishga tushgan klinika uni ikkinchi marta olmasin
+  const commandDone = /^\/api\/command\/([0-9a-f]{12})$/.exec(p);
+  if (commandDone && req.method === 'POST') {
+    const clinic = clinicOf(req);
+    if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    const body = await readJson(req);
+    if (!body) return send(res, 400, { error: 'json yoki juda katta' });
+    const known = commands.get(commandDone[1]);
+    if (!known || known.clinicId !== clinic) return send(res, 404, { error: 'buyruq topilmadi' });
+    const diagFile = known.action === 'diag' && known.state === 'sent' && typeof body.diag === 'string' && body.diag ? saveDiag(clinic, Buffer.from(body.diag)) : null;
+    const done = commands.finish(clinic, known.id, body, diagFile);
+    db.prepare("DELETE FROM events WHERE clinic_id = ? AND kind = 'command' AND json_extract(payload, '$.id') = ?").run(clinic, known.id);
+    return send(res, 200, { command: done });
   }
 
   // Klinika: shifrlangan kunlik zaxira (hub ocha olmaydi) — oqim bilan faylga, hajmi cheklangan; oxirgi backupKeep tasi qoladi
@@ -1075,6 +1122,10 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
     const after = Math.max(0, Number(url.searchParams.get('after')) || 0);
     db.prepare('DELETE FROM events WHERE clinic_id = ? AND seq <= ?').run(clinic, after);
+    // Eskirgan qayta ishga tushirish va yangilash (17-band) berilmaydi: kompyuter kechasi o'chiq bo'lgan — ertalab kutilmaganda to'xtamasin.
+    // Hub soati bilan (klinika soati noto'g'ri bo'lishi mumkin); kartada «muddati o'tdi» bo'lib ko'rinadi
+    db.prepare("DELETE FROM events WHERE clinic_id = ? AND kind = 'command' AND json_extract(payload, '$.action') IN ('restart', 'update') AND created_at < ?")
+      .run(clinic, new Date(Date.now() - COMMAND_FRESH_MS).toISOString());
     let events = pending(clinic, after);
     // Masofadan kelgan so'rovlar navbatdan olinadi (bir marta beriladi: ikki marta bajarilmasin)
     const take = () => { const list = relayQueue.get(clinic) ?? []; relayQueue.delete(clinic); return list; };

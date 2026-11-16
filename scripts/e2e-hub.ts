@@ -265,6 +265,45 @@ try {
   let mark = sent.length;
   say(OWNER, `/start ${String(ownerMe.status.linkUrl).split('start=')[1]}`);
   ok('egasi botga ulandi', !!(await waitFor('egasi ulandi', () => toOwner(mark, 'ulandi') || toOwner(mark, 'Shifo Dent'), 15_000)));
+
+  console.log("\n# Masofadan amallar: diagnostika, egasiga xabar, qayta ishga tushirish, yangilash (17-band)");
+  {
+    const founder = { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' };
+    const command = (body: unknown, key: Record<string, string> = founder) =>
+      fetch(`${HUB}/admin/clinics/${clinic.clinicId}/command`, { method: 'POST', headers: key, body: JSON.stringify(body) });
+    type Cmd = { id: string; action: string; state: string; note: string | null; diag: string | null };
+    const cmdNow = async (id: string) => ((await (await fetch(`${HUB}/admin/clinics`, { headers: founder })).json() as { clinics: { id: string; commands?: Cmd[] }[] })
+      .clinics.find(c => c.id === clinic.clinicId)?.commands ?? []).find(k => k.id === id);
+    const answered = (id: string) => until(`buyruq ${id} javobi`, async () => { const k = await cmdNow(id); return k && k.state !== 'sent' ? k : undefined; }, 15_000);
+    ok("kalitsiz — 401; noma'lum amal — 400; yo'q mijoz — 404", (await command({ action: 'diag' }, {})).status === 401 && (await command({ action: 'format' })).status === 400
+      && (await fetch(`${HUB}/admin/clinics/0000000000/command`, { method: 'POST', headers: founder, body: '{"action":"diag"}' })).status === 404);
+
+    let from = sent.length;
+    const diagCmd = (await (await command({ action: 'diag' })).json() as { command: Cmd }).command;
+    ok('shu amaldan javob kutilayotganda ikkinchisi — 409', (await command({ action: 'diag' })).status === 409);
+    const diagDone = await answered(diagCmd.id);
+    const diagText = diagDone?.diag ? await (await fetch(`${HUB}/admin/diag/${clinic.clinicId}/${diagDone.diag}`, { headers: founder })).text() : '';
+    ok("diagnostika: klinika bajardi, matn Hub'da (kalitlarsiz), egasiga aytildi", diagDone?.state === 'done' && diagText.includes('Palantir diagnostika')
+      && !diagText.includes('admin-pass-1') && !diagText.includes(clinic.code.split('.').pop()!) && !!(await waitFor('egasiga diagnostika', () => toOwner(from, 'diagnostika'), 10_000)), JSON.stringify(diagDone));
+
+    from = sent.length;
+    const msgCmd = (await (await command({ action: 'message', text: 'Ertaga 10:00 da o\'rnatuvchi keladi — kompyuterni o\'chirmang' })).json() as { command: Cmd }).command;
+    const msgDone = await answered(msgCmd.id);
+    ok("egasiga xabar: Telegram'da «Palantir jamoasi» nomidan, buyruq bajarildi", msgDone?.state === 'done'
+      && !!(await waitFor('egasiga xabar', () => toOwner(from, "kompyuterni o'chirmang"), 10_000)), JSON.stringify(msgDone));
+    const feedJ = await (await fetch(`${base}/api/team/day`, asOwner)).json().catch(() => null) as { timeline?: { title: string }[] } | null;
+    ok("xabar panel jurnalida ham («Bugungi jurnal»)", !!feedJ?.timeline?.some(e => e.title.includes('Palantir jamoasidan xabar')), JSON.stringify(feedJ?.timeline?.slice(0, 3)));
+
+    const restartDone = await answered((await (await command({ action: 'restart' })).json() as { command: Cmd }).command.id);
+    ok("qayta ishga tushirish: nazoratchisiz ishlayotgan Palantir o'zini o'chirmaydi — sababi Hub'da", restartDone?.state === 'failed' && String(restartDone.note).includes('nazoratchisiz')
+      && (await fetch(`${base}/api/health`)).ok, JSON.stringify(restartDone));
+    const updateDone = await answered((await (await command({ action: 'update' })).json() as { command: Cmd }).command.id);
+    ok("yangilash: dasturchi nusxasi (.git) o'zi yangilanmaydi — sababi Hub'da", updateDone?.state === 'failed' && String(updateDone.note).includes('dasturchi'), JSON.stringify(updateDone));
+    const audit = ((await (await fetch(`${HUB}/admin/audit`, { headers: founder })).json()) as { audit: { action: string }[] }).audit.map(e => e.action);
+    ok('har buyruq jurnalda', ['buyruq.diag', 'buyruq.message', 'buyruq.restart', 'buyruq.update'].every(a => audit.includes(a)), audit.slice(0, 6).join(','));
+    await sleep(1500);
+    ok("bajarilgan buyruq qayta bajarilmaydi (navbatdan olindi)", (log.match(/\[hub buyrug'i\] diag/g) ?? []).length === 1, String((log.match(/\[hub buyrug'i\] diag/g) ?? []).length));
+  }
   /** Jamoa «Panelni ochish» bosadi, egasi Telegram'da javob beradi */
   const askTeam = async (answer: 'ja' | 'jx') => {
     const from = sent.length;
@@ -504,6 +543,17 @@ try {
     method: 'POST', headers: { authorization: `Bearer ${parseHubCode(a.code)!.key}` }, body: Buffer.concat([Buffer.from('PALANTIR-ZAXIRA-1\n'), Buffer.alloc(4096)]),
   });
   ok("karantin: tasdiqlanmagan kompyuter zaxira yubora olmaydi (hub diskini to'ldira olmaydi) — 403", fakeBackup.status === 403);
+  {
+    const founder = { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' };
+    const toQuarantined = await fetch(`${HUB}/admin/clinics/${a.clinicId}/command`, { method: 'POST', headers: founder, body: JSON.stringify({ action: 'message', text: 'Salom' }) });
+    ok("karantin: tasdiqlanmagan kompyuterga buyruq ham, egasiga xabar ham berilmaydi — 403", toQuarantined.status === 403);
+    // Begona klinika (o'z kaliti bilan) boshqasining buyrug'iga «bajarildi» deya olmaydi
+    const real = (await (await fetch(`${HUB}/admin/clinics/${clinic.clinicId}/command`, { method: 'POST', headers: founder, body: JSON.stringify({ action: 'message', text: 'Begona sinovi' }) })).json() as { command: { id: string } }).command.id;
+    const forged = await fetch(`${HUB}/api/command/${real}`, { method: 'POST', headers: { authorization: `Bearer ${parseHubCode(a.code)!.key}` }, body: JSON.stringify({ ok: false, note: 'soxta' }) });
+    const after = await until('haqiqiy klinika javobi', async () => ((await (await fetch(`${HUB}/admin/clinics`, { headers: founder })).json() as { clinics: { id: string; commands?: { id: string; state: string; note: string | null }[] }[] })
+      .clinics.find(c => c.id === clinic.clinicId)?.commands ?? []).find(k => k.id === real && k.state !== 'sent'), 10_000);
+    ok("begona klinika boshqasining buyrug'ini tugata olmaydi — 404, natijani haqiqiy klinika beradi", forged.status === 404 && after?.state === 'done' && after.note !== 'soxta', JSON.stringify(after));
+  }
   ok("bir xil kod bilan ikki yozuv: biri tasdiqlanadi, ikkinchisi — yo'q (takror yoki soxta)",
     (await approve(a.clinicId, '5555-6666-7777-8888')).status === 200 && (await approve(b.clinicId, '5555-6666-7777-8888')).status === 409);
   // H7: Windows qayta o'rnatildi — tasdiqlangan yozuvning kompyuter kodi yangilanadi (avval litsenziya abadiy 409 edi)

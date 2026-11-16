@@ -38,7 +38,7 @@ try {
   for (let i = 0; i < 60; i++) { try { if ((await fetch(`${HUB}/health`)).ok) break; } catch { /* */ } await sleep(250); }
   const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
   const clients = [
-    { name: 'Tabassum Dental', label: 'Tabassum Dental', kinds: ['clinic'], version: '0.4.15', card: { owner: 'Akmal Karimov', phone: '+998 90 123 45 67', city: 'Toshkent', plan: 600000, paidUntil: day(20) } },
+    { name: 'Tabassum Dental', label: 'Tabassum Dental', kinds: ['clinic'], version: '0.4.18', card: { owner: 'Akmal Karimov', phone: '+998 90 123 45 67', city: 'Toshkent', plan: 600000, paidUntil: day(20) } },
     { name: 'Shifo Med', label: 'Shifo Med', kinds: ['clinic'], version: '0.4.14', problems: [{ business: 'Shifo Med', label: 'Telefon liniyasi', problem: "AI ulanmayapti — qo'ng'iroqlar administratorga o'tyapti", since: new Date().toISOString() }], card: { owner: 'Dilnoza Aliyeva', phone: '+998 93 555 11 22', city: 'Samarqand', plan: 500000, paidUntil: day(-3) } },
     { name: 'Smart English', label: 'Smart English', kinds: ['education'], version: '0.4.15', card: { owner: 'Javohir', phone: '+998 97 777 00 11', city: 'Toshkent', plan: 400000, paidUntil: day(4) } },
     { name: 'Mebel Uyi', label: 'Mebel Uyi', kinds: ['manufacturing'], version: '0.4.13', disk: 1200, card: { owner: 'Bahodir', city: 'Namangan', plan: 450000, paidUntil: day(40) } },
@@ -61,6 +61,15 @@ try {
       : c.name === 'Smart English' ? { state: 'warn', message: "To'lov muddati yaqin — 4 kun qoldi" } : null;
     if (c.name === 'Tabassum Dental') await fetch(`${HUB}/admin/clinics/${made.clinicId}/modules`, { method: 'POST', headers: admin, body: JSON.stringify({ modules: ['direktor', 'tahlilchi', 'kontent', 'telefon'] }) });
     if (access) await fetch(`${HUB}/admin/clinics/${made.clinicId}/access`, { method: 'POST', headers: admin, body: JSON.stringify(access) });
+    // Masofadan amallar (17-band): Tabassum'da diagnostika va xabar bajarilgan, qayta ishga tushirish kutilmoqda
+    if (c.name === 'Tabassum Dental') {
+      const cmd = async (body: unknown) => ((await (await fetch(`${HUB}/admin/clinics/${made.clinicId}/command`, { method: 'POST', headers: admin, body: JSON.stringify(body) })).json()) as { command: { id: string } }).command.id;
+      const d = await cmd({ action: 'diag' });
+      await fetch(`${HUB}/api/command/${d}`, { method: 'POST', headers: auth, body: JSON.stringify({ ok: true, note: 'Diagnostika yuborildi (48 KB)', diag: 'Palantir diagnostika — namuna\n\n## Holat\n{ "version": "0.4.18" }' }) });
+      const m = await cmd({ action: 'message', text: "Ertaga 10:00 da o'rnatuvchi keladi — kompyuterni o'chirmang" });
+      await fetch(`${HUB}/api/command/${m}`, { method: 'POST', headers: auth, body: JSON.stringify({ ok: true, note: 'Egasiga yetkazildi' }) });
+      await cmd({ action: 'restart' });
+    }
     if (c.name === 'Shifo Med') await fetch(`${HUB}/api/help`, { method: 'POST', headers: auth, body: JSON.stringify({ text: "Telefonda AI javob bermayapti, bemorlar administratorga tushyapti. Tekshirib bering.", by: 'Dilnoza' }) });
   }
   // O'zi ulangan, hali tasdiqlanmagan kompyuter
@@ -93,6 +102,13 @@ try {
     if (await tarif.count()) await tarif.scrollIntoViewIfNeeded();
     else errors.push("Tabassum oynasida «Tarif» bo'limi yo'q: " + (await page.locator('#dBody .sect h3').allTextContents()).join(' | '));
     await page.screenshot({ path: `${OUT}/${label}-6-tarif.png` });
+    const boshqar = page.locator('#dBody .sect:has(h3:text("Masofadan boshqarish"))');
+    if (await boshqar.count()) {
+      await boshqar.scrollIntoViewIfNeeded();
+      await boshqar.locator('button:has-text("Diagnostikani")').click();
+      await sleep(400);
+      await boshqar.screenshot({ path: `${OUT}/${label}-7-boshqarish.png` });
+    } else errors.push("Tabassum oynasida «Masofadan boshqarish» bo'limi yo'q");
     await page.keyboard.press('Escape');
     await page.click('#rows tr:has-text("Denta Smile")');
     await page.waitForSelector('#drawer:not([hidden]) #dBody .sect');

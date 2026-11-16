@@ -33,3 +33,13 @@ export function lineCallNear(bizId: string, phone: string, at: number, windowMs 
 
 /** Sinovlar uchun */
 export const forgetLineCalls = () => seen.clear();
+
+/**
+ * Hozir liniyada suhbat ketayotgan bo'lishi mumkinmi: oxirgi qo'ng'iroq boshidan CALL_BUSY_MS o'tmagan. Asterisk tugashini har doim
+ * aytmaydi (administrator ko'targani, uzilgani), shuning uchun taxmin — masofadan qayta ishga tushirish shu bilan suhbatni uzmaslikka harakat qiladi
+ */
+export const CALL_BUSY_MS = 10 * 60_000;
+export function lineBusy(at = Date.now()): boolean {
+  for (const list of seen.values()) if (list.some(t => at - t >= 0 && at - t < CALL_BUSY_MS)) return true;
+  return false;
+}

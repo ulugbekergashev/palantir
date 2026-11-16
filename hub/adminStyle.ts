@@ -169,6 +169,10 @@ box-shadow:-12px 0 40px rgba(0,0,0,.25);animation:slide .18s ease-out}
 .chk{display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;min-height:32px}
 .chk input{width:18px;height:18px;accent-color:var(--accent);margin:0}
 .chk .name{font-weight:600}
+.cmds{list-style:none;margin:14px 0 0;padding:12px 0 0;border-top:1px solid var(--line);display:grid;gap:10px}
+.cmds li{display:grid;gap:4px}
+.cmds li .quote{margin:2px 0}
+.cmds pre{max-height:320px;overflow:auto;font-size:11px;white-space:pre-wrap;word-break:break-word;background:var(--panel2);padding:8px;border-radius:6px;margin:4px 0 0}
 .sect .f.wide{display:block;margin-top:12px}
 .sect .f.wide textarea{width:100%;margin-top:6px}
 .sect>.actions{margin-top:8px}

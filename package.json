@@ -71,6 +71,7 @@
     "test:hub": "tsx scripts/e2e-hub.ts",
     "test:hub-clients": "tsx scripts/check-hub-clients.ts",
     "test:hub-access": "tsx scripts/check-hub-access.ts",
+    "test:hub-commands": "tsx scripts/check-hub-commands.ts",
     "test:profile": "tsx scripts/e2e-profile.ts",
     "test:team": "tsx scripts/e2e-team.ts",
     "test:update": "tsx scripts/e2e-update.ts",
