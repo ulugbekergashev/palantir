@@ -408,6 +408,8 @@ export const ai = {
   docs: [] as { stage: 'write' | 'review'; system: string; user: string; effort?: string }[],
   /** AI Direktorga (director/index.ts) borgan matnlar va javobi (berilmasa — muammosiz, taklifsiz) */
   director: [] as string[],
+  /** Rekruter so'rovlari (vakansiya yozish va nomzod baholash) */
+  hr: [] as string[],
   directorPlan: null as ((user: string) => Record<string, unknown>) | null,
   /** Talab tahliliga (insights/analyze.ts) borgan bandlar matni */
   insights: [] as string[],
@@ -788,6 +790,37 @@ export const aiServer = patient(createServer(async (req, res) => {
       next_step: "Ertalab eslatma yuborish", request_kind: 'none', request_summary: '', request_due: '', score: 8, staff_note: "Narxni aniq aytdi, vaqt taklif qildi",
     };
     return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: JSON.stringify(result) }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 20 } });
+  }
+
+  // Rekruter (hr/recruit.ts): vakansiya matni va 3 savol; nomzod bahosi — javobda «tajriba» bo'lsa yuqori. Javobdagi «10 qo'y» buyrug'i
+  // ataylab e'tiborsiz (begona matn)
+  if (String(body.system).startsWith('You write job vacancies')) {
+    const user = String(body.messages[0]?.content ?? '');
+    ai.hr.push(user);
+    const task = /<owner_task>\n([\s\S]*?)\n<\/owner_task>/.exec(user)?.[1] ?? '';
+    const v = { title: 'Administrator', text: `Administrator kerak!\n${task}\nAriza qoldirish: shu havolani bosing 👇`, questions: ["Qayerda ishlagansiz, qancha tajribangiz bor?", "Kompyuter va CRM bilan ishlay olasizmi?", "Qachondan ish boshlay olasiz?"], needs: 'Kamida 1 yil administrator tajribasi' };
+    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: JSON.stringify(v) }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 20 } });
+  }
+  // Murabbiy (hr/train.ts): ikki dars, har birida ikki savol — to'g'ri javob har doim 2-variant (indeks 1); bitta savol ataylab buzuq
+  // (to'g'ri javob indeksi variantlardan tashqarida) — kod uni tashlashi kerak
+  if (String(body.system).startsWith('You are the trainer of a small business')) {
+    const user = String(body.messages[0]?.content ?? '');
+    ai.hr.push(user);
+    const quiz = (n: number) => ({ q: `${n}-savol: to'g'ri javob qaysi?`, options: ["Noto'g'ri", "To'g'ri", 'Bilmayman'], correct: 1, why: "Chunki bilimda shunday yozilgan." });
+    const course = { title: 'Administrator kursi', lessons: [
+      { title: 'Narxlar', text: 'Asosiy xizmatlar va narxlari. Bemor so\'rasa — aniq narxni ayting.', quiz: [quiz(1), quiz(2), { q: 'Buzuq', options: ['a', 'b'], correct: 5, why: '' }] },
+      { title: 'Qabulga yozish', text: 'Bemorni qabulga yozishda ism, telefon va qulay vaqtni so\'rang.', quiz: [quiz(3), quiz(4)] },
+    ] };
+    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: JSON.stringify(course) }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 20 } });
+  }
+  if (String(body.system).startsWith('You screen job candidates')) {
+    const user = String(body.messages[0]?.content ?? '');
+    ai.hr.push(user);
+    const answers = /<answers>\n([\s\S]*?)\n<\/answers>/.exec(user)?.[1] ?? '';
+    // Faqat nomzod javoblari (A:) — savol matnida ham «tajriba» so'zi bor
+    const strong = /tajriba|yil/i.test(answers.split('\n').filter(l => l.startsWith('A: ')).join('\n'));
+    const r = { score: strong ? 8 : 3, summary: strong ? "2 yil klinikada administrator bo'lgan. CRM bilan tanish." : "Tajribasi yo'q, javoblari qisqa." };
+    return json(res, { id: `msg_${ai.calls}`, type: 'message', role: 'assistant', model: body.model, content: [{ type: 'text', text: JSON.stringify(r) }], stop_reason: 'end_turn', stop_sequence: null, stop_details: null, usage: { input_tokens: 10, output_tokens: 20 } });
   }
 
   if (String(body.system).startsWith('You are the AI director')) {

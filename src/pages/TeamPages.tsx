@@ -25,6 +25,8 @@ import { ContentChannel, ContentDrafts, ContentSources, contentStats, useContent
 import { api, type ContentView } from '../data/api';
 import { ContentPlanTab, ContentVideoTab } from './agents/ContentStudio';
 import { AdsCabinet, AdsCampaigns, adsStats, useAds } from './agents/Ads';
+import { HrVacancies, hrStats, useHr } from './agents/Recruit';
+import { CoachCourses, coachStats } from './agents/Coach';
 import { HUE } from '../components/agent';
 import { TEAM, type Member } from '../components/team';
 import { hrefOf } from '../lib/nav';
@@ -303,6 +305,47 @@ function MarketologArea({ tab, status, notify, onStatus, state, tick }: Common &
       {active === 'hisobotlar' && <MarketingReports reports={reports} />}
       {active === 'topshiriqlar' && <OrdersPanel member="marketolog" notify={notify} />}
       {active === 'ulash' && <section aria-label="Meta AI ulash" className="rounded-[22px] border border-glass/[0.07] bg-[#0b0c10] p-5"><MetaAiConnect status={status} onStatus={onStatus} notify={notify} /></section>}
+    </div>
+  );
+}
+
+/** HR varaqlari: har xodimniki alohida (bo'lim manzili bitta — #/rekruter/<varaq>) */
+const REKRUTER_TABS = ['nomzodlar'];
+const MURABBIY_TABS = ['oqitish'];
+
+/**
+ * HR bo'limi (#/rekruter) — Marketing kabi: Rekruter (vakansiyalar va nomzodlar) va Murabbiy (xodimni o'qitish), faqat jamoadagilari.
+ * Ma'lumot bitta (/api/hr) — ikkalasiga bir marta yuklanadi.
+ * owner — klinika egasi: vakansiya, nomzod bo'yicha qaror va kurs boshlash faqat unda (server: asOwner); boshqaruvchi xodim ko'radi
+ */
+export function HrArea({ tab, notify, state, tick, owner, crew, murabbiy }: Common & { owner: boolean; crew: Member[]; murabbiy: MemberState | null }) {
+  const [view, setView] = useHr(notify, tick);
+  // Qaror kutayotgan nomzodlar — sahifadagi ro'yxatdan (qaror qilingach darhol), u yuklanguncha — jamoa holatidan
+  const waiting = view ? view.vacancies.reduce((n, v) => n + v.candidates.filter(c => c.status === 'new').length, 0) : state?.badge;
+  const members = [
+    { member: 'rekruter' as const, href: hrefOf('rekruter'), badge: waiting, tabs: REKRUTER_TABS },
+    { member: 'murabbiy' as const, href: hrefOf('rekruter', 'oqitish'), badge: murabbiy?.badge, tabs: MURABBIY_TABS },
+  ].filter(m => crew.includes(m.member));
+  const byTab = members.find(m => !!tab && m.tabs.includes(tab));
+  const who = byTab?.member ?? members[0]?.member ?? 'rekruter';
+  return (
+    <div className="space-y-4">
+      {members.length > 1 && <DepartmentSwitch title="HR" members={members} active={who} />}
+      {who === 'murabbiy' ? (
+        <div className="space-y-6">
+          <AgentHero member="murabbiy" state={murabbiy} stats={coachStats(view)} controls={owner}>
+            <AgentTabs area="rekruter" active="oqitish" tabs={[{ id: 'oqitish', label: "O'qitish" }]} />
+          </AgentHero>
+          <CoachCourses view={view} setView={setView} notify={notify} owner={owner} />
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <AgentHero member="rekruter" state={state} stats={hrStats(view)} controls={owner}>
+            <AgentTabs area="rekruter" active={pick(tab, REKRUTER_TABS)} tabs={[{ id: 'nomzodlar', label: 'Vakansiyalar', count: waiting }]} />
+          </AgentHero>
+          <HrVacancies view={view} setView={setView} notify={notify} owner={owner} />
+        </div>
+      )}
     </div>
   );
 }

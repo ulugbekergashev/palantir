@@ -44,6 +44,7 @@ import { syncAboutContacts } from './setup/about';
 import { crmStatus } from './crm/index';
 import { mountCrm } from './crm/routes';
 import { mountMarketing } from './marketing/routes';
+import { mountHr } from './hr/routes';
 import { mountContent } from './content/routes';
 import { mountAds } from './ads/routes';
 import { mountLive } from './live/routes';
@@ -807,6 +808,7 @@ export function createApp(bot: BotService) {
   }));
 
   mountMarketing(app, { asBiz, asOwner, bad });
+  mountHr(app, { asBiz, asOwner, bad });
   mountContent(app, { asBiz, asOwner, bad });
   mountAds(app, { asBiz, asOwner, bad });
   mountLive(app, { asBiz, asAdmin, bad });

@@ -47,6 +47,9 @@ import { HOLD_EVERY_MS, clearBotOutlets, onIncoming, ownerWrites, registerSender
 import { mediaLabel } from './inbox/media';
 import { registerButtons } from './botButtons';
 import { ContentError, setChannelOutlet } from './content/factory';
+import { candidateContact, candidateStart, candidateText, setHrBot } from './hr/recruit';
+import { candidates } from './hr/store';
+import { setTrainBot } from './hr/train';
 import { RETRY_MAX_MS, RETRY_MIN_MS, b, chunks, cut, detach, esc, followupKeyboard, followupText, helpFor, ignoreUnchanged, kb, langOf, moneyKeyboard, moneyText, personName, reminderKeyboard, reminderText, tgHtml, type Btn } from './botKit';
 
 export interface BotService {
@@ -78,6 +81,8 @@ export function createBot(): BotService {
     clearBotOutlets();
     setTeamOutlet(null);
     setChannelOutlet(null);
+    setHrBot(null);
+    setTrainBot(null);
     const off = () => Promise.reject(new Error("Telegram bot ulanmagan (BOT_TOKEN yo'q)"));
     return {
       enabled: false, username: () => null, start: async () => {}, stop: () => {},
@@ -323,6 +328,11 @@ export function createBot(): BotService {
     const payload = ctx.payload?.trim() ?? '';
     if (payload.startsWith('o-')) return linkOwner(ctx, payload.slice(2));
     if (payload.startsWith('s-')) return linkStaff(ctx, payload.slice(2));
+    // Vakansiya havolasi (Rekruter, hr/recruit.ts): nomzod — bemor emas. Egasi yoki xodim sinab bossa — nomzod bo'lib qolmaydi
+    if (payload.startsWith('v-')) {
+      if (ownerOf(ctx) || staff.byChat(String(ctx.chat.id))) return void await ctx.reply("Bu — nomzodlar uchun havola. Siz Palantir'ga egasi yoki xodim sifatida ulangansiz; nomzod bo'lib sinash uchun boshqa Telegram akkauntdan oching.");
+      return candidateStart(String(ctx.chat.id), payload.slice(2), [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ') || null, ctx.from.username ?? null);
+    }
     if (payload.startsWith('l-')) {
       // Eski post havolalari (l-<biznes>-<post>) ham ishlaydi: post qismi e'tiborga olinmaydi
       const [, bizId] = payload.split('-');
@@ -475,6 +485,8 @@ export function createBot(): BotService {
     if (contact.user_id && contact.user_id !== ctx.from.id) {
       return ctx.reply("Iltimos, o'zingizning raqamingizni pastdagi tugma orqali yuboring.", contactKeyboard);
     }
+    // Vakansiyaga javob berayotgan nomzod (Rekruter) — raqami nomzod kartasiga
+    if (await candidateContact(String(ctx.chat.id), contact.phone_number, [contact.first_name, contact.last_name].filter(Boolean).join(' ') || null)) return;
     const lead = leads.latestForUser(String(ctx.from.id));
     const biz = lead && businesses.byId(lead.businessId);
     if (!lead || !biz) return ctx.reply("Qaysi biznes bilan bog'lanmoqchisiz? Havolani qayta bosing.", Markup.removeKeyboard());
@@ -556,6 +568,10 @@ export function createBot(): BotService {
     }
     // Qabulxona xodimi: yordamchi bilan gaplashmaydi, faqat so'rovlar
     if (await staffText(ctx, text)) return;
+    // Vakansiya savollariga javob berayotgan nomzod (Rekruter): javobi bemor xabari emas
+    if (await candidateText(chatId, text)) return;
+    // Arizasini topshirib bo'lgan nomzod yana yozdi (bemor kartasi yo'q) — bemorlar ro'yxatiga tushmaydi
+    if (candidates.any(chatId) && !leads.latestForUser(String(ctx.from.id))) return void await ctx.reply("Arizangiz qabul qilingan — klinika ko'rib chiqib siz bilan bog'lanadi.\nВаша заявка принята, с вами свяжутся.");
     const lead = customerLead(ctx);
     if (lead) return customerMessage(ctx, lead, text);
     await ctx.reply("Assalomu alaykum! Bu Palantir — biznes uchun AI yordamchi. Biznes egasi bo'lsangiz, paneldagi «Telegramni ulash» havolasini bosing.");
@@ -795,6 +811,14 @@ export function createBot(): BotService {
       return m.message_id;
     },
   });
+  // Rekruter: egasiga vakansiya va nomzod kartalari, nomzodga savollar (raqam tugmasi bilan)
+  setHrBot({
+    username: () => username,
+    toOwner: (chat, html, buttons) => sendHtml(chat, html, buttons),
+    async toCandidate(chat, text, askPhone) { await tg.sendMessage(chat, text, askPhone ? contactKeyboard : Markup.removeKeyboard()); },
+  });
+  // Murabbiy: xodimga darslar va test tugmalari, egasiga natija
+  setTrainBot({ send: (chat, html, buttons) => sendHtml(chat, html, buttons) });
   // Kontent-meyker: egasining kanali (bot kanalda admin, «Xabar joylash» huquqi bilan)
   setChannelOutlet({
     async resolve(target) {

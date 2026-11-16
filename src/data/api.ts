@@ -7,7 +7,7 @@ import type { AiEngine, AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView
 import type { AutoReply, Business, ChatEntry, DirectorView, Doc, GoalView, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
-import type { AdPlan, AdsView, AgentEvent, AgentOrder, BrandAnswers, ContentBrand, ContentDraft, ContentSettings, ContentSource, ContentVideo, EventMember, PlanItem, ResultsView, VideoScene, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
+import type { AdPlan, AdsView, AgentEvent, AgentOrder, HrView, BrandAnswers, ContentBrand, ContentDraft, ContentSettings, ContentSource, ContentVideo, EventMember, PlanItem, ResultsView, VideoScene, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
 
 export interface ContentView {
   settings: ContentSettings; sources: ContentSource[]; drafts: ContentDraft[]; running: boolean;
@@ -427,6 +427,18 @@ export const api = {
   adsCancel: (id: string) => call<AdsView>(`/ads/campaigns/${id}`, { method: 'DELETE' }),
   adsUpload: (image: string) => call<AdsView & { ref: string }>('/ads/images', { body: { image } }),
   adsImage: async (ref: string) => (await send(`/ads/image?ref=${encodeURIComponent(ref)}`, { method: 'GET' })).blob(),
+  // HR → Rekruter: vakansiyalar va nomzodlar (ko'rish — egasi va boshqaruvchi xodim; qolgani — faqat egasi)
+  hr: () => call<HrView>('/hr'),
+  /** Egasining so'zidan vakansiya matni va nomzodga savollar (AI, bir daqiqagacha) */
+  hrVacancy: (task: string) => call<HrView>('/hr/vacancies', { body: { task } }),
+  /** Kanalga joylash (kanal ulanmagan bo'lsa — 409 va tushuntirish) */
+  hrPost: (id: string) => call<HrView>(`/hr/vacancies/${id}/post`, { body: {} }),
+  hrClose: (id: string) => call<HrView>(`/hr/vacancies/${id}/close`, { body: {} }),
+  /** Egasining qarori: nomzodga xabar shu paytda ketadi; said — egasiga qisqa javob */
+  hrDecide: (id: string, invite: boolean) => call<HrView & { said: string }>(`/hr/candidates/${id}/decision`, { body: { invite } }),
+  // HR → Murabbiy: xodimga Miya bilimidan kurs (AI, bir daqiqagacha; xodim Telegram'ga ulanmagan yoki bilim kam bo'lsa — 409)
+  hrTrain: (staffId: string, focus?: string) => call<HrView>('/hr/trainings', { body: { staffId, ...(focus ? { focus } : {}) } }),
+  hrTrainCancel: (id: string) => call<HrView>(`/hr/trainings/${id}/cancel`, { body: {} }),
 
   /** Ulash ustasi: o'rnatish holati, anketani yuklash (kod yoki fayl), egasidan Telegram'da so'rash */
   setup: () => call<{ setup: SetupView }>('/setup'),

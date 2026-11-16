@@ -14,13 +14,13 @@
  *     (panel ochilganda u jamoaga o'zi qo'shiladi).
  */
 
-export const CREW = ['direktor', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'kontent', 'target'] as const;
+export const CREW = ['direktor', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'kontent', 'target', 'rekruter', 'murabbiy'] as const;
 export type CrewMember = typeof CREW[number];
 /** Asosiy xodimlar: har biznesda bor, olib tashlanmaydi */
 export const CORE: readonly CrewMember[] = ['qabulxona', 'yordamchi'];
 /** Xodim nomi (server xabarlarida; panel — components/team.tsx TEAM) */
 export const TEAM_NAME: Record<CrewMember, string> = {
-  direktor: 'Direktor', qabulxona: 'AI administrator', yordamchi: 'Palantir', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', kontent: 'Kontent-meyker', target: 'Targetolog',
+  direktor: 'Direktor', qabulxona: 'AI administrator', yordamchi: 'Palantir', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', kontent: 'Kontent-meyker', target: 'Targetolog', rekruter: 'Rekruter', murabbiy: 'Murabbiy',
 };
 
 /** hired — egasi olgan yoki ishi ulangani uchun o'zi qo'shilgan; dismissed — egasi o'zi olib tashlagan (o'zi qaytib qo'shilmaydi) */
@@ -84,6 +84,10 @@ export interface CrewSignals {
   marketingPosts: number;
   content: boolean;
   ads: boolean;
+  /** Vakansiya ochilgan (Rekruter) */
+  vacancies: boolean;
+  /** Xodimga kurs berilgan (Murabbiy) */
+  trainings: boolean;
 }
 
 export function inUse(s: CrewSignals): CrewMember[] {
@@ -96,6 +100,10 @@ export function inUse(s: CrewSignals): CrewMember[] {
     marketolog: s.metaAi,
     kontent: s.content || s.marketingPosts > 0,
     target: s.ads,
+    // Rekruterni egasi o'zi ishga oladi (vakansiya ochilgan bazada — jamoada)
+    rekruter: s.vacancies,
+    // Murabbiyni egasi o'zi ishga oladi (kurs berilgan bazada — jamoada)
+    murabbiy: s.trainings,
   };
   return CREW.filter(m => on[m]);
 }

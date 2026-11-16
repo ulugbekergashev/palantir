@@ -5,10 +5,10 @@
  * about — xodim haqiqatan nima qiladi (egasi shunga qarab ishga oladi): bajarmaydigan ishini yozmang.
  */
 import { useEffect, useState } from 'react';
-import { Camera, ChartLine, Compass, Headset, Megaphone, PenLine, Target, UserRound, type LucideIcon } from 'lucide-react';
+import { Camera, ChartLine, Compass, GraduationCap, Headset, Megaphone, PenLine, Target, UserRound, UserSearch, type LucideIcon } from 'lucide-react';
 import type { LiveStatus } from '../types';
 import { api, type ContentView } from '../data/api';
-import type { AdsView, DirectorView } from '../types';
+import type { AdsView, DirectorView, HrView } from '../types';
 import { iso, localDay } from '../lib/week';
 import { hrefOf, type Area } from '../lib/nav';
 import { som } from '../lib/text';
@@ -42,21 +42,27 @@ export const TEAM: Record<Member, { name: string; role: string; about: string; i
   marketolog: { name: 'Marketolog', role: 'Bozor · raqobatchilar', icon: Megaphone, department: 'marketing', about: "Meta AI orqali raqobatchilarni, akkauntingizni va sohangizda nima ishlayotganini o'rganadi, joylangan postlar natijasini o'lchaydi; topilmalari kontent-rejaga tushadi." },
   target: { name: 'Targetolog', role: 'Meta reklama · Facebook va Instagram', icon: Target, department: 'marketing', about: "Topshirig'ingizdan reklama kampaniyasini tuzadi, siz tasdiqlasangiz — Meta'da ishga tushiradi; sarfni kuzatadi va limitga yetsa o'zi to'xtatadi." },
   kontent: { name: 'Kontent-meyker', role: 'Telegram · Instagram · video', icon: PenLine, department: 'marketing', about: "Kontent-reja tuzadi; Telegram kanali va Instagram uchun post (rasmi bilan) va qisqa video tayyorlaydi; siz tasdiqlagach joylaydi." },
+  rekruter: { name: 'Rekruter', role: 'HR · ishga olish', icon: UserSearch, department: 'hr', about: "Vakansiya matni va nomzodga savollar yozadi; nomzodlar botdagi havola orqali savollarga javob beradi, u ularni baholab eng mosini sizga yuboradi. Nomzodga javob — faqat siz tugmani bosganda." },
+  murabbiy: { name: 'Murabbiy', role: "HR · o'rgatish", icon: GraduationCap, department: 'hr', about: "Yangi xodimni klinikaning o'z bilimidan o'rgatadi: narxlar, qoidalar, savol-javoblar — Telegram'da qisqa darslar va test tugmalari; oxirida sizga natija va qaysi mavzuda xato qilgani." },
 };
 export const MEMBERS: Member[] = [...CREW];
 export { isCore };
 
 /**
- * Bo'limlar: pastki panelda (telefonda 7 tugma sig'adi) bo'lim bitta tugma, ichida xodimlari. Marketing — Marketolog va Kontent-meyker.
+ * Bo'limlar: pastki panelda (telefonda 7 tugma sig'adi) bo'lim bitta tugma, ichida xodimlari. Marketing — Marketolog, Kontent-meyker va Targetolog; HR — Rekruter va Murabbiy.
  * DEPARTMENT_OF — bo'lim ichidagi xodim (o'z tugmasi yo'q) qaysi bo'limda va qaysi varaqdan ochiladi
  */
-export const DEPARTMENT_OF: Partial<Record<Member, { area: Area; tab: string }>> = { kontent: { area: 'marketolog', tab: 'postlar' }, target: { area: 'marketolog', tab: 'kampaniyalar' } };
+export const DEPARTMENT_OF: Partial<Record<Member, { area: Area; tab: string }>> = {
+  kontent: { area: 'marketolog', tab: 'postlar' }, target: { area: 'marketolog', tab: 'kampaniyalar' },
+  // HR — Rekruter (vakansiyalar) va Murabbiy (o'qitish)
+  murabbiy: { area: 'rekruter', tab: 'oqitish' },
+};
 export const RAIL_MEMBERS = MEMBERS.filter(m => !DEPARTMENT_OF[m]);
 /** Bo'lim tugmasining nomi (ichida bir nechta xodim) */
-export const DEPARTMENT_LABEL: Partial<Record<Member, string>> = { marketolog: 'Marketing' };
+export const DEPARTMENT_LABEL: Partial<Record<Member, string>> = { marketolog: 'Marketing', rekruter: 'HR' };
 export const memberHref = (m: Member): string => { const d = DEPARTMENT_OF[m]; return d ? hrefOf(d.area, d.tab) : hrefOf(m as Area); };
 /** Pastki paneldagi xodim (o'z bo'limi bor) */
-export type RailMember = Exclude<Member, 'kontent' | 'target'>;
+export type RailMember = Exclude<Member, 'kontent' | 'target' | 'murabbiy'>;
 export const isMember = (a: Area): a is RailMember => (RAIL_MEMBERS as string[]).includes(a);
 
 /**
@@ -110,6 +116,36 @@ function contentState(c: ContentView | null, instagram: string | null): MemberSt
   };
 }
 
+/** Rekruter: nechta ochiq vakansiya, nechta nomzod qaroringizni kutyapti (nishon), nechtasi hozir savollarga javob beryapti */
+function hrState(v: HrView | null): MemberState {
+  const open = v?.vacancies.filter(x => x.status === 'open') ?? [];
+  const waiting = v?.vacancies.reduce((n, x) => n + x.candidates.filter(c => c.status === 'new').length, 0) ?? 0;
+  const answering = open.reduce((n, x) => n + x.inProgress, 0);
+  const scoring = v?.vacancies.some(x => x.candidates.some(c => c.status === 'scoring')) ?? false;
+  return {
+    on: open.length > 0, live: answering > 0 || scoring, badge: waiting,
+    status: waiting ? `${waiting} ta nomzod qaroringizni kutyapti` : open.length ? `${open.length} ta vakansiya ochiq` : 'Ochiq vakansiya yo‘q',
+    detail: answering ? `${answering} kishi savollarga javob beryapti` : open.length ? 'Nomzodlar havola orqali keladi' : 'Kim kerakligini yozing — matn va savollarni o‘zi tuzadi',
+    next: v && !v.vacancies.length ? { label: 'Vakansiya ochish', href: hrefOf('rekruter') } : null,
+  };
+}
+
+/**
+ * Murabbiy: nechta kurs davom etyapti, oxirgi tugagan kurs natijasi. Nishon yo'q — kurs sizdan tasdiq kutmaydi.
+ * Keyingi qadam: Telegram'ga ulangan xodim yo'q — ulash (Qabulxona xodimlari ro'yxati: AI administrator → So'rovlar)
+ */
+function coachState(v: HrView | null): MemberState {
+  const active = v?.trainings.filter(t => t.status === 'active').length ?? 0;
+  const done = v?.trainings.find(t => t.status === 'done');
+  const linked = v?.staff.filter(s => s.linked).length ?? 0;
+  return {
+    on: linked > 0, live: active > 0, badge: 0,
+    status: active ? `${active} ta kurs davom etyapti` : 'Kurs yo‘q',
+    detail: done ? `Oxirgisi: ${done.staffName ?? 'xodim'} — ${done.right}/${done.total} to‘g‘ri` : linked ? `Telegram’da ${linked} xodim — kurs boshlash mumkin` : 'Xodim Telegram’ga ulanmagan',
+    next: v && !linked ? { label: 'Xodimni Telegram’ga ulash', href: hrefOf('qabulxona', 'sorovlar') } : null,
+  };
+}
+
 /** tick — biror ish bajarilganda (so'rov yopildi, vazifa qo'shildi) darhol yangilash uchun; clinic — DentaCRM bilan ishlaydigan soha */
 /** replyMode — mijozlarga javob rejimi (biz.autoReply): Qabulxona «navbatchilikda»mi yoki javoblarni egasi tasdiqlaydimi */
 export function useTeam(status: LiveStatus, tick = 0, clinic = false, replyMode: ReplyMode = 'draft'): Record<Member, MemberState> | null {
@@ -128,6 +164,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false, replyMode:
       const contentP = api.content().catch(() => null);
       const adsP = api.ads().catch(() => null);
       const directorP = api.director().catch(() => null);
+      const hrP = api.hr().catch(() => null);
       const lineP = api.phoneLine().then(r => r.line.status.trunk === 'registered').catch(() => false);
       const [requests, calls, tasks, cameras, day, att, reports] = await Promise.all([
         api.requests('open').catch(() => null), api.calls().catch(() => null), api.tasks('open').catch(() => null),
@@ -137,6 +174,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false, replyMode:
       const content = await contentP;
       const ads = await adsP;
       const director = await directorP;
+      const hr = await hrP;
       const phoneOn = await lineP;
       if (stale) return;
       const callsToday = calls?.calls.filter(c => localDay(c.startedAt) === today) ?? [];
@@ -186,6 +224,8 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false, replyMode:
         },
         kontent: contentState(content, igAccount),
         target: adsState(ads),
+        rekruter: hrState(hr),
+        murabbiy: coachState(hr),
       });
     };
     void load();

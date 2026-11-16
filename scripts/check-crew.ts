@@ -27,7 +27,7 @@ function check(name: string, fn: () => void): void {
   }
 }
 
-const none = { customers: false, crm: false, cameras: 0, metaAi: false, marketingPosts: 0, content: false, ads: false };
+const none = { customers: false, crm: false, cameras: 0, metaAi: false, marketingPosts: 0, content: false, ads: false, vacancies: false, trainings: false };
 
 console.log('\n# Qoida');
 check('yangi biznes: asosiy — AI administrator va Palantir, Direktor o\'zi qo\'shiladi (B1)', () => {
@@ -168,7 +168,7 @@ console.log("\n# Asboblar xodim bo'yicha (3-bosqich)");
   });
   check("suhbatda — Yordamchi va jamoadagi mutaxassislar; topshiriqda — faqat bajaruvchiniki", () => {
     assert.deepEqual(chatGroups({ crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'kontent'], dismissed: [] }) }), ['base', 'qabulxona', 'kontent'], 'AI administrator — doim jamoada (B1)');
-    assert.deepEqual(chatGroups({ crew: null }), ['base', 'qabulxona', 'kontent', 'target', 'marketolog', 'kuzatuvchi'], 'eski baza — hammasi');
+    assert.deepEqual(chatGroups({ crew: null }), ['base', 'qabulxona', 'kontent', 'target', 'marketolog', 'kuzatuvchi', 'rekruter', 'murabbiy'], 'eski baza — hammasi');
     assert.deepEqual(memberGroups('kontent'), ['kontent']);
     assert.deepEqual(memberGroups('tahlilchi'), ['base']);
     assert.deepEqual(memberGroups('qabulxona'), ['base', 'qabulxona'], "Qabulxona topshirig'i mijozlar va yozishmalarni ham o'qiydi");

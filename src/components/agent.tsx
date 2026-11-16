@@ -24,6 +24,8 @@ export const HUE: Record<Member, { a: string; b: string; glow: string; text: str
   marketolog: { a: '#f472b6', b: '#a78bfa', glow: 'rgba(244,114,182,0.15)', text: '#f9a8d4', deep: '#6b1f5a' },
   target: { a: '#5ee0a0', b: '#3fb6ff', glow: 'rgba(94,224,160,0.15)', text: '#a6f3cb', deep: '#0e5a3e' },
   kontent: { a: '#ffb86b', b: '#f472b6', glow: 'rgba(255,184,107,0.15)', text: '#ffd6a8', deep: '#7a3512' },
+  rekruter: { a: '#38bdf8', b: '#818cf8', glow: 'rgba(56,189,248,0.15)', text: '#bae6fd', deep: '#0c4a6e' },
+  murabbiy: { a: '#a3e635', b: '#fbbf24', glow: 'rgba(163,230,53,0.14)', text: '#d9f99d', deep: '#3f6212' },
 };
 
 /** Xodimning tosh tusi: ichidagi cho'g' va tutun xodim rangida, shishasi bir xil */

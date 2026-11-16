@@ -28,6 +28,9 @@ import { mergeKeyboard } from './director/logic';
 import { forgetLead } from './forget';
 import { canMarkPersonal, personalChats, undoPersonalRow } from './inbox/personal';
 import { REMIND_AFTER_MS, undoWorkRow, workChats } from './inbox/workChats';
+import { HrError, decideCandidate, postVacancy } from './hr/recruit';
+import { vacancies } from './hr/store';
+import { trainingButton } from './hr/train';
 
 const REMIND_HOURS = REMIND_AFTER_MS / 3600_000;
 import { waiting } from './serviceStore';
@@ -51,6 +54,14 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
     const [code, id] = data.split('|');
     // So'rov kartasi: egasi va qabulxona xodimlari bosadi
     if (await requestButton(ctx, code, id)) return;
+    // Murabbiy kursi (hr/train.ts): xodim bosadi — test, javob, keyingi dars. Bosilgan savol tugmalari olinadi (qayta javob bo'lmasin)
+    if (ctx.chat?.type === 'private') {
+      const taught = await trainingButton(String(ctx.chat.id), code, id ?? '');
+      if (taught !== null) {
+        await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+        return toast(ctx, taught);
+      }
+    }
     const ownerBiz = ctx.chat?.type === 'private' ? businesses.byOwnerChat(String(ctx.chat.id)) : undefined;
     // Mijozga javob taklifi: qabulxona xodimi ham yuboradi yoki rad etadi
     const biz = ownerBiz ?? ((code === 'ra' || code === 'rx') && ctx.chat?.type === 'private' ? actorOf(String(ctx.chat.id))?.biz : undefined);
@@ -100,6 +111,28 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
           { parse_mode: 'HTML', reply_markup: { inline_keyboard: [undoPersonalRow(lead.tgUserId)] } }).catch(ignoreUnchanged).catch(() => {});
       }
       return toast(ctx, 'Belgilandi — bemorlar ro\'yxatidan olindi');
+    }
+    // Rekruter (hr/recruit.ts), faqat egasi: hp — vakansiyani kanalga, hc — yopish, hi — nomzodni suhbatga, hr — rad etish
+    // (nomzodga xabar faqat shu tugma bilan ketadi)
+    if (code === 'hp' || code === 'hc' || code === 'hi' || code === 'hr') {
+      if (!ownerBiz) return toast(ctx, 'Buni faqat klinika egasi hal qiladi');
+      try {
+        if (code === 'hp') {
+          await postVacancy(biz, id);
+          return toast(ctx, 'Kanalga joylandi', { show_alert: true });
+        }
+        if (code === 'hc') {
+          if (!vacancies.close(biz.id, id)) return toast(ctx, 'Allaqachon yopilgan');
+          if (msg) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+          return toast(ctx, "Vakansiya yopildi — yangi nomzodlar qabul qilinmaydi", { show_alert: true });
+        }
+        const said = await decideCandidate(biz, id, code === 'hi');
+        if (msg) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+        if (msg) await sendHtml(String(ctx.chat!.id), `${code === 'hi' ? '📞' : '✖️'} ${esc(said)}`).catch(() => {});
+        return toast(ctx, code === 'hi' ? 'Nomzodga taklif ketdi' : 'Rad etildi');
+      } catch (e) {
+        return toast(ctx, e instanceof HrError ? e.message : `Bajarilmadi: ${(e as Error).message}`, { show_alert: true });
+      }
     }
     // Ish bo'yicha yozgan (yetkazib beruvchi, hamkor) — Kotib (inbox/workChats.ts). Faqat egasi: bemorlar ro'yxatidan olinadi,
     // AI javob bermaydi, egasi javob bermasa — eslatadi. wd — «javob shart emas», wu — qaytarish (keyingi xabaridan yana bemor)

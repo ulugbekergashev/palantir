@@ -112,6 +112,8 @@ const ROLE: Record<CrewMember, string> = {
   marketolog: "market research through the owner's Meta AI (meta_ai): competitors, the business's Instagram, what works",
   kontent: 'makes all content: Telegram channel posts, Instagram posts with a picture, the content plan, short videos (in the brand book voice)',
   target: 'runs Meta ads: campaign plans, launch after the owner approves, spend limits',
+  rekruter: 'hiring: writes vacancies with screening questions (vacancy_create), candidates answer in the bot and come to the owner scored (vacancy_list)',
+  murabbiy: 'trains staff: a short course from the business knowledge with quiz buttons in Telegram, result to the owner (training_start, training_list)',
 };
 /** Yordamchi bajara oladigan mutaxassislar ishi (jamoada bo'lsa — asboblari bor) */
 const SPECIALISTS: CrewMember[] = ['qabulxona', 'kontent', 'target', 'marketolog', 'kuzatuvchi'];
@@ -145,7 +147,8 @@ Not hired (you do not have their tools): ${missing.map(m => `${TEAM_NAME[m]} —
 
 /** Egasining doimiy topshiriqlari (panel: xodim sahifasi → Topshiriqlar). as — topshiriq bajaruvchi: faqat uniki */
 export function standingOrders(b: BusinessRow, as?: CrewMember): string {
-  const of = (m: CrewMember) => (m === 'direktor' ? [] : orders.standing(b.id, m));
+  // Direktor, Rekruter va Murabbiy doimiy topshiriq olmaydi (OrderMember emas)
+  const of = (m: CrewMember) => (m === 'direktor' || m === 'rekruter' || m === 'murabbiy' ? [] : orders.standing(b.id, m));
   const tagged: [CrewMember, string][] = as ? [[as, '']]
     // Jamoada yo'q xodimning topshirig'i (egasi uni olib tashlagan) ko'rsatmaga qo'shilmaydi
     : [['yordamchi', ''], ...([['tahlilchi', '(reports and numbers) '], ['marketolog', '(market research) ']] as [CrewMember, string][]).filter(([m]) => crewHas(b, m)),

@@ -125,6 +125,46 @@ try {
   ok("ro'yxatda: Qabulxona xodimi · dilnoza · hali kirmagan", ((await page.locator('main').textContent()) ?? '').includes('Qabulxona xodimi · dilnoza · hali kirmagan'));
   await shot(page, 'egasi-xodimlar');
 
+  console.log('\n# Egasi Rekruterni ishga oladi — HR sahifasi');
+  await page.goto(`${base}/#/xodimlar`);
+  const rekruterCard = page.locator('article[aria-label="Rekruter"]');
+  await rekruterCard.getByRole('button', { name: 'Ishga olish' }).click();
+  await rekruterCard.getByRole('link', { name: /Ochish/ }).waitFor({ timeout: 10_000 });
+  ok("«Tez kunda»da Rekruter ham, Murabbiy ham yo'q (ikkalasi ishga olinadi)", !(await page.locator('article[aria-label="Rekruter — tez kunda"]').count()) && !(await page.locator('article[aria-label="Murabbiy — tez kunda"]').count())
+    && await page.locator('article[aria-label="Murabbiy"]').getByRole('button', { name: 'Ishga olish' }).isVisible());
+  await page.goto(`${base}/#/rekruter`);
+  await page.getByRole('heading', { level: 1, name: 'Rekruter' }).waitFor({ timeout: 10_000 });
+  ok('Rekruter sahifasi: «Vakansiyalar» varag\'i, «Yangi vakansiya» shakli, bo\'sh holat tushuntirishi',
+    await page.getByRole('navigation', { name: 'Varaqlar' }).getByRole('link', { name: 'Vakansiyalar' }).isVisible()
+    && await page.getByPlaceholder(/Kim kerak\? Vazifalari, oyligi, ish vaqti/).isVisible()
+    && await page.getByRole('button', { name: 'Vakansiya ochish' }).isDisabled()
+    && await page.getByText('Nomzodlar havolani bosib savollarga javob beradi', { exact: false }).isVisible());
+  ok('yon ustunda Rekruter bo\'limi bor', await page.getByRole('navigation', { name: "Bo'limlar" }).getByRole('link', { name: /Rekruter/ }).count() > 0);
+  await shot(page, 'egasi-rekruter');
+
+  console.log('\n# Egasi Murabbiyni ham ishga oladi — HR bo\'limida ikkinchi xodim');
+  await page.goto(`${base}/#/xodimlar`);
+  const murabbiyCard = page.locator('article[aria-label="Murabbiy"]');
+  await murabbiyCard.getByRole('button', { name: 'Ishga olish' }).click();
+  await murabbiyCard.getByRole('link', { name: /Ochish/ }).waitFor({ timeout: 10_000 });
+  await page.goto(`${base}/#/rekruter/oqitish`);
+  await page.getByRole('heading', { level: 1, name: 'Murabbiy' }).waitFor({ timeout: 10_000 });
+  const hrSwitch = page.getByRole('navigation', { name: "HR bo'limi" });
+  ok("HR almashtirgichi: Rekruter va Murabbiy, Murabbiy tanlangan; «O'qitish» varag'i",
+    await hrSwitch.getByRole('link', { name: /Rekruter/ }).isVisible() && await hrSwitch.getByRole('link', { name: /Murabbiy/ }).getAttribute('aria-current') === 'page'
+    && await page.getByRole('navigation', { name: 'Varaqlar' }).getByRole('link', { name: "O'qitish" }).isVisible());
+  // Egasi Sozlamalar → Xodimlar'da Dilnoza'ni qo'shgan, lekin u Telegram'ga ulanmagan — tanlab bo'lmaydi, tugma yopiq
+  const dilnoza = page.getByRole('option', { name: /Dilnoza — Telegram'ga ulanmagan/ });
+  ok("«Kurs boshlash»: ulanmagan xodim tanlanmaydi («Dilnoza — Telegram'ga ulanmagan»)", await dilnoza.count() === 1 && await dilnoza.evaluate(o => (o as HTMLOptionElement).disabled));
+  ok("«Kurs boshlash» tugmasi yopiq, «Nimaga e'tibor bersin?» maydoni bor", await page.getByRole('button', { name: 'Kurs boshlash' }).isDisabled() && await page.getByPlaceholder(/Nimaga e'tibor bersin\?/).isVisible());
+  ok("bo'sh holat: kurs faqat Miya bilimidan, xodim Telegram'ga ulanishi kerak", await page.getByText("Kurs faqat Miya'dagi bilimdan (narxlar, qoidalar, savol-javoblar) yoziladi", { exact: false }).isVisible());
+  await shot(page, 'egasi-murabbiy');
+  await hrSwitch.getByRole('link', { name: /Rekruter/ }).click();
+  await page.getByRole('heading', { level: 1, name: 'Rekruter' }).waitFor({ timeout: 10_000 });
+  ok('almashtirgichdan Rekruter — vakansiyalar sahifasi joyida', await page.getByRole('button', { name: 'Vakansiya ochish' }).isVisible());
+  const rail = page.getByRole('navigation', { name: "Bo'limlar" });
+  ok("yon ustunda bo'lim tugmasi «HR» (ikki xodim), alohida «Rekruter» yo'q", await rail.getByRole('link', { name: /^HR/ }).count() > 0 && !(await rail.getByRole('link', { name: /Rekruter/ }).count()));
+
   console.log('\n# Xodim kiradi — faqat Qabulxona');
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.goto(`${base}/#/`);

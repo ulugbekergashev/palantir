@@ -43,6 +43,7 @@
     "test:content": "tsx scripts/check-content.ts",
     "test:crew": "tsx scripts/check-crew.ts",
     "test:kotib": "tsx scripts/check-kotib.ts",
+    "test:hr": "tsx scripts/check-hr.ts",
     "test:autonomy": "tsx scripts/check-autonomy.ts",
     "test:analyst": "tsx scripts/check-analyst.ts",
     "test:people": "tsx scripts/check-people.ts",

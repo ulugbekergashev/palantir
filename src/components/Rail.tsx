@@ -15,7 +15,7 @@ import { DEPARTMENT_LABEL, DEPARTMENT_OF, MEMBERS, RAIL_MEMBERS, TEAM, type Memb
 interface Item { area: Area; label: string; icon: LucideIcon; badge?: number; /** Xodim ishlayapti (yashil nuqta) */ live?: boolean }
 
 /** Telefonning pastki panelida yetti tugma sig'ishi uchun qisqa nomlar (kompyuterda — to'liq) */
-const SHORT: Partial<Record<Area, string>> = { qabulxona: 'AI admin', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', marketolog: 'SMM', xodimlar: 'Qo‘shish' };
+const SHORT: Partial<Record<Area, string>> = { qabulxona: 'AI admin', yordamchi: 'Yordam', kuzatuvchi: 'Kamera', tahlilchi: 'Tahlil', marketolog: 'SMM', rekruter: 'HR', xodimlar: 'Qo‘shish' };
 /** Telefonning pastki panelida Palantir va «Ko'proq» orasidagi tugmalar soni */
 const PHONE_SLOTS = 5;
 /** Kompyuterdagi kenglik: to'liq va yig'ilgan (px) — sahifa shu qadar o'ngga suriladi */

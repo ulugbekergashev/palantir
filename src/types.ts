@@ -528,6 +528,33 @@ export interface AdsView {
   images: { ref: string; label: string }[];
 }
 
+/**
+ * HR → Rekruter nomzodi (server/hr/routes.ts): faqat savollarga javob berib bo'lganlari. scoring — AI baholayapti; new — baholandi,
+ * egasining qarorini kutyapti; invited — suhbatga chaqirildi; rejected — rad etildi (ikkalasida nomzodga xabar egasining tugmasi bilan ketgan)
+ */
+export interface HrCandidate {
+  id: string; name: string | null; username: string | null; phone: string | null; answers: string[];
+  status: 'scoring' | 'new' | 'invited' | 'rejected'; score: number | null; summary: string | null; createdAt: string;
+}
+/** Vakansiya: link — botdagi havola (bot ulanmagan bo'lsa null); inProgress — hozir savollarga javob berayotganlar soni */
+export interface HrVacancy {
+  id: string; title: string; text: string; questions: string[]; status: 'open' | 'closed'; link: string | null;
+  createdAt: string; closedAt: string | null; inProgress: number; candidates: HrCandidate[];
+}
+/**
+ * HR → Murabbiy kursi (server/hr/train.ts): lesson — hozirgi dars (0 dan; tugaganda — oxirgisi); right / total — to'g'ri javoblar va
+ * kursdagi jami savol; answered — xodim nechta savolga javob berdi; weak — xato qilgan darslar nomi
+ */
+export interface HrTraining {
+  id: string; title: string; staffId: string; staffName: string | null; status: 'active' | 'done' | 'cancelled'; lesson: number;
+  lessons: { title: string; questions: number }[]; right: number; answered: number; total: number; weak: string[];
+  createdAt: string; updatedAt: string;
+}
+/** Klinika xodimi (Qabulxona xodimlari ro'yxati): linked — Telegram'da ulangan (kurs faqat ulangan xodimga) */
+export interface HrStaff { id: string; name: string; linked: boolean }
+/** GET /api/hr: Rekruter (vacancies) va Murabbiy (trainings, staff) — HR bo'limi bitta ko'rinishda */
+export interface HrView { vacancies: HrVacancy[]; trainings: HrTraining[]; staff: HrStaff[] }
+
 /** Kuzatiladigan ochiq Telegram kanali (t.me/s/<handle>): lastPost — oxirgi olingan post raqami */
 export interface ContentSource { id: string; handle: string; title: string | null; lastPost: number; createdAt: string }
 export interface ContentSettings {

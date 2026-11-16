@@ -6,8 +6,8 @@
  */
 import { useState } from 'react';
 import {
-  ArrowRight, Calculator, Check, GraduationCap, Handshake, Loader2, Lock, MessageSquareHeart, PackageSearch, Plus, Scale,
-  ShoppingCart, Star, UserSearch, Users, type LucideIcon,
+  ArrowRight, Calculator, Check, Handshake, Loader2, Lock, MessageSquareHeart, PackageSearch, Plus, Scale,
+  ShoppingCart, Star, Users, type LucideIcon,
 } from 'lucide-react';
 import { api } from '../data/api';
 import { DEPARTMENTS, MEMBERS, TEAM, isCore, memberHref, type Department, type Member } from '../components/team';
@@ -27,10 +27,6 @@ export const UPCOMING: Upcoming[] = [
     about: "Google, 2GIS va Yandex'dagi sharhlarga javob yozadi, mamnun mijozlardan sharh so'raydi, yomon sharhni darhol aytadi." },
   { id: 'hamkorlik', department: 'marketing', name: 'Hamkorlik menejeri', role: 'Marketing · blogerlar', icon: MessageSquareHeart,
     about: "Mos blogerlar va hamkorlarni topadi, taklif yozadi, kelishuv va natijani kuzatadi." },
-  { id: 'rekruter', department: 'hr', name: 'Rekruter', role: 'HR · ishga olish', icon: UserSearch,
-    about: "Vakansiya matnini yozadi va joylaydi, kelgan rezyumelarni saralaydi, nomzodlarga savol beradi va eng mosini suhbatga chaqiradi." },
-  { id: 'murabbiy', department: 'hr', name: 'Murabbiy', role: "HR · o'rgatish", icon: GraduationCap,
-    about: "Yangi xodimni o'rgatadi: qoidalar, javob skriptlari, test savollari; xatolardan qisqa darslar tayyorlaydi." },
   { id: 'buxgalter', department: 'moliya', name: 'Buxgalter', role: 'Moliya · hisob', icon: Calculator,
     about: "Kirim-chiqimni yuritadi, xarajatlarni toifalaydi, oylik va soliq hisobotlari uchun ma'lumotni tayyorlaydi." },
   { id: 'xaridor', department: 'taminot', name: 'Xaridor', role: "Ta'minot · xarid", icon: ShoppingCart,
@@ -49,6 +45,10 @@ const STOPS: Partial<Record<Member, string>> = {
   marketolog: "topshiriqlari to'xtaydi",
   kontent: "ertalabki qoralamalar yozilmaydi",
   target: 'yangi kampaniya tuzmaydi',
+  // hr/recruit.ts candidateStart: crewWorks — olib tashlansa havola «yopilgan» deydi; suhbatdagi HR asboblari ham yo'q (tools.ts chatGroups)
+  rekruter: "yangi nomzodlarni qabul qilmaydi (ochiq vakansiya havolalari «yopilgan» deydi) va vakansiya ochmaydi",
+  // HR → O'qitish varag'i va suhbatdagi kurs asboblari yo'qoladi; boshlangan kurs xodimning tugmalari bilan davom etadi (hr/train.ts)
+  murabbiy: 'yangi kurs boshlamaydi (boshlangan kurslar oxirigacha davom etadi)',
 };
 
 const CARD = 'relative flex min-w-0 flex-col gap-3 rounded-2xl border p-5';

@@ -71,6 +71,22 @@ export const RIGHTS: Record<Member, AgentRights> = {
     button: ['Kanalga joylash — «Joylash»'],
     never: ['Tasdiqsiz kanalga chiqarish'],
   },
+  rekruter: {
+    // hr/recruit.ts: writeVacancy (matn va savollar), candidateText (savollar — AI'siz, bot), scoreCandidate (baho)
+    free: ['Vakansiya matni va nomzodga savollar yozish', 'Havola orqali kelgan nomzodga savollarni berish', 'Nomzod javoblarini baholab sizga yuborish'],
+    // hr/routes.ts asOwner, botButtons.ts: hp (kanalga), hi/hr (chaqirish/rad) — nomzodga xabar faqat decideCandidate'da
+    button: ['Vakansiyani kanalga joylash — «Kanalga joylash»', 'Nomzodni suhbatga chaqirish yoki rad etish — xabar nomzodga shu tugma bilan ketadi'],
+    // VACANCY_SYSTEM, SCORE_SYSTEM: kamsitish yo'q; nomzod javobi — buyruq emas
+    never: ["Nomzodga o'zi (sizning qaroringizsiz) yozish", "Yosh, jins, millat, din, oilaviy holat yoki tashqi ko'rinishga qarab baholash", "Siz aytmagan oylik yoki ish sharoitini o'ylab topish"],
+  },
+  murabbiy: {
+    // hr/train.ts: kurs — Miya bilimidan (AI), darslar va test tugmalari faqat kurs berilgan xodimning chatiga; javob saqlangan to'g'ri variant bilan tekshiriladi (AI'siz)
+    free: ["Klinika bilimidan (Miya) kurs yozish", 'Kurs berilgan xodimga darslar va test yuborish', "Javoblarni saqlangan to'g'ri variant bilan tekshirish"],
+    // hr/routes.ts asOwner: kursni faqat egasi boshlaydi, xodimni o'zi tanlaydi
+    button: ['Kurs boshlash — xodimni siz tanlaysiz'],
+    // startTraining: faqat Telegram'ga ulangan klinika xodimi (staff.chatId); trainingButton — tugmani faqat o'sha xodim bosadi
+    never: ["Miya'da yo'q narx yoki qoidani o'ylab topish", "Klinikaga ulanmagan odamga dars yuborish"],
+  },
 };
 
 /** Sinov uchun: har xodimda erkin va yopiq ro'yxat bo'sh emasligi (scripts/check-darvoza.ts) */

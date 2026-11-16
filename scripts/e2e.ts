@@ -26,6 +26,7 @@ import { insightsApiTests, insightsLogicTests } from './e2e-insights';
 import { intakeExtractTests, intakeFlowTests } from './e2e-intake';
 import { interviewTests } from './e2e-interview';
 import { businessTests } from './e2e-business';
+import { hrTests } from './e2e-hr';
 
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => {
@@ -729,6 +730,7 @@ try {
   await intakeFlowTests(crmHarness);
   await interviewTests(crmHarness);
   await businessTests(crmHarness);
+  await hrTests(crmHarness);
 
   console.log('\n# Buyruqlar va begona foydalanuvchi');
   mark = sent.length;

@@ -8,6 +8,8 @@ import { businesses, cameras, sql, type BusinessRow } from './db';
 import { contentStore } from './content/store';
 import { adsStore } from './ads/store';
 import { staff } from './requests/store';
+import { vacancies } from './hr/store';
+import { trainings } from './hr/train';
 import type { LiveStatus } from '../src/types';
 import { CREW, crewList, inUse, isCore, parseCrew, setHired, withInUse, type CrewMember, type CrewSignals, type CrewState } from '../src/lib/crew';
 
@@ -40,6 +42,8 @@ function signals(biz: BusinessRow, status?: LiveStatus): CrewSignals {
       // Brend-buk (Miya → Brend) — butun jamoaniki: uni to'ldirish Kontent-meykerni o'zi yollamaydi
       || has('content_plan') || has('content_videos'),
     ads: !!adsStore.connection(biz.id) || adsStore.campaigns(biz.id).length > 0,
+    vacancies: vacancies.list(biz.id, 'all', 1).length > 0,
+    trainings: trainings.list(biz.id, 1).length > 0,
   };
 }
 

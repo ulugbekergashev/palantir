@@ -11,7 +11,7 @@ import { Button } from './components/ui';
 import { useFontsReady, useNow, useToast } from './lib/hooks';
 import { AREAS, hrefOf, routeFromHash, type Area, type Route } from './lib/nav';
 import { AiPage } from './pages/AiPage';
-import { AnalystArea, AssistantArea, MarketingArea, ReceptionArea, SettingsArea, WatchArea } from './pages/TeamPages';
+import { AnalystArea, AssistantArea, HrArea, MarketingArea, ReceptionArea, SettingsArea, WatchArea } from './pages/TeamPages';
 import { MiyaArea } from './pages/VaultPage';
 import { DirectorArea } from './pages/DirectorPage';
 import { CrewArea } from './pages/CrewPage';
@@ -23,7 +23,7 @@ import { CrewArea } from './pages/CrewPage';
  */
 const TITLES: Record<Area, string> = {
   ai: 'Bosh sahifa', direktor: TEAM.direktor.name, qabulxona: TEAM.qabulxona.name, yordamchi: TEAM.yordamchi.name, kuzatuvchi: TEAM.kuzatuvchi.name,
-  tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', xodimlar: 'AI xodimlar', miya: 'Miya', sozlamalar: 'Sozlamalar',
+  tahlilchi: TEAM.tahlilchi.name, marketolog: 'Marketing', rekruter: 'HR', xodimlar: 'AI xodimlar', miya: 'Miya', sozlamalar: 'Sozlamalar',
 };
 
 /** Hamma bo'lim — nav.ts dagi yagona ro'yxat (yangi bo'lim qo'shilsa, bu yerda alohida yozish shart emas) */
@@ -31,7 +31,7 @@ const ALL_AREAS: Area[] = AREAS;
 const areasFor = (who: Who | null): Area[] =>
   who?.kind !== 'staff' ? ALL_AREAS : who.access === 'manager' ? ALL_AREAS.filter(a => a !== 'sozlamalar') : ['qabulxona'];
 
-/** Xodim bo'limi jamoada bormi: Marketing — ichidagi xodimlardan biri olingan bo'lsa (Marketolog, Kontent-meyker, Targetolog) */
+/** Xodim bo'limi jamoada bormi: Marketing — ichidagi xodimlardan biri olingan bo'lsa (Marketolog, Kontent-meyker, Targetolog); HR — Rekruter yoki Murabbiy */
 const crewOpen = (a: Area, crew: Member[]): boolean =>
   !isMember(a) || crew.some(m => m === a || DEPARTMENT_OF[m]?.area === a);
 
@@ -133,6 +133,7 @@ export default function LiveApp() {
           {area === 'kuzatuvchi' && <WatchArea {...common} />}
           {area === 'tahlilchi' && <AnalystArea {...common} />}
           {area === 'marketolog' && <MarketingArea {...common} crew={crew} onStatus={setStatus} kontent={team?.kontent ?? null} target={team?.target ?? null} />}
+          {area === 'rekruter' && <HrArea {...common} owner={who?.kind !== 'staff'} crew={crew} murabbiy={team?.murabbiy ?? null} />}
           {area === 'xodimlar' && <CrewArea crew={crew} onCrew={setCrew} notify={notify} owner={who?.kind !== 'staff'} />}
           {area === 'miya' && <MiyaArea tab={tab} notify={notify} />}
           {area === 'sozlamalar' && (
