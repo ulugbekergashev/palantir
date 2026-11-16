@@ -1,9 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
-## 0.4.17 da yangi (tayyorlanmoqda)
+## 0.4.17 da yangi
 
 - **Tarif:** AI xodimlar va telefondagi AI tarifingizga qarab yoqiladi. Tarifda yo'q xodim «AI xodimlar» sahifasida qulf bilan ko'rinadi — qo'shish uchun sotuvchiga murojaat qilasiz. Tarif kengaysa, avval olgan xodimlaringiz o'z joyiga qaytadi, ma'lumotlari saqlanib qoladi.
 - **Telefonda AI tarifda bo'lmasa:** qo'ng'iroqlarni administrator oladi, telefon sahifasida shu haqda yozib qo'yilgan.
+- **Telefondagi AI ovozi yangilandi:** yangi ayol ovozi va Toshkent shahar talaffuzi.
 
 ## 0.4.16 da yangi
 
