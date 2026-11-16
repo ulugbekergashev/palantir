@@ -34,6 +34,13 @@ console.log('\n# Ish vaqti');
   const slot = all(["Doktor Karimov 11:00 dan 17:30 gacha bo'sh"], `${K}\n${SCHEDULE}`, null);
   ok("CRM jadvalidagi bo'sh soatlar — o'tadi", slot.pass, slot.info);
   ok('daqiqasiz oraliq ma\'lumotda («9–18») — «9:00–18:00» o\'tadi', unknownFact('9:00 dan 18:00 gacha', 'Ish vaqti 9–18') === null);
+  // Sana soat emas: jadvaldagi «2026-11-20» dan «11–20» oralig'i (20:00 «ma'lum») chiqib, o'ylab topilgan ish vaqti o'tib ketardi —
+  // e2e E8 faqat oyning 10/20-kunlari yaqin bo'lganda yiqilardi
+  const dated = all(["Har kuni 10:00 dan 20:00 gacha ishlaymiz"],
+    'Name: X\n  2026-11-10 (dushanba): 10:00–10:30\n  2026-11-20 (juma): 11:00–17:30\n  20.11.2026 kuni bayram\n  Yangilandi 2026-11-16T20:00', 'ish vaqti');
+  ok("sana va vaqt belgisi («2026-11-20», «20.11.2026», «…T20:00») soat deb olinmaydi", dated.pass, dated.info);
+  const datedReply = all(["2026-11-17 kuni 11:00 dan 17:30 gacha bo'sh"], `${K}\n${SCHEDULE}`, null);
+  ok("javobdagi sana soat oralig'i deb ushlanmaydi", datedReply.pass, datedReply.info);
 }
 
 console.log('\n# Manzil');

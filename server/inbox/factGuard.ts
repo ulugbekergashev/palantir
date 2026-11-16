@@ -15,9 +15,15 @@ const RANGE = new RegExp(String.raw`(?<![\d.:])${HH}${SEP}${HH}(?![\d])`, 'g');
 const REPLY_HOURS = new RegExp(String.raw`${HH}${SEP}${HH}|(?:до|по)\s+${HH}|${HH}\s*(?:gacha|гача)`, 'g');
 
 const minutes = (h: string, m: string | undefined) => Number(h) * 60 + Number(m ?? 0);
+/**
+ * Sana va vaqt belgisi soat emas: CRM jadvalidagi «2026-11-20» dan «11–20» oralig'i, «20.11.2026» dan «20:11», «…T20:00» dan «20:00»
+ * chiqardi — o'ylab topilgan «10:00 dan 20:00 gacha» sanaga qarab o'tib ketardi. Soat qidirishdan oldin olib tashlanadi
+ */
+const DATE = /\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z?)?|\d{1,2}[./]\d{1,2}[./]\d{2,4}/g;
+const withoutDates = (s: string) => s.replace(DATE, ' ');
 
 function knownTimes(known: string): Set<number> {
-  const t = norm(known);
+  const t = withoutDates(norm(known));
   const out = new Set<number>();
   for (const m of t.matchAll(CLOCK)) out.add(minutes(m[1], m[2]));
   for (const m of t.matchAll(RANGE)) { out.add(minutes(m[1], m[2])); out.add(minutes(m[3], m[4])); }
@@ -26,7 +32,7 @@ function knownTimes(known: string): Set<number> {
 
 /** Javobdagi ish vaqti oralig'i soatlari — hammasi ma'lumotda bo'lishi kerak */
 function unknownHours(reply: string, known: string): boolean {
-  const r = norm(reply).toLowerCase();
+  const r = withoutDates(norm(reply)).toLowerCase();
   const times: number[] = [];
   for (const m of r.matchAll(REPLY_HOURS)) {
     if (!m[0].match(/\d[:.][0-5]\d/)) continue;
