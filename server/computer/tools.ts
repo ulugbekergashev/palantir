@@ -1,11 +1,11 @@
 /**
  * Yordamchi asboblari: kompyuterdagi ish (brauzer yoki butun ekran). Ish fonda boradi (jobs.ts) — yordamchi darhol «boshladim» deydi,
- * natija va fayllar keyin Telegram'ga keladi. Faqat .env da COMPUTER_USE yoqilgan bo'lsa ro'yxatda bo'ladi.
+ * natija va fayllar keyin Telegram'ga keladi. Ro'yxatda faqat yoqilgan bo'lsa: egasi Sozlamalar → «Kompyuterda ishlash» da yoki .env COMPUTER_USE.
  */
 import { z } from 'zod';
-import { env } from '../env';
+import type { BusinessRow } from '../db';
 import { ToolError, def } from '../toolkit';
-import { ComputerError, computerJobs, jobView, modeEnabled, runningJob, startJob, stopJob } from './jobs';
+import { ComputerError, computerJobs, computerModeOf, jobView, modeEnabled, runningJob, startJob, stopJob } from './jobs';
 
 export const COMPUTER_DEFS = {
   computer_task: def({
@@ -15,7 +15,7 @@ export const COMPUTER_DEFS = {
       where: z.enum(['browser', 'desktop']).optional().describe('browser (default) — a separate Chrome window; desktop — the whole computer screen, only when a desktop program is needed'),
     }),
     run: (i, ctx) => {
-      const mode = i.where ?? (modeEnabled('browser') ? 'browser' : 'desktop');
+      const mode = i.where ?? (modeEnabled('browser', ctx.biz) ? 'browser' : 'desktop');
       // Topshiriq matni egasining shu payt yozgani emas bo'lishi mumkin (rasm, mijoz xabari, internet, jadval) — boshlashdan oldin egasi tasdiqlaydi
       const confirmFirst = !!(ctx.fromPhoto || ctx.unattended || ctx.readStrangers);
       try {
@@ -55,4 +55,4 @@ export const COMPUTER_DEFS = {
 };
 
 /** Asboblar ro'yxatiga qo'shiladimi */
-export const computerEnabled = (): boolean => env.computerUse !== '';
+export const computerEnabled = (biz: Pick<BusinessRow, 'computerUse'> | null | undefined): boolean => computerModeOf(biz) !== '';

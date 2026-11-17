@@ -96,7 +96,7 @@ export function ensureColumns(table: string, columns: Record<string, string>): v
   for (const [name, type] of Object.entries(columns)) if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
 }
 ensureColumns('replies', { booking: 'TEXT', booked_at: 'TEXT', question: 'TEXT', visit_change: 'TEXT', changed_at: 'TEXT' });
-ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT', token_ver: 'INTEGER NOT NULL DEFAULT 0', support_access: 'INTEGER NOT NULL DEFAULT 0', support_ver: 'INTEGER NOT NULL DEFAULT 0', support_until: 'TEXT', crew: 'TEXT' });
+ensureColumns('businesses', { interview: 'TEXT', owner_phone: 'TEXT', setup: 'TEXT', outcome: 'TEXT', evening_date: 'TEXT', brief_sent_date: 'TEXT', token_ver: 'INTEGER NOT NULL DEFAULT 0', support_access: 'INTEGER NOT NULL DEFAULT 0', support_ver: 'INTEGER NOT NULL DEFAULT 0', support_until: 'TEXT', crew: 'TEXT', computer_use: 'TEXT' });
 ensureColumns('support_visits', { who: 'TEXT' });
 ensureColumns('tasks', { call_to: 'TEXT', spoken: 'INTEGER NOT NULL DEFAULT 0', lead_id: 'TEXT' });
 ensureColumns('leads', { channel: "TEXT NOT NULL DEFAULT 'manual'", bot_started: 'INTEGER NOT NULL DEFAULT 0', tg_access_hash: 'TEXT', ig_user_id: 'TEXT', ig_thread: 'TEXT', last_inbound_at: 'TEXT', next_step: 'TEXT', next_at: 'TEXT', phone_key: 'TEXT', patient_id: 'TEXT', phone_proof: 'TEXT' });
@@ -168,6 +168,8 @@ export interface BusinessRow {
   supportUntil: string | null;
   /** Jamoa kirishlari avlodi: egasi o'chirganda oshadi — qayta yoqsa ham eski kirishlar qaytmaydi */
   supportVer: number;
+  /** Yordamchi kompyuterda ishlaydimi — egasi Sozlamalar → «Kompyuterda ishlash» da o'zi yoqadi ('browser'); null — o'chiq (.env COMPUTER_USE baribir ustun) */
+  computerUse: 'browser' | null;
   createdAt: string;
 }
 
@@ -191,13 +193,14 @@ const toBusiness = (r: Raw): BusinessRow => ({
   supportAccess: Number(r.support_access ?? 0) === 1,
   supportUntil: str(r.support_until),
   supportVer: Number(r.support_ver ?? 0),
+  computerUse: r.computer_use === 'browser' ? 'browser' : null,
   createdAt: String(r.created_at),
 });
 
 const BIZ_COLUMNS = {
   login: 'login', passwordHash: 'password_hash', profile: 'profile', ownerChatId: 'owner_chat_id', linkCode: 'link_code',
   active: 'active', briefDate: 'brief_date', interview: 'interview', ownerPhone: 'owner_phone',
-  setup: 'setup', crew: 'crew', outcome: 'outcome', eveningDate: 'evening_date', briefSentDate: 'brief_sent_date', supportAccess: 'support_access',
+  setup: 'setup', crew: 'crew', outcome: 'outcome', eveningDate: 'evening_date', briefSentDate: 'brief_sent_date', supportAccess: 'support_access', computerUse: 'computer_use',
 } as const;
 
 export const businesses = {

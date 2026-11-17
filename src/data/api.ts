@@ -111,6 +111,11 @@ export interface AccessView { state: 'active' | 'warn' | 'blocked'; message: str
 
 /** Palantir jamoasi kirishi: egasi ruxsat berganmi, hozirgi kirish jamoanikimi (mine), oxirgi kirishlar */
 /** allowed — doimiy ruxsat (so'ramasdan); until — egasi Telegram'da bergan bir martalik ruxsat shu paytgacha ochiq */
+/** Kompyuterda ishlash (server/computer): fixed — .env da o'rnatuvchi sozlagan (bu yerda o'zgarmaydi); owner — hozirgi kirish egasiniki */
+export interface ComputerView {
+  browser: boolean; desktop: boolean; fixed: boolean; owner: boolean; loginOpen: boolean;
+  job: { id: string; task: string; status: string; steps: number; started: string } | null;
+}
 export interface SupportAccessView { allowed: boolean; until: string | null; hub: boolean; mine: boolean; visits: { at: string; ip: string | null; who: string | null }[] }
 /** Palantir jamoasiga yordam so'rovi (server/help.ts): javob jamoa /admin da yozganda keladi */
 export interface HelpRequestView {
@@ -344,6 +349,11 @@ export const api = {
   /** Litsenziya: holat (kirishsiz) va kalitni kiritish */
   license: () => call<{ license: LicenseView; access?: AccessView; support?: boolean }>('/license'),
   activateLicense: (key: string) => call<{ license: LicenseView }>('/license', { body: { key } }),
+  computer: () => call<ComputerView>('/account/computer'),
+  setComputer: (browser: boolean) => call<ComputerView>('/account/computer', { method: 'PUT', body: { browser } }),
+  /** Saytga kirish oynasi Palantir o'rnatilgan kompyuterda ochiladi (parolni egasi o'zi kiritadi) */
+  computerLogin: (url?: string) => call<{ text: string }>('/account/computer/login', { body: url ? { url } : {} }),
+  closeComputerLogin: () => call<{ closed: boolean }>('/account/computer/login', { method: 'DELETE' }),
   supportAccess: () => call<SupportAccessView>('/account/support'),
   setSupportAccess: (allowed: boolean) => call<{ allowed: boolean }>('/account/support', { method: 'PUT', body: { allowed } }),
   help: () => call<HelpView>('/help'),

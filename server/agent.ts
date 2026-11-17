@@ -18,6 +18,7 @@ import { DAYS, iso, stamp, weekday } from '../src/lib/week';
 import { LIMITS as BRAIN_LIMITS, brainPrompt, fitPages, plain } from './brain/logic';
 import { facts as notes, style, vault as knowledge } from './brain/vault';
 import { businesses, chatLog, conversations, type BusinessRow } from './db';
+import { computerEnabled } from './computer/tools';
 import { env } from './env';
 import { AiLimitError, profileText, think } from './claude';
 import { AccessBlockedError } from './hubAccess';
@@ -53,10 +54,12 @@ const TOOLSETS = new Map<string, Toolset>();
 const toolsetFor = (biz: BusinessRow, as?: CrewMember): Toolset => {
   const crm = crmConnected(biz.id);
   const groups = as ? memberGroups(as) : chatGroups(biz);
-  const id = `${crm}|${groups.join(',')}`;
+  // Kompyuterda ishlash egasi Sozlamalarda yoqqanda darhol (qayta ishga tushirmasdan) asboblarga qo'shiladi
+  const computer = computerEnabled(businesses.byId(biz.id) ?? biz);
+  const id = `${crm}|${groups.join(',')}|${computer}`;
   let set = TOOLSETS.get(id);
   if (!set) {
-    const tools = toolDefinitions(env.webSearch, crm, groups);
+    const tools = toolDefinitions(env.webSearch, crm, groups, computer);
     set = { tools, groups, key: createHash('sha256').update(env.aiModel).update(JSON.stringify(tools)).digest('hex').slice(0, 16) };
     TOOLSETS.set(id, set);
   }

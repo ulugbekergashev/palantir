@@ -36,7 +36,7 @@ import { WORK_DEFS } from './inbox/workTools';
 import { HR_DEFS } from './hr/tools';
 import { TRAIN_DEFS } from './hr/trainTools';
 import { CAMERA_DEFS } from './camera/tools';
-import { COMPUTER_DEFS, computerEnabled } from './computer/tools';
+import { COMPUTER_DEFS } from './computer/tools';
 import { MARKETING_DEFS, marketingEnabled } from './marketing/tools';
 import { BRAND_DEFS, CONTENT_DEFS } from './content/tools';
 import { ADS_DEFS } from './ads/tools';
@@ -446,17 +446,17 @@ export const memberGroups = (m: CrewMember): ToolGroup[] =>
   (m === 'qabulxona' ? ['base', 'qabulxona'] : (SPECIALISTS as readonly string[]).includes(m) ? [m as Specialist] : ['base']);
 
 /** Claude'ga beriladigan asboblar ro'yxati (API ham, obuna ham — subscription/tools.ts — shu ro'yxatni oladi). crm — DentaCRM ulangan biznes */
-export function ownerToolDefs(crm: boolean, groups: ToolGroup[] = ['base', ...SPECIALISTS]): [string, ToolDef<z.ZodType>][] {
+export function ownerToolDefs(crm: boolean, groups: ToolGroup[] = ['base', ...SPECIALISTS], computer = false): [string, ToolDef<z.ZodType>][] {
   const on = (g: ToolGroup) => groups.includes(g);
   return Object.entries({
     ...(on('base') ? { ...BASE_DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS, ...WORK_DEFS } : {}), ...(on('qabulxona') ? QABULXONA_DEFS : {}),
     ...(on('kuzatuvchi') ? CAMERA_DEFS : {}), ...(on('kontent') ? CONTENT_DEFS : {}), ...(on('base') || on('kontent') ? BRAND_DEFS : {}), ...(on('target') ? ADS_DEFS : {}), ...(on('rekruter') ? HR_DEFS : {}), ...(on('murabbiy') ? TRAIN_DEFS : {}),
-    ...(on('base') && computerEnabled() ? COMPUTER_DEFS : {}), ...(on('marketolog') && marketingEnabled() ? MARKETING_DEFS : {}), ...(on('base') && crm ? Object.fromEntries(Object.entries(CRM_DEFS).filter(([n]) => !OWNED_ELSEWHERE[n] || on(OWNED_ELSEWHERE[n]))) : {}),
+    ...(on('base') && computer ? COMPUTER_DEFS : {}), ...(on('marketolog') && marketingEnabled() ? MARKETING_DEFS : {}), ...(on('base') && crm ? Object.fromEntries(Object.entries(CRM_DEFS).filter(([n]) => !OWNED_ELSEWHERE[n] || on(OWNED_ELSEWHERE[n]))) : {}),
   }) as [string, ToolDef<z.ZodType>][];
 }
 
-export function toolDefinitions(webSearch: boolean, crm = false, groups?: ToolGroup[]): Anthropic.Beta.BetaToolUnion[] {
-  const custom: Anthropic.Beta.BetaToolUnion[] = ownerToolDefs(crm, groups).map(([name, d]) => ({
+export function toolDefinitions(webSearch: boolean, crm = false, groups?: ToolGroup[], computer = false): Anthropic.Beta.BetaToolUnion[] {
+  const custom: Anthropic.Beta.BetaToolUnion[] = ownerToolDefs(crm, groups, computer).map(([name, d]) => ({
     name, description: d.description, input_schema: schemaOf(d.input),
   }));
   return webSearch ? [...custom, { type: 'web_search_20260209', name: 'web_search', max_uses: 3 }] : custom;

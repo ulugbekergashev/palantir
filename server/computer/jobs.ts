@@ -16,7 +16,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Markup } from 'telegraf';
 import { iso } from '../../src/lib/week';
 import { costUsd, think } from '../claude';
-import { chatLog, newId, sql, type BusinessRow } from '../db';
+import { businesses, chatLog, newId, sql, type BusinessRow } from '../db';
 import { env } from '../env';
 import { notifyOwner, notifyOwnerFile, editOwner } from '../inbox/core';
 import { BROWSER_TOOLSET, BrowserSession, type MemberResult } from './browser';
@@ -61,6 +61,8 @@ const live = new Map<string, Live>();
 const loginWindows = new Map<string, { session: BrowserSession; timer: NodeJS.Timeout }>();
 
 export const runningJob = (bizId: string): JobRow | null => live.get(bizId)?.job ?? null;
+/** Egasining saytga kirish oynasi hozir ochiqmi (Sozlamalar → «Kompyuterda ishlash») */
+export const loginOpen = (bizId: string): boolean => loginWindows.has(bizId);
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -70,15 +72,25 @@ const stopKeyboard = (jobId: string) => Markup.inlineKeyboard([[Markup.button.ca
 
 export class ComputerError extends Error {}
 
-/** Rejim yoqilganmi (COMPUTER_USE) */
-export const modeEnabled = (mode: JobMode): boolean => env.computerUse === 'all' || env.computerUse === mode;
+/**
+ * Shu biznesda yoqilgan rejim: .env (COMPUTER_USE) ustun — o'rnatuvchi butun kompyuterga yoqqan bo'lsa egasi o'chira olmaydi;
+ * bo'lmasa egasining o'zi Sozlamalarda yoqqani (faqat brauzer: butun ekran — o'rnatuvchining qarori). '' — o'chiq
+ */
+export const computerModeOf = (biz: Pick<BusinessRow, 'computerUse'> | null | undefined): '' | 'browser' | 'desktop' | 'all' =>
+  env.computerUse || (biz?.computerUse === 'browser' ? 'browser' : '');
+/** Rejim yoqilganmi (.env COMPUTER_USE yoki egasi Sozlamalarda) */
+export const modeEnabled = (mode: JobMode, biz: Pick<BusinessRow, 'computerUse'> | null | undefined): boolean => {
+  const m = computerModeOf(biz);
+  return m === 'all' || m === mode;
+};
+const NOT_ON = "Sozlamalar → «Kompyuterda ishlash» da yoqing";
 
 /**
  * Ish boshlanadi (fonda). Qaytaradi: ish yozuvi. Bu paytda boshqa ish bo'lsa yoki rejim o'chiq bo'lsa — ComputerError.
  * confirmFirst — topshiriq matni egasining shu payt yozgani emas bo'lishi mumkin: avval egasi tasdiqlaydi (desktopda — har doim)
  */
 export function startJob(biz: BusinessRow, goal: string, mode: JobMode, confirmFirst = false): JobRow {
-  if (!modeEnabled(mode)) throw new ComputerError(mode === 'desktop' ? "Butun kompyuterda ishlash yoqilmagan (administrator: .env da COMPUTER_USE=desktop yoki all)" : "Brauzerda ishlash yoqilmagan (administrator: .env da COMPUTER_USE=browser yoki all)");
+  if (!modeEnabled(mode, businesses.byId(biz.id) ?? biz)) throw new ComputerError(mode === 'desktop' ? "Butun kompyuterda ishlash yoqilmagan (o'rnatuvchi: .env da COMPUTER_USE=desktop yoki all)" : `Brauzerda ishlash yoqilmagan: ${NOT_ON}`);
   // Pul zonasi (money.ts): bank, to'lov, o'tkazma, xarid — topshiriq boshlanmaydi, egasining tasdig'i bilan ham
   const money = moneyTask(goal);
   if (money) throw new ComputerError(`Bu topshiriqni bajarmayman (${money}). ${MONEY_ZONE}`);
@@ -352,7 +364,7 @@ const LOGIN_MINUTES = 15;
 
 /** Ko'rinadigan brauzer oynasi (ishdagi profil bilan): egasi login-parolini o'zi kiritadi, AI ko'rmaydi */
 export async function openLoginWindow(biz: BusinessRow, url: string | null): Promise<string> {
-  if (!modeEnabled('browser')) throw new ComputerError("Brauzerda ishlash yoqilmagan (.env: COMPUTER_USE=browser yoki all)");
+  if (!modeEnabled('browser', businesses.byId(biz.id) ?? biz)) throw new ComputerError(`Brauzerda ishlash yoqilmagan: ${NOT_ON}`);
   if (live.has(biz.id)) throw new ComputerError("Hozir ish bajarilyapti — tugagach oching yoki /toxta");
   if (loginWindows.has(biz.id)) throw new ComputerError("Oyna allaqachon ochiq");
   const session = await BrowserSession.open({

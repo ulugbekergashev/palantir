@@ -13,6 +13,7 @@ import { lanHost, lanMode, lanPeer } from './lan';
 import { activate, licenseStatus } from './license';
 import { accessView } from './hubAccess';
 import type { BotService } from './bot';
+import { ComputerError, closeLoginWindow, jobView, loginOpen, modeEnabled, openLoginWindow, runningJob, stopJob } from './computer/jobs';
 import { costUsd } from './claude';
 import { GEMINI_USAGE_KIND, geminiCostUsd } from './gemini/think';
 import { subscriptionOn } from './subscription/engine';
@@ -479,6 +480,46 @@ export function createApp(bot: BotService) {
     if (p.data.allowed) businesses.update(biz.id, { supportAccess: true });
     else businesses.closeSupport(biz.id);
     res.json({ allowed: p.data.allowed });
+  }));
+
+  // Kompyuterda ishlash (server/computer): egasi o'zi yoqadi — yordamchi alohida Chrome oynasida saytlarda ishlaydi, xavfli qadamdan
+  // oldin Telegram'da so'raydi, pul zonasi kodda yopiq. .env COMPUTER_USE berilgan bo'lsa — o'rnatuvchining qarori, bu yerda o'zgarmaydi
+  const computerView = (req: Request, biz: BusinessRow) => {
+    const s = sessionOf(req);
+    const job = runningJob(biz.id);
+    return {
+      browser: modeEnabled('browser', biz), desktop: modeEnabled('desktop', biz), fixed: env.computerUse !== '',
+      owner: !s?.support && !s?.staff, loginOpen: loginOpen(biz.id), job: job ? jobView(job) : null,
+    };
+  };
+  app.get('/api/account/computer', asBiz((req, res, biz) => res.json(computerView(req, biz))));
+  app.put('/api/account/computer', asOwner(async (req, res, biz) => {
+    const p = z.object({ browser: z.boolean() }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    if (env.computerUse) return res.status(409).json({ error: "Buni o'rnatuvchi sozlagan (.env, COMPUTER_USE) — u o'zgartiradi" });
+    businesses.update(biz.id, { computerUse: p.data.browser ? 'browser' : null });
+    if (!p.data.browser) {
+      // O'chirildi — boshlangan ish ham, ochiq kirish oynasi ham shu zahoti to'xtaydi
+      stopJob(biz.id);
+      await closeLoginWindow(biz.id);
+    }
+    void bot.syncCommands();
+    res.json(computerView(req, businesses.byId(biz.id) ?? biz));
+  }));
+  // Saytga kirish oynasi (Telegram'dagi /brauzer bilan bir xil): shu kompyuterda ochiladi, parolni egasi o'zi kiritadi — AI ko'rmaydi
+  app.post('/api/account/computer/login', asOwner(async (req, res, biz) => {
+    const p = z.object({ url: z.string().trim().max(500).regex(/^https?:\/\/[^\s]+$/i, 'http(s):// bilan boshlansin').optional() }).safeParse(req.body ?? {});
+    if (!p.success) return bad(res, p.error);
+    try {
+      res.json({ text: await openLoginWindow(businesses.byId(biz.id) ?? biz, p.data.url ?? null) });
+    } catch (e) {
+      if (e instanceof ComputerError) return res.status(409).json({ error: e.message });
+      console.error('[kompyuter] kirish oynasi ochilmadi:', (e as Error).message);
+      res.status(500).json({ error: 'Brauzer ochilmadi — Chrome yoki Edge o\'rnatilganini tekshiring' });
+    }
+  }));
+  app.delete('/api/account/computer/login', asOwner(async (_req, res, biz) => {
+    res.json({ closed: await closeLoginWindow(biz.id) });
   }));
 
   /** Xizmatlar ro'yxatining «nusxa raqami»: panel qaysi nusxani tahrirlayotganini bildiradi */

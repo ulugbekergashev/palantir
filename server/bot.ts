@@ -41,7 +41,7 @@ import { linkStaff, listOpen, requestReply, staffText, teamOutlet } from './requ
 import { MAX_LOOK_CAMERAS, lookAt, lookRequest, shotCaption } from './camera/ask';
 import { events } from './orders/store';
 import { remoteUrl } from './remote';
-import { ComputerError, openLoginWindow, runningJob, stopJob } from './computer/jobs';
+import { ComputerError, computerModeOf, modeEnabled, openLoginWindow, runningJob, stopJob } from './computer/jobs';
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
 import { HOLD_EVERY_MS, clearBotOutlets, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 import { mediaLabel } from './inbox/media';
@@ -73,6 +73,8 @@ export interface BotService {
   startInterview(biz: BusinessRow): Promise<void>;
   /** Ertalabki tayyorgarlik: yordamchi topshiriqni bajaradi (mijozlarga xabar qoralamalari), natijasi egasiga keladi. display — jurnalda */
   prepareDay(biz: BusinessRow, prompt: string, display: string): Promise<void>;
+  /** Telegram menyusidagi buyruqlar qayta yoziladi (egasi «Kompyuterda ishlash»ni yoqdi yoki o'chirdi — /brauzer, /toxta) */
+  syncCommands(): Promise<void>;
 }
 
 export function createBot(): BotService {
@@ -88,7 +90,7 @@ export function createBot(): BotService {
       enabled: false, username: () => null, start: async () => {}, stop: () => {},
       sendFollowup: off, cancelFollowup: off, remindTask: async () => {}, sendText: async () => {}, sendVoice: async () => {}, refreshMoney: async () => {},
       deliverReply: off,
-      startInterview: off, prepareDay: async () => {},
+      startInterview: off, prepareDay: async () => {}, syncCommands: async () => {},
     };
   }
 
@@ -841,8 +843,24 @@ export function createBot(): BotService {
     },
   });
 
+  // Kompyuter buyruqlari — shu kompyuterdagi biror biznesda yoqilgan bo'lsa (.env yoki egasi Sozlamalarda)
+  const commandList = () => {
+    const on = businesses.all().filter(b => b.active);
+    return [
+      { command: 'vazifalar', description: 'Ochiq vazifalar' },
+      { command: 'kamera', description: 'Kameralardan hozirgi rasm' },
+      { command: 'panel', description: 'Panelni ochish' },
+      { command: 'yangi', description: 'Yangi suhbat' },
+      ...(on.some(b => computerModeOf(b)) ? [{ command: 'toxta', description: "Kompyuterdagi ishni to'xtatish" }] : []),
+      ...(on.some(b => modeEnabled('browser', b)) ? [{ command: 'brauzer', description: "Saytga o'zim kiraman (parol bilan)" }] : []),
+      { command: 'yordam', description: "Palantir jamoasidan yordam so'rash" },
+      { command: 'help', description: 'Nima qila olaman' },
+    ];
+  };
+
   return {
     enabled: true,
+    syncCommands: () => tg.setMyCommands(commandList()).then(() => {}, () => {}),
     refreshMoney,
     username: () => username,
     /**
@@ -857,16 +875,7 @@ export function createBot(): BotService {
             try {
               username = (await tg.getMe()).username;
               known();
-              await tg.setMyCommands([
-                { command: 'vazifalar', description: 'Ochiq vazifalar' },
-                { command: 'kamera', description: 'Kameralardan hozirgi rasm' },
-                { command: 'panel', description: 'Panelni ochish' },
-                { command: 'yangi', description: 'Yangi suhbat' },
-                ...(env.computerUse ? [{ command: 'toxta', description: "Kompyuterdagi ishni to'xtatish" }] : []),
-                ...(env.computerUse === 'browser' || env.computerUse === 'all' ? [{ command: 'brauzer', description: 'Saytga o\'zim kiraman (parol bilan)' }] : []),
-                { command: 'yordam', description: "Palantir jamoasidan yordam so'rash" },
-                { command: 'help', description: 'Nima qila olaman' },
-              ]).catch(() => {});
+              await tg.setMyCommands(commandList()).catch(() => {});
               // Ulangan egalarga «Panel» tugmasi (hub manzili o'zgargan yoki masofadan kirish endi yoqilgan bo'lishi mumkin)
               if (remoteUrl()?.startsWith('https://')) for (const b of businesses.all()) if (b.active && b.ownerChatId) await panelButton(b.ownerChatId);
               // Xabar olish to'xtamaguncha shu yerda turadi; uzilsa — pastda sababi yoziladi va qayta boshlanadi

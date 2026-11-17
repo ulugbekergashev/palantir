@@ -1,13 +1,13 @@
 /**
  * Sozlamalar — jamoa qayerda ishlashi. Tepada har ulanishning holati (plitka: ulangan / ulanmagan / muammo) va jonli tekshiruv, bosilgan plitka pastda ochiladi:
- * Asosiy (ism, til, javob rejimi, mijozlar havolasi), Telegram, Instagram, DentaCRM, Telefon liniyasi, Yordam (Palantir jamoasiga so'rov);
+ * Asosiy (ism, til, javob rejimi, mijozlar havolasi), Telegram, Instagram, DentaCRM, Telefon liniyasi, Kompyuterda ishlash, Yordam (Palantir jamoasiga so'rov);
  * Kameralar — Kuzatuvchi'da.
  * Manzil: #/sozlamalar/<bo'lim>.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Camera as CameraIcon, LifeBuoy, MessageCircleHeart, Phone, Send, Settings, Sparkles, Stethoscope, Users, type LucideIcon } from 'lucide-react';
+import { Camera as CameraIcon, LifeBuoy, MessageCircleHeart, MonitorCog, Phone, Send, Settings, Sparkles, Stethoscope, Users, type LucideIcon } from 'lucide-react';
 import type { Business, LiveStatus } from '../../types';
-import { api, type HelpView, type PhoneLine } from '../../data/api';
+import { api, type ComputerView, type HelpView, type PhoneLine } from '../../data/api';
 import type { Notify } from '../../components/Artifacts';
 import { isClinic } from '../../data/industries';
 import { hrefOf } from '../../lib/nav';
@@ -20,6 +20,7 @@ import { PhoneLineSettings } from './PhoneLine';
 import { StaffLogins } from './StaffLogins';
 import { SupportAccess } from './SupportAccess';
 import { HelpRequest } from './HelpRequest';
+import { ComputerUse } from './ComputerUse';
 
 type Tone = 'on' | 'off' | 'warn';
 interface Tile { id: string; name: string; icon: LucideIcon; tone: Tone; state: string; href?: string }
@@ -43,12 +44,14 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
   const [line, setLine] = useState<PhoneLine | null>(null);
   const [cameras, setCameras] = useState<number | null>(null);
   const [help, setHelp] = useState<HelpView | null>(null);
+  const [computer, setComputer] = useState<ComputerView | null>(null);
   useEffect(() => {
     let stale = false;
     api.phoneLine().then(r => { if (!stale) setLine(r.line); }).catch(() => {});
     api.cameras().then(r => { if (!stale) setCameras(r.cameras.length); }).catch(() => {});
     // Xodimga (qabulxona) yopiq bo'lsa — plitka «…» bo'lib qoladi, bo'lim ochilmaydi
     api.help().then(r => { if (!stale) setHelp(r); }).catch(() => {});
+    api.computer().then(r => { if (!stale) setComputer(r); }).catch(() => {});
     return () => { stale = true; };
   }, [tab]);
   const waiting = help?.requests.filter(r => !r.answer).length ?? 0;
@@ -62,6 +65,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
     { id: 'instagram', name: 'Instagram', icon: MessageCircleHeart, tone: ig ? (igProblem ? 'warn' : 'on') : 'off', state: ig ? (igProblem ? 'muammo bor' : 'ulangan') : 'ulanmagan' },
     ...(clinic ? [{ id: 'dentacrm', name: 'DentaCRM', icon: Stethoscope, tone: (status.crm.account ? (status.crm.problem ? 'warn' : 'on') : 'off') as Tone, state: status.crm.account ? (status.crm.problem ? 'muammo bor' : 'ulangan') : 'ulanmagan' }] : []),
     { id: 'telefon', name: 'Telefon liniyasi', icon: Phone, tone: line?.status.trunk === 'registered' ? 'on' : line?.status.trunk === 'failed' ? 'warn' : 'off', state: line ? (line.status.trunk === 'registered' ? 'raqam ulangan' : line.status.trunk === 'failed' ? 'raqam ulanmadi' : line.status.asterisk ? 'raqam kiritilmagan' : 'telefon xizmati o‘chiq') : '…' },
+    { id: 'kompyuter', name: 'Kompyuterda ishlash', icon: MonitorCog, tone: computer?.browser || computer?.desktop ? 'on' : 'off', state: !computer ? '…' : computer.desktop ? 'brauzer va butun ekran' : computer.browser ? 'brauzerda ishlaydi' : "o'chiq" },
     { id: 'xodimlar', name: 'Xodimlar', icon: Users, tone: 'on', state: 'panelga kirish va huquqlar' },
     { id: 'kameralar', name: 'Kameralar', icon: CameraIcon, tone: cameras ? 'on' : 'off', state: cameras == null ? '…' : cameras ? `${cameras} ta kamera` : "kamera yo'q", href: hrefOf('kuzatuvchi', 'ulash') },
     // Ulash ustasining «Kalitlar» qadami: Claude obunasi (yoki kaliti), bot tokeni, ovoz kalitlari — egasi «Claude»ni qidiradi
@@ -131,6 +135,7 @@ export function SettingsHub({ tab, biz, status, notify, onStatus, onBiz, offerin
         </Part>
       )}
       {active === 'telefon' && <PhoneLineSettings notify={notify} />}
+      {active === 'kompyuter' && <div className="max-w-4xl"><ComputerUse notify={notify} onChange={setComputer} /></div>}
       {active === 'xodimlar' && <div className="max-w-3xl"><StaffLogins notify={notify} /></div>}
       {!status.voice && <p className="text-[12px] text-[#7d838f]">Ovozli xabarlar hozircha o'chiq: ovozni matnga aylantirish kaliti kiritilmagan (ulash ustasi → kalitlar).</p>}
     </div>
