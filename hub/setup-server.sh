@@ -28,6 +28,9 @@ if [ "${swap_mb:-0}" -lt 1024 ] && [ ! -f /swapfile ]; then
 else
   echo bor
 fi
+# dnf makecache taymeri 0.5 GB serverda 700+ MB oladi — 2026-11-17 tunda server qotib, 3 soat Hub ishlamadi (OOM, qayta yuklash).
+# Paket ro'yxati o'rnatish/yangilashda baribir yangilanadi, fonda kerak emas
+systemctl disable --now dnf-makecache.timer >/dev/null 2>&1 || true
 
 step 'Node.js 24'
 if ! "$NODE/bin/node" -v 2>/dev/null | grep -q '^v24\.'; then
