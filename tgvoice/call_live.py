@@ -12,6 +12,7 @@ import re
 import sys
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
@@ -122,6 +123,10 @@ WRAP_UP = ("(Tizim: qo'ng'iroq vaqti bir daqiqadan keyin tugaydi. Suhbatni bir-i
 # Palantir yordamchisining javobi shuncha kutiladi (server/http.ts PHONE_WAIT_MS bilan bir xil): undan uzoq ish (hujjat, hisobot)
 # tugashi bilan Palantir o'zi egasining Telegram'iga yuboradi — telefonda jim kutib o'tirilmaydi
 PALANTIR_WAIT_S = 9
+# Kech kelgan javob AI'ga shunday beriladi; odam yoki AI gapirayotgan bo'lsa — tugashi shuncha kutiladi (keyin baribir aytiladi)
+LATE_ANSWER = "(Tizim: Palantir'dan oldingi so'rovga javob keldi. Egasiga qisqa qilib, o'z so'zing bilan ayt: «{text}»)"
+LATE_ANSWER_MAX = 1500
+LATE_SPEAK_WAIT_S = 20
 UZ_TZ = timezone(timedelta(hours=5))   # O'zbekistonda yozgi vaqt yo'q
 WEEKDAYS = ['dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba', 'yakshanba']
 # Ohang va talaffuz — egasi bilan ham, mijoz bilan ham (sip_live.py) bir xil
@@ -272,6 +277,8 @@ class Palantir:
 
     def __init__(self):
         self.http = httpx.AsyncClient(base_url=PALANTIR, timeout=120)
+        # Kech qolgan javoblar (ask → on_late): vazifa xotiradan yo'qolib ketmasin
+        self._late: set[asyncio.Future] = set()
 
     async def login(self):
         # Palantir eslatma qo'ng'irog'ini o'zi boshlasa — biznesning qisqa muddatli kalitini beradi (boshqa biznesga tegolmaydi)
@@ -282,20 +289,41 @@ class Palantir:
         r.raise_for_status()
         self.http.headers['Authorization'] = f"Bearer {r.json()['token']}"
 
-    async def ask(self, request: str) -> str:
-        """Palantir yordamchisiga so'rov. Hujjat yoki kech qolgan javob — Palantir o'zi egasining Telegram'iga yuboradi (deliver)"""
+    async def ask(self, request: str, on_late: 'Callable[[str], Awaitable[None]] | None' = None) -> str:
+        """Palantir yordamchisiga so'rov. Hujjat yoki kech qolgan javob — Palantir o'zi egasining Telegram'iga yuboradi (deliver).
+        PALANTIR_WAIT_S dan kech qolsa so'rov to'xtatilmaydi: javob kelganda on_late ga beriladi (suhbat davom etsa — AI uni aytadi;
+        avval «biroz vaqt oladi» deb, keyin jim qolardi — rad javobi ham hech qachon eshitilmasdi)"""
+        body = {'text': request, 'phone': True, **({'deliver': 'telegram'} if self.to_telegram else {})}
+        job = asyncio.ensure_future(self.http.post('/api/chat', json=body))
         try:
-            body = {'text': request, 'phone': True, **({'deliver': 'telegram'} if self.to_telegram else {})}
-            r = await asyncio.wait_for(self.http.post('/api/chat', json=body), PALANTIR_WAIT_S)
+            r = await asyncio.wait_for(asyncio.shield(job), PALANTIR_WAIT_S)
         except asyncio.TimeoutError:
-            where = "egasining Telegram'iga keladi" if self.to_telegram else "panelda «Suhbat»da ko'rinadi"
-            return f"Bu ish biroz vaqt oladi: Palantir davom ettiryapti, tayyor bo'lgach natija {where}."
+            if on_late:
+                self._late.add(task := asyncio.ensure_future(self._deliver_late(job, on_late)))
+                task.add_done_callback(self._late.discard)
+            where = "egasining Telegram'iga ham keladi" if self.to_telegram else "panelda «Suhbat»da ham qoladi"
+            return (f"Palantir hali ishlayapti. Egasiga ayt: javob kelishi bilan o'zing aytasan, natija {where}. "
+                    "Javobni o'zingdan to'qima — u alohida xabar bo'lib keladi.")
+        except Exception:
+            job.cancel()
+            return "Palantir hozir javob bera olmadi."
+        return self._answer(r)
+
+    @staticmethod
+    def _answer(r: httpx.Response) -> str:
         if r.status_code != 200:
             return "Palantir hozir javob bera olmadi."
         body = r.json()
         entries = body.get('entries') or []
         text = entries[-1]['text'] if entries else ''
         return text + (" (Natija va fayl egasining Telegram'iga yuborildi.)" if body.get('delivered') else '')
+
+    async def _deliver_late(self, job: 'asyncio.Future[httpx.Response]', on_late: 'Callable[[str], Awaitable[None]]') -> None:
+        try:
+            text = self._answer(await job)
+        except Exception:
+            text = "Palantir bu so'rovga javob bera olmadi."
+        await on_late(text)
 
 
     # Oddiy ishlar — katta AI'siz, to'g'ridan-to'g'ri (tez va tekin)
@@ -396,6 +424,8 @@ class Bridge:
         # Suhbat buzildi (Gemini uzildi, xato, vaqt tugadi) — odam xayrlashmagan; telefon liniyasi qo'ng'iroqni administratorga buradi
         self.failure = ''
         self.palantir = Palantir()
+        # Gemini Live seansi (run() ochadi): kech kelgan Palantir javobini AI'ga berish uchun
+        self._session = None
         self._heard: list[str] = []
         self._said: list[str] = []
         # Obsidian'ga yoziladigan suhbat: {'at', 'who': Siz | Palantir | Amal, 'text'}
@@ -560,8 +590,26 @@ class Bridge:
         if name == 'update_task':
             return await self.palantir.update_task(str(args.get('id', '')), args.get('status'), args.get('due_at'))
         if name == 'palantir':
-            return {'result': await self.palantir.ask(args.get('request', ''))}
+            return {'result': await self.palantir.ask(args.get('request', ''), on_late=self.late_answer)}
         return {'error': f"{name} — bunday asbob yo'q"}
+
+    async def late_answer(self, text: str) -> None:
+        """Palantir'ning kech kelgan javobi: suhbat davom etsa — AI uni aytadi (odam yoki AI gapirayotgan bo'lsa — tugashini kutib).
+        Suhbat tugagan bo'lsa — javob panelda «Suhbat»da / egasining Telegram'ida baribir bor"""
+        end = time.monotonic() + LATE_SPEAK_WAIT_S
+        while (self.speaking() or self._heard) and not self.done.is_set() and time.monotonic() < end:
+            await asyncio.sleep(0.2)
+        s = self._session
+        if self.done.is_set() or s is None:
+            self.log('—', "Palantir javobi suhbat tugagach keldi — aytilmadi")
+            return
+        self.log('⚙ palantir (kech)', text)
+        self.note('Amal', f"Palantir (kech javob): {text[:400]}")
+        try:
+            await s.send_client_content(turns=types.Content(role='user', parts=[types.Part(
+                text=LATE_ANSWER.format(text=text[:LATE_ANSWER_MAX]))]), turn_complete=True)
+        except Exception as e:
+            self.log('—', f"kech javobni AI'ga aytib bo'lmadi: {type(e).__name__}")
 
     async def _open_mic(self):
         """Salom oxirigacha eshitilgach odamning ovozi Live'ga ochiladi (eng ko'pi 15 s kutiladi — nima bo'lsa ham ochiladi)"""
@@ -639,6 +687,7 @@ class Bridge:
                 end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH, silence_duration_ms=self.silence_ms, prefix_padding_ms=20,
                 **({'start_of_speech_sensitivity': self.start_sensitivity} if self.start_sensitivity else {}))))
         async with live_session(client, config) as s:
+            self._session = s
             self.log('—', f"Gemini Live ulandi ({LIVE_MODEL}, {f'VoiceLab: {self.speaker.name}' if self.speaker else voice})")
             # Bo'sh kickoff — AI birinchi bo'lib gapirmaydi (panelda «Palantir» deb chaqirilganda: buyruq ovozda keladi)
             if kickoff:
