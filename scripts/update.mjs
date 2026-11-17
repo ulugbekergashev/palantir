@@ -261,7 +261,20 @@ function swap(staging, roots, tracked, backup) {
   try {
     for (const r of roots) {
       const hadOld = existsSync(join(ROOT, r));
-      if (hadOld) move(join(ROOT, r), join(backup, r));
+      if (hadOld) {
+        try {
+          move(join(ROOT, r), join(backup, r));
+        } catch (e) {
+          if (!inPlaceOk(e, staging, r)) throw e;
+          // Papkaning o'zi band: joyida qoladi, ichidagilari birma-bir almashadi (2026-11-17, C: da IDE tgvoice/.venv ni kuzatib turgan)
+          log(`${r}: papkaning o'zi band (${e.code}) — ichidagilari birma-bir almashtiriladi`);
+          const entry = { root: r, hadOld, inPlace: true, added: [] };
+          done.push(entry);
+          moveChildren(join(ROOT, r), join(backup, r));
+          if (existsSync(join(staging, r))) moveChildren(join(staging, r), join(ROOT, r), entry.added);
+          continue;
+        }
+      }
       done.push({ root: r, hadOld });
       if (existsSync(join(staging, r))) move(join(staging, r), join(ROOT, r));
     }
@@ -272,13 +285,29 @@ function swap(staging, roots, tracked, backup) {
   } catch (e) {
     throw new SwapError(e, done, moved);
   }
-  return moved;
+  return { moved, inPlace: done.filter(d => d.inPlace).map(d => d.root) };
+}
+
+const BUSY = new Set(['EBUSY', 'EPERM', 'EACCES']);
+/** Ildizni joyida (ichidagilarini) almashtirsa bo'ladimi: band bo'lgani uchun ko'chmadi va eskisi ham, yangisi ham papka */
+const inPlaceOk = (e, staging, r) => BUSY.has(e.code) && statSync(join(ROOT, r)).isDirectory()
+  && (!existsSync(join(staging, r)) || statSync(join(staging, r)).isDirectory());
+/** Papka ichidagilari boshqa papkaga (papkaning o'zi joyida qoladi). names — ko'chganlar nomi (yarim yo'lda qaytarish uchun) */
+function moveChildren(from, to, names = []) {
+  mkdirSync(to, { recursive: true });
+  for (const n of readdirSync(from)) { move(join(from, n), join(to, n)); names.push(n); }
+}
+/** Joyida almashgan ildiz eski holiga: yangi kelganlari o'chadi, eskilari zaxiradan qaytadi */
+function restoreInPlace(root, added, backup) {
+  for (const n of added) rmSync(join(ROOT, root, n), { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+  if (existsSync(join(backup, root))) moveChildren(join(backup, root), join(ROOT, root));
 }
 
 /** Yarim yo'lda qolgan almashtirishni qaytaradi: ish fayllari eski joyiga, yangi ildizlar o'chadi, eskilari qaytadi (teskari tartibda) */
 function rollbackSwap(err, backup) {
   for (const sub of err.moved) if (existsSync(join(ROOT, sub))) move(join(ROOT, sub), join(backup, sub));
-  for (const { root, hadOld } of [...err.done].reverse()) {
+  for (const { root, hadOld, inPlace, added } of [...err.done].reverse()) {
+    if (inPlace) { restoreInPlace(root, added, backup); continue; }
     rmSync(join(ROOT, root), { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
     if (hadOld) move(join(backup, root), join(ROOT, root));
   }
@@ -303,11 +332,13 @@ function releaseWslHandles() {
   if (killed.length) log(`WSL (${distro}): dastur papkasini band qilgan ${killed.length} ta jarayon to'xtatildi`);
 }
 
-function unswap(roots, backup, moved) {
+function unswap(roots, backup, moved, inPlace = []) {
   // Ish fayllari yangi ildizlardan eski joyiga — ildiz o'chirilganda ular yo'qolmasin
   for (const sub of moved) if (existsSync(join(ROOT, sub))) move(join(ROOT, sub), join(backup, sub));
   for (const r of roots) {
     if (!existsSync(join(backup, r))) continue;
+    // Joyida almashgan papka o'chirilmaydi (u hali band bo'lishi mumkin): ichidagilari almashadi
+    if (inPlace.includes(r)) { restoreInPlace(r, readdirSync(join(ROOT, r)), backup); continue; }
     rmSync(join(ROOT, r), { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
     move(join(backup, r), join(ROOT, r));
   }
@@ -396,9 +427,9 @@ async function main() {
     }
     const backup = join(WORK, 'oldingi');
     releaseWslHandles();
-    let moved;
+    let moved, inPlace;
     try {
-      moved = swap(staging, roots, tracked, backup);
+      ({ moved, inPlace } = swap(staging, roots, tracked, backup));
     } catch (e) {
       // Yarim yo'lda — almashganlari qaytariladi, eski nashr qayta yoqiladi (aks holda klinikada Palantir o'chiq qolardi)
       let back = 'eski fayllar tiklandi';
@@ -423,7 +454,7 @@ async function main() {
     const why = down ? `yangi nashrda ${NEEDS[down]}` : 'yangi nashr ishga tushmadi';
     log(`${why} (${Math.round(HEALTHY_MS / 1000)} soniya kutildi) — eskisiga qaytarilmoqda`);
     supervisor(['stop']);
-    unswap(roots, backup, moved);
+    unswap(roots, backup, moved, inPlace);
     const db = `${restoreDb(schemaBefore, since)}${pipBack()}`;
     startSupervisor();
     const back = await healthy(PORT, from, HEALTHY_MS);
