@@ -1,7 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
-## 0.4.18 da yangi (tayyorlanmoqda)
+## 0.4.18 da yangi
 
+- **Brauzerda ishlashni o'zingiz yoqasiz:** Sozlamalar → «Kompyuterda ishlash». Yoqsangiz, Palantir saytlardagi ishni o'zi bajaradi (masalan, Meta Business'da nom o'zgartirish, soliq.uz dan hujjat yuklab olish). Saqlash yoki yuborishdan oldin Telegram'da sizdan so'raydi; bank va to'lov yopiq. Saytlarga kirish oynasi ham shu yerda.
+- **Ovozli suhbat javobni yo'qotmaydi:** Palantir javobi kechiksa, ovoz «xabar beraman» deb jim qolmaydi — javob kelishi bilan o'zi aytib beradi.
+- **Ovozda begona belgilar yo'q:** ekranga «<no speech>» kabi xizmat yozuvlari chiqmaydi, o'zbek va rus nutqi to'g'riroq taniladi.
 - **Palantir jamoasi masofadan yordam beradi:** kelmasdan turib dastur holatini tekshiradi, Palantir'ni qayta ishga tushiradi yoki kechani kutmay yangilaydi. Har bir bunday ish haqida Telegram'ingizga xabar keladi. Telefonda suhbat ketayotgan bo'lsa, qayta ishga tushirish u tugashini kutadi.
 - **Jamoadan xabar:** muhim gap bo'lsa (o'rnatuvchi keladi, kompyuterni o'chirmang…), Telegram'ingizga va panel jurnaliga keladi.
 
