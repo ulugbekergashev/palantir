@@ -510,9 +510,58 @@ def keep_wsl_alive() -> subprocess.Popen | None:
         return None
 
 
+# WSL'ni yoqiq tutuvchi jarayon tekshiriladigan oraliq; o'lsa — shuncha kutib qayta ochiladi (har safar ikki baravar, eng ko'pi bilan
+# MAX); shuncha vaqt ishlab turgan bo'lsa — kutish yana eng qisqasidan boshlanadi
+WSL_CHECK_S = 2
+WSL_RETRY_MIN_S = 3
+WSL_RETRY_MAX_S = 60
+WSL_HEALTHY_S = 120
+
+
+class WslKeeper:
+    """WSL'ni yoqiq tutuvchi jarayon (keep_wsl_alive) o'lsa — qayta ochiladi. Avval faqat boshida bir marta ochilardi: WSL VM qayta
+    yonganda (Windows yangilanishi, wsl --shutdown, xotira) u o'lib qolar, WSL har ~25 s o'chib-yonar, Asterisk qayta-qayta yonib,
+    qo'ng'iroqlar o'rtada uzilardi (2026-11-17, 4 soat)"""
+
+    def __init__(self, spawn=keep_wsl_alive, sleep=asyncio.sleep, clock=time.monotonic):
+        self.spawn, self.sleep, self.clock = spawn, sleep, clock
+        self.proc: subprocess.Popen | None = None
+        self.started = 0.0
+        self.restarts = 0
+        self.stopped = False
+
+    def start(self) -> bool:
+        self.proc, self.started = self.spawn(), self.clock()
+        return self.proc is not None
+
+    async def watch(self) -> None:
+        wait = WSL_RETRY_MIN_S
+        while not self.stopped and self.proc is not None:
+            await self.sleep(WSL_CHECK_S)
+            if self.stopped or self.proc.poll() is None:
+                continue
+            if self.clock() - self.started >= WSL_HEALTHY_S:
+                wait = WSL_RETRY_MIN_S
+            log('—', f"WSL (Asterisk) yoqiq tutuvchi jarayon to'xtadi (kod {self.proc.returncode}) — {wait} s dan keyin qayta ochiladi")
+            await self.sleep(wait)
+            if self.stopped:
+                return
+            self.restarts += 1
+            if not self.start():
+                return
+            wait = min(wait * 2, WSL_RETRY_MAX_S)
+
+    def stop(self) -> None:
+        self.stopped = True
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+
+
 async def main():
     sys.stdout.reconfigure(encoding='utf-8')
-    wsl = keep_wsl_alive() if os.name == 'nt' else None
+    keeper = WslKeeper() if os.name == 'nt' else None
+    wsl = keeper.start() if keeper else False
+    watcher = asyncio.create_task(keeper.watch()) if wsl else None
     server = Server()
     # Qabul qilishdan oldin: yangi qo'ng'iroq bilan adashtirilmaydi (port hali yopiq — yangisi [yordam] ga o'zi boradi)
     if os.name != 'nt' or wsl:
@@ -534,8 +583,10 @@ async def main():
         web.close()
         if app:
             app.close()
-        if wsl:
-            wsl.terminate()
+        if watcher:
+            watcher.cancel()
+        if keeper:
+            keeper.stop()
 
 
 if __name__ == '__main__':
