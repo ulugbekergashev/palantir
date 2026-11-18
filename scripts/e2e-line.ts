@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { createServer as tcpServer, type AddressInfo } from 'node:net';
 import { routeNow, transferNow, type LineRouting } from '../server/voice/route';
 import { aiListening, lineProblemOf, phoneConfigured } from '../server/voice/line';
-import { contactState, registrationState, trunkConf, trunkReason } from '../server/voice/trunk';
+import { contactState, registrationState, skylineTrunk, trunkConf, trunkReason } from '../server/voice/trunk';
 import { forwardCodes, intlNumber } from '../src/lib/forwarding';
 import { accountProblem, zadarmaSign, type ZadarmaNumber } from '../server/voice/zadarma';
 import type { Harness } from './e2e-crm';
@@ -84,6 +84,13 @@ export function lineLogicTests(ok: Harness['ok']): void {
   ok("T3: ro'yxatdan o'tish to'xtamaydi — cheksiz urinish, rad javobidan keyin ham qayta",
     /max_retries=1000000/.test(withPass) && /auth_rejection_permanent=no/.test(withPass) && /forbidden_retry_interval=120/.test(withPass) && /fatal_retry_interval=120/.test(withPass), withPass);
   ok("T3: har 30 soniyada operatorga «tirikmisan» (routerdagi yo'l yopilmaydi)", /qualify_frequency=30/.test(withPass) && /expiration=300/.test(withPass));
+  const sky = skylineTrunk('+998 78 113-12-34');
+  ok("SkyLine: «+998 78 113-12-34» → pbx.skyline.uz:5060, login va raqam — 9 xona", sky.host === 'pbx.skyline.uz' && sky.port === 5060 && sky.login === '781131234' && sky.number === '781131234', JSON.stringify(sky));
+  const skyConf = trunkConf(skylineTrunk('781131234'), 'Sky-1');
+  ok("SkyLine: UDP, port yozilmaydi (5060), ro'yxatdan o'tadi login=raqam", /transport=udp/.test(skyConf) && /server_uri=sip:pbx\.skyline\.uz\n/.test(skyConf) && /client_uri=sip:781131234@pbx\.skyline\.uz\n/.test(skyConf), skyConf);
+  let skyBad = '';
+  try { skylineTrunk('12345'); } catch (e) { skyBad = (e as Error).message; }
+  ok("SkyLine: 9 xonadan boshqa raqam — tushunarli xato", /9 xonali/.test(skyBad), skyBad);
   const ipOnly = trunkConf(T, null);
   ok("T3: parolsiz (IP bo'yicha) — ro'yxatdan o'tish va parol yo'q, operator IP bilan taniladi",
     !/type=registration/.test(ipOnly) && !/type=auth/.test(ipOnly) && !/outbound_auth/.test(ipOnly) && /match=10\.20\.30\.40/.test(ipOnly) && /qualify_frequency=30/.test(ipOnly), ipOnly);
@@ -214,6 +221,13 @@ export async function lineApiTests(h: Harness): Promise<void> {
   const check = await api('/api/phone/line/check', { token, body: {} });
   ok("T3: «Tekshirish» — holat qaytadi (sinov serverida Asterisk o'chiq, kutmaydi)", check.status === 200 && check.json.line?.status?.asterisk === false && check.json.line.trunk?.auth === 'ip', JSON.stringify(check.json).slice(0, 200));
   ok("T3: «Tekshirish» kirishsiz — 401", (await api('/api/phone/line/check', { body: {} })).status === 401);
+  // SkyLine: panel faqat raqam va parol yuboradi; boshqa server/port/login/parolsiz kelsa ham — server o'zi SkyLine sozlamasini qo'yadi
+  const skyTrunk = await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: 'boshqa.uz', port: 5070, login: 'x', number: '998781131234', password: 'Sky-parol-1', auth: 'ip', operator: 'skyline' } });
+  const st2 = skyTrunk.json.line?.trunk;
+  ok("SkyLine: saqlandi — pbx.skyline.uz:5060, login=raqam (9 xona), parol bilan, operator skyline",
+    skyTrunk.status === 200 && st2?.host === 'pbx.skyline.uz' && st2.port === 5060 && st2.login === '781131234' && st2.number === '781131234' && st2.auth === 'password' && st2.operator === 'skyline' && skyTrunk.json.line.provider === 'manual',
+    JSON.stringify(skyTrunk.json).slice(0, 300));
+  ok("SkyLine: noto'g'ri raqam — 400", (await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: 'pbx.skyline.uz', login: '1', number: '1234', password: 'p', operator: 'skyline' } })).status === 400);
   await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: 'sip2.uztelecom.uz', port: 5070, login: '712000000', number: '712000000', password: 'Maxfiy-parol-1' } });
   // «Boshqa operator» shakliga Zadarma SIP'i yozilgan (API kalitlarisiz) — baribir Zadarma: Uztelecom/Sarkor shakli u bilan to'lib ochilmasin
   const manualZ = await api('/api/phone/line/trunk', { method: 'PUT', token, body: { host: 'SIP.zadarma.com', port: 5061, login: '343303', number: '', password: 'Zadarma-sip-1' } });

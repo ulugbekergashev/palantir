@@ -107,7 +107,8 @@ const TrunkSchema = z.object({
   password: SipText.max(128).optional(),
   /** ip — parolsiz: operator klinikaning IP manzilini biladi (Uztelecom ajratilgan IP bilan) */
   auth: z.enum(['password', 'ip']).default('password'),
-  operator: z.enum(['uztelecom', 'other']).default('other'),
+  /** skyline — server, port va login dastur o'zi qo'yadi (raqamdan) */
+  operator: z.enum(['uztelecom', 'skyline', 'other']).default('other'),
 });
 /** Zadarma kabineti → Sozlamalar → API: Key va Secret (harf-raqam) */
 const ZadarmaSchema = z.object({

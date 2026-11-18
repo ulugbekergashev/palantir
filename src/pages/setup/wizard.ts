@@ -20,7 +20,7 @@ export const STEPS: StepInfo[] = [
   { key: 'crm', title: 'DentaCRM', lead: "Qabullar, kelgan-kelmaganlar va tushum Palantir'ga shu yerdan keladi." },
   { key: 'tg', title: 'Shaxsiy Telegram', lead: "Klinika raqamidagi Telegram: mijozlar shu yerga yozadi. Palantir tanlangan javob rejimi bo'yicha o'zi javob beradi yoki egasiga taklif qiladi." },
   { key: 'ig', title: 'Instagram', lead: "Instagram Direct'dagi yozishmalar ham shu navbatga tushadi." },
-  { key: 'phone', title: 'Telefon', lead: "Klinika raqamiga kelgan qo'ng'iroqlarga AI javob beradi. Uztelecom raqami — shartnomadagi server, raqam va parol; Zadarma — kabinetdagi Key va Secret (qolganini Palantir o'zi sozlaydi)." },
+  { key: 'phone', title: 'Telefon', lead: "Klinika raqamiga kelgan qo'ng'iroqlarga AI javob beradi. Uztelecom raqami — shartnomadagi server, raqam va parol; SkyLine — faqat raqam va parol; Zadarma — kabinetdagi Key va Secret (qolganini Palantir o'zi sozlaydi)." },
   { key: 'gaps', title: "Bo'shliqlar", lead: "Palantir hamma ma'lumotni tekshirib, yetishmagan va bir-biriga zid joylarni topdi. Egasiga Telegram'da bittalab so'raydi — egasi tugmani bosib javob beradi." },
   { key: 'cams', title: 'Kameralar', optional: true, lead: "Ixtiyoriy — Kuzatuvchi uchun. Palantir klinika tarmog'idagi kameralarni o'zi topadi. Siz login-parolni kiritasiz va kamera qayerda turganini yozasiz." },
   { key: 'done', title: 'Tayyor', lead: "Klinikadan ketishdan oldin oxirgi ko'rinish." },

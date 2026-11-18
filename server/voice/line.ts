@@ -19,13 +19,13 @@ import { open, seal } from '../secret';
 
 import { LINE_MODES, type LineMode, type LineRouting } from './route';
 import { voiceAgentKey } from './serviceEnv';
-import { contactState, confValue, registrationState, trunkConf, trunkReason, type LineTrunk, type TrunkAuth, type TrunkState } from './trunk';
+import { contactState, confValue, registrationState, skylineTrunk, trunkConf, trunkReason, type LineTrunk, type TrunkAuth, type TrunkState } from './trunk';
 import { ZADARMA_HOST, ZADARMA_PORT, zadarmaProblem, zadarmaSetup, type ZadarmaKeys } from './zadarma';
 
 export { routeNow, transferNow, type LineMode, type LineRouting } from './route';
 export type { LineTrunk, TrunkAuth } from './trunk';
-/** Qo'lda kiritilgan operator: Uztelecom (login — raqamning o'zi) yoki boshqasi (Sarkor va h.k.) */
-export type LineOperator = 'uztelecom' | 'other';
+/** Qo'lda kiritilgan operator: Uztelecom (login — raqamning o'zi), SkyLine (faqat raqam va parol) yoki boshqasi (Sarkor va h.k.) */
+export type LineOperator = 'uztelecom' | 'skyline' | 'other';
 /** zadarma — API kalitlari bilan o'zi sozlangan; manual — server/login/parol qo'lda kiritilgan (Uztelecom va boshqalar) */
 export type LineProvider = 'zadarma' | 'manual';
 export interface LineView {
@@ -152,7 +152,7 @@ export function lineProblemOf(s: LineView['status']): string | null {
 }
 
 const authOf = (a: Record<string, string>): TrunkAuth => a.auth === 'ip' ? 'ip' : 'password';
-const operatorOf = (a: Record<string, string>): LineOperator => a.operator === 'uztelecom' ? 'uztelecom' : 'other';
+const operatorOf = (a: Record<string, string>): LineOperator => a.operator === 'uztelecom' || a.operator === 'skyline' ? a.operator : 'other';
 
 export const GEMINI_MISSING = "Gemini kaliti kiritilmagan — telefonda AI javob bermaydi, qo'ng'iroqlar administratorga o'tadi. Kalitni o'rnatuvchi kiritadi (ulash ustasi → «Kalitlar»)";
 
@@ -274,7 +274,10 @@ export async function applyLine(): Promise<void> {
  * Qo'lda kiritilgan operator. auth «ip» — parolsiz (operator klinikaning IP manzilini biladi): saqlangan parol o'chiriladi, Asterisk
  * ro'yxatdan o'tmaydi. Bo'sh parol — eskisi qoladi
  */
-export function saveTrunk(biz: BusinessRow, t: LineTrunk, password: string | null, auth: TrunkAuth = 'password', operator: LineOperator = 'other'): void {
+export function saveTrunk(biz: BusinessRow, given: LineTrunk, password: string | null, givenAuth: TrunkAuth = 'password', operator: LineOperator = 'other'): void {
+  // SkyLine: server, port va login dasturda — klinika faqat raqam va parolni kiritadi; parolsiz rejimi yo'q
+  const t = operator === 'skyline' ? skylineTrunk(given.number) : given;
+  const auth: TrunkAuth = operator === 'skyline' ? 'password' : givenAuth;
   const cur = connections.get(biz.id, KIND);
   const s = secretsOf(biz.id);
   const pass = auth === 'ip' ? null : password ?? s.password ?? null;

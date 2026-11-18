@@ -1,5 +1,5 @@
 /**
- * Ulash ustasi → Telefon: Uztelecom (shartnomadagi server, raqam, parol yoki parolsiz — IP bo'yicha) yoki Zadarma (kabinetdagi Key va
+ * Ulash ustasi → Telefon: Uztelecom (shartnomadagi server, raqam, parol yoki parolsiz — IP bo'yicha), SkyLine (faqat raqam va parol) yoki Zadarma (kabinetdagi Key va
  * Secret — raqam, alohida SIP va yo'naltirishni server o'zi sozlaydi, server/voice/zadarma.ts). Zadarma ulangach — klinika mobil
  * telefonida bir marta teriladigan yo'naltirish kodlari. Gemini kaliti yo'q bo'lsa — ogohlantirish (telefondagi AI shu orqali gapiradi).
  */
@@ -32,6 +32,7 @@ function Codes({ number, notify }: { number: string; notify: Notify }) {
 }
 
 type StepProps = { line: PhoneLine | null; onLine: (l: PhoneLine) => void; notify: Notify };
+type StepTab = 'uztelecom' | 'skyline' | 'zadarma';
 
 /** Uztelecom: shartnomadagi softswitch manzili, raqam va parol (login — raqamning o'zi) yoki parolsiz — ajratilgan IP bo'yicha */
 function UztelecomForm({ line, onLine, notify }: StepProps) {
@@ -69,6 +70,33 @@ function UztelecomForm({ line, onLine, notify }: StepProps) {
   );
 }
 
+/** SkyLine: faqat raqam va parol — server (pbx.skyline.uz), port va loginni server o'zi qo'yadi (server/voice/trunk.ts skylineTrunk) */
+function SkylineForm({ line, onLine, notify }: StepProps) {
+  const saved = line?.provider === 'manual' && line.trunk?.operator === 'skyline' ? line.trunk : null;
+  const [form, setForm] = useState({ number: saved?.number ?? '', password: '' });
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const number = form.number.replace(/\D/g, '');
+      const r = await api.savePhoneTrunk({ host: 'pbx.skyline.uz', port: 5060, login: number, number, auth: 'password', operator: 'skyline', ...(form.password ? { password: form.password } : {}) });
+      onLine(r.line);
+      setForm(f => ({ ...f, password: '' }));
+      notify(r.warning ? `Saqlandi, lekin telefon xizmatiga o'rnatilmadi: ${r.warning}` : 'Saqlandi — raqam bir daqiqada ulanadi', !!r.warning);
+    } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
+  };
+  return (
+    <Card title="SkyLine raqami" description="SkyLine to'lovdan keyin bergan raqam va parol — boshqasini dastur o'zi qo'yadi. O'zbekistondagi istalgan internetda ishlaydi; kompyuterda VPN yoqiq bo'lsa, o'chiring.">
+      <form onSubmit={submit} className="space-y-3">
+        <Field label="Raqam"><TextInput value={form.number} onChange={e => setForm(f => ({ ...f, number: e.target.value }))} placeholder="781131234" inputMode="tel" required /></Field>
+        <Field label="Parol"><TextInput type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} autoComplete="new-password" placeholder={saved ? "Saqlangan — o'zgarmasa bo'sh qoldiring" : ''} required={!saved} /></Field>
+        <Button type="submit" variant="primary" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Saqlash va ulash</Button>
+      </form>
+    </Card>
+  );
+}
+
 function LineState({ line }: { line: PhoneLine }) {
   const t = line.trunk;
   if (!t) return null;
@@ -87,9 +115,9 @@ function LineState({ line }: { line: PhoneLine }) {
 }
 
 export function StepPhone({ line, onLine, notify }: StepProps) {
-  // Ko'pchilik klinika Uztelecom'da; Zadarma ulangan bo'lsa — o'sha yorliq
-  const [tab, setTab] = useState<'uztelecom' | 'zadarma'>(line?.provider === 'zadarma' ? 'zadarma' : 'uztelecom');
-  const tabBtn = (id: 'uztelecom' | 'zadarma', text: string) => (
+  // Ko'pchilik klinika Uztelecom'da; Zadarma yoki SkyLine ulangan bo'lsa — o'sha yorliq
+  const [tab, setTab] = useState<StepTab>(line?.provider === 'zadarma' ? 'zadarma' : line?.trunk?.operator === 'skyline' ? 'skyline' : 'uztelecom');
+  const tabBtn = (id: StepTab, text: string) => (
     <button type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
       className={`min-h-10 rounded-xl px-4 text-sm font-semibold ${tab === id ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{text}</button>
   );
@@ -114,9 +142,12 @@ export function StepPhone({ line, onLine, notify }: StepProps) {
       {line && <LineState line={line} />}
       <div role="tablist" aria-label="Operator" className="flex flex-wrap gap-2">
         {tabBtn('uztelecom', 'Uztelecom')}
+        {tabBtn('skyline', 'SkyLine')}
         {tabBtn('zadarma', 'Zadarma')}
       </div>
-      {tab === 'uztelecom' ? <UztelecomForm line={line} onLine={onLine} notify={notify} /> : <ZadarmaStep line={line} onLine={onLine} notify={notify} />}
+      {tab === 'uztelecom' ? <UztelecomForm line={line} onLine={onLine} notify={notify} />
+        : tab === 'skyline' ? <SkylineForm line={line} onLine={onLine} notify={notify} />
+        : <ZadarmaStep line={line} onLine={onLine} notify={notify} />}
       <p className="text-xs text-slate-500">Sarkor yoki boshqa operator SIP'i — keyin Sozlamalar → Telefon liniyasi → «Boshqa operator».</p>
     </div>
   );

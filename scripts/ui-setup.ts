@@ -187,6 +187,11 @@ try {
   ok("T4: telefon qadamida Uztelecom yorlig'i birinchi, softswitch va raqam so'raladi",
     await page.getByRole('tab', { name: 'Uztelecom' }).getAttribute('aria-selected') === 'true' && await page.getByLabel('Softswitch manzili (server)').isVisible() && !(await page.getByLabel('Login', { exact: true }).count()));
   ok("T4: Gemini kaliti kiritilmagan — «telefonda AI javob bermaydi» ogohlantirishi", await page.getByRole('alert').filter({ hasText: 'Gemini kaliti kiritilmagan' }).isVisible());
+  await page.getByRole('tab', { name: 'SkyLine' }).click();
+  ok("SkyLine yorlig'i: faqat raqam va parol — server, port, login va «parolsiz» so'ralmaydi",
+    await page.getByLabel('Raqam').isVisible() && await page.getByLabel('Parol').isVisible() && !(await page.getByLabel('Server manzili').count())
+      && !(await page.getByLabel('Port').count()) && !(await page.getByLabel('Login', { exact: true }).count()) && !(await page.getByText('Parolsiz —').count()));
+  await shot(page, 'usta-skyline');
   await page.getByRole('tab', { name: 'Zadarma' }).click();
   await page.getByLabel('Key').fill(ZADARMA.key);
   await page.getByLabel('Secret').fill(ZADARMA.secret);

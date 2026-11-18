@@ -5,7 +5,7 @@
  */
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Eye, EyeOff, Loader2, Phone, PhoneForwarded, RefreshCw, Smartphone, Waypoints } from 'lucide-react';
-import { api, type PhoneLine as Line } from '../../data/api';
+import { api, type PhoneLine as Line, type TrunkOperator } from '../../data/api';
 import { forwardCodes, type ForwardCode } from '../../lib/forwarding';
 import type { Notify } from '../../components/Artifacts';
 import { copyText } from '../../lib/clipboard';
@@ -86,12 +86,19 @@ function Status({ line, onLine, notify }: LineProps) {
   );
 }
 
-type Provider = 'uztelecom' | 'zadarma' | 'manual';
+type Provider = 'uztelecom' | 'skyline' | 'zadarma' | 'manual';
 type LineProps = { line: Line; onLine: (l: Line) => void; notify: Notify };
 
-const firstTab = (line: Line): Provider => line.provider === 'zadarma' ? 'zadarma' : line.provider === 'manual' && line.trunk?.operator === 'other' ? 'manual' : 'uztelecom';
+function firstTab(line: Line): Provider {
+  if (line.provider === 'zadarma') return 'zadarma';
+  const op = line.provider === 'manual' ? line.trunk?.operator : undefined;
+  return op === 'other' ? 'manual' : op === 'skyline' ? 'skyline' : 'uztelecom';
+}
 
-/** Telefon raqami: Uztelecom (ko'pchilik klinika), Zadarma (faqat API kalitlari — qolganini dastur o'zi sozlaydi) yoki boshqa operator */
+/**
+ * Telefon raqami: Uztelecom (arzon, lekin Uztelecom interneti kerak), SkyLine (istalgan internet, faqat raqam va parol — firmalarga),
+ * Zadarma (faqat API kalitlari — qolganini dastur o'zi sozlaydi) yoki boshqa operator
+ */
 function NumberBlock({ line, onLine, notify }: LineProps) {
   const [tab, setTab] = useState<Provider>(firstTab(line));
   const tabBtn = (id: Provider, text: string) => (
@@ -102,11 +109,12 @@ function NumberBlock({ line, onLine, notify }: LineProps) {
     <Block icon={<Phone className="h-[18px] w-[18px]" aria-hidden="true" />} title="Telefon raqami" hint="Mijoz shu raqamga qo'ng'iroq qiladi (yoki klinika telefoni shu raqamga yo'naltiradi) — AI qabulxona javob beradi.">
       <div role="tablist" aria-label="Operator" className="mb-4 flex flex-wrap gap-2">
         {tabBtn('uztelecom', 'Uztelecom')}
+        {tabBtn('skyline', 'SkyLine')}
         {tabBtn('zadarma', 'Zadarma')}
         {tabBtn('manual', 'Boshqa operator (SIP)')}
       </div>
       {tab === 'zadarma' ? <ZadarmaForm line={line} onLine={onLine} notify={notify} />
-        : <Trunk key={tab} operator={tab === 'uztelecom' ? 'uztelecom' : 'other'} line={line} onLine={onLine} notify={notify} />}
+        : <Trunk key={tab} operator={tab === 'manual' ? 'other' : tab} line={line} onLine={onLine} notify={notify} />}
     </Block>
   );
 }
@@ -153,19 +161,22 @@ function ZadarmaForm({ line, onLine, notify }: LineProps) {
   );
 }
 
-type Operator = 'uztelecom' | 'other';
+/** Server o'zi ham shu manzilni qo'yadi (server/voice/trunk.ts SKYLINE_HOST) — bu yerda faqat so'rov shakli to'liq bo'lsin */
+const SKYLINE_HOST = 'pbx.skyline.uz';
 
 /**
  * Qo'lda kiritiladigan operator. Uztelecom: ro'yxatdan o'tish «raqam:parol@softswitch» — login alohida so'ralmaydi (raqamning o'zi).
- * Parolsiz — operator klinikaning ajratilgan IP manzilini biladi va qo'ng'iroqni o'zi yuboradi
+ * SkyLine: server va port ma'lum — faqat raqam va parol. Parolsiz — operator klinikaning ajratilgan IP manzilini biladi va qo'ng'iroqni
+ * o'zi yuboradi
  */
-function Trunk({ line, onLine, notify, operator }: LineProps & { operator: Operator }) {
+function Trunk({ line, onLine, notify, operator }: LineProps & { operator: TrunkOperator }) {
   // Saqlangan liniya Zadarma yoki boshqa yorliqniki bo'lsa — bu shakl bo'sh ochiladi
   const t = line.provider === 'manual' && line.trunk?.operator === operator ? line.trunk : null;
   const replacing = !!line.trunk && !t;
   const uz = operator === 'uztelecom';
+  const sky = operator === 'skyline';
   const [form, setForm] = useState({ host: t?.host ?? '', port: String(t?.port ?? 5060), login: t?.login ?? '', number: t?.number ?? '', password: '' });
-  const [ipOnly, setIpOnly] = useState(t?.auth === 'ip');
+  const [ipOnly, setIpOnly] = useState(!sky && t?.auth === 'ip');
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [k]: e.target.value }));
   const hadPassword = t?.auth === 'password';
@@ -173,9 +184,11 @@ function Trunk({ line, onLine, notify, operator }: LineProps & { operator: Opera
     e.preventDefault();
     setBusy(true);
     try {
-      const number = form.number.trim();
+      // SkyLine: «+998 78 113-12-34» ham bo'ladi — faqat raqamlar yuboriladi, qolganini server o'zi qo'yadi
+      const number = sky ? form.number.replace(/\D/g, '') : form.number.trim();
       const r = await api.savePhoneTrunk({
-        host: form.host.trim(), port: Number(form.port) || 5060, login: uz ? number : form.login.trim(), number,
+        host: sky ? SKYLINE_HOST : form.host.trim(), port: sky ? 5060 : Number(form.port) || 5060,
+        login: uz || sky ? number : form.login.trim(), number,
         auth: ipOnly ? 'ip' : 'password', operator, ...(!ipOnly && form.password ? { password: form.password } : {}),
       });
       onLine(r.line);
@@ -183,26 +196,32 @@ function Trunk({ line, onLine, notify, operator }: LineProps & { operator: Opera
       notify(r.warning ? `Saqlandi, lekin telefon xizmatiga o'rnatilmadi: ${r.warning}` : 'Saqlandi — raqam bir daqiqada ulanadi', !!r.warning);
     } catch (err) { notify((err as Error).message, true); } finally { setBusy(false); }
   };
-  const replaced = line.provider === 'zadarma' ? 'Zadarma' : line.trunk?.operator === 'uztelecom' ? 'Uztelecom' : 'boshqa operator';
+  const replaced = line.provider === 'zadarma' ? 'Zadarma' : line.trunk?.operator === 'uztelecom' ? 'Uztelecom' : line.trunk?.operator === 'skyline' ? 'SkyLine' : 'boshqa operator';
   return (
     <>
       <p className="mb-3 text-[12.5px] leading-snug text-[#8a909c]">
         {uz ? <>Uztelecom shartnomasidagi SIP ma'lumotlari: <b>softswitch manzili</b> (server), <b>raqam</b> va <b>parol</b>. Uztelecom raqami faqat
           Uztelecom internetida ishlaydi — klinika interneti boshqa provayderdan bo'lsa, raqam ulanmaydi.</>
+          : sky ? <>SkyLine to'lovdan keyin bergan <b>raqam</b> va <b>parol</b> — server va portni dastur o'zi qo'yadi. O'zbekistondagi istalgan
+            internetda ishlaydi. Kompyuterda VPN yoqiq bo'lsa, o'chiring: SkyLine faqat O'zbekiston IP manzilidan ulaydi.</>
           : <>Operator (Sarkor yoki boshqasi) bergan SIP ma'lumotlari: server manzili, login, parol va raqam.</>}
       </p>
       {replacing && <p className="mb-3 rounded-xl bg-amber-400/10 px-3.5 py-2.5 text-[12.5px] leading-snug text-amber-200">Hozir {replaced} ulangan. Shu yerda saqlasangiz, uning o'rniga shu raqam ulanadi.</p>}
       <form onSubmit={save} className="grid gap-3 sm:grid-cols-[1fr_110px]">
-        <Label text={uz ? 'Softswitch manzili (server)' : 'Server manzili'}><input className={input} value={form.host} onChange={set('host')} placeholder="Operator bergan manzil yoki IP" required /></Label>
-        <Label text="Port"><input className={input} value={form.port} onChange={set('port')} inputMode="numeric" /></Label>
-        {!uz && <Label text="Login"><input className={input} value={form.login} onChange={set('login')} autoComplete="off" required /></Label>}
-        <Label text="Raqam"><input className={input} value={form.number} onChange={set('number')} placeholder="712000000" inputMode="tel" required={uz} /></Label>
-        <label className="flex items-start gap-2.5 text-[13px] text-[#d9dbe1] sm:col-span-2">
-          <input type="checkbox" checked={ipOnly} onChange={e => setIpOnly(e.target.checked)} className="mt-0.5 accent-[#3fd6c3]" />
-          <span>Parolsiz — operator klinikaning IP manzili bo'yicha ulaydi
-            <span className="block text-[12px] leading-snug text-[#7d838f]">Operator «ajratilgan IP» bergan va parol bermagan bo'lsa. Bunda routerda 5060 porti shu kompyuterga ochiladi — buni o'rnatuvchi qiladi.</span>
-          </span>
-        </label>
+        {!sky && <Label text={uz ? 'Softswitch manzili (server)' : 'Server manzili'}><input className={input} value={form.host} onChange={set('host')} placeholder="Operator bergan manzil yoki IP" required /></Label>}
+        {!sky && <Label text="Port"><input className={input} value={form.port} onChange={set('port')} inputMode="numeric" /></Label>}
+        {!uz && !sky && <Label text="Login"><input className={input} value={form.login} onChange={set('login')} autoComplete="off" required /></Label>}
+        <div className={sky ? 'sm:col-span-2' : undefined}>
+          <Label text="Raqam"><input className={input} value={form.number} onChange={set('number')} placeholder={sky ? '781131234' : '712000000'} inputMode="tel" required={uz || sky} /></Label>
+        </div>
+        {!sky && (
+          <label className="flex items-start gap-2.5 text-[13px] text-[#d9dbe1] sm:col-span-2">
+            <input type="checkbox" checked={ipOnly} onChange={e => setIpOnly(e.target.checked)} className="mt-0.5 accent-[#3fd6c3]" />
+            <span>Parolsiz — operator klinikaning IP manzili bo'yicha ulaydi
+              <span className="block text-[12px] leading-snug text-[#7d838f]">Operator «ajratilgan IP» bergan va parol bermagan bo'lsa. Bunda routerda 5060 porti shu kompyuterga ochiladi — buni o'rnatuvchi qiladi.</span>
+            </span>
+          </label>
+        )}
         {!ipOnly && (
           <div className="sm:col-span-2">
             <Label text="Parol"><input className={input} type="password" value={form.password} onChange={set('password')} autoComplete="new-password" placeholder={hadPassword ? "Saqlangan — o'zgarmasa bo'sh qoldiring" : ''} required={!hadPassword} /></Label>

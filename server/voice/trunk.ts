@@ -8,6 +8,20 @@ export interface LineTrunk { host: string; port: number; login: string; number: 
 export type TrunkAuth = 'password' | 'ip';
 export type TrunkState = 'none' | 'registered' | 'failed' | 'unknown';
 
+/** SkyLine (sip.skyline.uz): server, port va UDP'ni operatorning o'zi tasdiqlagan (2026-11-18). Faqat yuridik shaxsga beriladi */
+export const SKYLINE_HOST = 'pbx.skyline.uz';
+
+/**
+ * SkyLine raqami → to'liq sozlama: login — 9 xonali raqamning o'zi (78113XXXX). Klinika «+998 78 113-12-34» deb yozsa ham bo'ladi —
+ * +998, bo'shliq va chiziqlar olib tashlanadi
+ */
+export function skylineTrunk(number: string): LineTrunk {
+  const digits = number.replace(/\D/g, '');
+  const local = digits.length === 12 && digits.startsWith('998') ? digits.slice(3) : digits;
+  if (!/^\d{9}$/.test(local)) throw new Error("SkyLine raqami 9 xonali bo'lsin, masalan 781131234");
+  return { host: SKYLINE_HOST, port: 5060, login: local, number: local };
+}
+
 /** Asterisk sozlama qatoridagi qiymat: qator uzilishi, izoh va bo'limni buzadigan belgilar o'tmaydi */
 export const confValue = (v: string) => v.replace(/[\r\n;[\]]/g, '').trim();
 

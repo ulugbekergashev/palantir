@@ -60,10 +60,12 @@ export interface TeamDay {
   members: { member: OrderMember; summary: string; facts: { label: string; value: number }[] }[];
   timeline: AgentEvent[];
 }
+/** Qo'lda kiritilgan shahar raqami operatori (server/voice/line.ts LineOperator) */
+export type TrunkOperator = 'uztelecom' | 'skyline' | 'other';
 /** Telefon liniyasi (server/voice/line.ts LineView) */
 export interface PhoneLine {
-  /** auth: ip — parolsiz (operator IP bo'yicha taniydi); operator: qo'lda kiritilganda Uztelecom yoki boshqasi */
-  trunk: { host: string; port: number; login: string; number: string; auth: 'password' | 'ip'; operator: 'uztelecom' | 'other' } | null;
+  /** auth: ip — parolsiz (operator IP bo'yicha taniydi); operator: qo'lda kiritilganda Uztelecom, SkyLine yoki boshqasi */
+  trunk: { host: string; port: number; login: string; number: string; auth: 'password' | 'ip'; operator: TrunkOperator } | null;
   /** zadarma — API kalitlari bilan o'zi sozlangan; manual — qo'lda (Uztelecom, Sarkor va boshqalar) */
   provider: 'zadarma' | 'manual' | null;
   routing: { mode: 'ai' | 'ai_transfer' | 'day_admin' | 'human'; ring: number; days: number[]; from: string; to: string };
@@ -245,7 +247,7 @@ export const api = {
   seeEvent: (id: string) => call<{ ok: true }>(`/agents/events/${id}/seen`, { body: {} }),
   // ─── Telefon liniyasi (Asterisk): shahar raqami, kim javob beradi, administrator telefoni ───
   phoneLine: () => call<{ line: PhoneLine }>('/phone/line'),
-  savePhoneTrunk: (t: { host: string; port: number; login: string; number: string; password?: string; auth: 'password' | 'ip'; operator: 'uztelecom' | 'other' }) => call<{ line: PhoneLine; warning: string | null }>('/phone/line/trunk', { method: 'PUT', body: t }),
+  savePhoneTrunk: (t: { host: string; port: number; login: string; number: string; password?: string; auth: 'password' | 'ip'; operator: TrunkOperator }) => call<{ line: PhoneLine; warning: string | null }>('/phone/line/trunk', { method: 'PUT', body: t }),
   installPhone: () => call<{ started: boolean }>('/phone/install', { method: 'POST', body: {} }),
   checkPhoneLine: () => call<{ line: PhoneLine }>('/phone/line/check', { body: {} }),
   connectZadarma: (z: { key: string; secret: string; number?: string }) => call<{ line: PhoneLine; warning: string | null; zadarma: { number: string; balance: number; currency: string; channels: number | null } }>('/phone/line/zadarma', { body: z }),
