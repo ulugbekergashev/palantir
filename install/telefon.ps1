@@ -8,8 +8,12 @@
 #   (mirrored kerak emas), virtualizatsiya ham kerak emas; systemd yo'q - Asterisk'ni ovoz xizmati (sip_live.py) yoqadi.
 # WSL birinchi marta o'rnatilsa kompyuter qayta yoqiladi: Windows'ga kirilgandan keyin o'rnatish o'zi davom etadi (RunOnce).
 # Har qadam qayta ishga tushirilganda tekshiradi: bor narsa qayta o'rnatilmaydi.
+# -Remote - MASOFADAN (Palantir Hub tugmasi): oynasiz va savolsiz, "PalantirTelefon" vazifasi ichida administrator huquqi bilan ishlaydi
+#   (install\telefon-vazifa.ps1). Holatini tgvoice\telefon-ornatish.json ga yozadi (qadam, tugadi / xato sababi / qayta yoqish kerak) -
+#   Palantir serveri o'qib Hub'ga yetkazadi (server\voice\phoneInstall.ts); yozilgani - tgvoice\telefon-ornatish.log.
+#   Qayta yoqish kerak bo'lsa RunOnce qo'yilmaydi: kompyuter yongach serverning o'zi vazifani yana ishga tushiradi (Windows'ga kirish shart emas).
 # Bu faylda faqat ASCII belgilar: PowerShell 5.1 boshqa belgilarni buzib o'qiydi (scripts/check-install.ts tekshiradi).
-param([switch]$OnlyVoice, [switch]$AsteriskPart, [string]$Distro = '', [string]$WslDir = '', [string]$ForUser = '', [string]$Log = '')
+param([switch]$OnlyVoice, [switch]$AsteriskPart, [switch]$Remote, [string]$Distro = '', [string]$WslDir = '', [string]$ForUser = '', [string]$Log = '')
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -33,10 +37,27 @@ $Wsl1 = $Build -lt 22621
 # WSL1 yoqilganmi (Windows qismi "Windows Subsystem for Linux") - administrator huquqisiz ham tekshiriladi
 function Wsl1-Ready { Test-Path (Join-Path $env:windir 'System32\lxss\LxssManager.dll') }
 
-function Step([string]$text) { Write-Host ''; Write-Host "== $text" -ForegroundColor Cyan }
+# Masofadan o'rnatish holati (faqat -Remote da: fayl yo'li muhit o'zgaruvchisida - administrator qismi (-AsteriskPart) ham shunga yozadi).
+# phase: running | reboot (kompyuterni qayta yoqish kerak) | done | failed. pid - asosiy jarayon: o'lgan bo'lsa server "to'xtab qolgan" deydi
+$script:CurrentStep = ''
+function Set-Status([string]$phase, [string]$note) {
+  if (-not $env:PALANTIR_TELEFON_HOLAT) { return }
+  $json = @{ phase = $phase; note = $note; step = $script:CurrentStep; pid = [int]$env:PALANTIR_TELEFON_PID; at = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json -Compress
+  try { [IO.File]::WriteAllText($env:PALANTIR_TELEFON_HOLAT, $json, (New-Object Text.UTF8Encoding($false))) } catch { }
+}
+function Status-Phase {
+  try { return [string]((Get-Content -LiteralPath $env:PALANTIR_TELEFON_HOLAT -Raw -Encoding UTF8 | ConvertFrom-Json).phase) } catch { return '' }
+}
+function Step([string]$text) { Write-Host ''; Write-Host "== $text" -ForegroundColor Cyan; $script:CurrentStep = $text; Set-Status 'running' '' }
 function Note([string]$text) { Write-Host "   $text" }
 function Warn([string]$text) { Write-Host "   ! $text" -ForegroundColor Yellow }
-function Fail([string]$text) { Write-Host "   X $text" -ForegroundColor Red; exit 1 }
+function Fail([string]$text) { Write-Host "   X $text" -ForegroundColor Red; Set-Status 'failed' $text; exit 1 }
+# Kutilmagan xato (tarmoq uzildi, fayl band): masofadan o'rnatishda sababi holatga yoziladi - aks holda Hub'da "to'xtab qoldi" deb ko'rinardi.
+# Oynada ishlaganda - odatdagidek: xato ko'rsatiladi va skript to'xtaydi
+trap {
+  if ($env:PALANTIR_TELEFON_HOLAT) { Write-Host "   X $($_.Exception.Message)" -ForegroundColor Red; Set-Status 'failed' "Kutilmagan xato: $($_.Exception.Message)"; exit 1 }
+  break
+}
 function Run([string]$what, [scriptblock]$command) {
   & $command
   if ($LASTEXITCODE -ne 0) { Fail "$what bajarilmadi (kod $LASTEXITCODE). Yuqoridagi xabarni o'qing va qayta urining." }
@@ -50,6 +71,7 @@ function Read-EnvValue([string]$name) {
 function Add-EnvValue([string]$name, [string]$value) {
   if (Read-EnvValue $name) { return }
   [IO.File]::AppendAllText((Join-Path $Root '.env'), "`r`n$name=$value`r`n", (New-Object Text.UTF8Encoding($false)))
+  $script:EnvChanged = $true
   Note "$name .env ga qo'shildi"
 }
 function New-Password([int]$length) {
@@ -76,6 +98,17 @@ if (-not $Distro -and -not $OnlyVoice) {
 # Joriy Windows foydalanuvchisi. WSL distributivlari har foydalanuvchiga alohida: administrator huquqi boshqa akkaunt nomidan
 # berilsa, Ubuntu o'sha akkauntga o'rnatiladi va Palantir (shu foydalanuvchida) uni ko'rmaydi
 function Current-User { "$env:USERDOMAIN\$env:USERNAME" }
+
+# --- Masofadan o'rnatish: holat fayli va jurnal (oyna yo'q - hamma narsa shu ikki faylda) ---
+if ($Remote) {
+  $env:PALANTIR_TELEFON_HOLAT = Join-Path $Voice 'telefon-ornatish.json'
+  $env:PALANTIR_TELEFON_PID = "$PID"
+  # -Append: qayta yongandan keyingi ikkinchi yurishda birinchisining (WSL yoqilgan) jurnali ham qolsin
+  try { Start-Transcript -Path (Join-Path $Voice 'telefon-ornatish.log') -Append | Out-Null } catch { }
+  $script:CurrentStep = 'Boshlanmoqda'
+  Set-Status 'running' ''
+  if (-not (Is-Admin)) { Fail "Masofadan o'rnatish vazifasi administrator huquqisiz ishga tushdi - klinika kompyuterida install\Telefon.cmd ni bir marta ishga tushiring" }
+}
 
 # Telefon liniyasi uchun shartlar - o'rnatishni boshlashdan oldin, tushunarli sabab bilan
 function Assert-PhonePrereqs {
@@ -118,6 +151,12 @@ if ($AsteriskPart) {
   if ($Log) { Start-Transcript -Path $Log -Force | Out-Null }
   if ($ForUser -and $ForUser -ne (Current-User)) {
     Fail "Administrator huquqi boshqa akkaunt ($(Current-User)) nomidan berildi. WSL har foydalanuvchiga alohida: telefon liniyasi Palantir ishlaydigan foydalanuvchiga ($ForUser) o'rnatilishi kerak. Windows'ga administrator huquqli foydalanuvchi bilan kirib, Palantir'ni o'sha foydalanuvchida ishlating."
+  }
+  # Huquq bir marta berildi - keyingi safar (tuzatish, qayta o'rnatish) Palantir jamoasi buni Hub'dan, klinikada hech kim hech narsa bosmasdan qila oladi
+  if (-not $env:PALANTIR_TELEFON_HOLAT) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'telefon-vazifa.ps1')
+    if ($LASTEXITCODE -eq 0) { Note "Keyingi safar telefon xizmatini Palantir jamoasi masofadan (Hub orqali) o'rnata oladi" }
+    else { Warn "Masofadan o'rnatish vazifasi yaratilmadi - keyingi safar ham shu kompyuterda o'rnatiladi" }
   }
   Step 'WSL (Windows ichidagi Linux)'
   if ($Wsl1) {
@@ -313,7 +352,9 @@ Remove-Item $elevatedLog -Force -ErrorAction SilentlyContinue
 $elevated = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-AsteriskPart', '-Distro', $Distro, '-WslDir', "`"$WslDir`"",
   '-ForUser', "`"$(Current-User)`"", '-Log', "`"$elevatedLog`"")
 if (Is-Admin) {
-  & powershell -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -AsteriskPart -Distro $Distro -WslDir $WslDir
+  # Masofadan: oyna yo'q - administrator qismi yozgani shu skript jurnaliga tushsin (Out-Host orqali; to'g'ridan-to'g'ri chiqishi jurnalga kirmaydi)
+  if ($Remote) { & powershell -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -AsteriskPart -Distro $Distro -WslDir $WslDir | Out-Host }
+  else { & powershell -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -AsteriskPart -Distro $Distro -WslDir $WslDir }
   $code = $LASTEXITCODE
 } else {
   try {
@@ -325,6 +366,11 @@ if (Is-Admin) {
     Get-Content $elevatedLog | Where-Object { $_ -match '^(==|   )' } | ForEach-Object { Write-Host $_ }
   }
 }
+if ($code -eq 3010 -and $Remote) {
+  # Masofadan: RunOnce kerak emas (u Windows'ga kirishni kutadi) - kompyuter yongach Palantir serveri vazifani o'zi qayta ishga tushiradi
+  Set-Status 'reboot' "WSL yoqildi - kompyuterni qayta yoqish kerak. Yonganidan keyin o'rnatish o'zi davom etadi"
+  exit 3010
+}
 if ($code -eq 3010) {
   # Qayta yoqilgandan keyin Windows'ga kirilganda o'rnatish o'zi davom etadi (RunOnce bir marta ishlaydi va o'chadi)
   $again = Join-Path $PSScriptRoot 'Telefon.cmd'
@@ -335,8 +381,32 @@ if ($code -eq 3010) {
   exit 3010
 }
 if ($code -ne 0) {
+  # Administrator qismi sababini holatga o'zi yozgan (Fail) - ustidan yozilmaydi
+  if ($Remote -and (Status-Phase) -ne 'failed') { Set-Status 'failed' "Telefon liniyasi o'rnatilmadi (kod $code) - sababi jurnalda (diagnostika)" }
   Warn "Telefon liniyasi o'rnatilmadi (kod $code). Panel ovozi va 'Quloq' baribir ishlaydi. Sababi yuqorida; tuzatib, install\Telefon.cmd ni qayta ishga tushiring."
   exit 2
+}
+
+if ($Remote) {
+  # Masofadan: Palantir faqat .env o'zgargan bo'lsa qayta yoqiladi (sip_live.py yangi sozlamani olsin). Asterisk'ni AI xizmati o'zi topadi.
+  # "Palantir" vazifasi orqali - o'z (oddiy) huquqi bilan; bu yerdan to'g'ridan-to'g'ri yoqilsa administrator huquqi bilan ishlab qolardi
+  if ($script:EnvChanged -and (Get-ScheduledTask -TaskName 'Palantir' -ErrorAction SilentlyContinue) -and (Get-Command node -ErrorAction SilentlyContinue)) {
+    Step 'Palantir qayta yoqilmoqda'
+    & node scripts\supervise.mjs stop | Out-Null
+    for ($i = 0; $i -lt 30 -and (Get-ScheduledTask -TaskName 'Palantir').State -eq 'Running'; $i++) { Start-Sleep -Seconds 1 }
+    # Vazifa "ikkinchi nusxa yonmasin" sozlamasida: hali to'xtamagan bo'lsa Start jimgina hech narsa qilmaydi - yonganini tekshiramiz
+    for ($try = 0; $try -lt 3 -and (Get-ScheduledTask -TaskName 'Palantir').State -ne 'Running'; $try++) {
+      Start-ScheduledTask -TaskName 'Palantir'
+      Start-Sleep -Seconds 5
+    }
+    if ((Get-ScheduledTask -TaskName 'Palantir').State -ne 'Running') {
+      Set-Status 'done' "Telefon xizmati o'rnatildi, lekin Palantir qayta yonmadi - kompyuterni qayta yoqing"
+      exit 0
+    }
+  }
+  Set-Status 'done' "Telefon xizmati o'rnatildi va ishlayapti"
+  Write-Host '== Ovoz xizmati va telefon liniyasi tayyor.' -ForegroundColor Green
+  exit 0
 }
 
 # Palantir yangi sozlamalar (.env) bilan qayta yoqiladi - AI qabulxona xizmati (sip_live.py) ishga tushadi
@@ -349,6 +419,9 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
     Note 'Palantir qayta yoqildi'
   } else { Note "Palantir hozir ishlamayapti - ish stolidagi 'Palantir' yorlig'i bilan yoqing" }
 }
+# Qo'lda o'rnatildi: eski masofaviy holat ("o'rnatilmadi", "qayta yoqish kerak") endi to'g'ri emas - o'chiriladi, aks holda Palantir
+# keyingi qayta yoqilishda o'rnatishni o'zi qayta boshlashi mumkin edi
+Remove-Item (Join-Path $Voice 'telefon-ornatish.json') -Force -ErrorAction SilentlyContinue
 Write-Host ''
 Write-Host '== Ovoz xizmati va telefon liniyasi tayyor.' -ForegroundColor Green
 Note 'Shahar raqami (Uztelecom yoki Zadarma) va administrator telefoni: panel -> Sozlamalar -> Telefon liniyasi'

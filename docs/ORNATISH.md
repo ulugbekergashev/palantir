@@ -90,6 +90,16 @@ o'rnatgich Palantir'ni Windows vazifasi qilib qo'yadi — kompyuter yonishi bila
    foydalanuvchiga alohida). WSL birinchi marta o'rnatilsa — kompyuterni qayta yoqing, Windows'ga kirilganda o'rnatish o'zi davom etadi.
    Oxirida o'zini tekshiradi (Asterisk yoniq, egasi/administrator telefonlari sozlangan, Asterisk Palantir'ga yetadi) va Palantir'ni qayta
    yoqadi — AI qabulxona xizmati ishga tushadi. Har qadam qayta bosilganda bor narsani o'tkazib yuboradi.
+
+   **Masofadan (Hub orqali, klinikada hech kim hech narsa bosmaydi).** O'rnatgich administrator huquqi bilan ishlaganda Windows vazifasi
+   **«PalantirTelefon»** ni ham yaratadi (`install\telefon-vazifa.ps1`: eng yuqori huquq, shu foydalanuvchi nomidan, S4U, vaqti yo'q — faqat
+   Palantir so'rovi bilan). Shundan keyin Hub → mijoz → «Masofadan boshqarish» → **«Telefon xizmatini o'rnatish»**: o'rnatish ekransiz ketadi,
+   natija o'rnatish tugaganda kartaga keladi (holat va jurnal — `tgvoice\telefon-ornatish.json` va `.log`, diagnostikaga ham kiradi). WSL birinchi
+   marta yoqilsa — **«Kompyuterni qayta yoqish»** (1 daqiqadan keyin, telefonda suhbat bo'lsa kutadi); kompyuter yonganda o'rnatish o'zi davom etadi,
+   Windows'ga kirish shart emas. Hub orqali ochilgan paneldagi «Telefon xizmatini o'rnatish» tugmasi ham shu yo'l bilan ishlaydi.
+   Eski o'rnatishlarda vazifa yo'q — bir marta klinikada `install\Telefon.cmd` (yoki panel tugmasi) va Windows so'roviga «Ha» (yoki exe'ni qayta
+   ishga tushirish): u vazifani ham yaratadi. Eslatma: vazifani shu Windows foydalanuvchisining istalgan dasturi ishga tushira oladi — ya'ni shu
+   foydalanuvchi nomidan ishlagan dastur administrator so'rovisiz huquq olishi mumkin; olib tashlash: `install\telefon-vazifa.ps1 -Remove` (administrator).
 3. **Klinikada admin sahifasi yo'q** (`ONE_PROFILE=1`): `/#/admin` kirish sahifasiga qaytaradi, server ham rad etadi — klinika
    .env'dan parol topib admin bo'la olmaydi. Egasi parolni unutsa: kirish sahifasi → «Parolni unutdingizmi?» → Telegram'ida
    «✅ Ha, yangi parol» → yangi parol o'sha yerga keladi (Telegram ulanmagan bo'lsa — Palantir xodimiga murojaat qiladi).

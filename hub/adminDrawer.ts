@@ -63,6 +63,7 @@ function drawClient(scrollTop) {
   fact(dl, 'Litsenziya', s.license ? (s.license.activated ? 'aktivlashtirilgan' : 'yo\'q — ' + s.license.daysLeft + ' kun qoldi') : null);
   fact(dl, 'Tashqi zaxira', s.lastOffsite ? (s.lastOffsite.ok ? 'yuborildi ' + (s.lastOffsite.day || '') : 'yuborilmadi: ' + (s.lastOffsite.error || '')) : null);
   fact(dl, 'Yangilanish', s.lastUpdate ? (s.lastUpdate.to ? 'v' + s.lastUpdate.to + ' — ' : '') + s.lastUpdate.result + (s.lastUpdate.at ? ' · ' + ago(s.lastUpdate.at) : '') : null);
+  fact(dl, 'Telefon xizmati', phoneInstallText(s.phoneInstall));
   fact(dl, 'Kompyuter kodi', c.machineId);
   fact(dl, "Hub'da", dateText(c.createdAt) + (c.self ? " · o'zi ulangan" : ''));
   info.append(dl);

@@ -12,10 +12,14 @@ import { env, voiceEnabled } from './env';
 import { heartbeatStatus } from './heartbeat';
 import { logDir, scrub } from './log';
 import { systemLoad } from './load';
+import { INSTALL_LOG, readInstallState } from './voice/phoneInstall';
 
 const tail = (file: string, lines: number): string => {
   if (!existsSync(file)) return '(yo\'q)';
-  const all = readFileSync(file, 'utf8').split('\n');
+  // PowerShell jurnali (Start-Transcript) BOM bilan yoki UTF-16 da bo'lishi mumkin
+  const raw = readFileSync(file);
+  const text = raw[0] === 0xff && raw[1] === 0xfe ? raw.toString('utf16le') : raw.toString('utf8');
+  const all = text.replace(/^﻿/, '').replace(/\0/g, '').split('\n');
   return all.slice(-lines).map(scrub).join('\n');
 };
 
@@ -56,6 +60,10 @@ export function diagnostics(now = new Date()): { name: string; text: string } {
     '',
     '## Telefon liniyasi (telefon.log)',
     tail(join(logDir, 'telefon.log'), 150),
+    '',
+    "## Telefon xizmatini o'rnatish (holat va jurnal)",
+    JSON.stringify(readInstallState()),
+    tail(INSTALL_LOG, 150),
     '',
   ].join('\n');
   return { name: `diagnostika-${today}-${now.toTimeString().slice(0, 8).replace(/:/g, '')}.txt`, text };

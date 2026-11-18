@@ -9,6 +9,7 @@ import { api, type PhoneLine as Line, type TrunkOperator } from '../../data/api'
 import { forwardCodes, type ForwardCode } from '../../lib/forwarding';
 import type { Notify } from '../../components/Artifacts';
 import { copyText } from '../../lib/clipboard';
+import { installStartedText, installStateText } from '../../lib/phoneInstall';
 
 const DAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
 const RINGS = [10, 15, 20, 30];
@@ -43,10 +44,11 @@ function Status({ line, onLine, notify }: LineProps) {
       notify(t === 'registered' ? 'Raqam ulangan — qo‘ng‘iroq qabul qiladi' : r.line.status.reason ?? r.line.status.note ?? 'Raqam hali ulanmadi', t !== 'registered');
     } catch (e) { notify((e as Error).message, true); } finally { setBusy(false); }
   };
-  // C1: exe telefon xizmatini o'rnatmaydi — o'rnatuvchi shu yerdan o'rnatadi (o'rnatish oynasi shu kompyuterda ochiladi)
+  // C1: exe telefon xizmatini o'rnatmaydi — o'rnatuvchi shu yerdan o'rnatadi (shu kompyuterda — oyna; Hub orqali — oynasiz, so'rovsiz)
   const install = async () => {
-    try { await api.installPhone(); notify("O'rnatish oynasi ochildi — undagi ko'rsatmalarga amal qiling"); } catch (e) { notify((e as Error).message, true); }
+    try { const r = await api.installPhone(); notify(installStartedText(r.remote)); } catch (e) { notify((e as Error).message, true); }
   };
+  const installNote = installStateText(line.install, s.asterisk);
   const trunkText = s.trunk === 'registered' ? `ulangan${line.trunk?.number ? ` · ${line.trunk.number}` : ''}`
     : s.trunk === 'failed' ? 'ulanmadi — sababi pastda' : line.trunk ? 'tekshirilmoqda' : 'kiritilmagan';
   const items = [
@@ -65,10 +67,11 @@ function Status({ line, onLine, notify }: LineProps) {
         </div>
       ))}
       {s.note && <p className="text-[12px] text-[#fde2b0] sm:col-span-2 xl:col-span-5">{s.note}</p>}
+      {installNote && <p role="status" className="rounded-xl bg-amber-400/10 px-3.5 py-2.5 text-[13px] leading-snug text-amber-200 sm:col-span-2 xl:col-span-5">{installNote}</p>}
       {!s.asterisk && line.installable && (
         <div className="flex flex-wrap items-center gap-3 sm:col-span-2 xl:col-span-5">
           <button type="button" onClick={() => { void install(); }} className="flex min-h-10 items-center gap-2 rounded-xl bg-[#3fd6c3] px-4 text-[13px] font-semibold text-[#07080b]">Telefon xizmatini o'rnatish</button>
-          <p className="max-w-xl text-[12px] text-[#7d838f]">Shu kompyuterda o'rnatish oynasi ochiladi: administrator huquqi so'raladi, internet kerak (10–20 daqiqa). Birinchi marta kompyuter qayta yoqilishi mumkin — Windows'ga kirgach o'rnatish o'zi davom etadi.</p>
+          <p className="max-w-xl text-[12px] text-[#7d838f]">Klinika kompyuterining o'zida — o'rnatish oynasi ochiladi va administrator huquqi so'raladi. Hub orqali — ekranda hech narsa ochilmaydi (Palantir administrator huquqi bilan o'rnatilgan bo'lsa). Internet kerak, 10–20 daqiqa. Birinchi marta kompyuterni qayta yoqish kerak bo'lishi mumkin — keyin o'rnatish o'zi davom etadi.</p>
         </div>
       )}
       {line.aiLocked && <p role="alert" className="rounded-xl bg-[#f5b454]/10 px-3.5 py-2.5 text-[13px] leading-snug text-[#f3dcb4] sm:col-span-2 xl:col-span-5">Telefonda AI javobi tarifingizda yo'q — hamma qo'ng'iroqlarni administrator oladi. Yoqish uchun sotuvchiga murojaat qiling.</p>}

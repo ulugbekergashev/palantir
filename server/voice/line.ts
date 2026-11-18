@@ -17,6 +17,7 @@ import { env } from '../env';
 import { moduleAllowed } from '../hubAccess';
 import { open, seal } from '../secret';
 
+import { readInstallState, type InstallState } from './phoneInstall';
 import { LINE_MODES, type LineMode, type LineRouting } from './route';
 import { voiceAgentKey } from './serviceEnv';
 import { contactState, confValue, registrationState, skylineTrunk, trunkConf, trunkReason, type LineTrunk, type TrunkAuth, type TrunkState } from './trunk';
@@ -40,6 +41,8 @@ export interface LineView {
   aiLocked: boolean;
   /** Shu kompyuterda telefon xizmatini (WSL + Asterisk) paneldan o'rnatsa bo'ladi — install/Telefon.cmd bor (C1: exe uni o'rnatmaydi) */
   installable: boolean;
+  /** Oxirgi o'rnatish holati (phoneInstall.ts) — panelda «o'rnatilyapti», «qayta yoqish kerak» */
+  install: Pick<InstallState, 'phase' | 'step' | 'note' | 'at'> | null;
   /** Asterisk holati: ishlayaptimi, shahar raqami ro'yxatdan o'tganmi, qaysi telefonlar ulangan */
   /** ai — AI ovoz xizmati qo'ng'iroq qabul qilyaptimi (null — tekshirilmadi); reason — raqam ulanmagan bo'lsa, nega (Asterisk jurnalidan) */
   status: { asterisk: boolean; trunk: TrunkState; phones: string[]; ai: boolean | null; note: string | null; reason?: string | null };
@@ -198,6 +201,7 @@ export async function lineView(biz: BusinessRow, withStatus = true): Promise<Lin
     geminiKey: !!env.geminiKey,
     aiLocked: !moduleAllowed('telefon'),
     installable: canInstallPhone(),
+    install: (s => (s ? { phase: s.phase, step: s.step, note: s.note, at: s.at } : null))(readInstallState()),
     status: withStatus ? await lineStatus(authOf(a)) : { asterisk: false, trunk: 'unknown', phones: [], ai: null, note: null },
   };
 }

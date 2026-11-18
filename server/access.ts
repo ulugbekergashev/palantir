@@ -12,7 +12,7 @@
 import type { StaffAccess } from '../src/types';
 
 /** Hech bir xodimga: egasining kirishi, kalitlar, akkauntlarni ulash, pul tasdig'i, xodimlarni boshqarish */
-const OWNER_ONLY = /^\/api\/(account|handover|keys|setup|anketa|admin|team-access|telegram-user|instagram|meta-ai)(\/|$)|^\/api\/phone\/(line|stations|station\/pair)(\/|$)|^\/api\/crm\/money\/|^\/api\/voice\/key(\/|$)/;
+const OWNER_ONLY = /^\/api\/(account|handover|keys|setup|anketa|admin|team-access|telegram-user|instagram|meta-ai)(\/|$)|^\/api\/phone\/(line|stations|station\/pair|install)(\/|$)|^\/api\/crm\/money\/|^\/api\/voice\/key(\/|$)/;
 /**
  * Qabulxona xodimi ochadigan bo'limlar (har qanday so'rov turi). Yo'q: crm/day — kunlik tushum va qarzlar; attention — Direktor
  * takliflari va kamera hodisalari; notes — Yordamchining xotirasi (xodim yozgani egasining so'zi bo'lib mijozlarga javobga tushardi);

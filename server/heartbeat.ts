@@ -17,11 +17,17 @@ import { MODULES, type Module } from '../hub/licenseKey';
 import { env } from './env';
 import { onKeyChange } from './keys';
 import { SCHEMA_VERSION } from './migrate';
+import { readInstallState, remoteInstallKnown } from './voice/phoneInstall';
 import { openProblems } from './monitor';
 import { APP_VERSION } from './version';
 import { inSetup } from './profile';
 
 const startedAt = new Date().toISOString();
+
+function phoneInstallStatus() {
+  const s = readInstallState();
+  return { remote: remoteInstallKnown(), phase: s?.phase ?? null, step: s?.step ?? null, note: s?.note ?? null, at: s?.at ?? null };
+}
 
 function lastUpdate(): unknown {
   try { return JSON.parse(readFileSync(join(env.dataDir, 'yangilash', 'holat.json'), 'utf8')); } catch { return null; }
@@ -57,6 +63,8 @@ export function heartbeatStatus() {
     // (null — sotuvchi tanlamagan, hammasi ruxsat)
     uses: usedModules(active),
     modules: licensedModules(),
+    // Telefon xizmati: jamoa Hub'dan o'rnata oladimi (PalantirTelefon vazifasi bor) va oxirgi o'rnatish qayerda (voice/phoneInstall.ts)
+    phoneInstall: phoneInstallStatus(),
   };
 }
 

@@ -9,6 +9,7 @@ import { api, type PhoneLine } from '../../data/api';
 import { Button, Card, Field, TextInput } from '../../components/ui';
 import { forwardCodes } from '../../lib/forwarding';
 import { copyText } from '../../lib/clipboard';
+import { installStartedText, installStateText } from '../../lib/phoneInstall';
 
 type Notify = (text: string, error?: boolean) => void;
 
@@ -133,10 +134,11 @@ export function StepPhone({ line, onLine, notify }: StepProps) {
           Telefon xizmati bu kompyuterda ishlamayapti{line.status.note ? ` (${line.status.note})` : ''}. Raqamni hozir kiritsangiz ham bo'ladi — xizmat ishga tushganda raqam o'zi ulanadi.
           {line.installable && (
             <span className="mt-2 flex flex-wrap items-center gap-3">
-              <Button onClick={() => { api.installPhone().then(() => notify("O'rnatish oynasi ochildi — undagi ko'rsatmalarga amal qiling"), e => notify((e as Error).message, true)); }}>Telefon xizmatini o'rnatish</Button>
-              <span className="text-xs">Shu kompyuterda o'rnatish oynasi ochiladi: administrator huquqi so'raladi, internet kerak (10–20 daqiqa). Birinchi marta kompyuter qayta yoqilishi mumkin — Windows'ga kirgach o'rnatish o'zi davom etadi.</span>
+              <Button onClick={() => { api.installPhone().then(r => notify(installStartedText(r.remote)), e => notify((e as Error).message, true)); }}>Telefon xizmatini o'rnatish</Button>
+              <span className="text-xs">Klinika kompyuterining o'zida — o'rnatish oynasi ochiladi, administrator huquqi so'raladi. Hub orqali — ekranda hech narsa ochilmaydi. Internet kerak (10–20 daqiqa). Birinchi marta kompyuterni qayta yoqish kerak bo'lishi mumkin — keyin o'rnatish o'zi davom etadi.</span>
             </span>
           )}
+          {installStateText(line.install, line.status.asterisk) && <span className="mt-2 block font-medium">{installStateText(line.install, line.status.asterisk)}</span>}
         </p>
       )}
       {line && <LineState line={line} />}

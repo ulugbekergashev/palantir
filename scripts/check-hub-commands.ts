@@ -54,11 +54,18 @@ console.log('\n# Hub: buyruqlar ro\'yxati');
 
 console.log("\n# Klinika: buyruqni bajarish");
 const biz = businesses.create(`buyruq${Date.now()}`, 'x', { name: 'Sinov klinika', ownerName: 'Akmal', industry: '', phone: '', address: '', contentLang: 'uz', brand: { primary: '#000', accent: '#111' }, offerings: [], team: [] } as never);
+type State = import('../server/voice/phoneInstall').InstallState;
 const fake = () => {
   const s = {
     reports: [] as { id: string; ok: boolean; note: string; diag?: string }[], told: [] as string[], restarted: 0, updates: 0, slept: 0,
     supervised: true, updating: false, busyFor: 0, refuse: null as string | null, order: [] as string[],
+    // Telefon o'rnatish: soxta soat, holat fayli va vazifa. script — vazifa ishga tushgandan keyingi holatlar (har kutishda bittadan)
+    clock: Date.parse('2026-11-19T10:00:00Z'), state: null as State | null, script: [] as Partial<State>[], started: 0, phoneRefuse: null as string | null,
+    rebooted: 0, rebootRefuse: null as string | null,
   };
+  const at = () => new Date(s.clock).toISOString();
+  // Holat faqat vazifa ishga tushgandan keyin (yoki allaqachon ketayotgan o'rnatishda) o'zgaradi
+  const advance = () => { if (s.started === 0 && s.state?.phase !== 'running') return; const next = s.script.shift(); if (next) s.state = { phase: 'running', note: '', step: '', pid: 1, at: at(), ...next }; };
   return {
     s,
     deps: {
@@ -68,8 +75,13 @@ const fake = () => {
       restart: () => { s.restarted++; s.order.push('restart'); },
       startUpdate: () => { if (s.refuse) return s.refuse; s.updates++; return null; },
       lineBusy: () => s.busyFor > 0,
-      sleep: async (ms: number) => { s.slept += ms; s.busyFor = Math.max(0, s.busyFor - ms); },
+      sleep: async (ms: number) => { s.slept += ms; s.clock += ms; s.busyFor = Math.max(0, s.busyFor - ms); advance(); },
       notify: async (_b: unknown, html: string) => { s.told.push(html); return 1; },
+      phoneStart: async () => { if (s.phoneRefuse) return s.phoneRefuse; s.started++; return null; },
+      phoneState: () => s.state,
+      phoneFail: (note: string) => { s.state = { phase: 'failed', note, step: '', pid: 0, at: at() }; },
+      reboot: () => { if (s.rebootRefuse) return s.rebootRefuse; s.rebooted++; return null; },
+      now: () => s.clock,
     },
   };
 };
@@ -138,6 +150,128 @@ const feed = () => sql.many("SELECT title, body FROM agent_events WHERE business
   f10.s.order = [];
   await onCommand({ id: id(9), action: 'restart' }, f10.deps);
   ok("natija Hub'ga yetmasa ham qayta ishga tushadi (keyin takror kelganda natija qayta yuboriladi)", f10.s.restarted === 1);
+}
+
+console.log("\n# Telefon xizmatini masofadan o'rnatish va kompyuterni qayta yoqish");
+{
+  const { installState, parseInstallStatus } = await import('../server/voice/phoneInstall');
+  const st = (phase: string, at = '2026-11-19T10:00:00Z', pid = 42) => JSON.stringify({ phase, note: 'n', step: 'Asterisk', pid, at });
+  const boot = Date.parse('2026-11-19T09:00:00Z');
+  ok("holat fayli: BOM bilan ham o'qiladi, noma'lum holat — null", parseInstallStatus('﻿' + st('done'))?.phase === 'done' && parseInstallStatus(st('format')) === null && parseInstallStatus('x') === null);
+  ok("ishlayapti, jarayon tirik — running", installState(parseInstallStatus(st('running')), () => true, boot)?.phase === 'running');
+  ok("ishlayapti deb yozilgan, jarayon yo'q — stalled", installState(parseInstallStatus(st('running')), () => false, boot)?.phase === 'stalled');
+  ok("ishlayapti deb yozilgan, keyin kompyuter qayta yongan (jarayon raqami begona) — stalled", installState(parseInstallStatus(st('running')), () => true, Date.parse('2026-11-19T11:00:00Z'))?.phase === 'stalled');
+  ok("qayta yoqish kerak edi va kompyuter keyin yongan — rebooted; hali yonmagan — reboot",
+    installState(parseInstallStatus(st('reboot')), () => false, Date.parse('2026-11-19T11:00:00Z'))?.phase === 'rebooted' && installState(parseInstallStatus(st('reboot')), () => false, boot)?.phase === 'reboot');
+  ok("«qayta yoqish kerak» 2 kundan eski — o'zi davom ettirilmaydi (stalled)", installState(parseInstallStatus(st('reboot')), () => false, Date.parse('2026-11-25T10:00:00Z'))?.phase === 'stalled');
+
+  const p1 = fake();
+  p1.s.state = { phase: 'done', note: 'eski', step: '', pid: 1, at: '2026-11-01T10:00:00Z' };
+  p1.s.script = [{ step: 'Ubuntu' }, { step: 'Asterisk' }, { phase: 'done', note: "Telefon xizmati o'rnatildi va ishlayapti" }];
+  await onCommand({ id: id(20), action: 'phone', by: 'Ali' }, p1.deps);
+  ok("o'rnatish: vazifa ishga tushadi, eski «tugadi» hisobga olinmaydi, natija o'rnatish TUGAGANDA Hub'ga, egasiga boshida va oxirida",
+    p1.s.started === 1 && p1.s.reports.length === 1 && p1.s.reports[0].ok && p1.s.reports[0].note.includes("o'rnatildi") && p1.s.slept >= 45_000 && p1.s.told.length === 2 && p1.s.told[1].includes('✅'), JSON.stringify(p1.s.reports));
+
+  const p2 = fake();
+  p2.s.script = [{ step: 'WSL' }, { phase: 'failed', step: 'WSL', note: "Virtualizatsiya o'chiq" }];
+  await onCommand({ id: id(21), action: 'phone' }, p2.deps);
+  ok("o'rnatilmadi — sababi va qadami Hub'ga, egasiga «o'rnatildi» deyilmaydi", p2.s.reports[0]?.ok === false && p2.s.reports[0].note.includes('Virtualizatsiya') && p2.s.reports[0].note.includes('WSL') && p2.s.told.length === 1);
+
+  const p3 = fake();
+  p3.s.script = [{ phase: 'reboot' }];
+  await onCommand({ id: id(22), action: 'phone' }, p3.deps);
+  ok("WSL yoqildi — «qayta yoqish kerak» va qaysi tugma bosilishi aytiladi", p3.s.reports[0]?.ok === true && p3.s.reports[0].note.includes('Kompyuterni qayta yoqish'));
+
+  const p4 = fake();
+  p4.s.phoneRefuse = "Bu kompyuterda masofadan o'rnatish yoqilmagan";
+  await onCommand({ id: id(23), action: 'phone' }, p4.deps);
+  ok("vazifa yo'q — sababi darhol Hub'ga, egasi bezovta qilinmaydi, kutilmaydi", p4.s.reports[0]?.ok === false && p4.s.reports[0].note.includes('yoqilmagan') && p4.s.told.length === 0 && p4.s.slept === 0);
+
+  const p5 = fake();
+  await onCommand({ id: id(24), action: 'phone' }, p5.deps);
+  ok("vazifa ishga tushdi deyildi, lekin holat 3 daqiqada yozilmadi — «boshlanmadi»", p5.s.reports[0]?.ok === false && p5.s.reports[0].note.includes('boshlanmadi') && p5.s.slept <= 4 * 60_000);
+
+  const p6 = fake();
+  p6.s.state = { phase: 'running', note: '', step: 'Ubuntu', pid: 7, at: new Date(p6.s.clock - 60_000).toISOString() };
+  p6.s.script = [{ phase: 'done', note: 'tayyor' }];
+  await onCommand({ id: id(25), action: 'phone' }, p6.deps);
+  ok("allaqachon o'rnatilyapti — ikkinchisi boshlanmaydi, o'shaning natijasi kutiladi", p6.s.started === 0 && p6.s.reports[0]?.ok === true && p6.s.reports[0].note === 'tayyor');
+
+  const p6b = fake();
+  p6b.s.busyFor = 45_000;
+  p6b.s.script = [{}, {}, {}, { phase: 'done', note: 'tayyor' }];
+  await onCommand({ id: id(32), action: 'phone' }, p6b.deps);
+  ok("telefonda suhbat ketyapti — o'rnatish (Asterisk qayta yonadi) u tugashini kutib boshlanadi", p6b.s.started === 1 && p6b.s.slept >= 45_000 && p6b.s.reports[0]?.ok === true, JSON.stringify(p6b.s.reports));
+
+  const p7 = fake();
+  p7.s.updating = true;
+  await onCommand({ id: id(26), action: 'phone' }, p7.deps);
+  ok("yangilash ketayotganda o'rnatilmaydi", p7.s.started === 0 && p7.s.reports[0]?.ok === false);
+
+  const r1 = fake();
+  r1.s.busyFor = 30_000;
+  r1.s.state = { phase: 'reboot', note: '', step: 'WSL', pid: 1, at: new Date(r1.s.clock).toISOString() };
+  await onCommand({ id: id(27), action: 'reboot', by: 'Ali' }, r1.deps);
+  ok("qayta yoqish: qo'ng'iroq tugashini kutadi, egasiga aytadi, o'rnatish davom etishi aytiladi", r1.s.rebooted === 1 && r1.s.slept >= 30_000 && r1.s.told.length === 1 && r1.s.reports[0]?.ok && r1.s.reports[0].note.includes('davom'), JSON.stringify(r1.s.reports));
+
+  const r2 = fake();
+  r2.s.state = { phase: 'running', note: '', step: 'Asterisk', pid: 1, at: new Date(r2.s.clock).toISOString() };
+  await onCommand({ id: id(28), action: 'reboot' }, r2.deps);
+  ok("o'rnatish ketayotganda qayta yoqilmaydi", r2.s.rebooted === 0 && r2.s.reports[0]?.ok === false && r2.s.reports[0].note.includes("o'rnatilyapti"));
+
+  const r3 = fake();
+  r3.s.rebootRefuse = 'Bu dasturchi nusxasi';
+  await onCommand({ id: id(29), action: 'reboot' }, r3.deps);
+  ok("Windows rad etsa — sababi Hub'ga, egasiga «qayta yoqyapti» deyilmaydi", r3.s.reports[0]?.ok === false && r3.s.told.length === 0);
+
+  const r4 = fake();
+  r4.s.busyFor = 60 * 60_000;
+  await onCommand({ id: id(30), action: 'reboot' }, r4.deps);
+  ok("suhbat 15 daqiqada tugamasa — qayta yoqilmaydi", r4.s.rebooted === 0 && r4.s.reports[0]?.note.includes('suhbat'));
+
+  // Server qayta yondi: javobsiz qolgan «phone» buyrug'i natijasi kutiladi va yuboriladi
+  const { resumePhoneInstall } = await import('../server/hubCommands');
+  const q1 = fake();
+  sql.run('INSERT INTO hub_commands (id, action, at) VALUES (?, ?, ?)', id(31), 'phone', new Date(q1.s.clock - 5 * 60_000).toISOString());
+  q1.s.state = { phase: 'running', note: '', step: 'Asterisk', pid: 1, at: new Date(q1.s.clock - 60_000).toISOString() };
+  q1.s.script = [{ phase: 'done', note: 'tayyor' }];
+  await resumePhoneInstall(q1.deps);
+  ok("server o'rnatish paytida qayta yondi — javobsiz buyruq natijasi Hub'ga yetadi, vazifa qayta boshlanmaydi",
+    q1.s.started === 0 && q1.s.reports.some(r => r.id === id(31) && r.ok) && Number(sql.one('SELECT ok FROM hub_commands WHERE id = ?', r => r.ok, id(31))) === 1);
+
+  const q2 = fake();
+  q2.s.state = { phase: 'rebooted', note: '', step: 'WSL', pid: 1, at: new Date(q2.s.clock - 3_600_000).toISOString() };
+  q2.s.script = [{ step: 'Ubuntu' }, { phase: 'done', note: 'tayyor' }];
+  await resumePhoneInstall(q2.deps);
+  ok("kompyuter qayta yondi — o'rnatish o'zi davom etadi, tugaganini egasi biladi", q2.s.started === 1 && q2.s.told.some(t => t.includes('✅')));
+
+  const q2b = fake();
+  q2b.s.state = { phase: 'rebooted', note: '', step: 'WSL', pid: 1, at: new Date(q2b.s.clock - 3_600_000).toISOString() };
+  q2b.s.phoneRefuse = "masofadan o'rnatish yoqilmagan";
+  await resumePhoneInstall(q2b.deps);
+  const told = q2b.s.told.length;
+  await resumePhoneInstall(q2b.deps);
+  ok("qayta yonganda davom ettirib bo'lmadi — egasiga BIR marta aytiladi, keyingi yonishda qayta urinmaydi", told === 1 && q2b.s.told.length === 1 && q2b.s.state?.phase === 'failed');
+
+  const q2c = fake();
+  sql.run('INSERT INTO hub_commands (id, action, at) VALUES (?, ?, ?)', id(33), 'phone', new Date(q2c.s.clock - 60_000).toISOString());
+  await resumePhoneInstall(q2c.deps);
+  ok("buyruq olingan, holat yozilmasdan server qayta yongan — Hub'da osilib qolmaydi («boshlanmadi»)", q2c.s.reports.some(r => r.id === id(33) && !r.ok && r.note.includes('boshlanmadi')));
+
+  const q3 = fake();
+  q3.s.state = { phase: 'done', note: '', step: '', pid: 1, at: new Date(q3.s.clock).toISOString() };
+  await resumePhoneInstall(q3.deps);
+  ok("hech narsa kutilmayotgan bo'lsa — hech narsa qilinmaydi", q3.s.started === 0 && q3.s.reports.length === 0 && q3.s.slept === 0);
+
+  let clock = new Date('2026-11-19T10:00:00Z');
+  const cmds = createCommands(new DatabaseSync(':memory:'), () => clock);
+  cmds.create('k9', { action: 'phone' }, 'Ali');
+  ok("Hub: o'rnatish kutilayotganda qayta yoqish/qayta ishga tushirish/yangilash — rad (409)", ['reboot', 'restart', 'update'].every(a => rejects(() => cmds.create('k9', { action: a }, 'Ali'), 409, "telefon")));
+  clock = new Date(clock.getTime() + COMMAND_FRESH_MS + 60_000);
+  ok("Hub: o'rnatish 30 daqiqadan keyin ham «kutilmoqda» (2 soatgacha)", cmds.recent('k9')[0].state === 'sent');
+  cmds.create('k10', { action: 'reboot' }, 'Ali');
+  clock = new Date(clock.getTime() + 6 * 60_000);
+  ok("Hub: qayta yoqish 5 daqiqada olinmasa — «muddati o'tdi» (kech ulangan kompyuter kutilmaganda o'chmasin)", cmds.recent('k10')[0].state === 'expired');
 }
 
 console.log("\n# Diagnostikada mijozlar niqoblanadi");

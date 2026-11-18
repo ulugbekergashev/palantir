@@ -4,7 +4,11 @@
  *   diag    — diagnostika (server/diagnostics.ts: holat va jurnallar, parol va kalitlarsiz; telefon raqamlari va @nomlar niqoblanadi) Hub'ga ketadi;
  *   restart — Palantir serveri tinch to'xtaydi, nazoratchi (scripts/supervise.mjs) uni 2 soniyada qayta yoqadi;
  *   update  — yangilovchi (scripts/update.mjs) hozir ishga tushadi: imzolangan relizni tekshiradi, sinaydi, ishlamasa eskisiga qaytaradi;
- *   message — egasiga Telegram'da va panel jurnalida xabar.
+ *   message — egasiga Telegram'da va panel jurnalida xabar;
+ *   phone   — telefon xizmatini (WSL + Asterisk) o'rnatish, administrator so'rovisiz va ekranda hech narsa ochmasdan (voice/phoneInstall.ts).
+ *             Natija o'rnatish TUGAGANDA ketadi (5–15 daqiqa, sekin internetda ko'proq). Palantir shu orada qayta yonsa — yonganda kutishni
+ *             davom ettiradi (resumePhoneInstall). WSL birinchi marta yoqilsa — «qayta yoqish kerak»;
+ *   reboot  — kompyuterni 1 daqiqadan keyin qayta yoqish (shutdown /r). Yonganda telefon o'rnatishi o'zi davom etadi.
  * Har amal egasiga aytiladi (jamoa nima qilganini bilsin). Natija Hub'ga qaytadi (POST /api/command/<id>).
  *
  * Bir buyruq bir marta: id bazaga bajarishdan OLDIN yoziladi. Qayta ishga tushgan server navbatni boshidan o'qiydi — o'sha buyruq yana
@@ -13,7 +17,7 @@
  * Telefonda suhbat ketayotgan bo'lsa, qayta ishga tushirish va yangilash u tugashini kutadi (CALL_WAIT_MS); tugamasa — bajarilmaydi
  * (suhbatni uzgandan ko'ra jamoa keyinroq qayta bossin). Yangilash ketayotganda qayta ishga tushirilmaydi.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +29,8 @@ import { fitBytes } from './fitBytes';
 import { notifyOwner } from './inbox/core';
 import { events } from './orders/store';
 import { lineBusy } from './voice/lineCalls';
-import { isCommandAction, MESSAGE_MAX, type CommandAction } from '../hub/commands';
+import { markInstallFailed, readInstallState, startRemoteInstall, type InstallState } from './voice/phoneInstall';
+import { isCommandAction, MESSAGE_MAX, PHONE_FRESH_MS, type CommandAction } from '../hub/commands';
 
 /**
  * Hub so'rov tanasini 1 MB gacha qabul qiladi; JSON'da qator tashlash, qo'shtirnoq va kirill harflari (UTF-8 da 2 bayt) kengayadi —
@@ -37,6 +42,12 @@ const CALL_POLL_MS = 15_000;
 const NOTIFY_TIMEOUT_MS = 15_000;
 const REPORT_TRIES = 3;
 const KEEP_ROWS = 200;
+/** Telefon xizmatini o'rnatish: holat fayli shu oraliqda o'qiladi; vazifa shuncha vaqtda boshlanmasa — ishga tushmagan */
+const INSTALL_POLL_MS = 15_000;
+const INSTALL_START_MS = 3 * 60_000;
+/** Holat faylidagi vaqt bilan buyruq vaqti orasidagi farq (ikkalasi shu kompyuter soati, lekin yaxlitlash bor) */
+const CLOCK_SLACK_MS = 2_000;
+const REBOOT_DELAY_S = 60;
 
 sql.exec('CREATE TABLE IF NOT EXISTS hub_commands (id TEXT PRIMARY KEY, action TEXT NOT NULL, at TEXT NOT NULL, ok INTEGER, note TEXT)');
 
@@ -59,6 +70,15 @@ export interface CommandDeps {
   sleep: (ms: number) => Promise<void>;
   /** Egasiga Telegram'da; yetkazilmasa — null */
   notify: (biz: BusinessRow, html: string) => Promise<unknown>;
+  /** Telefon xizmatini o'rnatish vazifasini ishga tushirish; bo'lmasa — sababi */
+  phoneStart: () => Promise<string | null>;
+  /** O'rnatish holati (tgvoice/telefon-ornatish.json); hali o'rnatilmagan bo'lsa — null */
+  phoneState: () => InstallState | null;
+  /** Holatni «o'rnatilmadi» qilib yopish (davom ettirib bo'lmadi) */
+  phoneFail: (note: string) => void;
+  /** Kompyuterni REBOOT_DELAY_S soniyadan keyin qayta yoqish; bo'lmasa — sababi */
+  reboot: () => string | null;
+  now: () => number;
 }
 
 /** Dastur ildizi — scripts/update.mjs bilan bir xil usulda (ish papkasiga bog'liq emas): server/ yoki app/ ning bir yuqorisi */
@@ -102,6 +122,19 @@ async function report(id: string, r: CommandResult): Promise<void> {
   }
 }
 
+/**
+ * Kompyuterni qayta yoqish: 1 daqiqa kutib (natija Hub'ga yetib boradi, ekranda ogohlantirish chiqadi). Oddiy foydalanuvchi ham qila oladi
+ * (Windows ish stoli nashrlarida). Dasturchi nusxasida — yo'q: sinov yoki Hub xatosi dasturchining kompyuterini o'chirmasin
+ */
+function reboot(): string | null {
+  if (process.platform !== 'win32') return "Kompyuterni qayta yoqish faqat Windows klinika kompyuterida";
+  if (existsSync(join(ROOT, '.git'))) return "Bu dasturchi nusxasi (.git bor) — kompyuter qayta yoqilmaydi";
+  const r = spawnSync('shutdown.exe', ['/r', '/t', String(REBOOT_DELAY_S), '/d', 'p:4:1', '/c', 'Palantir: kompyuter 1 daqiqadan keyin qayta yonadi (Palantir jamoasi)'], { windowsHide: true, timeout: 15_000 });
+  if (r.error) return `Qayta yoqib bo'lmadi: ${r.error.message}`;
+  // 1190 — qayta yoqish allaqachon rejalashtirilgan
+  return r.status === 0 || r.status === 1190 ? null : `Windows qayta yoqishni rad etdi (shutdown kodi ${r.status})`;
+}
+
 const defaults: CommandDeps = {
   report,
   supervised: () => typeof process.send === 'function' && process.connected,
@@ -112,6 +145,11 @@ const defaults: CommandDeps = {
   lineBusy: () => lineBusy(),
   sleep: ms => new Promise(done => setTimeout(done, ms)),
   notify: (biz, html) => notifyOwner(biz, html),
+  phoneStart: startRemoteInstall,
+  phoneState: readInstallState,
+  phoneFail: note => markInstallFailed(note),
+  reboot,
+  now: () => Date.now(),
 };
 
 /** Navbatdagi yuk: noto'g'ri bo'lsa — null (eski yoki buzilgan) */
@@ -168,6 +206,69 @@ async function waitForCall(deps: CommandDeps): Promise<number | null> {
 const STILL_TALKING = `Telefonda suhbat ${CALL_WAIT_MS / 60_000} daqiqadan beri tugamadi — uzmaslik uchun bajarilmadi, keyinroq qayta bosing`;
 const waitedNote = (m: number) => (m ? ` (qo'ng'iroq tugashini ${m} daqiqa kutdi)` : '');
 
+interface InstallOutcome { result: CommandResult; owner: string | null }
+/** O'rnatish holatidan — Hub'ga natija va egasiga xabar */
+function installOutcome(s: InstallState): InstallOutcome {
+  const at = s.step ? ` («${s.step}» qadamida)` : '';
+  if (s.phase === 'done') return { result: { ok: true, note: s.note || "Telefon xizmati o'rnatildi" }, owner: "✅ Telefon xizmati o'rnatildi — endi shahar raqami ulanishi mumkin." };
+  if (s.phase === 'failed') return { result: { ok: false, note: `O'rnatilmadi${at}: ${s.note}` }, owner: null };
+  if (s.phase === 'reboot') {
+    return { result: { ok: true, note: "WSL yoqildi — kompyuterni qayta yoqish kerak: «Kompyuterni qayta yoqish» ni bosing. Yonganidan keyin o'rnatish o'zi davom etadi, natija kartadagi «Telefon xizmati» qatorida" }, owner: null };
+  }
+  return { result: { ok: false, note: `O'rnatish to'xtab qoldi${at} — kompyuter o'chgan yoki jarayon yopilgan. Qayta bosing: qolgan joyidan davom etadi` }, owner: null };
+}
+
+/**
+ * O'rnatish tugashini kutadi. since — shu paytdan keyin yozilgan holatgina hisobga olinadi (eski «tugadi» yangi o'rnatishning natijasi emas).
+ * INSTALL_START_MS da yangi holat yozilmasa — vazifa ishga tushmagan
+ */
+async function awaitInstall(deps: CommandDeps, since: number): Promise<InstallOutcome> {
+  for (let waited = 0; ; waited += INSTALL_POLL_MS) {
+    const s = deps.phoneState();
+    const fresh = !!s && Date.parse(s.at) >= since - CLOCK_SLACK_MS;
+    if (s && fresh && s.phase !== 'running') return installOutcome(s);
+    if (!fresh && waited >= INSTALL_START_MS) return { result: { ok: false, note: "O'rnatish boshlanmadi — Windows vazifasi (PalantirTelefon) ishga tushmadi. Diagnostikani oling" }, owner: null };
+    if (waited >= PHONE_FRESH_MS) return { result: { ok: false, note: `O'rnatish ${PHONE_FRESH_MS / 3_600_000} soatda tugamadi${s?.step ? ` («${s.step}» qadamida)` : ''} — diagnostikani oling` }, owner: null };
+    await deps.sleep(INSTALL_POLL_MS);
+  }
+}
+
+async function installPhone(cmd: HubCommand, deps: CommandDeps): Promise<CommandResult> {
+  if (deps.updating()) return { ok: false, note: "Yangilash ketyapti — tugagach qayta bosing" };
+  // Allaqachon o'rnatilyapti (boshqa buyruq yoki qayta yonganda davom etgani) — ikkinchisi boshlanmaydi, o'shaning natijasi kutiladi
+  let since = 0;
+  if (deps.phoneState()?.phase !== 'running') {
+    // Qayta o'rnatish Asterisk'ni qayta yoqadi — jonli suhbat uzilmasin
+    const waited = await waitForCall(deps);
+    if (waited === null) return { ok: false, note: STILL_TALKING };
+    if (deps.updating()) return { ok: false, note: "Yangilash ketyapti — tugagach qayta bosing" };
+    since = deps.now();
+    if (deps.phoneState()?.phase !== 'running') {
+      const refused = await deps.phoneStart();
+      if (refused) return { ok: false, note: refused };
+    } else since = 0;
+  }
+  await tellOwners(deps, `📞 ${team(cmd.by)} telefon xizmatini o'rnatyapti — odatda 5–15 daqiqa, ekranda hech narsa ochilmaydi. Kompyuterni o'chirmang.`, "Palantir jamoasi telefon xizmatini o'rnatyapti");
+  const { result, owner } = await awaitInstall(deps, since);
+  if (owner) await tellOwners(deps, owner, "Telefon xizmati o'rnatildi");
+  return result;
+}
+
+async function rebootPc(cmd: HubCommand, deps: CommandDeps): Promise<CommandResult> {
+  if (deps.updating()) return { ok: false, note: "Yangilash ketyapti — tugagach qayta bosing" };
+  if (deps.phoneState()?.phase === 'running') return { ok: false, note: "Telefon xizmati o'rnatilyapti — tugashini kuting" };
+  const waited = await waitForCall(deps);
+  if (waited === null) return { ok: false, note: STILL_TALKING };
+  // Kutish paytida yangilash yoki o'rnatish boshlangan bo'lishi mumkin — yarim yo'lda o'chirilmasin
+  if (deps.updating()) return { ok: false, note: "Yangilash boshlandi — tugagach qayta bosing" };
+  if (deps.phoneState()?.phase === 'running') return { ok: false, note: "Telefon xizmati o'rnatilyapti — tugashini kuting" };
+  const continues = deps.phoneState()?.phase === 'reboot';
+  const refused = deps.reboot();
+  if (refused) return { ok: false, note: refused };
+  await tellOwners(deps, `🔁 ${team(cmd.by)} kompyuterni qayta yoqyapti (1 daqiqadan keyin) — Palantir 2–3 daqiqada o'zi qaytadi. Ochiq dasturlardagi ishni saqlang.`, 'Palantir jamoasi kompyuterni qayta yoqdi');
+  return { ok: true, note: `Kompyuter 1 daqiqada qayta yonadi${waitedNote(waited)}${continues ? " — yonganidan keyin telefon xizmatini o'rnatish o'zi davom etadi" : ''}` };
+}
+
 async function execute(cmd: HubCommand, deps: CommandDeps): Promise<CommandResult & { after?: () => void }> {
   const who = team(cmd.by);
   if (cmd.action === 'diag') {
@@ -194,6 +295,8 @@ async function execute(cmd: HubCommand, deps: CommandDeps): Promise<CommandResul
     await tellOwners(deps, `🔄 ${who} Palantir'ni qayta ishga tushiryapti — panel bir daqiqada qaytadi.`, 'Palantir jamoasi dasturni qayta ishga tushirdi');
     return { ok: true, note: `Qayta ishga tushirilmoqda${waitedNote(waited)}`, after: deps.restart };
   }
+  if (cmd.action === 'phone') return installPhone(cmd, deps);
+  if (cmd.action === 'reboot') return rebootPc(cmd, deps);
   // update
   const waited = await waitForCall(deps);
   if (waited === null) return { ok: false, note: STILL_TALKING };
@@ -228,4 +331,49 @@ export async function onCommand(payload: unknown, deps: CommandDeps = defaults):
   // Natija avval Hub'ga: qayta ishga tushirishdan keyin uni yuboradigan yo'q
   await deps.report(cmd.id, sent).catch(e => console.warn("[hub buyrug'i] natija Hub'ga yetmadi:", (e as Error).message));
   after?.();
+}
+
+/**
+ * Server yonganda (server/main.ts): telefon xizmatini o'rnatish davom ettiriladi.
+ *  — Kompyuter «qayta yoqish kerak»dan keyin yongan: o'rnatish o'zi qayta boshlanadi (jamoa yana bosishi shart emas).
+ *  — O'rnatish paytida Palantir qayta yongan (skript .env o'zgarsa uni o'zi qayta yoqadi, yoki svet o'chgan): javobsiz qolgan «phone»
+ *    buyrug'i natijasi kutiladi va Hub'ga yuboriladi — aks holda kartada «kutilmoqda» bo'lib qolardi.
+ */
+/** Kompyuter yonganda internet (Wi-Fi, router) bir oz keyin keladi — o'rnatish Ubuntu va Asterisk'ni yuklaydi */
+const RESUME_DELAY_MS = 60_000;
+
+/** Ochiq «phone» buyruqlarini yopib, natijani Hub'ga yuboradi */
+async function closeOpen(deps: CommandDeps, open: { id: string }[], result: CommandResult): Promise<void> {
+  for (const o of open) {
+    sql.run('UPDATE hub_commands SET ok = ?, note = ? WHERE id = ?', result.ok ? 1 : 0, result.note, o.id);
+    await deps.report(o.id, result).catch(e => console.warn("[hub buyrug'i] natija Hub'ga yetmadi:", (e as Error).message));
+  }
+}
+
+export async function resumePhoneInstall(deps: CommandDeps = defaults): Promise<void> {
+  const state = deps.phoneState();
+  const now = deps.now();
+  const open = sql.many("SELECT id, at FROM hub_commands WHERE action = 'phone' AND ok IS NULL AND at > ?", r => ({ id: String(r.id), at: String(r.at) }),
+    new Date(now - PHONE_FRESH_MS).toISOString());
+  // Buyruq olingan, lekin o'rnatish holat yozmasdan server qayta yongan — Hub'da 2 soat «kutilmoqda» bo'lib qolmasin
+  if (!state) return closeOpen(deps, open, { ok: false, note: "O'rnatish boshlanmadi (Palantir shu orada qayta yondi) — qayta bosing" });
+  let since = open.length ? Math.min(...open.map(o => Date.parse(o.at))) : now;
+  if (state.phase === 'rebooted') {
+    await deps.sleep(RESUME_DELAY_MS);
+    const refused = await deps.phoneStart();
+    if (refused) {
+      console.warn("[telefon] qayta yongandan keyin o'rnatish davom etmadi:", refused);
+      // Bir marta: keyingi yonishlarda qayta urinmaydi va egasiga yana yozmaydi
+      deps.phoneFail(`Qayta yongandan keyin davom etmadi: ${refused}`);
+      await tellOwners(deps, `⚠️ Kompyuter qayta yondi, lekin telefon xizmatini o'rnatish davom etmadi: ${esc(refused)}`, "Telefon xizmatini o'rnatish davom etmadi", refused);
+      return closeOpen(deps, open, { ok: false, note: refused });
+    }
+    console.log("[telefon] kompyuter qayta yondi — telefon xizmatini o'rnatish davom etyapti");
+    since = deps.now();
+  } else if (!open.length) return;
+  const { result, owner } = await awaitInstall(deps, since);
+  console.log(`[telefon] o'rnatish: ${result.ok ? 'tugadi' : 'bajarilmadi'} — ${result.note}`);
+  if (owner) await tellOwners(deps, owner, "Telefon xizmati o'rnatildi");
+  else if (!result.ok && state.phase === 'rebooted') await tellOwners(deps, `⚠️ Telefon xizmati o'rnatilmadi: ${esc(result.note)}`, "Telefon xizmati o'rnatilmadi", result.note);
+  await closeOpen(deps, open, result);
 }

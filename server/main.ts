@@ -24,6 +24,7 @@ import { startCallSweeper, startPhone, startRecordingRetention, stopPhone } from
 import { startMonitor } from './monitor';
 import { startHeartbeat } from './heartbeat';
 import { startHubJoin } from './hubJoin';
+import { resumePhoneInstall } from './hubCommands';
 import { startOrders } from './orders/run';
 import { startVoiceEnv } from './voice/serviceEnv';
 import { ensureProfile } from './profile';
@@ -95,6 +96,8 @@ const stopMonitor = startMonitor();
 const stopHeartbeat = startHeartbeat();
 // Hub kodi yo'q (yangi o'rnatish) — sotuvchining Hub'iga o'zi ulanadi
 const stopHubJoin = startHubJoin();
+// Telefon xizmatini masofadan o'rnatish: kompyuter qayta yonganda davom etadi, o'rnatish paytida server qayta yongan bo'lsa natija Hub'ga yetadi
+void resumePhoneInstall().catch(e => console.error('[telefon] o\'rnatishni davom ettirib bo\'lmadi:', (e as Error).message));
 
 const open = !env.listenHost || env.listenHost === '0.0.0.0' || env.listenHost === '::';
 console.log(`Palantir server: http://localhost:${env.port}${open ? ' (hamma tarmoq interfeyslari)' : ` (${env.listenHost})`}`);

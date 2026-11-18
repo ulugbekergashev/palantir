@@ -108,6 +108,10 @@ if ($Uninstall) {
     try { Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false; Note "Windows vazifasi o'chirildi" }
     catch { Warn "Windows vazifasini o'chirib bo'lmadi (administrator huquqi kerak): Vazifalar rejalashtiruvchisi -> Palantir" }
   }
+  if (Get-ScheduledTask -TaskName 'PalantirTelefon' -ErrorAction SilentlyContinue) {
+    try { Unregister-ScheduledTask -TaskName 'PalantirTelefon' -Confirm:$false; Note "Telefon o'rnatish vazifasi o'chirildi" }
+    catch { Warn "Vazifani o'chirib bo'lmadi (administrator huquqi kerak): Vazifalar rejalashtiruvchisi -> PalantirTelefon" }
+  }
   foreach ($startupFile in $StartupLink, $OldStartupLink) {
     if (Test-Path $startupFile) { Remove-Item $startupFile -Force -Confirm:$false; Note "Avtoyuklash yorlig'i o'chirildi" }
   }
@@ -274,6 +278,12 @@ $task = $false
 if ($Admin) {
   try { Register-PalantirTask (Get-Command node).Source; $task = $true }
   catch { Warn "Windows vazifasi yaratilmadi ($($_.Exception.Message)) - Palantir Windows'ga kirganda ishga tushadi" }
+}
+if ($Admin) {
+  # Telefon xizmatini keyinroq Palantir jamoasi Hub'dan o'rnata olsin - klinikada hech kim administrator so'roviga "Ha" bosmasdan
+  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'telefon-vazifa.ps1')
+  if ($LASTEXITCODE -eq 0) { Note "Telefon xizmatini Palantir jamoasi masofadan (Hub orqali) o'rnata oladi" }
+  else { Warn "Masofadan telefon o'rnatish vazifasi yaratilmadi - telefon xizmati shu kompyuterda o'rnatiladi (install\Telefon.cmd)" }
 }
 if ($task) {
   # Vazifa bor: avtoyuklash yorlig'i ikkinchi nusxani yoqmasin, avtomatik kirish (eski usul) endi kerak emas

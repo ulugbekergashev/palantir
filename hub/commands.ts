@@ -1,6 +1,6 @@
 /**
  * Masofadan amallar (hub/server.ts, 17-band): jamoa /admin dagi mijoz kartasidan klinika kompyuteriga buyruq beradi — diagnostika olish,
- * Palantir'ni qayta ishga tushirish, hozir yangilash, egasiga xabar. Buyruq navbat orqali (command) ketadi; klinika bajarib
+ * Palantir'ni qayta ishga tushirish, hozir yangilash, egasiga xabar, telefon xizmatini o'rnatish, kompyuterni qayta yoqish. Buyruq navbat orqali (command) ketadi; klinika bajarib
  * POST /api/command/<id> bilan natijani qaytaradi (server/hubCommands.ts). Bu modul faqat baza bilan ishlaydi:
  * scripts/check-hub-commands.ts uni xotiradagi baza bilan sinaydi.
  *
@@ -10,12 +10,30 @@
 import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
-export const COMMAND_ACTIONS = ['diag', 'restart', 'update', 'message'] as const;
+/**
+ * phone — telefon xizmatini (WSL + Asterisk) o'rnatish, administrator so'rovisiz (server/voice/phoneInstall.ts); javob o'rnatish tugaganda keladi.
+ * reboot — kompyuterni qayta yoqish (WSL birinchi marta yoqilganda kerak; telefonda suhbat bo'lsa kutadi)
+ */
+export const COMMAND_ACTIONS = ['diag', 'restart', 'update', 'message', 'phone', 'reboot'] as const;
 export type CommandAction = typeof COMMAND_ACTIONS[number];
 export const isCommandAction = (v: unknown): v is CommandAction => typeof v === 'string' && (COMMAND_ACTIONS as readonly string[]).includes(v);
 
 /** To'xtatadigan amallar: shundan eskisi bajarilmaydi (hub/server.ts /api/pull navbatdan olib tashlaydi) */
 export const COMMAND_FRESH_MS = 30 * 60_000;
+/** Telefon xizmatini o'rnatish sekin internetda bir soatdan oshishi mumkin (Ubuntu ~340 MB, Asterisk) — javob shuncha kutiladi */
+export const PHONE_FRESH_MS = 2 * 3_600_000;
+/**
+ * Qayta yoqish ochiq dasturlardagi ishni yo'qotadi: kompyuter aloqasiz bo'lib, yarim soatdan keyin ulansa — kutilmaganda o'chmasin.
+ * Faqat yaqinda bosilgani bajariladi (aks holda kartada «muddati o'tdi» — kerak bo'lsa qayta bosiladi)
+ */
+export const REBOOT_FRESH_MS = 5 * 60_000;
+/** Eskirsa navbatdan olib tashlanadiganlar: kompyuter uzoq o'chiq bo'lgan — yonganda kutilmaganda to'xtamasin, qayta yonmasin */
+export const DROP_WHEN_STALE: readonly CommandAction[] = ['restart', 'update', 'reboot', 'phone'];
+/** Bir-birini kutadiganlar: biri ketayotganda ikkinchisi berilmaydi (yangilash fayllarni almashtirayotganda qayta yoqilmasin va h.k.) */
+const EXCLUSIVE: readonly CommandAction[] = ['restart', 'update', 'reboot', 'phone'];
+const ACTION_NAME: Record<CommandAction, string> = {
+  diag: 'diagnostika', restart: 'qayta ishga tushirish', update: 'yangilash', message: 'xabar', phone: "telefon xizmatini o'rnatish", reboot: 'kompyuterni qayta yoqish',
+};
 /** Xabar va diagnostika — navbat saqlanadigan muddat (3 kun) ichida yetsa bo'ldi */
 const COMMAND_KEEP_MS = 3 * 86_400_000;
 export const MESSAGE_MIN = 3;
@@ -50,7 +68,8 @@ const str = (v: unknown): string | null => (v == null ? null : String(v));
  * Shuncha vaqt javob bo'lmasa — «muddati o'tdi» (yangisini berish mumkin). Diagnostika ham 30 daqiqa: eski Palantir buyruqni tushunmay
  * navbatdan olib qo'ysa, javob hech qachon kelmaydi — yangi diagnostika 3 kun yopiq qolmasin. Xabar — navbat saqlanadigan 3 kun
  */
-export const freshFor = (action: CommandAction): number => (action === 'message' ? COMMAND_KEEP_MS : COMMAND_FRESH_MS);
+export const freshFor = (action: CommandAction): number =>
+  action === 'message' ? COMMAND_KEEP_MS : action === 'phone' ? PHONE_FRESH_MS : action === 'reboot' ? REBOOT_FRESH_MS : COMMAND_FRESH_MS;
 
 export function createCommands(db: DatabaseSync, clock = () => new Date()) {
   // ok: NULL — hali javob yo'q, 1 — bajarildi, 0 — bajarilmadi
@@ -85,11 +104,11 @@ export function createCommands(db: DatabaseSync, clock = () => new Date()) {
       if (action === 'message' && (!text || text.length < MESSAGE_MIN)) throw new CommandError(400, 'Xabar matnini yozing');
       const now = clock();
       if (action !== 'message') {
-        const blocking = action === 'diag' ? ['diag'] : ['restart', 'update'];
+        const blocking = action === 'diag' ? ['diag'] : EXCLUSIVE;
         const waiting = (db.prepare(`SELECT * FROM commands WHERE clinic_id = ? AND ok IS NULL AND action IN (${blocking.map(() => '?').join(', ')}) ORDER BY created_at DESC`)
           .all(clinicId, ...blocking) as Record<string, unknown>[]).map(row).find(c => c.state === 'sent');
         if (waiting) throw new CommandError(409, waiting.action === action ? 'Oldingi shunday buyruq hali bajarilmadi — klinika javobini kuting'
-          : `Avval «${waiting.action === 'update' ? 'yangilash' : 'qayta ishga tushirish'}» natijasini kuting`);
+          : `Avval «${ACTION_NAME[waiting.action]}» natijasini kuting`);
       }
       const hour = Number((db.prepare('SELECT COUNT(*) AS n FROM commands WHERE clinic_id = ? AND created_at > ?')
         .get(clinicId, new Date(now.getTime() - HOUR_MS).toISOString()) as { n: number }).n);

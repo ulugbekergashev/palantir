@@ -160,7 +160,8 @@ export async function lineApiTests(h: Harness): Promise<void> {
   // C1: telefon xizmatini paneldan o'rnatish — faqat klinika kompyuterining o'zida (sinov serverida ASTERISK_WSL=0: hech narsa ochilmaydi)
   ok("C1: o'rnatish tugmasi — telefon o'rnatib bo'lmaydigan serverda ko'rinmaydi", first.json.line?.installable === false);
   const viaProxy = await fetch(`${base}/api/phone/install`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.7' }, body: '{}' });
-  ok("C1: proksi/Hub orqali — 403 (o'rnatish oynasi faqat shu kompyuterda ochiladi)", viaProxy.status === 403);
+  const viaProxyBody = await viaProxy.json().catch(() => ({})) as { error?: string };
+  ok("C1: proksi/Hub orqali — ekranda oyna ochilmaydi, Windows vazifasi bilan; sinov serverida (telefonsiz) — 409, sababi aytiladi", viaProxy.status === 409 && !!viaProxyBody.error, JSON.stringify(viaProxyBody));
   const noPhone = await api('/api/phone/install', { token, body: {} });
   ok("C1: shu kompyuterdan, lekin telefon o'rnatib bo'lmaydi — 409, hech narsa ishga tushmaydi", noPhone.status === 409, JSON.stringify(noPhone.json));
 

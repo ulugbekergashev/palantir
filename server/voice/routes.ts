@@ -18,6 +18,7 @@ import { leadForPhone } from '../people';
 import { openRequest, settleByBooking } from '../requests/index';
 import { phoneCalls } from '../phone/store';
 import { newVoiceKey, voiceKeyOwner } from './agentKey';
+import { readInstallState, startRemoteInstall } from './phoneInstall';
 import { applyLine, canInstallPhone, checkLine, connectZadarma, launchPhoneInstall, lineRouting, lineView, newAdminPassword, phoneAiOn, routeNow, saveRouting, saveTrunk, transferNow } from './line';
 import { adoptVoiceKey } from './serviceEnv';
 import { LINE_CALL_WINDOW_MS, markLineCall } from './lineCalls';
@@ -221,9 +222,17 @@ export function mountVoice(app: Express, { asBiz, bad, fromThisPc }: Deps): void
   }));
   // «Tekshirish»: Asterisk operatorga hozir qayta murojaat qiladi — raqam ulandimi, ulanmasa nega
   app.post('/api/phone/line/check', asBiz(async (_req, res, biz) => { res.json({ line: await checkLine(biz) }); }));
-  // C1: exe telefon xizmatini o'rnatmaydi — o'rnatuvchi ustadan yoki Sozlamalardan bosadi, o'rnatish oynasi shu kompyuterda ochiladi
-  app.post('/api/phone/install', asBiz((req, res) => {
-    if (!fromThisPc(req)) return res.status(403).json({ error: "Telefon xizmati faqat klinika kompyuterining o'zida o'rnatiladi — panelni o'sha kompyuterda oching" });
+  // C1: exe telefon xizmatini o'rnatmaydi — o'rnatuvchi ustadan yoki Sozlamalardan bosadi. Shu kompyuterdan — o'rnatish oynasi ekranda
+  // (administrator so'rovi bilan). Hub orqali ochilgan panel yoki boshqa kompyuterdan — ekranda hech narsa ochilmaydi: o'rnatish paytida
+  // yaratilgan Windows vazifasi bilan, so'rovsiz (phoneInstall.ts); vazifa yo'q bo'lsa — nima qilish kerakligi aytiladi
+  app.post('/api/phone/install', asBiz(async (req, res) => {
+    // Ikki o'rnatgich bitta WSL ustida bir vaqtda ishlamasin (masofadagisi ketayotganda klinikada tugma bosildi va aksincha)
+    if (readInstallState()?.phase === 'running') return res.status(409).json({ error: "Telefon xizmati hozir o'rnatilyapti — tugashini kuting" });
+    if (!fromThisPc(req)) {
+      const refused = await startRemoteInstall();
+      if (refused) return res.status(409).json({ error: refused });
+      return res.json({ started: true, remote: true });
+    }
     if (!canInstallPhone()) return res.status(409).json({ error: "Bu kompyuterda telefon xizmatini o'rnatib bo'lmaydi (faqat Windows klinika kompyuterida)" });
     launchPhoneInstall();
     res.json({ started: true });

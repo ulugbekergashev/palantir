@@ -56,10 +56,11 @@
  *      yoqiq (licenseKey.ts MODULES). Shu imzoli holat ichida (f) boradi; tarifda yo'q xodim klinikada ko'rinmaydi va ishlamaydi.
  *      Kompyuter kodiga bog'langan (clients.ts grantFor): qayta o'rnatib tarifdan qochib bo'lmaydi. Heartbeat'da klinika nimani
  *      ishlatayotgani (uses) va qaysi ruxsat yetib kelgani (modules) keladi.
- *  17. Masofadan amallar (commands.ts): POST /admin/clinics/<klinika>/command {action: diag | restart | update | message, text?} —
- *      jamoa a'zosi (o'rnatuvchi — o'z mijoziga), faqat tasdiqlangan mijozga. Navbat orqali (command) ketadi; klinika bajarib
+ *  17. Masofadan amallar (commands.ts): POST /admin/clinics/<klinika>/command {action: diag | restart | update | message | phone | reboot,
+ *      text?} — jamoa a'zosi (o'rnatuvchi — o'z mijoziga), faqat tasdiqlangan mijozga. Navbat orqali (command) ketadi; klinika bajarib
  *      POST /api/command/<id> {ok, note, diag?} bilan qaytaradi (server/hubCommands.ts) va buyruq navbatdan olinadi. Qayta ishga
- *      tushirish va yangilash 30 daqiqadan eskirsa bajarilmaydi; egasiga har amal Telegram'da aytiladi.
+ *      tushirish, yangilash va qayta yoqish 30 daqiqadan (telefon xizmatini o'rnatish — 2 soatdan) eskirsa bajarilmaydi; egasiga har amal
+ *      Telegram'da aytiladi. phone — telefon xizmati administrator so'rovisiz (server/voice/phoneInstall.ts), javob o'rnatish tugaganda.
  *   7. Meta talablari: ochiq sahifalar /privacy, /terms, /data-deletion (legal.ts); Meta chaqiradigan /ig/deauthorize (egasi ilovani
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
@@ -81,7 +82,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { adminPage } from './admin.ts';
 import { CardError, CLIENT_KINDS, createClients, type ClientKind } from './clients.ts';
 import { createHelp, HelpError, type HelpRow } from './help.ts';
-import { CommandError, COMMAND_FRESH_MS, createCommands } from './commands.ts';
+import { CommandError, createCommands, DROP_WHEN_STALE, freshFor } from './commands.ts';
 import { isModule, issueAccess, issueLicense, normalizeMachineId, signingKey } from './licenseKey.ts';
 import { createTeam, TeamError, type HubRole, type Member } from './team.ts';
 import { deletionPage, deletionStatusPage, privacyPage, termsPage, type DeletionView, type LegalInfo } from './legal.ts';
@@ -440,7 +441,14 @@ function cleanStatus(v: unknown) {
   // Tarif (16-band): klinika ishlatayotgan modullar va unga yetib kelgan ruxsat (null — hammasi; eski nashr — maydon yo'q)
   const uses = Array.isArray(o.uses) ? o.uses.filter(isModule).slice(0, 20) : null;
   const modules = Array.isArray(o.modules) ? o.modules.filter(isModule).slice(0, 20) : o.modules === null ? null : undefined;
-  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), label: text(o.label, 80), problems, lastUpdate, lastOffsite, license, setup: o.setup === true, kinds, industries, access, uses, modules, at: now() };
+  // Telefon xizmati (17-band, «phone»): masofadan o'rnatsa bo'ladimi va oxirgi o'rnatish holati
+  const ph = o.phoneInstall ? record(o.phoneInstall) : null;
+  const phoneInstall = ph ? {
+    remote: ph.remote === true ? true : ph.remote === false ? false : null,
+    phase: ['running', 'reboot', 'done', 'failed', 'stalled', 'rebooted'].includes(String(ph.phase)) ? String(ph.phase) : null,
+    step: text(ph.step, 120), note: text(ph.note, 300), at: text(ph.at, 40),
+  } : null;
+  return { version: text(o.version, 40), schema: num(o.schema), startedAt: text(o.startedAt, 40), diskFreeMb: num(o.diskFreeMb), businesses: num(o.businesses), label: text(o.label, 80), problems, lastUpdate, lastOffsite, license, setup: o.setup === true, kinds, industries, access, uses, modules, phoneInstall, at: now() };
 }
 
 /** Holat imzosi (15-band) — litsenziya kaliti bilan; bir marta o'qiladi */
@@ -873,6 +881,13 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (!approved(id)) return send(res, 403, { error: QUARANTINE });
     const body = await readJson(req);
     if (!body) return send(res, 400, { error: 'json' });
+    // Telefon o'rnatish va qayta yoqishni faqat ularni tushunadigan klinika oladi (heartbeat'da phoneInstall bor): eskisi buyruqni tashlab
+    // yuborardi, Hub esa uni 2 soat kutib, qayta ishga tushirish va yangilashni ham to'sib turardi
+    if (body.action === 'phone' || body.action === 'reboot') {
+      const st = db.prepare('SELECT status FROM clinics WHERE id = ?').get(id) as { status: string | null } | undefined;
+      const knows = (() => { try { return !!(JSON.parse(st?.status ?? 'null') as { phoneInstall?: unknown } | null)?.phoneInstall; } catch { return false; } })();
+      if (!knows) return send(res, 409, { error: "Klinikadagi Palantir bu buyruqni hali tushunmaydi — 0.4.24 nashri kerak (kechasi o'zi yangilanadi yoki «Hozir yangilash»)" });
+    }
     try {
       // Asosiy kalit (HUB_ADMIN_KEY) — shaxs emas: egasiga «Palantir jamoasi» deb boradi
       const cmd = commands.create(id, body, who.id === 'kalit' ? null : who.name);
@@ -1124,8 +1139,10 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     db.prepare('DELETE FROM events WHERE clinic_id = ? AND seq <= ?').run(clinic, after);
     // Eskirgan qayta ishga tushirish va yangilash (17-band) berilmaydi: kompyuter kechasi o'chiq bo'lgan — ertalab kutilmaganda to'xtamasin.
     // Hub soati bilan (klinika soati noto'g'ri bo'lishi mumkin); kartada «muddati o'tdi» bo'lib ko'rinadi
-    db.prepare("DELETE FROM events WHERE clinic_id = ? AND kind = 'command' AND json_extract(payload, '$.action') IN ('restart', 'update') AND created_at < ?")
-      .run(clinic, new Date(Date.now() - COMMAND_FRESH_MS).toISOString());
+    for (const action of DROP_WHEN_STALE) {
+      db.prepare("DELETE FROM events WHERE clinic_id = ? AND kind = 'command' AND json_extract(payload, '$.action') = ? AND created_at < ?")
+        .run(clinic, action, new Date(Date.now() - freshFor(action)).toISOString());
+    }
     let events = pending(clinic, after);
     // Masofadan kelgan so'rovlar navbatdan olinadi (bir marta beriladi: ikki marta bajarilmasin)
     const take = () => { const list = relayQueue.get(clinic) ?? []; relayQueue.delete(clinic); return list; };
