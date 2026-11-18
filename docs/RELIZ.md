@@ -1,5 +1,9 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.22 da yangi
+
+- **Panel o'zi yangilanadi:** Palantir yangilansa, ochiq panel bir daqiqa ichida o'zi yangi ko'rinishga o'tadi — F5 bosish shart emas (biror narsa yozayotgan bo'lsangiz, tugashini kutadi).
+
 ## 0.4.21 da yangi
 
 - **Halol natija:** Palantir brauzerdagi ishni bajara olmasa (kirish kerak, sayt to'sdi), Telegram'da «⚠️ Bajarilmadi» deb yozadi — avval har doim «Ish tugadi» derdi.
