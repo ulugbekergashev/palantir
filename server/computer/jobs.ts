@@ -22,6 +22,7 @@ import { notifyOwner, notifyOwnerFile, editOwner } from '../inbox/core';
 import { BROWSER_TOOLSET, BrowserSession, type MemberResult } from './browser';
 import { COMPUTER_TOOLSET, DesktopSession, startDriver } from './desktop';
 import { MONEY_ZONE, moneyTask } from './money';
+import { connectOwnChrome } from './ownChrome';
 
 export type JobMode = 'browser' | 'desktop';
 export type JobStatus = 'waiting' | 'running' | 'done' | 'failed' | 'stopped';
@@ -77,7 +78,9 @@ export class ComputerError extends Error {}
  * bo'lmasa egasining o'zi Sozlamalarda yoqqani (faqat brauzer: butun ekran — o'rnatuvchining qarori). '' — o'chiq
  */
 export const computerModeOf = (biz: Pick<BusinessRow, 'computerUse'> | null | undefined): '' | 'browser' | 'desktop' | 'all' =>
-  env.computerUse || (biz?.computerUse === 'browser' ? 'browser' : '');
+  env.computerUse || (biz?.computerUse ? 'browser' : '');
+/** Egasining o'z Chrome'ida ishlaydimi (.env bilan yoqilgan bo'lsa — o'rnatuvchining qarori: alohida brauzer) */
+export const ownChromeMode = (biz: Pick<BusinessRow, 'computerUse'> | null | undefined): boolean => !env.computerUse && biz?.computerUse === 'chrome';
 /** Rejim yoqilganmi (.env COMPUTER_USE yoki egasi Sozlamalarda) */
 export const modeEnabled = (mode: JobMode, biz: Pick<BusinessRow, 'computerUse'> | null | undefined): boolean => {
   const m = computerModeOf(biz);
@@ -224,8 +227,12 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
     // Brauzer xavfli tugmani o'zi taniydi va har safar haqiqiy nomi bilan so'raydi (modelning oldingi «ruxsat oldim»i hisobga olinmaydi)
     const gate = (what: string) => ask(biz, l, what);
     if (job.mode === 'browser') {
+      // Egasining o'z Chrome'i: ulanish birinchi marta ochilganda Chrome «Allow?» so'raydi — egasiga Telegram'da aytiladi
+      const attach = ownChromeMode(businesses.byId(biz.id) ?? biz)
+        ? await connectOwnChrome(() => { void notifyOwner(biz, "🖥 Chrome'ingizda ruxsat so'rovi chiqdi — «Allow» ni bosing, shundan keyin ishni boshlayman.").catch(() => null); })
+        : undefined;
       browser = await BrowserSession.open({
-        profileDir: profileDir(), downloadsDir: dir, headless: !env.computerShowBrowser, approve: gate,
+        attach, profileDir: profileDir(), downloadsDir: dir, headless: !env.computerShowBrowser, approve: gate,
         policy: { allowedSites: env.computerAllowedSites, allowHosts: env.computerAllowHosts },
       });
     } else {
@@ -365,6 +372,7 @@ const LOGIN_MINUTES = 15;
 /** Ko'rinadigan brauzer oynasi (ishdagi profil bilan): egasi login-parolini o'zi kiritadi, AI ko'rmaydi */
 export async function openLoginWindow(biz: BusinessRow, url: string | null): Promise<string> {
   if (!modeEnabled('browser', businesses.byId(biz.id) ?? biz)) throw new ComputerError(`Brauzerda ishlash yoqilmagan: ${NOT_ON}`);
+  if (ownChromeMode(businesses.byId(biz.id) ?? biz)) throw new ComputerError("Palantir sizning o'z Chrome'ingizda ishlaydi — saytlarga Chrome'ning o'zida odatdagidek kiring, alohida oyna kerak emas");
   if (live.has(biz.id)) throw new ComputerError("Hozir ish bajarilyapti — tugagach oching yoki /toxta");
   if (loginWindows.has(biz.id)) throw new ComputerError("Oyna allaqachon ochiq");
   const session = await BrowserSession.open({

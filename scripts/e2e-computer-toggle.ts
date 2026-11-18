@@ -26,7 +26,7 @@ function boot(port: number, extra: Record<string, string>): ChildProcess {
     env: {
       ...process.env, DOTENV: '0', ASTERISK_WSL: '0', PORT: String(port), LISTEN_HOST: '127.0.0.1', DATA_DIR: dataDir, BOT_TOKEN: '123:TEST', TELEGRAM_API_ROOT: `http://127.0.0.1:${tgPort}`,
       ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: `http://127.0.0.1:${aiPort}`, ADMIN_PASSWORD: 'admin-pass-1', SESSION_SECRET: 'toggle-secret', TICK_MS: '500',
-      MORNING_HOUR: '99', EVENING_HOUR: '99', WEB_SEARCH: '0', BACKUP_KEEP: '0', COMPUTER_USE: '',
+      MORNING_HOUR: '99', EVENING_HOUR: '99', WEB_SEARCH: '0', BACKUP_KEEP: '0', COMPUTER_USE: '', CHROME_USER_DATA: join(dataDir, 'chrome-yoq'),
       GEMINI_API_KEY: '', GROQ_API_KEY: '', VOICELAB_API_KEY: '', SPEECHLAB_API_KEY: '', TG_API_ID: '', TG_API_HASH: '', TG_CALL_PYTHON: '', TG_CALL_SCRIPT: '',
       ...extra,
     },
@@ -103,8 +103,20 @@ try {
   const sv = await api('/api/account/computer', { token: staff });
   ok("xodimga bo'lim yopiq (hisob sozlamalari — faqat egasiga)", sv.status === 403, `${sv.status} ${JSON.stringify(sv.json)}`);
   ok("xodim yoqa/o'chira olmaydi, oyna ocholmaydi — 403", (await api('/api/account/computer', { token: staff, method: 'PUT', body: { browser: false } })).status === 403
-    && (await api('/api/account/computer/login', { token: staff, body: {} })).status === 403 && (await api('/api/account/computer/login', { token: staff, method: 'DELETE' })).status === 403);
+    && (await api('/api/account/computer/login', { token: staff, body: {} })).status === 403 && (await api('/api/account/computer/login', { token: staff, method: 'DELETE' })).status === 403
+    && (await api('/api/account/computer/chrome-setup', { token: staff, body: {} })).status === 403);
   ok("xodim urinishidan keyin ham yoqiq", (await api('/api/account/computer', { token })).json.browser === true);
+
+  console.log("\n# «Mening Chrome'im»");
+  const chrome = await api('/api/account/computer', { token, method: 'PUT', body: { mode: 'chrome' } });
+  ok("tanlandi: mode chrome, ulanish hali yoqilmagan (Chrome'da DevToolsActivePort yo'q)", chrome.status === 200 && chrome.json.mode === 'chrome' && chrome.json.browser === true
+    && chrome.json.chrome?.debugging === false && chrome.json.chrome?.connected === false, JSON.stringify(chrome.json));
+  ok('yordamchida computer_task bor', (await toolsOnChat(api, token)).includes('computer_task'));
+  const ownLogin = await api('/api/account/computer/login', { token, body: {} });
+  ok("alohida kirish oynasi kerak emas — 409, «o'z Chrome'ingizda»", ownLogin.status === 409 && /o'z Chrome/.test(ownLogin.json.error), JSON.stringify(ownLogin.json));
+  ok("noto'g'ri rejim — 400", (await api('/api/account/computer', { token, method: 'PUT', body: { mode: 'hammasi' } })).status === 400);
+  const back = await api('/api/account/computer', { token, method: 'PUT', body: { mode: 'browser' } });
+  ok("alohida brauzerga qaytdi (chrome holati yo'q)", back.json.mode === 'browser' && back.json.chrome === null, JSON.stringify(back.json));
 
   console.log('\n# Egasi o\'chirdi');
   mark = sent.length;

@@ -7,7 +7,7 @@
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
-import { chromium, type BrowserContext, type ElementHandle, type Page, type Request } from 'playwright-core';
+import { chromium, type Browser, type BrowserContext, type ElementHandle, type Page, type Request } from 'playwright-core';
 import { installedBrowser } from '../browserPath';
 import { PolicyError, allowedRequest, checkUrl, riskyClick, riskyKey, type ElementInfo, type SitePolicy } from './policy';
 import { MONEY_ZONE, cardLike, moneyAction } from './money';
@@ -145,6 +145,11 @@ export interface BrowserOptions {
   headless: boolean;
   policy: SitePolicy;
   approve: Approver;
+  /**
+   * Egasining o'z Chrome'i (ownChrome.ts): yangi brauzer ochilmaydi — o'sha Chrome'da yordamchining o'z vkladkasi ochiladi.
+   * Qoidalar (ichki tarmoq yopiq) va yordamchi skripti faqat o'z vkladkalariga qo'yiladi; egasining vkladkalari ro'yxatda ham yo'q
+   */
+  attach?: Browser;
 }
 
 type Target = { type: 'coordinate'; x: number; y: number } | { type: 'ref'; ref: string };
@@ -162,6 +167,7 @@ export class BrowserSession {
   private constructor(private ctx: BrowserContext, private o: BrowserOptions) {}
 
   static async open(o: BrowserOptions): Promise<BrowserSession> {
+    if (o.attach) return BrowserSession.attach(o.attach, o);
     const exe = installedBrowser();
     if (!exe) throw new Error('Bu kompyuterda Google Chrome yoki Microsoft Edge topilmadi — brauzerda ishlash uchun bittasini o\'rnating');
     mkdirSync(o.profileDir, { recursive: true });
@@ -179,6 +185,31 @@ export class BrowserSession {
     if (!s.tabs.size) s.adopt(await ctx.newPage());
     return s;
   }
+
+  /** Egasining Chrome'ida: faqat o'z vkladkalari (va ulardan ochilgan oynalar) — egasinikilariga tegilmaydi */
+  private static async attach(browser: Browser, o: BrowserOptions): Promise<BrowserSession> {
+    const ctx = browser.contexts()[0];
+    if (!ctx) throw new Error("Chrome'ning oynasi topilmadi — Chrome'ni oching");
+    mkdirSync(o.downloadsDir, { recursive: true });
+    const s = new BrowserSession(ctx, o);
+    s.shared = true;
+    s.onPage = p => { void p.opener().then(op => { if (op && s.ids.has(op)) void s.own(p); }).catch(() => {}); };
+    ctx.on('page', s.onPage);
+    await s.own(await ctx.newPage());
+    return s;
+  }
+
+  /** Egasining Chrome'ida: qoidalar va yordamchi skripti shu vkladkaga (butun profilga emas) */
+  private async own(p: Page): Promise<void> {
+    if (this.ids.has(p)) return;
+    this.adopt(p);
+    await p.route('**/*', route => (allowedRequest(route.request().url(), this.o.policy) ? route.continue() : route.abort('blockedbyclient')));
+    await p.addInitScript(PAGE_HELPERS);
+  }
+
+  /** Egasining Chrome'iga ulangan (attach) — yopilganda faqat o'z vkladkalari yopiladi */
+  private shared = false;
+  private onPage: ((p: Page) => void) | null = null;
 
   private adopt(p: Page): void {
     if (this.ids.has(p)) return;
@@ -451,7 +482,8 @@ export class BrowserSession {
       }
       case 'new_tab': {
         const p = await this.ctx.newPage();
-        this.adopt(p);
+        if (this.shared) await this.own(p);
+        else this.adopt(p);
         return { content: [await this.state()] };
       }
       case 'list_tabs': return { content: [await this.state()] };
@@ -463,7 +495,7 @@ export class BrowserSession {
       }
       case 'close_tab': {
         const p = this.page(tabId);
-        if (this.tabs.size === 1) await this.ctx.newPage().then(n => this.adopt(n));
+        if (this.tabs.size === 1) await this.ctx.newPage().then(n => (this.shared ? this.own(n) : this.adopt(n)));
         await p.close();
         return { content: [await this.state()] };
       }
@@ -473,6 +505,12 @@ export class BrowserSession {
   }
 
   async close(): Promise<void> {
-    await this.ctx.close().catch(() => {});
+    if (!this.shared) {
+      await this.ctx.close().catch(() => {});
+      return;
+    }
+    // Egasining Chrome'i: faqat yordamchi ochgan vkladkalar yopiladi, Chrome va egasining vkladkalari qoladi
+    if (this.onPage) this.ctx.off('page', this.onPage);
+    await Promise.all([...this.tabs.values()].map(p => p.close().catch(() => {})));
   }
 }

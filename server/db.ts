@@ -168,8 +168,11 @@ export interface BusinessRow {
   supportUntil: string | null;
   /** Jamoa kirishlari avlodi: egasi o'chirganda oshadi — qayta yoqsa ham eski kirishlar qaytmaydi */
   supportVer: number;
-  /** Yordamchi kompyuterda ishlaydimi — egasi Sozlamalar → «Kompyuterda ishlash» da o'zi yoqadi ('browser'); null — o'chiq (.env COMPUTER_USE baribir ustun) */
-  computerUse: 'browser' | null;
+  /**
+   * Yordamchi brauzerda ishlaydimi — egasi Sozlamalar → «Kompyuterda ishlash» da o'zi yoqadi: 'chrome' — egasining o'z Chrome'ida
+   * (kirgan saytlari bilan), 'browser' — alohida brauzerda; null — o'chiq (.env COMPUTER_USE baribir ustun)
+   */
+  computerUse: 'browser' | 'chrome' | null;
   createdAt: string;
 }
 
@@ -193,7 +196,7 @@ const toBusiness = (r: Raw): BusinessRow => ({
   supportAccess: Number(r.support_access ?? 0) === 1,
   supportUntil: str(r.support_until),
   supportVer: Number(r.support_ver ?? 0),
-  computerUse: r.computer_use === 'browser' ? 'browser' : null,
+  computerUse: r.computer_use === 'browser' || r.computer_use === 'chrome' ? r.computer_use : null,
   createdAt: String(r.created_at),
 });
 

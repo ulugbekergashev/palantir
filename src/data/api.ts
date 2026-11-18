@@ -112,8 +112,11 @@ export interface AccessView { state: 'active' | 'warn' | 'blocked'; message: str
 /** Palantir jamoasi kirishi: egasi ruxsat berganmi, hozirgi kirish jamoanikimi (mine), oxirgi kirishlar */
 /** allowed — doimiy ruxsat (so'ramasdan); until — egasi Telegram'da bergan bir martalik ruxsat shu paytgacha ochiq */
 /** Kompyuterda ishlash (server/computer): fixed — .env da o'rnatuvchi sozlagan (bu yerda o'zgarmaydi); owner — hozirgi kirish egasiniki */
+export type ComputerMode = 'off' | 'browser' | 'chrome';
+/** chrome — «Mening Chrome'im» rejimida: Chrome bormi, egasi ulanishni yoqqanmi (chrome://inspect), Palantir hozir ulanganmi */
 export interface ComputerView {
-  browser: boolean; desktop: boolean; fixed: boolean; owner: boolean; loginOpen: boolean;
+  browser: boolean; desktop: boolean; fixed: boolean; owner: boolean; loginOpen: boolean; mode: ComputerMode;
+  chrome: { installed: boolean; debugging: boolean; connected: boolean } | null;
   job: { id: string; task: string; status: string; steps: number; started: string } | null;
 }
 export interface SupportAccessView { allowed: boolean; until: string | null; hub: boolean; mine: boolean; visits: { at: string; ip: string | null; who: string | null }[] }
@@ -350,7 +353,9 @@ export const api = {
   license: () => call<{ license: LicenseView; access?: AccessView; support?: boolean }>('/license'),
   activateLicense: (key: string) => call<{ license: LicenseView }>('/license', { body: { key } }),
   computer: () => call<ComputerView>('/account/computer'),
-  setComputer: (browser: boolean) => call<ComputerView>('/account/computer', { method: 'PUT', body: { browser } }),
+  setComputer: (mode: ComputerMode) => call<ComputerView>('/account/computer', { method: 'PUT', body: { mode } }),
+  /** «Mening Chrome'im»: Chrome'da ulanish sozlamasi sahifasini (chrome://inspect) ochadi */
+  chromeSetup: () => call<{ ok: true }>('/account/computer/chrome-setup', { body: {} }),
   /** Saytga kirish oynasi Palantir o'rnatilgan kompyuterda ochiladi (parolni egasi o'zi kiritadi) */
   computerLogin: (url?: string) => call<{ text: string }>('/account/computer/login', { body: url ? { url } : {} }),
   closeComputerLogin: () => call<{ closed: boolean }>('/account/computer/login', { method: 'DELETE' }),

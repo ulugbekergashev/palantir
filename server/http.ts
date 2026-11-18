@@ -13,7 +13,8 @@ import { lanHost, lanMode, lanPeer } from './lan';
 import { activate, licenseStatus } from './license';
 import { accessView } from './hubAccess';
 import type { BotService } from './bot';
-import { ComputerError, closeLoginWindow, jobView, loginOpen, modeEnabled, openLoginWindow, runningJob, stopJob } from './computer/jobs';
+import { ComputerError, closeLoginWindow, jobView, loginOpen, modeEnabled, openLoginWindow, ownChromeMode, runningJob, stopJob } from './computer/jobs';
+import { openDebugSettings, ownChromeState } from './computer/ownChrome';
 import { costUsd } from './claude';
 import { GEMINI_USAGE_KIND, geminiCostUsd } from './gemini/think';
 import { subscriptionOn } from './subscription/engine';
@@ -484,27 +485,44 @@ export function createApp(bot: BotService) {
 
   // Kompyuterda ishlash (server/computer): egasi o'zi yoqadi — yordamchi alohida Chrome oynasida saytlarda ishlaydi, xavfli qadamdan
   // oldin Telegram'da so'raydi, pul zonasi kodda yopiq. .env COMPUTER_USE berilgan bo'lsa — o'rnatuvchining qarori, bu yerda o'zgarmaydi
-  const computerView = (req: Request, biz: BusinessRow) => {
+  const computerView = async (req: Request, biz: BusinessRow) => {
     const s = sessionOf(req);
     const job = runningJob(biz.id);
+    const own = ownChromeMode(biz);
     return {
       browser: modeEnabled('browser', biz), desktop: modeEnabled('desktop', biz), fixed: env.computerUse !== '',
+      // mode: 'chrome' — egasining o'z Chrome'i, 'browser' — alohida brauzer, 'off'
+      mode: own ? 'chrome' : modeEnabled('browser', biz) ? 'browser' : 'off',
+      chrome: own ? await ownChromeState() : null,
       owner: !s?.support && !s?.staff, loginOpen: loginOpen(biz.id), job: job ? jobView(job) : null,
     };
   };
-  app.get('/api/account/computer', asBiz((req, res, biz) => res.json(computerView(req, biz))));
+  app.get('/api/account/computer', asBiz(async (req, res, biz) => res.json(await computerView(req, biz))));
   app.put('/api/account/computer', asOwner(async (req, res, biz) => {
-    const p = z.object({ browser: z.boolean() }).safeParse(req.body);
+    // { mode } — yangi panel; { browser } — eski panel (true = alohida brauzer)
+    const p = z.union([z.object({ mode: z.enum(['off', 'browser', 'chrome']) }), z.object({ browser: z.boolean() })]).safeParse(req.body);
     if (!p.success) return bad(res, p.error);
     if (env.computerUse) return res.status(409).json({ error: "Buni o'rnatuvchi sozlagan (.env, COMPUTER_USE) — u o'zgartiradi" });
-    businesses.update(biz.id, { computerUse: p.data.browser ? 'browser' : null });
-    if (!p.data.browser) {
+    const mode = 'mode' in p.data ? p.data.mode : p.data.browser ? 'browser' : 'off';
+    const before = businesses.byId(biz.id) ?? biz;
+    businesses.update(biz.id, { computerUse: mode === 'off' ? null : mode });
+    // Rejim almashdi yoki o'chdi — boshlangan ish (eski brauzerda) va ochiq kirish oynasi to'xtaydi
+    if (mode === 'off' || before.computerUse !== mode) {
       // O'chirildi — boshlangan ish ham, ochiq kirish oynasi ham shu zahoti to'xtaydi
       stopJob(biz.id);
       await closeLoginWindow(biz.id);
     }
     void bot.syncCommands();
-    res.json(computerView(req, businesses.byId(biz.id) ?? biz));
+    res.json(await computerView(req, businesses.byId(biz.id) ?? biz));
+  }));
+  // «Mening Chrome'im»: ulanish sozlamasi sahifasini (chrome://inspect) egasining Chrome'ida ochadi — panel chrome:// ni o'zi ocholmaydi
+  app.post('/api/account/computer/chrome-setup', asOwner((_req, res) => {
+    try {
+      openDebugSettings();
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(409).json({ error: (e as Error).message });
+    }
   }));
   // Saytga kirish oynasi (Telegram'dagi /brauzer bilan bir xil): shu kompyuterda ochiladi, parolni egasi o'zi kiritadi — AI ko'rmaydi
   app.post('/api/account/computer/login', asOwner(async (req, res, biz) => {
