@@ -2,7 +2,7 @@
  * Egasining o'z Chrome'iga ulanish (server/computer/ownChrome.ts + browser.ts attach rejimi) — haqiqiy Chrome bilan, ko'rinmas:
  *   alohida vaqtinchalik profil bilan Chrome ochiladi («egasining Chrome'i»: unda egasining vkladkasi bor), Chrome o'zi DevToolsActivePort
  *   yozadi — Palantir uni topib ulanadi; yordamchi o'z vkladkasida ishlaydi, egasining vkladkasini ko'rmaydi va unga tegmaydi;
- *   ichki tarmoq yopiq; yopilganda faqat o'z vkladkasi yopiladi — Chrome ham, egasining vkladkasi ham qoladi; uzilgandan keyin ham Chrome tirik.
+ *   ichki tarmoq yopiq; ish tugaganda ish vkladkasi ochiq qoladi (cheklovsiz, endi egasiniki), bo'shi yopiladi; uzilgandan keyin ham Chrome tirik.
  *   Ulanish yoqilmagan (DevToolsActivePort yo'q yoki eskirgan) — tushunarli xato.
  * Ishga tushirish: npm run test:own-chrome
  */
@@ -70,7 +70,15 @@ try {
 
   await s.close();
   const after = b.contexts()[0].pages().map(p => p.url());
-  ok("yopildi: yordamchi vkladkalari yopildi, egasiniki qoldi", after.some(u => u.endsWith('/egasi')) && !after.some(u => u.endsWith('/ish')), after.join(', '));
+  ok("tugadi: ish vkladkasi ochiq qoldi (egasi davom etadi), bo'sh vkladka yopildi, egasiniki joyida",
+    after.some(u => u.endsWith('/egasi')) && after.some(u => u.endsWith('/ish')) && !after.some(u => u === 'about:blank'), after.join(', '));
+  // Endi u egasining vkladkasi: Palantir sayt cheklovi olib tashlangan
+  const other = createServer((_q, r) => r.end('boshqa sayt'));
+  const otherPort = await listen(other);
+  const left = b.contexts()[0].pages().find(p => p.url().endsWith('/ish'))!;
+  const opened = await left.goto(`http://127.0.0.1:${otherPort}/`).then(r => !!r?.ok(), () => false);
+  other.close();
+  ok("qolgan vkladkada egasi istalgan saytni ochadi (Palantir cheklovi yo'q)", opened);
   await releaseOwnChrome();
   await sleep(500);
   ok("uzilgandan keyin Chrome tirik (egasining Chrome'i o'chmadi)", chrome.exitCode === null);

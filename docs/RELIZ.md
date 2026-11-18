@@ -1,5 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.24 da yangi
+
+- **Sayt tasdiq so'rasa — ish to'xtamaydi:** Facebook yoki boshqa sayt «ключ доступа», PIN, barmoq izi yoki captcha so'rasa, Palantir tugmani o'zi bosadi, Telegram'da «Kompyuterda siz kerak» deb yozadi. Siz PIN kiritib «✅ Bajardim» ni bosasiz — ish o'sha joydan davom etadi.
+- **Vkladka yopilmaydi:** «Mening Chrome'im» rejimida ish tugagach Palantir'ning vkladkasi ochiq qoladi — natijani ko'rasiz, o'zingiz davom etasiz, qo'yilgan musiqa o'chmaydi.
+
 ## 0.4.22 da yangi
 
 - **Panel o'zi yangilanadi:** Palantir yangilansa, ochiq panel bir daqiqa ichida o'zi yangi ko'rinishga o'tadi — F5 bosish shart emas (biror narsa yozayotgan bo'lsangiz, tugashini kutadi).

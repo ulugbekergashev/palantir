@@ -170,21 +170,28 @@ export async function stopAllJobs(): Promise<void> {
 
 /**
  * Egasidan so'raydi: Telegram'da ikki tugma; javob kelmasa (COMPUTER_APPROVE_MINUTES) yoki ish to'xtasa — false.
- * what — bitta qisqa savol (birinchi qator); start — ishni boshlashdan oldingi so'rov: tafsiloti — topshiriq matni (qisqartirilgan)
+ * what — bitta qisqa savol (birinchi qator). kind: 'step' — xavfli qadamga ruxsat; 'start' — ishni boshlashdan oldin (tafsiloti — topshiriq matni);
+ * 'act' — egasi kompyuterda o'zi qiladigan qadam (kalit/PIN/barmoq izi bilan tasdiqlash, captcha): «Bajardim» bosilguncha ish kutadi
  */
-async function ask(biz: BusinessRow, l: Live, what: string, start = false): Promise<boolean> {
+async function ask(biz: BusinessRow, l: Live, what: string, kind: 'step' | 'start' | 'act' = 'step'): Promise<boolean> {
   const id = newId(8);
-  const html = start
+  const html = kind === 'start'
     ? `🖥 <b>${esc(what)}</b>\n\n<i>${esc(cut(l.job.goal, START_DETAIL_MAX))}</i>`
-    : `🖱 <b>Ruxsat kerak</b>\n${esc(cut(what, 400))}\n\n<i>Ish: ${esc(nameOf(l.job))}</i>`;
-  const keyboard = Markup.inlineKeyboard([[Markup.button.callback('✅ Ruxsat', `ca|${id}`), Markup.button.callback("✖️ Yo'q", `cx|${id}`)]]).reply_markup;
+    : kind === 'act'
+      ? `👆 <b>Kompyuterda siz kerak</b>\n${esc(cut(what, 400))}\n\nTugatgach «✅ Bajardim» ni bosing — ishni davom ettiraman.\n<i>Ish: ${esc(nameOf(l.job))}</i>`
+      : `🖱 <b>Ruxsat kerak</b>\n${esc(cut(what, 400))}\n\n<i>Ish: ${esc(nameOf(l.job))}</i>`;
+  const [yesLabel, noLabel] = kind === 'act' ? ['✅ Bajardim', '✖️ Qila olmayman'] : ['✅ Ruxsat', "✖️ Yo'q"];
+  const keyboard = Markup.inlineKeyboard([[Markup.button.callback(yesLabel, `ca|${id}`), Markup.button.callback(noLabel, `cx|${id}`)]]).reply_markup;
   const messageId = await notifyOwner(biz, html, keyboard).catch(() => null);
   if (messageId === null) return false;
   const answer = await new Promise<boolean | null>(resolve => {
     const timer = setTimeout(() => { l.approvals.delete(id); resolve(null); }, env.computerApproveMinutes * 60_000);
     l.approvals.set(id, yes => { clearTimeout(timer); resolve(yes); });
   });
-  const verdict = l.abort.signal.aborted ? "⏹ Ish to'xtatildi" : answer === null ? `⌛ Javob bo'lmadi (${env.computerApproveMinutes} daqiqa) — bajarilmadi` : answer ? '✅ Ruxsat berildi' : "✖️ Rad etildi — bajarilmadi";
+  const verdict = l.abort.signal.aborted ? "⏹ Ish to'xtatildi"
+    : answer === null ? `⌛ Javob bo'lmadi (${env.computerApproveMinutes} daqiqa) — bajarilmadi`
+      : kind === 'act' ? (answer ? '✅ Bajarildi — davom etyapman' : '✖️ Qilinmadi')
+        : answer ? '✅ Ruxsat berildi' : "✖️ Rad etildi — bajarilmadi";
   await editOwner(biz, messageId, `${html}\n\n${verdict}`).catch(() => {});
   return answer === true;
 }
@@ -208,6 +215,17 @@ const CONFIRM_TOOL: Anthropic.Beta.BetaTool = {
   strict: true,
 };
 
+/**
+ * Faqat inson qila oladigan qadam (egasi ekranni ko'radi: o'z Chrome'i yoki butun kompyuter) — ish to'xtamaydi, egasini kutadi.
+ * 2026-11-19: Meta «ключ доступа» so'radi — operator ishni tashlab ketdi, egasi esa o'zi qayta boshlashi kerak bo'ldi
+ */
+const OWNER_ACT_TOOL: Anthropic.Beta.BetaTool = {
+  name: 'ask_owner_to_act',
+  description: 'Ask the owner to do, on this computer, a step only a person can do, and wait for it: confirm identity with a passkey, Windows Hello, fingerprint, face or PIN; solve a captcha; approve a sign-in on their phone; log in or enter a one-time code themselves. First click the button that starts it yourself (e.g. «Use a passkey» / «Использовать ключ доступа» / «Continue») so the system window is already on the screen. Describe in one short sentence in the owner\'s language exactly what to do (e.g. «Ekrandagi Windows oynasida PIN kodingizni kiriting»). Waits until the owner presses «Done» in Telegram; returns "done" or "not done". After "done", look at the page again and continue the task.',
+  input_schema: { type: 'object', properties: { step: { type: 'string', description: 'What the owner should do now, one sentence' } }, required: ['step'], additionalProperties: false },
+  strict: true,
+};
+
 /** Hisobotning birinchi qatoridagi belgi (systemPrompt): bajarildimi. Belgi yo'q (eski model javobi) — bajarildi deb olinadi */
 export function outcomeOf(report: string): { ok: boolean; text: string } {
   const m = report.match(/^\s*\[(BAJARILDI|BAJARILMADI)\]\s*/i);
@@ -220,8 +238,9 @@ function systemPrompt(job: JobRow, biz: BusinessRow, own: boolean): string {
     : own
       ? "You control your own tab in the owner's everyday Chrome through the browser toolset: the owner is already logged into their sites there. Never touch or read the owner's other tabs. Prefer read_page, find and get_page_text to screenshots; use refs from read_page for clicks and form_input."
       : 'You control a separate Chrome window through the browser toolset (its own profile: sites the owner logged into with the /brauzer command stay logged in). Prefer read_page, find and get_page_text to screenshots; use refs from read_page for clicks and form_input.';
-  const login = own
-    ? 'If a site needs a login, stop and tell the owner to log into that site in their Chrome, then give the task again.'
+  // Egasi ekranni ko'radi (o'z Chrome'i yoki butun kompyuter) — kirish/tasdiqlashda ish to'xtamaydi: tugmani operator bosadi, qolganini egasi qiladi
+  const login = own || job.mode === 'desktop'
+    ? 'If a site asks to log in or to confirm it is the owner (passkey, Windows Hello, fingerprint, face, PIN, captcha, a code or approval on their phone), do not give up: click the button that starts it yourself (e.g. «Use a passkey» / «Использовать ключ доступа»), then call ask_owner_to_act and continue the task after "done". Stop with [BAJARILMADI] only if the owner answers "not done".'
     : 'If a site needs a login, stop and tell the owner to log in with the /brauzer command, then give the task again.';
   return `You are Palantir's computer operator, doing one task for ${biz.profile.ownerName || 'the owner'} of «${biz.profile.name}» (Uzbekistan). ${where}
 
@@ -261,7 +280,7 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
       const what = job.mode === 'desktop'
         ? `Kompyuteringizda (sichqoncha va klaviatura bilan) boshlaymi: ${nameOf(job, TITLE_MAX)}? Ish paytida kompyuterga tegmang.`
         : `Boshlaymi: ${nameOf(job, TITLE_MAX)}?`;
-      if (!(await ask(biz, l, what, true))) {
+      if (!(await ask(biz, l, what, 'start'))) {
         if (l.abort.signal.aborted) throw new Stopped("Egasi to'xtatdi");
         set({ status: 'stopped', report: 'Egasi boshlashga ruxsat bermadi' });
         // Javob bermagan yoki adashib «Yo'q» bosgan bo'lsa — vazifani qayta aytmasdan bir bosishda boshlaydi
@@ -275,9 +294,10 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
     mkdirSync(dir, { recursive: true });
     // Brauzer xavfli tugmani o'zi taniydi va har safar haqiqiy nomi bilan so'raydi (modelning oldingi «ruxsat oldim»i hisobga olinmaydi)
     const gate = (what: string) => ask(biz, l, what);
+    let attach: Awaited<ReturnType<typeof connectOwnChrome>> | undefined;
     if (job.mode === 'browser') {
       // Egasining o'z Chrome'i: ulanish birinchi marta ochilganda Chrome «Allow?» so'raydi — egasiga Telegram'da aytiladi
-      const attach = ownChromeMode(businesses.byId(biz.id) ?? biz)
+      attach = ownChromeMode(businesses.byId(biz.id) ?? biz)
         ? await connectOwnChrome(() => { void notifyOwner(biz, "🖥 Chrome'ingizda ruxsat so'rovi chiqdi — «Allow» ni bosing, shundan keyin ishni boshlayman.").catch(() => null); })
         : undefined;
       browser = await BrowserSession.open({
@@ -288,9 +308,10 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
       desktop = await DesktopSession.open(await startDriver(join(env.dataDir, 'kompyuter'), env.computerFakeScreen, process.env.COMPUTER_FAKE_LOG || ''));
     }
 
-    const tools: Anthropic.Beta.BetaToolUnion[] = [job.mode === 'browser' ? BROWSER_TOOLSET : COMPUTER_TOOLSET, CONFIRM_TOOL];
+    const own = job.mode === 'browser' && !!attach;
+    const tools: Anthropic.Beta.BetaToolUnion[] = [job.mode === 'browser' ? BROWSER_TOOLSET : COMPUTER_TOOLSET, CONFIRM_TOOL, ...(own || job.mode === 'desktop' ? [OWNER_ACT_TOOL] : [])];
     const messages: Msg[] = [{ role: 'user', content: 'Start the task.' }];
-    const system = systemPrompt(job, biz, job.mode === 'browser' && ownChromeMode(businesses.byId(biz.id) ?? biz));
+    const system = systemPrompt(job, biz, own);
     const started = Date.now();
     let report = '';
 
@@ -340,6 +361,11 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
           const what = String((c.input as { action?: unknown }).action ?? '').slice(0, 500);
           const yes = what ? await ask(biz, l, what) : false;
           out = { content: [{ type: 'text', text: yes ? 'approved' : 'declined' }] };
+        } else if (!toolset && c.name === 'ask_owner_to_act' && tools.includes(OWNER_ACT_TOOL)) {
+          const step = String((c.input as { step?: unknown }).step ?? '').slice(0, 500);
+          await status(biz, l, step, true);
+          const done = step ? await ask(biz, l, step, 'act') : false;
+          out = { content: [{ type: 'text', text: done ? 'done' : 'not done' }] };
         } else if (toolset === 'browser' && browser) {
           out = await abortable(browser.run(c.name, (c.input ?? {}) as Record<string, unknown>), l.abort.signal);
         } else if (toolset === 'computer' && desktop) {

@@ -30,6 +30,7 @@ const text = (t: string): MemberResult => ({ content: [{ type: 'text', text: t }
 const fail = (t: string): MemberResult => ({ content: [{ type: 'text', text: t }], isError: true });
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const clampWait = (s: unknown) => Math.max(0, Math.min(MAX_WAIT_S, Number(s) || 0));
+const isBlank = (url: string) => !url || url === 'about:blank' || url.startsWith('chrome://newtab');
 
 /** Sahifada ishlaydigan kod: elementlar daraxti (ref bilan), elementni ref yoki nuqta bo'yicha topish, element haqida ma'lumot */
 const PAGE_HELPERS = `(() => {
@@ -509,8 +510,9 @@ export class BrowserSession {
       await this.ctx.close().catch(() => {});
       return;
     }
-    // Egasining Chrome'i: faqat yordamchi ochgan vkladkalar yopiladi, Chrome va egasining vkladkalari qoladi
+    // Egasining Chrome'i: ish vkladkasi yopilmaydi — egasi natijani ko'radi, o'sha joydan o'zi davom etadi, qo'yilgan musiqa o'chmaydi
+    // (2026-11-19 egasi: «вкладку закрыл — зачем?»). Vkladka endi egasiniki: Palantir qoidalari (sayt cheklovi) olib tashlanadi; bo'sh vkladkalar yopiladi
     if (this.onPage) this.ctx.off('page', this.onPage);
-    await Promise.all([...this.tabs.values()].map(p => p.close().catch(() => {})));
+    await Promise.all([...this.tabs.values()].map(p => (isBlank(p.url()) ? p.close() : p.unrouteAll({ behavior: 'ignoreErrors' })).catch(() => {})));
   }
 }

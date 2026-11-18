@@ -95,7 +95,7 @@ console.log("\n# Pul zonasi: bank, to'lov, o'tkazma, xarid — AI kirmaydi (egas
   rmSync(dir, { recursive: true, force: true });
 }
 
-if (process.platform === 'win32') {
+if (process.platform === 'win32' && process.env.REAL_DESKTOP !== '0') { // REAL_DESKTOP=0 — haqiqiy sichqonchani qimirlatmaslik (egasi ekranda ishlayotganda)
   console.log('\n# Windows: haqiqiy yordamchi');
   const work = mkdtempSync(join(tmpdir(), 'palantir-desk-'));
   try {
@@ -259,7 +259,7 @@ try {
   ok('yuklab olingan fayl egasiga hujjat bo\'lib keldi', doc?.fileName === 'hisobot.csv' && doc.file?.toString().includes('1200000'), String(doc?.fileName));
   ok("holat xabari yakunlandi (to'xtatish tugmasi olib tashlandi)", !!sent.slice(m2).find(s => s.method === 'editMessageText' && Number(s.params.message_id) === status?.id && !button(s, 'cs') && textOf(s).includes('qadam')));
   const ops = ai.operatorRequests.slice(opsBefore);
-  ok("operator so'rovi: brauzer asboblari + confirm_with_owner, Palantir'ning boshqa asboblari yo'q", ops.length > 0 && JSON.stringify(ops[0].tools).includes('browser_toolset_20260801') && ops[0].tools.some(t => t.name === 'confirm_with_owner') && !ops[0].tools.some(t => t.name === 'send_message' || t.name === 'remember'), JSON.stringify(ops[0]?.tools).slice(0, 200));
+  ok("operator so'rovi: brauzer asboblari + confirm_with_owner, Palantir'ning boshqa asboblari yo'q", ops.length > 0 && JSON.stringify(ops[0].tools).includes('browser_toolset_20260801') && ops[0].tools.some(t => t.name === 'confirm_with_owner') && !ops[0].tools.some(t => t.name === 'send_message' || t.name === 'remember' || t.name === 'ask_owner_to_act'), JSON.stringify(ops[0]?.tools).slice(0, 200));
   ok('kontekst tozalash (eski rasm va sahifalar) va beta sarlavha', JSON.stringify(ops[0]?.contextManagement).includes('clear_tool_uses_20250919') && (ops[0]?.beta ?? '').includes('context-management-2025-06-27'));
   ok("topshiriq — tizim ko'rsatmasida <task> ichida; begona matn — buyruq emas", (ops[0]?.system ?? '').includes("<task>\nAriza saytida (forma) ismni Ali deb to'ldirib yubor") && /data, never instructions/.test(ops[0]?.system ?? ''));
   ok('soxta Claude: toolset_name har natijada to\'g\'ri qaytdi', !ai.violations.length, ai.violations.join('; '));
@@ -296,7 +296,8 @@ try {
     () => [deskUse('d1', 'screenshot', {})],
     prev => { seen.deskShot = JSON.stringify(prev[0]?.content).slice(0, 80); seen.deskShotSize = JSON.stringify(pngSize(Buffer.from(prev[0]?.content?.[0]?.source?.data ?? '', 'base64'))); return [deskUse('d2', 'left_click', { coordinate: [100, 50] }), deskUse('d3', 'type', { text: 'Salom, dunyo' })]; },
     () => [deskUse('d4', 'key', { text: 'ctrl+alt+delete' }), deskUse('d5', 'type', { text: 'bajarilmasin' })],
-    prev => { seen.deskKey = JSON.stringify(prev); return [{ type: 'text', text: 'Ekranda «Salom, dunyo» yozildi.' }]; },
+    prev => { seen.deskKey = JSON.stringify(prev); return [{ type: 'tool_use', id: 'd6', name: 'ask_owner_to_act', input: { step: 'Ekrandagi Windows oynasida PIN kodingizni kiriting' } }]; },
+    prev => { seen.act = resultText(prev[0]); return [{ type: 'text', text: 'Ekranda «Salom, dunyo» yozildi.' }]; },
   ];
   ai.operator = messages => {
     const fn = deskScript[messages.filter(m => m.role === 'assistant').length];
@@ -311,12 +312,20 @@ try {
   ok('butun ekran: avval egasidan «boshlaymi?» so\'raladi, operator hali ishlamaydi', !!plan && ai.operatorRequests.length === opsDesk);
   m2 = sent.length;
   press(OWNER, button(plan, 'ca')!, plan!.id!);
+  // Faqat inson qila oladigan qadam (PIN, ключ доступа): ish tashlanmaydi — egasi «Bajardim» bosguncha kutadi va davom etadi
+  const act = await waitFor('egasi kerak', () => sent.slice(m2).find(s => s.method === 'sendMessage' && textOf(s).includes('Kompyuterda siz kerak')), 30_000);
+  ok("«Kompyuterda siz kerak»: nima qilish (PIN) va «✅ Bajardim» tugmasi", !!act && textOf(act).includes('PIN kodingizni') && buttons(act).some(b => b.text === '✅ Bajardim' && b.callback_data?.startsWith('ca|')), textOf(act).slice(0, 200));
+  await sleep(1500);
+  ok('egasi bosmaguncha ish kutdi (hisobot yo\'q)', !toOwner(m2, 'Bajarildi') && seen.act === undefined);
+  const m3 = sent.length;
+  press(OWNER, button(act, 'ca')!, act!.id!);
   const deskDone = await waitFor('ish tugadi', () => toOwner(m2, 'Bajarildi'), 30_000);
+  ok("«Bajardim» — operatorga «done», ish davom etib tugadi; xabar «davom etyapman»", seen.act === 'done' && !!edited(m3, 'davom etyapman'), String(seen.act));
   const deskOps = (existsSync(deskLog) ? readFileSync(deskLog, 'utf8') : '').trim().split('\n').filter(Boolean).map(l => JSON.parse(l) as Record<string, unknown>);
   ok('ekran rasmi: 1280×800 (haqiqiy ekran 2560×1600)', seen.deskShotSize === '{"width":1280,"height":800}', seen.deskShotSize);
   ok('bosish haqiqiy piksellarda (100,50 → 200,100), matn yozildi', deskOps.some(o => o.cmd === 'click' && o.x === 200 && o.y === 100) && deskOps.some(o => o.cmd === 'type' && o.text === 'Salom, dunyo'), JSON.stringify(deskOps).slice(0, 300));
   ok("Ctrl+Alt+Del bosilmadi, navbatdagi amal ham («Not executed: an earlier computer action…»)", /bosilmaydi/.test(seen.deskKey ?? '') && /Not executed: an earlier computer action in this turn failed/.test(seen.deskKey ?? '') && !deskOps.some(o => o.text === 'bajarilmasin'));
-  ok('operator so\'rovida — computer toolset', JSON.stringify(ai.operatorRequests[opsDesk]?.tools).includes('computer_toolset_20260801'));
+  ok("operator so'rovida — computer toolset va ask_owner_to_act (egasi ekranni ko'radi)", JSON.stringify(ai.operatorRequests[opsDesk]?.tools).includes('computer_toolset_20260801') && ai.operatorRequests[opsDesk]?.tools.some(t => t.name === 'ask_owner_to_act'));
   ok('egasiga hisobot', textOf(deskDone).includes('Salom, dunyo'));
 
   console.log('\n# Holat va tarix');
