@@ -1,5 +1,9 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.25 da yangi
+
+- **Chrome'dagi «Allow» uchun ko'proq vaqt:** Palantir 5 daqiqa kutadi. Ulgurmasangiz ish yo'qolmaydi — Telegram'da «▶️ Qayta boshlash» tugmasi keladi.
+
 ## 0.4.24 da yangi
 
 - **Sayt tasdiq so'rasa — ish to'xtamaydi:** Facebook yoki boshqa sayt «ключ доступа», PIN, barmoq izi yoki captcha so'rasa, Palantir tugmani o'zi bosadi, Telegram'da «Kompyuterda siz kerak» deb yozadi. Siz PIN kiritib «✅ Bajardim» ni bosasiz — ish o'sha joydan davom etadi.

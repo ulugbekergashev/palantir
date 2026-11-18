@@ -13,8 +13,8 @@ import { join } from 'node:path';
 import { chromium, type Browser } from 'playwright-core';
 import { installedBrowser } from '../browserPath';
 
-/** Egasi Chrome'da «Allow» ni bosishini shuncha kutadi */
-export const CONSENT_WAIT_MS = 90_000;
+/** Egasi Chrome'da «Allow» ni bosishini shuncha kutadi (90 s kam edi: egasi Telegram xabarini ko'rib, Chrome'ga o'tguncha vaqt o'tdi — 2026-11-19) */
+export const CONSENT_WAIT_MS = 5 * 60_000;
 const PORT_CHECK_MS = 1_500;
 export const DEBUG_SETTINGS_URL = 'chrome://inspect/#remote-debugging';
 

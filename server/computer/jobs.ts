@@ -22,7 +22,7 @@ import { notifyOwner, notifyOwnerFile, editOwner } from '../inbox/core';
 import { BROWSER_TOOLSET, BrowserSession, type MemberResult } from './browser';
 import { COMPUTER_TOOLSET, DesktopSession, startDriver } from './desktop';
 import { MONEY_ZONE, moneyTask } from './money';
-import { connectOwnChrome } from './ownChrome';
+import { OwnChromeError, connectOwnChrome } from './ownChrome';
 
 export type JobMode = 'browser' | 'desktop';
 export type JobStatus = 'waiting' | 'running' | 'done' | 'failed' | 'stopped';
@@ -386,6 +386,12 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
     await finishMessage(biz, l, `${outcome.ok ? '✅ <b>Bajarildi</b>' : '⚠️ <b>Bajarilmadi</b>'}: ${esc(nameOf(job, 200))}\n\n${esc(job.report ?? '')}`, files);
   } catch (e) {
     if (browser) files.push(...await browser.saved(5_000));
+    // Chrome'ga ulanib bo'lmadi («Allow» bosilmadi, ulanish yoqilmagan) — ish boshlanmagan: yo'qolmaydi, bir bosishda qayta boshlanadi
+    if (e instanceof OwnChromeError && job.steps === 0) {
+      set({ status: 'stopped', report: `Boshlanmadi: ${e.message}` });
+      await finishMessage(biz, l, `⏹ <b>Ish boshlanmadi</b>: ${esc(nameOf(job, 200))}\n\n${esc(e.message)}\n\nTayyor bo'lsangiz — «▶️ Qayta boshlash».`, files, restartKeyboard(job.id));
+      return;
+    }
     const stopped = e instanceof Stopped, limit = e instanceof Limit;
     const reason = stopped || limit ? e.message : e instanceof Anthropic.APIError ? `AI xatosi (${e.status ?? 'aloqa'})` : (e as Error).message.slice(0, 300);
     if (!stopped && !limit) console.error('[kompyuter]', e);
@@ -427,10 +433,10 @@ const abortable = <T,>(work: Promise<T>, signal: AbortSignal): Promise<T> => new
 
 const MAX_FILE_BYTES = 45 * 1024 * 1024;
 
-async function finishMessage(biz: BusinessRow, l: Live, html: string, files: string[]): Promise<void> {
+async function finishMessage(biz: BusinessRow, l: Live, html: string, files: string[], keyboard?: ReturnType<typeof restartKeyboard>): Promise<void> {
   // Narx egasiga ko'rsatilmaydi (bazada va panelda qoladi): Telegram'da faqat nima qilingani
   if (l.statusMessage !== null) await editOwner(biz, l.statusMessage, `🖥 ${esc(nameOf(l.job, 160))} · ${l.job.steps} qadam`).catch(() => {});
-  await notifyOwner(biz, html).catch(() => null);
+  await notifyOwner(biz, html, keyboard).catch(() => null);
   for (const f of files.slice(0, 10)) {
     try {
       if (statSync(f).size > MAX_FILE_BYTES) { await notifyOwner(biz, `📎 ${esc(basename(f))} — Telegram uchun juda katta, kompyuterda: ${esc(f)}`); continue; }

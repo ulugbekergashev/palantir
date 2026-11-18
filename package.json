@@ -1,7 +1,7 @@
 {
   "name": "palantir",
   "private": true,
-  "version": "0.4.24",
+  "version": "0.4.25",
   "description": "Palantir — har qanday biznes uchun AI yordamchi (Telegram + panel)",
   "type": "module",
   "scripts": {
@@ -50,6 +50,7 @@
     "test:backup": "tsx scripts/check-backup.ts",
     "test:install": "tsx scripts/check-install.ts",
     "test:dialplan": "tsx scripts/check-dialplan.ts",
+    "test:dasturchi": "tsx scripts/check-dasturchi.ts",
     "test:strangers": "tsx scripts/check-strangers.ts",
     "test:watchdog": "tsx scripts/check-watchdog.ts",
     "test:monitor": "tsx scripts/check-monitor.ts",
