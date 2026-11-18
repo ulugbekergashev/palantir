@@ -328,24 +328,24 @@ try {
   ai.operator = () => ({ content: [{ type: 'text', text: 'Tamom: kalkulyator ochildi' }], stop: 'end_turn' });
   ai.owner = messages => (lastResults(messages)[0]
     ? { content: [{ type: 'text', text: 'Boshladim' }], stop: 'end_turn' }
-    : { content: [{ type: 'tool_use', id: `tu_${Date.now()}`, name: 'computer_task', input: { task: "Kalkulyatorni ochib, 2+2 ni hisobla va natijani yoz. Boshqa dasturlarga tegma.", title: 'Kalkulyatorda 2+2', where: 'desktop' } }], stop: 'tool_use' });
+    : { content: [{ type: 'tool_use', id: `tu_${Date.now()}`, name: 'computer_task', input: { task: "Kalkulyatorni ochib, 2+2 ni hisobla va natijani yoz. Boshqa dasturlarga tegma.", title: 'Kalkulyatorda  2+2 ni   hisobla', where: 'desktop' } }], stop: 'tool_use' });
   mark = sent.length;
   say(OWNER, 'Kalkulyatorda 2+2 ni hisobla');
   const ask2 = await waitFor('boshlash so\'rovi', () => sent.slice(mark).find(s => s.method === 'sendMessage' && !!button(s, 'cx')), 20_000);
-  ok("«Boshlaymi?» — birinchi qatorda qisqa sarlavha, tafsiloti pastda", /^🖥 <b>Kompyuteringizda .*boshlaymi: Kalkulyatorda 2\+2\?/.test(textOf(ask2)) && textOf(ask2).includes('Boshqa dasturlarga tegma'), textOf(ask2).slice(0, 300));
+  ok("«Boshlaymi?» — birinchi qatorda qisqa sarlavha, tafsiloti pastda", /^🖥 <b>Kompyuteringizda .*boshlaymi: Kalkulyatorda 2\+2 ni hisobla\?/.test(textOf(ask2)) && textOf(ask2).includes('Boshqa dasturlarga tegma'), textOf(ask2).slice(0, 300));
   m2 = sent.length;
   press(OWNER, button(ask2, 'cx')!, ask2!.id!);
   const notStarted = await waitFor('ish boshlanmadi', () => toOwner(m2, 'Ish boshlanmadi'), 20_000);
-  ok("rad etildi — «Ish boshlanmadi: Kalkulyatorda 2+2» va «▶️ Qayta boshlash» tugmasi", !!button(notStarted, 'cr') && textOf(notStarted).includes('Kalkulyatorda 2+2'), textOf(notStarted));
+  ok("rad etildi — «Ish boshlanmadi: Kalkulyatorda 2+2» va «▶️ Qayta boshlash» tugmasi", !!button(notStarted, 'cr') && textOf(notStarted).includes('Kalkulyatorda 2+2 ni hisobla'), textOf(notStarted));
   const jobsBefore = new DatabaseSync(join(dataDir, 'palantir.db'), { readOnly: true }).prepare('SELECT COUNT(*) AS n FROM computer_jobs').get() as { n: number };
   m2 = sent.length;
   press(OWNER, button(notStarted, 'cr')!, notStarted!.id!);
   const restarted = await waitFor('qayta boshlangan ish tugadi', () => toOwner(m2, 'Ish tugadi'), 30_000);
-  ok("bosildi — o'sha ish qayta so'ramasdan boshlandi va tugadi", !!restarted && textOf(restarted).includes('Kalkulyatorda 2+2') && !sent.slice(m2).some(s => s.method === 'sendMessage' && !!button(s, 'cx')), textOf(restarted).slice(0, 160));
+  ok("bosildi — o'sha ish qayta so'ramasdan boshlandi va tugadi", !!restarted && textOf(restarted).includes('Kalkulyatorda 2+2 ni hisobla') && !sent.slice(m2).some(s => s.method === 'sendMessage' && !!button(s, 'cx')), textOf(restarted).slice(0, 160));
   const db2 = new DatabaseSync(join(dataDir, 'palantir.db'), { readOnly: true });
   const last2 = db2.prepare('SELECT goal, title, status FROM computer_jobs ORDER BY created_at DESC LIMIT 1').get() as { goal: string; title: string; status: string };
   ok('bazada yangi ish: o\'sha topshiriq va sarlavha, bajarildi', (db2.prepare('SELECT COUNT(*) AS n FROM computer_jobs').get() as { n: number }).n === jobsBefore.n + 1
-    && last2.title === 'Kalkulyatorda 2+2' && last2.goal.startsWith('Kalkulyatorni ochib') && last2.status === 'done', JSON.stringify(last2));
+    && last2.title === 'Kalkulyatorda 2+2 ni hisobla' && last2.goal.startsWith('Kalkulyatorni ochib') && last2.status === 'done', JSON.stringify(last2));
   const toastsCr = toasts(m2);
   ok("tugmani qayta bosish — «allaqachon bajarilgan»", await (async () => {
     const m3 = sent.length;

@@ -104,7 +104,7 @@ export function startJob(biz: BusinessRow, goal: string, mode: JobMode, confirmF
   const prev = live.get(biz.id);
   if (prev && !prev.abort.signal.aborted) throw new ComputerError(`Hozir boshqa ish bajarilyapti: «${cut(prev.job.goal, 80)}». Tugashini kuting yoki /toxta bilan to'xtating`);
   if (loginWindows.has(biz.id)) throw new ComputerError("Brauzer oynasi ochiq (/brauzer — saytga kirish). Avval uni yoping: «✅ Kirdim, yopish» tugmasi");
-  const job: JobRow = { id: newId(10), businessId: biz.id, goal: goal.trim(), title: title?.replace(/s+/g, ' ').trim().slice(0, TITLE_MAX) || null, mode, status: 'waiting', report: null, steps: 0, costUsd: 0, createdAt: new Date().toISOString(), finishedAt: null };
+  const job: JobRow = { id: newId(10), businessId: biz.id, goal: goal.trim(), title: title?.replace(/\s+/g, ' ').trim().slice(0, TITLE_MAX) || null, mode, status: 'waiting', report: null, steps: 0, costUsd: 0, createdAt: new Date().toISOString(), finishedAt: null };
   sql.run('INSERT INTO computer_jobs (id, business_id, goal, title, mode, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', job.id, biz.id, job.goal, job.title, mode, job.status, job.createdAt);
   const l: Live = { job, confirmFirst, preApproved, abort: new AbortController(), approvals: new Map(), statusMessage: null, lastStatusAt: 0 };
   live.set(biz.id, l);
