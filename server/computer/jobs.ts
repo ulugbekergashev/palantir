@@ -26,18 +26,20 @@ import { connectOwnChrome } from './ownChrome';
 
 export type JobMode = 'browser' | 'desktop';
 export type JobStatus = 'waiting' | 'running' | 'done' | 'failed' | 'stopped';
-export interface JobRow { id: string; businessId: string; goal: string; mode: JobMode; status: JobStatus; report: string | null; steps: number; costUsd: number; createdAt: string; finishedAt: string | null }
+export interface JobRow { id: string; businessId: string; goal: string; title: string | null; mode: JobMode; status: JobStatus; report: string | null; steps: number; costUsd: number; createdAt: string; finishedAt: string | null }
 
 sql.exec(`CREATE TABLE IF NOT EXISTS computer_jobs (
   id TEXT PRIMARY KEY, business_id TEXT NOT NULL, goal TEXT NOT NULL, mode TEXT NOT NULL, status TEXT NOT NULL, report TEXT,
   steps INTEGER NOT NULL DEFAULT 0, cost_usd REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL, finished_at TEXT
 );
 CREATE INDEX IF NOT EXISTS computer_jobs_biz ON computer_jobs (business_id, created_at);`);
+// title — bir qatorlik sarlavha (Telegram xabarlarida: «Boshlaymi?», holat, natija); eski ishlarda yo'q
+sql.ensureColumns('computer_jobs', { title: 'TEXT' });
 // Server to'xtab qolganda ishlayotgan ish — tugamagan bo'lib qoladi
 sql.run("UPDATE computer_jobs SET status = 'stopped', report = COALESCE(report, 'Server qayta ishga tushdi — ish to''xtadi'), finished_at = ? WHERE status IN ('waiting', 'running')", new Date().toISOString());
 
 const toJob = (r: Record<string, unknown>): JobRow => ({
-  id: String(r.id), businessId: String(r.business_id), goal: String(r.goal), mode: r.mode === 'desktop' ? 'desktop' : 'browser', status: String(r.status) as JobStatus,
+  id: String(r.id), businessId: String(r.business_id), goal: String(r.goal), title: sql.str(r.title), mode: r.mode === 'desktop' ? 'desktop' : 'browser', status: String(r.status) as JobStatus,
   report: sql.str(r.report), steps: Number(r.steps) || 0, costUsd: Number(r.cost_usd) || 0, createdAt: String(r.created_at), finishedAt: sql.str(r.finished_at),
 });
 export const computerJobs = {
@@ -49,6 +51,8 @@ export const computerJobs = {
 interface Live {
   job: JobRow;
   confirmFirst: boolean;
+  /** Egasi «▶️ Qayta boshlash» ni o'zi bosgan — boshlashdan oldin qayta so'ralmaydi (butun ekranda ham) */
+  preApproved: boolean;
   abort: AbortController;
   /** Egasi javobini kutayotgan so'rovlar: id → yechim */
   approvals: Map<string, (yes: boolean) => void>;
@@ -92,7 +96,7 @@ const NOT_ON = "Sozlamalar → «Kompyuterda ishlash» da yoqing";
  * Ish boshlanadi (fonda). Qaytaradi: ish yozuvi. Bu paytda boshqa ish bo'lsa yoki rejim o'chiq bo'lsa — ComputerError.
  * confirmFirst — topshiriq matni egasining shu payt yozgani emas bo'lishi mumkin: avval egasi tasdiqlaydi (desktopda — har doim)
  */
-export function startJob(biz: BusinessRow, goal: string, mode: JobMode, confirmFirst = false): JobRow {
+export function startJob(biz: BusinessRow, goal: string, mode: JobMode, confirmFirst = false, title: string | null = null, preApproved = false): JobRow {
   if (!modeEnabled(mode, businesses.byId(biz.id) ?? biz)) throw new ComputerError(mode === 'desktop' ? "Butun kompyuterda ishlash yoqilmagan (o'rnatuvchi: .env da COMPUTER_USE=desktop yoki all)" : `Brauzerda ishlash yoqilmagan: ${NOT_ON}`);
   // Pul zonasi (money.ts): bank, to'lov, o'tkazma, xarid — topshiriq boshlanmaydi, egasining tasdig'i bilan ham
   const money = moneyTask(goal);
@@ -100,14 +104,41 @@ export function startJob(biz: BusinessRow, goal: string, mode: JobMode, confirmF
   const prev = live.get(biz.id);
   if (prev && !prev.abort.signal.aborted) throw new ComputerError(`Hozir boshqa ish bajarilyapti: «${cut(prev.job.goal, 80)}». Tugashini kuting yoki /toxta bilan to'xtating`);
   if (loginWindows.has(biz.id)) throw new ComputerError("Brauzer oynasi ochiq (/brauzer — saytga kirish). Avval uni yoping: «✅ Kirdim, yopish» tugmasi");
-  const job: JobRow = { id: newId(10), businessId: biz.id, goal: goal.trim(), mode, status: 'waiting', report: null, steps: 0, costUsd: 0, createdAt: new Date().toISOString(), finishedAt: null };
-  sql.run('INSERT INTO computer_jobs (id, business_id, goal, mode, status, created_at) VALUES (?, ?, ?, ?, ?, ?)', job.id, biz.id, job.goal, mode, job.status, job.createdAt);
-  const l: Live = { job, confirmFirst, abort: new AbortController(), approvals: new Map(), statusMessage: null, lastStatusAt: 0 };
+  const job: JobRow = { id: newId(10), businessId: biz.id, goal: goal.trim(), title: title?.replace(/s+/g, ' ').trim().slice(0, TITLE_MAX) || null, mode, status: 'waiting', report: null, steps: 0, costUsd: 0, createdAt: new Date().toISOString(), finishedAt: null };
+  sql.run('INSERT INTO computer_jobs (id, business_id, goal, title, mode, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', job.id, biz.id, job.goal, job.title, mode, job.status, job.createdAt);
+  const l: Live = { job, confirmFirst, preApproved, abort: new AbortController(), approvals: new Map(), statusMessage: null, lastStatusAt: 0 };
   live.set(biz.id, l);
   // To'xtatilgan ish brauzerini hali yopayotgan bo'lsa (profil bitta) — yangisi uni kutib boshlanadi
   l.done = (prev?.done ?? Promise.resolve()).then(() => runJob(biz, l)).finally(() => { if (live.get(biz.id) === l) live.delete(biz.id); });
   return job;
 }
+
+/** Sarlavha uzunligi (Telegram xabarining birinchi qatori) */
+const TITLE_MAX = 90;
+/** «Boshlaymi?» xabaridagi tafsilot (topshiriq matni) uzunligi */
+const START_DETAIL_MAX = 300;
+/** Ishning qisqa nomi: sarlavha, bo'lmasa topshiriq boshi */
+const nameOf = (j: JobRow, n = 120) => cut(j.title ?? j.goal, n);
+
+/**
+ * «▶️ Qayta boshlash» (ish boshlanmagan — egasi javob bermadi yoki «Yo'q» dedi): o'sha topshiriq yangi ish bo'lib boshlanadi.
+ * Egasining o'zi bosgani — rozilik: qayta so'ralmaydi. Qaytaradi: egasiga qisqa javob
+ */
+export function restartJob(biz: BusinessRow, jobId: string): string {
+  const old = sql.one('SELECT * FROM computer_jobs WHERE id = ? AND business_id = ?', toJob, jobId, biz.id);
+  if (!old) return 'Bu ish topilmadi';
+  if (old.status !== 'stopped' || old.steps > 0 || old.report?.startsWith(RESTARTED)) return "Bu ish allaqachon qayta boshlangan — kerak bo'lsa Palantir'ga yangidan ayting";
+  try {
+    const fresh = startJob(biz, old.goal, old.mode, false, old.title, true);
+    // Tugma ikkinchi marta bosilsa — yana boshlanmasin
+    sql.run('UPDATE computer_jobs SET report = ? WHERE id = ?', `${RESTARTED} ${fresh.id}`, old.id);
+    return 'Boshladim';
+  } catch (e) {
+    return e instanceof ComputerError ? e.message.slice(0, 190) : "Boshlab bo'lmadi";
+  }
+}
+const RESTARTED = 'Qayta boshlandi:';
+const restartKeyboard = (jobId: string) => Markup.inlineKeyboard([[Markup.button.callback('▶️ Qayta boshlash', `cr|${jobId}`)]]).reply_markup;
 
 /** Egasi to'xtatdi (/toxta yoki tugma). Qaytaradi: to'xtatildimi */
 export function stopJob(bizId: string, jobId?: string): boolean {
@@ -137,10 +168,15 @@ export async function stopAllJobs(): Promise<void> {
   await Promise.allSettled([...running, ...[...loginWindows.keys()].map(closeLoginWindow)]);
 }
 
-/** Egasidan so'raydi: Telegram'da ikki tugma; javob kelmasa (COMPUTER_APPROVE_MINUTES) yoki ish to'xtasa — false */
-async function ask(biz: BusinessRow, l: Live, what: string): Promise<boolean> {
+/**
+ * Egasidan so'raydi: Telegram'da ikki tugma; javob kelmasa (COMPUTER_APPROVE_MINUTES) yoki ish to'xtasa — false.
+ * what — bitta qisqa savol (birinchi qator); start — ishni boshlashdan oldingi so'rov: tafsiloti — topshiriq matni (qisqartirilgan)
+ */
+async function ask(biz: BusinessRow, l: Live, what: string, start = false): Promise<boolean> {
   const id = newId(8);
-  const html = `🖱 <b>Ruxsat kerak</b>\n${esc(cut(what, 400))}\n\n<i>Ish: ${esc(cut(l.job.goal, 120))}</i>`;
+  const html = start
+    ? `🖥 <b>${esc(what)}</b>\n\n<i>${esc(cut(l.job.goal, START_DETAIL_MAX))}</i>`
+    : `🖱 <b>Ruxsat kerak</b>\n${esc(cut(what, 400))}\n\n<i>Ish: ${esc(nameOf(l.job))}</i>`;
   const keyboard = Markup.inlineKeyboard([[Markup.button.callback('✅ Ruxsat', `ca|${id}`), Markup.button.callback("✖️ Yo'q", `cx|${id}`)]]).reply_markup;
   const messageId = await notifyOwner(biz, html, keyboard).catch(() => null);
   if (messageId === null) return false;
@@ -158,7 +194,7 @@ async function status(biz: BusinessRow, l: Live, note: string, force = false): P
   const now = Date.now();
   if (!force && now - l.lastStatusAt < 15_000) return;
   l.lastStatusAt = now;
-  const html = `🖥 <b>${l.job.mode === 'desktop' ? 'Kompyuterda' : 'Brauzerda'} ishlayapman</b> · ${l.job.steps}-qadam\n${esc(cut(l.job.goal, 160))}${note ? `\n\n<i>${esc(cut(note, 500))}</i>` : ''}`;
+  const html = `🖥 <b>${l.job.mode === 'desktop' ? 'Kompyuterda' : 'Brauzerda'} ishlayapman</b> · ${l.job.steps}-qadam\n${esc(nameOf(l.job, 160))}${note ? `\n\n<i>${esc(cut(note, 500))}</i>` : ''}`;
   if (l.statusMessage === null) l.statusMessage = await notifyOwner(biz, html, stopKeyboard(l.job.id)).catch(() => null);
   else await editOwner(biz, l.statusMessage, html, stopKeyboard(l.job.id)).catch(() => {});
 }
@@ -209,14 +245,16 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
   const files: string[] = [];
   try {
     // Butun kompyuter (desktopda xavfli tugmani ijrochi taniy olmaydi) yoki topshiriq begona matndan: avval egasi tasdiqlaydi
-    if (job.mode === 'desktop' || l.confirmFirst) {
+    if ((job.mode === 'desktop' || l.confirmFirst) && !l.preApproved) {
+      // Birinchi qator — qisqa savol (sarlavha bilan); tafsiloti — ask() da, topshiriq matnidan
       const what = job.mode === 'desktop'
-        ? `Kompyuteringizda (sichqoncha va klaviatura bilan) shu ishni boshlaymi?\n«${job.goal}»\nIsh paytida kompyuterga tegmang; to'xtatish — /toxta.`
-        : `Brauzerda shu ishni boshlaymi?\n«${job.goal}»`;
-      if (!(await ask(biz, l, what))) {
+        ? `Kompyuteringizda (sichqoncha va klaviatura bilan) boshlaymi: ${nameOf(job, TITLE_MAX)}? Ish paytida kompyuterga tegmang.`
+        : `Boshlaymi: ${nameOf(job, TITLE_MAX)}?`;
+      if (!(await ask(biz, l, what, true))) {
         if (l.abort.signal.aborted) throw new Stopped("Egasi to'xtatdi");
         set({ status: 'stopped', report: 'Egasi boshlashga ruxsat bermadi' });
-        await notifyOwner(biz, "⏹ Ish boshlanmadi.").catch(() => null);
+        // Javob bermagan yoki adashib «Yo'q» bosgan bo'lsa — vazifani qayta aytmasdan bir bosishda boshlaydi
+        await notifyOwner(biz, `⏹ <b>Ish boshlanmadi</b>: ${esc(nameOf(job))}`, restartKeyboard(job.id)).catch(() => null);
         return;
       }
     }
@@ -306,14 +344,14 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
 
     if (browser) files.push(...await browser.saved());
     set({ status: 'done', report: report || 'Tayyor.' });
-    await finishMessage(biz, l, `✅ <b>Ish tugadi</b>\n${esc(cut(job.goal, 200))}\n\n${esc(job.report ?? '')}`, files);
+    await finishMessage(biz, l, `✅ <b>Ish tugadi</b>\n${esc(nameOf(job, 200))}\n\n${esc(job.report ?? '')}`, files);
   } catch (e) {
     if (browser) files.push(...await browser.saved(5_000));
     const stopped = e instanceof Stopped, limit = e instanceof Limit;
     const reason = stopped || limit ? e.message : e instanceof Anthropic.APIError ? `AI xatosi (${e.status ?? 'aloqa'})` : (e as Error).message.slice(0, 300);
     if (!stopped && !limit) console.error('[kompyuter]', e);
     set({ status: stopped ? 'stopped' : 'failed', report: `${stopped ? "To'xtatildi" : 'Tugallanmadi'}: ${reason}` });
-    await finishMessage(biz, l, `${stopped ? '⏹' : '⚠️'} <b>${stopped ? "Ish to'xtatildi" : 'Ish tugallanmadi'}</b>: ${esc(reason)}\n${esc(cut(job.goal, 200))}`, files);
+    await finishMessage(biz, l, `${stopped ? '⏹' : '⚠️'} <b>${stopped ? "Ish to'xtatildi" : 'Ish tugallanmadi'}</b>: ${esc(reason)}\n${esc(nameOf(job, 200))}`, files);
   } finally {
     await browser?.close();
     desktop?.close();
@@ -351,7 +389,7 @@ const abortable = <T,>(work: Promise<T>, signal: AbortSignal): Promise<T> => new
 const MAX_FILE_BYTES = 45 * 1024 * 1024;
 
 async function finishMessage(biz: BusinessRow, l: Live, html: string, files: string[]): Promise<void> {
-  if (l.statusMessage !== null) await editOwner(biz, l.statusMessage, `🖥 ${esc(cut(l.job.goal, 160))} · ${l.job.steps} qadam, ~$${l.job.costUsd.toFixed(2)}`).catch(() => {});
+  if (l.statusMessage !== null) await editOwner(biz, l.statusMessage, `🖥 ${esc(nameOf(l.job, 160))} · ${l.job.steps} qadam, ~$${l.job.costUsd.toFixed(2)}`).catch(() => {});
   await notifyOwner(biz, html).catch(() => null);
   for (const f of files.slice(0, 10)) {
     try {

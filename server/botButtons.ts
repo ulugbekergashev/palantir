@@ -8,7 +8,7 @@ import { resetConversation } from './agent';
 import { b, cut, detach, esc, ignoreUnchanged, kb, RECALL_SHOWN, reminderText, toast } from './botKit';
 import { interviewOption, interviewSkip, interviewStart, interviewStop, type InterviewTurn } from './brain/interview';
 import { settleFile, settleSuggestion } from './brain/learn';
-import { answerApproval, closeLoginWindow, stopJob } from './computer/jobs';
+import { answerApproval, closeLoginWindow, restartJob, stopJob } from './computer/jobs';
 import { cancelEntry, confirmEntry, undoEntry } from './crm/actions';
 import { recallPatients } from './crm/index';
 import { patientName } from './crm/logic';
@@ -71,6 +71,12 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
     // Kompyuterdagi ish: xavfli amalga ruxsat, to'xtatish, brauzer oynasini yopish
     if (code === 'ca' || code === 'cx') return toast(ctx, answerApproval(biz.id, id, code === 'ca') ?? 'Bu so\'rov eskirgan');
     if (code === 'cs') return toast(ctx, stopJob(biz.id, id) ? "To'xtatyapman…" : 'Ish allaqachon tugagan');
+    // Ish boshlanmagan edi (javob bo'lmadi yoki «Yo'q»): o'sha topshiriq qayta, so'ramasdan — egasi o'zi bosdi
+    if (code === 'cr') {
+      const said = restartJob(biz, id);
+      if (said === 'Boshladim' && msg) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      return toast(ctx, said);
+    }
     if (code === 'cl') {
       const closed = await closeLoginWindow(biz.id);
       if (msg) await ctx.editMessageReplyMarkup(undefined).catch(() => {});

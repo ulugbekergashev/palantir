@@ -12,6 +12,7 @@ export const COMPUTER_DEFS = {
     description: "Do a task on the owner's computer in the background and report back in Telegram: in a browser (open sites, search, read, fill forms, download files — e.g. \"soliq.uz dan dalolatnomani yuklab ol\", \"OLX da shu narxdagi kreslolarni top\") or, with where=desktop, on the whole screen with mouse and keyboard (programs other than the browser, e.g. 1C, Excel, files). Write the task fully and concretely in the owner's words: site, what to find or do, what result to bring. Before sending, submitting or deleting anything the owner gets a Telegram button to approve. Money is closed: banks, internet banking, payment systems, paying, transferring money and buying are blocked in code even with the owner's approval — such a task is refused; tell the owner to do it themselves (you can still give numbers, reports and calculations). The browser keeps logins made with the /brauzer command; the operator never types passwords. One task at a time; it takes minutes. Tell the owner you started and that the result will come in Telegram — do not wait.",
     input: z.object({
       task: z.string().trim().min(5).max(2000).describe('The full task in the owner\'s words'),
+      title: z.string().trim().max(90).optional().describe('One short line in the owner\'s language naming the task (up to 90 chars), e.g. «Meta: Leadboost nomini Verion IT Company ga o\'zgartirish» — shown first in Telegram messages and buttons'),
       where: z.enum(['browser', 'desktop']).optional().describe('browser (default) — a separate Chrome window; desktop — the whole computer screen, only when a desktop program is needed'),
     }),
     run: (i, ctx) => {
@@ -19,7 +20,7 @@ export const COMPUTER_DEFS = {
       // Topshiriq matni egasining shu payt yozgani emas bo'lishi mumkin (rasm, mijoz xabari, internet, jadval) — boshlashdan oldin egasi tasdiqlaydi
       const confirmFirst = !!(ctx.fromPhoto || ctx.unattended || ctx.readStrangers);
       try {
-        const job = startJob(ctx.biz, i.task, mode, confirmFirst);
+        const job = startJob(ctx.biz, i.task, mode, confirmFirst, i.title ?? null);
         return {
           started: true, job_id: job.id, where: mode,
           note: mode === 'desktop' || confirmFirst
