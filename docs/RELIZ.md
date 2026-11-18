@@ -1,5 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.20 da yangi
+
+- **«▶️ Qayta boshlash» tugmasi:** Palantir brauzerdagi ishni boshlashdan oldin so'raganda javob bermay qolsangiz, ish yo'qolmaydi — Telegram'dagi tugmani bossangiz, o'sha ish darhol boshlanadi.
+- **Qisqa xabarlar:** Telegram'da avval ishning qisqa nomi («Boshlaymi: …?»), tafsiloti pastda.
+
 ## 0.4.19 da yangi
 
 - **Palantir sizning Chrome'ingizda ishlaydi:** Sozlamalar → «Kompyuterda ishlash» → «Mening Chrome'im». Facebook, Google va boshqa saytlarga qayta kirish shart emas — siz allaqachon kirgansiz. Bir marta Chrome'da ulanishni yoqasiz (tugma sahifani o'zi ochadi). Palantir o'z vkladkasida ishlaydi, sizning vkladkalaringizga tegmaydi.
