@@ -248,13 +248,13 @@ try {
   ok("formadagi «Yuborish» — ruxsat so'raldi", !!approveAsk && !siteHits.some(h => h.startsWith('/done')));
   m2 = sent.length;
   press(OWNER, button(approveAsk, 'ca')!, approveAsk!.id!);
-  const done = await waitFor('ish tugadi', () => toOwner(m2, 'Ish tugadi'), 90_000);
+  const done = await waitFor('ish tugadi', () => toOwner(m2, 'Bajarildi'), 90_000);
   ok('ruxsatdan keyin forma yuborildi (sayt ism=Ali ni oldi)', siteHits.some(h => h.startsWith('/done?ism=Ali')), `${siteHits.join(' ')} | ${(seen.submitted ?? '').slice(0, 300)}`);
   ok('sahifa matni o\'qildi', (seen.text ?? '').includes('Qabul qilindi: Ali'), (seen.text ?? '').slice(0, 300));
   ok('ichki tarmoq (192.168.1.1) va Palantir\'ning o\'zi ochilmadi', /ichki tarmoq/.test(seen.lan ?? '') && /"is_error":true/.test(seen.self ?? ''), `${(seen.lan ?? '').slice(0, 120)} | ${(seen.self ?? '').slice(0, 120)}`);
   ok('daraxt: ref bilan elementlar, parol qiymati ko\'rinmaydi', /textbox "Ism"/.test(seen.tree ?? '') && /password \(empty\)/.test(seen.tree ?? ''), (seen.tree ?? '').slice(0, 300));
   ok('yangi sahifa ochilganda — browser_state (tablar)', /browser_state/.test(seen.navigateState ?? '') && /tab-1/.test(seen.navigateState ?? ''));
-  ok('egasiga: «Ish tugadi» va hisobot', !!done && textOf(done).includes('Ariza yuborildi: Ali'), textOf(done).slice(0, 200));
+  ok('egasiga: «Bajarildi» va hisobot', !!done && textOf(done).includes('Ariza yuborildi: Ali'), textOf(done).slice(0, 200));
   const doc = await waitFor('fayl', () => sent.slice(m2).find(s => s.method === 'sendDocument' && Number(s.params.chat_id) === OWNER), 20_000);
   ok('yuklab olingan fayl egasiga hujjat bo\'lib keldi', doc?.fileName === 'hisobot.csv' && doc.file?.toString().includes('1200000'), String(doc?.fileName));
   ok("holat xabari yakunlandi (to'xtatish tugmasi olib tashlandi)", !!sent.slice(m2).find(s => s.method === 'editMessageText' && Number(s.params.message_id) === status?.id && !button(s, 'cs') && textOf(s).includes('qadam')));
@@ -311,7 +311,7 @@ try {
   ok('butun ekran: avval egasidan «boshlaymi?» so\'raladi, operator hali ishlamaydi', !!plan && ai.operatorRequests.length === opsDesk);
   m2 = sent.length;
   press(OWNER, button(plan, 'ca')!, plan!.id!);
-  const deskDone = await waitFor('ish tugadi', () => toOwner(m2, 'Ish tugadi'), 30_000);
+  const deskDone = await waitFor('ish tugadi', () => toOwner(m2, 'Bajarildi'), 30_000);
   const deskOps = (existsSync(deskLog) ? readFileSync(deskLog, 'utf8') : '').trim().split('\n').filter(Boolean).map(l => JSON.parse(l) as Record<string, unknown>);
   ok('ekran rasmi: 1280×800 (haqiqiy ekran 2560×1600)', seen.deskShotSize === '{"width":1280,"height":800}', seen.deskShotSize);
   ok('bosish haqiqiy piksellarda (100,50 → 200,100), matn yozildi', deskOps.some(o => o.cmd === 'click' && o.x === 200 && o.y === 100) && deskOps.some(o => o.cmd === 'type' && o.text === 'Salom, dunyo'), JSON.stringify(deskOps).slice(0, 300));
@@ -325,7 +325,7 @@ try {
   ok('server xatosiz', !/\[kompyuter\]/.test(log), log.split('\n').filter(l => l.includes('[kompyuter]')).slice(0, 3).join(' | '));
 
   console.log("\n# Boshlanmagan ish — «▶️ Qayta boshlash»");
-  ai.operator = () => ({ content: [{ type: 'text', text: 'Tamom: kalkulyator ochildi' }], stop: 'end_turn' });
+  ai.operator = () => ({ content: [{ type: 'text', text: '[BAJARILMADI]\nKalkulyator topilmadi, hech narsa qilmadim' }], stop: 'end_turn' });
   ai.owner = messages => (lastResults(messages)[0]
     ? { content: [{ type: 'text', text: 'Boshladim' }], stop: 'end_turn' }
     : { content: [{ type: 'tool_use', id: `tu_${Date.now()}`, name: 'computer_task', input: { task: "Kalkulyatorni ochib, 2+2 ni hisobla va natijani yoz. Boshqa dasturlarga tegma.", title: 'Kalkulyatorda  2+2 ni   hisobla', where: 'desktop' } }], stop: 'tool_use' });
@@ -340,12 +340,15 @@ try {
   const jobsBefore = new DatabaseSync(join(dataDir, 'palantir.db'), { readOnly: true }).prepare('SELECT COUNT(*) AS n FROM computer_jobs').get() as { n: number };
   m2 = sent.length;
   press(OWNER, button(notStarted, 'cr')!, notStarted!.id!);
-  const restarted = await waitFor('qayta boshlangan ish tugadi', () => toOwner(m2, 'Ish tugadi'), 30_000);
+  const restarted = await waitFor('qayta boshlangan ish tugadi', () => toOwner(m2, 'Bajarilmadi'), 30_000);
   ok("bosildi — o'sha ish qayta so'ramasdan boshlandi va tugadi", !!restarted && textOf(restarted).includes('Kalkulyatorda 2+2 ni hisobla') && !sent.slice(m2).some(s => s.method === 'sendMessage' && !!button(s, 'cx')), textOf(restarted).slice(0, 160));
+  ok("operator «bajarilmadi» dedi — sarlavha «⚠️ Bajarilmadi» (yolg'on «Ish tugadi» emas), belgi matnda yo'q, narx ($) ko'rsatilmaydi",
+    /^⚠️ <b>Bajarilmadi<\/b>/.test(textOf(restarted)) && textOf(restarted).includes('Kalkulyator topilmadi') && !textOf(restarted).includes('[BAJARILMADI]')
+    && !sent.slice(m2).some(s => /\$\d/.test(textOf(s))), textOf(restarted).slice(0, 200));
   const db2 = new DatabaseSync(join(dataDir, 'palantir.db'), { readOnly: true });
   const last2 = db2.prepare('SELECT goal, title, status FROM computer_jobs ORDER BY created_at DESC LIMIT 1').get() as { goal: string; title: string; status: string };
-  ok('bazada yangi ish: o\'sha topshiriq va sarlavha, bajarildi', (db2.prepare('SELECT COUNT(*) AS n FROM computer_jobs').get() as { n: number }).n === jobsBefore.n + 1
-    && last2.title === 'Kalkulyatorda 2+2 ni hisobla' && last2.goal.startsWith('Kalkulyatorni ochib') && last2.status === 'done', JSON.stringify(last2));
+  ok("bazada yangi ish: o'sha topshiriq va sarlavha, holati — bajarilmadi (failed)", (db2.prepare('SELECT COUNT(*) AS n FROM computer_jobs').get() as { n: number }).n === jobsBefore.n + 1
+    && last2.title === 'Kalkulyatorda 2+2 ni hisobla' && last2.goal.startsWith('Kalkulyatorni ochib') && last2.status === 'failed', JSON.stringify(last2));
   const toastsCr = toasts(m2);
   ok("tugmani qayta bosish — «allaqachon bajarilgan»", await (async () => {
     const m3 = sent.length;
