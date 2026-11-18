@@ -497,7 +497,8 @@ def _env_has(name: str) -> bool:
 
 def keep_wsl_alive() -> subprocess.Popen | None:
     """WSL hech kim ishlatmasa o'zi o'chadi (Asterisk ham) — shu dastur ishlab turguncha yoqiq tursin. Asterisk ishlamayotgan bo'lsa —
-    yoqiladi: WSL1 da (Windows 10) systemd yo'q, uni hech kim yoqmaydi; systemd'li WSL2 da u allaqachon ishlaydi (pgrep topadi)"""
+    yoqiladi: WSL1 da (Windows 10) systemd yo'q, uni hech kim yoqmaydi; systemd'li WSL2 da u allaqachon ishlaydi (pgrep topadi).
+    None — wsl.exe topilmadi; boshqa xato (fayl band va h.k.) — OSError"""
     # Joriy papka — dastur papkasi EMAS (cd /, wsl.exe ham Windows papkasidan): WSL jarayonining joriy papkasi /mnt/c/Palantir/tgvoice
     # bo'lsa, Windows o'sha papkani ko'chira olmaydi — yangilovchi (scripts/update.mjs) yarim yo'lda yiqilardi (EBUSY)
     keep = 'cd / && { pgrep -x asterisk >/dev/null || /usr/sbin/asterisk; }; exec sleep infinity'
@@ -506,7 +507,6 @@ def keep_wsl_alive() -> subprocess.Popen | None:
                                 stderr=subprocess.DEVNULL, cwd=os.environ.get('SystemRoot') or None,
                                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))   # fonda — oynasiz
     except FileNotFoundError:
-        log('—', "WSL topilmadi — Asterisk boshqa joyda bo'lsa, shunchaki ulanishni kutaman")
         return None
 
 
@@ -531,25 +531,40 @@ class WslKeeper:
         self.stopped = False
 
     def start(self) -> bool:
+        """False — wsl.exe topilmadi. Boshida shunday bo'lsa, bu kompyuterda WSL yo'q (Asterisk boshqa joyda) — kuzatilmaydi"""
+        self.proc = None
         self.proc, self.started = self.spawn(), self.clock()
         return self.proc is not None
 
+    def _reopen(self) -> str:
+        """Qayta ochish. '' — ochildi; aks holda — nega ochilmadi"""
+        try:
+            return '' if self.start() else 'wsl.exe topilmadi'
+        except Exception as e:   # har qanday xato: kuzatuv jim o'lib qolmasin — sababi jurnalga, keyin yana urinish
+            return f'{type(e).__name__}: {e}'
+
     async def watch(self) -> None:
+        """start() bir marta ochgandan keyin chaqiriladi. Qayta ochish o'xshamasa ham to'xtamaydi: WSL yangilanayotganda wsl.exe
+        bir muddat topilmaydi yoki band bo'ladi — o'shanda taslim bo'lsa, WSL yana o'chib-yonib qolardi"""
+        if self.proc is None:
+            return
         wait = WSL_RETRY_MIN_S
-        while not self.stopped and self.proc is not None:
+        while not self.stopped:
             await self.sleep(WSL_CHECK_S)
-            if self.stopped or self.proc.poll() is None:
+            if self.stopped or (self.proc is not None and self.proc.poll() is None):
                 continue
-            if self.clock() - self.started >= WSL_HEALTHY_S:
-                wait = WSL_RETRY_MIN_S
-            log('—', f"WSL (Asterisk) yoqiq tutuvchi jarayon to'xtadi (kod {self.proc.returncode}) — {wait} s dan keyin qayta ochiladi")
+            if self.proc is not None:   # hozirgina to'xtadi (None — o'tgan urinishda ochilmagan, sababi jurnalda bor)
+                if self.clock() - self.started >= WSL_HEALTHY_S:
+                    wait = WSL_RETRY_MIN_S
+                log('—', f"WSL (Asterisk) yoqiq tutuvchi jarayon to'xtadi (kod {self.proc.returncode}) — {wait} s dan keyin qayta ochiladi")
             await self.sleep(wait)
             if self.stopped:
                 return
             self.restarts += 1
-            if not self.start():
-                return
+            problem = self._reopen()
             wait = min(wait * 2, WSL_RETRY_MAX_S)
+            if problem:
+                log('—', f"WSL'ni yoqiq tutuvchi jarayon ochilmadi ({problem}) — {wait} s dan keyin yana urinaman")
 
     def stop(self) -> None:
         self.stopped = True
@@ -561,6 +576,8 @@ async def main():
     sys.stdout.reconfigure(encoding='utf-8')
     keeper = WslKeeper() if os.name == 'nt' else None
     wsl = keeper.start() if keeper else False
+    if keeper and not wsl:
+        log('—', "WSL topilmadi — Asterisk boshqa joyda bo'lsa, shunchaki ulanishni kutaman")
     watcher = asyncio.create_task(keeper.watch()) if wsl else None
     server = Server()
     # Qabul qilishdan oldin: yangi qo'ng'iroq bilan adashtirilmaydi (port hali yopiq — yangisi [yordam] ga o'zi boradi)

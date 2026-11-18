@@ -38,13 +38,21 @@ class Proc:
         self.terminated = True
 
 
+MISSING = 'topilmadi'   # lives ichida: bu urinishda wsl.exe topilmadi (spawn → None)
+
+
 class World:
-    """Soxta soat va jarayon ochish: lives — har ochilgan jarayon necha soniya yashaydi (None — abadiy)"""
-    def __init__(self, lives: list[float | None]):
+    """Soxta soat va jarayon ochish: lives — har ochilgan jarayon necha soniya yashaydi (None — abadiy); MISSING — bu urinishda
+    wsl.exe topilmadi, xato (Exception) — bu urinishda ochib bo'lmadi"""
+    def __init__(self, lives: list[float | str | Exception | None]):
         self.now, self.lives, self.spawned, self.waits = 0.0, list(lives), [], []
 
     def spawn(self):
         life = self.lives.pop(0) if self.lives else None
+        if life == MISSING:
+            return None
+        if isinstance(life, Exception):
+            raise life
         p = Proc(self, None if life is None else self.now + life)
         self.spawned.append((self.now, p))
         return p
@@ -99,6 +107,36 @@ async def main():
     ok('start() — False', k.start() is False)
     await asyncio.wait_for(k.watch(), 1)
     ok('watch() darhol tugadi', True)
+
+    print("Qayta ochish o'xshamasa (WSL yangilanayotganda wsl.exe topilmaydi yoki band) — kuzatuv to'xtamaydi, yana urinadi")
+    logged.clear()
+    w = World([10, MISSING, PermissionError(13, 'band'), ValueError('kutilmagan'), None])
+    k = WslKeeper(w.spawn, w.sleep, w.clock)
+    k.start()
+    task = asyncio.create_task(k.watch())
+    while w.now < 200 and not task.done():
+        await asyncio.sleep(0)
+    ok("kuzatuv to'xtamadi", not task.done(), repr(task.exception()) if task.done() and not task.cancelled() else '')
+    ok("to'rtinchi urinishda ochildi", k.proc is not None and k.proc.poll() is None and k.restarts == 4, f'restarts={k.restarts}')
+    backoff = [s for s in w.waits if s != sip_live.WSL_CHECK_S]
+    ok('kutish: 3, 6, 12, 24', backoff[:4] == [3, 6, 12, 24], str(backoff))
+    ok('jurnalda uchala sabab bor', all(any(why in t for t in logged) for why in ('topilmadi', 'PermissionError', 'ValueError')), str(logged))
+    k.stop()
+    done, _ = await asyncio.wait({task}, timeout=1)
+    ok("to'xtatilganda kuzatuv tugadi", task in done and task.exception() is None)
+
+    print("Ochilmay turganda to'xtatilsa — kuzatuv tugaydi, boshqa urinmaydi")
+    w = World([5] + [MISSING] * 50)
+    k = WslKeeper(w.spawn, w.sleep, w.clock)
+    k.start()
+    task = asyncio.create_task(k.watch())
+    while w.now < 40 and not task.done():
+        await asyncio.sleep(0)
+    tried = k.restarts
+    k.stop()
+    done, _ = await asyncio.wait({task}, timeout=1)
+    ok('kuzatuv tugadi, yiqilmadi', task in done and task.exception() is None and k.proc is None)
+    ok("to'xtatilgandan keyin urinish yo'q", tried >= 2 and k.restarts == tried, f'{tried} → {k.restarts}')
 
     print("To'xtatilgan bo'lsa — qayta ochilmaydi")
     w = World([5, None])
