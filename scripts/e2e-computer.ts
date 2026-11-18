@@ -343,7 +343,7 @@ try {
   const restarted = await waitFor('qayta boshlangan ish tugadi', () => toOwner(m2, 'Bajarilmadi'), 30_000);
   ok("bosildi — o'sha ish qayta so'ramasdan boshlandi va tugadi", !!restarted && textOf(restarted).includes('Kalkulyatorda 2+2 ni hisobla') && !sent.slice(m2).some(s => s.method === 'sendMessage' && !!button(s, 'cx')), textOf(restarted).slice(0, 160));
   ok("operator «bajarilmadi» dedi — sarlavha «⚠️ Bajarilmadi» (yolg'on «Ish tugadi» emas), belgi matnda yo'q, narx ($) ko'rsatilmaydi",
-    /^⚠️ <b>Bajarilmadi<\/b>/.test(textOf(restarted)) && textOf(restarted).includes('Kalkulyator topilmadi') && !textOf(restarted).includes('[BAJARILMADI]')
+    textOf(restarted).startsWith('⚠️ <b>Bajarilmadi</b>') && textOf(restarted).includes('Kalkulyator topilmadi') && !textOf(restarted).includes('[BAJARILMADI]')
     && !sent.slice(m2).some(s => /\$\d/.test(textOf(s))), textOf(restarted).slice(0, 200));
   const db2 = new DatabaseSync(join(dataDir, 'palantir.db'), { readOnly: true });
   const last2 = db2.prepare('SELECT goal, title, status FROM computer_jobs ORDER BY created_at DESC LIMIT 1').get() as { goal: string; title: string; status: string };
