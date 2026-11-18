@@ -108,7 +108,10 @@ try {
   ok("«AI xodimlar»: bo'lim-bo'lim — jamoadagilar, olinadiganlar va tez kunda keladiganlar", await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 }))
     && await page.getByRole('region', { name: 'Boshqaruv' }).getByRole('article', { name: 'Direktor' }).getByText('Jamoada', { exact: true }).isVisible()
     && await page.getByRole('region', { name: 'Mijozlar va sotuv' }).getByRole('article', { name: 'AI administrator' }).getByText('Asosiy', { exact: true }).isVisible()
-    && await page.getByRole('region', { name: 'HR' }).getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible()
+    // HR xodimlari qurildi (943826a): Rekruter — olinadigan xodim, «tez kunda» emas
+    && await page.getByRole('region', { name: 'HR' }).getByRole('article', { name: 'Rekruter' }).isVisible()
+    && await page.getByRole('article', { name: 'Rekruter — tez kunda' }).count() === 0
+    && await page.getByRole('region', { name: 'Moliya' }).getByRole('article', { name: 'Buxgalter — tez kunda' }).isVisible()
     && await page.getByRole('article', { name: 'Video-meyker — tez kunda' }).count() === 0 && await page.getByRole('article', { name: 'Strateg — tez kunda' }).count() === 0
     // B9: mavjud ishni takrorlaydiganlar yo'q
     && (await Promise.all(['Mijozlarni qaytaruvchi', 'Kassa nazoratchisi', 'Sifat nazoratchisi'].map(n => page.getByRole('article', { name: `${n} — tez kunda` }).count()))).every(n => n === 0));
@@ -390,7 +393,7 @@ try {
   await shot('12d-targetolog', true);
   await go('hr');
   ok("eski #/hr va #/tezkunda manzillari — «AI xodimlar»ga, tez kunda keladiganlar qulf bilan", await visible(page.getByRole('heading', { name: 'AI xodimlar', level: 1 }))
-    && await page.getByRole('region', { name: 'HR' }).getByRole('article', { name: 'Rekruter — tez kunda' }).isVisible()
+    && await page.getByRole('region', { name: 'HR' }).getByRole('article', { name: 'Rekruter' }).isVisible()
     && await page.getByRole('region', { name: 'Moliya' }).getByRole('article', { name: 'Buxgalter — tez kunda' }).isVisible()
     && await page.getByRole('article').count() >= 15);
   await go('tezkunda');
