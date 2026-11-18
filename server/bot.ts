@@ -42,6 +42,8 @@ import { MAX_LOOK_CAMERAS, lookAt, lookRequest, shotCaption } from './camera/ask
 import { events } from './orders/store';
 import { remoteUrl } from './remote';
 import { ComputerError, computerModeOf, modeEnabled, openLoginWindow, runningJob, stopJob } from './computer/jobs';
+import { stopCodeJob } from './dev/jobs';
+import { devEnabled } from './dev/projects';
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
 import { HOLD_EVERY_MS, clearBotOutlets, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 import { mediaLabel } from './inbox/media';
@@ -375,7 +377,9 @@ export function createBot(): BotService {
     const biz = ownerOf(ctx);
     if (!biz) return;
     const job = runningJob(biz.id);
-    if (!job || !stopJob(biz.id)) return ctx.reply("Hozir kompyuterda ish bajarilmayapti.");
+    // Kod ishi ham (dev/jobs.ts) shu buyruq bilan to'xtaydi
+    const code = stopCodeJob(biz.id);
+    if ((!job || !stopJob(biz.id)) && !code) return ctx.reply("Hozir fonda ish bajarilmayapti.");
     await ctx.reply("⏹ To'xtatyapman…");
   });
 
@@ -851,7 +855,7 @@ export function createBot(): BotService {
       { command: 'kamera', description: 'Kameralardan hozirgi rasm' },
       { command: 'panel', description: 'Panelni ochish' },
       { command: 'yangi', description: 'Yangi suhbat' },
-      ...(on.some(b => computerModeOf(b)) ? [{ command: 'toxta', description: "Kompyuterdagi ishni to'xtatish" }] : []),
+      ...(on.some(b => computerModeOf(b)) || devEnabled() ? [{ command: 'toxta', description: "Fondagi ishni to'xtatish (kompyuter, kod)" }] : []),
       ...(on.some(b => modeEnabled('browser', b)) ? [{ command: 'brauzer', description: "Saytga o'zim kiraman (parol bilan)" }] : []),
       { command: 'yordam', description: "Palantir jamoasidan yordam so'rash" },
       { command: 'help', description: 'Nima qila olaman' },

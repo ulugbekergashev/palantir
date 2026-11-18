@@ -10,6 +10,7 @@ import { env, voiceEnabled } from './env';
 import { createApp } from './http';
 import { ffmpegAvailable, stopCameraEngine } from './camera/stream';
 import { stopAllJobs } from './computer/jobs';
+import { stopAllCodeJobs } from './dev/jobs';
 import { flushAllWaits } from './camera/waiting';
 import { recoverMoney } from './crm/actions';
 import { closeDb } from './db';
@@ -131,7 +132,7 @@ const shutdown = () => {
   flushAllWaits();
   stopCameraEngine();
   // Brauzer (Instagram, kompyuterdagi ish) va Telegram seansi yopilishi kutiladi: chala yopilgan brauzer keyingi ishga tushishda profilni band qilib turardi
-  const closed = Promise.race([Promise.allSettled([stopTelegramUser(), stopInstagram(), stopMetaAi(), stopAllJobs()]), new Promise(r => setTimeout(r, CLOSE_WAIT_MS))]);
+  const closed = Promise.race([Promise.allSettled([stopTelegramUser(), stopInstagram(), stopMetaAi(), stopAllJobs(), stopAllCodeJobs()]), new Promise(r => setTimeout(r, CLOSE_WAIT_MS))]);
   server.close(() => {
     void closed.then(() => {
       closeDb();

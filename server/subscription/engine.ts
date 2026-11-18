@@ -99,7 +99,7 @@ export interface TurnResult { text: string; sessionId: string; cut: boolean; ref
 // Limit avval tekshiriladi: limit xabarida «OAuth» so'zi ham uchraydi
 const LIMIT_RE = /usage limit|rate limit|limit reached|hit your .*limit|\b429\b/i;
 const AUTH_RE = /\/login|not logged in|invalid api key|invalid .*token|token .*expired|\b401\b/i;
-const classify = (message: string): SubscriptionReason => (LIMIT_RE.test(message) ? 'limit' : AUTH_RE.test(message) ? 'auth' : 'failed');
+export const classify = (message: string): SubscriptionReason => (LIMIT_RE.test(message) ? 'limit' : AUTH_RE.test(message) ? 'auth' : 'failed');
 
 /** Egasiga ko'rinadigan oxirgi matn (asosiy agentniki — ichki yordamchilarniki emas) */
 function lastText(msgs: readonly SDKMessage[]): string {

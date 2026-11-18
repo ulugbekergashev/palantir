@@ -9,6 +9,7 @@ import { b, cut, detach, esc, ignoreUnchanged, kb, RECALL_SHOWN, reminderText, t
 import { interviewOption, interviewSkip, interviewStart, interviewStop, type InterviewTurn } from './brain/interview';
 import { settleFile, settleSuggestion } from './brain/learn';
 import { answerApproval, closeLoginWindow, restartJob, stopJob } from './computer/jobs';
+import { acceptCodeJob, answerStart, discardCodeJob, sendCodeDiff, stopCodeJob } from './dev/jobs';
 import { cancelEntry, confirmEntry, undoEntry } from './crm/actions';
 import { recallPatients } from './crm/index';
 import { patientName } from './crm/logic';
@@ -81,6 +82,19 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
       const closed = await closeLoginWindow(biz.id);
       if (msg) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
       return toast(ctx, closed ? 'Oyna yopildi — kirishlar saqlandi' : 'Oyna allaqachon yopilgan');
+    }
+    // Dasturchi (dev/jobs.ts): «Boshlaymi?», to'xtatish, qabul qilish, tashlab yuborish, o'zgarishlarni ko'rish — faqat egasi
+    if (['ba', 'bx', 'bs', 'bo', 'bd', 'bf'].includes(code)) {
+      if (!ownerBiz) return toast(ctx, 'Bu tugma eskirgan');
+      if (code === 'ba' || code === 'bx') return toast(ctx, answerStart(biz.id, id, code === 'ba') ?? "Bu so'rov eskirgan");
+      if (code === 'bs') return toast(ctx, stopCodeJob(biz.id, id) ? "To'xtatyapman — qilingani saqlanadi" : 'Ish allaqachon tugagan');
+      const said = await (code === 'bo' ? acceptCodeJob(biz, id) : code === 'bd' ? discardCodeJob(biz, id) : sendCodeDiff(biz, id));
+      // Qaror qilindi — tugmalar olinadi va qaror xabarda qoladi (farqni ko'rish tugmalarni olmaydi)
+      if (said.ok && code !== 'bf' && msg) {
+        await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+        await ctx.reply(`${code === 'bo' ? '✅' : '✖️'} ${said.text}`, { reply_parameters: { message_id: msg.message_id } }).catch(() => {});
+      }
+      return toast(ctx, cut(said.text, 190), said.ok ? undefined : { show_alert: true });
     }
     // Palantir jamoasi kirmoqchi (supportAsk.ts): ruxsat / rad; kirgandan keyin — «Kirishni yopish» (jamoa darhol chiqariladi)
     if (code === 'ja' || code === 'jx') {

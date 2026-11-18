@@ -223,6 +223,19 @@ export const env = {
   /** Faqat sinov uchun: haqiqiy ekran o'rniga soxta (o'lchami «2560x1600»), amallar COMPUTER_FAKE_LOG fayliga yoziladi */
   computerFakeScreen: process.env.COMPUTER_FAKE_SCREEN || '',
 
+  /**
+   * Dasturchi (server/dev): Palantir egasining o'z loyihalari kodida ishlaydi. «nom=papka;nom=papka», masalan
+   * `xclinic=D:\Projects\xclinic;denta7=C:\Users\...\denta7`. Bo'sh — butunlay o'chiq: klinika o'rnatmalarida bu asbob yo'q
+   */
+  devProjects: process.env.DEV_PROJECTS || '',
+  /** Bitta kod ishining chegaralari: daqiqa va model qadamlari — oshsa ish to'xtaydi, qilingani saqlanadi */
+  devMaxMinutes: Number(process.env.DEV_MAX_MINUTES) || 45,
+  devMaxTurns: Number(process.env.DEV_MAX_TURNS) || 200,
+  /** Kod ishining modeli (bo'sh — AI_MODEL) */
+  devModel: process.env.DEV_MODEL || '',
+  /** Faqat sinov uchun: haqiqiy Claude o'rniga shu modul (scripts/fake-dev-agent.mjs) */
+  devFakeAgent: process.env.DEV_FAKE_AGENT || '',
+
   /** Mijoz ketma-ket bir nechta xabar yozishi mumkin — oxirgisidan keyin shuncha kutib javob tayyorlanadi */
   inboxDebounceMs: Number(process.env.INBOX_DEBOUNCE_MS) || 8_000,
   /** "O'zi javob bersin" rejimidagi kutish daqiqasining uzunligi (sinovda qisqartiriladi) */

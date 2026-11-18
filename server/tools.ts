@@ -37,6 +37,8 @@ import { HR_DEFS } from './hr/tools';
 import { TRAIN_DEFS } from './hr/trainTools';
 import { CAMERA_DEFS } from './camera/tools';
 import { COMPUTER_DEFS } from './computer/tools';
+import { DEV_DEFS } from './dev/tools';
+import { devEnabled } from './dev/projects';
 import { MARKETING_DEFS, marketingEnabled } from './marketing/tools';
 import { BRAND_DEFS, CONTENT_DEFS } from './content/tools';
 import { ADS_DEFS } from './ads/tools';
@@ -451,7 +453,7 @@ export function ownerToolDefs(crm: boolean, groups: ToolGroup[] = ['base', ...SP
   return Object.entries({
     ...(on('base') ? { ...BASE_DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS, ...WORK_DEFS } : {}), ...(on('qabulxona') ? QABULXONA_DEFS : {}),
     ...(on('kuzatuvchi') ? CAMERA_DEFS : {}), ...(on('kontent') ? CONTENT_DEFS : {}), ...(on('base') || on('kontent') ? BRAND_DEFS : {}), ...(on('target') ? ADS_DEFS : {}), ...(on('rekruter') ? HR_DEFS : {}), ...(on('murabbiy') ? TRAIN_DEFS : {}),
-    ...(on('base') && computer ? COMPUTER_DEFS : {}), ...(on('marketolog') && marketingEnabled() ? MARKETING_DEFS : {}), ...(on('base') && crm ? Object.fromEntries(Object.entries(CRM_DEFS).filter(([n]) => !OWNED_ELSEWHERE[n] || on(OWNED_ELSEWHERE[n]))) : {}),
+    ...(on('base') && computer ? COMPUTER_DEFS : {}), ...(on('base') && devEnabled() ? DEV_DEFS : {}), ...(on('marketolog') && marketingEnabled() ? MARKETING_DEFS : {}), ...(on('base') && crm ? Object.fromEntries(Object.entries(CRM_DEFS).filter(([n]) => !OWNED_ELSEWHERE[n] || on(OWNED_ELSEWHERE[n]))) : {}),
   }) as [string, ToolDef<z.ZodType>][];
 }
 
@@ -485,7 +487,7 @@ function journal(name: string, input: unknown, ctx: ToolCtx): void {
  * (bo'sh vaqtlar, raqamlar). Qolgan hammasi — mijoz ismi, izohi, yozishmasi, CRM'dagi bemor, kamera, internet, kompyuterdagi sahifa —
  * begona matn: chaqirilgach shu javobda bilimga yozish yopiladi (toolkit.ts: assertOwnWords). Yangi asbob — standart bo'yicha begona
  */
-const OWN_DATA_TOOLS = new Set(['create_task', 'remember', 'forget', 'save_prices', 'read_page', 'write_page', 'create_document', 'draft_followup', 'free_slots', 'business_numbers', 'computer_stop']);
+const OWN_DATA_TOOLS = new Set(['create_task', 'remember', 'forget', 'save_prices', 'read_page', 'write_page', 'create_document', 'draft_followup', 'free_slots', 'business_numbers', 'computer_stop', 'code_task', 'code_stop']);
 
 /**
  * Katta asbob (video, brend-buk, hujjat) limit tufayli bajarilmadi: faqat shu asbob o'sha kirish bilan navbatga qo'yiladi — limit
@@ -503,7 +505,7 @@ function deferTool(name: string, input: unknown, ctx: ToolCtx, e: PausedError): 
 export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promise<ToolOutcome> {
   // Klinika asboblari faqat DentaCRM ulangan biznesda ishlaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin)
   if (isCrmTool(name) && !crmConnected(ctx.biz.id)) return { content: "DentaCRM ulanmagan — egasi panel → Ulanishlar'da ulashi kerak", isError: true };
-  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS, ...WORK_DEFS, ...HR_DEFS, ...TRAIN_DEFS, ...CAMERA_DEFS, ...CONTENT_DEFS, ...BRAND_DEFS, ...ADS_DEFS, ...COMPUTER_DEFS, ...MARKETING_DEFS, ...CRM_DEFS };
+  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS, ...WORK_DEFS, ...HR_DEFS, ...TRAIN_DEFS, ...CAMERA_DEFS, ...CONTENT_DEFS, ...BRAND_DEFS, ...ADS_DEFS, ...COMPUTER_DEFS, ...(devEnabled() ? DEV_DEFS : {}), ...MARKETING_DEFS, ...CRM_DEFS };
   const d = Object.hasOwn(all, name) ? all[name] : undefined;
   if (!d) return { content: `Noma'lum asbob: ${name}`, isError: true };
   // Mutaxassis jamoada emas — uning ishi qilinmaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin: eski suhbat, obuna)
