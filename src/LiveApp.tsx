@@ -6,6 +6,7 @@ import { api, session, type Who } from './data/api';
 import { Rail } from './components/Rail';
 import { WakeOverlay } from './components/WakeOverlay';
 import { useWake } from './lib/useWake';
+import { useVersionReload } from './lib/useVersionReload';
 import { DEPARTMENT_OF, TEAM, isMember, useTeam, type Member } from './components/team';
 import { Button } from './components/ui';
 import { useFontsReady, useNow, useToast } from './lib/hooks';
@@ -37,6 +38,7 @@ const crewOpen = (a: Area, crew: Member[]): boolean =>
 
 export default function LiveApp() {
   useFontsReady();
+  useVersionReload();
   const now = useNow();
   const [toast, setToast] = useToast();
   const [route, setRoute] = useState<Route>(() => routeFromHash());

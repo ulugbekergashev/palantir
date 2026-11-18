@@ -86,6 +86,7 @@
     "test:computer": "tsx scripts/e2e-computer.ts",
     "test:computer-toggle": "tsx scripts/e2e-computer-toggle.ts",
     "test:own-chrome": "tsx scripts/check-own-chrome.ts",
+    "test:version-reload": "tsx scripts/check-version-reload.ts",
     "test:ui": "vite build && tsx scripts/ui-live.ts",
     "crm:probe": "tsx scripts/crm-probe.ts",
     "crm:live": "tsx scripts/crm-live.ts",
