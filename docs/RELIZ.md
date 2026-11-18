@@ -1,5 +1,11 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.19 da yangi
+
+- **Palantir sizning Chrome'ingizda ishlaydi:** Sozlamalar → «Kompyuterda ishlash» → «Mening Chrome'im». Facebook, Google va boshqa saytlarga qayta kirish shart emas — siz allaqachon kirgansiz. Bir marta Chrome'da ulanishni yoqasiz (tugma sahifani o'zi ochadi). Palantir o'z vkladkasida ishlaydi, sizning vkladkalaringizga tegmaydi.
+- **Telefon liniyasi barqarorroq:** telefon xizmatining yashirin qismi o'chib qolsa, o'zi qayta yonadi — qo'ng'iroqlar uzilmaydi.
+- **Yangilanish to'xtab qolmaydi:** boshqa dastur (kod muharriri, antivirus) Palantir papkasini band qilib tursa ham yangilanish o'tadi.
+
 ## 0.4.18 da yangi
 
 - **Brauzerda ishlashni o'zingiz yoqasiz:** Sozlamalar → «Kompyuterda ishlash». Yoqsangiz, Palantir saytlardagi ishni o'zi bajaradi (masalan, Meta Business'da nom o'zgartirish, soliq.uz dan hujjat yuklab olish). Saqlash yoki yuborishdan oldin Telegram'da sizdan so'raydi; bank va to'lov yopiq. Saytlarga kirish oynasi ham shu yerda.
