@@ -1,5 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.21 da yangi
+
+- **Halol natija:** Palantir brauzerdagi ishni bajara olmasa (kirish kerak, sayt to'sdi), Telegram'da «⚠️ Bajarilmadi» deb yozadi — avval har doim «Ish tugadi» derdi.
+- **Ortiqcha raqam yo'q:** ish xabarlarida dollardagi narx ko'rsatilmaydi; ish nomidagi harflar to'g'ri chiqadi.
+
 ## 0.4.20 da yangi
 
 - **«▶️ Qayta boshlash» tugmasi:** Palantir brauzerdagi ishni boshlashdan oldin so'raganda javob bermay qolsangiz, ish yo'qolmaydi — Telegram'dagi tugmani bossangiz, o'sha ish darhol boshlanadi.
