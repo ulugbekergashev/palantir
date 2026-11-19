@@ -9,7 +9,8 @@ import { b, cut, detach, esc, ignoreUnchanged, kb, RECALL_SHOWN, reminderText, t
 import { interviewOption, interviewSkip, interviewStart, interviewStop, type InterviewTurn } from './brain/interview';
 import { settleFile, settleSuggestion } from './brain/learn';
 import { answerApproval, closeLoginWindow, restartJob, stopJob } from './computer/jobs';
-import { acceptCodeJob, answerStart, discardCodeJob, sendCodeDiff, stopCodeJob } from './dev/jobs';
+import { startBuild, stopBuild } from './dev/build';
+import { DevError, acceptCodeJob, answerStart, codeJobs, discardCodeJob, sendCodeDiff, stopCodeJob } from './dev/jobs';
 import { cancelEntry, confirmEntry, undoEntry } from './crm/actions';
 import { recallPatients } from './crm/index';
 import { patientName } from './crm/logic';
@@ -84,15 +85,28 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
       return toast(ctx, closed ? 'Oyna yopildi — kirishlar saqlandi' : 'Oyna allaqachon yopilgan');
     }
     // Dasturchi (dev/jobs.ts): «Boshlaymi?», to'xtatish, qabul qilish, tashlab yuborish, o'zgarishlarni ko'rish — faqat egasi
-    if (['ba', 'bx', 'bs', 'bo', 'bd', 'bf'].includes(code)) {
+    if (['ba', 'bx', 'bs', 'bo', 'bd', 'bf', 'bb', 'bq'].includes(code)) {
       if (!ownerBiz) return toast(ctx, 'Bu tugma eskirgan');
+      // «📦 Yig'ish» (qabul qilingan ishning loyihasi) va yig'ishni to'xtatish
+      if (code === 'bq') return toast(ctx, stopBuild(biz.id, id) ? "To'xtatyapman…" : "Yig'ish allaqachon tugagan");
+      if (code === 'bb') {
+        const project = codeJobs.byId(biz.id, id)?.project;
+        if (!project) return toast(ctx, 'Bu ish topilmadi');
+        try {
+          startBuild(biz, project);
+          return toast(ctx, "Yig'ish boshlandi — tayyor fayl ish stoliga qo'yiladi");
+        } catch (e) {
+          if (e instanceof DevError) return toast(ctx, cut(e.message, 190), { show_alert: true });
+          throw e;
+        }
+      }
       if (code === 'ba' || code === 'bx') return toast(ctx, answerStart(biz.id, id, code === 'ba') ?? "Bu so'rov eskirgan");
       if (code === 'bs') return toast(ctx, stopCodeJob(biz.id, id) ? "To'xtatyapman — qilingani saqlanadi" : 'Ish allaqachon tugagan');
       const said = await (code === 'bo' ? acceptCodeJob(biz, id) : code === 'bd' ? discardCodeJob(biz, id) : sendCodeDiff(biz, id));
       // Qaror qilindi — tugmalar olinadi va qaror xabarda qoladi (farqni ko'rish tugmalarni olmaydi)
       if (said.ok && code !== 'bf' && msg) {
         await ctx.editMessageReplyMarkup(undefined).catch(() => {});
-        await ctx.reply(`${code === 'bo' ? '✅' : '✖️'} ${said.text}`, { reply_parameters: { message_id: msg.message_id } }).catch(() => {});
+        await ctx.reply(`${code === 'bo' ? '✅' : '✖️'} ${said.text}`, { reply_parameters: { message_id: msg.message_id }, ...(said.build ? { reply_markup: kb([[b("📦 Yig'ish (exe)", `bb|${id}`)]]) } : {}) }).catch(() => {});
       }
       return toast(ctx, cut(said.text, 190), said.ok ? undefined : { show_alert: true });
     }

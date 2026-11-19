@@ -45,6 +45,9 @@ function ownEnvKeys(): string[] {
   }
 }
 
+/** Dasturchi va yig'ish jarayonlarining muhiti: Palantir'ning o'z sirlari va API kalitlarisiz */
+export const devEnv = (): Record<string, string | undefined> => agentEnv(childEnv(process.env), ownEnvKeys());
+
 function optionsFor(r: AgentRun): Options {
   return {
     model: env.devModel || env.aiModel,
@@ -59,7 +62,7 @@ function optionsFor(r: AgentRun): Options {
     allowedTools: TOOLS,
     permissionMode: 'dontAsk',
     cwd: r.workDir,
-    env: agentEnv(childEnv(process.env), ownEnvKeys()),
+    env: devEnv(),
     hooks: { PreToolUse: [{ hooks: [guardHook(r.workDir)] }] },
     ...(r.resume ? { resume: r.resume } : {}),
   };

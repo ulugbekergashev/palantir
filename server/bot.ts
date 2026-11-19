@@ -42,6 +42,7 @@ import { MAX_LOOK_CAMERAS, lookAt, lookRequest, shotCaption } from './camera/ask
 import { events } from './orders/store';
 import { remoteUrl } from './remote';
 import { ComputerError, computerModeOf, modeEnabled, openLoginWindow, runningJob, stopJob } from './computer/jobs';
+import { stopBuild } from './dev/build';
 import { stopCodeJob } from './dev/jobs';
 import { devEnabled } from './dev/projects';
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
@@ -378,7 +379,7 @@ export function createBot(): BotService {
     if (!biz) return;
     const job = runningJob(biz.id);
     // Kod ishi ham (dev/jobs.ts) shu buyruq bilan to'xtaydi
-    const code = stopCodeJob(biz.id);
+    const code = [stopCodeJob(biz.id), stopBuild(biz.id)].some(Boolean);
     if ((!job || !stopJob(biz.id)) && !code) return ctx.reply("Hozir fonda ish bajarilmayapti.");
     await ctx.reply("⏹ To'xtatyapman…");
   });

@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 import { ToolError, def } from '../toolkit';
+import { buildable, runningBuild, startBuild, stopBuild } from './build';
 import { DevError, codeJobs, codeView, runningCodeJob, startCodeJob, stopCodeJob } from './jobs';
 import { findProject, projects } from './projects';
 
@@ -49,16 +50,30 @@ export const DEV_DEFS = {
       // Hisobot kod, test chiqishi va loglardan olingan matn — begona: shu javobda tasdiqsiz yangi ish boshlanmaydi
       ctx.readStrangers = true;
       const now = runningCodeJob(ctx.biz.id);
-      return { running: now ? codeView(now) : null, recent: codeJobs.recent(ctx.biz.id, 6).filter(j => j.id !== now?.id).map(codeView), projects: projects().map(p => p.name) };
+      return { running: now ? codeView(now) : null, building: runningBuild(ctx.biz.id), recent: codeJobs.recent(ctx.biz.id, 6).filter(j => j.id !== now?.id).map(codeView), projects: projects().map(p => p.name) };
     },
   }),
 
   code_stop: def({
-    description: "Stop the developer job running now (the owner said stop / to'xtat). What was already done is kept and comes for the owner's decision.",
+    description: "Stop the developer job or the build running now (the owner said stop / to'xtat). What the developer job already did is kept and comes for the owner's decision.",
     input: z.object({}),
     run: (_i, ctx) => {
-      if (!stopCodeJob(ctx.biz.id)) throw new ToolError('Hozir kod ishi bajarilmayapti');
+      const job = stopCodeJob(ctx.biz.id), build = stopBuild(ctx.biz.id);
+      if (!job && !build) throw new ToolError("Hozir kod ishi ham, yig'ish ham bajarilmayapti");
       return { stopped: true };
+    },
+  }),
+
+  code_build: def({
+    description: `Build the installer (setup .exe) of one of the owner's projects from the project's folder as it is now, and put the ready file on the owner's desktop (the old file with the same name is replaced). Runs in the background and takes several minutes; progress and the result come to Telegram. Projects that can be built: ${buildable().map(p => p.name).join(', ') || '(none configured)'}. Use when the owner asks to build / "yig'" / "собери" / wants the file or exe — typically after accepting a developer job. Sending the file to clients is the owner's job. Tell the owner you started — do not wait.`,
+    input: z.object({ project: z.string().trim().min(1).max(60).describe('Project name from the list') }),
+    run: (i, ctx) => {
+      try {
+        return { started: true, ...startBuild(ctx.biz, i.project), note: "Yig'ish boshlandi. Tayyor fayl ish stoliga qo'yiladi, xabar Telegram'ga keladi." };
+      } catch (e) {
+        if (e instanceof DevError) throw new ToolError(e.message);
+        throw e;
+      }
     },
   }),
 };

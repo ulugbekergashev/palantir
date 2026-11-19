@@ -67,3 +67,23 @@ bo'lmasa (rasm, mijoz xabari, jadval) — avval Telegram'da «Kodda ish boshlaym
 - Commit bo'lmasa (loyihaning pre-commit hook'i yiqilsa) — «Qabul qilish» rad etiladi, ish joyida qoladi.
 - Loyihada o'zingiz boshlagan, tugallanmagan merge bo'lsa — «Qabul qilish» unga tegmaydi, avval uni tugatishni so'raydi.
 - Hisobot va tugmalar faqat Telegram'da: egasi Telegram'ni ulamagan bo'lsa ish boshlanmaydi.
+
+## Yig'ish (exe)
+
+«✅ Qabul qilish» dan keyin javob ostida **📦 Yig'ish (exe)** tugmasi chiqadi (yoki Palantir'ga «DentaLocal'ni yig'» deng). O'rnatuvchi
+fonda yig'ilib, **ish stoliga** qo'yiladi — o'sha nomdagi eski fayl almashtiriladi. Mijozga yuborish — egasining ishi.
+
+Buyruq modeldan emas, faqat Palantir `.env` dan olinadi (loyiha fayllaridan ham emas — ularni Dasturchi o'zgartira oladi):
+
+```
+DEV_BUILD_DENTALOCAL=cd backend && npm run bundle && cd .. && npm run electron:build
+DEV_OUT_DENTALOCAL=dist-electron\*.exe
+DEV_BUILD_XCLINIC=npm run electron:build
+DEV_OUT_XCLINIC=dist-electron\*.exe
+```
+
+- Nom — loyiha nomi katta harfda, belgisiz (`X Clinic` → `XCLINIC`). `DEV_BUILD_…` yo'q loyihada tugma chiqmaydi.
+- Yig'ish loyihaning o'z papkasida, papkaning **hozirgi holati** bilan boradi (ish nusxasida git'ga kirmaydigan resurslar yo'q).
+- Bir vaqtda bitta yig'ish; to'xtatish — «⏹ To'xtatish» yoki `/toxta`. Chegara — `DEV_BUILD_MINUTES` (40).
+- Yiqilsa — chiqishning oxirgi qatorlari va to'liq jurnal yo'li (`data/dasturchi/yigish-….log`) keladi.
+- Boshqa joyga qo'yish: `DEV_DELIVER_DIR`.

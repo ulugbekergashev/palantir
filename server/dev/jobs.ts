@@ -22,7 +22,8 @@ import { SubscriptionError, subscriptionOn } from '../subscription/engine';
 import { laneClosedUntil, pausedText } from '../subscription/pressure';
 import { runAgent, type AgentEvent, type AgentResult } from './agent';
 import { GitError, changesOf, cleanup, commitAll, dirty, isRepo, mergeInto, prepare, writePatch, type Changes, type Work } from './git';
-import { devEnabled, findProject, projects, type Project } from './projects';
+import { canBuild, stopAllBuilds } from './build';
+import { DevError, devEnabled, findProject, projects, type Project } from './projects';
 
 /** review — tayyor, egasining qarorini kutyapti; done — kod o'zgarmadi (javob); accepted/discarded — egasi qaror qildi */
 export type CodeStatus = 'waiting' | 'running' | 'review' | 'done' | 'accepted' | 'discarded' | 'failed' | 'stopped';
@@ -53,7 +54,7 @@ function save(j: CodeJob): void {
     j.goal, j.status, j.report, j.workDir, j.branch, j.base, j.sessionId, j.files, FINAL.includes(j.status) ? j.finishedAt ?? new Date().toISOString() : null, j.id);
 }
 
-export class DevError extends Error {}
+export { DevError };
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -336,10 +337,11 @@ export function stopCodeJob(bizId: string, jobId?: string): boolean {
 export async function stopAllCodeJobs(): Promise<void> {
   const running = [...live.values()].map(l => l.done);
   for (const bizId of [...live.keys()]) stopCodeJob(bizId);
-  await Promise.allSettled(running);
+  await Promise.allSettled([...running, stopAllBuilds()]);
 }
 
-export interface Verdict { ok: boolean; text: string }
+/** build — qabul qilingan loyihaning o'rnatuvchisini yig'sa bo'ladi («📦 Yig'ish» tugmasi) */
+export interface Verdict { ok: boolean; text: string; build?: boolean }
 /** Bitta ishga bir vaqtda bitta qaror (tugma ikki marta bosilsa) */
 const deciding = new Set<string>();
 
@@ -378,7 +380,7 @@ export async function acceptCodeJob(biz: BusinessRow, jobId: string): Promise<Ve
     await mergeInto(r.project.dir, r.work, message);
     const cleaned = await cleanup(r.project.dir, r.work, true).then(() => true, e => { console.warn('[dasturchi] ish nusxasi tozalanmadi:', (e as Error).message); return false; });
     save({ ...r.job, status: 'accepted', ...(cleaned ? { workDir: null } : {}) });
-    return { ok: true, text: `«${r.project.name}» loyihasiga qo'shildi (push qilinmadi)` };
+    return { ok: true, text: `«${r.project.name}» loyihasiga qo'shildi (push qilinmadi)`, build: canBuild(r.project.name) };
   } catch (e) {
     return { ok: false, text: `Qo'shib bo'lmadi: ${mergeWhy(e)}` };
   } finally {

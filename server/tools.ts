@@ -487,7 +487,7 @@ function journal(name: string, input: unknown, ctx: ToolCtx): void {
  * (bo'sh vaqtlar, raqamlar). Qolgan hammasi — mijoz ismi, izohi, yozishmasi, CRM'dagi bemor, kamera, internet, kompyuterdagi sahifa —
  * begona matn: chaqirilgach shu javobda bilimga yozish yopiladi (toolkit.ts: assertOwnWords). Yangi asbob — standart bo'yicha begona
  */
-const OWN_DATA_TOOLS = new Set(['create_task', 'remember', 'forget', 'save_prices', 'read_page', 'write_page', 'create_document', 'draft_followup', 'free_slots', 'business_numbers', 'computer_stop', 'code_task', 'code_stop']);
+const OWN_DATA_TOOLS = new Set(['create_task', 'remember', 'forget', 'save_prices', 'read_page', 'write_page', 'create_document', 'draft_followup', 'free_slots', 'business_numbers', 'computer_stop', 'code_task', 'code_stop', 'code_build']);
 
 /**
  * Katta asbob (video, brend-buk, hujjat) limit tufayli bajarilmadi: faqat shu asbob o'sha kirish bilan navbatga qo'yiladi — limit

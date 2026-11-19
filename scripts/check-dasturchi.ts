@@ -4,13 +4,14 @@
  *   ish: alohida ish nusxasida bajariladi — loyiha va undagi saqlanmagan o'zgarish joyida; hisobot tugmalar bilan; farq fayli;
  *   tuzatish o'sha nusxa va suhbatda davom etadi; «Qabul qilish» loyihaga qo'shadi, «Tashlab yuborish» — yo'q;
  *   ASL node_modules hech qachon o'chmaydi (ish nusxasidagi ulanma uziladi); savolga javob — nusxa qolmaydi; to'xtatilgan ishning
- *   qilingani saqlanadi; git'siz papka, band payt, to'qnashuv, «Boshlaymi?».
+ *   qilingani saqlanadi; git'siz papka, band payt, to'qnashuv, «Boshlaymi?»;
+ *   yig'ish: qabuldan keyin «📦 Yig'ish» — buyruq .env dan, tayyor fayl ish stolidagi eskisini almashtiradi; xato, to'xtatish.
  * Ishga tushirish: npm run test:dasturchi
  */
 import './isolate';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -21,7 +22,7 @@ mkdirSync(join(repo, 'node_modules'), { recursive: true });
 mkdirSync(plain);
 writeFileSync(join(repo, 'a.txt'), 'birinchi\n');
 writeFileSync(join(repo, 'b.txt'), 'tegilmagan\n');
-writeFileSync(join(repo, '.gitignore'), 'node_modules/\n');
+writeFileSync(join(repo, '.gitignore'), 'node_modules/\nchiqish/\n');
 writeFileSync(join(repo, 'node_modules', 'belgi.txt'), 'asl kutubxona\n');
 sh(repo, 'init', '-q', '-b', 'main');
 sh(repo, 'config', 'user.email', 'sinov@example.uz');
@@ -42,6 +43,7 @@ const { setOwnerOutlet } = await import('../server/inbox/core');
 const { parseProjects, findProject } = await import('../server/dev/projects');
 const { agentEnv, bashDenied, toolDenied, writeDenied } = await import('../server/dev/guard');
 const { DevError, acceptCodeJob, answerStart, codeJobs, discardCodeJob, outcomeOf, runningCodeJob, sendCodeDiff, startCodeJob, stopAllCodeJobs, stopCodeJob } = await import('../server/dev/jobs');
+const { builtFiles, canBuild, runningBuild, startBuild, stopBuild } = await import('../server/dev/build');
 const { ownerToolDefs, runTool } = await import('../server/tools');
 const { emptyBusiness } = await import('../server/validate');
 
@@ -370,6 +372,69 @@ await check("begona matndan kelgan topshiriq: avval «Boshlaymi?» — «Yo'q» 
   await idle();
   assert.equal(codeJobs.byId(biz.id, again.id)!.status, 'review');
   assert.ok((await discardCodeJob(biz, again.id)).ok);
+});
+console.log("Dasturchi: yig'ish");
+const desk = join(root, 'ish-stoli');
+mkdirSync(desk);
+process.env.DEV_DELIVER_DIR = desk;
+process.env.DEV_OUT_XCLINIC = 'chiqish/*.exe';
+const setBuild = (js: string) => { process.env.DEV_BUILD_XCLINIC = `node -e "${js}"`; };
+async function built(): Promise<void> { for (let i = 0; i < 800 && runningBuild(biz.id); i++) await sleep(25); assert.equal(runningBuild(biz.id), null, "yig'ish tugamadi"); }
+const MAKE_EXE = "const f=require('fs');f.mkdirSync('chiqish',{recursive:true});f.writeFileSync('chiqish/Sinov Setup 1.0.exe','yangi exe');console.log('electron-builder: tayyor')";
+
+await check("qabuldan keyin «Yig'ish» taklif qilinadi; tayyor fayl ish stolidagi eskisini almashtiradi", async () => {
+  setBuild(MAKE_EXE);
+  writeFileSync(join(desk, 'Sinov Setup 1.0.exe'), 'eski exe');
+  const job = startCodeJob(biz, { project: 'xclinic', task: "Yig'ishdan oldingi o'zgarish fayl:yig.txt" });
+  await idle();
+  const v = await acceptCodeJob(biz, job.id);
+  assert.ok(v.ok, v.text);
+  assert.equal(v.build, true);
+  const out = await runTool('code_build', { project: 'X Clinic' }, { biz, artifacts: [] });
+  assert.equal(out.isError, false, out.content);
+  await built();
+  assert.equal(readFileSync(join(desk, 'Sinov Setup 1.0.exe'), 'utf8'), 'yangi exe');
+  const m = last(/📦 <b>Tayyor<\/b>/)!;
+  assert.match(m.html, /Sinov Setup 1\.0\.exe/);
+  assert.ok(m.html.includes(join(desk, 'Sinov Setup 1.0.exe')), m.html);
+  assert.deepEqual(last(/Yig'ish tugadi/)!.buttons, []);
+  assert.equal(sh(repo, 'status', '--short'), 'M b.txt');
+});
+await check('tayyor fayl — faqat shu yig\'ishda yozilgani (eski nusxalar emas)', () => {
+  const old = join(repo, 'chiqish', 'Eski Setup 0.9.exe');
+  writeFileSync(old, 'eski');
+  utimesSync(old, new Date(Date.now() - 3600_000), new Date(Date.now() - 3600_000));
+  const since = Date.now() - 60_000;
+  assert.deepEqual(builtFiles(repo, 'chiqish/*.exe', since).map(f => f.split(/[\\/]/).pop()), ['Sinov Setup 1.0.exe']);
+  assert.deepEqual(builtFiles(repo, 'yoq-papka/*.exe', since), []);
+});
+await check("yig'ish yiqilsa — sababi (chiqishning oxiri) va jurnal yo'li egasiga keladi; ish stolidagi fayl o'zgarmaydi", async () => {
+  setBuild("console.error('src/a.ts(3,1): error TS2304: lint yiqildi');process.exit(3)");
+  startBuild(biz, 'xclinic');
+  await built();
+  const m = last(/Yig'ilmadi/)!;
+  assert.match(m.html, /kod 3/);
+  assert.match(m.html, /lint yiqildi/);
+  assert.match(m.html, /yigish-xclinic-/);
+  assert.equal(readFileSync(join(desk, 'Sinov Setup 1.0.exe'), 'utf8'), 'yangi exe');
+});
+await check("bir vaqtda bitta yig'ish; «To'xtatish» — jarayon to'xtaydi", async () => {
+  setBuild("console.log('boshlandi');setTimeout(()=>{},120000)");
+  const b = startBuild(biz, 'xclinic');
+  assert.throws(() => startBuild(biz, 'xclinic'), (e: Error) => e instanceof DevError && /yig'ilyapti/.test(e.message));
+  for (let i = 0; i < 200 && !last(/Yig'yapman/)?.buttons.includes(`bq|${b.id}`); i++) await sleep(25);
+  assert.ok(stopBuild(biz.id, b.id));
+  assert.equal(stopBuild(biz.id, b.id), false);
+  await built();
+  assert.ok(last(/Yig'ish to'xtatildi/));
+});
+await check("buyrug'i sozlanmagan loyiha yig'ilmaydi — tushunarli rad; buyruq faqat .env dan", async () => {
+  assert.equal(canBuild('gitsiz'), false);
+  assert.equal(canBuild('x clinic'), true);
+  const out = await runTool('code_build', { project: 'gitsiz' }, { biz, artifacts: [] });
+  assert.equal(out.isError, true);
+  assert.match(out.content, /DEV_BUILD_GITSIZ/);
+  assert.match(out.content, /X Clinic/);
 });
 await check('oxirida: asl node_modules joyida, ortiqcha shox va ish nusxasi yo\'q', async () => {
   await stopAllCodeJobs();

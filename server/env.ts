@@ -231,6 +231,8 @@ export const env = {
   /** Bitta kod ishining chegaralari: daqiqa va model qadamlari — oshsa ish to'xtaydi, qilingani saqlanadi */
   devMaxMinutes: Number(process.env.DEV_MAX_MINUTES) || 45,
   devMaxTurns: Number(process.env.DEV_MAX_TURNS) || 200,
+  /** Yig'ish (server/dev/build.ts: DEV_BUILD_<NOM>, DEV_OUT_<NOM>) shuncha daqiqadan oshsa to'xtatiladi */
+  devBuildMinutes: Number(process.env.DEV_BUILD_MINUTES) || 40,
   /** Kod ishining modeli (bo'sh — AI_MODEL) */
   devModel: process.env.DEV_MODEL || '',
   /** Faqat sinov uchun: haqiqiy Claude o'rniga shu modul (scripts/fake-dev-agent.mjs) */

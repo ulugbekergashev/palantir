@@ -7,6 +7,9 @@ import { env } from '../env';
 
 export interface Project { name: string; dir: string }
 
+/** Ish yoki yig'ish boshlanmadi: matni egasiga (yordamchi orqali) aytiladi */
+export class DevError extends Error {}
+
 /** Nomni solishtirish: «X Clinic», «x-clinic», «xclinic» — bitta loyiha */
 const keyOf = (name: string) => name.toLowerCase().replace(/[^a-z0-9а-яё]/gi, '');
 
