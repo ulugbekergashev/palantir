@@ -1,5 +1,9 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.37 da yangi
+
+- **«Orqaga» tez ishlaydi:** Palantir Google'da qidirib, orqaga qaytganda 30 soniya kutib qolmaydi.
+
 ## 0.4.36 da yangi
 
 - **Ketma-ket topshiriqda «Boshlaymi?» yo'q:** o'zingiz yozgan topshiriq darhol boshlanadi. Topshiriq internetdan yoki mijoz xabaridan kelgan bo'lsa — avvalgidek so'raladi.
