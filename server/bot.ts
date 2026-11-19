@@ -46,6 +46,7 @@ import { stopBuild } from './dev/build';
 import { stopCodeJob } from './dev/jobs';
 import { devEnabled } from './dev/projects';
 import { BUSINESS_UPDATES, onBusinessConnection, onBusinessMessage, startTelegramBusiness, type BusinessConnection, type BusinessMessage } from './inbox/telegramBusiness';
+import { isBig, sendBigFile } from './inbox/bigFile';
 import { HOLD_EVERY_MS, clearBotOutlets, onIncoming, ownerWrites, registerSender, replySettings, sendToLead, setOwnerOutlet } from './inbox/core';
 import { mediaLabel } from './inbox/media';
 import { registerButtons } from './botButtons';
@@ -807,8 +808,10 @@ export function createBot(): BotService {
       if (!biz.ownerChatId) return;
       await tg.editMessageText(biz.ownerChatId, messageId, undefined, html, { parse_mode: 'HTML', reply_markup: keyboard }).catch(ignoreUnchanged);
     },
-    async sendFile(biz, path, caption) {
+    async sendFile(biz, path, caption, onProgress) {
       if (!biz.ownerChatId) return;
+      // Bot API 50 MB dan kattasini olmaydi (o'rnatuvchi exe) — o'sha bot nomidan to'g'ridan-to'g'ri yuboriladi
+      if (isBig(path)) { await sendBigFile(biz.ownerChatId, path, cut(caption, 1000), onProgress); return; }
       await tg.sendDocument(biz.ownerChatId, { source: path, filename: basename(path) }, { caption: cut(caption, 1000) });
     },
     async sendPhoto(biz, photo, html, keyboard) {

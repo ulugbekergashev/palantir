@@ -71,7 +71,8 @@ bo'lmasa (rasm, mijoz xabari, jadval) — avval Telegram'da «Kodda ish boshlaym
 ## Yig'ish (exe)
 
 «✅ Qabul qilish» dan keyin javob ostida **📦 Yig'ish (exe)** tugmasi chiqadi (yoki Palantir'ga «DentaLocal'ni yig'» deng). O'rnatuvchi
-fonda yig'ilib, **ish stoliga** qo'yiladi — o'sha nomdagi eski fayl almashtiriladi. Mijozga yuborish — egasining ishi.
+fonda yig'ilib, **ish stoliga** qo'yiladi — o'sha nomdagi eski fayl almashtiriladi — va **Telegram'ga ham** hujjat bo'lib keladi.
+Mijozga yuborish — egasining ishi.
 
 Buyruq modeldan emas, faqat Palantir `.env` dan olinadi (loyiha fayllaridan ham emas — ularni Dasturchi o'zgartira oladi):
 
@@ -87,3 +88,6 @@ DEV_OUT_XCLINIC=dist-electron\*.exe
 - Bir vaqtda bitta yig'ish; to'xtatish — «⏹ To'xtatish» yoki `/toxta`. Chegara — `DEV_BUILD_MINUTES` (40).
 - Yiqilsa — chiqishning oxirgi qatorlari va to'liq jurnal yo'li (`data/dasturchi/yigish-….log`) keladi.
 - Boshqa joyga qo'yish: `DEV_DELIVER_DIR`.
+- Telegram'ga yuborish: 50 MB gacha — oddiy bot orqali; kattasi (o'rnatuvchi odatda 130 MB+) — o'sha botning o'zi nomidan to'g'ridan-to'g'ri
+  (`server/inbox/bigFile.ts`, 2 GB gacha). Buning uchun `.env` da `TG_API_ID` va `TG_API_HASH` bo'lishi kerak (qo'ng'iroqlar uchun kiritilgan
+  bo'lsa — yetarli). Yuborilmasa sababi aytiladi, fayl baribir ish stolida. Jonli sinov: `tsx scripts/live-bigfile.ts <fayl>`.

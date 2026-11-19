@@ -1,6 +1,7 @@
 /**
  * Yig'ish: egasi «Qabul qilish» dan keyin «📦 Yig'ish» ni bosadi (yoki Palantir'ga «DentaLocal'ni yig'» deydi) — loyihaning o'rnatuvchisi
- * (exe) fonda yig'ilib, ish stoliga qo'yiladi. Mijozga yuborishni egasi o'zi qiladi.
+ * (exe) fonda yig'ilib, ish stoliga qo'yiladi va Telegram'ga ham yuboriladi (50 MB dan kattasi — inbox/bigFile.ts orqali).
+ * Mijozga yuborishni egasi o'zi qiladi.
  *
  * Buyruq modeldan emas, faqat Palantir .env dan olinadi (loyiha fayllaridan ham emas — Dasturchi ularni o'zgartira oladi):
  *   DEV_BUILD_<NOM>=cd backend && npm run bundle && cd .. && npm run electron:build
@@ -15,7 +16,8 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { Markup } from 'telegraf';
 import { newId, type BusinessRow } from '../db';
 import { env } from '../env';
-import { editOwner, notifyOwner } from '../inbox/core';
+import { bigFileBlock, isBig } from '../inbox/bigFile';
+import { editOwner, notifyOwner, notifyOwnerFile } from '../inbox/core';
 import { devEnv } from './agent';
 import { DevError, findProject, projects, type Project } from './projects';
 
@@ -150,12 +152,45 @@ async function report(biz: BusinessRow, b: LiveBuild, spec: BuildSpec, code: num
       if (!existsSync(dir)) throw new Error(`papka yo'q: ${dir}`);
       const to = join(dir, basename(src));
       copyFileSync(src, to);
-      return `✅ <b>${esc(basename(src))}</b> — ${sizeOf(src)}\n<code>${esc(to)}</code>`;
+      return { path: to, html: `✅ <b>${esc(basename(src))}</b> — ${sizeOf(src)}\n<code>${esc(to)}</code>` };
     } catch (e) {
-      return `⚠️ <b>${esc(basename(src))}</b> — ${sizeOf(src)}; ish stoliga ko'chirilmadi (${esc((e as Error).message.slice(0, 120))})\n<code>${esc(src)}</code>`;
+      return { path: src, html: `⚠️ <b>${esc(basename(src))}</b> — ${sizeOf(src)}; ish stoliga ko'chirilmadi (${esc((e as Error).message.slice(0, 120))})\n<code>${esc(src)}</code>` };
     }
   });
-  await notifyOwner(biz, `📦 <b>Tayyor</b> · ${name} (${minutes} daq)\n\n${rows.join('\n\n')}`).catch(() => null);
+  await notifyOwner(biz, `📦 <b>Tayyor</b> · ${name} (${minutes} daq)\n\n${rows.map(r => r.html).join('\n\n')}`).catch(() => null);
+  // Fayl Telegram'ga ham: egasi kompyuter oldida bo'lmasa ham mijozga uzata oladi
+  for (const r of rows) await sendBuilt(biz, b.project.name, r.path);
+}
+
+const PROGRESS_EVERY_MS = 10_000;
+
+/** Tayyor fayl egasining Telegram'iga hujjat bo'lib boradi; yuborilmasa — sababi aytiladi (fayl baribir kompyuterda) */
+async function sendBuilt(biz: BusinessRow, projectName: string, path: string): Promise<void> {
+  const label = `<b>${esc(basename(path))}</b> — ${sizeOf(path)}`;
+  const failed = (why: string) => `⚠️ Telegram'ga yuborilmadi: ${label}\n${esc(why.slice(0, 200))}\nFayl kompyuterda: <code>${esc(path)}</code>`;
+  const big = isBig(path), block = big ? bigFileBlock(path) : null;
+  if (block) { await notifyOwner(biz, failed(block)).catch(() => null); return; }
+  // Katta fayl bir-ikki daqiqa yuklanadi — egasi kutayotganini bilsin
+  const note = big ? await notifyOwner(biz, `📤 Telegram'ga yuboryapman: ${label}`).catch(() => null) : null;
+  let shownAt = Date.now();
+  // Foiz yozuvi yakuniy yozuvdan keyin yetib kelib, uni bosib ketmasin — yakuniydan oldin kutiladi
+  let progressEdit: Promise<void> = Promise.resolve();
+  const onProgress = note === null ? undefined : (fraction: number) => {
+    if (Date.now() - shownAt < PROGRESS_EVERY_MS) return;
+    shownAt = Date.now();
+    progressEdit = editOwner(biz, note, `📤 Telegram'ga yuboryapman: ${label} · ${Math.floor(fraction * 100)}%`).catch(() => {});
+  };
+  try {
+    await notifyOwnerFile(biz, path, `${projectName}: ${basename(path)}`, onProgress);
+    await progressEdit;
+    if (note !== null) await editOwner(biz, note, `📤 Telegram'ga yuborildi: ${label}`).catch(() => {});
+  } catch (e) {
+    console.error("[dasturchi] faylni Telegram'ga yuborish:", e);
+    await progressEdit;
+    const html = failed((e as Error).message);
+    if (note !== null) await editOwner(biz, note, html).catch(() => {});
+    else await notifyOwner(biz, html).catch(() => null);
+  }
 }
 
 /** Egasi to'xtatdi */

@@ -44,6 +44,7 @@ const { parseProjects, findProject } = await import('../server/dev/projects');
 const { agentEnv, bashDenied, toolDenied, writeDenied } = await import('../server/dev/guard');
 const { DevError, acceptCodeJob, answerStart, codeJobs, discardCodeJob, outcomeOf, runningCodeJob, sendCodeDiff, startCodeJob, stopAllCodeJobs, stopCodeJob } = await import('../server/dev/jobs');
 const { builtFiles, canBuild, runningBuild, startBuild, stopBuild } = await import('../server/dev/build');
+const { BOT_API_MAX, BigFileError, bigFileBlock, isBig, sendBigFile } = await import('../server/inbox/bigFile');
 const { ownerToolDefs, runTool } = await import('../server/tools');
 const { emptyBusiness } = await import('../server/validate');
 
@@ -60,11 +61,13 @@ async function check(name: string, fn: () => void | Promise<void>): Promise<void
 
 interface Sent { id: number; html: string; buttons: string[]; file?: string }
 const sent: Sent[] = [];
+/** Bo'sh emas — egasiga fayl yuborish shu xato bilan yiqiladi */
+let fileFails = '';
 const buttonsOf = (kb: unknown) => ((kb as { inline_keyboard?: { callback_data?: string }[][] } | undefined)?.inline_keyboard ?? []).flat().map(b => b.callback_data ?? '');
 setOwnerOutlet({
   notify: async (_b, html, kb) => { sent.push({ id: sent.length + 1, html, buttons: buttonsOf(kb) }); return sent.length; },
   edit: async (_b, id, html, kb) => { const m = sent.find(s => s.id === id); if (m) { m.html = html; m.buttons = buttonsOf(kb); } },
-  sendFile: async (_b, path, caption) => { sent.push({ id: sent.length + 1, html: caption, buttons: [], file: path }); },
+  sendFile: async (_b, path, caption) => { if (fileFails) throw new Error(fileFails); sent.push({ id: sent.length + 1, html: caption, buttons: [], file: path }); },
   sendPhoto: async () => null,
 });
 const created = businesses.create('dasturchi-sinov', 'x', emptyBusiness('Palantir', 'IT'));
@@ -399,6 +402,61 @@ await check("qabuldan keyin «Yig'ish» taklif qilinadi; tayyor fayl ish stolida
   assert.ok(m.html.includes(join(desk, 'Sinov Setup 1.0.exe')), m.html);
   assert.deepEqual(last(/Yig'ish tugadi/)!.buttons, []);
   assert.equal(sh(repo, 'status', '--short'), 'M b.txt');
+  // Fayl Telegram'ga ham keladi — ish stolidagi nusxadan, «Tayyor» xabaridan keyin
+  const file = sent.findLast(s => s.file)!;
+  assert.equal(file.file, join(desk, 'Sinov Setup 1.0.exe'));
+  assert.match(file.html, /X Clinic: Sinov Setup 1\.0\.exe/);
+  assert.ok(file.id > m.id, 'fayl «Tayyor» dan oldin ketdi');
+});
+await check("fayl Telegram'ga ketmasa — sababi aytiladi, yig'ish baribir «Tayyor» (fayl ish stolida)", async () => {
+  setBuild(MAKE_EXE);
+  fileFails = 'Telegram: ulanish uzildi <tarmoq>';
+  try {
+    startBuild(biz, 'xclinic');
+    await built();
+  } finally { fileFails = ''; }
+  assert.ok(last(/📦 <b>Tayyor<\/b>/));
+  const m = last(/Telegram'ga yuborilmadi/)!;
+  assert.match(m.html, /Sinov Setup 1\.0\.exe/);
+  assert.match(m.html, /ulanish uzildi &lt;tarmoq&gt;/);
+  assert.ok(m.html.includes(join(desk, 'Sinov Setup 1.0.exe')), m.html);
+});
+await check("50 MB dan katta fayl: «yuboryapman» → «yuborildi»; kalitlar bo'lmasa — nima kerakligi aytiladi", async () => {
+  // Alohida nom: keyingi tekshiruvlar «Sinov Setup» ning mazmuniga qaraydi
+  const big = join(desk, 'Katta Setup 2.0.exe'), made = join(repo, 'chiqish', 'Katta Setup 2.0.exe');
+  process.env.DEV_OUT_XCLINIC = 'chiqish/Katta*.exe';
+  setBuild(`const f=require('fs');f.mkdirSync('chiqish',{recursive:true});f.writeFileSync('chiqish/Katta Setup 2.0.exe','x');f.truncateSync('chiqish/Katta Setup 2.0.exe',${BOT_API_MAX + 1024})`);
+  // 1) kalitsiz (sinov muhitida bot ham, TG_API_ID ham yo'q): yuborishga urinilmaydi
+  const before = sent.filter(s => s.file).length;
+  startBuild(biz, 'xclinic');
+  await built();
+  assert.equal(isBig(big), true);
+  assert.equal(sent.filter(s => s.file).length, before, 'kalitsiz ham yuborishga urinildi');
+  assert.match(last(/Telegram'ga yuborilmadi/)!.html, /bot ulanmagan|TG_API_ID/);
+  // 2) yo'l ochiq: xabar «yuboryapman» dan «yuborildi» ga aylanadi, fayl ketadi
+  process.env.BIG_FILE_FAKE = resolve('scripts/fake-big-file.mjs');
+  try {
+    assert.equal(bigFileBlock(big), null);
+    startBuild(biz, 'xclinic');
+    await built();
+    assert.equal(sent.filter(s => s.file).length, before + 1);
+    const note = last(/Telegram'ga yuborildi/)!;
+    assert.match(note.html, /Katta Setup 2\.0\.exe<\/b> — 49 MB/);
+    assert.equal(last(/Telegram'ga yuboryapman/), undefined, '«yuboryapman» yozuvi qolib ketdi');
+    // 3) sendBigFile o'zi: navbat bilan, soxta yuboruvchiga chat, fayl va izoh yetadi
+    const logFile = join(root, 'katta-fayl.jsonl');
+    process.env.BIG_FILE_FAKE_LOG = logFile;
+    const seen: number[] = [];
+    await Promise.all([sendBigFile('777', big, 'birinchi', f => seen.push(f)), sendBigFile('777', big, 'ikkinchi')]);
+    const calls = readFileSync(logFile, 'utf8').trim().split('\n').map(l => JSON.parse(l) as { chatId: string; path: string; caption: string; at: string });
+    assert.deepEqual(calls.map(c => `${c.at}:${c.caption}`), ['start:birinchi', 'end:birinchi', 'start:ikkinchi', 'end:ikkinchi']);
+    assert.equal(calls[0].chatId, '777');
+    assert.equal(calls[0].path, big);
+    assert.deepEqual(seen, [0.5, 1]);
+  } finally { delete process.env.BIG_FILE_FAKE; delete process.env.BIG_FILE_FAKE_LOG; process.env.DEV_OUT_XCLINIC = 'chiqish/*.exe'; }
+  await assert.rejects(sendBigFile('777', big, 'x'), (e: Error) => e instanceof BigFileError);
+  rmSync(made, { force: true });
+  rmSync(big, { force: true });
 });
 await check('tayyor fayl — faqat shu yig\'ishda yozilgani (eski nusxalar emas)', () => {
   const old = join(repo, 'chiqish', 'Eski Setup 0.9.exe');
