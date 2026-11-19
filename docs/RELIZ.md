@@ -1,5 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.31 da yangi
+
+- **Narx va kursni o'qish endi bloklanmaydi:** «olcha.uz da narxini top», «Markaziy bank kursini ayt», sinov formasini to'ldirish — Palantir «bu xarid» deb rad etmaydi. To'lash, pul o'tkazish, sotib olish va bank saytlari avvalgidek yopiq.
+- **Uzun ro'yxatni aylantiradi:** Google Xaritalar kabi ro'yxatlar Palantir'ning vkladkasi orqa fonda bo'lsa ham pastga aylanadi.
+
 ## 0.4.30 da yangi
 
 - **Katta fayl ham Telegram'ga keladi:** Palantir sizga 50 MB dan katta fayl yuborishi kerak bo'lsa (masalan, yig'ilgan o'rnatuvchi), endi u ham keladi — 2 GB gacha.
