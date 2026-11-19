@@ -174,6 +174,11 @@ export async function stopAllJobs(): Promise<void> {
  * 'act' — egasi kompyuterda o'zi qiladigan qadam (kalit/PIN/barmoq izi bilan tasdiqlash, captcha): «Bajardim» bosilguncha ish kutadi
  */
 async function ask(biz: BusinessRow, l: Live, what: string, kind: 'step' | 'start' | 'act' = 'step'): Promise<boolean> {
+  return (await askAnswer(biz, l, what, kind)) === true;
+}
+
+/** ask kabi, lekin javob bo'lmaganini (null) «yo'q» dan ajratadi — egasi «Qila olmayman» demagan bo'lsa, hisobotda shunday deyilmasin */
+async function askAnswer(biz: BusinessRow, l: Live, what: string, kind: 'step' | 'start' | 'act'): Promise<boolean | null> {
   const id = newId(8);
   const html = kind === 'start'
     ? `🖥 <b>${esc(what)}</b>\n\n<i>${esc(cut(l.job.goal, START_DETAIL_MAX))}</i>`
@@ -193,7 +198,7 @@ async function ask(biz: BusinessRow, l: Live, what: string, kind: 'step' | 'star
       : kind === 'act' ? (answer ? '✅ Bajarildi — davom etyapman' : '✖️ Qilinmadi')
         : answer ? '✅ Ruxsat berildi' : "✖️ Rad etildi — bajarilmadi";
   await editOwner(biz, messageId, `${html}\n\n${verdict}`).catch(() => {});
-  return answer === true;
+  return l.abort.signal.aborted ? false : answer;
 }
 
 /** Holat xabari (bitta, yangilanib turadi): nima qilyapti, nechanchi qadam, to'xtatish tugmasi */
@@ -221,7 +226,7 @@ const CONFIRM_TOOL: Anthropic.Beta.BetaTool = {
  */
 const OWNER_ACT_TOOL: Anthropic.Beta.BetaTool = {
   name: 'ask_owner_to_act',
-  description: 'Ask the owner to do, on this computer, a step only a person can do, and wait for it: confirm identity with a passkey, Windows Hello, fingerprint, face or PIN; solve a captcha; approve a sign-in on their phone; log in or enter a one-time code themselves. First click the button that starts it yourself (e.g. «Use a passkey» / «Использовать ключ доступа» / «Continue») so the system window is already on the screen. Describe in one short sentence in the owner\'s language exactly what to do (e.g. «Ekrandagi Windows oynasida PIN kodingizni kiriting»). Waits until the owner presses «Done» in Telegram; returns "done" or "not done". After "done", look at the page again and continue the task.',
+  description: 'Ask the owner to do, on this computer, a step only a person can do, and wait for it: confirm identity with a passkey, Windows Hello, fingerprint, face or PIN; solve a captcha; approve a sign-in on their phone; log in or enter a one-time code themselves. First click the button that starts it yourself (e.g. «Use a passkey» / «Использовать ключ доступа» / «Continue») so the system window is already on the screen. Describe in one short sentence in the owner\'s language exactly what to do (e.g. «Ekrandagi Windows oynasida PIN kodingizni kiriting»). Waits until the owner presses «Done» in Telegram; returns "done", "not done" (the owner pressed «I cannot») or "no answer" (the owner did not respond in time — they may be away; never say they answered). After "done", look at the page again and continue the task.',
   input_schema: { type: 'object', properties: { step: { type: 'string', description: 'What the owner should do now, one sentence' } }, required: ['step'], additionalProperties: false },
   strict: true,
 };
@@ -242,7 +247,7 @@ function systemPrompt(job: JobRow, biz: BusinessRow, own: boolean): string {
         + ' The owner cannot see or hear this window, and it is closed as soon as you finish. So if the task is to show or play something for the owner (music, a video, a page for them to look at or keep open), do not do it: report [BAJARILMADI] and say that in this mode nothing can be seen or heard — to have it open in their own Chrome, they choose «Mening Chrome\'im» in Sozlamalar → «Kompyuterda ishlash».';
   // Egasi ekranni ko'radi (o'z Chrome'i yoki butun kompyuter) — kirish/tasdiqlashda ish to'xtamaydi: tugmani operator bosadi, qolganini egasi qiladi
   const login = own || job.mode === 'desktop'
-    ? 'If a site asks to log in or to confirm it is the owner (passkey, Windows Hello, fingerprint, face, PIN, captcha, a code or approval on their phone), do not give up: click the button that starts it yourself (e.g. «Use a passkey» / «Использовать ключ доступа»), then call ask_owner_to_act and continue the task after "done". Stop with [BAJARILMADI] only if the owner answers "not done".'
+    ? 'If a site asks to log in or to confirm it is the owner (passkey, Windows Hello, fingerprint, face, PIN, captcha, a code or approval on their phone), do not give up: click the button that starts it yourself (e.g. «Use a passkey» / «Использовать ключ доступа»), then call ask_owner_to_act and continue the task after "done". Stop with [BAJARILMADI] only if the result is "not done" or "no answer" — and report which one exactly.'
     : 'If a site needs a login, stop and tell the owner to log in with the /brauzer command, then give the task again.';
   return `You are Palantir's computer operator, doing one task for ${biz.profile.ownerName || 'the owner'} of «${biz.profile.name}» (Uzbekistan). ${where}
 
@@ -366,8 +371,8 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
         } else if (!toolset && c.name === 'ask_owner_to_act' && tools.includes(OWNER_ACT_TOOL)) {
           const step = String((c.input as { step?: unknown }).step ?? '').slice(0, 500);
           await status(biz, l, step, true);
-          const done = step ? await ask(biz, l, step, 'act') : false;
-          out = { content: [{ type: 'text', text: done ? 'done' : 'not done' }] };
+          const answer = step ? await askAnswer(biz, l, step, 'act') : false;
+          out = { content: [{ type: 'text', text: answer === true ? 'done' : answer === null ? `no answer: the owner did not respond within ${env.computerApproveMinutes} minutes` : 'not done' }] };
         } else if (toolset === 'browser' && browser) {
           out = await abortable(browser.run(c.name, (c.input ?? {}) as Record<string, unknown>), l.abort.signal);
         } else if (toolset === 'computer' && desktop) {
