@@ -11,6 +11,7 @@ import { chromium, type Browser, type BrowserContext, type ElementHandle, type P
 import { installedBrowser } from '../browserPath';
 import { PolicyError, allowedRequest, checkUrl, riskyClick, riskyKey, type ElementInfo, type SitePolicy } from './policy';
 import { MONEY_ZONE, cardLike, moneyControl } from './money';
+import { DownloadWatch, ownerDownloadsDir } from './ownDownloads';
 
 export type ResultContent = Exclude<Anthropic.Beta.BetaToolResultBlockParam['content'], string | undefined>;
 export interface MemberResult { content: ResultContent; isError?: boolean }
@@ -179,6 +180,8 @@ export interface BrowserOptions {
    * Qoidalar (ichki tarmoq yopiq) va yordamchi skripti faqat o'z vkladkalariga qo'yiladi; egasining vkladkalari ro'yxatda ham yo'q
    */
   attach?: Browser;
+  /** attach rejimida kuzatiladigan «Yuklanmalar» papkasi (sinovda — boshqa papka; odatda egasining Chrome sozlamasidan) */
+  ownerDownloads?: string;
 }
 
 type Target = { type: 'coordinate'; x: number; y: number } | { type: 'ref'; ref: string };
@@ -222,6 +225,8 @@ export class BrowserSession {
     mkdirSync(o.downloadsDir, { recursive: true });
     const s = new BrowserSession(ctx, o);
     s.shared = true;
+    // Egasining Chrome'ida yuklamalar Playwright'ga kelmaydi — Chrome'ning o'z papkasidan olinadi (ownDownloads.ts)
+    s.watch = new DownloadWatch(o.ownerDownloads ?? ownerDownloadsDir(), o.downloadsDir);
     s.onPage = p => { void p.opener().then(op => { if (op && s.ids.has(op)) void s.own(p); }).catch(() => {}); };
     ctx.on('page', s.onPage);
     await s.own(await ctx.newPage());
@@ -238,6 +243,7 @@ export class BrowserSession {
 
   /** Egasining Chrome'iga ulangan (attach) — yopilganda faqat o'z vkladkalari yopiladi */
   private shared = false;
+  private watch: DownloadWatch | null = null;
   private onPage: ((p: Page) => void) | null = null;
 
   private adopt(p: Page): void {
@@ -352,14 +358,18 @@ export class BrowserSession {
       r = fail(e instanceof PolicyError ? msg : `Bajarilmadi: ${msg}`);
     }
     // Yuklab olingan fayllar — modelga aytiladi (hisobotda nomini yozsin)
-    const fresh = (await this.saved()).slice(this.announced);
+    const fresh = (await this.saved(30_000, false)).slice(this.announced);
     this.announced += fresh.length;
     return fresh.length ? { ...r, content: [...r.content, { type: 'text', text: `Yuklab olindi: ${fresh.map(f => basename(f)).join(', ')}` }] } : r;
   }
 
-  /** Yuklab olingan fayllar (saqlanayotganlari tugashini ko'pi bilan ms kutadi) */
-  async saved(ms = 30_000): Promise<string[]> {
+  /**
+   * Yuklab olingan fayllar (saqlanayotganlari tugashini ko'pi bilan ms kutadi). settleOwner=false — har qadamdan keyin: egasining papkasida
+   * hali yozilayotgan fayl kutilmaydi (keyingi qadamda yoki ish oxirida olinadi)
+   */
+  async saved(ms = 30_000, settleOwner = true): Promise<string[]> {
     if (this.saving.length) await Promise.race([Promise.all(this.saving.splice(0)), new Promise(r => setTimeout(r, ms))]);
+    if (this.watch) this.downloads.push(...(settleOwner ? await this.watch.settle(ms) : this.watch.collect().files));
     return [...this.downloads];
   }
 

@@ -19,6 +19,7 @@ import { PolicyError, allowedRequest, checkUrl, privateHost, riskyClick, riskyKe
 import { pngSize, solidPng } from '../server/computer/png';
 import { DesktopSession, FakeDriver, startDriver } from '../server/computer/desktop';
 import { cardLike, moneyAction, moneyControl, moneyTask } from '../server/computer/money';
+import { DownloadWatch } from '../server/computer/ownDownloads';
 import { chromePath } from './chrome';
 import { OWNER, ai, aiServer, listen, patient, press, say, sent, sleep, stopProcess, tgServer, waitFor, type Sent } from './fakes';
 
@@ -94,6 +95,18 @@ console.log("\n# Pul zonasi: bank, to'lov, o'tkazma, xarid — AI kirmaydi (egas
   const regionPopup = "Toshkent Siz Toshkent shahridamisiz? Tanlangan hududga qarab yetkazib berish muddati va narxi o'zgaradi. To'lov usullari: naqd, karta. Ha, to'g'ri Boshqa shahar";
   ok("uzun blok matni — tugma emas: ichida «to'lov» bo'lsa ham bosish/Enter to'xtamaydi; «To'lash» tugmasi baribir yopiq",
     moneyAction(regionPopup) && !moneyControl(regionPopup) && moneyControl("To'lash") && moneyControl('Оплатить заказ'));
+  // Egasining Chrome'i yuklamalari (ownDownloads.ts): eski fayl olinmaydi, yozilayotgani (.crdownload) tugashi kutiladi
+  {
+    const dl = mkdtempSync(join(tmpdir(), 'palantir-dl-')), into = mkdtempSync(join(tmpdir(), 'palantir-dl-into-'));
+    writeFileSync(join(dl, 'eski.pdf'), 'eski');
+    const watch = new DownloadWatch(dl, into);
+    writeFileSync(join(dl, 'kodeks.docx.crdownload'), 'yarim');
+    const midway = watch.collect();
+    setTimeout(() => { rmSync(join(dl, 'kodeks.docx.crdownload')); writeFileSync(join(dl, 'kodeks.docx'), 'to\'liq'); }, 400);
+    const got = await watch.settle(8_000);
+    ok("yuklama: eski fayl olinmaydi, .crdownload tugashi kutiladi, tayyor fayl nusxalanadi",
+      midway.pending && !midway.files.length && got.length === 1 && got[0] === join(into, 'kodeks.docx') && readFileSync(got[0], 'utf8') === "to'liq", got.join(','));
+  }
   ok("karta raqami tanilgan, telefon va summa emas", cardLike('8600 1234 5678 9012') && cardLike('8600-1234-5678-9012') && !cardLike('+998 90 123 45 67') && !cardLike('1 250 000'));
   // Butun ekran: ochiq oyna bank dasturi bo'lsa — bosish va yozish yo'q, ko'rish mumkin
   const dir = mkdtempSync(join(tmpdir(), 'palantir-pul-'));

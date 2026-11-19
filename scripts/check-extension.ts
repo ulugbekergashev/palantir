@@ -34,6 +34,8 @@ const site = createServer((req, res) => {
   if (req.url === '/yubor') return res.end('<title>Yubor</title><button>Yuborish</button>');
   // Belgi ustida shaffof qatlam: Playwright check() kutib qoladi (orqa fondagi vkladka kabi) — zaxira yo'l ishlashi kerak
   if (req.url === '/belgi') return res.end(`<title>Belgi</title><label><input type="checkbox" aria-label="Bacon" onchange="document.getElementById('h').textContent='belgi:'+this.checked"> Bacon</label><h1 id="h">belgi:yo'q</h1><div style="position:fixed;inset:0"></div>`);
+  if (req.url === '/yukla') return res.end('<title>Yukla</title><a href="/fayl" download="kodeks.txt">Yuklab olish</a>');
+  if (req.url === '/fayl') { res.setHeader('content-type', 'text/plain'); res.setHeader('content-disposition', 'attachment; filename=kodeks.txt'); return res.end('Mehnat kodeksi'); }
   if (req.url === '/popup') return res.end('<title>Yangi oyna</title><h1>popup</h1>');
   res.end(`<title>Sinov sahifasi</title><h1 id="h">${req.url}</h1><input id="ism" aria-label="Ism"><button onclick="document.getElementById('h').textContent='bosildi:'+document.getElementById('ism').value">Tekshirish</button><a href="/popup" target="_blank">Oyna</a>${DEEP}`);
 });
@@ -66,6 +68,8 @@ ok("kengaytma yo'q — holat: ulanmagan", !extensionState().connected && !(await
 const owner = await chromium.launchPersistentContext(join(dir, 'egasi'), {
   // --force-device-scale-factor: Windows masshtabi 125% (ko'p noutbuklarda) — rasm va bosish koordinatalari mos kelishi tekshiriladi
   executablePath: chromePath(), headless: true, args: ['--enable-unsafe-extension-debugging', '--force-device-scale-factor=1.25'], ignoreDefaultArgs: ['--disable-extensions'],
+  // Egasining Chrome'i fayllarni o'z papkasiga tushiradi (Palantir'ning Playwright ulanishiga yuklama hodisasi kelmaydi)
+  acceptDownloads: true, downloadsPath: join(dir, 'egasi-yuklamalar'),
 });
 try {
   const ownerTab = owner.pages()[0] ?? await owner.newPage();
@@ -82,7 +86,7 @@ try {
   const b = await connectOwnChrome(() => { asked++; }, 15_000);
   ok("ulandi, «Allow?» so'ralmadi", !!b && asked === 0, `so'rovlar: ${asked}`);
   const s = await BrowserSession.open({
-    profileDir: '', downloadsDir: join(dir, 'yuklama'), headless: true, attach: b,
+    profileDir: '', downloadsDir: join(dir, 'yuklama'), headless: true, attach: b, ownerDownloads: join(dir, 'egasi-yuklamalar'),
     approve: async () => false, policy: { allowedSites: [], allowHosts: [`127.0.0.1:${sitePort}`] },
   });
   const text = (r: { content: unknown[] }) => JSON.stringify(r.content);
@@ -136,6 +140,13 @@ try {
   const viaLabel = await s.run('form_input', { target: { type: 'ref', ref: label }, value: false });
   const labelText = text(await s.run('get_page_text', {}));
   ok("belgi yorliq orqali ham (form_input → label)", !!label && !viaLabel.isError && labelText.includes('belgi:false'), `${label} | ${text(viaLabel).slice(0, 120)} | ${labelText.slice(0, 40)}`);
+  // 2026-11-20, lex.uz: «Word» bosildi, fayl egasining Yuklanmalar papkasiga tushdi — Telegram'ga kelmadi
+  await s.run('navigate', { url: `${SITE}/yukla` });
+  const fileLink = text(await s.run('find', { query: 'Yuklab olish link' })).match(/ref_\d+/)?.[0] ?? '';
+  await s.run('left_click', { target: { type: 'ref', ref: fileLink } });
+  const got = await s.saved(15_000);
+  const file = got.find(g => readFileSync(g, 'utf8') === 'Mehnat kodeksi');
+  ok("egasining Chrome'ida yuklangan fayl Palantir'ga keladi (Yuklanmalar papkasidan)", !!file && file.startsWith(join(dir, 'yuklama')), got.join(', ') || "fayl yo'q");
   ok("g'ildirak yetib bormasa — ro'yxat baribir aylanadi (JS bilan)", !stuck.isError && /aylandi:[1-9]/.test(moved), `${text(stuck).slice(0, 300)} | ${moved.slice(-40)}`);
   const blocked = await s.run('navigate', { url: 'http://127.0.0.1:9/' });
   ok('ichki tarmoq yopiq', blocked.isError === true, text(blocked).slice(0, 120));
