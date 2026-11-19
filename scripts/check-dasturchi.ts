@@ -455,6 +455,9 @@ await check("50 MB dan katta fayl: «yuboryapman» → «yuborildi»; kalitlar b
     assert.deepEqual(seen, [0.5, 1]);
   } finally { delete process.env.BIG_FILE_FAKE; delete process.env.BIG_FILE_FAKE_LOG; process.env.DEV_OUT_XCLINIC = 'chiqish/*.exe'; }
   await assert.rejects(sendBigFile('777', big, 'x'), (e: Error) => e instanceof BigFileError);
+  // Guruh chati: kirishga urinmasdan, tushunarli rad
+  process.env.BIG_FILE_FAKE = resolve('scripts/fake-big-file.mjs');
+  try { await assert.rejects(sendBigFile('-100123', big, 'x'), (e: Error) => e instanceof BigFileError && /guruh/.test(e.message)); } finally { delete process.env.BIG_FILE_FAKE; }
   rmSync(made, { force: true });
   rmSync(big, { force: true });
 });

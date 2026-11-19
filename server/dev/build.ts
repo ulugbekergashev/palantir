@@ -158,14 +158,19 @@ async function report(biz: BusinessRow, b: LiveBuild, spec: BuildSpec, code: num
     }
   });
   await notifyOwner(biz, `📦 <b>Tayyor</b> · ${name} (${minutes} daq)\n\n${rows.map(r => r.html).join('\n\n')}`).catch(() => null);
-  // Fayl Telegram'ga ham: egasi kompyuter oldida bo'lmasa ham mijozga uzata oladi
-  for (const r of rows) await sendBuilt(biz, b.project.name, r.path);
+  // Fayl Telegram'ga ham: egasi kompyuter oldida bo'lmasa ham mijozga uzata oladi. Yuklash tugaguncha yig'ish o'rni band turadi —
+  // ataylab: yangi yig'ish yuklanayotgan faylni ustidan yozib yubormasin (chegarasi — bigFile.ts dagi vaqt)
+  for (const r of rows) await sendBuilt(biz, b.project.name, r.path).catch(e => console.error("[dasturchi] faylni Telegram'ga yuborish:", e));
 }
 
 const PROGRESS_EVERY_MS = 10_000;
 
 /** Tayyor fayl egasining Telegram'iga hujjat bo'lib boradi; yuborilmasa — sababi aytiladi (fayl baribir kompyuterda) */
 async function sendBuilt(biz: BusinessRow, projectName: string, path: string): Promise<void> {
+  if (!existsSync(path)) {
+    await notifyOwner(biz, `⚠️ Telegram'ga yuborilmadi: <b>${esc(basename(path))}</b> — fayl joyida yo'q\n<code>${esc(path)}</code>`).catch(() => null);
+    return;
+  }
   const label = `<b>${esc(basename(path))}</b> — ${sizeOf(path)}`;
   const failed = (why: string) => `⚠️ Telegram'ga yuborilmadi: ${label}\n${esc(why.slice(0, 200))}\nFayl kompyuterda: <code>${esc(path)}</code>`;
   const big = isBig(path), block = big ? bigFileBlock(path) : null;

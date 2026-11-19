@@ -54,19 +54,16 @@ function savedSession(): string {
 }
 const saveSession = (session: string): void => writeFileSync(sessionFile(), seal(JSON.stringify({ mark: tokenMark(), session })));
 
-async function connect(): Promise<TelegramClient> {
+function makeClient(): TelegramClient {
   const client = new TelegramClient(new StringSession(savedSession()), env.tgApiId, env.tgApiHash, {
     connectionRetries: 5, deviceModel: 'Palantir', systemVersion: 'server', appVersion: '1.0',
   });
   client.setLogLevel(LogLevel.ERROR);
-  await client.start({ botAuthToken: env.botToken });
-  saveSession((client.session as StringSession).save());
   return client;
 }
 
 /** Bot faqat o'ziga yozgan odamni topa oladi (egasi botni ulagan — yozgan) */
 async function ownerPeer(client: TelegramClient, chatId: string): Promise<Api.TypeInputPeer> {
-  if (!/^\d+$/.test(chatId)) throw new BigFileError('egasining chati shaxsiy emas (guruh) — katta fayl faqat shaxsiy chatga yuboriladi');
   const users = await client.invoke(new Api.users.GetUsers({ id: [new Api.InputUser({ userId: bigInt(chatId), accessHash: bigInt.zero })] }));
   const user = users[0];
   if (!(user instanceof Api.User) || !user.accessHash) throw new BigFileError('Telegram egasini topmadi — botga bir marta yozing');
@@ -82,25 +79,33 @@ async function sendNow(chatId: string, path: string, caption: string, onProgress
     const mod = await import(pathToFileURL(fake).href) as { default: typeof sendNow };
     return mod.default(chatId, path, caption, onProgress);
   }
-  let client: TelegramClient | null = null;
+  // Mijoz kirishdan OLDIN yaratiladi: kirish yiqilsa ham finally uni yopadi (aks holda ulanishi va yangilanish sikli ochiq qoladi)
+  const client = makeClient();
+  // GramJS yuklashni faqat shu belgi bilan to'xtatadi (uploads.js): destroy() ning o'zi yetmaydi — ishchilar qayta ulanib davom etadi
+  const progress = Object.assign((fraction: number): void => { onProgress?.(fraction); }, { isCanceled: false });
   let timer: NodeJS.Timeout | undefined;
-  try {
-    client = await connect();
+  // Vaqt chegarasi ulanish va egasini topishni ham qamraydi (osilib qolgan ulanish navbatni va yig'ish o'rnini ushlab turmasin)
+  const timeout = new Promise<never>((_, fail) => { timer = setTimeout(() => fail(new BigFileError(`${SEND_TIMEOUT_MS / 60_000} daqiqada yuborilmadi`)), SEND_TIMEOUT_MS); });
+  const work = (async () => {
+    await client.start({ botAuthToken: env.botToken });
+    saveSession((client.session as StringSession).save());
     const peer = await ownerPeer(client, chatId);
-    const sending = client.sendFile(peer, {
+    await client.sendFile(peer, {
       file: path, caption: caption.slice(0, CAPTION_MAX), forceDocument: true, workers: UPLOAD_WORKERS,
       attributes: [new Api.DocumentAttributeFilename({ fileName: basename(path) })],
-      progressCallback: onProgress ? (fraction: number) => onProgress(fraction) : undefined,
+      progressCallback: progress,
     });
-    const timeout = new Promise<never>((_, fail) => { timer = setTimeout(() => fail(new BigFileError(`${SEND_TIMEOUT_MS / 60_000} daqiqada yuborilmadi`)), SEND_TIMEOUT_MS); });
-    await Promise.race([sending, timeout]);
+  })();
+  try {
+    await Promise.race([work, timeout]);
   } catch (e) {
     // Seans bekor qilingan (token almashgan, Telegram chiqarib yuborgan) — keyingi safar qaytadan kiriladi
     if (/AUTH_KEY|SESSION_REVOKED|USER_DEACTIVATED|ACCESS_TOKEN/i.test((e as Error).message)) rmSync(sessionFile(), { force: true });
     throw e;
   } finally {
+    progress.isCanceled = true;
     clearTimeout(timer);
-    await client?.destroy().catch(() => {});
+    await client.destroy().catch(() => {});
   }
 }
 
@@ -111,6 +116,8 @@ async function sendNow(chatId: string, path: string, caption: string, onProgress
 export function sendBigFile(chatId: string, path: string, caption: string, onProgress?: (fraction: number) => void): Promise<void> {
   const block = bigFileBlock(path);
   if (block) return Promise.reject(new BigFileError(block));
+  // Guruh chati (manfiy raqam) — kirishga urinmasdan rad: bot katta faylni faqat shaxsiy chatga yubora oladi
+  if (!/^\d+$/.test(chatId)) return Promise.reject(new BigFileError('egasining chati shaxsiy emas (guruh) — katta fayl faqat shaxsiy chatga yuboriladi'));
   const run = queue.then(() => sendNow(chatId, path, caption, onProgress));
   queue = run.catch(() => {});
   return run;
