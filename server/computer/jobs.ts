@@ -384,7 +384,12 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
         } else {
           out = { content: [{ type: 'text', text: `Unknown tool: ${c.name}` }], isError: true };
         }
-        if (out.isError && toolset) failed = true;
+        if (out.isError && toolset) {
+          failed = true;
+          // Qaysi qadam va nima uchun yiqilgani jurnalda qolsin (sahifa matni emas — faqat amal va xato): «brauzer xato berdi» deb qolmasin
+          const why = out.content.map(b => (b as { text?: unknown }).text).filter(x => typeof x === 'string').join(' ');
+          console.log(`[qadam] ${l.job.id} ${toolset}.${c.name} yiqildi: ${cut(why, 300)}`);
+        }
         results.push({ ...base, content: out.content, ...(out.isError ? { is_error: true } : {}) });
       }
       messages.push({ role: 'user', content: results });

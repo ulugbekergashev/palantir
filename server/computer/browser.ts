@@ -30,6 +30,26 @@ const text = (t: string): MemberResult => ({ content: [{ type: 'text', text: t }
 const fail = (t: string): MemberResult => ({ content: [{ type: 'text', text: t }], isError: true });
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const clampWait = (s: unknown) => Math.max(0, Math.min(MAX_WAIT_S, Number(s) || 0));
+/** G'ildirak hodisasiga javob kutiladigan eng ko'p vaqt (keyin — JS bilan aylantiriladi) */
+const WHEEL_MS = 3_000;
+
+/**
+ * Sahifada ishlaydi: (x, y) nuqtadagi eng yaqin aylanadigan ro'yxat (Google Maps natijalari kabi) yoki butun sahifa.
+ * Qaytaradi — uning hozirgi holati; apply — shu ro'yxatni (dx, dy) ga aylantiradi
+ */
+function scrollAt(a: { x: number; y: number; dx: number; dy: number; apply: boolean }): string {
+  // Ichida nomli funksiya yo'q: yig'uvchi (esbuild keepNames) unga __name qo'shadi — sahifada u yo'q
+  let el = document.elementFromPoint(a.x, a.y);
+  for (; el && el !== document.documentElement && el !== document.body; el = el.parentElement) {
+    const s = getComputedStyle(el);
+    if ((a.dy !== 0 && /auto|scroll|overlay/.test(s.overflowY) && el.scrollHeight > el.clientHeight)
+      || (a.dx !== 0 && /auto|scroll|overlay/.test(s.overflowX) && el.scrollWidth > el.clientWidth)) break;
+  }
+  const box = el && el !== document.documentElement && el !== document.body ? el : null;
+  if (a.apply) (box ?? window).scrollBy(a.dx, a.dy);
+  return box ? `${box.scrollLeft},${box.scrollTop}` : `${window.scrollX},${window.scrollY}`;
+}
+
 const isBlank = (url: string) => !url || url === 'about:blank' || url.startsWith('chrome://newtab');
 
 /** Sahifada ishlaydigan kod: elementlar daraxti (ref bilan), elementni ref yoki nuqta bo'yicha topish, element haqida ma'lumot */
@@ -397,9 +417,16 @@ export class BrowserSession {
         const at = t?.type === 'coordinate' ? t : { x: VIEWPORT.width / 2, y: VIEWPORT.height / 2 };
         const amount = Math.max(1, Math.min(10, Number(i.scroll_amount) || 3)) * 120;
         const dir = String(i.scroll_direction);
-        await p.mouse.move(at.x, at.y);
-        await p.mouse.wheel(dir === 'left' ? -amount : dir === 'right' ? amount : 0, dir === 'up' ? -amount : dir === 'down' ? amount : 0);
+        const move = { x: at.x, y: at.y, dx: dir === 'left' ? -amount : dir === 'right' ? amount : 0, dy: dir === 'up' ? -amount : dir === 'down' ? amount : 0 };
+        // G'ildirak — haqiqiy hodisa (sayt o'zi yuklaydi). Egasining Chrome'ida vkladka orqa fonda bo'lsa Chrome uni chizmaydi va hodisa
+        // javobsiz osilib qoladi (2026-11-19, Google Maps: «aylantirib bo'lmadi») — shunda yoki ro'yxat qimirlamasa, o'sha nuqtadagi ro'yxat JS bilan
+        const before = await p.evaluate(scrollAt, { ...move, apply: false });
+        const wheeled = await Promise.race([
+          p.mouse.move(at.x, at.y).then(() => p.mouse.wheel(move.dx, move.dy)).then(() => true, () => false),
+          sleep(WHEEL_MS).then(() => false),
+        ]);
         await sleep(300);
+        if (!wheeled || await p.evaluate(scrollAt, { ...move, apply: false }) === before) await p.evaluate(scrollAt, { ...move, apply: true });
         return text('OK');
       }
       case 'scroll_to': {

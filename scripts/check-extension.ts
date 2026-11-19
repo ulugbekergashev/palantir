@@ -21,6 +21,12 @@ const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); c
 const site = createServer((req, res) => {
   res.setHeader('content-type', 'text/html; charset=utf-8');
   if (req.url === '/egasi') return res.end('<title>Egasining sahifasi</title><h1>maxfiy</h1>');
+  if (req.url === '/uzun' || req.url === '/uzun-tiq') {
+    const rows = Array.from({ length: 60 }, (_, i) => `<p>klinika ${i}</p>`).join('');
+    // /uzun-tiq — g'ildirak hodisasi yutiladi (orqa fondagi vkladka kabi: hodisa ro'yxatga yetmaydi)
+    const swallow = req.url === '/uzun-tiq' ? `<script>addEventListener('wheel', e => e.preventDefault(), { passive: false })</script>` : '';
+    return res.end(`<title>Uzun</title>${swallow}<div style="position:fixed;left:0;top:0;width:400px;height:300px;overflow-y:auto" onscroll="document.getElementById('s').textContent='aylandi:'+this.scrollTop">${rows}</div><h1 id="s" style="position:fixed;left:500px">aylandi:0</h1>`);
+  }
   if (req.url === '/popup') return res.end('<title>Yangi oyna</title><h1>popup</h1>');
   res.end(`<title>Sinov sahifasi</title><h1 id="h">${req.url}</h1><input id="ism" aria-label="Ism"><button onclick="document.getElementById('h').textContent='bosildi:'+document.getElementById('ism').value">Tekshirish</button><a href="/popup" target="_blank">Oyna</a>`);
 });
@@ -85,6 +91,15 @@ try {
   await s.run('left_click', { target: { type: 'ref', ref: button } });
   const after = text(await s.run('get_page_text', {}));
   ok('bosdi va yozdi (haqiqiy klik)', after.includes('bosildi:Verion'), after.slice(0, 160));
+  // Google Maps kabi: ichki ro'yxat aylantiriladi (2026-11-19: kengaytma rejimida «aylantirib bo'lmadi»)
+  await s.run('navigate', { url: `${SITE}/uzun` });
+  const wheel = await s.run('scroll', { target: { type: 'coordinate', x: 200, y: 150 }, scroll_direction: 'down', scroll_amount: 3 });
+  const scrolled = text(await s.run('get_page_text', {}));
+  ok("ichki ro'yxat g'ildirak bilan aylandi", !wheel.isError && /aylandi:[1-9]/.test(scrolled), `${text(wheel).slice(0, 300)} | ${scrolled.slice(-40)}`);
+  await s.run('navigate', { url: `${SITE}/uzun-tiq` });
+  const stuck = await s.run('scroll', { target: { type: 'coordinate', x: 200, y: 150 }, scroll_direction: 'down', scroll_amount: 3 });
+  const moved = text(await s.run('get_page_text', {}));
+  ok("g'ildirak yetib bormasa — ro'yxat baribir aylanadi (JS bilan)", !stuck.isError && /aylandi:[1-9]/.test(moved), `${text(stuck).slice(0, 300)} | ${moved.slice(-40)}`);
   const blocked = await s.run('navigate', { url: 'http://127.0.0.1:9/' });
   ok('ichki tarmoq yopiq', blocked.isError === true, text(blocked).slice(0, 120));
   await s.run('navigate', { url: `${SITE}/ish` });
