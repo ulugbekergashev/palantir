@@ -69,10 +69,13 @@ const RISKY = new RegExp([
   // o'zbekcha
   "yubor", "jo'nat", "jonat", "to'la", "tola(sh|ng|moq)", "to'?lov", "o'chir", "ochir(ish|ing|moq)", "tasdiq", "sotib ol", "xarid", "buyurtma ber", "obuna", "imzola", "rozi(man|lik)", "saqla",
   "o'tkaz", "pul o'tkaz", "chiqarib yubor", "bekor qil",
+  // akkauntga ta'sir qiladiganlar (xavfsizlik ko'rigi, 2026-11-20): uzish, obunadan chiqish, bloklash, hisobdan chiqish, tiklash
+  "uzish", "ajrat(ish|ing)", "blokla", "hisobdan chiq", "tizimdan chiq", "tikla", "o'chirib qo'y",
   // ruscha
-  "отправ", "оплат", "плат[её]ж", "удал", "подтвер", "купить", "заказ", "оформ", "подпис", "соглас", "перевест", "сохран",
+  "отправ", "оплат", "плат[её]ж", "удал", "подтвер", "купить", "заказ", "оформ", "подпис", "соглас", "перевест", "сохран", "отключ", "отвяз", "отпис", "заблок", "выйти", "сброс", "отозв", "деактив",
   // inglizcha
   "send", "submit", "pay", "purchase", "buy", "order", "checkout", "delete", "remove", "confirm", "sign", "agree", "accept", "transfer", "publish", "post", "save",
+  "disconnect", "unlink", "unfollow", "unsubscribe", "block", "revoke", "reset", "log ?out", "deactivate", "leave",
 ].join('|'), 'i');
 
 export interface ElementInfo { tag: string; type?: string | null; role?: string | null; name: string; inForm?: boolean }

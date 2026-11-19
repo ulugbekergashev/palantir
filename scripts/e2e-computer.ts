@@ -45,6 +45,8 @@ console.log('\n# Xavfli amallar (sof)');
 ok('«Yuborish», «Отправить», «Pay now», «O‘chirish» — ruxsat so\'raladi', ['Yuborish', 'Отправить', 'Pay now', 'O‘chirish', "To'lash", 'Buyurtma berish', 'Tasdiqlash']
   .every(name => riskyClick({ tag: 'button', role: 'button', name }) !== null));
 ok('«Qidirish», «Batafsil», «Keyingi sahifa» — so\'ralmaydi', ['Qidirish', 'Batafsil', 'Keyingi sahifa'].every(name => riskyClick({ tag: 'a', role: 'link', name }) === null));
+ok("akkauntga ta'sir qiladiganlar ham so'raladi: Disconnect, Unfollow, Log out, Отключить, Отписаться, Выйти, Bloklash, Hisobdan chiqish",
+  ['Disconnect', 'Unfollow', 'Log out', 'Отключить', 'Отписаться', 'Выйти', 'Bloklash', 'Hisobdan chiqish', 'Remove access'].every(name => riskyClick({ tag: 'button', role: 'button', name }) !== null));
 ok('formadagi submit tugma (nomi nima bo\'lsa ham) — so\'raladi', riskyClick({ tag: 'button', type: 'submit', role: 'button', name: 'Davom', inForm: true }) !== null);
 ok('formadagi maydonda Enter — so\'raladi; matn oynasida (textarea) — yo\'q', riskyKey('Enter', { tag: 'input', type: 'text', name: 'q', inForm: true }) !== null && riskyKey('Enter', { tag: 'textarea', name: 'izoh', inForm: true }) === null && riskyKey('Tab', { tag: 'input', name: 'q', inForm: true }) === null);
 
