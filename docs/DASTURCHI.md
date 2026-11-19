@@ -25,6 +25,7 @@ To'xtatish: holat xabaridagi «⏹ To'xtatish» yoki `/toxta` — qilingani yo'q
 
 ```
 AI_ENGINE=subscription
+# eski nom: dasturchi papkasi hali shunday ataladi
 DEV_PROJECTS=palantir=D:\Projects\cerebro;xclinic=D:\Projects\xclinic;denta7=C:\Users\...\Desktop\denta7
 ```
 

@@ -71,7 +71,7 @@ function upload(raw: string): boolean {
 
 /** .env, .env.local, .env.production… (.env.example — ochiq: unda sir yo'q) */
 const ENV_FILE = /(^|[\s/\\"'=<>(])\.env(\.(?!example\b|sample\b|template\b)[\w-]+)*(?=$|[\s"'|;&)<>*])/;
-/** Kalit va baza fayllari. `.key` — faqat yo'l ichida (certs/server.key): `grep "e.key" src` yopilmasin */
+/** Kalit va baza fayllari. `.key` — faqat yo'l ichida (certs/server.key): `grep "e.key" src` yopilmasin. cerebro.db — eski nom bazasi */
 const SECRET_FILE = /([\w-]+\.(pem|pfx|p12|keystore|jks)|[\\/][\w.-]+\.key|id_(rsa|ed25519|ecdsa)|session\.secret|(palantir|cerebro)\.db|\.npmrc|credentials\.json)(?=$|[\s"'|;&)<>*])/;
 
 /** Buyruq yopiqmi: yopiq bo'lsa — sababi (modelga qaytadi), aks holda null */
