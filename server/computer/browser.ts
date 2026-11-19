@@ -34,6 +34,8 @@ const clampWait = (s: unknown) => Math.max(0, Math.min(MAX_WAIT_S, Number(s) || 
 const WHEEL_MS = 3_000;
 /** scroll_to: Playwright o'zi aylantirishini shuncha kutadi (keyin — JS bilan yoki «yashirin» deb aytiladi) */
 const SCROLL_TO_MS = 3_000;
+/** screenshot: kadr shuncha kutiladi */
+const SHOT_MS = 8_000;
 /** form_input: Playwright belgi qo'yishini shuncha kutadi (keyin — elementning o'z bosilishi) */
 const CHECK_MS = 3_000;
 
@@ -385,7 +387,9 @@ export class BrowserSession {
       case 'screenshot': {
         // scale: css — rasm piksellari = bosish koordinatalari. Egasining Chrome'ida Windows masshtabi 125% bo'lsa rasm 1.25 baravar katta chiqib,
         // model bosgan joy adashardi (2026-11-19, Meta Business: «koordinatalar mos kelmadi»)
-        const png = await this.page(tabId).screenshot({ type: 'png', scale: 'css' });
+        // Egasining Chrome'i yig'ilgan yoki vkladka orqa fonda bo'lsa Chrome kadr chizmaydi — 15 s kutib yiqilardi (2026-11-20, texnomart.uz)
+        const png = await this.page(tabId).screenshot({ type: 'png', scale: 'css', timeout: SHOT_MS }).catch(() => null);
+        if (!png) return fail("Rasm olinmadi: Chrome oynasi yig'ilgan yoki bu vkladka orqa fonda — sahifani read_page, find va get_page_text bilan o'qing va ref bilan bosing");
         return { content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: png.toString('base64') } }] };
       }
       case 'zoom': {
@@ -521,7 +525,11 @@ export class BrowserSession {
         const t = i.target as Target;
         if (t?.type !== 'ref') return fail('target — ref bo\'lishi kerak');
         const el = await this.element(p, t.ref);
-        const kind = await el.evaluate(e => ({ tag: e.tagName, type: ((e as HTMLInputElement).type || '').toLowerCase() }));
+        // Yorliq («Bacon» matni) berilsa — uning maydoni (Playwright check() yorliqni o'zi maydonga yo'naltiradi; fill esa yiqilardi)
+        const kind = await el.evaluate(e => {
+          const c = e instanceof HTMLLabelElement && e.control ? e.control : e;
+          return { tag: c.tagName, type: ((c as HTMLInputElement).type || '').toLowerCase() };
+        });
         if (kind.type === 'password') return fail('Bu parol maydoni — parolni AI kiritmaydi. Egasi /brauzer bilan saytga o\'zi kirib olsin; hisobotda ayting.');
         const value = i.value;
         if (cardLike(String(value ?? ''))) return fail(`Karta raqami yozilmaydi. ${MONEY_ZONE}`);
@@ -531,7 +539,11 @@ export class BrowserSession {
           // Playwright sahifa chizilishini kutadi — egasining Chrome'ida orqa fondagi vkladkada 15 s osilib yiqilardi (2026-11-19, httpbin):
           // 3 s dan keyin — elementning o'z bosilishi (saytning hodisalari ishlaydi)
           if (!await (on ? el.check({ timeout: CHECK_MS }) : el.uncheck({ timeout: CHECK_MS })).then(() => true, () => false)) {
-            const now = await el.evaluate((e, want) => { const box = e as HTMLInputElement; if (box.checked !== want) box.click(); return box.checked; }, on);
+            const now = await el.evaluate((e, want) => {
+              const box = (e instanceof HTMLLabelElement && e.control ? e.control : e) as HTMLInputElement;
+              if (box.checked !== want) box.click();
+              return box.checked;
+            }, on);
             if (now !== on) return fail(on ? "Belgi qo'yilmadi (sayt bosishni qabul qilmadi)" : 'Belgi olib tashlanmadi (sayt bosishni qabul qilmadi)');
           }
         } else await el.fill(String(value ?? ''));

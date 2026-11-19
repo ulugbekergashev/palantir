@@ -131,6 +131,11 @@ try {
   const boxText = text(await s.run('get_page_text', {}));
   ok("belgi: Playwright bosa olmasa — 3 s dan keyin elementning o'zi bosiladi, sayt hodisasi ishlaydi", !!box && !checked.isError && boxText.includes('belgi:true') && Date.now() - t1 < 8_000,
     `${box} | ${text(checked).slice(0, 100)} | ${boxText.slice(0, 60)} | ${Date.now() - t1} ms`);
+  // Model ko'pincha yorliqni («Bacon» matni) beradi — belgi olib tashlanishi ham yorliq orqali ishlashi kerak (ilgari «checkbox cannot be filled»)
+  const label = text(await s.run('read_page', {})).match(/text \\"Bacon\\" \[(ref_\d+)\]/)?.[1] ?? '';
+  const viaLabel = await s.run('form_input', { target: { type: 'ref', ref: label }, value: false });
+  const labelText = text(await s.run('get_page_text', {}));
+  ok("belgi yorliq orqali ham (form_input → label)", !!label && !viaLabel.isError && labelText.includes('belgi:false'), `${label} | ${text(viaLabel).slice(0, 120)} | ${labelText.slice(0, 40)}`);
   ok("g'ildirak yetib bormasa — ro'yxat baribir aylanadi (JS bilan)", !stuck.isError && /aylandi:[1-9]/.test(moved), `${text(stuck).slice(0, 300)} | ${moved.slice(-40)}`);
   const blocked = await s.run('navigate', { url: 'http://127.0.0.1:9/' });
   ok('ichki tarmoq yopiq', blocked.isError === true, text(blocked).slice(0, 120));
