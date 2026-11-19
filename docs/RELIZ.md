@@ -1,5 +1,11 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.36 da yangi
+
+- **Ketma-ket topshiriqda «Boshlaymi?» yo'q:** o'zingiz yozgan topshiriq darhol boshlanadi. Topshiriq internetdan yoki mijoz xabaridan kelgan bo'lsa — avvalgidek so'raladi.
+- **Akkauntdagi muhim tugmalar oldidan so'raydi:** uzish, obunadan chiqish, bloklash, hisobdan chiqish.
+- **«Boshlaymi?» ga javob bermasangiz** — «rad etdi» emas, «javob bermadi» deb yoziladi.
+
 ## 0.4.35 da yangi
 
 - **Yuklab olingan fayl Telegram'ga keladi:** Palantir Chrome'ingizda biror faylni (masalan, lex.uz dan kodeksni) yuklab olsa — u sizga Telegram'da yuboriladi.
