@@ -80,6 +80,14 @@ console.log("\n# Pul zonasi: bank, to'lov, o'tkazma, xarid — AI kirmaydi (egas
   ok("oddiy topshiriqlar boshlanadi: soliq.uz dan dalolatnoma, OLX da narx qidirish, Click tugmasi haqida emas",
     ["soliq.uz dan dalolatnomani yuklab ol", "OLX da 3 mln gacha kreslolarni top", "Google kartada klinikamizni top", "Saytdagi «Yuborish»ni click qil"].every(t => moneyTask(t) === null),
     ["soliq.uz dan dalolatnomani yuklab ol", "OLX da 3 mln gacha kreslolarni top", "Google kartada klinikamizni top", "Saytdagi «Yuborish»ni click qil"].map(t => moneyTask(t)).join('|'));
+  // 2026-11-19: model topshiriqqa «Do not buy anything», «Central Bank» deb yozdi — narx va kursni o'qish rad etilgan edi
+  const readOnly = ["Open olcha.uz, find iPhone 16 price. Do not buy anything or add to cart — only read prices.", "Open cbu.uz (Central Bank of Uzbekistan) and read today's USD rate.",
+    'Markaziy bank kursini top', 'Курс Центрального банка на сегодня', 'olcha.uz da narxni top, sotib olmang', 'Найди цену, ничего не покупай', 'Read the page without paying anything.'];
+  ok("taqiq va Markaziy bank — so'rov emas: narx va kursni o'qish boshlanadi", readOnly.every(t => moneyTask(t) === null), readOnly.map(t => moneyTask(t)).join('|'));
+  const stillMoney = ["Don't forget to pay the internet bill on Payme", 'Do not wait, buy it now', 'Do not log in, but buy the ticket', 'Do not open other tabs. Pay the invoice.',
+    'Не забудь оплатить счёт', 'Купи билет, не жди', 'Central Bank rate, then transfer 100$ to Ali'];
+  ok("taqiq orqasiga yashirilgan so'rov baribir yopiq («don't forget to pay», «…, but buy»)", stillMoney.every(t => moneyTask(t) !== null),
+    stillMoney.filter(t => moneyTask(t) === null).join('|'));
   ok("karta raqami tanilgan, telefon va summa emas", cardLike('8600 1234 5678 9012') && cardLike('8600-1234-5678-9012') && !cardLike('+998 90 123 45 67') && !cardLike('1 250 000'));
   // Butun ekran: ochiq oyna bank dasturi bo'lsa — bosish va yozish yo'q, ko'rish mumkin
   const dir = mkdtempSync(join(tmpdir(), 'palantir-pul-'));

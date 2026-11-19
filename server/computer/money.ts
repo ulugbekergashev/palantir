@@ -31,18 +31,35 @@ export function moneyHost(hostname: string): boolean {
 /** Tugma nomi: to'lash, pul o'tkazish, sotib olish (o'zbek, rus, ingliz). Faqat nomga qaraladi */
 const MONEY_ACTION = new RegExp([
   "to'?la(sh|ng|moq|yman|ndi|b)?\\b", "to'?lov", "pul o'?tkaz", "o'?tkazma", "sotib ol", "xarid qil", "savatga", "kartaga (pul|o'?tkaz)", "kartadan (pul|o'?tkaz|yech)", "hisobni to'ldir",
-  "оплат", "плат[её]ж", "заплат", "перев(ест|ед|од)[а-яё]*.{0,15}(деньг|сумм|средств|на карт)", "отправ[а-яё]*.{0,10}деньг", "купить", "в корзину", "пополнить", "снять деньги",
+  "оплат", "плат[её]ж", "заплат", "перев(ест|ед|од)[а-яё]*.{0,15}(деньг|сумм|средств|на карт)", "отправ[а-яё]*.{0,10}деньг", "купить", "(?<![а-яё])купи(те)?(?![а-яё])", "в корзину", "пополнить", "снять деньги",
   "\\bpay\\b", "pay now", "payment", "purchase", "\\bbuy\\b", "checkout", "add to cart", "transfer", "withdraw", "deposit", "top ?up", "send money",
 ].join('|'), 'i');
 
 export const moneyAction = (name: string): boolean => MONEY_ACTION.test(name.replace(/[‘’ʻʼ`]/g, "'"));
+
+/** Gap bo'lagi tugaydigan joy: nuqta, vergul, tire yoki «but» — undan keyingi so'rov taqiqqa qo'shilib ketmasin */
+const CLAUSE = "(?:(?!\\bbut\\b|\\bно\\b|\\blekin\\b)[^.;!?\\n,—–])*";
+
+/**
+ * Taqiq va eslatma — so'rov emas (2026-11-19: model topshiriqqa «Do not buy anything — only read prices», «Central Bank of
+ * Uzbekistan» deb yozdi va narx yoki kursni o'qish ham rad etildi). Olib tashlanadi: inkor gap bo'lagi («do not…», «не…»,
+ * «sotib olmang») va Markaziy bank nomi — u yerda hisob yo'q, faqat kurs. «Don't forget to pay» kabi eslatma — inkor emas, qoladi.
+ * Ish ichidagi himoya baribir ishlaydi: bank saytlari ochilmaydi (moneyHost), to'lov tugmalari bosilmaydi (moneyAction)
+ */
+const NOT_A_REQUEST = [
+  new RegExp(`\\b(?:do not|don't|never|must not|mustn't|should not|shouldn't|without|avoid)\\b(?!\\s+(?:forget|fail|hesitate)\\b)${CLAUSE}`, 'gi'),
+  new RegExp(`(?<![а-яё])(?:не|без|нельзя)\\s(?!забу|забы)${CLAUSE}`, 'gi'),
+  /(?:sotib ol|xarid qil|pul o'?tkaz|savatga qo'?sh|to'?la)m(?:a|ang|asdan|aslik|asin|ay)(?![a-z'])/gi,
+  /\b(?:central bank|markaziy bank)[a-z']*|центральн[а-яё]*\s+банк[а-яё]*|\bcbu(?:\.uz)?\b/gi,
+];
+const withoutProhibitions = (text: string): string => NOT_A_REQUEST.reduce((t, re) => t.replace(re, ' '), text);
 
 /**
  * Kompyuter topshirig'i (egasi yoki model yozgan) pulga oidmi. Qaytaradi — sababi (egasiga aytiladi); bo'lmasa — null.
  * Bank saytidan «ko'chirma yuklab olish» ham — bank saytiga kirish (egasi o'zi yuklab, Palantir'ga yuboradi)
  */
 export function moneyTask(text: string): string | null {
-  const t = text.replace(/[‘’ʻʼ`]/g, "'");
+  const t = withoutProhibitions(text.replace(/[‘’ʻʼ`]/g, "'"));
   if (/bank|банк/i.test(t)) return "bank bilan ish";
   // «click» va «oson» — oddiy so'z ham: faqat to'lov tizimi sifatida
   if (/\b(payme|paynet|uzcard|humo|apelsin|upay|paypal)\b|click\.uz|\bclick (orqali|bilan|ilova)|\boson (orqali|bilan|ilova)/i.test(t)) return "to'lov tizimi bilan ish";
