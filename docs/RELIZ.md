@@ -1,5 +1,9 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.28 da yangi
+
+- **Xato yo'qolmaydi:** Palantir to'satdan to'xtab qolsa, sababi jurnalga yoziladi (logs/server-xato.log) — tuzatish tezlashadi.
+
 ## 0.4.27 da yangi
 
 - **«Qo'shiq qo'y» — darhol:** Palantir'ga «Minor'ning qo'shig'ini qo'y» yoki «YouTube'da … ni och» deng — u YouTube'dan topib, kompyuteringizdagi brauzerda shu zahoti ochadi. Hech qanday ruxsat, «Boshlaymi?» yoki «Allow» so'ralmaydi. Boshqasini xohlasangiz — «boshqasini qo'y» deng.

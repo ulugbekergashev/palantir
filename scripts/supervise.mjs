@@ -208,9 +208,29 @@ if (phoneEnabled) {
   log('telefon liniyasi ham yoqiladi (tgvoice/sip_live.py)');
   void keepPhone();
 }
+/**
+ * Server xatolari (stderr) yo'qolmasin: logs/server-xato.log ga yoziladi, oxirgi qatorlari server yiqilganda supervisor.log ga.
+ * Avval stderr ko'rinmas oynaga ketardi — server yiqilsa sababi hech qayerda qolmasdi (2026-11-19)
+ */
+const ERR_TAIL = 15;
+function keepStderr(proc) {
+  const tail = [];
+  proc.stderr?.setEncoding('utf8');
+  proc.stderr?.on('data', chunk => {
+    try { process.stderr.write(chunk); } catch { /* oyna yo'q */ }
+    const d = new Date(), two = n => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
+    const lines = chunk.split(/\r?\n/).filter(l => l.trim());
+    try { appendFileSync(join(LOGS, 'server-xato.log'), lines.map(l => `${stamp} ${l}\n`).join('')); } catch { /* jurnal yozilmasa ham */ }
+    tail.push(...lines.map(l => l.slice(0, 400)));
+    tail.splice(0, Math.max(0, tail.length - ERR_TAIL));
+  });
+  return tail;
+}
 for (let wait = RESTART_MIN_MS; !stopping;) {
   const startedAt = Date.now();
-  child = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+  child = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], { cwd: ROOT, stdio: ['ignore', 'inherit', 'pipe', 'ipc'] });
+  const lastErr = keepStderr(child);
   const code = await new Promise(done => {
     child.once('exit', (c, signal) => done(c ?? signal ?? 1));
     child.once('error', e => { log(`server ishga tushmadi: ${e.message}`); done(1); });
@@ -225,7 +245,8 @@ for (let wait = RESTART_MIN_MS; !stopping;) {
     continue;
   }
   if (Date.now() - startedAt >= HEALTHY_MS) wait = RESTART_MIN_MS;
-  log(`server to'xtadi (kod: ${code}) — ${Math.round(wait / 1000)} soniyadan keyin qayta yoqiladi`);
+  const why = lastErr.length ? `; oxirgi xato (logs/server-xato.log):\n  ${lastErr.join('\n  ')}` : '';
+  log(`server to'xtadi (kod: ${code}) — ${Math.round(wait / 1000)} soniyadan keyin qayta yoqiladi${why}`);
   await sleep(wait);
   wait = Math.min(wait * 2, RESTART_MAX_MS);
 }
