@@ -135,6 +135,9 @@ ok("xodim: ketgan — oxirgi ketgan payt", !goneHome.here && goneHome.lastAt ===
 console.log('\n# Kechki kamera hisoboti (sof)');
 const daySum = (o: Record<string, unknown>) => ({ date: '2026-10-20', seated: 0, deskVisits: 0, crm: null, findings: [], sessions: [], ...o }) as never;
 ok("hisobot: aytadigan narsa yo'q — yuborilmaydi", reportHtml(daySum({}), 0) === null);
+const crmDown = { level: 'warn', text: "DentaCRM javob bermadi — hozircha solishtirib bo'lmadi." };
+ok("hisobot: kamera hech narsa ko'rmagan, faqat «DentaCRM javob bermadi» — yuborilmaydi", reportHtml(daySum({ findings: [crmDown] }), 0) === null);
+ok("hisobot: kamera ko'rgan bo'lsa — DentaCRM xatosi ham aytiladi", (reportHtml(daySum({ seated: 3, findings: [crmDown] }), 0) ?? '').includes('DentaCRM javob bermadi'));
 const rep = reportHtml(daySum({
   seated: 12, deskVisits: 15, crm: { visits: 14, payments: 13 },
   chairUse: [{ zoneId: 'c', name: 'Kreslo <1>', cameraName: 'K', busyMin: 300, watchedMin: 480, pct: 63 }, { zoneId: 'd', name: 'Kreslo 2', cameraName: 'K', busyMin: 0, watchedMin: 5, pct: null }],

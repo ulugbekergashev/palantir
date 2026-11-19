@@ -26,6 +26,8 @@ export function reportHtml(s: CameraSummary, alerts: number, now = new Date()): 
       ? `👤 ${esc(a.name)}: ${clock(a.firstAt)} keldi, ${a.here || !a.lastAt ? 'hali joyida' : `${clock(a.lastAt)} ketdi`}, joyida ${hoursMin(a.presentMin)}${a.longestAway ? `; eng uzoq yo'qligi ${hoursMin(a.longestAway.min)}` : ''}`
       : `👤 ${esc(a.name)}: bugun joyida ko'rinmadi`);
   }
+  // Kamera hech narsa ko'rmagan, ogohlantirish ham yo'q — yolg'iz «DentaCRM javob bermadi» egasiga hech narsa bermaydi (2026-11-19)
+  if (!lines.length && !alerts) return null;
   const problems = s.findings.filter(f => f.level !== 'ok');
   if (problems.length) {
     lines.push('', `⚠️ <b>Tekshiring</b> (${problems.length}):`, ...problems.slice(0, MAX_FINDINGS).map(f => `• ${esc(f.text)}`));
