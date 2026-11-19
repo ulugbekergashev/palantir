@@ -29,6 +29,7 @@ const site = createServer((req, res) => {
   }
   // Yopiladigan savol-javob (olcha.uz dagi narx kabi): «Narx» ko'rinadi, «Yopish» uni yashiradi
   if (req.url === '/faq') return res.end(`<title>FAQ</title><button onclick="document.getElementById('narx').style.display='none'">Yopish</button><div style="height:3000px"></div><p id="narx">Narx: 10 500 000</p>`);
+  if (req.url === '/yubor') return res.end('<title>Yubor</title><button>Yuborish</button>');
   if (req.url === '/popup') return res.end('<title>Yangi oyna</title><h1>popup</h1>');
   res.end(`<title>Sinov sahifasi</title><h1 id="h">${req.url}</h1><input id="ism" aria-label="Ism"><button onclick="document.getElementById('h').textContent='bosildi:'+document.getElementById('ism').value">Tekshirish</button><a href="/popup" target="_blank">Oyna</a>`);
 });
@@ -162,11 +163,16 @@ try {
 
   console.log('\n# Keyingi ish');
   const b2 = await connectOwnChrome(() => { asked++; }, 15_000);
-  const s2 = await BrowserSession.open({ profileDir: '', downloadsDir: join(dir, 'y2'), headless: true, attach: b2, approve: async () => false, policy: { allowedSites: [], allowHosts: [`127.0.0.1:${sitePort}`] } });
+  const s2 = await BrowserSession.open({ profileDir: '', downloadsDir: join(dir, 'y2'), headless: true, attach: b2, approve: async () => null, policy: { allowedSites: [], allowHosts: [`127.0.0.1:${sitePort}`] } });
   const again = text(await s2.run('navigate', { url: `${SITE}/ikkinchi` }));
   ok("yana so'rovsiz ulandi va ishladi", asked === 0 && again.includes('/ikkinchi'), again.slice(0, 120));
   const listed2 = text(await s2.run('list_tabs', {}));
   ok("oldingi ishning vkladkalari endi egasiniki — ro'yxatda yo'q", !listed2.includes('/ish') && !listed2.includes('/popup'), listed2.slice(0, 200));
+  // Egasi 10 daqiqa javob bermadi — «rad etdi» emas (2026-11-19: hisobotda «Siz ruxsat bermadingiz» deb yozilgan edi)
+  await s2.run('navigate', { url: `${SITE}/yubor` });
+  const send = text(await s2.run('find', { query: 'Yuborish' })).match(/ref_\d+/)?.[0] ?? '';
+  const silent = await s2.run('left_click', { target: { type: 'ref', ref: send } });
+  ok("egasi javob bermasa — «javob bermadi», «rad etdi» emas", silent.isError === true && /javob bermadi/.test(text(silent)) && !/ruxsat bermadi/.test(text(silent)), text(silent).slice(0, 160));
   await s2.close();
   await doneWithOwnChrome();
 } catch (e) {

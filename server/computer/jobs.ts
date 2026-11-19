@@ -219,7 +219,7 @@ async function status(biz: BusinessRow, l: Live, note: string, force = false): P
 
 const CONFIRM_TOOL: Anthropic.Beta.BetaTool = {
   name: 'confirm_with_owner',
-  description: 'Ask the owner in Telegram for permission before a consequential step and wait for the answer: submitting or sending anything (forms, messages, emails, applications), payments and purchases, deleting, changing settings or accounts, accepting terms, installing software. Describe the exact step in one short sentence in the owner\'s language (what, where, with which values). Returns "approved" or "declined"; if declined, do not do it.',
+  description: 'Ask the owner in Telegram for permission before a consequential step and wait for the answer: submitting or sending anything (forms, messages, emails, applications), payments and purchases, deleting, changing settings or accounts, accepting terms, installing software. Describe the exact step in one short sentence in the owner\'s language (what, where, with which values). Returns "approved", "declined" or "no answer" (the owner did not respond in time — they may be away; never say they declined); unless approved, do not do it.',
   input_schema: { type: 'object', properties: { action: { type: 'string', description: 'The step, e.g. «soliq.uz da arizani yuborish (summa 1 200 000 so\'m)»' } }, required: ['action'], additionalProperties: false },
   strict: true,
 };
@@ -304,7 +304,7 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
     const dir = jobDir(job.id);
     mkdirSync(dir, { recursive: true });
     // Brauzer xavfli tugmani o'zi taniydi va har safar haqiqiy nomi bilan so'raydi (modelning oldingi «ruxsat oldim»i hisobga olinmaydi)
-    const gate = (what: string) => ask(biz, l, what);
+    const gate = (what: string) => askAnswer(biz, l, what, 'step');
     let attach: Awaited<ReturnType<typeof connectOwnChrome>> | undefined;
     if (job.mode === 'browser') {
       // Egasining o'z Chrome'i: ulanish birinchi marta ochilganda Chrome «Allow?» so'raydi — egasiga Telegram'da aytiladi
@@ -370,8 +370,8 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
         let out: MemberResult;
         if (!toolset && c.name === 'confirm_with_owner') {
           const what = String((c.input as { action?: unknown }).action ?? '').slice(0, 500);
-          const yes = what ? await ask(biz, l, what) : false;
-          out = { content: [{ type: 'text', text: yes ? 'approved' : 'declined' }] };
+          const answer = what ? await askAnswer(biz, l, what, 'step') : false;
+          out = { content: [{ type: 'text', text: answer === true ? 'approved' : answer === null ? `no answer: the owner did not respond within ${env.computerApproveMinutes} minutes — do not do it, and do not say they declined` : 'declined' }] };
         } else if (!toolset && c.name === 'ask_owner_to_act' && tools.includes(OWNER_ACT_TOOL)) {
           const step = String((c.input as { step?: unknown }).step ?? '').slice(0, 500);
           await status(biz, l, step, true);

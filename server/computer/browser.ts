@@ -14,8 +14,8 @@ import { MONEY_ZONE, cardLike, moneyControl } from './money';
 
 export type ResultContent = Exclude<Anthropic.Beta.BetaToolResultBlockParam['content'], string | undefined>;
 export interface MemberResult { content: ResultContent; isError?: boolean }
-/** Egasidan so'rash (Telegram tugmalari): true — ruxsat */
-export type Approver = (what: string) => Promise<boolean>;
+/** Egasidan so'rash (Telegram tugmalari): true — ruxsat, false — rad etdi, null — javob bo'lmadi (vaqt tugadi) */
+export type Approver = (what: string) => Promise<boolean | null>;
 
 export const VIEWPORT = { width: 1280, height: 800 };
 const NAV_TIMEOUT_MS = 30_000, ACTION_TIMEOUT_MS = 15_000, MAX_TREE = 50_000, MAX_TEXT = 50_000, MAX_WAIT_S = 30;
@@ -297,7 +297,11 @@ export class BrowserSession {
     if (!what) return null;
     const host = (() => { try { return new URL(this.page().url()).host; } catch { return ''; } })();
     const ok = await this.o.approve(`${what}${host ? ` — ${host}` : ''}`);
-    return ok ? null : fail(`Egasi ruxsat bermadi: ${what}. Bu amalni bajarmang; boshqa yo'l kerak bo'lsa — egasiga hisobotda ayting.`);
+    if (ok === true) return null;
+    // Javob bo'lmagani — «rad etdi» emas (2026-11-19: 10 daqiqa jim turgan egasi hisobotda «ruxsat bermadingiz» deb yozildi)
+    return fail(ok === null
+      ? `Egasi javob bermadi (kutish vaqti tugadi): ${what}. Bu amalni bajarmang; hisobotda «egasi javob bermadi» deb ayting — «rad etdi» demang.`
+      : `Egasi ruxsat bermadi: ${what}. Bu amalni bajarmang; boshqa yo'l kerak bo'lsa — egasiga hisobotda ayting.`);
   }
 
   /**
