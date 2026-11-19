@@ -84,7 +84,7 @@ export async function connectOwnChrome(onConsent?: () => void, waitMs = CONSENT_
       liveViaExtension = true;
       b.on('disconnected', () => { if (live === b) live = null; });
       return b;
-    }, (e: Error) => { throw new OwnChromeError('not_enabled', `Palantir kengaytmasi orqali ulanib bo'lmadi: ${e.message.split('\n')[0].slice(0, 160)}`); })
+    }, (e: Error) => { throw new OwnChromeError('not_enabled', `Palantir kengaytmasi orqali ulanib bo'lmadi: ${e.message.split('\n')[0].replace(/\/api\/ext\/cdp\/[\w-]+/g, '/api/ext/cdp/…').slice(0, 160)}`); })
       .finally(() => { pending = null; });
     return pending;
   }

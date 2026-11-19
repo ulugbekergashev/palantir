@@ -57,9 +57,15 @@ class Extension {
   private onMessage(data: RawData): void {
     let msg: { id?: number; method?: string; params?: unknown[]; result?: unknown; error?: string };
     try { msg = JSON.parse(data.toString()); } catch { return; }
+    // Buzuq xabar (null, raqam) server jarayonini yiqitmasin
+    if (!msg || typeof msg !== 'object') return;
     if (typeof msg.id !== 'number') {
-      if (msg.method === 'extension.hello') this.version = String((msg.params?.[0] as Json | undefined)?.version ?? '');
-      else if (typeof msg.method === 'string') this.onEvent(msg.method, Array.isArray(msg.params) ? msg.params : []);
+      try {
+        if (msg.method === 'extension.hello') this.version = String((msg.params?.[0] as Json | undefined)?.version ?? '').slice(0, 20);
+        else if (typeof msg.method === 'string') this.onEvent(msg.method, Array.isArray(msg.params) ? msg.params : []);
+      } catch (e) {
+        console.error('[kengaytma] hodisani qayta ishlab bo\'lmadi:', (e as Error).message);
+      }
       return;
     }
     const w = this.waiting.get(msg.id);
@@ -99,7 +105,7 @@ class CdpSession {
   private async onClientMessage(data: RawData): Promise<void> {
     let m: CdpMessage;
     try { m = JSON.parse(data.toString()); } catch { return; }
-    if (typeof m.id !== 'number' || typeof m.method !== 'string') return;
+    if (!m || typeof m !== 'object' || typeof m.id !== 'number' || typeof m.method !== 'string') return;
     try {
       this.toClient({ id: m.id, sessionId: m.sessionId, result: await this.command(m.method, m.params ?? {}, m.sessionId) ?? {} });
     } catch (e) {
@@ -218,7 +224,9 @@ export const extensionState = (): { connected: boolean; version: string } => ({ 
 export const extensionCdpUrl = (): string | null => (ext?.open && listenPort ? `ws://127.0.0.1:${listenPort}${CDP_PATH}` : null);
 
 function onExtension(ws: WebSocket): void {
-  if (ext?.open) ext.close('Yangi ulanish keldi');
+  // Bitta kengaytma: ikkinchisi (masalan, boshqa Chrome profili) rad etiladi — aks holda ikkalasi bir-birini almashtirib turardi
+  // va ishlayotgan ish uzilgan ulanishda qolardi. Birinchisi uzilsa (Chrome yopildi) — ikkinchisi keyingi urinishda ulanadi
+  if (ext?.open) { ws.close(1000, 'Boshqa Chrome allaqachon ulangan'); return; }
   const me = new Extension(ws, (method, params) => session?.onExtensionEvent(method, params), () => {
     if (ext !== me) return;
     ext = null;
@@ -247,7 +255,14 @@ export function attachExtensionRelay(server: Server, port: number): void {
     }
     // Faqat shu kompyuterdan; kengaytma yo'li — faqat Palantir kengaytmasidan (sayt Origin'ni soxtalashtira olmaydi)
     const okOrigin = path === CDP_PATH ? !req.headers.origin : req.headers.origin === `chrome-extension://${EXTENSION_ID}`;
-    if (!isLoopback(req.socket.remoteAddress) || !okOrigin) { socket.destroy(); return; }
+    // Tunnel/proksi (ngrok, cloudflared, nginx) orqali kelgan so'rov ham 127.0.0.1 dan ko'rinadi — u «shu kompyuter» emas (http.ts fromThisPc kabi)
+    const h = req.headers;
+    const proxied = !!(h['x-forwarded-for'] || h.forwarded || h['x-real-ip'] || h['cf-connecting-ip']);
+    if (!isLoopback(req.socket.remoteAddress) || proxied || !okOrigin) { socket.destroy(); return; }
     wss.handleUpgrade(req, socket, head, ws => (path === EXT_PATH ? onExtension(ws) : onPlaywright(ws)));
   });
 }
+
+/** Faqat sinov uchun (scripts/check-extension.ts): kengaytmaga xom buyruq — uning o'z himoyasini tekshirish */
+export const extensionCommandForTest = (method: string, params: unknown[]): Promise<unknown> =>
+  ext?.open ? ext.send(method, params) : Promise.reject(new Error('Kengaytma ulanmagan'));

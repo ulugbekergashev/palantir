@@ -29,7 +29,7 @@ const SITE = `http://127.0.0.1:${sitePort}`;
 
 const dir = mkdtempSync(join(tmpdir(), 'palantir-ext-'));
 process.env.CHROME_USER_DATA = join(dir, 'no-devtools'); // eski yo'l (DevToolsActivePort) yo'q — faqat kengaytma
-const { attachExtensionRelay, extensionState } = await import('../server/computer/extRelay');
+const { attachExtensionRelay, extensionCommandForTest, extensionState } = await import('../server/computer/extRelay');
 const { connectOwnChrome, doneWithOwnChrome, ownChromeState } = await import('../server/computer/ownChrome');
 const { BrowserSession } = await import('../server/computer/browser');
 
@@ -95,12 +95,43 @@ try {
   const tabs2 = text(await s.run('list_tabs', {}));
   ok("undan ochilgan oyna ham Palantir'niki", tabs2.includes('/popup') && !tabs2.includes('/egasi'), tabs2.slice(0, 260));
 
+  console.log("\n# Kengaytmaning o'z himoyasi (to'g'ridan-to'g'ri buyruqlar)");
+  const raw = (m: string, p: unknown[]) => extensionCommandForTest(m, p).then(r => ({ ok: true, r }), (e: Error) => ({ ok: false, r: e.message }));
+  const ids = Array.from({ length: 80 }, (_, n) => n + 1);
+  const attachTries = await Promise.all(ids.map(id => raw('chrome.debugger.attach', [{ tabId: id }, '1.3'])));
+  ok("begona (egasining) vkladkasiga ulanib bo'lmaydi", attachTries.every(t => !t.ok), `${attachTries.filter(t => t.ok).length} ta ulandi`);
+  await raw('chrome.tabs.remove', [ids]);
+  ok("egasining vkladkasini yopib bo'lmaydi", owner.pages().some(p => p.url().endsWith('/egasi')));
+  const mine = await raw('chrome.tabs.create', [{ url: 'about:blank', active: false }]) as { ok: boolean; r: { id: number } };
+  const tabId = mine.r.id;
+  await raw('chrome.debugger.attach', [{ tabId }, '1.3']);
+  const cookies = await raw('chrome.debugger.sendCommand', [{ tabId }, 'Network.getAllCookies', {}]);
+  const storage = await raw('chrome.debugger.sendCommand', [{ tabId }, 'Storage.getCookies', {}]);
+  const browserClose = await raw('chrome.debugger.sendCommand', [{ tabId }, 'Browser.close', {}]);
+  const evalOk = await raw('chrome.debugger.sendCommand', [{ tabId }, 'Runtime.evaluate', { expression: '6*7', returnByValue: true }]);
+  ok("cookie (butun profilniki) o'qilmaydi, brauzerni yopib bo'lmaydi", !cookies.ok && !storage.ok && !browserClose.ok, `${cookies.r} | ${storage.r}`);
+  ok("vkladka ichidagi ish ruxsat", evalOk.ok && JSON.stringify(evalOk.r).includes('42'), JSON.stringify(evalOk.r).slice(0, 80));
+  const second = await new Promise<string>(done => {
+    const w = new WebSocket(`ws://127.0.0.1:${port}/api/ext`, { origin: 'chrome-extension://beohfbpjkgnlbhpbbinpielchmhmodfd' });
+    w.on('close', (_c, reason) => done(reason.toString() || 'yopildi'));
+    w.on('error', () => done('xato'));
+  });
+  ok('ikkinchi kengaytma rad etiladi, birinchisi ulangan qoladi', /allaqachon/.test(second) && extensionState().connected, second);
+  const proxied = await new Promise<string>(done => {
+    const w = new WebSocket(`ws://127.0.0.1:${port}/api/ext`, { origin: 'chrome-extension://beohfbpjkgnlbhpbbinpielchmhmodfd', headers: { 'x-forwarded-for': '203.0.113.5' } });
+    w.on('open', () => { w.close(); done('ochildi'); });
+    w.on('error', () => done('rad'));
+  });
+  ok("tunnel/proksi orqali (internetdan) ulanib bo'lmaydi", proxied === 'rad', proxied);
+
   await s.close();
   await doneWithOwnChrome();
   await sleep(800);
   const urls = owner.pages().map(p => p.url());
   ok("tugadi: ish vkladkasi ochiq, egasiniki joyida", urls.some(u => u.endsWith('/egasi')) && urls.some(u => u.endsWith('/ish')), urls.join(', '));
   ok('egasining vkladkasi tegilmagan', (await ownerTab.title()) === 'Egasining sahifasi');
+  const afterEnd = await raw('chrome.debugger.sendCommand', [{ tabId }, 'Runtime.evaluate', { expression: '1' }]);
+  ok("ish tugagach vkladkalar Palantir'niki emas — buyruq bajarilmaydi", !afterEnd.ok && /Palantirniki emas/.test(String(afterEnd.r)), String(afterEnd.r));
 
   console.log('\n# Keyingi ish');
   const b2 = await connectOwnChrome(() => { asked++; }, 15_000);

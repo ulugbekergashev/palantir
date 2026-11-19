@@ -12,13 +12,19 @@ const PALANTIR_URLS = ['ws://127.0.0.1:3200/api/ext', 'ws://[::1]:3200/api/ext']
 const RECONNECT_MAX_MS = 15_000;
 const VERSION = chrome.runtime.getManifest().version;
 
-/** Brauzer holatini o'zgartiradigan (vkladkaga emas) CDP buyruqlari — Palantir ularni yubormaydi, yuborsa ham bajarilmaydi */
+/**
+ * Ruxsat etilgan CDP buyruqlari (oq ro'yxat): faqat vkladka ichidagi ish — sahifa, DOM, kiritish, so'rovlarni to'sish (Fetch).
+ * Cookie va saqlangan ma'lumotlar (butun profilniki — egasining boshqa saytlari), brauzer va boshqa vkladkalar — yopiq
+ */
+const ALLOWED_DOMAINS = new Set(['Page', 'Runtime', 'DOM', 'DOMSnapshot', 'CSS', 'Input', 'Fetch', 'Emulation', 'Accessibility', 'Log', 'Overlay', 'Performance', 'Security', 'Inspector', 'IO', 'Network', 'Target']);
 const BLOCKED_METHODS = new Set([
-  'Storage.setCookies', 'Storage.clearCookies', 'Storage.clearDataForOrigin', 'Network.clearBrowserCookies', 'Network.clearBrowserCache',
-  'Browser.grantPermissions', 'Browser.resetPermissions', 'Browser.setPermission', 'Browser.setDownloadBehavior', 'Browser.close', 'Browser.crash',
+  'Page.setDownloadBehavior', 'Page.close', 'Page.crash', 'Runtime.terminateExecution',
   'Target.createTarget', 'Target.closeTarget', 'Target.attachToTarget', 'Target.activateTarget', 'Target.createBrowserContext', 'Target.disposeBrowserContext',
-  'SystemInfo.getProcessInfo',
+  'Target.getTargets', 'Target.setDiscoverTargets', 'Target.exposeDevToolsProtocol', 'Target.attachToBrowserTarget',
+  'Network.clearBrowserCookies', 'Network.clearBrowserCache', 'Network.getAllCookies', 'Network.getCookies', 'Network.setCookie', 'Network.setCookies', 'Network.deleteCookies',
+  'Network.loadNetworkResource', 'Network.setCookieControls',
 ]);
+const methodAllowed = method => typeof method === 'string' && ALLOWED_DOMAINS.has(method.split('.')[0]) && !BLOCKED_METHODS.has(method);
 
 let socket = null;
 let retryMs = 1_000;
@@ -69,7 +75,7 @@ const handlers = {
   },
   'chrome.debugger.sendCommand': async ([target, method, params]) => {
     const tabId = ownTab(target);
-    if (BLOCKED_METHODS.has(method)) throw new Error(`${method} — ruxsat yo'q (brauzer holatini o'zgartiradi)`);
+    if (!methodAllowed(method)) throw new Error(`${method} — ruxsat yo'q (faqat vkladka ichidagi ish)`);
     const t = target.sessionId ? { tabId, sessionId: target.sessionId } : { tabId };
     return await chrome.debugger.sendCommand(t, method, params);
   },
