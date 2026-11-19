@@ -1,5 +1,12 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.32 da yangi
+
+- **Do'kon saytlarida qidiruv ishlaydi:** sahifada «hududingizni tanlang» oynasi chiqsa ham Palantir qidiruvni to'xtatmaydi.
+- **Formadagi belgilar va yopiq bo'limlar:** Palantir belgi (✓) qo'yishda va yashirin bo'limga aylantirishda 15 soniya osilib qolmaydi.
+- **«Javob bermadingiz» — «rad etdingiz» emas:** ruxsat so'roviga javob bermasangiz, hisobotda shunday yoziladi.
+- **Eski «qila olmayman»ni takrorlamaydi:** avval bloklangan ish tuzatilgan bo'lsa, Palantir yana urinib ko'radi.
+
 ## 0.4.31 da yangi
 
 - **Narx va kursni o'qish endi bloklanmaydi:** «olcha.uz da narxini top», «Markaziy bank kursini ayt», sinov formasini to'ldirish — Palantir «bu xarid» deb rad etmaydi. To'lash, pul o'tkazish, sotib olish va bank saytlari avvalgidek yopiq.
