@@ -1,5 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.29 da yangi
+
+- **Palantir kengaytmasi Chrome uchun:** bir marta o'rnatasiz (Sozlamalar → «Kompyuterda ishlash» → «O'rnatishni boshlash») — shundan keyin Palantir Chrome'ingizda hech narsa so'ramasdan ishlaydi: «Allow» yo'q, Chrome'ni qayta ochganda ham. Faqat o'z vkladkalarida ishlaydi — sizning vkladkalaringiz va cookie'laringiz unga ko'rinmaydi.
+- **Javob bermaganingiz «rad etdi» deb yozilmaydi:** Palantir sizni kompyuterga chaqirib, javob bo'lmasa — hisobotda «javob bo'lmadi» deb yozadi.
+
 ## 0.4.28 da yangi
 
 - **Xato yo'qolmaydi:** Palantir to'satdan to'xtab qolsa, sababi jurnalga yoziladi (logs/server-xato.log) — tuzatish tezlashadi.
