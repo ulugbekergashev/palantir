@@ -30,6 +30,10 @@ export interface ToolCtx {
   as?: CrewMember;
   /** Shu javob davomida mijozlar yozgan matn o'qildi (yozishma, mijozlar ro'yxati): u ham begona matn */
   readStrangers?: boolean;
+  /** readStrangers qayerdan: asbob nomi yoki «web_search» (computer/tools.ts: faqat ish hisobotlari bo'lsa — topshiriq tasdiqsiz boshlanishi mumkin) */
+  strangerSources?: string[];
+  /** Egasining shu (joriy) xabari — topshiriq undan olinganini tekshirish uchun (ownerSaid — 6 soatlik suhbat, bu yerda juda keng) */
+  ownerNow?: string;
   /** Shu gapda qo'shilgan mijozlar soni (chegara: tools.ts MAX_LEADS_PER_TURN) */
   leadsSaved?: number;
   /** Shu javob davomida kameraga necha marta qaraldi (chegara: camera/tools.ts) */
@@ -39,6 +43,12 @@ export interface ToolCtx {
    * suhbat tarixida qoladi: keyingi «ha, saqla» gapida bilimga yoziladigan raqam va havolalar shu matndan tekshiriladi (assertOwnNumbers)
    */
   ownerSaid?: string;
+}
+
+/** Begona matn o'qildi: belgi va manbasi */
+export function markStrangers(ctx: ToolCtx, source: string): void {
+  ctx.readStrangers = true;
+  ctx.strangerSources = [...(ctx.strangerSources ?? []), source];
 }
 
 /** Doimiy bilimga (fakt, narx, sahifa) yozishdan oldin: begona matn — rasmdagi yozuv yoki mijozning xabari — shu yo'l bilan bilimga aylanmasin */

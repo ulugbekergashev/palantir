@@ -173,15 +173,11 @@ export async function stopAllJobs(): Promise<void> {
 }
 
 /**
- * Egasidan so'raydi: Telegram'da ikki tugma; javob kelmasa (COMPUTER_APPROVE_MINUTES) yoki ish to'xtasa — false.
+ * Egasidan so'raydi: Telegram'da ikki tugma. Qaytaradi: true — ha, false — yo'q (yoki ish to'xtadi), null — javob bo'lmadi
+ * (COMPUTER_APPROVE_MINUTES) — egasi «yo'q» demagan bo'lsa, hisobotda shunday deyilmasin.
  * what — bitta qisqa savol (birinchi qator). kind: 'step' — xavfli qadamga ruxsat; 'start' — ishni boshlashdan oldin (tafsiloti — topshiriq matni);
  * 'act' — egasi kompyuterda o'zi qiladigan qadam (kalit/PIN/barmoq izi bilan tasdiqlash, captcha): «Bajardim» bosilguncha ish kutadi
  */
-async function ask(biz: BusinessRow, l: Live, what: string, kind: 'step' | 'start' | 'act' = 'step'): Promise<boolean> {
-  return (await askAnswer(biz, l, what, kind)) === true;
-}
-
-/** ask kabi, lekin javob bo'lmaganini (null) «yo'q» dan ajratadi — egasi «Qila olmayman» demagan bo'lsa, hisobotda shunday deyilmasin */
 async function askAnswer(biz: BusinessRow, l: Live, what: string, kind: 'step' | 'start' | 'act'): Promise<boolean | null> {
   const id = newId(8);
   const html = kind === 'start'
@@ -291,9 +287,11 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
       const what = job.mode === 'desktop'
         ? `Kompyuteringizda (sichqoncha va klaviatura bilan) boshlaymi: ${nameOf(job, TITLE_MAX)}? Ish paytida kompyuterga tegmang.`
         : `Boshlaymi: ${nameOf(job, TITLE_MAX)}?`;
-      if (!(await ask(biz, l, what, 'start'))) {
+      const start = await askAnswer(biz, l, what, 'start');
+      if (start !== true) {
         if (l.abort.signal.aborted) throw new Stopped("Egasi to'xtatdi");
-        set({ status: 'stopped', report: 'Egasi boshlashga ruxsat bermadi' });
+        // Javob bo'lmagani — «rad etdi» emas (2026-11-20: 10 daqiqa jim turilgan, hisobotda «ruxsat bermadi» deb yozildi)
+        set({ status: 'stopped', report: start === null ? `Egasi «Boshlaymi?» ga ${env.computerApproveMinutes} daqiqa javob bermadi — ish boshlanmadi` : 'Egasi boshlashga ruxsat bermadi' });
         // Javob bermagan yoki adashib «Yo'q» bosgan bo'lsa — vazifani qayta aytmasdan bir bosishda boshlaydi
         await notifyOwner(biz, `⏹ <b>Ish boshlanmadi</b>: ${esc(nameOf(job))}`, restartKeyboard(job.id)).catch(() => null);
         return;

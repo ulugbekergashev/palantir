@@ -8,6 +8,41 @@ import { ToolError, def } from '../toolkit';
 import { openForOwner, searchYoutube } from './media';
 import { ComputerError, computerJobs, computerModeOf, jobView, modeEnabled, runningJob, startJob, stopJob } from './jobs';
 
+/** Har qanday sayt nomi (istalgan zona, harf-raqamli, unicode) yoki IPv4 */
+const HOST = /(?:[\p{L}\d](?:[\p{L}\d-]*[\p{L}\d])?\.)+\p{L}{2,}|\b\d{1,3}(?:\.\d{1,3}){3}\b/giu;
+const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
+/** 5+ raqamli: telefon, karta, ID, summa (bo'shliq va chiziqcha bilan ham) */
+const LONG_NUMBER = /\d(?:[\d\s-]{3,}\d)/g;
+const digits = (s: string) => s.replace(/\D/g, '');
+const hostsIn = (s: string) => [...s.matchAll(HOST)].map(m => m[0].toLowerCase().replace(/^www\./, ''));
+/** Egasi sayt manzilini emas, nomini aytadi: «Google Docs», «Instagram'da» — shu nomlar uchun sayt */
+const NAMED_SITES: [RegExp, string][] = [
+  [/google|gmail|гугл/i, 'google.com'], [/facebook|feysbuk|фейсбук|meta business/i, 'facebook.com'], [/instagram|инстаграм/i, 'instagram.com'],
+  [/youtube|ютуб/i, 'youtube.com'], [/github/i, 'github.com'], [/vikipediya|wikipedia|википеди/i, 'wikipedia.org'], [/telegram|телеграм/i, 'telegram.org'],
+];
+/** Sayt egasi aytganmi: aynan o'zi yoki u aytgan saytning qismi (docs.google.com ← google.com; samarkand.hh.uz ← hh.uz) */
+const saidHost = (h: string, said: string[]) => said.some(o => h === o || h.endsWith(`.${o}`));
+
+/**
+ * Topshiriq egasining joriy xabaridanmi: unda kamida bitta sayt bor va har bir sayt, email va uzun raqam egasining SHU xabarida bor.
+ * Oldingi ishning hisoboti o'qilgan bo'lsa (computer_status) ham, topshiriq egasi yozganini qaytarsa — «Boshlaymi?» so'ralmaydi
+ * (2026-11-20: ketma-ket topshiriqlarda har safar so'ralardi). Saytsiz topshiriq («ochiq sahifada nomini o'zgartir») yoki sahifa matni
+ * yangi sayt, email, raqam qo'shgan bo'lsa — so'raladi. Xavfsizlik ko'rigi bo'yicha: sayt to'liq mos (so'z bo'lagi emas), 6 soatlik suhbat emas
+ */
+export function ownersTask(task: string, ownerNow: string): boolean {
+  const said = ownerNow.toLowerCase();
+  const saidHosts = [...hostsIn(ownerNow), ...NAMED_SITES.filter(([re]) => re.test(ownerNow)).map(([, h]) => h)];
+  const hosts = hostsIn(task.replace(EMAIL, ' '));
+  if (!hosts.length || !hosts.every(h => saidHost(h, saidHosts))) return false;
+  if (![...task.matchAll(EMAIL)].every(m => said.includes(m[0].toLowerCase()))) return false;
+  const saidNumbers = [...ownerNow.matchAll(LONG_NUMBER)].map(m => digits(m[0]));
+  return [...task.matchAll(LONG_NUMBER)].map(m => digits(m[0])).filter(n => n.length >= 5).every(n => saidNumbers.some(s => s.includes(n)));
+}
+
+/** Shu turda o'qilgan begona matn faqat Palantir'ning o'z ishlari haqidagi hisobot (va o'zi boshlagan ish) — internet, mijoz, kamera emas */
+const ONLY_JOB_REPORTS = new Set(['computer_status', 'computer_task']);
+export const onlyJobReports = (sources: string[] | undefined) => !!sources?.length && sources.every(s => ONLY_JOB_REPORTS.has(s));
+
 export const COMPUTER_DEFS = {
   computer_task: def({
     description: "Do a task on the owner's computer in the background and report back in Telegram: in a browser (open sites, search, read, fill forms, download files — e.g. \"soliq.uz dan dalolatnomani yuklab ol\", \"OLX da shu narxdagi kreslolarni top\") or, with where=desktop, on the whole screen with mouse and keyboard (programs other than the browser, e.g. 1C, Excel, files). Write the task fully and concretely in the owner's words: site, what to find or do, what result to bring. Before sending, submitting or deleting anything the owner gets a Telegram button to approve. Money is closed: banks, internet banking, payment systems, paying, transferring money and buying are blocked in code even with the owner's approval — such a task is refused; tell the owner to do it themselves (you can still give numbers, reports and calculations). Reading is not money: prices in shops, the Central Bank (cbu.uz) exchange rate, test forms — send them. Never refuse from memory because a similar task was refused earlier in the chat: the rules get fixed, so call this tool again; it tells you itself if the task is closed. The browser keeps logins made with the /brauzer command; the operator never types passwords. Not for playing music or videos — use play_media for that (instant, no approval). One task at a time; it takes minutes. Tell the owner you started and that the result will come in Telegram — do not wait.",
@@ -19,7 +54,8 @@ export const COMPUTER_DEFS = {
     run: (i, ctx) => {
       const mode = i.where ?? (modeEnabled('browser', ctx.biz) ? 'browser' : 'desktop');
       // Topshiriq matni egasining shu payt yozgani emas bo'lishi mumkin (rasm, mijoz xabari, internet, jadval) — boshlashdan oldin egasi tasdiqlaydi
-      const confirmFirst = !!(ctx.fromPhoto || ctx.unattended || ctx.readStrangers);
+      const ownTask = onlyJobReports(ctx.strangerSources) && ownersTask(i.task, ctx.ownerNow ?? '');
+      const confirmFirst = !!(ctx.fromPhoto || ctx.unattended || (ctx.readStrangers && !ownTask));
       try {
         const job = startJob(ctx.biz, i.task, mode, confirmFirst, i.title ?? null);
         return {

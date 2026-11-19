@@ -25,6 +25,7 @@ import { AccessBlockedError } from './hubAccess';
 import { crmClinicName, crmConnected } from './crm/index';
 import { COMMON_RULES, industryOf, isClinic } from '../src/data/industries';
 import { chatGroups, memberGroups, runTool, toolDefinitions, type ToolCtx, type ToolGroup } from './tools';
+import { markStrangers } from './toolkit';
 import { TEAM_NAME, crewHas, crewLicensed, type CrewMember } from '../src/lib/crew';
 import { orders } from './orders/store';
 import { PausedError, SubscriptionError, subscriptionOn, type SubscriptionReason } from './subscription/engine';
@@ -363,7 +364,7 @@ export function ask(bizId: string, channel: ChatEntry['channel'], text: string, 
 async function viaSubscription(biz: BusinessRow, userText: string, opts: { photo?: boolean; phone?: boolean; unattended?: boolean; as?: CrewMember; said?: string }) {
   const crm = crmConnected(biz.id);
   const set = toolsetFor(biz, opts.as);
-  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto: !!opts.photo, unattended: !!opts.unattended || !!opts.as, ownerSaid: opts.said, ...(opts.as ? { as: opts.as } : {}) };
+  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto: !!opts.photo, unattended: !!opts.unattended || !!opts.as, ownerSaid: opts.said, ownerNow: userText, ...(opts.as ? { as: opts.as } : {}) };
   // Obuna limiti (pressure.ts): egasining savoli — live, jadvaldagi topshiriq — fondagi ish. Ichidagi asboblar (video, hujjat) shu navbatda
   const lane = currentLane() ?? (opts.unattended ? 'background' : 'live');
   const closed = laneClosedUntil(lane);
@@ -382,7 +383,7 @@ class PartialError extends Error {
 }
 
 async function run(biz: BusinessRow, session: { system: string; startedAt: string; messages: Msg[] }, set: Toolset, userText: string, continuing: boolean, fromPhoto = false, phone = false, unattended = false, as?: CrewMember, said?: string) {
-  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto, unattended, ownerSaid: said, ...(as ? { as } : {}) };
+  const ctx: ToolCtx = { biz, artifacts: [], fromPhoto, unattended, ownerSaid: said, ownerNow: userText, ...(as ? { as } : {}) };
   const messages = withOwnerText(session.messages, userText);
   // Xodim topshirig'i saqlanmaydi (egasi bilan suhbat o'z holicha qoladi)
   const save = (upTo: number) => { if (!as) conversations.save(biz.id, { system: session.system, toolsKey: set.key, startedAt: session.startedAt, messages: messages.slice(0, upTo) }); };
@@ -418,7 +419,7 @@ async function run(biz: BusinessRow, session: { system: string; startedAt: strin
     }
     messages.push({ role: 'assistant', content: res.content as Block[] });
     // Internetdan qidiruv natijasi — begona matn: shu gapda bilim va xotiraga yozuvchi asboblar yopiladi (mijozlar ro'yxatini o'qigandagidek)
-    if (res.content.some(b => b.type === 'server_tool_use' || b.type === 'web_search_tool_result')) ctx.readStrangers = true;
+    if (res.content.some(b => b.type === 'server_tool_use' || b.type === 'web_search_tool_result')) markStrangers(ctx, 'web_search');
     const said = textOf(res.content);
     if (said) spoken = said;
 

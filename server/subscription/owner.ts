@@ -10,6 +10,7 @@ import { conversations } from '../db';
 import { env } from '../env';
 import { metered } from '../claude';
 import type { ToolCtx, ToolGroup } from '../tools';
+import { markStrangers } from '../toolkit';
 import { SubscriptionError, runQuery, sessionKey, sessionOf, type TurnResult } from './engine';
 import { ToolGate, palantirServer } from './tools';
 
@@ -79,7 +80,7 @@ async function turn(p: OwnerTurnInput, session: Session | null, gate: ToolGate):
       mcp: palantirServer(p.ctx, p.crm, p.groups, gate),
       webSearch: env.webSearch,
       // Internetdan qidiruv natijasi — begona matn: shu gapda bilim va xotiraga yozuvchi asboblar yopiladi
-      onWebSearch: () => { p.ctx.readStrangers = true; },
+      onWebSearch: () => { markStrangers(p.ctx, 'web_search'); },
       persist: true,
     }), res => res.usage);
   } catch (e) {

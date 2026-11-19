@@ -43,7 +43,7 @@ import { MARKETING_DEFS, marketingEnabled } from './marketing/tools';
 import { BRAND_DEFS, CONTENT_DEFS } from './content/tools';
 import { ADS_DEFS } from './ads/tools';
 import { NUMBER_DEFS } from './numbersTools';
-import { ToolError, assertOwnNumbers, assertOwnWords, def, type ToolCtx, type ToolDef } from './toolkit';
+import { ToolError, assertOwnNumbers, assertOwnWords, def, markStrangers, type ToolCtx, type ToolDef } from './toolkit';
 import { TEAM_NAME, crewHas, crewLicensed, type CrewMember } from '../src/lib/crew';
 import { events } from './orders/store';
 import { DOC_KINDS } from './docs/playbooks';
@@ -520,10 +520,12 @@ export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promi
   try {
     const out = { content: JSON.stringify(await d.run(parsed.data, ctx)), isError: false };
     // Belgi natijadan keyin: asbobning o'zi (reklama, kompyuter) shu gapda avval begona matn o'qilganmi — shuni tekshiradi
-    if (!OWN_DATA_TOOLS.has(name)) ctx.readStrangers = true;
+    if (!OWN_DATA_TOOLS.has(name)) markStrangers(ctx, name);
     journal(name, parsed.data, ctx);
     return out;
   } catch (e) {
+    // Asbob begona matn o'qib, keyin yiqilgan bo'lsa ham — manbasi yozilsin (aks holda belgi manbasiz qoladi)
+    if (ctx.readStrangers && !OWN_DATA_TOOLS.has(name)) markStrangers(ctx, name);
     if (e instanceof ToolError) return { content: e.message, isError: true };
     if (e instanceof PausedError) return deferTool(name, parsed.data, ctx, e);
     console.error(`[asbob] ${name}:`, e);
