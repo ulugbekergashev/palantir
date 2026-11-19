@@ -55,7 +55,7 @@ function commandsSect(c) {
   addTel("Telefon xizmatini o'rnatish", 'phone', '«' + c.name + "» kompyuteriga telefon xizmati (WSL + Asterisk) o'rnatilsinmi?\n\n5–15 daqiqa, ekranda hech narsa ochilmaydi. Natija o'rnatish tugaganda shu yerda chiqadi. Egasiga Telegram'da aytiladi.");
   addTel('Kompyuterni qayta yoqish', 'reboot', '«' + c.name + "» kompyuteri qayta yoqilsinmi?\n\n1 daqiqadan keyin qayta yonadi (telefonda suhbat bo'lsa — tugashini kutadi). Ochiq dasturlardagi saqlanmagan ish yo'qolishi mumkin. Egasiga Telegram'da aytiladi.");
   box.append(el('div', 'meta', phoneOld && !old
-    ? "Telefon xizmatini o'rnatish va qayta yoqish — 0.4.24 nashridan (kechasi o'zi yangilanadi)"
+    ? "Telefon xizmatini o'rnatish va qayta yoqish — 0.4.26 nashridan (kechasi o'zi yangilanadi)"
     : s.phoneInstall && s.phoneInstall.remote === false
       ? "Bu kompyuterda masofadan o'rnatish hali yoqilmagan: bir marta klinikada «Telefon xizmatini o'rnatish» (Sozlamalar → Telefon liniyasi) va Windows so'roviga «Ha». Keyin — shu yerdan"
       : "Telefon xizmati — administrator so'rovisiz, klinikada hech kim hech narsa bosmaydi. Shahar raqami — «Panelni ochish» → Sozlamalar → Telefon liniyasi"), tel);

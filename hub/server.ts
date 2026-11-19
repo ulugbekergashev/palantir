@@ -886,7 +886,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (body.action === 'phone' || body.action === 'reboot') {
       const st = db.prepare('SELECT status FROM clinics WHERE id = ?').get(id) as { status: string | null } | undefined;
       const knows = (() => { try { return !!(JSON.parse(st?.status ?? 'null') as { phoneInstall?: unknown } | null)?.phoneInstall; } catch { return false; } })();
-      if (!knows) return send(res, 409, { error: "Klinikadagi Palantir bu buyruqni hali tushunmaydi — 0.4.24 nashri kerak (kechasi o'zi yangilanadi yoki «Hozir yangilash»)" });
+      if (!knows) return send(res, 409, { error: "Klinikadagi Palantir bu buyruqni hali tushunmaydi — 0.4.26 nashri kerak (kechasi o'zi yangilanadi yoki «Hozir yangilash»)" });
     }
     try {
       // Asosiy kalit (HUB_ADMIN_KEY) — shaxs emas: egasiga «Palantir jamoasi» deb boradi
