@@ -157,6 +157,13 @@ try {
   await sleep(1500);
   const tabs2 = text(await s.run('list_tabs', {}));
   ok("undan ochilgan oyna ham Palantir'niki", tabs2.includes('/popup') && !tabs2.includes('/egasi'), tabs2.slice(0, 260));
+  // API: new_tab natijasida aynan bitta tab_opened (2026-11-20: bo'lmasa ish «400» bilan yiqildi); oddiy amalda — yo'q
+  const opened = await s.run('new_tab', {});
+  const st = opened.content.find(c => (c as { type?: string }).type === 'browser_state') as { tabs: { tab_id: string }[]; state_changes?: { type: string; tab_id: string }[] } | undefined;
+  const plain = await s.run('get_page_text', {});
+  ok("new_tab: browser_state da aynan bitta tab_opened, u tabs ro'yxatida bor; oddiy amalda state_changes yo'q",
+    st?.state_changes?.length === 1 && st.state_changes[0].type === 'tab_opened' && st.tabs.some(t => t.tab_id === st.state_changes?.[0].tab_id)
+    && !plain.content.some(c => (c as { state_changes?: unknown }).state_changes), JSON.stringify(st?.state_changes));
 
   console.log("\n# Kengaytmaning o'z himoyasi (to'g'ridan-to'g'ri buyruqlar)");
   const raw = (m: string, p: unknown[]) => extensionCommandForTest(m, p).then(r => ({ ok: true, r }), (e: Error) => ({ ok: false, r: e.message }));

@@ -276,6 +276,19 @@ export class BrowserSession {
     return { type: 'browser_state', tabs };
   }
 
+  /**
+   * Shu amalda ochilgan (va ochiq qolgan) vkladkalar — browser_state.state_changes dagi tab_opened. API new_tab natijasida aynan bittasini
+   * talab qiladi: bo'lmasa butun ish «400» bilan yiqilardi (2026-11-20: uchta saytni alohida vkladkalarda ochish)
+   */
+  private async withOpenedTabs(r: MemberResult, before: Set<string>): Promise<MemberResult> {
+    const opened = [...this.tabs.keys()].filter(id => !before.has(id));
+    if (!opened.length) return r;
+    const isState = (b: ResultContent[number]): b is Anthropic.Beta.BetaBrowserStateBlockParam => (b as { type?: string }).type === 'browser_state';
+    const fresh = await this.state();
+    const rest = r.content.filter(b => !isState(b));
+    return { ...r, content: [...rest, { ...fresh, state_changes: opened.map(tab_id => ({ type: 'tab_opened' as const, tab_id })) }] };
+  }
+
   private async withState(t: string, before?: { url: string; title: string }): Promise<MemberResult> {
     const p = this.page();
     const now = { url: p.url(), title: await p.title().catch(() => '') };
@@ -351,8 +364,10 @@ export class BrowserSession {
   /** Bitta a'zoni bajaradi. Kutilgan xatolar (eski ref, taqiqlangan manzil, ruxsat yo'q) — is_error natija, boshqasi ham shunday */
   async run(name: string, input: Record<string, unknown>): Promise<MemberResult> {
     let r: MemberResult;
+    const tabsBefore = new Set(this.tabs.keys());
     try {
       r = await this.member(name, input);
+      if (!r.isError) r = await this.withOpenedTabs(r, tabsBefore);
     } catch (e) {
       const msg = (e as Error).message.split('\n')[0].slice(0, 300);
       r = fail(e instanceof PolicyError ? msg : `Bajarilmadi: ${msg}`);
