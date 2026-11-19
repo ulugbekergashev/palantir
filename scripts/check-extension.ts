@@ -18,6 +18,8 @@ import { listen, sleep } from './fakes';
 const results: boolean[] = [];
 const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
 
+// Facebook kabi: tugma 30 ta div ichida
+const DEEP = Array.from({ length: 30 }).reduce<string>(html => `<div>${html}</div>`, '<button>Chuqur tugma</button>');
 const site = createServer((req, res) => {
   res.setHeader('content-type', 'text/html; charset=utf-8');
   if (req.url === '/egasi') return res.end('<title>Egasining sahifasi</title><h1>maxfiy</h1>');
@@ -33,7 +35,7 @@ const site = createServer((req, res) => {
   // Belgi ustida shaffof qatlam: Playwright check() kutib qoladi (orqa fondagi vkladka kabi) — zaxira yo'l ishlashi kerak
   if (req.url === '/belgi') return res.end(`<title>Belgi</title><label><input type="checkbox" aria-label="Bacon" onchange="document.getElementById('h').textContent='belgi:'+this.checked"> Bacon</label><h1 id="h">belgi:yo'q</h1><div style="position:fixed;inset:0"></div>`);
   if (req.url === '/popup') return res.end('<title>Yangi oyna</title><h1>popup</h1>');
-  res.end(`<title>Sinov sahifasi</title><h1 id="h">${req.url}</h1><input id="ism" aria-label="Ism"><button onclick="document.getElementById('h').textContent='bosildi:'+document.getElementById('ism').value">Tekshirish</button><a href="/popup" target="_blank">Oyna</a>`);
+  res.end(`<title>Sinov sahifasi</title><h1 id="h">${req.url}</h1><input id="ism" aria-label="Ism"><button onclick="document.getElementById('h').textContent='bosildi:'+document.getElementById('ism').value">Tekshirish</button><a href="/popup" target="_blank">Oyna</a>${DEEP}`);
 });
 const sitePort = await listen(site);
 const SITE = `http://127.0.0.1:${sitePort}`;
@@ -62,7 +64,8 @@ ok("begona sayt kengaytma o'rniga ulana olmaydi (Origin tekshiriladi)", evil ===
 ok("kengaytma yo'q — holat: ulanmagan", !extensionState().connected && !(await ownChromeState()).extension);
 
 const owner = await chromium.launchPersistentContext(join(dir, 'egasi'), {
-  executablePath: chromePath(), headless: true, args: ['--enable-unsafe-extension-debugging'], ignoreDefaultArgs: ['--disable-extensions'],
+  // --force-device-scale-factor: Windows masshtabi 125% (ko'p noutbuklarda) — rasm va bosish koordinatalari mos kelishi tekshiriladi
+  executablePath: chromePath(), headless: true, args: ['--enable-unsafe-extension-debugging', '--force-device-scale-factor=1.25'], ignoreDefaultArgs: ['--disable-extensions'],
 });
 try {
   const ownerTab = owner.pages()[0] ?? await owner.newPage();
@@ -90,6 +93,13 @@ try {
   const page = text(await s.run('read_page', {}));
   const ref = (label: string) => page.match(new RegExp(`(ref_\\d+)[^\\]]*?${label}`))?.[1] ?? page.match(new RegExp(`${label}[^\\n]*?(ref_\\d+)`))?.[1];
   ok("sahifani o'qidi (tugma va maydon ko'rinadi)", page.includes('Tekshirish') && page.includes('Ism'), page.slice(0, 200));
+  ok("30 ta div ichidagi tugma ham ko'rinadi (Facebook)", page.includes('Chuqur tugma'), page.slice(0, 300));
+  const shot = (await s.run('screenshot', {})).content[0] as { source?: { data?: string } };
+  const png = Buffer.from(shot.source?.data ?? '', 'base64');
+  const css = await owner.pages().find(pg => pg.url().endsWith('/ish'))?.evaluate(() => [innerWidth, innerHeight, devicePixelRatio]);
+  ok("masshtab 125%: rasm piksellari = bosish koordinatalari (sahifa o'lchamida)", // ko'rinmas Chrome'da rasm kengayishi mumkin («debugging» paneli joyi) — lekin 1.25 baravar emas (xato bo'lganda 1600x900 edi; oynali Chrome'da aniq teng)
+    !!css && css[2] === 1.25 && png.readUInt32BE(16) <= css[0] * 1.05 && png.readUInt32BE(20) <= css[1] * 1.2,
+    `rasm ${png.readUInt32BE(16)}x${png.readUInt32BE(20)}, sahifa ${css?.join('x')}`);
   const input = ref('Ism'), button = ref('Tekshirish');
   await s.run('left_click', { target: { type: 'ref', ref: input } });
   await s.run('type', { text: 'Verion' });

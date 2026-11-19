@@ -115,12 +115,14 @@ const PAGE_HELPERS = `(() => {
     if (role === 'link' && el.getAttribute('href')) line += ' -> ' + cut(el.getAttribute('href'), 120);
     return line;
   };
+  const MAX_DOM_DEPTH = 400;
   const tree = (filter, depth, rootRef) => {
     const root = rootRef ? S.byRef.get(rootRef) : document.body;
     if (!root || !root.isConnected) return null;
     const out = [];
     const walk = (el, d, level) => {
-      if (d > depth || !(el instanceof Element)) return;
+      // depth — ko'rsatilgan daraxt chuqurligi, DOM qavatlari emas: Facebook kabi saytlarda tugmalar 30+ div ichida, ilgari ular umuman ko'rinmasdi
+      if (level > depth || d > MAX_DOM_DEPTH || !(el instanceof Element)) return;
       if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'SVG'].includes(el.tagName)) return;
       if (!visible(el) && el.tagName !== 'OPTION') return;
       const role = roleOf(el);
@@ -381,7 +383,9 @@ export class BrowserSession {
         return this.withState(`Ochildi: ${p.url()}`, before);
       }
       case 'screenshot': {
-        const png = await this.page(tabId).screenshot({ type: 'png' });
+        // scale: css — rasm piksellari = bosish koordinatalari. Egasining Chrome'ida Windows masshtabi 125% bo'lsa rasm 1.25 baravar katta chiqib,
+        // model bosgan joy adashardi (2026-11-19, Meta Business: «koordinatalar mos kelmadi»)
+        const png = await this.page(tabId).screenshot({ type: 'png', scale: 'css' });
         return { content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: png.toString('base64') } }] };
       }
       case 'zoom': {
@@ -422,7 +426,9 @@ export class BrowserSession {
       case 'scroll': {
         const p = this.page(tabId);
         const t = i.target as Target | undefined;
-        const at = t?.type === 'coordinate' ? t : { x: VIEWPORT.width / 2, y: VIEWPORT.height / 2 };
+        // Egasining Chrome'ida oyna o'lchami VIEWPORT emas — markaz haqiqiy oynadan olinadi
+        const size = p.viewportSize() ?? await p.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+        const at = t?.type === 'coordinate' ? t : { x: size.width / 2, y: size.height / 2 };
         const amount = Math.max(1, Math.min(10, Number(i.scroll_amount) || 3)) * 120;
         const dir = String(i.scroll_direction);
         const move = { x: at.x, y: at.y, dx: dir === 'left' ? -amount : dir === 'right' ? amount : 0, dy: dir === 'up' ? -amount : dir === 'down' ? amount : 0 };
