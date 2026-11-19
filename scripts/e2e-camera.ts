@@ -145,10 +145,11 @@ export async function cameraApiTests(h: Harness): Promise<void> {
   const foreignId = await api(`/api/cameras/${id}/zones`, { method: 'PUT', token, body: { zones: [{ ...zone, id: zoneId, name: 'Kreslo A', doctorId: 'd9' }, { ...zone, id: zoneId, kind: 'desk', name: 'Kassa', x: 0.1, y: 0.1 }] } });
   ok("kamera: bir xil id ikki zonaga berilmaydi", new Set(foreignId.json.camera?.zones?.map((z: { id: string }) => z.id)).size === 2, JSON.stringify(foreignId.json.camera?.zones));
   await api(`/api/cameras/${id}/observe`, { token, body: { people: [] } });
-  await sleep(2300);
+  // Chegara 2 s: 0,3 s zaxira virtual mashinalarda (WSL2, GitHub) ba'zan yetmasdi — soat/taymer siljishi (2026-11-18, 6 tadan 1)
+  await sleep(3200);
   const left = await api(`/api/cameras/${id}/observe`, { token, body: { people: [] } });
   const after = (await api('/api/cameras/summary', { token })).json.summary;
-  ok("kamera: ko'rinmay qolsa — seans yopildi", left.json.zones?.[zoneId] === 'empty' && after?.sessions?.length === 1 && !!after.sessions[0].endedAt, JSON.stringify(after?.sessions));
+  ok("kamera: ko'rinmay qolsa — seans yopildi", left.json.zones?.[zoneId] === 'empty' && after?.sessions?.length === 1 && !!after.sessions[0].endedAt, `${JSON.stringify(left.json)} ${JSON.stringify(after?.sessions)}`);
   ok("kamera: yopilgan o'tirish «kresloga o'tirdi» deb sanaladi", after?.seated === 1, String(after?.seated));
   ok("kamera: CRM'da yo'q o'tirish farq bo'lib chiqadi", !!after?.findings?.some((f: { level: string; text: string }) => f.level === 'crit' && f.text.includes('Kreslo 1')), JSON.stringify(after?.findings));
   ok("kamera: kamera qabul vaqtida ishlamagan bo'lsa «ko'rinmadi» deyilmaydi", !after?.findings?.some((f: { text: string }) => f.text.includes("ko'rinmadi")), JSON.stringify(after?.findings));
