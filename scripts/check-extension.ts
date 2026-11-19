@@ -146,6 +146,11 @@ try {
   await s.run('left_click', { target: { type: 'ref', ref: fileLink } });
   const got = await s.saved(15_000);
   const file = got.find(g => readFileSync(g, 'utf8') === 'Mehnat kodeksi');
+  // Orqaga qaytish (2026-11-20, Google: keshdan tiklanganda «load» kelmay 30 s kutildi) — tez va to'g'ri sahifaga
+  await s.run('navigate', { url: `${SITE}/faq` });
+  const tBack = Date.now();
+  const back = await s.run('navigate', { url: 'back' });
+  ok("«orqaga» — oldingi sahifaga, 30 s kutmasdan", !back.isError && text(back).includes('/yukla') && Date.now() - tBack < 12_000, `${text(back).slice(0, 160)} | ${Date.now() - tBack} ms`);
   ok("egasining Chrome'ida yuklangan fayl Palantir'ga keladi (Yuklanmalar papkasidan)", !!file && file.startsWith(join(dir, 'yuklama')), got.join(', ') || "fayl yo'q");
   ok("g'ildirak yetib bormasa — ro'yxat baribir aylanadi (JS bilan)", !stuck.isError && /aylandi:[1-9]/.test(moved), `${text(stuck).slice(0, 300)} | ${moved.slice(-40)}`);
   const blocked = await s.run('navigate', { url: 'http://127.0.0.1:9/' });

@@ -20,6 +20,8 @@ export type Approver = (what: string) => Promise<boolean | null>;
 
 export const VIEWPORT = { width: 1280, height: 800 };
 const NAV_TIMEOUT_MS = 30_000, ACTION_TIMEOUT_MS = 15_000, MAX_TREE = 50_000, MAX_TEXT = 50_000, MAX_WAIT_S = 30;
+/** Orqaga/oldinga/yangilashdan keyin sahifa yuklanishi shuncha kutiladi */
+const HISTORY_SETTLE_MS = 10_000;
 
 /** Brauzer a'zolari: sichqonchani bosib turish va tugmani ushlab turish kerak emas (tasodifiy bosilib qolishi xavfli) */
 export const BROWSER_TOOLSET: Anthropic.Beta.BetaBrowserToolset20260801 = {
@@ -395,9 +397,13 @@ export class BrowserSession {
         const p = this.page(tabId);
         const before = { url: p.url(), title: await p.title().catch(() => '') };
         const url = String(i.url ?? '');
-        if (url === 'back') await p.goBack({ timeout: NAV_TIMEOUT_MS });
-        else if (url === 'forward') await p.goForward({ timeout: NAV_TIMEOUT_MS });
-        else if (url === 'reload') await p.reload({ timeout: NAV_TIMEOUT_MS });
+        // Orqaga/oldinga: Chrome sahifani keshdan tiklaganda (Google qidiruvi) «load» kelmaydi — 30 s kutib yiqilardi (2026-11-20).
+        // O'tish boshlanishi kutiladi, keyin sahifa ko'pi bilan HISTORY_SETTLE_MS yuklanadi
+        const history = { timeout: NAV_TIMEOUT_MS, waitUntil: 'commit' as const };
+        const settle = () => p.waitForLoadState('domcontentloaded', { timeout: HISTORY_SETTLE_MS }).catch(() => {});
+        if (url === 'back') { await p.goBack(history); await settle(); }
+        else if (url === 'forward') { await p.goForward(history); await settle(); }
+        else if (url === 'reload') { await p.reload(history); await settle(); }
         else {
           const target = checkUrl(url, this.o.policy);
           const res = await p.goto(target, { timeout: NAV_TIMEOUT_MS, waitUntil: 'domcontentloaded' }).catch(e => {

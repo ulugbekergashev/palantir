@@ -59,7 +59,7 @@ export class DownloadWatch {
       const seen = this.sizes.get(name);
       if (!seen || seen.size !== st.size) { this.sizes.set(name, { size: st.size, at: now }); pending = true; continue; }
       if (now - seen.at < SETTLE_MS) { pending = true; continue; }
-      const target = join(this.into, basename(name).replace(/[^\p{L}\p{N}._ -]+/gu, '_').slice(0, 120) || 'fayl');
+      const target = join(this.into, basename(name).replace(/[^\p{L}\p{N}._ ()-]+/gu, '_').slice(0, 120) || 'fayl');
       try {
         copyFileSync(join(this.dir, name), target);
         this.taken.add(name);
