@@ -1,5 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.35 da yangi
+
+- **Yuklab olingan fayl Telegram'ga keladi:** Palantir Chrome'ingizda biror faylni (masalan, lex.uz dan kodeksni) yuklab olsa — u sizga Telegram'da yuboriladi.
+- **Bir nechta sayt bir vaqtda:** Palantir saytlarni alohida vkladkalarda ochganda ish to'xtab qolmaydi.
+
 ## 0.4.34 da yangi
 
 - **Chrome yig'ilgan bo'lsa ham kutib qolmaydi:** Palantir rasm ololmasa, 15 soniya kutmasdan sahifani matn bilan o'qishga o'tadi.
