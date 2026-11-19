@@ -1,5 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.34 da yangi
+
+- **Chrome yig'ilgan bo'lsa ham kutib qolmaydi:** Palantir rasm ololmasa, 15 soniya kutmasdan sahifani matn bilan o'qishga o'tadi.
+- **Formadagi belgilar yorliq orqali ham qo'yiladi** (masalan, «Bacon» yozuvini bossa).
+
 ## 0.4.33 da yangi
 
 - **Facebook va Meta Business'da Palantir sahifani ko'radi:** ilgari bunday murakkab saytlarda tugmalar unga ko'rinmasdi va u ko'r-ko'rona bosardi.
