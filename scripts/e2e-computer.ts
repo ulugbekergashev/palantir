@@ -18,7 +18,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { PolicyError, allowedRequest, checkUrl, privateHost, riskyClick, riskyKey } from '../server/computer/policy';
 import { pngSize, solidPng } from '../server/computer/png';
 import { DesktopSession, FakeDriver, startDriver } from '../server/computer/desktop';
-import { cardLike, moneyAction, moneyTask } from '../server/computer/money';
+import { cardLike, moneyAction, moneyControl, moneyTask } from '../server/computer/money';
 import { chromePath } from './chrome';
 import { OWNER, ai, aiServer, listen, patient, press, say, sent, sleep, stopProcess, tgServer, waitFor, type Sent } from './fakes';
 
@@ -90,6 +90,10 @@ console.log("\n# Pul zonasi: bank, to'lov, o'tkazma, xarid — AI kirmaydi (egas
     "This isn't optional: pay the bill", '(no delay) Pay now', "Formani to'ldirmang, darhol to'la"];
   ok("taqiq orqasiga yashirilgan so'rov baribir yopiq («don't forget to pay», «…, but buy»)", stillMoney.every(t => moneyTask(t) !== null),
     stillMoney.filter(t => moneyTask(t) === null).join('|'));
+  // 2026-11-19, texnomart.uz: faol element — hudud tanlash oynasi, butun matni «nom» bo'lib keldi; qidiruvdagi Enter to'xtatildi
+  const regionPopup = "Toshkent Siz Toshkent shahridamisiz? Tanlangan hududga qarab yetkazib berish muddati va narxi o'zgaradi. To'lov usullari: naqd, karta. Ha, to'g'ri Boshqa shahar";
+  ok("uzun blok matni — tugma emas: ichida «to'lov» bo'lsa ham bosish/Enter to'xtamaydi; «To'lash» tugmasi baribir yopiq",
+    moneyAction(regionPopup) && !moneyControl(regionPopup) && moneyControl("To'lash") && moneyControl('Оплатить заказ'));
   ok("karta raqami tanilgan, telefon va summa emas", cardLike('8600 1234 5678 9012') && cardLike('8600-1234-5678-9012') && !cardLike('+998 90 123 45 67') && !cardLike('1 250 000'));
   // Butun ekran: ochiq oyna bank dasturi bo'lsa — bosish va yozish yo'q, ko'rish mumkin
   const dir = mkdtempSync(join(tmpdir(), 'palantir-pul-'));

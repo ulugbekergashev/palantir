@@ -37,6 +37,15 @@ const MONEY_ACTION = new RegExp([
 
 export const moneyAction = (name: string): boolean => MONEY_ACTION.test(name.replace(/[‘’ʻʼ`]/g, "'"));
 
+/** Tugma yoki havola nomidan uzun matn — bu tugma emas, butun blok (oyna, kartochka): ichida «to'lov» so'zi bo'lsa ham bosish to'lov emas */
+const CONTROL_NAME_MAX = 100;
+
+/**
+ * Bosilayotgan yoki Enter berilayotgan element — to'lov tugmasimi. 2026-11-19: texnomart.uz da hudud tanlash oynasi faol edi, uning butun
+ * matni «nom» bo'lib keldi va qidiruvdagi Enter «pul zonasi» deb to'xtatildi
+ */
+export const moneyControl = (name: string): boolean => name.trim().length <= CONTROL_NAME_MAX && moneyAction(name);
+
 /** Gap bo'lagi tugaydigan joy: nuqta, vergul, ikki nuqta, tire, qavs yoki «but» — undan keyingi so'rov taqiqqa qo'shilib ketmasin */
 const CLAUSE = "(?:(?!\\bbut\\b|\\bно\\b|\\blekin\\b)[^.;:!?\\n,—–()])*";
 

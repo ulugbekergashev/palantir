@@ -10,7 +10,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { chromium, type Browser, type BrowserContext, type ElementHandle, type Page, type Request } from 'playwright-core';
 import { installedBrowser } from '../browserPath';
 import { PolicyError, allowedRequest, checkUrl, riskyClick, riskyKey, type ElementInfo, type SitePolicy } from './policy';
-import { MONEY_ZONE, cardLike, moneyAction } from './money';
+import { MONEY_ZONE, cardLike, moneyControl } from './money';
 
 export type ResultContent = Exclude<Anthropic.Beta.BetaToolResultBlockParam['content'], string | undefined>;
 export interface MemberResult { content: ResultContent; isError?: boolean }
@@ -32,6 +32,8 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const clampWait = (s: unknown) => Math.max(0, Math.min(MAX_WAIT_S, Number(s) || 0));
 /** G'ildirak hodisasiga javob kutiladigan eng ko'p vaqt (keyin — JS bilan aylantiriladi) */
 const WHEEL_MS = 3_000;
+/** scroll_to: Playwright o'zi aylantirishini shuncha kutadi (keyin — JS bilan yoki «yashirin» deb aytiladi) */
+const SCROLL_TO_MS = 3_000;
 
 /**
  * Sahifada ishlaydi: (x, y) nuqtadagi eng yaqin aylanadigan ro'yxat (Google Maps natijalari kabi) yoki butun sahifa.
@@ -386,7 +388,7 @@ export class BrowserSession {
         const p = this.page(tabId);
         const { point, info } = await this.infoAt(p, i.target as Target);
         // To'lash, pul o'tkazish, sotib olish — bosilmaydi, egasining ruxsati bilan ham (money.ts)
-        if (name !== 'right_click' && info?.name && moneyAction(info.name)) return fail(`«${info.name.slice(0, 60)}» — ${MONEY_ZONE}`);
+        if (name !== 'right_click' && info?.name && moneyControl(info.name)) return fail(`«${info.name.slice(0, 60)}» — ${MONEY_ZONE}`);
         const stop = await this.gate(name === 'right_click' ? null : riskyClick(info));
         if (stop) return stop;
         const before = { url: p.url(), title: await p.title().catch(() => '') };
@@ -432,8 +434,16 @@ export class BrowserSession {
       case 'scroll_to': {
         const t = i.target as Target;
         if (t?.type !== 'ref') return fail('target — ref bo\'lishi kerak');
-        await (await this.element(this.page(tabId), t.ref)).scrollIntoViewIfNeeded();
-        return text('OK');
+        const el = await this.element(this.page(tabId), t.ref);
+        // Playwright element ko'rinishini kutadi: yashirin element (yopiq savol-javob) yoki orqa fondagi vkladka — 15 s osilib qolardi (2026-11-19, olcha.uz)
+        if (await el.scrollIntoViewIfNeeded({ timeout: SCROLL_TO_MS }).then(() => true, () => false)) return text('OK');
+        const shown = await el.evaluate(e => {
+          const r = e.getBoundingClientRect();
+          if (r.width < 1 && r.height < 1) return false;
+          e.scrollIntoView({ block: 'center' });
+          return true;
+        });
+        return shown ? text('OK') : fail("Bu element yashirin (sahifada ko'rinmaydi) — uni ochadigan tugmani (savol, «Batafsil», «Yana») bosing yoki matnini get_page_text bilan o'qing");
       }
       case 'type': {
         const p = this.page(tabId);
@@ -455,7 +465,7 @@ export class BrowserSession {
         const keys = String(i.text ?? '').trim();
         const active = await p.evaluate(() => (window as unknown as { __pal?: { active: () => ElementInfo | null } }).__pal?.active() ?? null);
         // To'lov tugmasi ustida Enter yoki probel — bosish bilan bir xil
-        if (/\b(enter|return|space)\b/i.test(keys) && active?.name && moneyAction(active.name)) return fail(`«${active.name.slice(0, 60)}» — ${MONEY_ZONE}`);
+        if (/\b(enter|return|space)\b/i.test(keys) && active?.name && moneyControl(active.name)) return fail(`«${active.name.slice(0, 60)}» — ${MONEY_ZONE}`);
         const stop = await this.gate(riskyKey(keys, active));
         if (stop) return stop;
         const before = { url: p.url(), title: await p.title().catch(() => '') };
