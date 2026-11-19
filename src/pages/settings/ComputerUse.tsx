@@ -2,7 +2,8 @@
  * Kompyuterda ishlash: egasi Palantir'ga brauzerda ishlashga ruxsat beradi — saytga kirib ma'lumot topish, forma to'ldirish, fayl yuklab
  * olish, sozlamani o'zgartirish (masalan, Meta Business'dagi nom). Uch holat:
  *   «Mening Chrome'im» (tavsiya) — egasining odatdagi Chrome'ida, u allaqachon kirgan saytlar bilan: hech qayerga qayta kirish shart emas.
- *     Bir marta Chrome'da ulanishni yoqadi (tugma chrome://inspect ni o'zi ochadi), birinchi ishda Chrome «Allow?» so'raydi;
+ *     Bir marta Palantir kengaytmasini o'rnatadi (extension/, «Load unpacked») — shundan keyin Chrome hech narsa so'ramaydi;
+ *     eski yo'l (chrome://inspect dagi ulanish, har safar «Allow?») kengaytma yo'q bo'lsa ishlaydi;
  *   «Alohida brauzer» — Palantir'ning o'z Chrome oynasi; saytlarga «Saytlarga kirish» oynasida bir marta kiriladi;
  *   «O'chiq».
  * Saqlash/yuborish/o'chirishdan oldin Telegram'da so'raydi; pul (bank, to'lov, xarid) kodda yopiq. Tanlash — faqat egasi;
@@ -53,6 +54,10 @@ export function ComputerUse({ notify, onChange }: { notify: Notify; onChange?: (
     await api.chromeSetup();
     notify("Chrome'da sozlama sahifasi ochildi — «Allow remote debugging for this browser instance» belgisini qo'ying");
   });
+  const setupExtension = () => run('extension', async () => {
+    const r = await api.extensionSetup();
+    notify(`Chrome'da kengaytmalar sahifasi va papka ochildi: «Developer mode» → «Load unpacked» → ${r.folder}`);
+  });
   const login = () => run('login', async () => {
     const target = url.trim();
     if (target && !/^https?:\/\//i.test(target)) throw new Error('Manzil https:// bilan boshlansin');
@@ -92,7 +97,34 @@ export function ComputerUse({ notify, onChange }: { notify: Notify; onChange?: (
 
       {view.mode === 'chrome' && chrome && (
         <div className="mt-4 rounded-2xl border border-glass/[0.07] bg-glass/[0.02] p-4">
-          {chrome.debugging ? (
+          {chrome.extension ? (
+            <p className="flex items-start gap-2 text-[13px] leading-snug text-emerald-200">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              Palantir kengaytmasi ulangan — vazifa bersangiz darhol ishlaydi, Chrome hech narsa so'ramaydi.
+            </p>
+          ) : chrome.installed ? (
+            <>
+              <p className="text-[13px] font-semibold text-[#f2f0ea]">Bir marta: Palantir kengaytmasini o'rnating</p>
+              <p className="mt-0.5 text-[12.5px] leading-snug text-[#8a909c]">Shundan keyin Palantir Chrome'ingizda so'rovsiz ishlaydi — «Allow» bosish shart emas.</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-[#c3c7d0]">
+                <li>«O'rnatishni boshlash» ni bosing — Chrome'da kengaytmalar sahifasi va papka ochiladi.</li>
+                <li>Chrome'da o'ng yuqoridagi «Режим разработчика / Developer mode» ni yoqing.</li>
+                <li>«Загрузить распакованное / Load unpacked» → ochilgan papkani tanlang{chrome.extensionFolder ? <> (<span className="break-all font-mono text-[12px] text-[#d9dbe1]">{chrome.extensionFolder}</span>)</> : null}.</li>
+                <li>«Tekshirish» ni bosing.</li>
+              </ol>
+              <div className="mt-3 flex flex-wrap gap-2.5">
+                {view.owner && (
+                  <button type="button" disabled={!!busy} onClick={() => { void setupExtension(); }} className="flex min-h-10 items-center gap-2 rounded-xl bg-[#3fd6c3] px-4 text-[13px] font-semibold text-[#07080b] disabled:opacity-50">
+                    {busy === 'extension' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Chrome className="h-4 w-4" aria-hidden="true" />}O'rnatishni boshlash
+                  </button>
+                )}
+                <button type="button" disabled={!!busy} onClick={() => { void refresh(); }} className="flex min-h-10 items-center gap-2 rounded-xl border border-glass/10 px-4 text-[13px] text-[#d9dbe1] hover:bg-glass/5 disabled:opacity-50">
+                  {busy === 'refresh' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}Tekshirish
+                </button>
+              </div>
+              {chrome.debugging && <p className="mt-3 text-[12px] leading-snug text-[#7d838f]">Hozircha eski ulanish ishlayapti: har safar Chrome «Allow?» deb so'raydi. Kengaytma o'rnatilsa, so'ramaydi.</p>}
+            </>
+          ) : chrome.debugging ? (
             <p className="flex items-start gap-2 text-[13px] leading-snug text-emerald-200">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               {chrome.connected ? "Chrome'ingizga ulangan — vazifa bersangiz bo'ladi." : "Chrome ulanishga tayyor. Birinchi vazifada Chrome «Allow?» deb so'raydi — «Allow» ni bosing (Chrome har ochilganda bir marta)."}

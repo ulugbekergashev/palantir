@@ -14,7 +14,7 @@ import { activate, licenseStatus } from './license';
 import { accessView } from './hubAccess';
 import type { BotService } from './bot';
 import { ComputerError, closeLoginWindow, jobView, loginOpen, modeEnabled, openLoginWindow, ownChromeMode, runningJob, stopJob } from './computer/jobs';
-import { openDebugSettings, ownChromeState } from './computer/ownChrome';
+import { extensionDir, openDebugSettings, openExtensionSetup, ownChromeState } from './computer/ownChrome';
 import { costUsd } from './claude';
 import { GEMINI_USAGE_KIND, geminiCostUsd } from './gemini/think';
 import { subscriptionOn } from './subscription/engine';
@@ -493,7 +493,7 @@ export function createApp(bot: BotService) {
       browser: modeEnabled('browser', biz), desktop: modeEnabled('desktop', biz), fixed: env.computerUse !== '',
       // mode: 'chrome' — egasining o'z Chrome'i, 'browser' — alohida brauzer, 'off'
       mode: own ? 'chrome' : modeEnabled('browser', biz) ? 'browser' : 'off',
-      chrome: own ? await ownChromeState() : null,
+      chrome: own ? { ...(await ownChromeState()), extensionFolder: extensionDir() } : null,
       owner: !s?.support && !s?.staff, loginOpen: loginOpen(biz.id), job: job ? jobView(job) : null,
     };
   };
@@ -520,6 +520,14 @@ export function createApp(bot: BotService) {
     try {
       openDebugSettings();
       res.json({ ok: true });
+    } catch (e) {
+      res.status(409).json({ error: (e as Error).message });
+    }
+  }));
+  // Palantir kengaytmasini o'rnatish: Chrome'da kengaytmalar sahifasi va kengaytma papkasi ochiladi (egasi «Load unpacked» bilan tanlaydi)
+  app.post('/api/account/computer/extension-setup', asOwner((_req, res) => {
+    try {
+      res.json(openExtensionSetup());
     } catch (e) {
       res.status(409).json({ error: (e as Error).message });
     }

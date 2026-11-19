@@ -22,7 +22,7 @@ import { notifyOwner, notifyOwnerFile, editOwner } from '../inbox/core';
 import { BROWSER_TOOLSET, BrowserSession, type MemberResult } from './browser';
 import { COMPUTER_TOOLSET, DesktopSession, startDriver } from './desktop';
 import { MONEY_ZONE, moneyTask } from './money';
-import { OwnChromeError, connectOwnChrome } from './ownChrome';
+import { OwnChromeError, connectOwnChrome, doneWithOwnChrome } from './ownChrome';
 
 export type JobMode = 'browser' | 'desktop';
 export type JobStatus = 'waiting' | 'running' | 'done' | 'failed' | 'stopped';
@@ -407,6 +407,7 @@ async function runJob(biz: BusinessRow, l: Live): Promise<void> {
   } finally {
     await browser?.close();
     desktop?.close();
+    await doneWithOwnChrome().catch(() => {});
   }
 }
 

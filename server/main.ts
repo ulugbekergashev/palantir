@@ -10,6 +10,7 @@ import { env, voiceEnabled } from './env';
 import { createApp } from './http';
 import { ffmpegAvailable, stopCameraEngine } from './camera/stream';
 import { stopAllJobs } from './computer/jobs';
+import { attachExtensionRelay } from './computer/extRelay';
 import { stopAllCodeJobs } from './dev/jobs';
 import { flushAllWaits } from './camera/waiting';
 import { recoverMoney } from './crm/actions';
@@ -70,6 +71,8 @@ licenseStatus();
 ensureProfile();
 // Port — tarmoqqa bog'liq ishlardan oldin: internet bo'lmasa ham panel ochiladi, port band bo'lsa bot navbatiga tegilmaydi
 const server = await listen(createApp(bot));
+// Palantir kengaytmasi (egasining Chrome'i) — shu portda, faqat shu kompyuterdan
+attachExtensionRelay(server, env.port);
 if (env.dryRun) {
   // Yangilovchining sinovi: tashqi dunyoga hech narsa ulanmaydi, yangilovchi tekshirib bo'lgach jarayonni to'xtatadi
   console.log(`Palantir sinov rejimida: http://localhost:${env.port}`);

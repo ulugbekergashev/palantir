@@ -88,6 +88,7 @@
     "test:computer-toggle": "tsx scripts/e2e-computer-toggle.ts",
     "test:own-chrome": "tsx scripts/check-own-chrome.ts",
     "test:play-media": "tsx scripts/check-play-media.ts",
+    "test:extension": "tsx scripts/check-extension.ts",
     "test:version-reload": "tsx scripts/check-version-reload.ts",
     "test:ui": "vite build && tsx scripts/ui-live.ts",
     "crm:probe": "tsx scripts/crm-probe.ts",
@@ -130,6 +131,7 @@
     "telegram": "^2.26.22",
     "tsx": "^4.23.15",
     "unpdf": "^1.8.1",
+    "ws": "8.22.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -138,6 +140,7 @@
     "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.1.1",
     "concurrently": "^10.0.5",
     "oxlint": "^1.90.0",

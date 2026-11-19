@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Palantir",
+  "version": "1.0.0",
+  "description": "Palantir yordamchisi sizning Chrome'ingizda o'z vkladkalarida ishlaydi (sizning vkladkalaringizga tegmaydi).",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxYn7k+55VSdvh9tWET7HVy03Q2kDIlIlOrUgZMud8QeKq1il+Z6kmyssmFUWa2FughxnQ78Ol3YP/7sSx72iNs5pS0MAC8Ws1qvqfdd6zleAa3AUl2XLNeKkeQBcIFAkARRJLkjTRmWHkQG0mSTgtoWLR77WuYX/D3886nZNa4tsHVpcuBfktnlMcemwmD/JA5JIXaCKrzekLfRpD9XZ5EBW1UjcwqEsvY8QeKHx6dvYlpIt1T4TlRxtNcphvKbPKiTlJXDo0EHmQy1bRJG37YBDk6i4BTHMJgWPrz8ob3/9OSQ4/QXGCHnC0TmMMdJGp9ISjQ4srKZRP0G357dTswIDAQAB",
+  "minimum_chrome_version": "125",
+  "permissions": [
+    "debugger",
+    "tabs",
+    "alarms",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Palantir"
+  },
+  "icons": {
+    "128": "icon128.png"
+  }
+}

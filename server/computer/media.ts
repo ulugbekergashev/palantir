@@ -40,7 +40,7 @@ export async function searchYoutube(query: string, fetcher: typeof fetch = fetch
 
 /** Havolani egasining brauzerida ochadi: ochiq Chrome bo'lsa — unda yangi vkladka; Chrome yo'q bo'lsa — Windows'ning odatiy brauzeri */
 export function openForOwner(url: string, run: typeof spawn = spawn): void {
-  if (!/^https:\/\//.test(url)) throw new Error('Faqat https havola ochiladi');
+  if (!url.startsWith('https://')) throw new Error('Faqat https havola ochiladi');
   const exe = installedBrowser();
   const child = exe
     ? run(exe, [url], { detached: true, stdio: 'ignore', windowsHide: false })

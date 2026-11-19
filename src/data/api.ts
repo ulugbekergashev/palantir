@@ -120,7 +120,7 @@ export type ComputerMode = 'off' | 'browser' | 'chrome';
 /** chrome — «Mening Chrome'im» rejimida: Chrome bormi, egasi ulanishni yoqqanmi (chrome://inspect), Palantir hozir ulanganmi */
 export interface ComputerView {
   browser: boolean; desktop: boolean; fixed: boolean; owner: boolean; loginOpen: boolean; mode: ComputerMode;
-  chrome: { installed: boolean; debugging: boolean; connected: boolean } | null;
+  chrome: { installed: boolean; debugging: boolean; connected: boolean; extension?: boolean; extensionFolder?: string } | null;
   job: { id: string; task: string; status: string; steps: number; started: string } | null;
 }
 export interface SupportAccessView { allowed: boolean; until: string | null; hub: boolean; mine: boolean; visits: { at: string; ip: string | null; who: string | null }[] }
@@ -361,6 +361,8 @@ export const api = {
   setComputer: (mode: ComputerMode) => call<ComputerView>('/account/computer', { method: 'PUT', body: { mode } }),
   /** «Mening Chrome'im»: Chrome'da ulanish sozlamasi sahifasini (chrome://inspect) ochadi */
   chromeSetup: () => call<{ ok: true }>('/account/computer/chrome-setup', { body: {} }),
+  /** «Mening Chrome'im»: Palantir kengaytmasini o'rnatish — Chrome'da kengaytmalar sahifasi va kengaytma papkasi ochiladi */
+  extensionSetup: () => call<{ folder: string }>('/account/computer/extension-setup', { body: {} }),
   /** Saytga kirish oynasi Palantir o'rnatilgan kompyuterda ochiladi (parolni egasi o'zi kiritadi) */
   computerLogin: (url?: string) => call<{ text: string }>('/account/computer/login', { body: url ? { url } : {} }),
   closeComputerLogin: () => call<{ closed: boolean }>('/account/computer/login', { method: 'DELETE' }),
