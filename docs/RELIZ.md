@@ -1,5 +1,9 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.26 da yangi
+
+- **Halol javob:** Palantir yashirin (alohida) brauzerda ishlayotgan bo'lsa, «qo'shiq qo'y» yoki «videoni ko'rsat» kabi ishlarda «qo'ydim» demaydi — bu oynani hech kim ko'rmaydi va eshitmaydi. U halol aytadi va «Mening Chrome'im» rejimini taklif qiladi.
+
 ## 0.4.25 da yangi
 
 - **Chrome'dagi «Allow» uchun ko'proq vaqt:** Palantir 5 daqiqa kutadi. Ulgurmasangiz ish yo'qolmaydi — Telegram'da «▶️ Qayta boshlash» tugmasi keladi.
