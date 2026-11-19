@@ -229,7 +229,9 @@ function keepStderr(proc) {
 }
 for (let wait = RESTART_MIN_MS; !stopping;) {
   const startedAt = Date.now();
-  child = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], { cwd: ROOT, stdio: ['ignore', 'inherit', 'pipe', 'ipc'] });
+  // windowsHide: nazoratchi oynasiz yoqilganda (yangilovchi uni shunday yoqadi) server o'ziga yangi konsol oynasi ochardi —
+  // egasi uni yopsa server o'chib, qayta yonib, oyna yana chiqardi (2026-11-19)
+  child = spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'server/index.ts'], { cwd: ROOT, stdio: ['ignore', 'inherit', 'pipe', 'ipc'], windowsHide: true });
   const lastErr = keepStderr(child);
   const code = await new Promise(done => {
     child.once('exit', (c, signal) => done(c ?? signal ?? 1));
