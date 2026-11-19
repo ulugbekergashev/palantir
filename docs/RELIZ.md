@@ -1,5 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.33 da yangi
+
+- **Facebook va Meta Business'da Palantir sahifani ko'radi:** ilgari bunday murakkab saytlarda tugmalar unga ko'rinmasdi va u ko'r-ko'rona bosardi.
+- **Ekran masshtabi 125–150% bo'lsa ham to'g'ri bosadi:** ko'p noutbuklarda Windows masshtabi kattalashtirilgan — endi Palantir tugmaning o'zini bosadi, yonini emas.
+
 ## 0.4.32 da yangi
 
 - **Do'kon saytlarida qidiruv ishlaydi:** sahifada «hududingizni tanlang» oynasi chiqsa ham Palantir qidiruvni to'xtatmaydi.
