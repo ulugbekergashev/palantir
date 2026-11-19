@@ -1,5 +1,9 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.27 da yangi
+
+- **«Qo'shiq qo'y» — darhol:** Palantir'ga «Minor'ning qo'shig'ini qo'y» yoki «YouTube'da … ni och» deng — u YouTube'dan topib, kompyuteringizdagi brauzerda shu zahoti ochadi. Hech qanday ruxsat, «Boshlaymi?» yoki «Allow» so'ralmaydi. Boshqasini xohlasangiz — «boshqasini qo'y» deng.
+
 ## 0.4.26 da yangi
 
 - **Halol javob:** Palantir yashirin (alohida) brauzerda ishlayotgan bo'lsa, «qo'shiq qo'y» yoki «videoni ko'rsat» kabi ishlarda «qo'ydim» demaydi — bu oynani hech kim ko'rmaydi va eshitmaydi. U halol aytadi va «Mening Chrome'im» rejimini taklif qiladi.
