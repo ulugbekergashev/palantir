@@ -34,6 +34,8 @@ const clampWait = (s: unknown) => Math.max(0, Math.min(MAX_WAIT_S, Number(s) || 
 const WHEEL_MS = 3_000;
 /** scroll_to: Playwright o'zi aylantirishini shuncha kutadi (keyin — JS bilan yoki «yashirin» deb aytiladi) */
 const SCROLL_TO_MS = 3_000;
+/** form_input: Playwright belgi qo'yishini shuncha kutadi (keyin — elementning o'z bosilishi) */
+const CHECK_MS = 3_000;
 
 /**
  * Sahifada ishlaydi: (x, y) nuqtadagi eng yaqin aylanadigan ro'yxat (Google Maps natijalari kabi) yoki butun sahifa.
@@ -518,8 +520,15 @@ export class BrowserSession {
         const value = i.value;
         if (cardLike(String(value ?? ''))) return fail(`Karta raqami yozilmaydi. ${MONEY_ZONE}`);
         if (kind.tag === 'SELECT') await el.selectOption({ label: String(value) }).catch(() => el.selectOption(String(value)));
-        else if (kind.type === 'checkbox' || kind.type === 'radio') await (value === true || value === 'true' ? el.check() : el.uncheck());
-        else await el.fill(String(value ?? ''));
+        else if (kind.type === 'checkbox' || kind.type === 'radio') {
+          const on = value === true || value === 'true';
+          // Playwright sahifa chizilishini kutadi — egasining Chrome'ida orqa fondagi vkladkada 15 s osilib yiqilardi (2026-11-19, httpbin):
+          // 3 s dan keyin — elementning o'z bosilishi (saytning hodisalari ishlaydi)
+          if (!await (on ? el.check({ timeout: CHECK_MS }) : el.uncheck({ timeout: CHECK_MS })).then(() => true, () => false)) {
+            const now = await el.evaluate((e, want) => { const box = e as HTMLInputElement; if (box.checked !== want) box.click(); return box.checked; }, on);
+            if (now !== on) return fail(on ? "Belgi qo'yilmadi (sayt bosishni qabul qilmadi)" : 'Belgi olib tashlanmadi (sayt bosishni qabul qilmadi)');
+          }
+        } else await el.fill(String(value ?? ''));
         return text('OK');
       }
       case 'new_tab': {

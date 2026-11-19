@@ -30,6 +30,8 @@ const site = createServer((req, res) => {
   // Yopiladigan savol-javob (olcha.uz dagi narx kabi): «Narx» ko'rinadi, «Yopish» uni yashiradi
   if (req.url === '/faq') return res.end(`<title>FAQ</title><button onclick="document.getElementById('narx').style.display='none'">Yopish</button><div style="height:3000px"></div><p id="narx">Narx: 10 500 000</p>`);
   if (req.url === '/yubor') return res.end('<title>Yubor</title><button>Yuborish</button>');
+  // Belgi ustida shaffof qatlam: Playwright check() kutib qoladi (orqa fondagi vkladka kabi) — zaxira yo'l ishlashi kerak
+  if (req.url === '/belgi') return res.end(`<title>Belgi</title><label><input type="checkbox" aria-label="Bacon" onchange="document.getElementById('h').textContent='belgi:'+this.checked"> Bacon</label><h1 id="h">belgi:yo'q</h1><div style="position:fixed;inset:0"></div>`);
   if (req.url === '/popup') return res.end('<title>Yangi oyna</title><h1>popup</h1>');
   res.end(`<title>Sinov sahifasi</title><h1 id="h">${req.url}</h1><input id="ism" aria-label="Ism"><button onclick="document.getElementById('h').textContent='bosildi:'+document.getElementById('ism').value">Tekshirish</button><a href="/popup" target="_blank">Oyna</a>`);
 });
@@ -112,6 +114,13 @@ try {
   const hiddenTo = await s.run('scroll_to', { target: { type: 'ref', ref: narx } });
   ok("scroll_to: ko'rinadigan elementga — OK; yashirin elementda 15 s osilmaydi, sababini aytadi", !!narx && !shownTo.isError && hiddenTo.isError === true
     && /yashirin/.test(text(hiddenTo)) && Date.now() - t0 < 8_000, `${narx} | ${text(shownTo).slice(0, 80)} | ${text(hiddenTo).slice(0, 120)} | ${Date.now() - t0} ms`);
+  await s.run('navigate', { url: `${SITE}/belgi` });
+  const box = text(await s.run('find', { query: 'Bacon checkbox' })).match(/ref_\d+/)?.[0] ?? '';
+  const t1 = Date.now();
+  const checked = await s.run('form_input', { target: { type: 'ref', ref: box }, value: true });
+  const boxText = text(await s.run('get_page_text', {}));
+  ok("belgi: Playwright bosa olmasa — 3 s dan keyin elementning o'zi bosiladi, sayt hodisasi ishlaydi", !!box && !checked.isError && boxText.includes('belgi:true') && Date.now() - t1 < 8_000,
+    `${box} | ${text(checked).slice(0, 100)} | ${boxText.slice(0, 60)} | ${Date.now() - t1} ms`);
   ok("g'ildirak yetib bormasa — ro'yxat baribir aylanadi (JS bilan)", !stuck.isError && /aylandi:[1-9]/.test(moved), `${text(stuck).slice(0, 300)} | ${moved.slice(-40)}`);
   const blocked = await s.run('navigate', { url: 'http://127.0.0.1:9/' });
   ok('ichki tarmoq yopiq', blocked.isError === true, text(blocked).slice(0, 120));
