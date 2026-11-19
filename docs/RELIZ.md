@@ -1,5 +1,9 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.30 da yangi
+
+- **Katta fayl ham Telegram'ga keladi:** Palantir sizga 50 MB dan katta fayl yuborishi kerak bo'lsa (masalan, yig'ilgan o'rnatuvchi), endi u ham keladi — 2 GB gacha.
+
 ## 0.4.29 da yangi
 
 - **Palantir kengaytmasi Chrome uchun:** bir marta o'rnatasiz (Sozlamalar → «Kompyuterda ishlash» → «O'rnatishni boshlash») — shundan keyin Palantir Chrome'ingizda hech narsa so'ramasdan ishlaydi: «Allow» yo'q, Chrome'ni qayta ochganda ham. Faqat o'z vkladkalarida ishlaydi — sizning vkladkalaringiz va cookie'laringiz unga ko'rinmaydi.
