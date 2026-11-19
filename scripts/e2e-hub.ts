@@ -25,7 +25,17 @@ import { OWNER, listen, press, say, sent, sleep, tgServer, waitFor, stopProcess,
 import { quietNow } from '../hub/quiet';
 
 const results: boolean[] = [];
-const ok = (name: string, cond: unknown, info = '') => { results.push(!!cond); console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`); };
+/** GitHub CI: yiqilgan tekshiruv «annotation» bo'lib chiqadi — jurnalni kirishsiz o'qib bo'lmaydi, annotation esa ochiq API'da ko'rinadi */
+const ghAnnotate = (level: 'error' | 'warning', title: string, text: string) => {
+  if (!process.env.GITHUB_ACTIONS) return;
+  const esc = (s: string) => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+  console.log(`::${level} title=${esc(title).replace(/[:,]/g, ' ')}::${esc(text.slice(0, 4000))}`);
+};
+const ok = (name: string, cond: unknown, info = '') => {
+  results.push(!!cond);
+  console.log(`${cond ? '  ✓' : '  ✗'} ${name}${info ? ` — ${info}` : ''}`);
+  if (!cond) ghAnnotate('error', 'test:hub', `${name}${info ? ` — ${info}` : ''}`);
+};
 
 const VERSION = (JSON.parse(fs.readFileSync('package.json', 'utf8')) as { version: string }).version;
 const ALERT_CHAT = 5005;
@@ -53,6 +63,7 @@ const adminList = async () => (await (await fetch(`${HUB}/admin/clinics`, { head
 async function until<T>(what: string, fn: () => Promise<T | undefined>, ms: number): Promise<T | undefined> {
   for (const end = Date.now() + ms; Date.now() < end; await sleep(200)) { const v = await fn().catch(() => undefined); if (v) return v; }
   console.log(`    (kutildi, bo'lmadi: ${what})`);
+  ghAnnotate('warning', 'test:hub kutish', `${what} — ${ms} ms da bo'lmadi`);
   return undefined;
 }
 const toOwner = (mark: number, needle: string) => sent.slice(mark).find(s => s.method === 'sendMessage' && Number(s.params.chat_id) === OWNER && String(s.params.text).includes(needle));
@@ -602,5 +613,9 @@ try {
 }
 const failed = results.filter(r => !r).length;
 console.log(`\n${results.length - failed}/${results.length} o'tdi`);
-if (failed) console.log(log.split('\n').slice(-40).join('\n'));
+if (failed) {
+  const tail = log.split('\n').slice(-40).join('\n');
+  console.log(tail);
+  ghAnnotate('error', 'test:hub server jurnali', tail);
+}
 process.exit(failed ? 1 : 0);
