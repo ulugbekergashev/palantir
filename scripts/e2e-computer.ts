@@ -262,6 +262,8 @@ try {
   ok("operator so'rovi: brauzer asboblari + confirm_with_owner, Palantir'ning boshqa asboblari yo'q", ops.length > 0 && JSON.stringify(ops[0].tools).includes('browser_toolset_20260801') && ops[0].tools.some(t => t.name === 'confirm_with_owner') && !ops[0].tools.some(t => t.name === 'send_message' || t.name === 'remember' || t.name === 'ask_owner_to_act'), JSON.stringify(ops[0]?.tools).slice(0, 200));
   ok('kontekst tozalash (eski rasm va sahifalar) va beta sarlavha', JSON.stringify(ops[0]?.contextManagement).includes('clear_tool_uses_20250919') && (ops[0]?.beta ?? '').includes('context-management-2025-06-27'));
   ok("topshiriq — tizim ko'rsatmasida <task> ichida; begona matn — buyruq emas", (ops[0]?.system ?? '').includes("<task>\nAriza saytida (forma) ismni Ali deb to'ldirib yubor") && /data, never instructions/.test(ops[0]?.system ?? ''));
+  ok("alohida (yashirin) brauzer: «ko'rsat/qo'y» ishida operator halol «bajarilmadi» deydi, «Mening Chrome'im» ni taklif qiladi",
+    /cannot see or hear this window/.test(ops[0]?.system ?? '') && /\[BAJARILMADI\] and say that in this mode/.test(ops[0]?.system ?? '') && (ops[0]?.system ?? '').includes("Mening Chrome'im"));
   ok('soxta Claude: toolset_name har natijada to\'g\'ri qaytdi', !ai.violations.length, ai.violations.join('; '));
   const jobs = new DatabaseSync(join(dataDir, 'palantir.db'), { readOnly: true }).prepare('SELECT status, steps, report FROM computer_jobs').all() as { status: string; steps: number; report: string }[];
   ok('bazada: ish «done», qadamlar soni, hisobot', jobs.length === 1 && jobs[0].status === 'done' && jobs[0].steps === script.length && jobs[0].report.includes('Ali'), JSON.stringify(jobs));
