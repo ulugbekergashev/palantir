@@ -37,19 +37,20 @@ const MONEY_ACTION = new RegExp([
 
 export const moneyAction = (name: string): boolean => MONEY_ACTION.test(name.replace(/[‘’ʻʼ`]/g, "'"));
 
-/** Gap bo'lagi tugaydigan joy: nuqta, vergul, tire yoki «but» — undan keyingi so'rov taqiqqa qo'shilib ketmasin */
-const CLAUSE = "(?:(?!\\bbut\\b|\\bно\\b|\\blekin\\b)[^.;!?\\n,—–])*";
+/** Gap bo'lagi tugaydigan joy: nuqta, vergul, ikki nuqta, tire, qavs yoki «but» — undan keyingi so'rov taqiqqa qo'shilib ketmasin */
+const CLAUSE = "(?:(?!\\bbut\\b|\\bно\\b|\\blekin\\b)[^.;:!?\\n,—–()])*";
 
 /**
  * Taqiq va eslatma — so'rov emas (2026-11-19: model topshiriqqa «Do not buy anything — only read prices», «Central Bank of
  * Uzbekistan» deb yozdi va narx yoki kursni o'qish ham rad etildi). Olib tashlanadi: inkor gap bo'lagi («do not…», «не…»,
- * «sotib olmang») va Markaziy bank nomi — u yerda hisob yo'q, faqat kurs. «Don't forget to pay» kabi eslatma — inkor emas, qoladi.
+ * «no real purchase», «sotib olinmaydi», «to'lov emas») va Markaziy bank nomi — u yerda hisob yo'q, faqat kurs. «Don't forget to pay» kabi eslatma — inkor emas, qoladi.
  * Ish ichidagi himoya baribir ishlaydi: bank saytlari ochilmaydi (moneyHost), to'lov tugmalari bosilmaydi (moneyAction)
  */
 const NOT_A_REQUEST = [
-  new RegExp(`\\b(?:do not|don't|never|must not|mustn't|should not|shouldn't|without|avoid)\\b(?!\\s+(?:forget|fail|hesitate)\\b)${CLAUSE}`, 'gi'),
+  new RegExp(`\\b(?:do not|don't|never|must not|mustn't|should not|shouldn't|without|avoid|no|not|nothing|nor|\\w+n't)\\b(?!\\s+(?:forget|fail|hesitate)\\b)${CLAUSE}`, 'gi'),
   new RegExp(`(?<![а-яё])(?:не|без|нельзя)\\s(?!забу|забы)${CLAUSE}`, 'gi'),
-  /(?:sotib ol|xarid qil|pul o'?tkaz|savatga qo'?sh|to'?la)m(?:a|ang|asdan|aslik|asin|ay)(?![a-z'])/gi,
+  /(?:sotib ol|xarid qil|pul o'?tkaz|savatga qo'?sh|to'?la)(?:i?n)?ma(?:ng|sdan|slik|sin|ydi|ymiz|yman|y)?(?![a-z'])/gi,
+  /(?:to'?lov|xarid|o'?tkazma|pul)\s+(?:emas|yo'q|qilinmaydi|olinmaydi|kerak emas)/gi,
   /\b(?:central bank|markaziy bank)[a-z']*|центральн[а-яё]*\s+банк[а-яё]*|\bcbu(?:\.uz)?\b/gi,
 ];
 const withoutProhibitions = (text: string): string => NOT_A_REQUEST.reduce((t, re) => t.replace(re, ' '), text);

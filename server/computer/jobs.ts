@@ -100,7 +100,11 @@ export function startJob(biz: BusinessRow, goal: string, mode: JobMode, confirmF
   if (!modeEnabled(mode, businesses.byId(biz.id) ?? biz)) throw new ComputerError(mode === 'desktop' ? "Butun kompyuterda ishlash yoqilmagan (o'rnatuvchi: .env da COMPUTER_USE=desktop yoki all)" : `Brauzerda ishlash yoqilmagan: ${NOT_ON}`);
   // Pul zonasi (money.ts): bank, to'lov, o'tkazma, xarid — topshiriq boshlanmaydi, egasining tasdig'i bilan ham
   const money = moneyTask(goal);
-  if (money) throw new ComputerError(`Bu topshiriqni bajarmayman (${money}). ${MONEY_ZONE}`);
+  if (money) {
+    // Qaysi so'z ushlagani keyin jurnaldan ko'rinsin (topshiriqni model yozadi — egasining so'zi emas)
+    console.warn(`[kompyuter] pul zonasi (${money}): «${cut(goal, 300)}»`);
+    throw new ComputerError(`Bu topshiriqni bajarmayman (${money}). ${MONEY_ZONE}`);
+  }
   const prev = live.get(biz.id);
   if (prev && !prev.abort.signal.aborted) throw new ComputerError(`Hozir boshqa ish bajarilyapti: «${cut(prev.job.goal, 80)}». Tugashini kuting yoki /toxta bilan to'xtating`);
   if (loginWindows.has(biz.id)) throw new ComputerError("Brauzer oynasi ochiq (/brauzer — saytga kirish). Avval uni yoping: «✅ Kirdim, yopish» tugmasi");
