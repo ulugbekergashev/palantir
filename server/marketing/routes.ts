@@ -1,4 +1,4 @@
-/** Panel → Kontent-meyker → Postlar → Instagram: qoralamalar, rasm, yangi post (egasining surati yoki AI chizadi), matn yozdirish, joylash */
+/** Panel → SMM-menejer → Postlar → Instagram: qoralamalar, rasm, yangi post (egasining surati yoki AI chizadi), matn yozdirish, joylash */
 import type { Express, Request, Response } from 'express';
 import { z } from 'zod';
 import type { BusinessRow } from '../db';

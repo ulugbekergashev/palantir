@@ -1,5 +1,5 @@
 /**
- * Kontent-meyker studiyasi haqiqiy panelda (ko'rinmas brauzer):  npm run build && npm run test:ui-video
+ * SMM-menejer studiyasi haqiqiy panelda (ko'rinmas brauzer):  npm run build && npm run test:ui-video
  * Brend-buk anketasi → «Brend-buk yaratish» (to'liq brend-tizim, diktor almashtirish) → Reja → mavzudan «Video» → ssenariy va
  * ovoz → «Yuklab olish» (brauzerda yozilgan video).
  * AI o'rnida soxta Anthropic (javob — tizim ko'rsatmasiga qarab), Gemini TTS o'rnida soxta server (har sahnaga xom PCM ovoz).
@@ -126,9 +126,9 @@ try {
   ok('Palantir ishga tushdi', await up(`${base}/api/health`));
   const setup = await (await fetch(`${base}/api/login/setup`, post({}))).json() as { token: string };
   const given = await (await fetch(`${base}/api/handover`, post({ login: 'ulugbek' }, setup.token))).json() as { password: string };
-  // Yangi profilda jamoa — Direktor va Yordamchi; Kontent-meyker «AI xodimlar»dan olinadi
+  // Yangi profilda jamoa — Direktor va Yordamchi; SMM-menejer «AI xodimlar»dan olinadi
   const owner = await (await fetch(`${base}/api/login`, post({ login: 'ulugbek', password: given.password }))).json() as { token: string };
-  ok("Kontent-meyker jamoaga olindi (standart jamoada yo'q)", (await fetch(`${base}/api/crew`, post({ member: 'kontent', on: true }, owner.token))).ok);
+  ok("SMM-menejer jamoaga olindi (standart jamoada yo'q)", (await fetch(`${base}/api/crew`, post({ member: 'kontent', on: true }, owner.token))).ok);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
   page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(`console: ${m.text()}`); });
@@ -178,7 +178,7 @@ try {
   console.log('\n# Postlar: Telegram kanal va Instagram — bitta varaqda');
   await page.goto(`${base}/#/marketolog/instagram`);
   await page.getByText('rasm — Gemini').first().waitFor({ timeout: 20_000 });
-  ok("Kontent-meyker → Postlar → Instagram: qoralama rasmi bilan, «Instagram'ga joylash» tugmasi (egasi bosmaguncha chiqmaydi)",
+  ok("SMM-menejer → Postlar → Instagram: qoralama rasmi bilan, «Instagram'ga joylash» tugmasi (egasi bosmaguncha chiqmaydi)",
     await page.getByText("AI xodim — bu chatbot emas 🤖").first().isVisible() && await page.getByRole('button', { name: "Instagram'ga joylash" }).first().isVisible()
     && await page.getByRole('img', { name: /^AI rasmi/ }).first().isVisible());
   ok("«Postlar» varag'i tanlangan, almashtirgichda «Instagram» — 1 ta kutyapti", await page.locator('nav[aria-label="Varaqlar"]').getByRole('link', { name: /^Postlar/ }).getAttribute('aria-current') === 'page'

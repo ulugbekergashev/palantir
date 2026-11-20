@@ -20,6 +20,8 @@ export interface ChannelOutlet {
   post(chatId: string, text: string): Promise<number>;
   /** Video fayl (mp4) izoh bilan — qaytaradi: kanaldagi xabar raqami */
   postVideo(chatId: string, file: string, caption: string): Promise<number>;
+  /** Rasm (bitta) yoki albom (2–10) izoh bilan (HTML emas, oddiy matn, ≤1024) — qaytaradi: birinchi xabar raqami */
+  postPhotos(chatId: string, files: string[], caption: string): Promise<number>;
 }
 let outlet: ChannelOutlet | null = null;
 export const setChannelOutlet = (o: ChannelOutlet | null): void => { outlet = o; };
@@ -52,11 +54,11 @@ const CARD_TEXT = 3200;
  * yo'q: egasi oxirini ko'rmagan postni tasdiqlamasin (to'lig'i va joylash — panelda)
  */
 async function card(biz: BusinessRow, d: ContentDraft, s: ContentSettings): Promise<void> {
-  const where = s.channelTitle ? `«${esc(s.channelTitle)}» kanaliga` : 'kanalga (hali ulanmagan: panel → Marketing → Kontent-meyker → Kanal)';
+  const where = s.channelTitle ? `«${esc(s.channelTitle)}» kanaliga` : 'kanalga (hali ulanmagan: panel → Marketing → SMM-menejer → Kanal)';
   const long = d.text.length > CARD_TEXT;
   const body = long ? `${esc(d.text.slice(0, CARD_TEXT - 400))}…` : esc(d.text);
   const tail = long ? `<i>Post uzun (${d.text.length} belgi) — to'liq matnni panelda ko'rib, o'sha yerda joylang.</i>` : `<i>Tasdiqlasangiz ${where} chiqadi. Matnni o'zgartirish — panelda.</i>`;
-  const html = `✍️ <b>Kontent-meyker: post tayyor</b>\n\n${body}${d.sourceUrl ? `\n\n<i>Material: ${esc(d.sourceUrl)}</i>` : ''}\n\n${tail}`;
+  const html = `✍️ <b>SMM-menejer: post tayyor</b>\n\n${body}${d.sourceUrl ? `\n\n<i>Material: ${esc(d.sourceUrl)}</i>` : ''}\n\n${tail}`;
   const cancel = { text: '✖️ Bekor', callback_data: `zx|${d.id}` };
   const keyboard = { inline_keyboard: [long ? [cancel] : [{ text: '📢 Kanalga joylash', callback_data: `zp|${d.id}|${draftMark(d.text)}` }, cancel]] };
   await notifyOwner(biz, html, keyboard).catch(e => console.error('[kontent] karta:', (e as Error).message));
@@ -70,7 +72,7 @@ const RETRY_MS = 60 * 60_000;
 /** Manbalardagi yangi postlardan qoralamalar. made — nechta yozildi; note — egasiga qisqa izoh */
 export async function runFactory(biz: BusinessRow, deps: FactoryDeps = LIVE, opts: { notify?: boolean } = {}): Promise<{ made: number; note: string }> {
   const sources = contentStore.sources(biz.id);
-  if (!sources.length) throw new ContentError("Manba yo'q: avval kuzatiladigan Telegram kanallarni qo'shing (Kontent-meyker → Manbalar)");
+  if (!sources.length) throw new ContentError("Manba yo'q: avval kuzatiladigan Telegram kanallarni qo'shing (SMM-menejer → Manbalar)");
   if (running.has(biz.id)) throw new ContentError('Kontent-zavod hozir ishlayapti — tugashini kuting');
   running.add(biz.id);
   attempts.set(biz.id, Date.now());
@@ -156,7 +158,7 @@ export async function publishDraft(biz: BusinessRow, id: string, opts: { mark?: 
   if (STOP[d.status]) throw new ContentError(STOP[d.status]!);
   if (opts.mark && opts.mark !== draftMark(d.text)) throw new ContentError("Matn panelda o'zgargan — yangi kartadan yoki paneldan joylang");
   const s = contentStore.settings(biz.id);
-  if (!s.channelId) throw new ContentError('Kanal ulanmagan: panel → Marketing → Kontent-meyker → Kanal');
+  if (!s.channelId) throw new ContentError('Kanal ulanmagan: panel → Marketing → SMM-menejer → Kanal');
   if (!outlet) throw new ContentError('Telegram bot ulanmagan');
   if (!contentStore.move(biz.id, id, ['draft', 'failed'], 'publishing')) throw new ContentError('Qoralama holati o\'zgardi — sahifani yangilang');
   let messageId: number;

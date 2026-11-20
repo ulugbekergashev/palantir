@@ -86,7 +86,7 @@ export function MarketingResults({ notify, tick }: { notify: Notify; tick: numbe
       </Panel>
       <Panel title="Chiqqan kontent">
         {!view.items.length
-          ? <Quiet>Oxirgi 30 kunda chiqqan post yo'q. Kontent-meyker postlari kanalga yoki Instagram'ga joylangach, natijasi shu yerda ko'rinadi.</Quiet>
+          ? <Quiet>Oxirgi 30 kunda chiqqan post yo'q. SMM-menejer postlari kanalga yoki Instagram'ga joylangach, natijasi shu yerda ko'rinadi.</Quiet>
           : <ul className="flex flex-col gap-2.5">{view.items.map(i => <Row key={`${i.kind}-${i.id}`} i={i} />)}</ul>}
       </Panel>
       {view.ads.length > 0 && (

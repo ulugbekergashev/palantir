@@ -3,7 +3,7 @@
  *   Qabulxona — murojaatlar, javoblar, qabulga yozilganlar, qoldirilgan so'rovlar (analytics.ts bilan bir xil hisob), mijozlarga tayyorlangan xabarlar;
  *   Yordamchi — ertalabki reja, eslatmalar, bajarilgan ishlar;
  *   Kuzatuvchi — kameralar va bugungi hodisalar; Tahlilchi — hisobotlar (haftalik talab tahlili va topshiriqlar); Marketolog — Meta AI'dan olgan tahlillari;
- *   Kontent-meyker — postlar, videolar, joylangani; Targetolog — ishlayotgan reklama va yangi rejalar.
+ *   SMM-menejer — postlar, videolar, joylangani; Targetolog — ishlayotgan reklama va yangi rejalar.
  * Bajarilmagan urinish («Bajarilmadi: …») ish deb sanalmaydi — alohida aytiladi.
  * Pastida — bugungi jurnal (hamma xodim yozuvlari), yangisi tepada.
  */
@@ -102,7 +102,7 @@ function marketer(biz: BusinessRow, t: Tally): DayMember {
   return { member: 'marketolog', summary, facts: [{ label: 'Tahlil', value: done }] };
 }
 
-/** Kontent-meyker: bugun tayyorlagan postlar (kanal va Instagram), videolar va joylangani; tasdiq kutayotgan qoralamalar */
+/** SMM-menejer: bugun tayyorlagan postlar (kanal va Instagram), videolar va joylangani; tasdiq kutayotgan qoralamalar */
 function content(biz: BusinessRow, from: string): DayMember {
   const posts = since('content_drafts', 'created_at', biz.id, from) + since('marketing_posts', 'created_at', biz.id, from);
   const videos = since('content_videos', 'created_at', biz.id, from);

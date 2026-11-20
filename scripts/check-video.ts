@@ -257,7 +257,7 @@ if (!renderAvailable()) {
     const { availableImages } = await import('../server/ads/planner');
     const { events } = await import('../server/orders/store');
     const sentVideos: { chat: string; file: string; caption: string }[] = [];
-    setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'Kanal' }), post: async () => 1, postVideo: async (chat, file, caption) => { sentVideos.push({ chat, file, caption }); return 42; } });
+    setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'Kanal' }), post: async () => 1, postVideo: async (chat, file, caption) => { sentVideos.push({ chat, file, caption }); return 42; }, postPhotos: async () => 0 });
     await assert.rejects(videoToChannel(biz, v.id, 'Izoh'), (e: Error) => e instanceof ContentError && /Kanal ulanmagan/.test(e.message));
     contentStore.saveSettings(biz.id, { channelId: '-100777', channelTitle: 'Kanal' });
     await assert.rejects(videoToChannel(biz, v.id, 'x'.repeat(1025)), /1024/);

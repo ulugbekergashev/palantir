@@ -1,5 +1,5 @@
 /**
- * Marketing → Kontent-meyker: Telegram kanal qoralamalari (kontent-zavod — siz kuzatadigan ochiq kanallardagi yangiliklardan yoki
+ * Marketing → SMM-menejer: Telegram kanal qoralamalari (kontent-zavod — siz kuzatadigan ochiq kanallardagi yangiliklardan yoki
  * mavzudan). Qoralama Telegram'ingizga ham keladi; kanalga faqat siz «Kanalga joylash»ni bosganda chiqadi.
  * Varaqlar: Postlar → Telegram kanal (yozdirish, tahrir, joylash) · Manbalar (kuzatiladigan kanallar) · Kanallar (Telegram kanal, til,
  * uslub, jadval; Instagram va rasm chizish holati). Instagram postlari — Posts.tsx
@@ -28,7 +28,7 @@ const STATUS: Record<ContentDraft['status'], { label: string; cls: string }> = {
   cancelled: { label: 'Bekor qilingan', cls: 'bg-glass/10 text-[#a3a9b5]' },
 };
 
-/** Kontent-meyker ma'lumoti: hamma varaq bitta holatdan; har amal serverdan yangi ko'rinishni qaytaradi */
+/** SMM-menejer ma'lumoti: hamma varaq bitta holatdan; har amal serverdan yangi ko'rinishni qaytaradi */
 export function useContent(notify: Notify, tick: number): [ContentView | null, (v: ContentView) => void] {
   const [view, setView] = useState<ContentView | null>(null);
   useEffect(() => {
@@ -173,7 +173,7 @@ export function ContentSources({ view, setView, notify }: { view: ContentView | 
   return (
     <Panel title="Kuzatiladigan kanallar">
       <div className="space-y-4">
-        <p className="text-[13.5px] leading-relaxed text-[#a3a9b5]">Ochiq Telegram kanallar — raqobatchilar, yangilik kanallari, sohangizdagi bloggerlar. Kontent-meyker ulardan faqat fakt oladi va o'z so'zi bilan yozadi; manba kanalni postda tilga olmaydi.</p>
+        <p className="text-[13.5px] leading-relaxed text-[#a3a9b5]">Ochiq Telegram kanallar — raqobatchilar, yangilik kanallari, sohangizdagi bloggerlar. SMM-menejer ulardan faqat fakt oladi va o'z so'zi bilan yozadi; manba kanalni postda tilga olmaydi.</p>
         <form onSubmit={add} className="flex flex-wrap gap-2">
           <input value={handle} onChange={e => setHandle(e.target.value)} placeholder="@kanal_nomi yoki t.me/kanal_nomi" aria-label="Kanal havolasi" className={`${field} min-w-0 flex-1 basis-60`} />
           <button type="submit" disabled={handle.trim().length < 3 || !!busy} className={`${button} text-[#07080b]`} style={{ background: ACCENT }}>{busy === 'add' ? spin : <Plus className="h-4 w-4" aria-hidden="true" />} Qo'shish</button>

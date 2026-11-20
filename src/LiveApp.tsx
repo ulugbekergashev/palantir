@@ -32,7 +32,7 @@ const ALL_AREAS: Area[] = AREAS;
 const areasFor = (who: Who | null): Area[] =>
   who?.kind !== 'staff' ? ALL_AREAS : who.access === 'manager' ? ALL_AREAS.filter(a => a !== 'sozlamalar') : ['qabulxona'];
 
-/** Xodim bo'limi jamoada bormi: Marketing — ichidagi xodimlardan biri olingan bo'lsa (Marketolog, Kontent-meyker, Targetolog); HR — Rekruter yoki Murabbiy */
+/** Xodim bo'limi jamoada bormi: Marketing — ichidagi xodimlardan biri olingan bo'lsa (Marketolog, SMM-menejer, Targetolog); HR — Rekruter yoki Murabbiy */
 const crewOpen = (a: Area, crew: Member[]): boolean =>
   !isMember(a) || crew.some(m => m === a || DEPARTMENT_OF[m]?.area === a);
 

@@ -164,28 +164,28 @@ export async function orderApiTests(h: Harness): Promise<void> {
   await api('/api/crew', { token, body: { member: 'kontent', on: false } });
   await api('/api/chat', { token, body: { text: 'Kanalga post tayyorla' } });
   const without = lastOwnerReq();
-  ok("Kontent-meyker jamoada yo'q — Yordamchida uning asboblari yo'q, ko'rsatmada «jamoaga oling» deyiladi",
-    // Brend-buk — hammaniki (Kontent-meykersiz ham Yordamchida bor); qolgan kontent asboblari yo'q
-    !toolNames(without).some(n => (n.startsWith('content_') && n !== 'content_brand_book') || n === 'draft_post') && toolNames(without).includes('create_task') && toolNames(without).includes('content_brand_book') && /Not hired[^\n]*Kontent-meyker/.test(without?.system ?? '') && without!.system.includes("+ Xodim qo'shish"), toolNames(without).join(','));
+  ok("SMM-menejer jamoada yo'q — Yordamchida uning asboblari yo'q, ko'rsatmada «jamoaga oling» deyiladi",
+    // Brend-buk — hammaniki (SMM-menejersiz ham Yordamchida bor); qolgan kontent asboblari yo'q
+    !toolNames(without).some(n => (n.startsWith('content_') && n !== 'content_brand_book') || n === 'draft_post') && toolNames(without).includes('create_task') && toolNames(without).includes('content_brand_book') && /Not hired[^\n]*SMM-menejer/.test(without?.system ?? '') && without!.system.includes("+ Xodim qo'shish"), toolNames(without).join(','));
   await api('/api/crew', { token, body: { member: 'kontent', on: true } });
   await api('/api/chat', { token, body: { text: 'Kanalga post tayyorla' } });
   const withK = lastOwnerReq();
-  ok("Kontent-meyker jamoaga olindi — Yordamchi uning asboblari bilan ishlaydi (suhbat yangilandi)", toolNames(withK).includes('content_drafts') && toolNames(withK).includes('draft_post') && /Hired:[^\n]*Kontent-meyker/.test(withK?.system ?? '') && withK!.messages.length === 1);
+  ok("SMM-menejer jamoaga olindi — Yordamchi uning asboblari bilan ishlaydi (suhbat yangilandi)", toolNames(withK).includes('content_drafts') && toolNames(withK).includes('draft_post') && /Hired:[^\n]*SMM-menejer/.test(withK?.system ?? '') && withK!.messages.length === 1);
   const kOrder = (await api('/api/orders', { token, body: { member: 'kontent', text: 'Har dushanba 9:00 da kanal uchun 3 ta post tayyorla', spec: { kind: 'schedule', at: '09:00', days: [1] }, summary: 'Har dushanba 9:00 da 3 ta post' } })).json.order;
-  ok("Kontent-meykerga jadvalli topshiriq saqlandi", kOrder?.member === 'kontent', JSON.stringify(kOrder));
+  ok("SMM-menejerga jadvalli topshiriq saqlandi", kOrder?.member === 'kontent', JSON.stringify(kOrder));
   // Topshiriq qo'shilganda suhbat yangilanadi (doimiy topshiriqlar ko'rsatmada) — shundan keyingi suhbat bilan solishtiriladi
   await api('/api/chat', { token, body: { text: 'Salom' } });
   const chatBefore = lastOwnerReq()!;
   const ranK = await api(`/api/orders/${kOrder.id}/run`, { token, body: {} });
   const kReq = lastOwnerReq();
-  ok("topshiriqni Kontent-meyker o'zi bajaradi: o'z roli bilan, faqat o'z asboblari, alohida suhbatda", ranK.status === 200 && kReq!.system.includes('<acting_as>') && kReq!.system.includes('Kontent-meyker')
+  ok("topshiriqni SMM-menejer o'zi bajaradi: o'z roli bilan, faqat o'z asboblari, alohida suhbatda", ranK.status === 200 && kReq!.system.includes('<acting_as>') && kReq!.system.includes('SMM-menejer')
     && toolNames(kReq).includes('content_drafts') && !toolNames(kReq).includes('create_task') && !toolNames(kReq).includes('ads_plan') && kReq!.messages.length === 1, toolNames(kReq).join(','));
   await api('/api/chat', { token, body: { text: 'Davom etamiz' } });
   const chatAfter = lastOwnerReq()!;
   ok("egasi bilan suhbat topshiriqdan keyin ham o'z holida davom etadi (yangidan boshlanmadi, topshiriq unga aralashmadi)", chatAfter.messages.length > chatBefore.messages.length
     && !chatAfter.system.includes('<acting_as>') && !JSON.stringify(chatAfter.messages).includes('Jadvaldagi topshiriq'), `${chatAfter.messages.length} xabar`);
   const kEvents = (await api('/api/agents/kontent/events', { token })).json.events as { title: string }[] | undefined;
-  ok("bajarilgani Kontent-meyker jurnalida", !!kEvents?.some(e => e.title.startsWith('Bajarildi:')), JSON.stringify(kEvents?.slice(0, 2)));
+  ok("bajarilgani SMM-menejer jurnalida", !!kEvents?.some(e => e.title.startsWith('Bajarildi:')), JSON.stringify(kEvents?.slice(0, 2)));
 
   console.log("\n# Mijozga yoziladigan hamma narsa — Qabulxonaniki");
   // Qabulxonaning doimiy qoidasi (yuqorida saqlangan «Chegirma va‘da qilma»): Yordamchi mijozga qayta yozganda ham shu qoida bilan yozadi

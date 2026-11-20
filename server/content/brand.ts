@@ -2,7 +2,7 @@
  * Brend-buk: egasining qisqa anketasi (yoki bo'sh anketa — biznes profili) → AI to'liq brend-tizim yozadi: mohiyat va va'da,
  * auditoriya portretlari, xabarlar va dalillar, ovoz (xususiyatlar, qoidalar, «bunday emas → bunday» namunalari, lug'at),
  * vizual tizim (ranglar, shrift, kompozitsiya, harakat), kontent (ustunlar, formatlar, ilgaklar, chaqiriqlar, bio) va diktor.
- * Kontent-meyker postlari va videolari shu kitobdan oladi. Ranglar kod bilan tekshiriladi: yaroqsiz hex — andoza rang; matn
+ * SMM-menejer postlari va videolari shu kitobdan oladi. Ranglar kod bilan tekshiriladi: yaroqsiz hex — andoza rang; matn
  * fon ustida o'qilmasa — qora yoki oq. Eski (qisqa) kitoblar o'qishda yangi maydonlar bilan to'ldiriladi.
  */
 import type { BrandAnswers, BrandBook, BrandColors, BrandPillar, ContentBrand } from '../../src/types';

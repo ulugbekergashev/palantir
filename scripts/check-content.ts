@@ -1,5 +1,5 @@
 /**
- * Kontent-meyker (kontent-zavod) — AI va Telegram'siz tekshiruv: manba havolasi, kanal sahifasini o'qish, AI javobini postlarga
+ * SMM-menejer (kontent-zavod) — AI va Telegram'siz tekshiruv: manba havolasi, kanal sahifasini o'qish, AI javobini postlarga
  * ajratish, zanjir (manbalar → qoralamalar → tasdiq → kanal) soxta Telegram va soxta yozuvchi bilan.
  * Jonli tekshiruv (haqiqiy kanal sahifasi va AI): npx tsx scripts/live-content.ts
  * Ishga tushirish: npm run test:content
@@ -32,7 +32,7 @@ const rejects = async (p: Promise<unknown>, re: RegExp) => {
   assert.fail('xato kutilgan edi');
 };
 
-console.log('Kontent-meyker');
+console.log('SMM-menejer');
 
 await check('kanal havolasi: @nom, t.me/nom, t.me/s/nom → nom; noto\'g\'ri nom → null', () => {
   assert.equal(normalizeHandle('@hyperprostranstvo'), 'hyperprostranstvo');
@@ -116,6 +116,7 @@ setChannelOutlet({
   resolve: async target => (target === '@mening_kanalim' ? { id: '-100777', title: 'Mening kanalim' } : (() => { throw new ContentError("Kanal topilmadi yoki bot kanalda admin emas"); })()),
   post: async (chat, text) => { posted.push({ chat, text }); return 501 + posted.length; },
   postVideo: async () => 0,
+  postPhotos: async () => 0,
 });
 
 await check("manbasiz ishga tushirilsa — tushunarli sabab, qoralama yo'q", async () => {
@@ -188,10 +189,10 @@ await check("matn o'zgargach eski karta tugmasi joylamaydi; bekor qilingani joyl
 
 await check("Telegram rad etsa — qoralama «xato» holatiga o'tadi va qayta joylash mumkin", async () => {
   const d = contentStore.drafts(biz.id).find(x => x.status === 'draft')!;
-  setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'x' }), post: async () => { throw new Error('Forbidden: bot is not a member'); }, postVideo: async () => 0 });
+  setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'x' }), post: async () => { throw new Error('Forbidden: bot is not a member'); }, postVideo: async () => 0, postPhotos: async () => 0 });
   await rejects(publishDraft(biz, d.id), /joylanmadi/);
   assert.equal(contentStore.draft(biz.id, d.id)!.status, 'failed');
-  setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'x' }), post: async () => 900, postVideo: async () => 0 });
+  setChannelOutlet({ resolve: async () => ({ id: '-100777', title: 'x' }), post: async () => 900, postVideo: async () => 0, postPhotos: async () => 0 });
   await publishDraft(biz, d.id);
   assert.equal(contentStore.draft(biz.id, d.id)!.status, 'published');
 });

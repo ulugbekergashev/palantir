@@ -4,7 +4,7 @@
  *               va mijozlarga xabar qoralamalari;
  *   Kuzatuvchi — egasi hali ko'rmagan kamera hodisalari (oxirgi sutka);
  *   Yordamchi — muddati o'tgan ishlar; har xodim (jamoada bo'lsa) — bajarilmay qolgan topshiriqlar.
- *   Kontent-meyker — tasdiq kutayotgan postlar; Targetolog — tasdiq kutayotgan reklama rejalari.
+ *   SMM-menejer — tasdiq kutayotgan postlar; Targetolog — tasdiq kutayotgan reklama rejalari.
  *   Direktor — tasdiq kutayotgan takliflar.
  * Har biri o'z joyidagi tugma bilan hal qilinadi (javob yuborish, so'rovni yopish, «ko'rdim», ishni surish).
  */
@@ -96,7 +96,7 @@ export function attention(biz: BusinessRow, now = new Date()): AttentionItem[] {
     // canSend: Palantir yoza oladigan mijoz bor (bot, Telegram, Instagram) — qolganlariga egasi o'zi qo'ng'iroq qiladi yoki yozadi
     items.push({ key: `outbound:${o.id}`, kind: 'outbound', member: 'qabulxona', refId: o.id, title: `${o.leadIds.length} ta mijozga xabar tayyor${!o.reachable ? " — o'zingiz yozasiz yoki qo'ng'iroq qilasiz" : o.reachable < o.leadIds.length ? ` (Palantir ${o.reachable} tasiga yoza oladi)` : ''}`, body: cut(o.text, 280), at: o.createdAt, phone: null, urgent: false, canSend: o.reachable > 0 });
   }
-  // Kontent-meyker: tasdiq kutayotgan postlar (Telegram kanal va Instagram) — bitta band, son bilan
+  // SMM-menejer: tasdiq kutayotgan postlar (Telegram kanal va Instagram) — bitta band, son bilan
   if (crewHas(biz, 'kontent')) {
     const drafts = contentStore.drafts(biz.id).filter(d => d.status === 'draft' || d.status === 'failed');
     const ig = posts.list(biz.id).filter(p => p.status === 'draft' || p.status === 'failed' || p.status === 'unknown');

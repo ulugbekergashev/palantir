@@ -8,6 +8,7 @@ import type { AiEngine, AnketaImport, AnketaView, FoundCamera, KeyCheck, KeyView
 import type { AutoReply, Business, ChatEntry, DirectorView, Doc, GoalView, InboxMessage, InboxThread, Lead, LeadStage, LiveStatus, MemoryKind, MoneyEntry, Note, Outbound, ReplyDraft, Task, TaskStatus } from '../types';
 
 import type { ClientCardView, LeadRequest, RequestKind, StaffAccess, StaffMember } from '../types';
+import type { SmmView } from '../types';
 import type { AdPlan, AdsView, AgentEvent, AgentOrder, HrView, BrandAnswers, ContentBrand, ContentDraft, ContentSettings, ContentSource, ContentVideo, EventMember, PlanItem, ResultsView, VideoScene, MarketingPost, OrderMember, OrderSpec, PostView } from '../types';
 
 export interface ContentView {
@@ -463,6 +464,17 @@ export const api = {
   adsCancel: (id: string) => call<AdsView>(`/ads/campaigns/${id}`, { method: 'DELETE' }),
   adsUpload: (image: string) => call<AdsView & { ref: string }>('/ads/images', { body: { image } }),
   adsImage: async (ref: string) => (await send(`/ads/image?ref=${encodeURIComponent(ref)}`, { method: 'GET' })).blob(),
+  // SMM-menejer kalendari
+  smm: () => call<SmmView>('/smm'),
+  smmCalendar: (days: number, perWeek: number, wish: string) => call<SmmView>('/smm/calendar', { body: { days, perWeek, wish } }),
+  smmPrepare: (days: number) => call<SmmView & { queued: number }>('/smm/prepare', { body: { days } }),
+  smmPreparePost: (id: string) => call<SmmView>(`/smm/${id}/prepare`, { body: {} }),
+  smmApprove: (id: string) => call<SmmView>(`/smm/${id}/approve`, { body: {} }),
+  smmApproveRange: (from: string, to: string, ids: string[]) => call<SmmView & { approved: number }>('/smm/approve', { body: { from, to, ids } }),
+  smmReopen: (id: string) => call<SmmView>(`/smm/${id}/reopen`, { body: {} }),
+  smmReject: (id: string) => call<SmmView>(`/smm/${id}/reject`, { body: {} }),
+  smmEdit: (id: string, patch: { day?: string; time?: string; caption?: string }) => call<SmmView>(`/smm/${id}`, { method: 'PATCH', body: patch }),
+  smmImage: async (name: string) => (await send(`/smm/image/${encodeURIComponent(name)}`, { method: 'GET' })).blob(),
   // HR → Rekruter: vakansiyalar va nomzodlar (ko'rish — egasi va boshqaruvchi xodim; qolgani — faqat egasi)
   hr: () => call<HrView>('/hr'),
   /** Egasining so'zidan vakansiya matni va nomzodga savollar (AI, bir daqiqagacha) */

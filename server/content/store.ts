@@ -1,5 +1,5 @@
 /**
- * Kontent-meyker ma'lumotlari: sozlamalar (egasining kanali, uslub, til), manbalar (kuzatiladigan ochiq kanallar) va qoralamalar.
+ * SMM-menejer ma'lumotlari: sozlamalar (egasining kanali, uslub, til), manbalar (kuzatiladigan ochiq kanallar) va qoralamalar.
  * Holat faqat kutilgan holatdan o'zgaradi (move): ikki marta bosilsa ikki marta joylanmaydi
  */
 import type { ContentDraft, ContentSettings, ContentSource } from '../../src/types';

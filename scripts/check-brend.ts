@@ -1,5 +1,5 @@
 /**
- * Kontent-meyker: brend-buk, kontent reja va video (ssenariy + diktor: Gemini TTS, zaxira — ElevenLabs) — AI'siz tekshiruv.
+ * SMM-menejer: brend-buk, kontent reja va video (ssenariy + diktor: Gemini TTS, zaxira — ElevenLabs) — AI'siz tekshiruv.
  * AI o'rnida soxta yozuvchi, Gemini va ElevenLabs o'rnida shu yerda ko'tarilgan soxta serverlar.
  * Ishga tushirish: npm run test:brend
  */

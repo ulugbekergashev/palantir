@@ -35,7 +35,7 @@ export async function videoToChannel(biz: BusinessRow, id: string, caption: stri
   const text = caption.replace(/\r\n/g, '\n').trim();
   if (text.length > MAX_VIDEO_CAPTION) throw new ContentError(`Izoh ${MAX_VIDEO_CAPTION} belgidan uzun (Telegram chegarasi)`);
   const s = contentStore.settings(biz.id);
-  if (!s.channelId) throw new ContentError('Kanal ulanmagan: Kontent-meyker → Kanallar');
+  if (!s.channelId) throw new ContentError('Kanal ulanmagan: SMM-menejer → Kanallar');
   const outlet = channelOutlet();
   if (!outlet) throw new ContentError('Telegram bot ulanmagan');
   if (sending.has(id)) throw new ContentError('Joylanyapti…');

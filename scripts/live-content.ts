@@ -1,5 +1,5 @@
 /**
- * Jonli tekshiruv: Kontent-meyker haqiqiy ochiq kanal sahifasini o'qib, AI bilan qoralama yozadimi. Vaqtinchalik bazada; kanalga
+ * Jonli tekshiruv: SMM-menejer haqiqiy ochiq kanal sahifasini o'qib, AI bilan qoralama yozadimi. Vaqtinchalik bazada; kanalga
  * hech narsa joylanmaydi (bot ulanmagan). AI — .env dagi AI_ENGINE (obuna yoki API kalit).
  * Ishga tushirish: npx tsx scripts/live-content.ts [kanal_nomi]
  */

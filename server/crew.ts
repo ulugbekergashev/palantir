@@ -39,7 +39,7 @@ function signals(biz: BusinessRow, status?: LiveStatus): CrewSignals {
     metaAi: !!status?.metaAi.connected,
     marketingPosts: has('marketing_posts') ? 1 : 0,
     content: !!content.channelTitle || contentStore.sources(biz.id).length > 0 || contentStore.drafts(biz.id).length > 0
-      // Brend-buk (Miya → Brend) — butun jamoaniki: uni to'ldirish Kontent-meykerni o'zi yollamaydi
+      // Brend-buk (Miya → Brend) — butun jamoaniki: uni to'ldirish SMM-menejerni o'zi yollamaydi
       || has('content_plan') || has('content_videos'),
     ads: !!adsStore.connection(biz.id) || adsStore.campaigns(biz.id).length > 0,
     vacancies: vacancies.list(biz.id, 'all', 1).length > 0,
@@ -75,7 +75,7 @@ export function syncCrew(biz: BusinessRow, status: LiveStatus): CrewMember[] {
  * qilish, vakansiyani yopish; brend-buk — butun jamoaniki
  */
 const GUARDED: [RegExp, CrewMember][] = [
-  [/^\/api\/(content|posts)(\/|$)/, 'kontent'],
+  [/^\/api\/(content|posts|smm)(\/|$)/, 'kontent'],
   [/^\/api\/ads(\/|$)/, 'target'],
   [/^\/api\/cameras(\/|$)/, 'kuzatuvchi'],
   [/^\/api\/(director|goals)(\/|$)/, 'direktor'],

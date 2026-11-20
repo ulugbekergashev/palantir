@@ -99,7 +99,7 @@ export async function postVacancy(biz: BusinessRow, id: string): Promise<void> {
   const v = vacancies.get(biz.id, id);
   if (!v || v.status !== 'open') throw new HrError('Vakansiya yopilgan');
   const channel = channelOf(biz), outlet = channelOutlet(), link = vacancyLink(v);
-  if (!channel || !outlet) throw new HrError('Kanal ulanmagan: panel → Kontent-meyker → Kanal');
+  if (!channel || !outlet) throw new HrError('Kanal ulanmagan: panel → SMM-menejer → Kanal');
   if (!link) throw new HrError('Bot ulanmagan');
   await outlet.post(channel, `${v.text}\n\n${link}`);
 }

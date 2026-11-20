@@ -29,6 +29,7 @@ import { syncTasks } from './brain/mirror';
 import { tgCall, tgCallEnabled } from './tgcall';
 import { ContentError, factoryDue, runFactory } from './content/factory';
 import { watchAll as watchAds } from './ads/campaigns';
+import { publishDue as publishSmm } from './smm/publish';
 import { directorReport } from './director/telegram';
 import { weeklyDemand } from './director/team';
 import { analystMorning } from './analyst/weekly';
@@ -423,10 +424,12 @@ export function startScheduler(bot: BotService): () => void {
             // Bir soatdan keyin yana urinadi; egasiga kuniga bir marta aytiladi
             if (contentWarned.get(biz.id) === contentDay) return;
             contentWarned.set(biz.id, contentDay);
-            await bot.sendText(biz.ownerChatId!, `⚠️ <b>Kontent-meyker</b>: bugungi qoralamalar tayyorlanmadi — ${esc(why)}. Bir soatdan keyin yana urinaman.`).catch(() => {});
+            await bot.sendText(biz.ownerChatId!, `⚠️ <b>SMM-menejer</b>: bugungi qoralamalar tayyorlanmadi — ${esc(why)}. Bir soatdan keyin yana urinaman.`).catch(() => {});
           });
         }
       }
+      // 4a) SMM-menejer: egasi tasdiqlagan postlar vaqti kelganda o'zi chiqadi (AI'siz; ikki marta chiqmaydi — publish.ts)
+      void publishSmm(b => crewWorks(b, 'kontent'), now).catch(e => console.error('[jadval] smm:', (e as Error).message));
       // 4b) Marketolog natijani o'lchaydi (AI'siz): ertalab, kuniga bir marta — kanal ko'rishlari, Instagram layklari
       if (contentHour >= env.morningHour && contentHour < env.morningHour + 12) {
         for (const biz of businesses.all()) {

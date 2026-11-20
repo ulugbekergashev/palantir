@@ -244,7 +244,7 @@ function Vault({ notify }: { notify: Notify }) {
   );
 }
 
-/** Brend-buk — kompaniyaniki: hamma xodim shundan oladi (server/company.ts), shuning uchun Miya'da, Kontent-meykerda emas */
+/** Brend-buk — kompaniyaniki: hamma xodim shundan oladi (server/company.ts), shuning uchun Miya'da, SMM-menejerda emas */
 function MiyaBrand({ notify }: { notify: Notify }) {
   const [view, setView] = useContent(notify, 0);
   return <div className="agent-body"><ContentBrandTab view={view} setView={setView} notify={notify} /></div>;

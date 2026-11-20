@@ -14,7 +14,7 @@ const list = (title: string, items: string[]) => (items.length ? [`## ${title}`,
 export function brandMarkdown(b: BrandBook): string {
   return [
     `# Brend — ${b.name}`, '',
-    "> Bu sahifani Palantir brend-bukdan yozadi. O'zgartirish — panel → Miya → Brend. Hamma xodim shu ovozda yozadi: Kontent-meyker, Marketolog, Targetolog, AI administrator.", '',
+    "> Bu sahifani Palantir brend-bukdan yozadi. O'zgartirish — panel → Miya → Brend. Hamma xodim shu ovozda yozadi: SMM-menejer, Marketolog, Targetolog, AI administrator.", '',
     ...(b.essence ? [`**Mohiyat:** ${b.essence}`, ''] : []),
     `**Pozitsiya:** ${b.positioning}`, '',
     ...(b.promise ? [`**Va'da:** ${b.promise}`, ''] : []),

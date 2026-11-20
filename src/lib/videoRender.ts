@@ -1,5 +1,5 @@
 /**
- * Kontent-meyker videosi brauzerda: brend-buk ranglari va shrifti bilan 1080×1920 kanvasda sahnalar chiziladi, diktor ovozi
+ * SMM-menejer videosi brauzerda: brend-buk ranglari va shrifti bilan 1080×1920 kanvasda sahnalar chiziladi, diktor ovozi
  * (Gemini WAV yoki ElevenLabs mp3) ostiga qo'yiladi. Klinika kompyuteriga hech narsa o'rnatilmaydi.
  * Yuklab olish — videoExport.ts (WebCodecs: kadrma-kadr, tez, kadr tushmaydi). Shu fayldagi play(record) — faqat WebCodecs'siz
  * brauzer uchun zaxira: MediaRecorder real vaqtda yozadi (video qancha bo'lsa — shuncha soniya, kodlovchi kadr tashlashi mumkin).

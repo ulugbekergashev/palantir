@@ -44,7 +44,7 @@ check("Instagram ulandi — Qabulxona va Tahlilchi o'zi qo'shiladi; kamera — K
   const s = withInUse(null, inUse({ ...none, customers: true, cameras: 2 }));
   assert.deepEqual(crewList(s), ['direktor', 'qabulxona', 'yordamchi', 'kuzatuvchi', 'tahlilchi']);
 });
-check("Instagram postlari — Kontent-meykerning ishi (Marketolog emas); Meta AI — Marketolog", () => {
+check("Instagram postlari — SMM-menejerning ishi (Marketolog emas); Meta AI — Marketolog", () => {
   assert.deepEqual(crewList(withInUse(null, inUse({ ...none, marketingPosts: 1 }))), ['direktor', 'qabulxona', 'yordamchi', 'kontent']);
   assert.deepEqual(crewList(withInUse(null, inUse({ ...none, metaAi: true }))), ['direktor', 'qabulxona', 'yordamchi', 'marketolog']);
 });
@@ -129,14 +129,14 @@ check("Direktor faqat jamoadagi xodimga va egasiga taklif beradi", () => {
   ] }, numbers, members);
   assert.deepEqual(plan.moves.map(m => m.member), ['qabulxona']);
 });
-check("Direktor Marketologga bermaydi (o'zi ishlaydigan fon ishi yo'q) — u egasiga; Tahlilchi, Kontent-meyker va Targetolog o'qiydi", () => {
+check("Direktor Marketologga bermaydi (o'zi ishlaydigan fon ishi yo'q) — u egasiga; Tahlilchi, SMM-menejer va Targetolog o'qiydi", () => {
   businesses.update(biz.id, { crew: JSON.stringify({ hired: ['qabulxona', 'kuzatuvchi', 'tahlilchi', 'marketolog', 'kontent', 'target'], dismissed: [] }) });
   assert.deepEqual(moveMembersOf(businesses.byId(biz.id)!), ['qabulxona', 'yordamchi', 'tahlilchi', 'kontent', 'target', 'kuzatuvchi', 'egasi']);
 });
 {
   const { companyContext } = await import('../server/company');
   const { orders } = await import('../server/orders/store');
-  check("Kontent-meyker va Targetolog topshirig'i ularning ishiga yetadi (reja/post — content, reklama rejasi — ads); boshqasiga aralashmaydi", () => {
+  check("SMM-menejer va Targetolog topshirig'i ularning ishiga yetadi (reja/post — content, reklama rejasi — ads); boshqasiga aralashmaydi", () => {
     orders.create(biz.id, 'kontent', "Haftada 2 marta bolalar stomatologiyasi haqida post", { kind: 'standing' }, 'x');
     orders.create(biz.id, 'target', 'Implant reklamasini to\'xtat, tozalashni reklama qil', { kind: 'standing' }, 'x');
     const b = businesses.byId(biz.id)!;
@@ -174,7 +174,7 @@ console.log("\n# Asboblar xodim bo'yicha (3-bosqich)");
     assert.deepEqual(memberGroups('qabulxona'), ['base', 'qabulxona'], "Qabulxona topshirig'i mijozlar va yozishmalarni ham o'qiydi");
     assert.equal(toolOwner('draft_followup'), 'qabulxona', 'mijozga yozish — Qabulxonaniki');
     const k = ownerToolDefs(false, ['kontent']).map(([n]) => n);
-    assert.ok(k.includes('content_plan') && !k.includes('create_task') && !k.includes('ads_plan'));
+    assert.ok(k.includes('smm_calendar') && !k.includes('content_plan') && !k.includes('create_task') && !k.includes('ads_plan'));
   });
   check("kameralar va CRM taqqoslashi (clinic_cameras) — Kuzatuvchiniki: u olinmagan bo'lsa Yordamchida yo'q", () => {
     assert.equal(toolOwner('clinic_cameras'), 'kuzatuvchi');
@@ -182,21 +182,21 @@ console.log("\n# Asboblar xodim bo'yicha (3-bosqich)");
     assert.ok(ownerToolDefs(true, ['base', 'kuzatuvchi']).some(([n]) => n === 'clinic_cameras'));
     assert.ok(ownerToolDefs(true, ['base']).some(([n]) => n === 'clinic_day'), 'qolgan klinika asboblari joyida');
   });
-  check("brend-buk — hammaniki: Kontent-meykersiz ham Yordamchida bor, Kontent-meyker topshirig'ida ham", () => {
+  check("brend-buk — hammaniki: SMM-menejersiz ham Yordamchida bor, SMM-menejer topshirig'ida ham", () => {
     assert.equal(toolOwner('content_brand_book'), null);
-    assert.ok(ownerToolDefs(false, ['base']).some(([n]) => n === 'content_brand_book'), 'Yordamchi (Kontent-meyker olinmagan)');
-    assert.ok(ownerToolDefs(false, ['kontent']).some(([n]) => n === 'content_brand_book'), "Kontent-meyker o'z topshirig'ida video uchun brend-buk yoza oladi");
+    assert.ok(ownerToolDefs(false, ['base']).some(([n]) => n === 'content_brand_book'), 'Yordamchi (SMM-menejer olinmagan)');
+    assert.ok(ownerToolDefs(false, ['kontent']).some(([n]) => n === 'content_brand_book'), "SMM-menejer o'z topshirig'ida video uchun brend-buk yoza oladi");
   });
   const biz = businesses.create(`jamoa${Date.now()}`, 'x', { name: 'J', ownerName: 'X', industry: '', phone: '', address: '', contentLang: 'uz', brand: { primary: '#000', accent: '#111' }, offerings: [], team: [] } as never);
   businesses.update(biz.id, { crew: JSON.stringify({ hired: ['direktor', 'yordamchi'], dismissed: [] }) });
   const b = businesses.byId(biz.id)!;
-  const out = await runTool('content_plan', { count: 5 }, { biz: b, artifacts: [] });
+  const out = await runTool('smm_calendar', { days: 7, per_week: 3 }, { biz: b, artifacts: [] });
   check("jamoada yo'q mutaxassis asbobi chaqirilsa ham ishlamaydi — «+ Xodim qo'shish»", () => {
     assert.equal(out.isError, true);
-    assert.match(out.content, /Kontent-meykerning ishi, u jamoada yo'q/);
+    assert.match(out.content, /SMM-menejerning ishi, u jamoada yo'q/);
   });
   businesses.update(biz.id, { crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'kontent', 'tahlilchi'], dismissed: [] }) });
-  const other = await runTool('content_plan', { count: 5 }, { biz: businesses.byId(biz.id)!, artifacts: [], as: 'tahlilchi' });
+  const other = await runTool('smm_calendar', { days: 7, per_week: 3 }, { biz: businesses.byId(biz.id)!, artifacts: [], as: 'tahlilchi' });
   check("topshiriq bajaruvchi boshqa xodimning ishini qilmaydi", () => {
     assert.equal(other.isError, true);
     assert.match(other.content, /Tahlilchi uni qilmaydi/);
@@ -224,7 +224,7 @@ console.log("\n# «Bugun jamoa» hisoblagichlari va kamera zonalari (5-bosqich)"
     assert.match(m('tahlilchi').summary, /^Bugun 1 ta hisobot tayyorladi\. 1 ta urinish bajarilmadi/);
     assert.equal(m('marketolog').facts[0].value, 0);
   });
-  check("Kontent-meyker va Targetolog ham «Bugun jamoa»da — bugungi postlar va reklama", () => {
+  check("SMM-menejer va Targetolog ham «Bugun jamoa»da — bugungi postlar va reklama", () => {
     assert.deepEqual(day.members.map(x => x.member), ['qabulxona', 'yordamchi', 'tahlilchi', 'marketolog', 'kontent', 'target']);
     assert.equal(m('kontent').facts.find(f => f.label === 'Post')?.value, 1);
     assert.equal(m('kontent').summary, '1 ta post tayyorladi. 1 ta qoralama tasdiqingizni kutyapti.');
@@ -243,7 +243,7 @@ console.log("\n# «Bugun jamoa» hisoblagichlari va kamera zonalari (5-bosqich)"
   check("olinmagan Tahlilchi va Marketolog doimiy topshiriqlari Yordamchi ko'rsatmasiga qo'shilmaydi (D2)", () => {
     const sys = standingOrders(businesses.byId(biz.id)!);
     assert.ok(!sys.includes('Har dushanba hisobot'), sys);
-    assert.ok(sys.includes('Har kuni bitta post'), "jamoadagi Kontent-meykerniki qoladi");
+    assert.ok(sys.includes('Har kuni bitta post'), "jamoadagi SMM-menejerniki qoladi");
   });
   businesses.update(biz.id, { crew: JSON.stringify({ hired: ['direktor', 'yordamchi', 'tahlilchi', 'marketolog', 'kontent', 'target'], dismissed: [] }) });
   const { runTool, ownerToolDefs, memberGroups } = await import('../server/tools');
@@ -314,7 +314,7 @@ console.log("\n# Ish paydo bo'lishi bilan xodim jamoada (panel ochilishini kutma
     assert.equal(businesses.byId(old.id)!.crew, null);
   });
   const { brandStore } = await import('../server/content/brand');
-  check("Miya → Brend'da brend-buk to'ldirildi — Kontent-meyker o'zi jamoaga qo'shilmaydi", () => {
+  check("Miya → Brend'da brend-buk to'ldirildi — SMM-menejer o'zi jamoaga qo'shilmaydi", () => {
     const b = mk(JSON.stringify({ hired: [], dismissed: [] }));
     brandStore.save(b.id, {} as never, null);
     assert.ok(!crewHas(crewFromData(b), 'kontent'));

@@ -834,7 +834,7 @@ export function createBot(): BotService {
   });
   // Murabbiy: xodimga darslar va test tugmalari, egasiga natija
   setTrainBot({ send: (chat, html, buttons) => sendHtml(chat, html, buttons) });
-  // Kontent-meyker: egasining kanali (bot kanalda admin, «Xabar joylash» huquqi bilan)
+  // SMM-menejer: egasining kanali (bot kanalda admin, «Xabar joylash» huquqi bilan)
   setChannelOutlet({
     async resolve(target) {
       const chat = await tg.getChat(target).catch(() => null);
@@ -853,6 +853,11 @@ export function createBot(): BotService {
     async postVideo(chatId, file, caption) {
       const m = await tg.sendVideo(chatId, { source: file }, { caption, supports_streaming: true });
       return m.message_id;
+    },
+    async postPhotos(chatId, files, caption) {
+      if (files.length === 1) return (await tg.sendPhoto(chatId, { source: files[0] }, { caption })).message_id;
+      const album = files.slice(0, 10).map((f, i) => ({ type: 'photo' as const, media: { source: f }, ...(i === 0 ? { caption } : {}) }));
+      return (await tg.sendMediaGroup(chatId, album))[0].message_id;
     },
   });
 

@@ -18,7 +18,7 @@ export const AdSchema = z.object({
   text: z.string().trim().min(10).max(2000),
   /** Sarlavha (ixtiyoriy, 25 belgigacha tavsiya) */
   headline: z.string().trim().max(80).nullable().optional(),
-  /** Rasm yoki video: «post:<id>» (Instagram posti), «file:<nom>» (panelda yuklangan), «video:<id>» (Kontent-meyker videosi); bo'sh — hali tanlanmagan */
+  /** Rasm yoki video: «post:<id>» (Instagram posti), «file:<nom>» (panelda yuklangan), «video:<id>» (SMM-menejer videosi); bo'sh — hali tanlanmagan */
   image: z.string().trim().max(60).default(''),
 });
 

@@ -1,7 +1,7 @@
 /**
  * Marketolog asboblari: Meta AI'dan so'rash (egasining meta.ai akkaunti — metaAi.ts). Meta AI Instagram va Facebook'ni ichidan
  * ko'radi: raqobatchilar, egasining o'z akkaunti, Reels/video nimani aytadi, kontent g'oyalari. Javoblar kontent-rejaga ham tushadi
- * (content/plan.ts — research.ts orqali); postni Marketolog emas, Kontent-meyker yasaydi (content/tools.ts draft_post).
+ * (content/plan.ts — research.ts orqali); postni Marketolog emas, SMM-menejer yasaydi (content/tools.ts draft_post).
  *
  * Savol fonda ketadi (javob daqiqalab keladi — yordamchining navbatini, jonli qo'ng'iroqni ushlab turmasin): asbob darhol «boshladim»
  * deydi, javob tayyor bo'lgach — Marketolog jurnaliga (panel → Marketolog → Hisobotlar) to'liq va egasining Telegram'iga.

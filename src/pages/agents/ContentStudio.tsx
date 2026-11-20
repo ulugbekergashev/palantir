@@ -1,5 +1,5 @@
 /**
- * Brend-buk (kompaniyaniki: Miya → Brend, hamma xodim o'qiydi — server/company.ts) · Kontent-meyker → Reja · Video.
+ * Brend-buk (kompaniyaniki: Miya → Brend, hamma xodim o'qiydi — server/company.ts) · SMM-menejer → Reja · Video.
  * Brend-buk — qisqa anketa (bo'sh qolsa ham bo'ladi: AI biznes profilidan oladi) → to'liq brend-tizim (BrandBookView.tsx).
  * Reja — brend-buk ustunlari bo'yicha mavzular; har biridan bir tugma bilan post yoki video.
  * Video — AI ssenariy + diktor (Gemini, zaxira — ElevenLabs) serverda; kadrlar shu yerda (brauzerda) chiziladi va mp4 bo'lib yuklab olinadi.
@@ -76,7 +76,7 @@ export function ContentBrandTab(props: Props) {
   if (!brand?.book || editing) {
     return (
       <Panel title={brand?.book ? 'Anketani o\'zgartirish' : 'Brend-buk yaratish'} action={brand?.book ? <button type="button" onClick={() => setEditing(false)} className={ghost}>Bekor</button> : undefined}>
-        <p className="mb-4 text-[13.5px] leading-relaxed text-[#a3a9b5]">Brend-buk — postlar va videolar uchun yagona tizim: mohiyat va va'da, auditoriya, xabarlar, ovoz qoidalari va namunalari, ranglar, ilgaklar, formatlar va video diktori. Butun jamoa shunga tayanadi: Kontent-meyker post va videoda, Marketolog Instagram'da, Targetolog reklamada, Qabulxona mijozlarga javobda. Videolar shu ranglarda chiziladi.</p>
+        <p className="mb-4 text-[13.5px] leading-relaxed text-[#a3a9b5]">Brend-buk — postlar va videolar uchun yagona tizim: mohiyat va va'da, auditoriya, xabarlar, ovoz qoidalari va namunalari, ranglar, ilgaklar, formatlar va video diktori. Butun jamoa shunga tayanadi: SMM-menejer post va videoda, Marketolog Instagram'da, Targetolog reklamada, Qabulxona mijozlarga javobda. Videolar shu ranglarda chiziladi.</p>
         <BrandForm {...props} initial={answers} onDone={() => setEditing(false)} />
       </Panel>
     );
@@ -383,7 +383,7 @@ export function ContentVideoTab({ view, setView, notify }: Props) {
           <p className="text-[13.5px] text-[#fde2b0]"><Palette className="mr-1 inline h-4 w-4" aria-hidden="true" />Video brend-buk ranglarida chiziladi — avval <a href={hrefOf('miya', 'brend')} className="font-semibold underline">Brend-buk</a> yarating.</p>
         ) : (
           <form onSubmit={make} className="space-y-3">
-            <p className="text-[13.5px] leading-relaxed text-[#a3a9b5]">9:16, 20–35 soniya: Kontent-meyker ssenariy yozadi, diktor ({view.voiceBy === 'elevenlabs' ? 'ElevenLabs' : <>brend-bukdagi ovoz — <b className="text-[#e4e3de]">{book.narrator}</b></>}) o'qiydi, video brendingiz uslubida — kinetik matn, so'zma-so'z subtitr, sahna o'tishlari bilan shu kompyuterda mp4 bo'lib yig'iladi.</p>
+            <p className="text-[13.5px] leading-relaxed text-[#a3a9b5]">9:16, 20–35 soniya: SMM-menejer ssenariy yozadi, diktor ({view.voiceBy === 'elevenlabs' ? 'ElevenLabs' : <>brend-bukdagi ovoz — <b className="text-[#e4e3de]">{book.narrator}</b></>}) o'qiydi, video brendingiz uslubida — kinetik matn, so'zma-so'z subtitr, sahna o'tishlari bilan shu kompyuterda mp4 bo'lib yig'iladi.</p>
             {!view.voice && <p className="rounded-xl bg-[#f5b454]/10 p-3 text-[13px] text-[#fde2b0]">Ovoz uchun Gemini kaliti kerak: <a href="#/ulash/keys" className="font-semibold underline">Ulash → Kalitlar</a> → «Gemini kaliti» (aistudio.google.com, bepul ochiladi). Kalitsiz ham ssenariy yoziladi.</p>}
             <div className="flex flex-wrap gap-2">
               <input value={topic} onChange={e => setTopic(e.target.value)} maxLength={600} placeholder="Mavzu: masalan, AI xodim — bu chatbot emas" aria-label="Video mavzusi" className={`${field} min-w-0 flex-1 basis-72`} />

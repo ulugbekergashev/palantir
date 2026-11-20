@@ -484,7 +484,7 @@ export interface AgentEvent {
 }
 
 /**
- * Instagram posti (Kontent-meyker): drawing — AI rasm chizyapti (Meta AI yoki Gemini); draft — egasi tasdiqini kutyapti; failed — joylanmadi (qayta urinsa bo'ladi);
+ * Instagram posti (SMM-menejer): drawing — AI rasm chizyapti (Meta AI yoki Gemini); draft — egasi tasdiqini kutyapti; failed — joylanmadi (qayta urinsa bo'ladi);
  * unknown — Instagram post yaratishni boshlagan, natijasi noma'lum (egasi Instagram'da tekshirib, tasdiq bilan qayta joylaydi)
  */
 export interface MarketingPost {
@@ -496,7 +496,7 @@ export interface MarketingPost {
 export interface PostView extends MarketingPost { warnings: string[]; hasImage: boolean }
 
 /**
- * Kontent-meyker (kontent-zavod): egasining Telegram kanali uchun qoralama. Manbadagi post asosida AI yozadi, egasi tasdiqlasa —
+ * SMM-menejer (kontent-zavod): egasining Telegram kanali uchun qoralama. Manbadagi post asosida AI yozadi, egasi tasdiqlasa —
  * kanalga chiqadi. failed — Telegram rad etdi (qayta joylash mumkin)
  */
 export interface ContentDraft {
@@ -519,6 +519,14 @@ export interface AdPlan {
   countries: string[]; cities: { name: string; key?: string | null; radiusKm?: number }[]; ageMin: number; ageMax: number; genders: (1 | 2)[];
   autoAudience: boolean; welcome?: string | null; ads: { text: string; headline?: string | null; image: string }[]; notes: string[];
 }
+/** SMM-menejer kalendari (server/smm/store.ts): har post — sana, vaqt, kanal, format, matn, slaydlar rasmi */
+export type SmmStatus = 'idea' | 'drawing' | 'ready' | 'approved' | 'publishing' | 'published' | 'failed' | 'handed' | 'cancelled';
+export interface SmmPostView {
+  id: string; day: string; time: string; channel: 'telegram' | 'instagram'; format: 'post' | 'carousel' | 'story'; pillar: string; title: string; angle: string;
+  caption: string; images: string[]; status: SmmStatus; error: string | null; url: string | null;
+}
+export interface SmmView { posts: SmmPostView[]; preparing: boolean; picture: boolean }
+
 export interface AdsView {
   /** mcp — token Meta'ning rasmiy reklama MCP serverini ochadi (Targetolog o'zi tahlil qiladi va yaratadi; yoqish — egasi tugmasi) */
   account: { adAccountId: string; accountName: string; pageId: string; pageName: string; igActorId: string | null; currency: string; tokenSet: boolean; mcp: boolean } | null;

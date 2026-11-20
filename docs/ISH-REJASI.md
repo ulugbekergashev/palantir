@@ -21,7 +21,7 @@ Maqsad: kelasi hafta o'rnatilgan klinika birinchi bemoriga to'g'ri javob bersin 
 | 5 | A12 | Eski javob qoralamalari eskiradi (48 soat) — ertalabki sanoq to'g'ri | K |
 | 6 | A6 | Shikoyat har doim egasiga boradi, nusxa o'chirilgan bo'lsa ham | K |
 | 7 | A3 | Qabulxona olib tashlangan bo'lsa telefon AI qabul yozmaydi (server qismi; to'liq to'xtatish — telefon bosqichida) | K |
-| 8 | A4 | Brend-buk Kontent-meykerni o'zi yollamaydi; brend-buk asbobi Yordamchida | K–O' |
+| 8 | A4 | Brend-buk SMM-menejerni o'zi yollamaydi; brend-buk asbobi Yordamchida | K–O' |
 | 9 | A10, D1, D2 | Olinmagan xodimlar: kamera gapi, jurnal va ko'rsatmada ko'rinmaydi | K |
 | 10 | A13, A14 | Ertalabki xabar qayta yuborilganda Direktor qismi; nazoratda tungi sukut va Telegramsiz biznes | K–O' |
 | 11 | A9 | Direktor faqat topshiriqni o'qiydigan xodimlarga topshiradi (Qabulxona, Yordamchi, Kuzatuvchi, egasi) | K |

@@ -14,7 +14,7 @@ import { PlanSchema, money, type Plan } from './plan';
 import { TargetError, adsStore } from './store';
 import { companyContext } from '../company';
 
-/** Reklamaga tanlasa bo'ladigan rasm va videolar: Kontent-meyker videolari (yig'ilgan, eskirmagan), Instagram postlari (rasmi bor) va panelda yuklanganlar */
+/** Reklamaga tanlasa bo'ladigan rasm va videolar: SMM-menejer videolari (yig'ilgan, eskirmagan), Instagram postlari (rasmi bor) va panelda yuklanganlar */
 export function availableImages(bizId: string): { ref: string; label: string }[] {
   const fromPosts = posts.list(bizId).filter(p => imagePath(`post:${p.id}`, bizId)).slice(0, 12)
     .map(p => ({ ref: `post:${p.id}`, label: `Instagram posti: ${p.caption.replace(/\s+/g, ' ').slice(0, 80)}` }));

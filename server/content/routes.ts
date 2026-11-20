@@ -1,5 +1,5 @@
 /**
- * Panel → Marketing → Kontent-meyker: qoralamalar, manbalar, kanal va uslub. Kanalga chiqarish va kanalni ulash — faqat egasi
+ * Panel → Marketing → SMM-menejer: qoralamalar, manbalar, kanal va uslub. Kanalga chiqarish va kanalni ulash — faqat egasi
  * (uning kanali nomidan); ko'rish, manba qo'shish va qoralama yozdirish — jamoa kirishi ham
  */
 import type { Express, Request, Response } from 'express';
@@ -17,6 +17,7 @@ import { editScenes, makeVideo, videoAudio, videoStore, voiceVideo } from './vid
 import { renderState, startRender, videoMp4 } from './render';
 import { MAX_VIDEO_CAPTION, videoToChannel } from './publish';
 import { voiceProvider } from './speech';
+import { mountSmm } from '../smm/routes';
 import { NARRATORS } from '../../src/lib/narrators';
 
 type Handler = (req: Request, res: Response) => unknown;
@@ -42,13 +43,13 @@ const Scenes = z.array(z.object({ kind: z.enum(['hook', 'point', 'claim', 'sign'
 /** AI ishi (brend-buk, reja, video) bir biznesda bittadan: ikki marta bosilsa ikki marta pul ketmasin */
 const aiBusy = new Set<string>();
 async function once<T>(bizId: string, fn: () => Promise<T>): Promise<T> {
-  if (aiBusy.has(bizId)) throw new ContentError('Kontent-meyker hozir boshqa ishni yozyapti — tugashini kuting');
+  if (aiBusy.has(bizId)) throw new ContentError('SMM-menejer hozir boshqa ishni yozyapti — tugashini kuting');
   aiBusy.add(bizId);
   try { return await fn(); } finally { aiBusy.delete(bizId); }
 }
 
 const WEEK_MS = 7 * 86_400_000;
-/** Instagram postlari (Kontent-meyker): tasdiq kutayotgan, oxirgi 7 kunda chiqqan, rasm chizilayotgani bormi */
+/** Instagram postlari (SMM-menejer): tasdiq kutayotgan, oxirgi 7 kunda chiqqan, rasm chizilayotgani bormi */
 function igCounts(bizId: string): { waiting: number; week: number; drawing: boolean } {
   const list = posts.list(bizId);
   const since = Date.now() - WEEK_MS;
@@ -66,6 +67,8 @@ function failed(res: Response, e: unknown): void {
 }
 
 export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void {
+  // SMM-menejer kalendari (server/smm/routes.ts) — shu xodimniki
+  mountSmm(app, { asBiz, asOwner, bad });
   const view = (biz: BusinessRow) => ({
     settings: contentStore.settings(biz.id), sources: contentStore.sources(biz.id), drafts: contentStore.drafts(biz.id), running: factoryRunning(biz.id),
     brand: brandStore.get(biz.id), plan: planStore.list(biz.id), videos: videoStore.list(biz.id).map(v => ({ ...v, render: renderState(biz.id, v) })), voice: voiceProvider() !== null, voiceBy: voiceProvider(), busy: aiBusy.has(biz.id),
@@ -148,7 +151,7 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
     try { await once(biz.id, () => planDraft(biz, Id(req))); res.json(view(biz)); } catch (e) { failed(res, e); }
   }));
 
-  // Instagram posti: matn yoziladi, rasm fonda chiziladi — qoralama Kontent-meyker → Postlar → Instagram'da va Telegram'da
+  // Instagram posti: matn yoziladi, rasm fonda chiziladi — qoralama SMM-menejer → Postlar → Instagram'da va Telegram'da
   app.post('/api/content/plan/:id/instagram', asBiz(async (req, res, biz) => {
     try { await once(biz.id, () => planInstagram(biz, Id(req))); res.json(view(biz)); } catch (e) { failed(res, e); }
   }));
@@ -174,7 +177,7 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
   app.patch('/api/content/videos/:id', asOwner((req, res, biz) => {
     const p = z.object({ scenes: Scenes }).safeParse(req.body);
     if (!p.success) return bad(res, p.error);
-    if (aiBusy.has(biz.id)) return res.status(409).json({ error: 'Kontent-meyker hozir yozyapti — tugagach tahrirlang' });
+    if (aiBusy.has(biz.id)) return res.status(409).json({ error: 'SMM-menejer hozir yozyapti — tugagach tahrirlang' });
     try { editScenes(biz.id, Id(req), p.data.scenes); res.json(view(biz)); } catch (e) { failed(res, e); }
   }));
 
@@ -213,7 +216,7 @@ export function mountContent(app: Express, { asBiz, asOwner, bad }: Deps): void 
   }));
 
   app.delete('/api/content/videos/:id', asBiz((req, res, biz) => {
-    if (aiBusy.has(biz.id)) return res.status(409).json({ error: "Kontent-meyker hozir yozyapti — tugagach o'chiring" });
+    if (aiBusy.has(biz.id)) return res.status(409).json({ error: "SMM-menejer hozir yozyapti — tugagach o'chiring" });
     videoStore.remove(biz.id, Id(req));
     res.json(view(biz));
   }));

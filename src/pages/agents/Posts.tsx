@@ -1,6 +1,6 @@
 /**
- * Kontent-meyker → Postlar → Instagram: yangi post (egasining surati yoki AI chizadi — Meta AI, bo'lmasa Gemini; matnni o'zi yozadi
- * yoki Kontent-meyker yozib beradi), qoralamalar va joylanganlar. Instagram'ga faqat egasi «Joylash»ni bosganda chiqadi (Telegram
+ * SMM-menejer → Postlar → Instagram: yangi post (egasining surati yoki AI chizadi — Meta AI, bo'lmasa Gemini; matnni o'zi yozadi
+ * yoki SMM-menejer yozib beradi), qoralamalar va joylanganlar. Instagram'ga faqat egasi «Joylash»ni bosganda chiqadi (Telegram
  * kartasida ham shu tugma).
  */
 import { useEffect, useState, type FormEvent } from 'react';
@@ -117,11 +117,11 @@ function NewPost({ picture, notify, onCreated }: { picture: Picture; notify: Not
       <label className="block">
         <span className="mb-1.5 flex items-center justify-between text-[13px] font-semibold text-[#a3a9b5]">Post matni <span className="font-normal tabular-nums text-[#7d838f]">{caption.length}/{MAX_CAPTION}</span></span>
         <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={6} maxLength={MAX_CAPTION} className={field}
-          placeholder="Matnni yozing yoki mavzuni yozib, «Kontent-meyker yozsin»ni bosing" />
+          placeholder="Matnni yozing yoki mavzuni yozib, «SMM-menejer yozsin»ni bosing" />
       </label>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => void write()} disabled={!!busy} className={`${button} border border-glass/10 text-[#c9cbd2] hover:bg-glass/5`}>
-          {busy === 'caption' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wand2 className="h-4 w-4" aria-hidden="true" />} Kontent-meyker yozsin
+          {busy === 'caption' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wand2 className="h-4 w-4" aria-hidden="true" />} SMM-menejer yozsin
         </button>
         <button type="submit" disabled={!ready || !!busy} className={`${button} text-[#07080b]`} style={{ background: HUE.kontent.a }}>
           {busy === 'save' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Qoralama tayyorlash

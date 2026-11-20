@@ -130,7 +130,7 @@ try {
   say(OWNER, `/start ${String(me.status.linkUrl).split('start=')[1]}`);
   await waitFor('egasi', () => toOwner(mark, 'Shifo Dent'));
 
-  // Egasi Marketolog va Kontent-meykerni «+ Xodim qo'shish»da jamoaga oladi (standart jamoa — Direktor va Yordamchi)
+  // Egasi Marketolog va SMM-menejerni «+ Xodim qo'shish»da jamoaga oladi (standart jamoa — Direktor va Yordamchi)
   for (const member of ['marketolog', 'kontent']) await api('/api/crew', { token, body: { member, on: true } });
 
   console.log('\n# Ulash');
@@ -175,7 +175,7 @@ try {
   ok("akkauntlar Instagram'da tekshirildi: ikkitasi bor, Meta AI o'ylab topgani — «yo'q», hisobot boshida va diqqat belgisi bilan", ev2?.[0].body.startsWith("Akkauntlar: 2 tasi Instagram'da bor; Instagram'da yo'q (Meta AI xato aytgan): @soxta_klinika") && ev2[0].level === 'warn', ev2?.[0].body.slice(0, 160));
   ok("Instagram'da faqat profil so'raldi (Direct'ga hech narsa yozilmadi)", igWeb.paths.some(p => p.includes('/api/v1/users/web_profile_info/')) && !igWeb.typed.length);
 
-  console.log('\n# Instagram postlari (Kontent-meyker): qoralama → tasdiq → Instagram');
+  console.log('\n# Instagram postlari (SMM-menejer): qoralama → tasdiq → Instagram');
   mark = sent.length;
   const caption = "Tabassumingiz — bizning g'ururimiz! 😊\nBirinchi konsultatsiya bepul.\nDirect'ga yozing.\n#stomatologiya #toshkent";
   const draft = await api('/api/posts', { token, body: { caption, image: `data:image/png;base64,${TALL_PNG.toString('base64')}` } });
@@ -184,7 +184,7 @@ try {
   const size = jpegSize(Buffer.from(await imgRes.arrayBuffer()));
   ok("rasm Instagram o'lchamiga keltirildi: JPEG, 3:4 surat 4:5 gacha kesildi", imgRes.status === 200 && !!size && size.width / size.height >= 0.8 && size.width <= 1080, JSON.stringify(size));
   const cardOf = (m: number, id: string) => sent.slice(m).find(s => s.method === 'sendPhoto' && Number(s.params.chat_id) === OWNER && JSON.stringify(s.params.reply_markup ?? '').includes(`gp|${id}`));
-  ok("egasiga Telegram'da: rasm, matn va «Instagram'ga joylash» tugmasi — Kontent-meyker nomidan", await waitFor('karta', () => { const c = cardOf(mark, draft.json.post?.id); return c && textOf(c).includes('Birinchi konsultatsiya') && textOf(c).includes('Kontent-meyker') ? c : undefined; }));
+  ok("egasiga Telegram'da: rasm, matn va «Instagram'ga joylash» tugmasi — SMM-menejer nomidan", await waitFor('karta', () => { const c = cardOf(mark, draft.json.post?.id); return c && textOf(c).includes('Birinchi konsultatsiya') && textOf(c).includes('SMM-menejer') ? c : undefined; }));
   ok("hali hech narsa joylanmagan (egasi bosmaguncha)", !igWeb.uploads.length && !igWeb.posted.length);
   const tooMany = await api('/api/posts', { token, body: { caption: Array.from({ length: 31 }, (_, i) => `#teg${i}`).join(' '), image: `data:image/png;base64,${TALL_PNG.toString('base64')}` } });
   ok("31 ta heshteg — rad (Instagram chegarasi)", tooMany.status === 409 && /30 tadan/.test(tooMany.json.error), tooMany.json.error);
@@ -194,14 +194,14 @@ try {
   const cancelled = await api(`/api/posts/${warned.json.post?.id}`, { method: 'DELETE', token });
   ok("qoralama bekor qilindi — ro'yxatdan chiqdi", cancelled.status === 200 && !cancelled.json.posts.some((p: { id: string }) => p.id === warned.json.post?.id));
   const written = await api('/api/posts/caption', { token, body: { topic: "implant bo'yicha bepul konsultatsiya" } });
-  ok("«Kontent-meyker yozsin»: post matni tayyor (egasi tahrir qiladi)", written.status === 200 && String(written.json.caption ?? '').trim().length > 0, String(written.json.caption ?? written.json.error).slice(0, 80));
+  ok("«SMM-menejer yozsin»: post matni tayyor (egasi tahrir qiladi)", written.status === 200 && String(written.json.caption ?? '').trim().length > 0, String(written.json.caption ?? written.json.error).slice(0, 80));
   mark = sent.length;
   const pub = await api(`/api/posts/${draft.json.post?.id}/publish`, { token, body: {} });
   const published = pub.json.posts?.find((p: { id: string }) => p.id === draft.json.post?.id);
   ok("«Instagram'ga joylash»: rasm yuklandi (o'lchami bilan), post matni bilan yaratildi, havolasi bor", pub.status === 200 && published?.status === 'published' && published.url === 'https://www.instagram.com/p/POST1/'
     && igWeb.uploads.length === 1 && Number(igWeb.uploads[0].params.upload_media_width) === size?.width && igWeb.posted[0]?.caption === caption, JSON.stringify(pub.json).slice(0, 200));
   const timeline = (await api('/api/team/day', { token })).json.timeline as { member: string; title: string }[] | undefined;
-  ok("egasiga «joylandi»; «Bugun jamoa» lentasida — Kontent-meyker nomidan (Marketolog tadqiqotlariga aralashmaydi)", await waitFor('joylandi', () => toOwner(mark, "Instagram'ga joylandi"))
+  ok("egasiga «joylandi»; «Bugun jamoa» lentasida — SMM-menejer nomidan (Marketolog tadqiqotlariga aralashmaydi)", await waitFor('joylandi', () => toOwner(mark, "Instagram'ga joylandi"))
     && timeline?.some(e => e.member === 'kontent' && e.title.startsWith("Instagram'ga joylandi")) && !(await reports(token)).some(e => e.title.startsWith("Instagram'ga joylandi")), JSON.stringify(timeline?.slice(0, 3)));
   const again = await api(`/api/posts/${draft.json.post?.id}/publish`, { token, body: {} });
   ok("ikkinchi bosish — ikki marta joylanmaydi", again.status === 409 && igWeb.posted.length === 1, again.json.error);
@@ -228,7 +228,7 @@ try {
   const confirmed = await api(`/api/posts/${second.id}/publish`, { token, body: { confirm: true } });
   ok("egasi tekshirib tasdiqladi — joylandi", confirmed.status === 200 && confirmed.json.posts.find((x: { id: string }) => x.id === second.id)?.status === 'published' && igWeb.posted.at(-1)?.caption === 'Tuzatilgan matn #toshkent');
 
-  // Kontent-meyker o'zi tayyorlaydi (Yordamchi orqali): matnni yozadi, rasmni Meta AI chizadi (fonda) → Telegram kartasi → egasi bosadi
+  // SMM-menejer o'zi tayyorlaydi (Yordamchi orqali): matnni yozadi, rasmni Meta AI chizadi (fonda) → Telegram kartasi → egasi bosadi
   mark = sent.length;
   ownerCalls('draft_post', { caption: "Yangi tishlar — yangi kayfiyat ✨\nImplant bo'yicha bepul maslahat.\n#implant #toshkent", image_description: "yorug' stomatologiya kabineti, shifokor bemorga tabassum bilan tushuntiryapti, oq va havorang" });
   await api('/api/chat', { token, body: { text: "Ertaga uchun implant haqida post tayyorla" } });
@@ -282,7 +282,7 @@ try {
   ownerAsks('Kontent g\'oyalari: 7 kunlik reja', 'kontent', 4);
   await api('/api/chat', { token, body: { text: "To'rtta narsani so'ra" } });
   ok("navbatda 3 tadan ko'p savol turmaydi — to'rtinchisiga «navbatda» deyiladi", seenResults.some(t => t.includes('navbatda')));
-  // Jurnalda faqat tadqiqotlar (Instagram'ga joylash — Kontent-meyker yozuvi): 2 + 3 ta savol
+  // Jurnalda faqat tadqiqotlar (Instagram'ga joylash — SMM-menejer yozuvi): 2 + 3 ta savol
   await reportCount(token, 5);
   meta.delay = 0;
   ok("uchta savol meta.ai'ga ketdi", meta.asked.length - before === 3, String(meta.asked.length - before));

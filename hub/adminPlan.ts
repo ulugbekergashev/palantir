@@ -11,7 +11,7 @@ const PLAN_MODULES = [
   ['tahlilchi', 'Tahlilchi', 'hisobotlar va raqamlar'],
   ['kuzatuvchi', 'Kuzatuvchi', 'kameralar'],
   ['marketolog', 'Marketolog', 'bozor tahlili (Meta AI)'],
-  ['kontent', 'Kontent-meyker', 'postlar va video'],
+  ['kontent', 'SMM-menejer', 'postlar va video'],
   ['target', 'Targetolog', 'reklama kampaniyalari'],
   ['rekruter', 'Rekruter', 'vakansiya va nomzodlar'],
   ['murabbiy', 'Murabbiy', "xodimlarni o'qitish"],

@@ -25,7 +25,7 @@ const WHERE: Record<AttentionItem['kind'], (i: AttentionItem) => string> = {
   task: () => hrefOf('yordamchi', 'jurnal'),
   content: () => hrefOf('marketolog', 'postlar'),
   ads: () => hrefOf('marketolog', 'kampaniyalar'),
-  // Kontent-meyker va Targetolog — Marketing bo'limida, o'z topshiriqlar varag'i bilan
+  // SMM-menejer va Targetolog — Marketing bo'limida, o'z topshiriqlar varag'i bilan
   order: i => (i.member === 'kontent' ? hrefOf('marketolog', 'kontent-topshiriqlar') : i.member === 'target' ? hrefOf('marketolog', 'reklama-topshiriqlar') : hrefOf(i.member as Area, 'topshiriqlar')),
 };
 const tomorrow9 = () => `${iso(addDays(new Date(), 1))}T09:00`;

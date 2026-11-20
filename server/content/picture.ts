@@ -1,5 +1,5 @@
 /**
- * Post rasmi — bitta joydan (Kontent-meyker). Kim chizadi:
+ * Post rasmi — bitta joydan (SMM-menejer). Kim chizadi:
  *   Meta AI — egasining meta.ai akkaunti ulangan va bugungi chegara tugamagan bo'lsa (bepul, lekin daqiqalab chizadi, Marketolog
  *             savollari bilan bitta kunlik chegara);
  *   Gemini  — aks holda, kalit bo'lsa (tez, ~5 sent, brend ranglarida);

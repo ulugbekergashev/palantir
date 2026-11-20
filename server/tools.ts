@@ -41,6 +41,7 @@ import { DEV_DEFS } from './dev/tools';
 import { devEnabled } from './dev/projects';
 import { MARKETING_DEFS, marketingEnabled } from './marketing/tools';
 import { BRAND_DEFS, CONTENT_DEFS } from './content/tools';
+import { SMM_DEFS } from './smm/tools';
 import { ADS_DEFS } from './ads/tools';
 import { NUMBER_DEFS } from './numbersTools';
 import { ToolError, assertOwnNumbers, assertOwnWords, def, markStrangers, type ToolCtx, type ToolDef } from './toolkit';
@@ -436,7 +437,10 @@ const isCrmTool = (name: string) => Object.hasOwn(CRM_DEFS, name);
 export type ToolGroup = 'base' | 'qabulxona' | 'kontent' | 'target' | 'marketolog' | 'kuzatuvchi' | 'rekruter' | 'murabbiy';
 const SPECIALISTS = ['qabulxona', 'kontent', 'target', 'marketolog', 'kuzatuvchi', 'rekruter', 'murabbiy'] as const;
 type Specialist = (typeof SPECIALISTS)[number];
-const GROUP_DEFS: Record<Specialist, Record<string, ToolDef<z.ZodType>>> = { qabulxona: QABULXONA_DEFS, kontent: CONTENT_DEFS, target: ADS_DEFS, marketolog: MARKETING_DEFS, kuzatuvchi: CAMERA_DEFS, rekruter: HR_DEFS, murabbiy: TRAIN_DEFS };
+/** SMM-menejer (kontent): kalendar va dizayn — eski «content_plan» (sanasiz ro'yxat) o'rniga smm_calendar (bir ishga ikki reja bo'lmasin) */
+const { content_plan: _oldPlan, ...CONTENT_TOOLS } = CONTENT_DEFS;
+const KONTENT_DEFS = { ...CONTENT_TOOLS, ...SMM_DEFS };
+const GROUP_DEFS: Record<Specialist, Record<string, ToolDef<z.ZodType>>> = { qabulxona: QABULXONA_DEFS, kontent: KONTENT_DEFS, target: ADS_DEFS, marketolog: MARKETING_DEFS, kuzatuvchi: CAMERA_DEFS, rekruter: HR_DEFS, murabbiy: TRAIN_DEFS };
 /** Boshqa guruhda turgan, lekin mutaxassisning ishi bo'lgan asboblar: kameralar va CRM taqqoslashi (klinika asboblari orasida) — Kuzatuvchiniki */
 const OWNED_ELSEWHERE: Record<string, Specialist> = { clinic_cameras: 'kuzatuvchi' };
 /** Asbob kimniki (faqat mutaxassislar; base asboblari — hammaniki) */
@@ -453,7 +457,7 @@ export function ownerToolDefs(crm: boolean, groups: ToolGroup[] = ['base', ...SP
   const on = (g: ToolGroup) => groups.includes(g);
   return Object.entries({
     ...(on('base') ? { ...BASE_DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS, ...WORK_DEFS } : {}), ...(on('qabulxona') ? QABULXONA_DEFS : {}),
-    ...(on('kuzatuvchi') ? CAMERA_DEFS : {}), ...(on('kontent') ? CONTENT_DEFS : {}), ...(on('base') || on('kontent') ? BRAND_DEFS : {}), ...(on('target') ? ADS_DEFS : {}), ...(on('rekruter') ? HR_DEFS : {}), ...(on('murabbiy') ? TRAIN_DEFS : {}),
+    ...(on('kuzatuvchi') ? CAMERA_DEFS : {}), ...(on('kontent') ? KONTENT_DEFS : {}), ...(on('base') || on('kontent') ? BRAND_DEFS : {}), ...(on('target') ? ADS_DEFS : {}), ...(on('rekruter') ? HR_DEFS : {}), ...(on('murabbiy') ? TRAIN_DEFS : {}),
     ...(on('base') && computer ? COMPUTER_DEFS : {}), ...(on('base') && devEnabled() ? DEV_DEFS : {}), ...(on('marketolog') && marketingEnabled() ? MARKETING_DEFS : {}), ...(on('base') && crm ? Object.fromEntries(Object.entries(CRM_DEFS).filter(([n]) => !OWNED_ELSEWHERE[n] || on(OWNED_ELSEWHERE[n]))) : {}),
   }) as [string, ToolDef<z.ZodType>][];
 }
@@ -509,7 +513,7 @@ function deferTool(name: string, input: unknown, ctx: ToolCtx, e: PausedError): 
 export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promise<ToolOutcome> {
   // Klinika asboblari faqat DentaCRM ulangan biznesda ishlaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin)
   if (isCrmTool(name) && !crmConnected(ctx.biz.id)) return { content: "DentaCRM ulanmagan — egasi panel → Ulanishlar'da ulashi kerak", isError: true };
-  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS, ...WORK_DEFS, ...HR_DEFS, ...TRAIN_DEFS, ...CAMERA_DEFS, ...CONTENT_DEFS, ...BRAND_DEFS, ...ADS_DEFS, ...COMPUTER_DEFS, ...(devEnabled() ? DEV_DEFS : {}), ...MARKETING_DEFS, ...CRM_DEFS };
+  const all: Record<string, ToolDef<z.ZodType>> = { ...DEFS, ...NUMBER_DEFS, ...REQUEST_DEFS, ...WORK_DEFS, ...HR_DEFS, ...TRAIN_DEFS, ...CAMERA_DEFS, ...KONTENT_DEFS, ...BRAND_DEFS, ...ADS_DEFS, ...COMPUTER_DEFS, ...(devEnabled() ? DEV_DEFS : {}), ...MARKETING_DEFS, ...CRM_DEFS };
   const d = Object.hasOwn(all, name) ? all[name] : undefined;
   if (!d) return { content: `Noma'lum asbob: ${name}`, isError: true };
   // Mutaxassis jamoada emas — uning ishi qilinmaydi (ro'yxatda bo'lmasa ham chaqirilishi mumkin: eski suhbat, obuna)

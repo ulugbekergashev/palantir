@@ -19,7 +19,7 @@ export interface Upcoming { id: string; name: string; role: string; about: strin
 
 /**
  * Tez kunda keladiganlar. Ishdagi xodimning ishini takrorlaydigani qo'shilmaydi (B9): haftalik xulosa — Direktor va Tahlilchida,
- * video — Kontent-meykerda, unutilgan mijozlarni qaytarish — Qabulxonada, kassa — Kuzatuvchida, xodimlar ishi — Tahlilchining «Jamoa»sida.
+ * video — SMM-menejerda, unutilgan mijozlarni qaytarish — Qabulxonada, kassa — Kuzatuvchida, xodimlar ishi — Tahlilchining «Jamoa»sida.
  */
 export const UPCOMING: Upcoming[] = [
   { id: 'sotuvchi', department: 'sotuv', name: 'Sotuvchi', role: 'Sotuv · yangi mijozlar', icon: Handshake,

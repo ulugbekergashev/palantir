@@ -118,7 +118,7 @@ try {
   ok("B1: asosiy xodimni olib tashlab bo'lmaydi — AI administrator kartasida «Olib tashlash» yo'q, Direktorda bor", await page.getByRole('article', { name: 'AI administrator' }).getByRole('button', { name: 'Olib tashlash' }).count() === 0
     && await page.getByRole('article', { name: 'Direktor' }).getByRole('button', { name: 'Olib tashlash' }).count() === 1);
   await shot('02b-xodimlar', true);
-  for (const name of ['Kuzatuvchi', 'Tahlilchi', 'Marketolog', 'Kontent-meyker', 'Targetolog']) {
+  for (const name of ['Kuzatuvchi', 'Tahlilchi', 'Marketolog', 'SMM-menejer', 'Targetolog']) {
     const card = page.getByRole('article', { name, exact: true });
     await card.getByRole('button', { name: 'Ishga olish' }).click();
     await card.getByText('Jamoada').waitFor({ timeout: 8000 });
@@ -146,8 +146,8 @@ try {
     && !(await page.getByRole('heading', { name: 'Bugungi jurnal' }).isVisible()) && !(await page.getByText("Bugun hali yozuv yo'q").isVisible()));
   ok("birinchi kun: sozlanmagan xodim kartasida bitta keyingi qadam — to'g'ri ulash sahifasiga",
     await cardOf('Marketolog').getByText('Meta AI’ga kirish').isVisible() && (await cardOf('Marketolog').getAttribute('href'))?.endsWith('#/marketolog/ulash'));
-  ok("ishga olingan Kontent-meyker va Kuzatuvchi bosh ekranda — birinchi qadami bilan (joylaydigan joyni ulash, kamerani ulash)",
-    await cardOf('Kontent-meyker').getByText('Kanalingizni ulash').isVisible() && await cardOf('Kuzatuvchi').getByText('Kamerani ulash').isVisible() && items.includes('Kuzatuvchi'));
+  ok("ishga olingan SMM-menejer va Kuzatuvchi bosh ekranda — birinchi qadami bilan (joylaydigan joyni ulash, kamerani ulash)",
+    await cardOf('SMM-menejer').getByText('Kanalingizni ulash').isVisible() && await cardOf('Kuzatuvchi').getByText('Kamerani ulash').isVisible() && items.includes('Kuzatuvchi'));
   ok("birinchi kun: savdo sohasida Tahlilchi DentaCRM so'ramaydi", !(await cardOf('Tahlilchi').getByText('DentaCRM’ni ulash').count()));
   await shot('02a-home', true);
 
@@ -377,15 +377,15 @@ try {
   await shot('12b2-natijalar', true);
   await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Marketolog' }).click();
   await shot('12b-marketolog', true);
-  await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Kontent-meyker' }).click();
+  await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'SMM-menejer' }).click();
   // Instagram ulangan, Telegram kanal — yo'q: «Postlar» Instagram'dan ochiladi; shapkada ikkalasi bo'yicha raqamlar
-  ok("Marketing → Kontent-meyker: Postlar (kanal ulanmagan, Instagram ulangan — Instagram ochiladi), Kanallar; Brend-buk varag'i yo'q (Miya'da)", await visible(page.getByRole('heading', { name: 'Kontent-meyker' })) && await tabOn('Brend-buk').count() === 0
+  ok("Marketing → SMM-menejer: Postlar (kanal ulanmagan, Instagram ulangan — Instagram ochiladi), Kanallar; Brend-buk varag'i yo'q (Miya'da)", await visible(page.getByRole('heading', { name: 'SMM-menejer' })) && await tabOn('Brend-buk').count() === 0
     && await tabOn('Postlar').isVisible() && await tabOn('Kanallar').isVisible() && await visible(page.getByRole('heading', { name: 'Yangi Instagram posti' }))
     && await visible(page.getByRole('radio', { name: 'Gemini chizsin' })) && !(await page.getByText('@@').count()) && page.url().endsWith('#/marketolog/postlar'));
   await page.locator('nav[aria-label="Qayerga"]').getByRole('link', { name: /Telegram kanal/ }).click();
   ok("almashtirgich: «Telegram kanal» — kontent-zavod va «kanal ulanmagan» yo'llanmasi", await visible(page.getByRole('button', { name: 'Yangi qoralamalar' }))
     && await page.getByText('Kanalingiz hali ulanmagan').isVisible() && page.url().endsWith('#/marketolog/telegram'));
-  await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Kontent-meyker' }).click();
+  await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'SMM-menejer' }).click();
   await shot('12c-kontent', true);
   await page.getByRole('navigation', { name: "Marketing bo'limi" }).getByRole('link', { name: 'Targetolog' }).click();
   ok("Marketing → Targetolog: kabinet ulanmagan — ogohlantirish, «Reja tuzsin» va varaqlar", await visible(page.getByRole('heading', { name: 'Targetolog' }))

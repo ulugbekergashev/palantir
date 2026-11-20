@@ -1,6 +1,6 @@
 /**
  * Marketolog tadqiqotlari — Meta AI javoblari (jurnalda: panel → Marketolog → Hisobotlar). Kontent-reja tuzilganda oxirgilari
- * qo'shiladi (content/plan.ts): Marketolog bozorni o'rganadi, Kontent-meyker shundan mavzu oladi — ikki alohida reja yo'q.
+ * qo'shiladi (content/plan.ts): Marketolog bozorni o'rganadi, SMM-menejer shundan mavzu oladi — ikki alohida reja yo'q.
  * Meta AI xato qilishi mumkin: reja uchun g'oya, fakt emas.
  */
 import { events } from '../orders/store';

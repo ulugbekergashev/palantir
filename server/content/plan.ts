@@ -131,7 +131,7 @@ export async function planDraft(biz: BusinessRow, id: string, write?: Parameters
 }
 
 /**
- * Rejadagi mavzudan Instagram posti: Kontent-meyker matn va rasm tavsifini yozadi, rasmni AI chizadi (fonda) — qoralama egasining
+ * Rejadagi mavzudan Instagram posti: SMM-menejer matn va rasm tavsifini yozadi, rasmni AI chizadi (fonda) — qoralama egasining
  * Telegram'iga «Instagram'ga joylash» tugmasi bilan boradi. Rasm chizadigan xizmat yo'q bo'lsa — AI'ga pul sarflanmasdan oldin to'xtaydi
  */
 export async function planInstagram(biz: BusinessRow, id: string): Promise<MarketingPost> {

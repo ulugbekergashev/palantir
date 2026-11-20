@@ -115,7 +115,7 @@ const ROLE: Record<CrewMember, string> = {
   kuzatuvchi: 'watches the cameras (camera_day, look_camera)',
   tahlilchi: 'numbers and reports',
   marketolog: "market research through the owner's Meta AI (meta_ai): competitors, the business's Instagram, what works",
-  kontent: 'makes all content: Telegram channel posts, Instagram posts with a picture, the content plan, short videos (in the brand book voice)',
+  kontent: "the SMM manager: a dated content calendar (smm_calendar), posts, carousels and stories designed on the brand's templates (smm_prepare, smm_design) that go out by themselves at their time after the owner approves, Telegram channel posts, short videos (in the brand book voice)",
   target: "runs Meta ads: reads past results, builds campaigns with creative variants, pauses what wastes money; money is spent only after the owner taps the approval button, within the spend limits",
   rekruter: 'hiring: writes vacancies with screening questions (vacancy_create), candidates answer in the bot and come to the owner scored (vacancy_list)',
   murabbiy: 'trains staff: a short course from the business knowledge with quiz buttons in Telegram, result to the owner (training_start, training_list)',

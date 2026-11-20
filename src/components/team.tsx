@@ -19,7 +19,7 @@ export type Member = CrewMember;
 
 /**
  * Bo'limlar — «AI xodimlar» sahifasida xodimlar shu tartibda guruhlanadi (ishdagilari ham, tez kunda keladiganlari ham).
- * Yangi xodim — o'z bo'limiga, va bitta ishni ikki xodim qilmasin (masalan, video — Kontent-meykerning ishi, alohida xodim emas)
+ * Yangi xodim — o'z bo'limiga, va bitta ishni ikki xodim qilmasin (masalan, video — SMM-menejerning ishi, alohida xodim emas)
  */
 export type Department = 'boshqaruv' | 'sotuv' | 'marketing' | 'sifat' | 'hr' | 'moliya' | 'taminot' | 'huquq';
 export const DEPARTMENTS: Record<Department, { name: string; about: string }> = {
@@ -41,7 +41,7 @@ export const TEAM: Record<Member, { name: string; role: string; about: string; i
   tahlilchi: { name: 'Tahlilchi', role: 'Raqamlar', icon: ChartLine, department: 'boshqaruv', about: "Murojaatlar, so'rovlar va natija (CRM ulangan bo'lsa — qabul va tushum ham) — kun, 7 kun, 30 kun yoki o'zingiz tanlagan davr; har dushanba o'tgan hafta qaysi kanal va xizmat pul keltirganini hisoblaydi, mijozlar nimani so'rayotganini o'zi guruhlaydi va Direktorga beradi, so'rasangiz — chuqur tahlil (Kashfiyotlar)." },
   marketolog: { name: 'Marketolog', role: 'Bozor · raqobatchilar', icon: Megaphone, department: 'marketing', about: "Meta AI orqali raqobatchilarni, akkauntingizni va sohangizda nima ishlayotganini o'rganadi, joylangan postlar natijasini o'lchaydi; topilmalari kontent-rejaga tushadi." },
   target: { name: 'Targetolog', role: 'Meta reklama · Facebook va Instagram', icon: Target, department: 'marketing', about: "Topshirig'ingizdan reklama kampaniyasini tuzadi, siz tasdiqlasangiz — Meta'da ishga tushiradi; sarfni kuzatadi va limitga yetsa o'zi to'xtatadi." },
-  kontent: { name: 'Kontent-meyker', role: 'Telegram · Instagram · video', icon: PenLine, department: 'marketing', about: "Kontent-reja tuzadi; Telegram kanali va Instagram uchun post (rasmi bilan) va qisqa video tayyorlaydi; siz tasdiqlagach joylaydi." },
+  kontent: { name: 'SMM-menejer', role: 'Telegram · Instagram · video', icon: PenLine, department: 'marketing', about: "Kontent-reja tuzadi; Telegram kanali va Instagram uchun post (rasmi bilan) va qisqa video tayyorlaydi; siz tasdiqlagach joylaydi." },
   rekruter: { name: 'Rekruter', role: 'HR · ishga olish', icon: UserSearch, department: 'hr', about: "Vakansiya matni va nomzodga savollar yozadi; nomzodlar botdagi havola orqali savollarga javob beradi, u ularni baholab eng mosini sizga yuboradi. Nomzodga javob — faqat siz tugmani bosganda." },
   murabbiy: { name: 'Murabbiy', role: "HR · o'rgatish", icon: GraduationCap, department: 'hr', about: "Yangi xodimni klinikaning o'z bilimidan o'rgatadi: narxlar, qoidalar, savol-javoblar — Telegram'da qisqa darslar va test tugmalari; oxirida sizga natija va qaysi mavzuda xato qilgani." },
 };
@@ -49,7 +49,7 @@ export const MEMBERS: Member[] = [...CREW];
 export { isCore };
 
 /**
- * Bo'limlar: pastki panelda (telefonda 7 tugma sig'adi) bo'lim bitta tugma, ichida xodimlari. Marketing — Marketolog, Kontent-meyker va Targetolog; HR — Rekruter va Murabbiy.
+ * Bo'limlar: pastki panelda (telefonda 7 tugma sig'adi) bo'lim bitta tugma, ichida xodimlari. Marketing — Marketolog, SMM-menejer va Targetolog; HR — Rekruter va Murabbiy.
  * DEPARTMENT_OF — bo'lim ichidagi xodim (o'z tugmasi yo'q) qaysi bo'limda va qaysi varaqdan ochiladi
  */
 export const DEPARTMENT_OF: Partial<Record<Member, { area: Area; tab: string }>> = {
@@ -99,7 +99,7 @@ function adsState(v: AdsView | null): MemberState {
 }
 
 /**
- * Kontent-meyker: qayerga joylaydi (Telegram kanal, Instagram), nechta post tasdiq kutyapti (nishon — ikkalasi birga).
+ * SMM-menejer: qayerga joylaydi (Telegram kanal, Instagram), nechta post tasdiq kutyapti (nishon — ikkalasi birga).
  * Keyingi qadam: joylaydigan joy yo'q — ulash; bor, lekin reja yo'q — reja tuzish
  */
 function contentState(c: ContentView | null, instagram: string | null): MemberState {
@@ -160,7 +160,7 @@ export function useTeam(status: LiveStatus, tick = 0, clinic = false, replyMode:
     let stale = false;
     const load = async () => {
       const today = iso(new Date());
-      // Kontent-meyker holati boshqalari bilan parallel
+      // SMM-menejer holati boshqalari bilan parallel
       const contentP = api.content().catch(() => null);
       const adsP = api.ads().catch(() => null);
       const directorP = api.director().catch(() => null);

@@ -22,6 +22,7 @@ import { APPROVE_CODE, REJECT_CODE, approvalKeyboard, decideApproval } from './p
 import { cancelPost, posts, publishPost } from './marketing/posts';
 import { ContentError, cancelDraft, publishDraft } from './content/factory';
 import { TargetError, cancel as cancelCampaign, launch as launchCampaign, pause as pauseCampaign } from './ads/campaigns';
+import { approve as approveSmm, approveRange as approveSmmRange, reject as rejectSmm } from './smm/prepare';
 import { approveAction as approveMcpAction, cancelAction as cancelMcpAction, pauseTrackedByOwner } from './ads/mcp';
 import { askOutcome, DAY_OUTCOME, dropOutcome, wantsOutcome } from './outcome';
 import { actorOf } from './requests/index';
@@ -275,6 +276,28 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
         }
       });
       return;
+    }
+
+    // SMM-menejer: post tasdiqlash (vaqti kelganda o'zi chiqadi), kerak emas, oraliqdagi hamma tayyorlarini tasdiqlash
+    if (code === 'sa' || code === 'sx' || code === 'sw') {
+      let said: string;
+      try {
+        if (code === 'sw') {
+          // Tugma yuborilgan paytgacha tayyorlanganlar (keyin qayta tayyorlangani — egasi ko'rmagan, tasdiqlanmaydi)
+          const [from = '', to = '', at = ''] = id.split('_');
+          const before = Number.parseInt(at, 36) * 1000;
+          const n = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && before > 0 ? approveSmmRange(biz, from, to, { before }) : 0;
+          said = n ? `${n} ta post tasdiqlandi ✅ — vaqtida o'zi chiqadi` : 'Tasdiqlanadigan post qolmadi';
+        } else {
+          // Karta mazmunga bog'langan: post qayta tayyorlangan bo'lsa — eski karta tasdiqlamaydi
+          const ok = code === 'sa' ? approveSmm(biz, id, data.split('|')[2] ?? '') : rejectSmm(biz, id);
+          said = ok ? (code === 'sa' ? "Tasdiqlandi ✅ — vaqtida o'zi chiqadi" : 'Olib tashlandi') : 'Bu karta eskirgan: post tasdiqlangan, chiqqan, olib tashlangan yoki qayta tayyorlangan (yangisi — panelda)';
+        }
+      } catch (e) {
+        return toast(ctx, (e as Error).message, { show_alert: true });
+      }
+      await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      return toast(ctx, said);
     }
 
     // Targetolog Meta MCP orqali: pul sarflaydigan amalni egasi tasdiqlaydi (fonda — Meta bir necha so'rov), bekor qiladi; yoqilganini to'xtatadi

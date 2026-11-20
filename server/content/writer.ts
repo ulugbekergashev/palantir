@@ -1,5 +1,5 @@
 /**
- * Kontent-meyker yozuvchisi — hamma post shu yerda yoziladi: Telegram kanali (manba postlaridan yoki mavzudan) va Instagram posti
+ * SMM-menejer yozuvchisi — hamma post shu yerda yoziladi: Telegram kanali (manba postlaridan yoki mavzudan) va Instagram posti
  * (matn va rasm tavsifi). Kanal kimga va nima haqida — biznesdan (server/company.ts: soha, «Biznes haqida», xizmatlar,
  * brend-buk), qotirilgan mavzu yo'q: klinika kanali bemorlar uchun yoziladi.
  * Telegram posti: ilgak → fakt (faqat manbadan) → halol izoh → «siz uchun nima degani» → manba.
@@ -167,5 +167,5 @@ export async function writeInstagram(biz: BusinessRow, topic: string, o: { pictu
   return out;
 }
 
-/** Faqat Instagram matni (panel: «Kontent-meyker yozsin») — egasi tahrir qiladi */
+/** Faqat Instagram matni (panel: «SMM-menejer yozsin») — egasi tahrir qiladi */
 export const writeCaption = async (biz: BusinessRow, topic: string): Promise<string> => (await writeInstagram(biz, topic)).caption;

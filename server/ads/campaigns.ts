@@ -36,7 +36,7 @@ export const uploadDir = (bizId: string) => join(env.dataDir, 'reklama', bizId.r
 const FILE = /^[a-z0-9]{8,24}\.jpg$/;
 const ID = /^[A-Za-z0-9_-]{6,20}$/;
 /**
- * Rasm: «post:<id>» — shu biznesning Instagram posti rasmi; «file:<nom>» — shu biznes panelda yuklagani; «video:<id>» — Kontent-meyker
+ * Rasm: «post:<id>» — shu biznesning Instagram posti rasmi; «file:<nom>» — shu biznes panelda yuklagani; «video:<id>» — SMM-menejer
  * videosining muqovasi (reklamada videoning o'zi, videoFile). Yo'l tashqariga va boshqa biznesga chiqmaydi
  */
 export function imagePath(ref: string, bizId: string): string | null {

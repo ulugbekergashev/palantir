@@ -1,10 +1,10 @@
 /**
- * Instagram postlari (Kontent-meyker — u Telegram kanal postini ham, videoni ham yasaydi): qoralama → egasi tasdiqlaydi → Instagram'ga
+ * Instagram postlari (SMM-menejer — u Telegram kanal postini ham, videoni ham yasaydi): qoralama → egasi tasdiqlaydi → Instagram'ga
  * joylanadi. Egasi «Joylash»ni bosmaguncha hech narsa chiqmaydi.
  *   rasm  — egasining surati (panel) yoki AI chizgani (content/picture.ts: Meta AI, bo'lmasa Gemini; fonda); Instagram o'lchamiga
  *           keltiriladi (image.ts);
- *   matn  — egasi yozadi yoki Kontent-meyker yozib beradi (content/writer.ts); reklama filtri (klinikada) ogohlantiradi;
- *   tasdiq — Telegram'da rasm va matn bilan karta («📤 Instagram'ga joylash» / «✖️ Bekor») yoki panel → Kontent-meyker → Postlar.
+ *   matn  — egasi yozadi yoki SMM-menejer yozib beradi (content/writer.ts); reklama filtri (klinikada) ogohlantiradi;
+ *   tasdiq — Telegram'da rasm va matn bilan karta («📤 Instagram'ga joylash» / «✖️ Bekor») yoki panel → SMM-menejer → Postlar.
  *            Kartadagi tugma o'sha matnga bog'langan: panelda matn o'zgarsa — eski karta ishlamaydi, yangisi yuboriladi;
  *   joylash — egasining Instagram'i brauzer orqali (inbox/instagram.ts publishInstagramPhoto), kuniga cheklangan.
  * Natija noma'lum bo'lsa (Instagram post yaratishni boshladi, javob kelmadi yoki server shu payt to'xtadi) — «unknown»: avtomatik
@@ -44,7 +44,7 @@ const CARD_CAPTION = 450;
 const DIR = join(env.dataDir, 'postlar');
 const PAGE = 40;
 /** Panel yo'li (Telegram xabarlarida) */
-const WHERE = 'panel → Marketing → Kontent-meyker → Postlar';
+const WHERE = 'panel → Marketing → SMM-menejer → Postlar';
 const BY: Partial<Record<MarketingPost['source'], string>> = { meta_ai: 'Meta AI', gemini: 'Gemini' };
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -89,7 +89,7 @@ export function cleanCaption(caption: string): string {
 async function card(biz: BusinessRow, p: MarketingPost): Promise<void> {
   const warn = captionWarnings(biz, p.caption).slice(0, 2).map(w => w.slice(0, 90));
   const text = p.caption.length > CARD_CAPTION ? `${p.caption.slice(0, CARD_CAPTION)}…` : p.caption;
-  const html = `📸 <b>Kontent-meyker: Instagram posti tayyor</b>${BY[p.source] ? ` (rasm — ${BY[p.source]})` : ''}\n\n${esc(text)}${warn.length ? `\n\n⚠️ ${esc(warn.join('; '))}` : ''}\n\n<i>Joylashdan oldin tekshiring. Matnni o'zgartirish — ${WHERE}</i>`;
+  const html = `📸 <b>SMM-menejer: Instagram posti tayyor</b>${BY[p.source] ? ` (rasm — ${BY[p.source]})` : ''}\n\n${esc(text)}${warn.length ? `\n\n⚠️ ${esc(warn.join('; '))}` : ''}\n\n<i>Joylashdan oldin tekshiring. Matnni o'zgartirish — ${WHERE}</i>`;
   const keyboard = { inline_keyboard: [[{ text: "📤 Instagram'ga joylash", callback_data: `gp|${p.id}|${captionMark(p.caption)}` }, { text: '✖️ Bekor', callback_data: `gx|${p.id}` }]] };
   try {
     await notifyOwnerPhoto(biz, imagePath(p.id), html, keyboard);
@@ -113,7 +113,7 @@ export async function createDraft(biz: BusinessRow, o: { caption: string; image:
 }
 
 /** Rasm chizadigan xizmat yo'q — egasiga nima qilish kerakligi */
-export const NO_PICTURE = "Rasm chizadigan xizmat ulanmagan — Kontent-meyker → Kanal'da Meta AI'ni ulang yoki o'z suratingizni qo'shing";
+export const NO_PICTURE = "Rasm chizadigan xizmat ulanmagan — SMM-menejer → Kanal'da Meta AI'ni ulang yoki o'z suratingizni qo'shing";
 
 /**
  * AI chizadigan rasmli qoralama — fonda (Meta AI daqiqalab chizadi). Darhol «chizilmoqda» yozuvi panelda ko'rinadi; tayyor bo'lgach —
@@ -132,7 +132,7 @@ export function draftWithPicture(biz: BusinessRow, caption: string, description:
       const why = known ? (e as Error).message : 'ichki xato';
       if (!known) console.error('[postlar] rasm:', e);
       posts.move(biz.id, id, ['drawing'], 'failed', { error: `Rasm chizilmadi: ${why}` });
-      await notifyOwner(biz, `⚠️ <b>Kontent-meyker</b>: Instagram posti uchun rasm chizilmadi — ${esc(why)}`).catch(() => {});
+      await notifyOwner(biz, `⚠️ <b>SMM-menejer</b>: Instagram posti uchun rasm chizilmadi — ${esc(why)}`).catch(() => {});
     }
   })();
   return posts.get(biz.id, id)!;

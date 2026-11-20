@@ -1,11 +1,11 @@
 /**
  * Kompaniya asosi — «Biz kimmiz». Hamma AI xodim biznes haqida shu bitta joydan o'qiydi, har biri o'ziga kerak qismini:
- *   content   — Kontent-meyker (post, reja, video), Marketolog (Instagram matni): kim, nima, xizmatlar, to'liq brend ovozi
+ *   content   — SMM-menejer (post, reja, video), Marketolog (Instagram matni): kim, nima, xizmatlar, to'liq brend ovozi
  *   ads       — Targetolog: kim, xizmatlar va narxlar, auditoriya, qisqa ovoz
  *   customers — Qabulxona: faqat ovoz (bilim va narxlar o'z yo'li bilan — replierBrain/knowledgeText)
  *   owner     — Yordamchi: brend mohiyati bir qatorda
  * Manbalar: profil (nom, soha, xizmatlar), Miya («Biznes haqida» sahifasi) va brend-buk (Miya → Brend). Brend-buk kompaniyaniki —
- * Kontent-meykerniki emas: Kontent-meyker ham, Targetolog ham, Qabulxona ham uni shu yerdan oladi.
+ * SMM-menejerniki emas: SMM-menejer ham, Targetolog ham, Qabulxona ham uni shu yerdan oladi.
  * Hamma matn modelga ma'lumot sifatida beriladi (burchak qavslar almashtiriladi): egasining sahifasi ko'rsatma blokidan chiqib keta olmasin.
  */
 import type { BrandBook } from '../src/types';
@@ -85,7 +85,7 @@ const ORDERS_OF: Partial<Record<CompanyFor, 'kontent' | 'target'>> = { content: 
 const MAX_ORDERS = 10;
 
 /**
- * Kontent-meyker (reja, post, Instagram matni) va Targetolog (reklama rejasi) fon ishida ham egasining doimiy topshirig'iga amal qiladi —
+ * SMM-menejer (reja, post, Instagram matni) va Targetolog (reklama rejasi) fon ishida ham egasining doimiy topshirig'iga amal qiladi —
  * shuning uchun Direktor ularga topshiriq bera oladi (director/index.ts ORDER_READERS). Post va byudjetni baribir egasi tasdiqlaydi
  */
 function standingFor(biz: BusinessRow, forWhom: CompanyFor): string {

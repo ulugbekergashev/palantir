@@ -304,7 +304,7 @@ export const env = {
   /** Faqat sinov uchun: soxta SpeechLab manzili */
   speechlabUrl: (process.env.SPEECHLAB_URL || 'https://speechlab.uz/api/v1').replace(/\/$/, ''),
   /**
-   * Kontent-meyker videosi diktori — asosiysi Gemini TTS (GEMINI_API_KEY o'zi yetadi): o'zbekchani toza o'qiydi, 30 soniyalik
+   * SMM-menejer videosi diktori — asosiysi Gemini TTS (GEMINI_API_KEY o'zi yetadi): o'zbekchani toza o'qiydi, 30 soniyalik
    * video ~0,7 sent (2026-11). Ovoz brend-bukda tanlanadi (src/lib/narrators.ts); model — shu, band bo'lsa Flash-Lite
    */
   geminiTtsModel: process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts',

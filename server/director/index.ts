@@ -83,7 +83,7 @@ const TEAM_LINES: Record<MoveMember, string> = {
 
 /**
  * Topshirig'ini haqiqatan o'qiydiganlar: Qabulxona (har mijoz javobida), Yordamchi (egasi bilan suhbatda), Kuzatuvchi (kamera
- * kadrlarida — orders/look.ts), Kontent-meyker va Targetolog (reja, post, reklama rejasi — company.ts standingFor), Tahlilchi (haftalik
+ * kadrlarida — orders/look.ts), SMM-menejer va Targetolog (reja, post, reklama rejasi — company.ts standingFor), Tahlilchi (haftalik
  * talab tahlili va chuqur tahlil — insights/analyze.ts analystFocus) va egasining o'zi. Marketologning o'zi ishlaydigan fon ishi yo'q
  * (faqat jadvalli topshiriq yoki egasi so'raganda) — doimiy qoida uni ishga tushirmaydi, «topshirildi» deyish yolg'on bo'lardi: taklif egasiga
  */

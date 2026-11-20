@@ -278,7 +278,7 @@ await check("limit olib tashlansa (0) — ishlayotganlar to'xtatiladi; kuzatuvda
   assert.match(adsStore.campaign(biz.id, liveId)?.stopReason ?? '', /olib tashlandi/);
 });
 
-await check("video reklama (Kontent-meyker videosi): avval muqova va video yuklanadi, Meta tayyorlaguncha kutiladi, kreativ — video_data; keyin kampaniya", async () => {
+await check("video reklama (SMM-menejer videosi): avval muqova va video yuklanadi, Meta tayyorlaguncha kutiladi, kreativ — video_data; keyin kampaniya", async () => {
   const { videoStore, videoDir } = await import('../server/content/video');
   const { imagePath, videoFile } = await import('../server/ads/campaigns');
   const b2 = businesses.create(`targetv${Date.now()}`, 'x', { name: 'Video', ownerName: 'X', industry: '', phone: '', address: '', contentLang: 'uz', brand: { primary: '#000', accent: '#111' }, offerings: [], team: [] } as never);

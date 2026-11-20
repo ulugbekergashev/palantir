@@ -20,7 +20,7 @@ export type CrewMember = typeof CREW[number];
 export const CORE: readonly CrewMember[] = ['qabulxona', 'yordamchi'];
 /** Xodim nomi (server xabarlarida; panel — components/team.tsx TEAM) */
 export const TEAM_NAME: Record<CrewMember, string> = {
-  direktor: 'Direktor', qabulxona: 'AI administrator', yordamchi: 'Palantir', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', kontent: 'Kontent-meyker', target: 'Targetolog', rekruter: 'Rekruter', murabbiy: 'Murabbiy',
+  direktor: 'Direktor', qabulxona: 'AI administrator', yordamchi: 'Palantir', kuzatuvchi: 'Kuzatuvchi', tahlilchi: 'Tahlilchi', marketolog: 'Marketolog', kontent: 'SMM-menejer', target: 'Targetolog', rekruter: 'Rekruter', murabbiy: 'Murabbiy',
 };
 
 /** hired — egasi olgan yoki ishi ulangani uchun o'zi qo'shilgan; dismissed — egasi o'zi olib tashlagan (o'zi qaytib qo'shilmaydi) */
@@ -106,7 +106,7 @@ export function inUse(s: CrewSignals): CrewMember[] {
     qabulxona: s.customers,
     tahlilchi: s.customers || s.crm,
     kuzatuvchi: s.cameras > 0,
-    // Instagram postlarini Kontent-meyker yasaydi (oldin Marketologda edi): ularni ishlatgan bazada Kontent-meyker jamoada
+    // Instagram postlarini SMM-menejer yasaydi (oldin Marketologda edi): ularni ishlatgan bazada SMM-menejer jamoada
     marketolog: s.metaAi,
     kontent: s.content || s.marketingPosts > 0,
     target: s.ads,

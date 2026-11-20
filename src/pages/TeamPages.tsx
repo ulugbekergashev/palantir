@@ -23,7 +23,8 @@ import { InstagramPosts } from './agents/Posts';
 import { MarketingResults } from './agents/Results';
 import { ContentChannel, ContentDrafts, ContentSources, contentStats, useContent } from './agents/Content';
 import { api, type ContentView } from '../data/api';
-import { ContentPlanTab, ContentVideoTab } from './agents/ContentStudio';
+import { ContentVideoTab } from './agents/ContentStudio';
+import { SmmCalendar } from './agents/SmmCalendar';
 import { AdsCabinet, AdsCampaigns, adsStats, useAds } from './agents/Ads';
 import { HrVacancies, hrStats, useHr } from './agents/Recruit';
 import { CoachCourses, coachStats } from './agents/Coach';
@@ -169,7 +170,7 @@ export function AnalystArea({ tab, biz, status, notify, state }: Common) {
   );
 }
 
-/** Bo'lim ichidagi xodimlar almashtirgichi (Marketing: Marketolog · Kontent-meyker) */
+/** Bo'lim ichidagi xodimlar almashtirgichi (Marketing: Marketolog · SMM-menejer) */
 function DepartmentSwitch({ title, members, active }: { title: string; members: { member: Member; href: string; badge?: number }[]; active: Member }) {
   return (
     <nav aria-label={`${title} bo'limi`} className="flex flex-wrap items-center gap-2">
@@ -206,11 +207,11 @@ function OrdersAndJournal({ member, notify, tick }: { member: 'kontent' | 'targe
 }
 
 /**
- * Marketing bo'limi — har xodimning bitta ishi: Marketolog bozorni o'rganadi (Meta AI), Kontent-meyker hamma kontentni yasaydi
+ * Marketing bo'limi — har xodimning bitta ishi: Marketolog bozorni o'rganadi (Meta AI), SMM-menejer hamma kontentni yasaydi
  * (Telegram kanal va Instagram postlari, reja, video), Targetolog reklamani yuritadi (Meta)
  */
 export function MarketingArea(props: Common & { crew: Member[]; onStatus: (s: LiveStatus) => void; kontent: MemberState | null; target: MemberState | null }) {
-  // Bo'limda faqat jamoadagi xodimlar; varaq ko'rsatilmagan bo'lsa — birinchisi (masalan, faqat Kontent-meyker olingan)
+  // Bo'limda faqat jamoadagi xodimlar; varaq ko'rsatilmagan bo'lsa — birinchisi (masalan, faqat SMM-menejer olingan)
   const members = [
     { member: 'marketolog' as const, href: hrefOf('marketolog'), badge: props.state?.badge, tabs: null },
     { member: 'target' as const, href: hrefOf('marketolog', 'kampaniyalar'), badge: props.target?.badge, tabs: TARGET_TABS },
@@ -243,7 +244,7 @@ function TargetArea({ tab, notify, target, tick }: Common & { target: MemberStat
 
 /** Postlar: Telegram kanali yoki Instagram — bitta varaqda, almashtirgich havola (sahifa manzilida qoladi) */
 function ContentPosts({ tab, status, notify, tick, view, setView }: Pick<Common, 'tab' | 'status' | 'notify' | 'tick'> & { view: ContentView | null; setView: (v: ContentView) => void }) {
-  // Instagram varag'i ochiq bo'lsa — o'sha ro'yxatdan (joylash/bekor qilishdan keyin darhol), bo'lmasa — Kontent-meyker ma'lumotidan
+  // Instagram varag'i ochiq bo'lsa — o'sha ro'yxatdan (joylash/bekor qilishdan keyin darhol), bo'lmasa — SMM-menejer ma'lumotidan
   const [igCount, setIgCount] = useState<number | null>(null);
   const igWaiting = view?.igPosts.waiting ?? 0;
   // «Postlar» (aniq tanlanmagan): kanal ulanmagan, Instagram ulangan bo'lsa — Instagram
@@ -279,10 +280,10 @@ function ContentArea({ tab, status, notify, onStatus, kontent, tick }: Common & 
   return (
     <div className="space-y-6">
       <AgentHero member="kontent" state={kontent} stats={contentStats(view, status.instagram.account)}>
-        <AgentTabs area="marketolog" active={posts ? 'postlar' : active} tabs={[{ id: 'postlar', label: 'Postlar', count: kontent?.badge }, { id: 'reja', label: 'Reja' }, { id: 'video', label: 'Video' }, { id: 'manbalar', label: 'Manbalar' }, { id: 'kanal', label: 'Kanallar' }, { id: 'kontent-topshiriqlar', label: 'Topshiriqlar' }]} />
+        <AgentTabs area="marketolog" active={posts ? 'postlar' : active} tabs={[{ id: 'reja', label: 'Kalendar' }, { id: 'postlar', label: 'Postlar', count: kontent?.badge }, { id: 'video', label: 'Video' }, { id: 'manbalar', label: 'Manbalar' }, { id: 'kanal', label: 'Kanallar' }, { id: 'kontent-topshiriqlar', label: 'Topshiriqlar' }]} />
       </AgentHero>
       {posts && <ContentPosts tab={active === 'qoralamalar' ? 'telegram' : active} status={status} notify={notify} tick={tick} view={view} setView={setView} />}
-      {active === 'reja' && <ContentPlanTab view={view} setView={setView} notify={notify} />}
+      {active === 'reja' && <SmmCalendar notify={notify} />}
       {active === 'video' && <ContentVideoTab view={view} setView={setView} notify={notify} />}
       {active === 'manbalar' && <ContentSources view={view} setView={setView} notify={notify} />}
       {active === 'kanal' && <ContentChannel view={view} setView={setView} notify={notify} status={status} onStatus={onStatus} />}
