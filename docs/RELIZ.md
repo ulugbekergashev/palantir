@@ -1,5 +1,9 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.39 da yangi
+
+- **Hub'dan to'g'ri sozlamaga:** jamoa Palantir Hub'da «Telefon liniyasi», «Claude va kalitlar», «Telegram» kabi tugmani bossa (egangizning ruxsati bilan), panel bosh sahifada emas — darhol o'sha sozlama sahifasida ochiladi.
+
 ## 0.4.38 da yangi
 
 - **Saytdagi «OK / Bekor» oynalari:** sayt kichik oyna chiqarsa (savol, tasdiqlash, ism so'rash) Palantir endi uni ko'radi va javob beradi — ilgari ish shu yerda to'xtab qolardi. To'lovni tasdiqlash so'ralsa OK bosmaydi, o'chirish so'ralsa sizdan so'raydi.
