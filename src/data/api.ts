@@ -1,4 +1,5 @@
 import type { CrewMember } from '../lib/crew';
+import type { PermLevel } from '../lib/permissions';
 import type { BrainView, Call, Camera, CameraAccuracy, CameraSummary, CameraTiming, CameraZone, ClinicDay, ClinicMoney, ZoneNow } from '../types';
 import type { PriceLine } from '../lib/prices';
 import type { AnketaData } from '../lib/anketa';
@@ -123,6 +124,10 @@ export interface ComputerView {
   chrome: { installed: boolean; debugging: boolean; connected: boolean; extension?: boolean; extensionFolder?: string } | null;
   job: { id: string; task: string; status: string; steps: number; started: string } | null;
 }
+/** Ruxsatlar jadvali (server/permissions.ts): amallar darajasi, kodda qattiq qoidalar va egasining javobini kutayotgan so'rovlar */
+export interface PermissionRow { id: string; member: CrewMember; title: string; hint: string | null; levels: PermLevel[]; level: PermLevel }
+export interface PermissionApproval { id: string; action: string; tool: string; member: CrewMember; title: string; details: string[]; createdAt: string }
+export interface PermissionsView { actions: PermissionRow[]; fixed: { title: string; level: PermLevel; why: string }[]; pending: PermissionApproval[] }
 export interface SupportAccessView { allowed: boolean; until: string | null; hub: boolean; mine: boolean; visits: { at: string; ip: string | null; who: string | null }[] }
 /** Palantir jamoasiga yordam so'rovi (server/help.ts): javob jamoa /admin da yozganda keladi */
 export interface HelpRequestView {
@@ -357,6 +362,10 @@ export const api = {
   /** Litsenziya: holat (kirishsiz) va kalitni kiritish */
   license: () => call<{ license: LicenseView; access?: AccessView; support?: boolean }>('/license'),
   activateLicense: (key: string) => call<{ license: LicenseView }>('/license', { body: { key } }),
+  permissions: () => call<PermissionsView>('/permissions'),
+  setPermission: (action: string, level: PermLevel) => call<PermissionsView>('/permissions', { method: 'PUT', body: { action, level } }),
+  /** «So'rasin» turgan ishga javob: yes — Palantir o'zi bajaradi */
+  decidePermission: (id: string, yes: boolean) => call<PermissionsView & { ok: boolean; text: string }>(`/permissions/approvals/${encodeURIComponent(id)}`, { body: { yes } }),
   computer: () => call<ComputerView>('/account/computer'),
   setComputer: (mode: ComputerMode) => call<ComputerView>('/account/computer', { method: 'PUT', body: { mode } }),
   /** «Mening Chrome'im»: Chrome'da ulanish sozlamasi sahifasini (chrome://inspect) ochadi */

@@ -3,6 +3,7 @@
  * pul yozuvi, ikkinchi miya, vazifalar va javob takliflari. bot.ts dan ajratilgan; bot ichidagi ishlar d orqali keladi.
  */
 import type { Context, Telegraf } from 'telegraf';
+import type { Artifact } from '../src/types';
 import { addDays, dueLabel, iso, stamp } from '../src/lib/week';
 import { resetConversation } from './agent';
 import { b, cut, detach, esc, ignoreUnchanged, kb, RECALL_SHOWN, reminderText, toast } from './botKit';
@@ -17,6 +18,7 @@ import { patientName } from './crm/logic';
 import { businesses, inbox, leads, outbound, tasks, type BusinessRow } from './db';
 import { approveReply, DEFAULT_REPLY, dismissReply, notifyOwner } from './inbox/core';
 import { OFFER_CODE } from './inbox/autonomy';
+import { APPROVE_CODE, REJECT_CODE, approvalKeyboard, decideApproval } from './permissions';
 import { cancelPost, posts, publishPost } from './marketing/posts';
 import { ContentError, cancelDraft, publishDraft } from './content/factory';
 import { TargetError, cancel as cancelCampaign, launch as launchCampaign, pause as pauseCampaign } from './ads/campaigns';
@@ -45,11 +47,12 @@ export interface ButtonDeps {
   refreshMoney(bizId: string, id: string): Promise<void>;
   sendFollowup(biz: BusinessRow, id: string): Promise<{ sent: number; failed: number }>;
   cancelFollowup(biz: BusinessRow, id: string): Promise<void>;
+  sendArtifacts(biz: BusinessRow, chat: string, artifacts: Artifact[]): Promise<void>;
 }
 
 export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
   const tg = bot.telegram;
-  const { handleOwner, sendHtml, sendInterview, refreshMoney, sendFollowup, cancelFollowup } = d;
+  const { handleOwner, sendHtml, sendInterview, refreshMoney, sendFollowup, cancelFollowup, sendArtifacts } = d;
 
   // ─── Tugmalar ──────────────────────────────────────────────────────────────
   bot.on('callback_query', async ctx => {
@@ -416,6 +419,21 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
       return toast(ctx, code === 'kp' ? 'Narxlar jadvalga tushdi' : 'Namuna saqlandi');
     }
 
+    // Ruxsatlar jadvali (permissions.ts): «So'rasin» turgan ish — faqat egasi hal qiladi; «Ha» — Palantir o'zi bajaradi
+    if ((code === APPROVE_CODE || code === REJECT_CODE) && ownerBiz) {
+      if (msg) await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      const yes = code === APPROVE_CODE;
+      // Tugma darhol javob oladi (bajarish bir necha soniya olishi mumkin), natija — alohida xabar bilan
+      await toast(ctx, yes ? 'Bajaryapman…' : 'Mayli, bajarmayman');
+      // Bajarish (hujjat, video…) uzoq bo'lishi mumkin: bot boshqa xabarlarni kutib qolmasin — fonda
+      const chat = String(ctx.chat!.id), replyTo = msg ? { reply_parameters: { message_id: msg.message_id } } : {};
+      return detach("ruxsat tasdig'i", async () => {
+        const done = await decideApproval(biz.id, id, yes);
+        // Limit tufayli bajarilmadi — tasdiq yana kutyapti: tugmalar qaytadi
+        await ctx.reply(done.text, { ...replyTo, ...(done.retry ? { reply_markup: approvalKeyboard(id) } : {}) }).catch(() => {});
+        await sendArtifacts(biz, chat, done.artifacts).catch(e => console.error('[ruxsat] natija:', (e as Error).message));
+      });
+    }
     // AI administrator avtonomiyasi (inbox/autonomy.ts): egasi «o'zi javob bersin»ga o'tkazadi yoki hozircha qoldiradi — faqat egasi
     if (code === OFFER_CODE && ownerBiz) {
       if (id === 'on') {

@@ -43,6 +43,8 @@ export interface ToolCtx {
    * suhbat tarixida qoladi: keyingi «ha, saqla» gapida bilimga yoziladigan raqam va havolalar shu matndan tekshiriladi (assertOwnNumbers)
    */
   ownerSaid?: string;
+  /** Egasi shu chaqiruvni Ruxsatlar jadvalining «So'rasin» tasdig'i bilan allaqachon tasdiqlagan (permissions.ts decideApproval) */
+  approved?: boolean;
 }
 
 /** Begona matn o'qildi: belgi va manbasi */

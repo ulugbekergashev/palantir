@@ -70,6 +70,8 @@ import { telegramBusinessStatus } from './inbox/telegramBusiness';
 import { mountOrders } from './orders/routes';
 import { mountDirector } from './director/routes';
 import { lockedCrew, mountCrew, syncCrew, tariffGuard } from './crew';
+import { mountPermissions } from './permissions';
+import { devEnabled } from './dev/projects';
 import { mountAttention } from './attention';
 import { mountTeamDay } from './teamDay';
 import { mountInsights } from './insights/routes';
@@ -896,6 +898,8 @@ export function createApp(bot: BotService) {
   mountOrders(app, { asBiz, bad, fail, bot });
   mountDirector(app, { asBiz, fail });
   mountCrew(app, { asOwner, bad });
+  // Ruxsatlar jadvali: «Ha» bosilganda yaratilgan hujjat va boshqalar Telegram'ga ham (ulangan bo'lsa)
+  mountPermissions(app, { asOwner, bad, codeEnabled: devEnabled, deliver: async (biz, text, artifacts) => { if (bot.enabled && biz.ownerChatId) await bot.deliverReply(biz, text, artifacts); } });
   mountAttention(app, { asBiz });
   mountTeamDay(app, { asBiz });
   mountInsights(app, { asBiz });

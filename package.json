@@ -45,6 +45,7 @@
     "test:kotib": "tsx scripts/check-kotib.ts",
     "test:hr": "tsx scripts/check-hr.ts",
     "test:autonomy": "tsx scripts/check-autonomy.ts",
+    "test:permissions": "tsx scripts/check-permissions.ts",
     "test:analyst": "tsx scripts/check-analyst.ts",
     "test:people": "tsx scripts/check-people.ts",
     "test:backup": "tsx scripts/check-backup.ts",

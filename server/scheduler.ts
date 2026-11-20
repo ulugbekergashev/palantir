@@ -75,7 +75,8 @@ export async function runDeferred(bot: BotService, now = Date.now()): Promise<nu
       if (d.tool) {
         const ctx = { biz, artifacts: [] as Artifact[], fromPhoto: true };
         const out = await withLane(d.lane, () => runTool(d.tool!, JSON.parse(d.input ?? '{}'), ctx));
-        text = out.isError ? `bajarilmadi — ${out.content}` : 'tayyor.';
+        // Ruxsatlar jadvalida «So'rasin» (navbatda turganida egasi o'zgartirgan): bajarilmadi — tasdiq so'rovi alohida xabar bo'lib ketdi
+        text = out.isError ? `bajarilmadi — ${out.content}` : out.content.includes('waiting_for_owner') ? "bajarishdan oldin ruxsatingiz so'raldi (Ruxsatlar jadvali)." : 'tayyor.';
         artifacts = ctx.artifacts;
       } else {
         const reply = await ask(biz.id, d.channel, d.text, { display: d.display });

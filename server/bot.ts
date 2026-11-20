@@ -484,7 +484,12 @@ export function createBot(): BotService {
   });
 
   // ─── Tugmalar (botButtons.ts) ─────────────────────────────────────────────────
-  registerButtons(bot, { handleOwner, sendHtml, sendInterview, refreshMoney, sendFollowup, cancelFollowup });
+  registerButtons(bot, {
+    handleOwner, sendHtml, sendInterview, refreshMoney, sendFollowup, cancelFollowup,
+    // Ruxsatlar jadvali: «Ha» bosilgach yaratilgan narsalar (hujjat, vazifa…) — tasdiq xabari ostiga
+    sendArtifacts: async (biz, chat, artifacts) => { for (const x of artifacts) await sendArtifact(biz, chat, x); },
+  });
+
 
   // ─── Xabarlar ──────────────────────────────────────────────────────────────
   bot.on(message('contact'), async ctx => {

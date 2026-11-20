@@ -48,6 +48,7 @@ import { TEAM_NAME, crewHas, crewLicensed, type CrewMember } from '../src/lib/cr
 import { events } from './orders/store';
 import { DOC_KINDS } from './docs/playbooks';
 import { writeDocument } from './docs/writer';
+import { gate } from './permissions';
 
 export type { ToolCtx } from './toolkit';
 
@@ -464,7 +465,8 @@ export function toolDefinitions(webSearch: boolean, crm = false, groups?: ToolGr
   return webSearch ? [...custom, { type: 'web_search_20260209', name: 'web_search', max_uses: 3 }] : custom;
 }
 
-export interface ToolOutcome { content: string; isError: boolean }
+/** paused — limit tufayli bajarilmadi va navbatga qo'yilmadi (egasi tasdiqlagan ish: tasdiq qayta ochiladi, permissions.ts) */
+export interface ToolOutcome { content: string; isError: boolean; paused?: boolean }
 
 /** Mutaxassis ishi Yordamchi orqali bajarilsa — o'sha xodimning jurnaliga (panel: xodim sahifasi, «Bugun jamoa nima qildi») */
 const JOURNAL: Record<string, string> = {
@@ -495,6 +497,8 @@ const OWN_DATA_TOOLS = new Set(['create_task', 'remember', 'forget', 'save_price
  * kuzatmayapti) navbatga qo'yilmaydi — jadval o'zi qayta uradi
  */
 function deferTool(name: string, input: unknown, ctx: ToolCtx, e: PausedError): ToolOutcome {
+  // Ruxsatlar jadvalida egasi «Ha» bosgan ish: navbat uni tasdiqsiz qayta chaqirib, yana so'rab qolardi — tasdiq o'zi qayta ochiladi
+  if (ctx.approved) return { content: pausedText(e.lane, e.until, Date.now(), false), isError: true, paused: true };
   const queued = !ctx.unattended && !ctx.as && deferred.add({
     businessId: ctx.biz.id, channel: ctx.biz.ownerChatId ? 'telegram' : 'web', lane: e.lane, until: e.until, own: false,
     text: toolKey(name, input), tool: name, input: JSON.stringify(input), display: JOURNAL[name] ?? name,
@@ -518,6 +522,9 @@ export async function runTool(name: string, input: unknown, ctx: ToolCtx): Promi
     return { content: `Kirish noto'g'ri: ${parsed.error.issues.slice(0, 6).map(i => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')}`, isError: true };
   }
   try {
+    // Ruxsatlar jadvali (permissions.ts): «Hech qachon» — rad, «So'rasin» — egasidan tasdiq so'raladi, asbob hozir bajarilmaydi
+    const held = await gate(name, parsed.data, ctx);
+    if (held) return held;
     const out = { content: JSON.stringify(await d.run(parsed.data, ctx)), isError: false };
     // Belgi natijadan keyin: asbobning o'zi (reklama, kompyuter) shu gapda avval begona matn o'qilganmi — shuni tekshiradi
     if (!OWN_DATA_TOOLS.has(name)) markStrangers(ctx, name);
