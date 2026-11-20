@@ -41,7 +41,8 @@ const site = createServer((req, res) => {
   if (req.url === '/oyna') return res.end(`<title>Oyna</title><h1 id="r">natija:yo'q</h1>
     <button onclick="document.getElementById('r').textContent='kiritildi:'+prompt('Ismingizni yozing')">Prompt</button>
     <button onclick="document.getElementById('r').textContent='tasdiq:'+confirm('Davom etilsinmi?')">Savol</button>
-    <button onclick="document.getElementById('r').textContent='pul:'+confirm('Kartangizdan 500 000 so\\'m to\\'lansinmi?')">Davom</button>`);
+    <button onclick="document.getElementById('r').textContent='pul:'+confirm('Kartangizdan 500 000 so\\'m to\\'lansinmi?')">Davom</button>
+    <button onclick="setTimeout(() => alert('Kechikkan xabar'), 150)">Keyin</button>`);
   // Sahifa ichidagi sahifa (iframe) va Shadow DOM: muharrirlar, vidjetlar, Reddit/YouTube tugmalari shular ichida
   if (req.url === '/ramka') return res.end(`<title>Ramka</title><h1>tashqi</h1><iframe style="margin-top:200px;width:400px;height:200px" srcdoc="<input aria-label='Ichki maydon'><button onclick=&quot;document.body.insertAdjacentHTML('beforeend','<p>ichki:'+document.querySelector('input').value+'</p>')&quot;>Ichki tugma</button>"></iframe>`);
   if (req.url === '/fayl-tanla') return res.end('<title>Fayl tanlash</title><h1 id="f">fayl:yoq</h1><input type="file" aria-label="Hujjat" onchange="document.getElementById(\'f\').textContent=\'fayl:\'+this.files[0].name">');
@@ -213,6 +214,11 @@ try {
   allow = false;
   const afterOk = await within(s.run('get_page_text', {}));
   ok("egasi rozi — fayl saytga qo'yildi (kengaytma orqali)", !!uploaded && !uploaded.isError && !!afterOk && text(afterOk).includes('fayl:' + ownFile), [uploaded, afterOk].map(r => (r ? text(r).slice(0, 110) : 'OSILDI')).join(' | '));
+  // Oyna bosishdan bir lahza keyin ochiladi (kengaytma orqali hodisa kechroq keladi) — shu bosish natijasidayoq aytiladi
+  await s.run('navigate', { url: `${SITE}/oyna` });
+  const lateClick = await within(s.run('left_click', { target: { type: 'ref', ref: await oynaRef('Keyin button') } }));
+  await within(s.run('key', { text: 'Enter' }));
+  ok('kechikib ochilgan oyna — bosish natijasida aytiladi', !!lateClick && /Kechikkan xabar/.test(text(lateClick)), lateClick ? text(lateClick).slice(0, 200) : 'OSILDI');
   // Sahifa ichidagi sahifa (iframe) va Shadow DOM — ko'rinadi, bosiladi, yoziladi
   await s.run('navigate', { url: `${SITE}/ramka` });
   const framed = text(await s.run('read_page', {}));

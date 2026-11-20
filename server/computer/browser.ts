@@ -47,6 +47,9 @@ const CHECK_MS = 3_000;
  * model xabar oladi va boshqa yo'l tanlaydi
  */
 const MEMBER_MAX_MS = 150_000;
+/** Bosish va tugmalar oyna ochishi mumkin: natijadan oldin oyna shuncha kutiladi */
+const DIALOG_ACTIONS = new Set(['left_click', 'double_click', 'triple_click', 'middle_click', 'key', 'type']);
+const DIALOG_GRACE_MS = 400;
 
 /**
  * Sahifada ishlaydi: (x, y) nuqtadagi eng yaqin aylanadigan ro'yxat (Google Maps natijalari kabi) yoki butun sahifa.
@@ -446,6 +449,10 @@ export class BrowserSession {
     try {
       const open = this.openDialog();
       r = open ? await this.answerDialog(open.p, name, input) : await this.untilDialog(this.member(name, input));
+      // Bosish yoki tugma oynani bir lahzadan keyin ochishi mumkin (hodisa kengaytma orqali kechroq keladi) — model shu natijadanoq bilsin
+      if (!open && !r.isError && DIALOG_ACTIONS.has(name) && !this.openDialog()) await this.dialogSoon(DIALOG_GRACE_MS);
+      const late = !open && DIALOG_ACTIONS.has(name) ? this.openDialog() : null;
+      if (late && !r.content.some(b => b.type === 'text' && b.text.startsWith('Sahifada brauzer oynasi'))) r = { ...r, content: [...r.content, { type: 'text', text: describeDialog(late.o) }] };
       if (!r.isError) r = await this.withOpenedTabs(r, tabsBefore);
     } catch (e) {
       const msg = (e as Error).message.split('\n')[0].slice(0, 300);
@@ -455,6 +462,13 @@ export class BrowserSession {
     const fresh = (await this.saved(30_000, false)).slice(this.announced);
     this.announced += fresh.length;
     return fresh.length ? { ...r, content: [...r.content, { type: 'text', text: `Yuklab olindi: ${fresh.map(f => basename(f)).join(', ')}` }] } : r;
+  }
+
+  /** Oyna ochilishini ko'pi bilan ms kutadi */
+  private async dialogSoon(ms: number): Promise<void> {
+    let wake = () => {};
+    await Promise.race([new Promise<void>(res => { wake = res; this.dialogWaiters.add(wake); }), sleep(ms)]);
+    this.dialogWaiters.delete(wake);
   }
 
   private openDialog(): { p: Page; o: OpenDialog } | null {
@@ -566,7 +580,8 @@ export class BrowserSession {
       case 'zoom': {
         const r = Array.isArray(i.region) ? (i.region as number[]).map(Number) : [];
         if (r.length !== 4 || r[2] <= r[0] || r[3] <= r[1]) return fail('region: [x0, y0, x1, y1] bo\'lishi kerak');
-        const png = await this.page(tabId).screenshot({ type: 'png', clip: { x: r[0], y: r[1], width: r[2] - r[0], height: r[3] - r[1] } });
+        const png = await this.page(tabId).screenshot({ type: 'png', scale: 'css', timeout: SHOT_MS, clip: { x: r[0], y: r[1], width: r[2] - r[0], height: r[3] - r[1] } }).catch(() => null);
+        if (!png) return fail("Rasm olinmadi: Chrome oynasi yig'ilgan yoki bu vkladka orqa fonda — sahifani read_page, find va get_page_text bilan o'qing");
         return { content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: png.toString('base64') } }] };
       }
       case 'left_click': case 'right_click': case 'middle_click': case 'double_click': case 'triple_click': {
