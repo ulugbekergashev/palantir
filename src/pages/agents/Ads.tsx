@@ -201,12 +201,71 @@ export function AdsCampaigns({ view, setView, notify }: { view: AdsView | null; 
 
 // ─── Kabinet va limitlar ──────────────────────────────────────────────────────
 
+/** Facebook ruxsatidan keyin Palantir kabinetni o'zi ulaydi yoki tanlashni so'raydi: shuncha vaqt panel holatni so'rab turadi */
+const HUB_WAIT_MS = 10 * 60_000;
+const HUB_POLL_MS = 2500;
+
+/** «Facebook orqali ulash»: havola yangi oynada; token Hub orqali kelguncha holat so'raladi (ulandi yoki tanlash ro'yxati keldi) */
+function useHubConnect(notify: Notify, setView: (v: AdsView) => void, before: string | null) {
+  const [waiting, setWaiting] = useState(false);
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(() => {
+      api.ads().then(v => {
+        const fresh = v.pending || (v.account && `${v.account.adAccountId}|${v.account.expiresAt}` !== before);
+        if (fresh) { setWaiting(false); setView(v); if (!v.pending) notify('Reklama kabineti ulandi'); }
+      }).catch(() => { /* keyingi safar */ });
+    }, HUB_POLL_MS);
+    const stop = setTimeout(() => setWaiting(false), HUB_WAIT_MS);
+    return () => { clearInterval(t); clearTimeout(stop); };
+  }, [waiting]); // eslint-disable-line react-hooks/exhaustive-deps
+  const start = () => api.adsHubUrl().then(r => { window.open(r.url, '_blank', 'noopener'); setWaiting(true); }).catch(e => notify((e as Error).message, true));
+  return [waiting, start] as const;
+}
+
+/** Facebook ruxsatida bir nechta kabinet yoki sahifa — egasi tanlaydi */
+function HubPicker({ pending, setView, notify }: { pending: NonNullable<AdsView['pending']>; setView: (v: AdsView) => void; notify: Notify }) {
+  const active = pending.accounts.filter(x => x.active);
+  const [acc, setAcc] = useState(active[0]?.id ?? pending.accounts[0]?.id ?? '');
+  const [page, setPage] = useState(pending.pages.find(p => p.igId)?.id ?? pending.pages[0]?.id ?? '');
+  const [busy, run] = useRun(notify, setView);
+  const pg = pending.pages.find(p => p.id === page);
+  const select = (value: string, set: (v: string) => void, label: string, options: { id: string; text: string; off?: boolean }[]) => (
+    <label className="block"><span className="mb-1 block text-[12.5px] font-semibold text-[#a3a9b5]">{label}</span>
+      <select value={value} onChange={e => set(e.target.value)} className={field}>
+        {options.map(o => <option key={o.id} value={o.id} disabled={o.off}>{o.text}</option>)}
+      </select></label>
+  );
+  return (
+    <div className="space-y-3">
+      <p className="text-[13.5px] text-[#c9cbd2]">Facebook ulandi. Qaysi kabinet va sahifa bilan ishlaymiz?</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {select(acc, setAcc, 'Reklama kabineti', pending.accounts.map(x => ({ id: x.id, text: `${x.name || `act_${x.id}`} · ${x.currency}${x.active ? '' : ' (faol emas)'}`, off: !x.active })))}
+        {select(page, setPage, 'Facebook sahifa', pending.pages.map(p => ({ id: p.id, text: `${p.name || p.id}${p.igName ? ` · @${p.igName}` : ''}` })))}
+      </div>
+      {pg && !pg.igId && <p className="text-[12.5px] text-[#fde2b0]">Bu sahifaga Instagram ulanmagan — Instagram Direct reklamasi ishlamaydi.</p>}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={!acc || !page || !!busy} onClick={() => void run('pick', () => api.adsConnectHub({ adAccountId: acc, pageId: page, igActorId: pg?.igId ?? null }), 'Kabinet ulandi')} className={`${button} text-[#07080b]`} style={{ background: ACCENT }}>{busy === 'pick' && spin} Ulash</button>
+        <button type="button" disabled={!!busy} onClick={() => void run('drop', () => api.adsDropHub())} className={ghost}>Bekor qilish</button>
+      </div>
+    </div>
+  );
+}
+
 export function AdsCabinet({ view, setView, notify }: { view: AdsView | null; setView: (v: AdsView) => void; notify: Notify }) {
   const [form, setForm] = useState({ token: '', adAccountId: '', pageId: '', igActorId: '' });
   const [limits, setLimits] = useState<AdsView['limits'] | null>(null);
   const [busy, run] = useRun(notify, setView);
+  // Sahifa ochilgan payt: «tez orada tugaydi» uchun (render ichida soat o'qilmaydi)
+  const [openedAt] = useState(Date.now);
+  const [waiting, startHub] = useHubConnect(notify, setView, view?.account ? `${view.account.adAccountId}|${view.account.expiresAt}` : null);
   if (!view) return <Loader2 className="h-5 w-5 animate-spin text-[#7d838f]" aria-label="Yuklanmoqda" />;
   const a = view.account, l = limits ?? view.limits, cur = a?.currency ?? 'USD';
+  const expiry = a?.expiresAt ? new Date(a.expiresAt) : null;
+  const soon = expiry && expiry.getTime() - openedAt < 5 * 86_400_000;
+  const hubButton = (label: string) => (
+    <button type="button" disabled={waiting} onClick={() => void startHub()} className={`${button} text-[#07080b]`} style={{ background: ACCENT }}>{waiting && spin} {waiting ? 'Facebook oynasida ruxsat bering…' : label}</button>
+  );
   const connect = (e: FormEvent) => {
     e.preventDefault();
     void run('connect', () => api.adsConnect({ ...form, igActorId: form.igActorId || null }), 'Kabinet ulandi').then(ok => { if (ok) setForm({ token: '', adAccountId: '', pageId: '', igActorId: '' }); });
@@ -226,11 +285,26 @@ export function AdsCabinet({ view, setView, notify }: { view: AdsView | null; se
               <p className="text-[13px] text-[#8a909c]">{a.mcp
                 ? '✅ Meta reklama asboblari ulangan: Targetolog o‘zi tahlil qiladi va kampaniya yaratadi, yoqish — sizning tugmangiz bilan.'
                 : 'Meta reklama asboblari (MCP) ochilmadi — tokenga ads_mcp_management ruxsatini qo‘shib, qayta ulang. Hozircha oddiy reja yo‘li ishlaydi.'}</p>
+              {expiry && <p className={`text-[13px] ${soon ? 'text-[#fde2b0]' : 'text-[#8a909c]'}`}>Facebook ruxsati {expiry.toLocaleDateString('uz')} gacha{soon ? ' — tez orada tugaydi, qayta ulang' : ''}.</p>}
             </div>
-            <button type="button" disabled={!!busy} onClick={() => { if (window.confirm('Kabinet uzilsinmi? Token o‘chiriladi.')) void run('off', () => api.adsDisconnect(), 'Uzildi'); }} className={`${ghost} ml-auto`}>Uzish</button>
+            <div className="ml-auto flex flex-wrap gap-2">
+              {view.hub && (expiry || !a.mcp) && hubButton('Facebook orqali qayta ulash')}
+              <button type="button" disabled={!!busy} onClick={() => { if (window.confirm('Kabinet uzilsinmi? Token o‘chiriladi.')) void run('off', () => api.adsDisconnect(), 'Uzildi'); }} className={ghost}>Uzish</button>
+            </div>
           </div>
+        ) : view.pending ? (
+          <HubPicker pending={view.pending} setView={setView} notify={notify} />
         ) : (
-          <form onSubmit={connect} className="space-y-3">
+          <div className="space-y-4">
+            {view.hub && (
+              <div className="space-y-2">
+                <p className="text-[13.5px] leading-relaxed text-[#c9cbd2]">Bosing — Facebook oynasi ochiladi. Kiring, reklama kabineti va sahifani belgilab ruxsat bering. Palantir qolganini o‘zi topadi: kabinet, sahifa, Instagram va Meta’ning reklama asboblari (MCP).</p>
+                {hubButton('Facebook orqali ulash')}
+              </div>
+            )}
+          <details className="group" open={!view.hub}>
+          <summary className="cursor-pointer text-[13px] font-semibold text-[#a3a9b5]">{view.hub ? 'Yoki qo‘lda: tizim foydalanuvchisi tokeni (muddatsiz)' : 'Tizim foydalanuvchisi tokeni bilan ulash'}</summary>
+          <form onSubmit={connect} className="mt-3 space-y-3">
             <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-[#c9cbd2]">
               <li>business.facebook.com → Sozlamalar → <b>Tizim foydalanuvchilari</b> → Qo'shish, roli — <b>Employee</b> (Meta'ning reklama MCP'si Admin tokenini qabul qilmaydi).</li>
               <li>Unga <b>Aktivlar qo'shish</b>: reklama kabineti (to'liq boshqaruv) va Facebook sahifa.</li>
@@ -246,6 +320,8 @@ export function AdsCabinet({ view, setView, notify }: { view: AdsView | null; se
             <button type="submit" disabled={!form.token || !form.adAccountId || !form.pageId || !!busy} className={`${button} text-[#07080b]`} style={{ background: ACCENT }}>{busy === 'connect' && spin} Tekshirib ulash</button>
             <p className="text-[12.5px] text-[#7d838f]">Token shifrlab saqlanadi va panelda qayta ko'rsatilmaydi.</p>
           </form>
+          </details>
+          </div>
         )}
       </Panel>
       <Panel title="Qat'iy limitlar">

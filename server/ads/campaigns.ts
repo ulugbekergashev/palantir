@@ -77,7 +77,7 @@ interface AccountInfo { name?: string; currency?: string; account_status?: numbe
 /** Ishga tushgan yoki ishga tushirilayotgan kampaniyalar bor-yo'qligi (kabinetni almashtirish/uzishda) */
 const tracked = (bizId: string) => adsStore.campaigns(bizId).some(x => x.status === 'launching' || x.status === 'active' || x.status === 'paused') || mcpStore.active(bizId).length > 0;
 
-export async function connect(biz: BusinessRow, input: { token: string; adAccountId: string; pageId: string; igActorId?: string | null }): Promise<AdsConnection> {
+export async function connect(biz: BusinessRow, input: { token: string; adAccountId: string; pageId: string; igActorId?: string | null; expiresAt?: string | null }): Promise<AdsConnection> {
   const token = input.token.trim();
   const id = input.adAccountId.trim().replace(/^act_/, '');
   if (!/^\d{5,20}$/.test(id)) throw new TargetError("Reklama kabineti ID'si raqamlardan iborat bo'lishi kerak (act_ siz ham bo'ladi)");
@@ -94,7 +94,7 @@ export async function connect(biz: BusinessRow, input: { token: string; adAccoun
   const page = await graph<{ name?: string }>(token, 'GET', input.pageId.trim(), { fields: 'name' }).catch(wrap);
   const c: AdsConnection = {
     token, adAccountId: id, accountName: acc.name ?? '', currency, timezone: acc.timezone_name ?? '',
-    pageId: input.pageId.trim(), pageName: page.name ?? '', igActorId: ig,
+    pageId: input.pageId.trim(), pageName: page.name ?? '', igActorId: ig, expiresAt: input.expiresAt ?? null,
   };
   adsStore.saveConnection(biz.id, c);
   return c;

@@ -11,6 +11,7 @@ import { diskProblem } from './disk';
 import { env } from './env';
 import { notifyOwner } from './inbox/core';
 import { hubProblem } from './inbox/instagramApi';
+import { adsTokenProblem } from './ads/hubConnect';
 import { phoneProblem } from './phone/index';
 import { voiceAiProblem } from './voice/health';
 import { lineChecks } from './voice/line';
@@ -43,6 +44,8 @@ async function checks(biz: BusinessRow, now: number, disk: string | null): Promi
   }
   const ig = connections.get(biz.id, 'instagram_api');
   if (ig) out.push({ key: 'instagram_api', label: 'Instagram (rasmiy)', problem: hubProblem(now) ?? ig.meta.problem ?? null });
+  // Reklama kabineti: Facebook orqali ulangan token 60 kunda tugaydi — 5 kun qolganda egasi qayta kiradi
+  if (connections.get(biz.id, 'meta_ads')) out.push({ key: 'meta_ads', label: 'Reklama kabineti (Meta)', problem: adsTokenProblem(biz.id, now) });
   out.push({ key: 'phone', label: 'Telefon (MicroSIP)', problem: phoneProblem(biz.id) });
   // Telefon AI va panel ovozi (Gemini Live): oxirgi ulanish yiqilgan bo'lsa (voice/health.ts) — bitta kompyuter, har biznesda ko'rinadi
   out.push({ key: 'voice_ai', label: 'Ovozli AI (Gemini)', problem: voiceAiProblem(now) });

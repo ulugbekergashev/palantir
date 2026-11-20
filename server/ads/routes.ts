@@ -11,7 +11,9 @@ import { newId, type BusinessRow } from '../db';
 import { ImageError, toPostJpeg } from '../marketing/image';
 import { AdsError } from './graph';
 import { cancel, card, connect, disconnect, ensureUploadDir, imagePath, launch, pause, problemsOf, propose, resolveCities, resume, spendNow, uploadDir } from './campaigns';
+import { adsHubUrl, connectPicked, dropHubPending, hubPending } from './hubConnect';
 import { mcpReady } from './mcp';
+import { env } from '../env';
 import { PlanSchema, planSummary, type Spend } from './plan';
 import { availableImages, planFromTask } from './planner';
 import { TargetError, adsStore } from './store';
@@ -58,7 +60,8 @@ export async function adsView(biz: BusinessRow): Promise<AdsView> {
     summary: planSummary(x.plan, x.currency),
   })));
   return {
-    account: c ? { adAccountId: c.adAccountId, accountName: c.accountName, pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId, currency: c.currency, tokenSet: !!c.token, mcp: await mcpReady(biz.id, c).catch(() => false) } : null,
+    account: c ? { adAccountId: c.adAccountId, accountName: c.accountName, pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId, currency: c.currency, tokenSet: !!c.token, mcp: await mcpReady(biz.id, c).catch(() => false), expiresAt: c.expiresAt ?? null } : null,
+    hub: !!env.hub, pending: hubPending(biz.id),
     limits: adsStore.limits(biz.id), spend, campaigns, images: availableImages(biz.id),
   };
 }
@@ -73,6 +76,18 @@ export function mountAds(app: Express, { asBiz, asOwner, bad }: Deps): void {
     if (!p.success) return bad(res, p.error);
     try { await connect(biz, p.data); await reply(res, biz, true); } catch (e) { failed(res, e); }
   }));
+
+  // Facebook orqali ulash (Palantir Hub): havola — egasi brauzerda ochadi; ruxsatdan keyin token Hub navbati orqali keladi
+  app.post('/api/ads/hub-url', asOwner(async (_req, res, biz) => {
+    try { res.json({ url: await adsHubUrl(biz) }); } catch (e) { failed(res, e); }
+  }));
+  // Bir nechta kabinet yoki sahifa bo'lsa — egasi tanlaydi (token panelga chiqmaydi: Facebook ruxsatidagi ro'yxatdan)
+  app.post('/api/ads/connect-hub', asOwner(async (req, res, biz) => {
+    const p = z.object({ adAccountId: z.string().trim().min(5).max(30), pageId: z.string().trim().min(5).max(30), igActorId: z.string().trim().max(30).nullable().optional() }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    try { await connectPicked(biz, p.data); await reply(res, biz, true); } catch (e) { failed(res, e); }
+  }));
+  app.delete('/api/ads/connect-hub', asOwner(async (_req, res, biz) => { dropHubPending(biz.id); await reply(res, biz); }));
 
   app.delete('/api/ads/connect', asOwner(async (_req, res, biz) => {
     try { disconnect(biz); await reply(res, biz, true); } catch (e) { failed(res, e); }

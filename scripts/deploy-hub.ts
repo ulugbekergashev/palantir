@@ -3,7 +3,7 @@
  *   Server — SSH bilan kiriladigan istalgan Linux (hozir Oracle Cloud Always Free, oylik to'lovsiz). hub/ fayllari va
  *   hub/setup-server.sh yuklanadi va root sifatida bajariladi: swap, Node.js 24, Caddy (HTTPS avtomatik), palantir-hub xizmati.
  *   Sozlama serverda /etc/palantir-hub.env (0600): HUB_DB, HUB_PUBLIC_URL, HUB_TRUST_PROXY, HUB_VERIFY_TOKEN, HUB_ADMIN_KEY,
- *   HUB_OPERATOR va bor bo'lsa — HUB_CONTACT_EMAIL, IG_APP_ID, IG_APP_SECRET, HUB_BOT_TOKEN, HUB_ALERT_CHAT. Oxirida /health kutiladi.
+ *   HUB_OPERATOR va bor bo'lsa — HUB_CONTACT_EMAIL, IG_APP_ID, IG_APP_SECRET, FB_APP_ID, FB_APP_SECRET, FB_LOGIN_CONFIG_ID, HUB_BOT_TOKEN, HUB_ALERT_CHAT. Oxirida /health kutiladi.
  * Sirlar (admin kaliti, webhook tasdiq tokeni) va server manzili bir marta yoziladi — shu kompyuterda ~/.palantir/hub.env (0600):
  *   HUB_SSH=opc@<IP>, HUB_SSH_KEY (standart ~/.palantir/oracle-hub), HUB_DOMAIN (standart <IP>.sslip.io — domen sotib olmasdan HTTPS).
  *   Bir marta berilgan ixtiyoriy qiymatlar (sotuvchi boti, Meta kalitlari, aloqa manzili) ham shu faylda qoladi: server sozlamasi har
@@ -27,7 +27,7 @@ const LICENSE_KEY_FILE = join(homedir(), '.palantir', 'litsenziya.pem');
 const SECRETS = join(homedir(), '.palantir', 'hub.env');
 const UPLOAD = '/tmp/palantir-hub-upload';
 const step = (s: string) => console.log(`\n== ${s}`);
-const OPTIONAL = ['HUB_CONTACT_EMAIL', 'IG_APP_ID', 'IG_APP_SECRET', 'HUB_BOT_TOKEN', 'HUB_ALERT_CHAT'];
+const OPTIONAL = ['HUB_CONTACT_EMAIL', 'IG_APP_ID', 'IG_APP_SECRET', 'FB_APP_ID', 'FB_APP_SECRET', 'FB_LOGIN_CONFIG_ID', 'HUB_BOT_TOKEN', 'HUB_ALERT_CHAT'];
 
 function secrets(): Record<string, string> {
   const saved: Record<string, string> = {};
@@ -86,4 +86,5 @@ Tayyor: ${publicUrl}
   Klinika kodi: curl -X POST ${publicUrl}/admin/clinics -H "Authorization: Bearer $(grep HUB_ADMIN_KEY ${SECRETS} | cut -d= -f2)" -d '{"name":"Klinika"}'
   Meta ilovasi (docs/INSTAGRAM.md): OAuth ${publicUrl}/ig/callback · webhook ${publicUrl}/ig/webhook (token — HUB_VERIFY_TOKEN)
     deauthorize ${publicUrl}/ig/deauthorize · data deletion ${publicUrl}/ig/data-deletion · ${publicUrl}/privacy · ${publicUrl}/terms · ${publicUrl}/data-deletion
-${vars.HUB_BOT_TOKEN && vars.HUB_ALERT_CHAT ? '' : "  ! HUB_BOT_TOKEN va HUB_ALERT_CHAT berilmagan — yangi kompyuter yozilsa yoki klinika aloqadan chiqsa sotuvchiga Telegram xabari kelmaydi: HUB_BOT_TOKEN=… HUB_ALERT_CHAT=… npm run hub:deploy (bir marta — keyin eslab qoladi)\n"}${health.legal ? '' : '  ! HUB_CONTACT_EMAIL berilmagan — Meta maxfiylik siyosatini aloqa manzilisiz qabul qilmaydi: HUB_CONTACT_EMAIL=… npm run hub:deploy\n'}${health.instagram ? '' : "  ! Meta ilovasi kalitlari (IG_APP_ID, IG_APP_SECRET) hali yo'q — Instagram'siz ishlaydi (nazorat, zaxira, masofadan kirish)\n"}`);
+  Reklama (docs/REKLAMA-HUB.md): Facebook Login → Valid OAuth Redirect URI ${publicUrl}/ads/callback
+${health.ads ? '' : "  ! Reklama uchun Meta ilovasi (FB_APP_ID, FB_APP_SECRET) hali yo'q — «Facebook orqali ulash» tugmasi ishlamaydi, qo'lda token yo'li ishlaydi\n"}${vars.HUB_BOT_TOKEN && vars.HUB_ALERT_CHAT ? '' : "  ! HUB_BOT_TOKEN va HUB_ALERT_CHAT berilmagan — yangi kompyuter yozilsa yoki klinika aloqadan chiqsa sotuvchiga Telegram xabari kelmaydi: HUB_BOT_TOKEN=… HUB_ALERT_CHAT=… npm run hub:deploy (bir marta — keyin eslab qoladi)\n"}${health.legal ? '' : '  ! HUB_CONTACT_EMAIL berilmagan — Meta maxfiylik siyosatini aloqa manzilisiz qabul qilmaydi: HUB_CONTACT_EMAIL=… npm run hub:deploy\n'}${health.instagram ? '' : "  ! Meta ilovasi kalitlari (IG_APP_ID, IG_APP_SECRET) hali yo'q — Instagram'siz ishlaydi (nazorat, zaxira, masofadan kirish)\n"}`);

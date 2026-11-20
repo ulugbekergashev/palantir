@@ -65,8 +65,14 @@
  *      Instagram'dan olib tashladi) va /ig/data-deletion (ma'lumotni o'chirish so'rovi) — signed_request ilova siri bilan tekshiriladi.
  *      Hub o'zidagini o'chiradi (akkaunt bog'lanishi, kutayotgan xabarlar) va klinikaga navbat orqali buyruq beradi: tokenni va
  *      Instagram'dan kelgan ma'lumotni o'chirish; klinika bajargach /api/ig/deleted — holat sahifasi «bajarildi».
+ *   8. Reklama kabineti (Targetolog): klinika «Facebook orqali ulash» bosadi → /api/ads/connect-url → facebook.com'da egasi kiradi va
+ *      ruxsat beradi (ads_mcp_management — Meta'ning reklama MCP serveri ham) → /ads/callback → kod 60 kunlik tokenga almashtiriladi
+ *      (ilova siri faqat hubda) → token klinikaga navbat orqali (ads_token); kabinet va sahifani klinika o'zi tanlaydi (server/ads/hubConnect.ts).
+ *      Havola avval Hub sahifasi (/ads/start): qaysi klinikaga ulanishi yoziladi; holat bir martalik. Token Hub navbatida ko'pi bilan 1 soat
+ *      (klinika olgach darhol o'chadi) — boshqa joyda saqlanmaydi. Meta ilovasi: FB_APP_ID, FB_APP_SECRET (Meta ilova ID'si — Instagram
+ *      ilovasinikidan boshqa); Facebook Login for Business sozlamasi bo'lsa — FB_LOGIN_CONFIG_ID; ruxsatlar — FB_ADS_SCOPES.
  *
- * Sozlama (muhit o'zgaruvchilari): IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL, HUB_VERIFY_TOKEN, HUB_ADMIN_KEY, PORT, HUB_DB;
+ * Sozlama (muhit o'zgaruvchilari): IG_APP_ID, IG_APP_SECRET, FB_APP_ID, FB_APP_SECRET, FB_LOGIN_CONFIG_ID, HUB_PUBLIC_URL, HUB_VERIFY_TOKEN, HUB_ADMIN_KEY, PORT, HUB_DB;
  * ochiq sahifalar uchun HUB_OPERATOR (xizmatni taqdim etuvchi, yuridik nomi) va HUB_CONTACT_EMAIL;
  * proksi ortida (Caddy) — HUB_TRUST_PROXY=1 (masofadan kirishda mijoz manzili X-Forwarded-For'dan);
  * nazorat uchun HUB_BOT_TOKEN (sotuvchining boti) va HUB_ALERT_CHAT (xabar boradigan chat), HUB_OFFLINE_MS (standart 15 daqiqa).
@@ -109,6 +115,14 @@ const cfg = {
   tokenUrl: process.env.IG_TOKEN_URL || 'https://api.instagram.com/oauth/access_token',
   graphUrl: (process.env.IG_GRAPH_URL || 'https://graph.instagram.com').replace(/\/+$/, ''),
   graphVersion: process.env.IG_GRAPH_VERSION || 'v25.0',
+  /** Reklama (8-band): Meta ilovasi (Facebook Login) */
+  fbAppId: process.env.FB_APP_ID || '',
+  fbAppSecret: process.env.FB_APP_SECRET || '',
+  fbConfigId: process.env.FB_LOGIN_CONFIG_ID || '',
+  fbScopes: process.env.FB_ADS_SCOPES || 'ads_mcp_management,ads_management,ads_read,business_management,pages_show_list,pages_read_engagement,pages_manage_ads,instagram_basic',
+  // Faqat sinov uchun: soxta Facebook
+  fbAuthUrl: process.env.FB_AUTH_URL || 'https://www.facebook.com/v26.0/dialog/oauth',
+  fbGraphUrl: (process.env.FB_GRAPH_URL || 'https://graph.facebook.com/v26.0').replace(/\/+$/, ''),
   botToken: process.env.HUB_BOT_TOKEN || '',
   alertChat: process.env.HUB_ALERT_CHAT || '',
   // Faqat sinov uchun: soxta Telegram
@@ -146,7 +160,8 @@ CREATE TABLE IF NOT EXISTS accounts (ig_user_id TEXT PRIMARY KEY, clinic_id TEXT
 CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, clinic_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS events_clinic ON events (clinic_id, seq);
 CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS deletions (code TEXT PRIMARY KEY, ig_user_id TEXT NOT NULL, clinic_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, done_at TEXT);`);
+CREATE TABLE IF NOT EXISTS deletions (code TEXT PRIMARY KEY, ig_user_id TEXT NOT NULL, clinic_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL, done_at TEXT);
+CREATE TABLE IF NOT EXISTS used_states (n TEXT PRIMARY KEY, used_at TEXT NOT NULL);`);
 // Eski hub bazasiga nazorat ustunlari: status — oxirgi holat (JSON), alerted_at — «aloqa yo'q» aytilgan payt
 {
   const have = new Set((db.prepare('PRAGMA table_info(clinics)').all() as { name: string }[]).map(c => c.name));
@@ -210,7 +225,10 @@ function enqueue(clinicId: string, kind: string, payload: unknown): void {
 const pending = (clinicId: string, after: number) =>
   (db.prepare('SELECT seq, kind, payload FROM events WHERE clinic_id = ? AND seq > ? ORDER BY seq LIMIT ?').all(clinicId, after, MAX_EVENTS_PER_PULL) as { seq: number; kind: string; payload: string }[])
     .map(e => ({ seq: e.seq, kind: e.kind, payload: JSON.parse(e.payload) as unknown }));
-setInterval(() => { db.prepare('DELETE FROM events WHERE created_at < ?').run(new Date(Date.now() - KEEP_EVENTS_MS).toISOString()); }, 3_600_000).unref();
+setInterval(() => {
+  db.prepare('DELETE FROM events WHERE created_at < ?').run(new Date(Date.now() - KEEP_EVENTS_MS).toISOString());
+  db.prepare("DELETE FROM events WHERE kind = 'ads_token' AND created_at < ?").run(new Date(Date.now() - ADS_TOKEN_KEEP_MS).toISOString());
+}, 600_000).unref();
 
 // ─── Masofadan kirish (relay) ────────────────────────────────────────────────
 
@@ -455,19 +473,33 @@ function cleanStatus(v: unknown) {
 let accessKeyObj: ReturnType<typeof signingKey> | null = null;
 const accessKey = () => (accessKeyObj ??= signingKey(cfg.licenseKey));
 
-/** OAuth holati: klinika, biznes, muddat — imzolangan (begona odam boshqa klinika nomidan ulay olmasin) */
-const signState = (clinicId: string, businessId: string) => {
-  const body = Buffer.from(JSON.stringify({ c: clinicId, b: businessId, e: Date.now() + STATE_TTL_MS, n: randomBytes(6).toString('hex') })).toString('base64url');
+/**
+ * OAuth holati: klinika, biznes, muddat, tur — imzolangan (begona odam boshqa klinika nomidan ulay olmasin). Tur: ig — Instagram,
+ * ads — reklama kabineti; biri ikkinchisining qaytish manzilida o'tmaydi (eski holatlarda tur yo'q — ig)
+ */
+type StateKind = 'ig' | 'ads';
+const signState = (clinicId: string, businessId: string, kind: StateKind = 'ig') => {
+  const body = Buffer.from(JSON.stringify({ c: clinicId, b: businessId, e: Date.now() + STATE_TTL_MS, n: randomBytes(6).toString('hex'), ...(kind === 'ig' ? {} : { k: kind }) })).toString('base64url');
   return `${body}.${createHmac('sha256', stateSecret).update(body).digest('base64url')}`;
 };
-function readState(state: string): { c: string; b: string } | null {
+function readState(state: string, kind: StateKind = 'ig'): { c: string; b: string; n?: string } | null {
   const [body, sig] = state.split('.');
   if (!body || !sig || !sameText(sig, createHmac('sha256', stateSecret).update(body).digest('base64url'))) return null;
   try {
-    const s = JSON.parse(Buffer.from(body, 'base64url').toString()) as { c: string; b: string; e: number };
-    return s.e > Date.now() && typeof s.c === 'string' && typeof s.b === 'string' ? s : null;
+    const s = JSON.parse(Buffer.from(body, 'base64url').toString()) as { c: string; b: string; e: number; k?: string; n?: string };
+    return s.e > Date.now() && typeof s.c === 'string' && typeof s.b === 'string' && (s.k ?? 'ig') === kind ? s : null;
   } catch { return null; }
 }
+/** Holat bir martalik (reklama): ishlatilgani eslab qolinadi — bir havola bilan ikkinchi marta token olinmaydi */
+const claimState = (n: string | undefined): boolean => {
+  if (!n) return false;
+  db.prepare('DELETE FROM used_states WHERE used_at < ?').run(new Date(Date.now() - 2 * STATE_TTL_MS).toISOString());
+  return Number(db.prepare('INSERT OR IGNORE INTO used_states (n, used_at) VALUES (?, ?)').run(n, now()).changes) === 1;
+};
+/** Reklama tokeni navbatda shuncha turadi (klinika o'chiq bo'lsa — eskiradi, qayta bosiladi): 60 kunlik token Hub bazasida yotib qolmasin */
+const ADS_TOKEN_KEEP_MS = 3_600_000;
+/** Reklama kabinetini ulash (8-band) sozlanganmi */
+const adsReady = () => !!(cfg.fbAppId && cfg.fbAppSecret && cfg.publicUrl);
 const graphJson = async (r: Response) => {
   const j = await r.json().catch(() => ({})) as Record<string, unknown>;
   if (!r.ok) throw new Error(String((j.error as { message?: string } | undefined)?.message ?? j.error_message ?? r.status));
@@ -480,7 +512,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://hub');
   const p = url.pathname;
 
-  if (p === '/health') return send(res, 200, { ok: true, instagram: !!(cfg.appId && cfg.appSecret && cfg.publicUrl), legal: !!cfg.contactEmail });
+  if (p === '/health') return send(res, 200, { ok: true, instagram: !!(cfg.appId && cfg.appSecret && cfg.publicUrl), ads: adsReady(), legal: !!cfg.contactEmail });
 
   // Ochiq sahifalar (Meta ilovasi sozlamasida ko'rsatiladi)
   if (req.method === 'GET' && p === '/privacy') return send(res, 200, privacyPage(legal()), 'text/html');
@@ -1060,7 +1092,7 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   }
 
   // Klinika: kalit ishlaydimi (ulash ustasidagi tekshiruv)
-  if (p === '/api/ping') return clinicOf(req) ? send(res, 200, { ok: true, instagram: !!(cfg.appId && cfg.appSecret && cfg.publicUrl) }) : send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+  if (p === '/api/ping') return clinicOf(req) ? send(res, 200, { ok: true, instagram: !!(cfg.appId && cfg.appSecret && cfg.publicUrl), ads: adsReady() }) : send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
 
   // Klinika: Instagram'ga kirish havolasi (egasi brauzerda ochadi)
   if (p === '/api/ig/connect-url' && req.method === 'POST') {
@@ -1106,6 +1138,53 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     } catch (e) {
       console.error('[hub] OAuth:', (e as Error).message);
       return send(res, 502, page('Ulanmadi', `Instagram javobi: ${esc((e as Error).message).slice(0, 200)}. Panelga qayting va qayta urining.`), 'text/html');
+    }
+  }
+
+  // Klinika: reklama kabinetini ulash havolasi — Facebook'ga kirish (8-band)
+  if (p === '/api/ads/connect-url' && req.method === 'POST') {
+    const clinic = clinicOf(req);
+    if (!clinic) return send(res, 401, { error: 'Hub kodi noto\'g\'ri' });
+    if (!approved(clinic)) return send(res, 403, { error: QUARANTINE });
+    if (!adsReady()) return send(res, 503, { error: 'Hubda reklama uchun Meta ilovasi sozlanmagan (FB_APP_ID, FB_APP_SECRET)' });
+    const body = JSON.parse((await readRaw(req))?.toString() || '{}') as { businessId?: string };
+    if (!body.businessId || !/^[a-z0-9]{4,20}$/.test(body.businessId)) return send(res, 400, { error: 'businessId kerak' });
+    // Avval Hub sahifasi: qaysi klinikaga ulanayotgani yoziladi — havolani begonaga yuborib, uning kabinetini o'ziga ulab olish qiyinlashsin
+    return send(res, 200, { url: `${cfg.publicUrl}/ads/start?${new URLSearchParams({ state: signState(clinic, body.businessId, 'ads') })}` });
+  }
+
+  // Egasi havolani ochdi: kimga ulanayotganini ko'radi va Facebook'ga o'tadi
+  if (p === '/ads/start') {
+    const raw = url.searchParams.get('state') ?? '';
+    const state = readState(raw, 'ads');
+    if (!state || !adsReady()) return send(res, 400, page('Havola eskirgan', 'Panelga qayting va «Facebook orqali ulash»ni qayta bosing.'), 'text/html');
+    const name = (db.prepare('SELECT name FROM clinics WHERE id = ?').get(state.c) as { name: string } | undefined)?.name ?? '';
+    const q = new URLSearchParams({ client_id: cfg.fbAppId, redirect_uri: `${cfg.publicUrl}/ads/callback`, response_type: 'code', state: raw });
+    // Facebook Login for Business: ruxsatlar sozlamada (config_id); oddiy kirishda — scope
+    if (cfg.fbConfigId) q.set('config_id', cfg.fbConfigId); else q.set('scope', cfg.fbScopes);
+    return send(res, 200, page('Reklama kabinetini ulash', `Facebook reklama kabinetingiz <b>«${esc(name)}»</b> klinikasining Palantir'iga ulanadi: Targetolog reklamani tahlil qiladi va tayyorlaydi, pul faqat egasining tugmasi bilan sarflanadi.<br><br>Bu sizning klinikangiz bo'lmasa — oynani yoping.<br><br><a href="${esc(`${cfg.fbAuthUrl}?${q}`)}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#1877f2;color:#fff;text-decoration:none;font-weight:600">Facebook orqali davom etish</a>`), 'text/html');
+  }
+
+  // Meta: egasi reklama kabinetiga ruxsat berdi (yoki rad etdi)
+  if (p === '/ads/callback') {
+    const state = readState(url.searchParams.get('state') ?? '', 'ads');
+    if (!state) return send(res, 400, page('Havola eskirgan', 'Panelga qayting va «Facebook orqali ulash»ni qayta bosing.'), 'text/html');
+    if (url.searchParams.get('error')) return send(res, 200, page('Ulanmadi', 'Ruxsat berilmadi. Panelga qayting va qayta urining.'), 'text/html');
+    if (!claimState(state.n)) return send(res, 400, page('Havola ishlatilgan', 'Bu havola bilan allaqachon ulangan. Kerak bo\'lsa panelda «Facebook orqali ulash»ni qayta bosing.'), 'text/html');
+    const code = (url.searchParams.get('code') ?? '').replace(/#_$/, '');
+    try {
+      const auth = { client_id: cfg.fbAppId, client_secret: cfg.fbAppSecret };
+      const first = await graphJson(await fetch(`${cfg.fbGraphUrl}/oauth/access_token?${new URLSearchParams({ ...auth, redirect_uri: `${cfg.publicUrl}/ads/callback`, code })}`));
+      let token = String(first.access_token ?? ''), expiresIn = Number(first.expires_in) || 0;
+      if (!token) throw new Error('token kelmadi');
+      // Qisqa (1–2 soatlik) foydalanuvchi tokeni → 60 kunlik. Login for Business tizim foydalanuvchisi tokeni almashmaydi — u o'zi muddatsiz
+      const long = await fetch(`${cfg.fbGraphUrl}/oauth/access_token?${new URLSearchParams({ ...auth, grant_type: 'fb_exchange_token', fb_exchange_token: token })}`).then(graphJson).catch(() => null);
+      if (long?.access_token) { token = String(long.access_token); expiresIn = Number(long.expires_in) || 0; }
+      enqueue(state.c, 'ads_token', { businessId: state.b, token, expiresIn, at: Date.now() });
+      return send(res, 200, page('✓ Facebook ulandi', "Palantir reklama kabinetingiz va sahifangizni o'zi topadi. Panelga qayting — bir nechta kabinet bo'lsa, o'sha yerda tanlaysiz. Bu oynani yopishingiz mumkin."), 'text/html');
+    } catch (e) {
+      console.error('[hub] reklama OAuth:', (e as Error).message);
+      return send(res, 502, page('Ulanmadi', `Facebook javobi: ${esc((e as Error).message).slice(0, 200)}. Panelga qayting va qayta urining.`), 'text/html');
     }
   }
 
@@ -1236,6 +1315,7 @@ server.headersTimeout = 66_000;
 server.listen(cfg.port, () => {
   console.log(`Palantir Hub: http://localhost:${cfg.port}`);
   console.log(`  Instagram: ${cfg.appId && cfg.appSecret && cfg.publicUrl ? `ilova ${cfg.appId}, ${cfg.publicUrl}` : "sozlanmagan (IG_APP_ID, IG_APP_SECRET, HUB_PUBLIC_URL)"}`);
+  console.log(`  Reklama (Facebook): ${adsReady() ? `ilova ${cfg.fbAppId}, qaytish ${cfg.publicUrl}/ads/callback${cfg.fbConfigId ? `, sozlama ${cfg.fbConfigId}` : ''}` : 'sozlanmagan (FB_APP_ID, FB_APP_SECRET)'}`);
   const pub = cfg.publicUrl || '<HUB_PUBLIC_URL>';
   console.log(`  webhook: ${pub}/ig/webhook · OAuth: ${pub}/ig/callback · deauthorize: ${pub}/ig/deauthorize · data deletion: ${pub}/ig/data-deletion`);
   console.log(`  sahifalar: ${pub}/privacy, /terms, /data-deletion — ${cfg.contactEmail ? `${cfg.operator}, ${cfg.contactEmail}` : "HUB_CONTACT_EMAIL berilmagan: Meta aloqa manzilisiz siyosatni qabul qilmaydi"}`);

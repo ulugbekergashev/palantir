@@ -38,7 +38,8 @@ export class TargetError extends Error {}
 /** Meta'dagi qismlar: o'chirish va kuzatish uchun */
 export interface MetaIds { campaignId?: string; adsetId?: string; creativeIds?: string[]; adIds?: string[]; imageHashes?: string[]; videoIds?: string[] }
 
-export interface AdsConnection extends AdsAccount { token: string; accountName: string; pageName: string; timezone: string }
+/** expiresAt — token muddati (Facebook orqali ulanganda 60 kun; qo'lda kiritilgan tizim foydalanuvchisi tokeni — null) */
+export interface AdsConnection extends AdsAccount { token: string; accountName: string; pageName: string; timezone: string; expiresAt?: string | null }
 
 const PAGE = 50;
 
@@ -57,11 +58,12 @@ export const adsStore = {
     return {
       token: open(c.secret), adAccountId: c.account.id, accountName: c.account.name ?? '', currency: c.account.currency ?? 'USD',
       pageId: c.meta.pageId ?? '', pageName: c.meta.pageName ?? '', igActorId: c.meta.igActorId || null, timezone: c.meta.timezone ?? '',
+      expiresAt: c.meta.expiresAt || null,
     };
   },
   saveConnection(bizId: string, c: AdsConnection): void {
     connections.save(bizId, 'meta_ads', seal(c.token), { id: c.adAccountId, name: c.accountName, currency: c.currency },
-      { pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId ?? '', timezone: c.timezone });
+      { pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId ?? '', timezone: c.timezone, ...(c.expiresAt ? { expiresAt: c.expiresAt } : {}) });
   },
   removeConnection: (bizId: string) => sql.run("DELETE FROM connections WHERE business_id = ? AND kind = 'meta_ads'", bizId),
 

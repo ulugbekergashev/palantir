@@ -199,6 +199,8 @@ async function pullLoop(): Promise<void> {
           else if (e.kind === 'ig_entry') await onEntry(e.payload);
           else if (e.kind === 'ig_revoked') await onRevoked(e.payload);
           else if (e.kind === 'ig_delete') await onDelete(e.payload);
+          // Reklama kabineti Facebook orqali ulandi (ads/hubConnect.ts) — kechiktirib yuklanadi: reklama modullari Instagram'ga bog'lanmasin
+          else if (e.kind === 'ads_token') await (await import('../ads/hubConnect')).onAdsToken(e.payload);
           // Palantir jamoasi egasining yordam so'roviga javob berdi (help.ts)
           else if (e.kind === 'help_answer') await onHelpAnswer(e.payload);
           // Masofadan amal (hubCommands.ts): alohida — qo'ng'iroq tugashini kutish Instagram xabarlarini ushlab turmasin
