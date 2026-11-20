@@ -232,7 +232,7 @@ export function AdsCabinet({ view, setView, notify }: { view: AdsView | null; se
         ) : (
           <form onSubmit={connect} className="space-y-3">
             <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-[#c9cbd2]">
-              <li>business.facebook.com → Sozlamalar → <b>Tizim foydalanuvchilari</b> → Qo'shish (Admin).</li>
+              <li>business.facebook.com → Sozlamalar → <b>Tizim foydalanuvchilari</b> → Qo'shish, roli — <b>Employee</b> (Meta'ning reklama MCP'si Admin tokenini qabul qilmaydi).</li>
               <li>Unga <b>Aktivlar qo'shish</b>: reklama kabineti (to'liq boshqaruv) va Facebook sahifa.</li>
               <li><b>Token yaratish</b>: ilovangizni tanlang, ruxsatlar — ads_management, ads_read, ads_mcp_management, pages_read_engagement, pages_manage_ads, pages_show_list. Muddati — «hech qachon» yoki 60 kun.</li>
               <li>Kabinet ID (Ads Manager manzilidagi act=…), sahifa ID va Instagram akkaunt ID'sini quyida yozing.</li>
