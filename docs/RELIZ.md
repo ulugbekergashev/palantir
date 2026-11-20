@@ -1,5 +1,11 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.40 da yangi
+
+- **SMM-menejer (sobiq Kontent-meyker):** kunlar bo'yicha kontent kalendari — post, karusel va storis, vaqti va kanali bilan. Har biriga matn yozadi va brendingiz shablonida rasm tayyorlaydi (yozuvlar tiniq, shriftingiz va ranglaringizda). Siz Telegram'da tasdiqlagan post vaqti kelganda o'zi chiqadi. Panel → Marketing → SMM-menejer → Kalendar.
+- **Targetolog Meta'ning rasmiy reklama asboblari bilan:** reklama kabinetingizni o'qiydi, natijalarni tahlil qiladi, kampaniyani o'zi yig'adi (2–3 xil reklama bilan) va pul behuda ketayotganini to'xtatadi. Pul faqat siz Telegram'dagi tugmani bosganingizda sarflanadi, limitlaringiz ichida. Buning uchun kabinet tokenida `ads_mcp_management` ruxsati bo'lishi kerak.
+- **Ruxsatlar:** Sozlamalarda har ish uchun tanlaysiz — AI o'zi qilsinmi, sizdan so'rasinmi yoki hech qachon qilmasinmi.
+
 ## 0.4.39 da yangi
 
 - **Hub'dan to'g'ri sozlamaga:** jamoa Palantir Hub'da «Telefon liniyasi», «Claude va kalitlar», «Telegram» kabi tugmani bossa (egangizning ruxsati bilan), panel bosh sahifada emas — darhol o'sha sozlama sahifasida ochiladi.
