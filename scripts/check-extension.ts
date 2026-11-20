@@ -37,6 +37,14 @@ const site = createServer((req, res) => {
   if (req.url === '/yukla') return res.end('<title>Yukla</title><a href="/fayl" download="kodeks.txt">Yuklab olish</a>');
   if (req.url === '/fayl') { res.setHeader('content-type', 'text/plain'); res.setHeader('content-disposition', 'attachment; filename=kodeks.txt'); return res.end('Mehnat kodeksi'); }
   if (req.url === '/popup') return res.end('<title>Yangi oyna</title><h1>popup</h1>');
+  // Brauzerning o'z oynalari (2026-11-20, the-internet.herokuapp.com: prompt ochilgach ish 10 daqiqa osildi)
+  if (req.url === '/oyna') return res.end(`<title>Oyna</title><h1 id="r">natija:yo'q</h1>
+    <button onclick="document.getElementById('r').textContent='kiritildi:'+prompt('Ismingizni yozing')">Prompt</button>
+    <button onclick="document.getElementById('r').textContent='tasdiq:'+confirm('Davom etilsinmi?')">Savol</button>
+    <button onclick="document.getElementById('r').textContent='pul:'+confirm('Kartangizdan 500 000 so\\'m to\\'lansinmi?')">Davom</button>`);
+  // Sahifa ichidagi sahifa (iframe) va Shadow DOM: muharrirlar, vidjetlar, Reddit/YouTube tugmalari shular ichida
+  if (req.url === '/ramka') return res.end(`<title>Ramka</title><h1>tashqi</h1><iframe style="margin-top:200px;width:400px;height:200px" srcdoc="<input aria-label='Ichki maydon'><button onclick=&quot;document.body.insertAdjacentHTML('beforeend','<p>ichki:'+document.querySelector('input').value+'</p>')&quot;>Ichki tugma</button>"></iframe>`);
+  if (req.url === '/soya') return res.end(`<title>Soya</title><h1>soya</h1><x-k></x-k><script>customElements.define('x-k', class extends HTMLElement { connectedCallback() { const r = this.attachShadow({ mode: 'open' }); r.innerHTML = '<p>Ichidagi matn</p><button>Soya tugma</button>'; r.querySelector('button').onclick = () => r.querySelector('p').textContent = 'soya:bosildi'; } });</script>`);
   res.end(`<title>Sinov sahifasi</title><h1 id="h">${req.url}</h1><input id="ism" aria-label="Ism"><button onclick="document.getElementById('h').textContent='bosildi:'+document.getElementById('ism').value">Tekshirish</button><a href="/popup" target="_blank">Oyna</a>${DEEP}`);
 });
 const sitePort = await listen(site);
@@ -71,6 +79,8 @@ const owner = await chromium.launchPersistentContext(join(dir, 'egasi'), {
   // Egasining Chrome'i fayllarni o'z papkasiga tushiradi (Palantir'ning Playwright ulanishiga yuklama hodisasi kelmaydi)
   acceptDownloads: true, downloadsPath: join(dir, 'egasi-yuklamalar'),
 });
+// Haqiqiy egasining Chrome'i oynani o'zi yopmaydi — bu sinov Chrome'ining Playwright'i esa yopadi: unga tinglovchi qo'yiladi (o'zi yopmasin)
+owner.on('page', pg => pg.on('dialog', () => {}));
 try {
   const ownerTab = owner.pages()[0] ?? await owner.newPage();
   await ownerTab.goto(`${SITE}/egasi`);
@@ -155,6 +165,47 @@ try {
   ok("g'ildirak yetib bormasa — ro'yxat baribir aylanadi (JS bilan)", !stuck.isError && /aylandi:[1-9]/.test(moved), `${text(stuck).slice(0, 300)} | ${moved.slice(-40)}`);
   const blocked = await s.run('navigate', { url: 'http://127.0.0.1:9/' });
   ok('ichki tarmoq yopiq', blocked.isError === true, text(blocked).slice(0, 120));
+  // Brauzer oynasi (alert/confirm/prompt): ochilgani aytiladi, type + Enter — OK, Escape — bekor; ochiq turganda boshqa amal osilmaydi
+  const within = <T>(pr: Promise<T>, ms = 15_000) => Promise.race([pr, sleep(ms).then(() => null)]);
+  await s.run('navigate', { url: `${SITE}/oyna` });
+  const oynaRef = (n: string) => within(s.run('find', { query: n })).then(r => (r ? text(r).match(/ref_\d+/)?.[0] ?? '' : ''));
+  const promptBtn = await oynaRef('Prompt button');
+  const dlgOpened = await within(s.run('left_click', { target: { type: 'ref', ref: promptBtn } }));
+  const whileOpen = await within(s.run('read_page', {}));
+  const typed = await within(s.run('type', { text: 'Palantir' }));
+  const accepted = await within(s.run('key', { text: 'Enter' }));
+  const afterPrompt = await within(s.run('get_page_text', {}));
+  ok("prompt oynasi: ochilgani va savoli aytiladi, ochiq turganda read_page osilmaydi, type + Enter — javob yuboriladi",
+    !!dlgOpened && /Ismingizni yozing/.test(text(dlgOpened)) && !!whileOpen && /Ismingizni yozing/.test(text(whileOpen)) && !!typed && !typed.isError
+    && !!accepted && !accepted.isError && !!afterPrompt && text(afterPrompt).includes('kiritildi:Palantir'),
+    [dlgOpened, whileOpen, typed, accepted, afterPrompt].map(r => (r ? text(r).slice(0, 90) : 'OSILDI')).join(' | '));
+  const confirmRef = await oynaRef('Savol button');
+  const confirmClick = await within(s.run('left_click', { target: { type: 'ref', ref: confirmRef } }));
+  const esc = await within(s.run('key', { text: 'Escape' }));
+  const afterConfirm = await within(s.run('get_page_text', {}));
+  ok('confirm oynasi: Escape — bekor', !!afterConfirm && text(afterConfirm).includes('tasdiq:false'),
+    `${confirmRef} | ${[confirmClick, esc, afterConfirm].map(r => (r ? text(r).slice(0, 90) : 'OSILDI')).join(' | ')}`);
+  await within(s.run('left_click', { target: { type: 'ref', ref: await oynaRef('Davom button') } }));
+  const payOk = await within(s.run('key', { text: 'Enter' }));
+  const payNo = await within(s.run('key', { text: 'Escape' }));
+  const afterPay = await within(s.run('get_page_text', {}));
+  ok("to'lov so'ragan oynada OK bosilmaydi (pul zonasi), bekor qilish mumkin", !!payOk && payOk.isError === true && !!payNo && !payNo.isError && !!afterPay && text(afterPay).includes('pul:false'),
+    [payOk, payNo, afterPay].map(r => (r ? text(r).slice(0, 90) : 'OSILDI')).join(' | '));
+  // Sahifa ichidagi sahifa (iframe) va Shadow DOM — ko'rinadi, bosiladi, yoziladi
+  await s.run('navigate', { url: `${SITE}/ramka` });
+  const framed = text(await s.run('read_page', {}));
+  const inner = framed.match(/(ref_\d+)[^\]]*?Ichki tugma/)?.[1] ?? framed.match(/Ichki tugma[^\n]*?(ref_\d+)/)?.[1] ?? '';
+  const innerInput = framed.match(/(ref_\d+)[^\]]*?Ichki maydon/)?.[1] ?? framed.match(/Ichki maydon[^\n]*?(ref_\d+)/)?.[1] ?? '';
+  if (innerInput) await s.run('form_input', { target: { type: 'ref', ref: innerInput }, value: 'salom' });
+  if (inner) await s.run('left_click', { target: { type: 'ref', ref: inner } });
+  const framedAfter = text(await s.run('get_page_text', {}));
+  ok("iframe ichi: tugma va maydon ko'rinadi, yoziladi, bosiladi", !!inner && !!innerInput && framedAfter.includes('ichki:salom'), `${framed.slice(0, 200)} | ${framedAfter.slice(0, 120)}`);
+  await s.run('navigate', { url: `${SITE}/soya` });
+  const shadow = text(await s.run('read_page', {}));
+  const shadowBtn = shadow.match(/(ref_\d+)[^\]]*?Soya tugma/)?.[1] ?? shadow.match(/Soya tugma[^\n]*?(ref_\d+)/)?.[1] ?? '';
+  if (shadowBtn) await s.run('left_click', { target: { type: 'ref', ref: shadowBtn } });
+  const shadowAfter = text(await s.run('get_page_text', {}));
+  ok("Shadow DOM ichi: ko'rinadi va bosiladi", !!shadowBtn && shadowAfter.includes('soya:bosildi'), `${shadow.slice(0, 200)} | ${shadowAfter.slice(0, 120)}`);
   await s.run('navigate', { url: `${SITE}/ish` });
   const page2 = text(await s.run('read_page', {}));
   const link = page2.match(/(ref_\d+)[^\]]*?Oyna/)?.[1] ?? page2.match(/Oyna[^\n]*?(ref_\d+)/)?.[1];

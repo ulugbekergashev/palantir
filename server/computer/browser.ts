@@ -7,11 +7,12 @@
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
-import { chromium, type Browser, type BrowserContext, type ElementHandle, type Page, type Request } from 'playwright-core';
+import { chromium, type Browser, type BrowserContext, type Dialog, type ElementHandle, type Page, type Request } from 'playwright-core';
 import { installedBrowser } from '../browserPath';
 import { PolicyError, allowedRequest, checkUrl, riskyClick, riskyKey, type ElementInfo, type SitePolicy } from './policy';
 import { MONEY_ZONE, cardLike, moneyControl } from './money';
 import { DownloadWatch, ownerDownloadsDir } from './ownDownloads';
+import { describeDialog, dialogStep, fromDialog, type OpenDialog } from './browserDialog';
 
 export type ResultContent = Exclude<Anthropic.Beta.BetaToolResultBlockParam['content'], string | undefined>;
 export interface MemberResult { content: ResultContent; isError?: boolean }
@@ -41,6 +42,11 @@ const SCROLL_TO_MS = 3_000;
 const SHOT_MS = 8_000;
 /** form_input: Playwright belgi qo'yishini shuncha kutadi (keyin — elementning o'z bosilishi) */
 const CHECK_MS = 3_000;
+/**
+ * Bitta a'zoning eng uzoq vaqti (egasidan ruxsat kutilgan vaqt hisobga kirmaydi): sahifa javob bermay qolsa ish abadiy osilmaydi —
+ * model xabar oladi va boshqa yo'l tanlaydi
+ */
+const MEMBER_MAX_MS = 150_000;
 
 /**
  * Sahifada ishlaydi: (x, y) nuqtadagi eng yaqin aylanadigan ro'yxat (Google Maps natijalari kabi) yoki butun sahifa.
@@ -103,8 +109,15 @@ const PAGE_HELPERS = `(() => {
     if (el.tagName === 'IMG') return clean(el.alt);
     return clean(el.innerText || el.textContent || el.title || '');
   };
-  const visible = el => { const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) return false; const s = getComputedStyle(el); return s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0'; };
-  const onScreen = el => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth; };
+  // Elementlar iframe ichida ham bo'lishi mumkin (boshqa window): uslub va o'lcham o'z oynasidan
+  const winOf = el => el.ownerDocument.defaultView || window;
+  const visible = el => { const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) return false; const s = winOf(el).getComputedStyle(el); return s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0'; };
+  const onScreen = el => { const r = el.getBoundingClientRect(), w = winOf(el); return r.bottom > 0 && r.right > 0 && r.top < w.innerHeight && r.left < w.innerWidth; };
+  /** Shu saytning iframe'i ichidagi hujjat (boshqa saytniki — null: brauzer ichini ko'rsatmaydi) */
+  const frameDoc = el => { if (el.tagName !== 'IFRAME' && el.tagName !== 'FRAME') return null; try { return el.contentDocument && el.contentDocument.body ? el.contentDocument : null; } catch (e) { return null; } };
+  /** Ichki bolalar: Shadow DOM (ochiq), iframe hujjati, oddiy bolalar — Reddit, YouTube, matn muharrirlari tugmalari shular ichida */
+  const kids = el => { const f = frameDoc(el); if (f) return [f.body]; return el.shadowRoot ? [...el.shadowRoot.children, ...el.children] : [...el.children]; };
+  const frameHost = el => { if (el.tagName !== 'IFRAME' || frameDoc(el)) return ''; try { return new URL(el.src, location.href).host; } catch (e) { return ''; } };
   const ownText = el => clean(Array.from(el.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join(' '));
   const describe = (el, role) => {
     const name = cut(nameOf(el), 100);
@@ -127,12 +140,14 @@ const PAGE_HELPERS = `(() => {
     const out = [];
     const walk = (el, d, level) => {
       // depth — ko'rsatilgan daraxt chuqurligi, DOM qavatlari emas: Facebook kabi saytlarda tugmalar 30+ div ichida, ilgari ular umuman ko'rinmasdi
-      if (level > depth || d > MAX_DOM_DEPTH || !(el instanceof Element)) return;
+      if (level > depth || d > MAX_DOM_DEPTH || !el || el.nodeType !== 1) return;
       if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'SVG'].includes(el.tagName)) return;
       if (!visible(el) && el.tagName !== 'OPTION') return;
       const role = roleOf(el);
       const interactive = INTERACTIVE.has(role) || el.isContentEditable;
       let next = level;
+      const foreign = frameHost(el);
+      if (foreign) { out.push('  '.repeat(level) + 'iframe (boshqa sayt: ' + foreign + " — ichi o'qilmaydi, screenshot bilan ko'ring) [" + refOf(el) + ']'); return; }
       const show = filter === 'interactive' ? interactive : (role || ownText(el));
       if (show && (filter === 'all' || filter === 'interactive' || onScreen(el))) {
         const line = role ? describe(el, role) : 'text "' + cut(ownText(el), 160).replace(/"/g, "'") + '"';
@@ -140,19 +155,56 @@ const PAGE_HELPERS = `(() => {
         next = level + 1;
       }
       if (role === 'select' || el.tagName === 'SELECT') return;
-      for (const c of el.children) walk(c, d + 1, next);
+      for (const c of kids(el)) walk(c, d + 1, next);
     };
     walk(root, 0, 0);
     return out.join('\\n');
   };
   const info = el => el ? { tag: el.tagName.toLowerCase(), type: el.getAttribute('type'), role: roleOf(el), name: nameOf(el), inForm: !!el.closest('form'), password: el.tagName === 'INPUT' && (el.type || '').toLowerCase() === 'password' } : null;
   const clickable = el => el && el.closest('button, a[href], input[type=submit], input[type=button], [role=button], [role=link], summary, label') || el;
+  /** Nuqtadagi eng ichki element: Shadow DOM va shu saytning iframe'i ichiga ham tushadi */
+  const deepAt = (x, y) => {
+    let el = document.elementFromPoint(x, y);
+    for (let i = 0; el && i < 20; i++) {
+      const f = frameDoc(el);
+      if (f) { const r = el.getBoundingClientRect(); x -= r.left; y -= r.top; const inner = f.elementFromPoint(x, y); if (!inner) break; el = inner; continue; }
+      const inner = el.shadowRoot && el.shadowRoot.elementFromPoint(x, y);
+      if (!inner || inner === el) break;
+      el = inner;
+    }
+    return el;
+  };
+  const deepActive = () => {
+    let el = document.activeElement;
+    for (let i = 0; el && i < 20; i++) {
+      const f = frameDoc(el);
+      const inner = f ? f.activeElement : el.shadowRoot && el.shadowRoot.activeElement;
+      if (!inner || inner === el) break;
+      el = inner;
+    }
+    return el;
+  };
   window.__pal = {
     tree, info,
     el: ref => { const e = S.byRef.get(ref); return e && e.isConnected ? e : null; },
-    at: (x, y) => info(clickable(document.elementFromPoint(x, y))),
-    active: () => info(document.activeElement),
-    text: () => { const m = document.querySelector('main, [role=main], article'); return (m && clean(m.innerText).length > 200 ? m : document.body).innerText; },
+    at: (x, y) => info(clickable(deepAt(x, y))),
+    active: () => info(deepActive()),
+    text: () => {
+      const m = document.querySelector('main, [role=main], article');
+      const base = (m && clean(m.innerText).length > 200 ? m : document.body).innerText;
+      // innerText iframe va Shadow DOM ichini olmaydi — ular oxiriga qo'shiladi
+      const extra = [];
+      const seen = (el, d) => {
+        if (d > MAX_DOM_DEPTH || extra.length > 200) return;
+        const f = frameDoc(el);
+        if (f) { const t = clean(f.body.innerText); if (t) extra.push(t); }
+        if (el.shadowRoot) { const t = clean([...el.shadowRoot.children].map(c => c.innerText || '').join(' ')); if (t) extra.push(t); }
+        for (const c of el.children) seen(c, d + 1);
+        if (el.shadowRoot) for (const c of el.shadowRoot.children) seen(c, d + 1);
+      };
+      seen(document.body, 0);
+      return extra.length ? base + '\\n\\n' + extra.join('\\n\\n') : base;
+    },
   };
 })()`;
 
@@ -246,6 +298,12 @@ export class BrowserSession {
   /** Egasining Chrome'iga ulangan (attach) — yopilganda faqat o'z vkladkalari yopiladi */
   private shared = false;
   private watch: DownloadWatch | null = null;
+  /** Ochiq brauzer oynalari (alert/confirm/prompt) — vkladka bo'yicha; ochilganda kutayotgan a'zo darhol javob oladi */
+  private readonly dialogs = new Map<Page, { d: Dialog; o: OpenDialog }>();
+  private readonly dialogWaiters = new Set<() => void>();
+  /** Egasidan ruxsat kutilyapti (bu vaqt a'zo vaqtiga kirmaydi) va oxirgi so'rov tugagan payt */
+  private asking = false;
+  private askedAt = 0;
   private onPage: ((p: Page) => void) | null = null;
 
   private adopt(p: Page): void {
@@ -255,7 +313,13 @@ export class BrowserSession {
     this.ids.set(p, id);
     this.active = id;
     p.setDefaultTimeout(ACTION_TIMEOUT_MS);
-    p.on('close', () => { this.tabs.delete(id); if (this.active === id) this.active = [...this.tabs.keys()].at(-1) ?? ''; });
+    p.on('close', () => { this.tabs.delete(id); this.dialogs.delete(p); if (this.active === id) this.active = [...this.tabs.keys()].at(-1) ?? ''; });
+    // Tinglovchi bor — Playwright oynani o'zi yopmaydi: model ko'radi va javob beradi. Sahifadan chiqish so'rovi (beforeunload) — rozi
+    p.on('dialog', d => {
+      if (d.type() === 'beforeunload') { void d.accept().catch(() => {}); return; }
+      this.dialogs.set(p, { d, o: fromDialog(d) });
+      for (const w of this.dialogWaiters) w();
+    });
     p.on('download', d => {
       const file = join(this.o.downloadsDir, basename(d.suggestedFilename()).replace(/[^\p{L}\p{N}._ -]+/gu, '_').slice(0, 120) || 'fayl');
       this.saving.push(d.saveAs(file).then(() => { this.downloads.push(file); }, () => {}));
@@ -274,7 +338,9 @@ export class BrowserSession {
   }
 
   private async state(): Promise<Anthropic.Beta.BetaBrowserStateBlockParam> {
-    const tabs = await Promise.all([...this.tabs.entries()].map(async ([id, p]) => ({ tab_id: id, title: (await p.title().catch(() => '')).slice(0, 200), url: p.url(), active: id === this.active })));
+    // Oynasi ochiq vkladkada sarlavha o'qib bo'lmaydi (osilib qoladi)
+    const title = (p: Page) => (this.dialogs.has(p) ? Promise.resolve('(brauzer oynasi ochiq)') : Promise.race([p.title().catch(() => ''), sleep(3_000).then(() => '')]));
+    const tabs = await Promise.all([...this.tabs.entries()].map(async ([id, p]) => ({ tab_id: id, title: (await title(p)).slice(0, 200), url: p.url(), active: id === this.active })));
     return { type: 'browser_state', tabs };
   }
 
@@ -323,7 +389,8 @@ export class BrowserSession {
   private async gate(what: string | null): Promise<MemberResult | null> {
     if (!what) return null;
     const host = (() => { try { return new URL(this.page().url()).host; } catch { return ''; } })();
-    const ok = await this.o.approve(`${what}${host ? ` — ${host}` : ''}`);
+    this.asking = true;
+    const ok = await this.o.approve(`${what}${host ? ` — ${host}` : ''}`).finally(() => { this.asking = false; this.askedAt = Date.now(); });
     if (ok === true) return null;
     // Javob bo'lmagani — «rad etdi» emas (2026-11-19: 10 daqiqa jim turgan egasi hisobotda «ruxsat bermadingiz» deb yozildi)
     return fail(ok === null
@@ -368,7 +435,8 @@ export class BrowserSession {
     let r: MemberResult;
     const tabsBefore = new Set(this.tabs.keys());
     try {
-      r = await this.member(name, input);
+      const open = this.openDialog();
+      r = open ? await this.answerDialog(open.p, name, input) : await this.untilDialog(this.member(name, input));
       if (!r.isError) r = await this.withOpenedTabs(r, tabsBefore);
     } catch (e) {
       const msg = (e as Error).message.split('\n')[0].slice(0, 300);
@@ -378,6 +446,62 @@ export class BrowserSession {
     const fresh = (await this.saved(30_000, false)).slice(this.announced);
     this.announced += fresh.length;
     return fresh.length ? { ...r, content: [...r.content, { type: 'text', text: `Yuklab olindi: ${fresh.map(f => basename(f)).join(', ')}` }] } : r;
+  }
+
+  private openDialog(): { p: Page; o: OpenDialog } | null {
+    const active = this.tabs.get(this.active);
+    const hit = (active && this.dialogs.has(active) ? active : null) ?? [...this.dialogs.keys()][0];
+    return hit ? { p: hit, o: this.dialogs.get(hit)!.o } : null;
+  }
+
+  /**
+   * A'zo tugashini kutadi — lekin oyna ochilsa (bosish alert chiqardi) yoki sahifa MEMBER_MAX_MS javob bermasa, darhol qaytadi.
+   * Oyna ochiq turganda bosish (CDP) oyna yopilguncha tugamaydi: kutilsa, ish shu yerda abadiy turib qolardi
+   */
+  private async untilDialog(work: Promise<MemberResult>): Promise<MemberResult> {
+    const start = Date.now();
+    let wake = () => {};
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const interrupt = new Promise<'dialog' | 'timeout'>(res => {
+      wake = () => res('dialog');
+      this.dialogWaiters.add(wake);
+      timer = setInterval(() => { if (!this.asking && Date.now() - Math.max(start, this.askedAt) > MEMBER_MAX_MS) res('timeout'); }, 1_000);
+    });
+    try {
+      const out = await Promise.race([work, interrupt]);
+      if (out !== 'dialog' && out !== 'timeout') return out;
+      work.catch(() => {});
+      const open = this.openDialog();
+      if (open) return text(describeDialog(open.o));
+      return fail(`Amal ${MEMBER_MAX_MS / 1000} s da tugamadi — sahifa javob bermayapti. Sahifani qayta o'qing (read_page) yoki boshqa yo'l tanlang`);
+    } finally {
+      this.dialogWaiters.delete(wake);
+      clearInterval(timer);
+    }
+  }
+
+  /** Oyna ochiq: a'zo unga javob (browserDialog.ts) */
+  private async answerDialog(p: Page, name: string, input: Record<string, unknown>): Promise<MemberResult> {
+    const entry = this.dialogs.get(p)!;
+    const step = dialogStep(entry.o, name, input);
+    if (step.do === 'refuse') return fail(step.why);
+    if (step.do === 'wait') {
+      await sleep(clampWait(input.duration) * 1000);
+      return text(this.dialogs.has(p) ? describeDialog(entry.o) : 'OK');
+    }
+    if (step.do === 'typed') {
+      entry.o = { ...entry.o, typed: step.text };
+      return text(`Oynaga yozildi: «${step.text}» — hali yuborilmadi. Yuborish: key "Enter"`);
+    }
+    if (step.do === 'accept' && step.ask) {
+      const stop = await this.gate(step.ask);
+      if (stop) return stop;
+    }
+    this.dialogs.delete(p);
+    // Oyna boshqa yo'l bilan yopilgan bo'lsa (sayt o'zi, egasi) — xato emas
+    await (step.do === 'accept' ? entry.d.accept(step.text) : entry.d.dismiss()).catch(() => {});
+    await sleep(300);
+    return this.untilDialog(this.withState(step.do === 'accept' ? 'Oynada OK bosildi' : 'Oyna bekor qilindi (Cancel)'));
   }
 
   /**
@@ -605,6 +729,9 @@ export class BrowserSession {
   }
 
   async close(): Promise<void> {
+    // Ochiq qolgan oyna — bekor (egasining vkladkasi to'xtab qolmasin)
+    await Promise.all([...this.dialogs.values()].map(({ d }) => d.dismiss().catch(() => {})));
+    this.dialogs.clear();
     if (!this.shared) {
       await this.ctx.close().catch(() => {});
       return;

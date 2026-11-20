@@ -30,7 +30,7 @@ export function moneyHost(hostname: string): boolean {
 
 /** Tugma nomi: to'lash, pul o'tkazish, sotib olish (o'zbek, rus, ingliz). Faqat nomga qaraladi */
 const MONEY_ACTION = new RegExp([
-  "to'?la(sh|ng|moq|yman|ndi|b)?\\b", "to'?lov", "pul o'?tkaz", "o'?tkazma", "sotib ol", "xarid qil", "savatga", "kartaga (pul|o'?tkaz)", "kartadan (pul|o'?tkaz|yech)", "hisobni to'ldir",
+  "to'?la(sh|ng|moq|yman|ndi|b)?\\b", "to'?lan(sin|adi|di|gan|ish)", "to'?lov", "pul o'?tkaz", "o'?tkazma", "sotib ol", "xarid qil", "savatga", "kartaga (pul|o'?tkaz)", "kartadan (pul|o'?tkaz|yech)", "hisobni to'ldir",
   "оплат", "плат[её]ж", "заплат", "перев(ест|ед|од)[а-яё]*.{0,15}(деньг|сумм|средств|на карт)", "отправ[а-яё]*.{0,10}деньг", "купить", "(?<![а-яё])купи(те)?(?![а-яё])", "в корзину", "пополнить", "снять деньги",
   "\\bpay\\b", "pay now", "payment", "purchase", "\\bbuy\\b", "checkout", "add to cart", "transfer", "withdraw", "deposit", "top ?up", "send money",
 ].join('|'), 'i');

@@ -19,6 +19,7 @@ import { PolicyError, allowedRequest, checkUrl, privateHost, riskyClick, riskyKe
 import { pngSize, solidPng } from '../server/computer/png';
 import { DesktopSession, FakeDriver, startDriver } from '../server/computer/desktop';
 import { cardLike, moneyAction, moneyControl, moneyTask } from '../server/computer/money';
+import { dialogStep } from '../server/computer/browserDialog';
 import { DownloadWatch } from '../server/computer/ownDownloads';
 import { onlyJobReports, ownersTask } from '../server/computer/tools';
 import { chromePath } from './chrome';
@@ -98,6 +99,18 @@ console.log("\n# Pul zonasi: bank, to'lov, o'tkazma, xarid — AI kirmaydi (egas
   const regionPopup = "Toshkent Siz Toshkent shahridamisiz? Tanlangan hududga qarab yetkazib berish muddati va narxi o'zgaradi. To'lov usullari: naqd, karta. Ha, to'g'ri Boshqa shahar";
   ok("uzun blok matni — tugma emas: ichida «to'lov» bo'lsa ham bosish/Enter to'xtamaydi; «To'lash» tugmasi baribir yopiq",
     moneyAction(regionPopup) && !moneyControl(regionPopup) && moneyControl("To'lash") && moneyControl('Оплатить заказ'));
+  // Brauzer oynasi (alert/confirm/prompt): OK — tugma bosish kabi: to'lov so'ragani yopiq, o'chirish so'ragani egasidan so'raladi
+  const dlg = (kind: string, message: string) => ({ kind, message, defaultValue: '', typed: null });
+  const enter = { text: 'Enter' };
+  const pay = dialogStep(dlg('confirm', "Kartangizdan 500 000 so'm to'lansinmi?"), 'key', enter);
+  const del = dialogStep(dlg('confirm', "Bemor kartasini o'chirasizmi?"), 'key', enter);
+  const plain = dialogStep(dlg('confirm', 'Davom etilsinmi?'), 'key', enter);
+  const typedCard = dialogStep(dlg('prompt', 'Karta'), 'type', { text: '8600 1234 5678 9012' });
+  const clickWhileOpen = dialogStep(dlg('alert', 'Saqlandi'), 'left_click', {});
+  ok("oyna: to'lov — rad, o'chirish — egasidan so'raladi, oddiy savol — OK, karta raqami yozilmaydi, ochiq turganda bosish — nima qilish aytiladi",
+    pay.do === 'refuse' && del.do === 'accept' && !!del.ask && plain.do === 'accept' && !plain.ask && typedCard.do === 'refuse'
+    && clickWhileOpen.do === 'refuse' && /Saqlandi/.test(clickWhileOpen.why) && dialogStep(dlg('alert', 'x'), 'key', { text: 'Escape' }).do === 'accept',
+    JSON.stringify([pay, del, plain, typedCard, clickWhileOpen]).slice(0, 400));
   // Ketma-ket topshiriq: oldingi hisobot o'qilgan (readStrangers), lekin yangi topshiriq egasining o'z gapidan — «Boshlaymi?» kerak emas
   const said = "Chrome'imda kun.uz, gazeta.uz va daryo.uz saytlarini och. Google Docs'da hujjat och. Formaga telefon +998901234567, email test@example.com yoz";
   ok("topshiriq egasining joriy xabaridan (saytlar, email, raqam unda bor) — tasdiqsiz",
