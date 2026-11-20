@@ -1,5 +1,11 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.38 da yangi
+
+- **Saytdagi «OK / Bekor» oynalari:** sayt kichik oyna chiqarsa (savol, tasdiqlash, ism so'rash) Palantir endi uni ko'radi va javob beradi — ilgari ish shu yerda to'xtab qolardi. To'lovni tasdiqlash so'ralsa OK bosmaydi, o'chirish so'ralsa sizdan so'raydi.
+- **Sahifa ichidagi bo'limlar ham ko'rinadi:** matn muharrirlari va vidjetlar ichidagi tugma va maydonlar (iframe, Shadow DOM).
+- **Fayl yuklash:** sayt fayl so'rasa ekraningizda Windows oynasi ochilmaydi. Palantir faqat shu ishda o'zi yuklab olgan faylni, sizning ruxsatingiz bilan qo'yadi.
+
 ## 0.4.37 da yangi
 
 - **«Orqaga» tez ishlaydi:** Palantir Google'da qidirib, orqaga qaytganda 30 soniya kutib qolmaydi.
