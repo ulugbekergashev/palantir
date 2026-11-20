@@ -4,16 +4,18 @@
  *    shu ma'lumot bilan parolsiz kiriladi (eski kirish bekor qilingan bo'lsa ham yangisi olinadi). Tasdiq o'tmasa (egasi emas) —
  *    oddiy kirish sahifasi qoladi;
  *  - Palantir Hub'dagi «Panelni ochish» (jamoa): #kirish=<kalit> — klinika bergan kalit faqat shu oynada saqlanadi;
- *    «Sozlash» (egasiga topshirilmagan klinika): #kirish=<kalit>&ulash — to'g'ri ulash ustasiga.
+ *    «Sozlash» (egasiga topshirilmagan klinika): #kirish=<kalit>&ulash — to'g'ri ulash ustasiga;
+ *    Hub'dagi «Klinika sozlamalari» (SIP, kalitlar…): #kirish=<kalit>&sahifa=sozlamalar/telefon — o'sha sahifaga.
  * Ikkalasi ham manzildan o'chiriladi (panel o'zining #/ yo'nalishlari bilan ishlaydi).
  */
 import { api, session } from '../data/api';
+import { launchTarget } from './launchTarget';
 
 export async function telegramLaunch(): Promise<void> {
   const params = new URLSearchParams(window.location.hash.slice(1));
   const initData = params.get('tgWebAppData'), given = params.get('kirish');
   if (!initData && !given) return;
-  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${given && params.has('ulash') ? '#/ulash' : '#/'}`);
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${given ? launchTarget(params) : '#/'}`);
   if (given) return session.setTab(given);
   try {
     session.set((await api.telegramLogin(initData!)).token);

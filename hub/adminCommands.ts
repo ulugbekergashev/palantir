@@ -64,7 +64,7 @@ function commandsSect(c) {
   msg.maxLength = 1000;
   msg.rows = 2;
   msg.placeholder = "Masalan: «Ertaga 10:00 da o'rnatuvchi keladi — kompyuterni o'chirmang»";
-  msg.oninput = () => { $('drawer').dataset.dirty = msg.value.trim() ? '1' : '0'; };
+  msg.oninput = () => { page().dataset.dirty = msg.value.trim() ? '1' : '0'; };
   const lbl = el('label', 'f wide', "Egasiga xabar (Telegram'da va panel jurnalida)");
   lbl.append(msg);
   const send = el('button', 'btn sm', 'Yuborish');
@@ -102,10 +102,10 @@ function commandRow(c, k) {
     show.type = 'button';
     show.onclick = async () => {
       const shown = li.querySelector('pre');
-      if (shown) { shown.remove(); $('drawer').dataset.dirty = '0'; return; }
+      if (shown) { shown.remove(); page().dataset.dirty = '0'; return; }
       const x = await api('/admin/diag/' + c.id + '/' + k.diag).catch(() => null);
       // Ochiq diagnostika avtomatik yangilanishda yo'qolmasin
-      $('drawer').dataset.dirty = '1';
+      page().dataset.dirty = '1';
       tools.after(el('pre', '', x && x.ok ? await x.text() : "Diagnostikani o'qib bo'lmadi"));
     };
     tools.append(show);
@@ -121,7 +121,7 @@ function sendCommand(c, body, btn, sent) {
     if (!r.ok) return say(r.j.error || 'Xato: ' + r.status);
     if (sent) sent();
     c.commands = [r.j.command, ...(c.commands || [])].slice(0, 6);
-    $('drawer').dataset.dirty = '0';
+    page().dataset.dirty = '0';
     say(CMD_LABEL[body.action] + ' — yuborildi' + (c.online ? '' : ' (klinika ulanganda oladi)'));
     drawClient(false);
     // Natija odatda bir necha soniyada keladi — ro'yxat oddiy navbatini kutmay yangilanadi

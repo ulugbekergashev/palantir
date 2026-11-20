@@ -1,33 +1,46 @@
 /**
- * Boshqaruv markazi (/admin) — mijoz oynasi (holat, muammolar, karta, amallar, yordam so'rovlari), «Yordam», «Jamoa», «Jurnal»,
- * yangi mijoz va o'zim o'rnatgan kompyuterni biriktirish. adminApp.ts dan keyin bitta <script> da ishlaydi (uning yordamchilari bilan).
+ * Boshqaruv markazi (/admin) — mijozning o'z sahifasi (#/mijoz/<id>: holat, muammolar, karta, amallar, klinika sozlamalari, yordam
+ * so'rovlari), «Yordam», «Jamoa», «Jurnal», yangi mijoz va o'zim o'rnatgan kompyuterni biriktirish. adminApp.ts dan keyin bitta
+ * <script> da ishlaydi (uning yordamchilari bilan). Avval o'ngdan chiqadigan oyna edi — karta, tarif va buyruqlar unga sig'masdi.
  *
  * Amallar avvalgidek: panel oynasi bosish paytida ochiladi va ochuvchisiz (opener = null) — panel bu sahifaga qo'l cho'za olmaydi;
  * tasdiqlash kompyuter kodi bilan va o'sha bosishda litsenziya; kirishni tiklash — egasining shaxsi tekshirilgandan keyin.
+ * Klinika sozlamalari (SIP liniya, Claude kalitlari, Telegram…) Hub'da saqlanmaydi — ular klinikaniki: tugma panelni o'sha
+ * sahifada ochadi (#kirish=…&sahifa=…, src/lib/telegramLaunch.ts), kirish — odatdagidek egasining roziligi bilan.
  */
 export const ADMIN_DRAWER_JS = String.raw`
 let openId = null;
 const clientById = id => data.clinics.find(c => c.id === id) || null;
+const clientInHash = () => { const m = /^#\/mijoz\/([0-9a-f]{10})$/.exec(location.hash); return m ? m[1] : null; };
+const page = () => $('v-client');
 
 function openClient(id) {
-  openId = id;
+  if (!clientById(id)) return say('Bunday mijoz yo\'q');
+  if (location.hash !== '#/mijoz/' + id) history.pushState(null, '', '#/mijoz/' + id);
   $('dSecret').hidden = true;
-  $('scrim').hidden = $('drawer').hidden = false;
+  show('client');
+  openId = id;
   drawClient(true);
-  $('drawerClose').focus();
+  $('dTitle').focus({ preventScroll: true });
 }
 function closeClient() {
   openId = null;
-  $('scrim').hidden = $('drawer').hidden = true;
+  if (view === 'client') show('clients');
 }
-$('scrim').onclick = closeClient;
-$('drawerClose').onclick = closeClient;
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && openId) closeClient(); });
-/** Ro'yxat yangilanganda: karta yozilayotgan bo'lsa yoki tanlov ochiq — oyna qayta chizilmaydi (yozilgan matn yo'qolmasin) */
-function refreshDrawer() {
+$('dTitle').tabIndex = -1;
+$('clientBack').onclick = closeClient;
+// Brauzerning «orqaga» tugmasi: #/mijoz/<id> — sahifa, bo'sh manzil — ro'yxat
+window.addEventListener('popstate', () => {
+  if (!adminKey) return;
+  const id = clientInHash();
+  if (id && clientById(id)) openClient(id);
+  else if (view === 'client') show('clients');
+});
+/** Ro'yxat yangilanganda: karta yozilayotgan bo'lsa yoki tanlov ochiq — sahifa qayta chizilmaydi (yozilgan matn yo'qolmasin) */
+function refreshClient() {
   if (!openId) return;
-  if (!clientById(openId)) return closeClient();
-  const d = $('drawer');
+  if (!clientById(openId)) { say("Mijoz ro'yxatda yo'q — o'chirilgan"); return closeClient(); }
+  const d = page();
   if (d.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
   if (d.querySelector('.pick') || d.dataset.dirty === '1') return;
   drawClient(false);
@@ -42,18 +55,24 @@ function drawClient(scrollTop) {
   const s = c.status || {}, card = c.card || {}, st = stateOf(c);
   $('dTitle').textContent = titleOf(c);
   const pill = el('span', 'pill ' + { on: 'ok', off: 'bad', bad: 'bad', new: 'warn' }[st], { on: 'aloqada', off: "aloqa yo'q", bad: 'muammo bor', new: c.approved ? 'sozlanmoqda' : 'tasdiqlanmagan' }[st]);
-  $('dSub').replaceChildren(pill, document.createTextNode(' ' + [KIND[kindOf(c)], card.city, c.online ? null : ago(c.seenAt)].filter(Boolean).join(' · ')));
-  const body = $('dBody');
-  const parts = [actionsOf(c)];
+  $('dSub').replaceChildren(pill, document.createTextNode(' ' + [KIND[kindOf(c)], card.owner, card.phone, card.city, c.online ? null : ago(c.seenAt)].filter(Boolean).join(' · ')));
+  const quickBtn = el('button', 'btn ghost', 'Tezkor amallar ⋯');
+  quickBtn.type = 'button';
+  quickBtn.onclick = () => quick(c.id);
+  const acts = actionsOf(c);
+  acts.append(quickBtn);
+  $('dActions').replaceChildren(acts);
+  // Ikki ustun: chapda — holat va ish, o'ngda — pul va tarif (telefonda bitta ustun)
+  const main = el('div', 'col'), side = el('div', 'col');
   const al = alertsOf(c);
   if (al.length) {
     const box = sect('Diqqat'), ul = el('ul', 'issues');
     for (const a of al.sort((p, q) => RANK[p.level] - RANK[q.level])) { const li = el('li'); li.append(el('span', 'lvl ' + a.level), el('span', '', a.text)); ul.append(li); }
     box.append(ul);
-    parts.push(box);
+    main.append(box);
   }
-  if (c.approved || c.heldElsewhere) parts.push(accessSect(c), planSect(c));
-  if (c.approved) parts.push(commandsSect(c));
+  if (c.approved || c.heldElsewhere) side.append(accessSect(c), planSect(c));
+  if (c.approved) main.append(settingsSect(c), commandsSect(c));
   const info = sect('Holat'), dl = el('dl', 'facts');
   fact(dl, 'Aloqa', c.online ? 'aloqada (' + ago(c.seenAt) + ')' : ago(c.seenAt));
   fact(dl, 'Nashr', s.version ? 'v' + s.version + (s.schema ? ' · baza ' + s.schema : '') : null);
@@ -67,12 +86,38 @@ function drawClient(scrollTop) {
   fact(dl, 'Kompyuter kodi', c.machineId);
   fact(dl, "Hub'da", dateText(c.createdAt) + (c.self ? " · o'zi ulangan" : ''));
   info.append(dl);
-  parts.push(info, cardForm(c));
+  main.append(info);
+  side.append(cardForm(c));
   const asks = helpRows.filter(h => h.clinicId === c.id);
-  if (asks.length) { const box = sect("Yordam so'rovlari"), ul = el('ul', 'list'); ul.append(...asks.map(askRow)); box.append(ul); parts.push(box); }
-  body.replaceChildren(...parts);
-  $('drawer').dataset.dirty = '0';
-  if (scrollTop) body.scrollTop = 0;
+  if (asks.length) { const box = sect("Yordam so'rovlari"), ul = el('ul', 'list'); ul.append(...asks.map(askRow)); box.append(ul); main.append(box); }
+  $('dBody').replaceChildren(main, side);
+  page().dataset.dirty = '0';
+  if (scrollTop) window.scrollTo(0, 0);
+}
+
+// ─── Klinika sozlamalari: Hub'da saqlanmaydi — panel kerakli sahifada ochiladi (egasining roziligi bilan, «Panelni ochish» kabi) ───
+const SETTINGS_PAGES = [
+  ['sozlamalar/telefon', 'Telefon liniyasi (SIP)', 'raqam, login, parol, operator'],
+  ['ulash/keys', 'Claude va kalitlar', 'obuna, Gemini, ovoz'],
+  ['sozlamalar/telegram', 'Telegram', 'bot va egasining chati'],
+  ['sozlamalar/instagram', 'Instagram', 'rasmiy ulanish'],
+  ['sozlamalar/dentacrm', 'DentaCRM', 'klinikalar uchun'],
+  ['kuzatuvchi/ulash', 'Kameralar', 'IP kamera qidiruvi'],
+  ['sozlamalar', 'Hamma sozlamalar', ''],
+];
+function settingsSect(c) {
+  const box = sect('Klinika sozlamalari'), grid = el('div', 'links');
+  box.append(el('div', 'meta', "SIP, kalitlar va ulanishlar klinikaning o'zida saqlanadi. Tugma panelni o'sha sahifada ochadi — egasidan ruxsat so'raladi." + (c.online ? '' : ' Klinika hozir aloqada emas.')));
+  for (const [path, title, hint] of SETTINGS_PAGES) {
+    const b = el('button', 'link');
+    b.type = 'button';
+    b.disabled = !c.online;
+    b.append(el('b', '', title), el('small', '', hint));
+    b.onclick = () => enter(c, grid, b, undefined, false, path);
+    grid.append(b);
+  }
+  box.append(grid);
+  return box;
 }
 
 // ─── To'lov va ishlash holati (hub/server.ts 15-band): eslatma, to'xtatish, ochish; tasdiqlangan mijozni o'chirish ───
@@ -103,7 +148,7 @@ function accessSect(c) {
   msg.rows = 2;
   msg.placeholder = "Klinika ko'radigan matn: «To'lov muddati 1-dekabr. Savol bo'lsa: +998 …»";
   msg.value = a.message || '';
-  msg.oninput = () => { $('drawer').dataset.dirty = '1'; };
+  msg.oninput = () => { page().dataset.dirty = '1'; };
   const lbl = el('label', 'f wide', "Klinikaga xabar (panelda va egasining Telegram'ida)");
   lbl.append(msg);
   const btns = el('div', 'actions');
@@ -134,7 +179,7 @@ function setAccess(c, state, message, btn, ask) {
     if (!r) return;
     if (!r.ok) return say(r.j.error || 'Xato: ' + r.status);
     c.access = r.j.access;
-    $('drawer').dataset.dirty = '0';
+    page().dataset.dirty = '0';
     say({ active: 'Ochildi', warn: "Eslatma qo'yildi", blocked: "To'xtatildi" }[state] + (r.j.signed ? ' — klinika 5 daqiqagacha oladi' : " — Hub'da imzo kaliti yo'q, klinikaga yetmaydi"));
     render();
     drawClient(false);
@@ -182,7 +227,7 @@ function cardForm(c) {
   } else for (const x of f.querySelectorAll('input,select,textarea')) x.disabled = true;
   if (card.updatedAt) foot.append(el('small', 'meta', "O'zgartirdi: " + (card.updatedBy || '—') + ' · ' + ago(card.updatedAt)));
   f.append(foot);
-  f.oninput = () => { $('drawer').dataset.dirty = '1'; };
+  f.oninput = () => { page().dataset.dirty = '1'; };
   f.onsubmit = async e => {
     e.preventDefault();
     const btn = f.querySelector('button');
@@ -194,7 +239,7 @@ function cardForm(c) {
       if (r.status === 401) return load();
       if (!r.ok) return say(j.error || 'Xato: ' + r.status);
       c.card = j.card;
-      $('drawer').dataset.dirty = '0';
+      page().dataset.dirty = '0';
       say('Karta saqlandi');
       render();
       drawClient(false);
@@ -303,7 +348,8 @@ function license(c, btn) {
   });
 }
 
-async function enter(c, box, btn, business, setup) {
+/** sahifa — panelning ichki manzili (SETTINGS_PAGES dan, masalan «sozlamalar/telefon»): panel kirgach o'sha sahifani ochadi */
+async function enter(c, box, btn, business, setup, sahifa) {
   // Oyna bosish paytida ochiladi (javobdan keyin ochilsa brauzer to'sib qo'yadi); panel bu sahifaga qaytib murojaat qila olmasin
   const tab = window.open('', '_blank');
   if (tab) tab.opener = null;
@@ -314,12 +360,12 @@ async function enter(c, box, btn, business, setup) {
     const j = await r.json().catch(() => ({}));
     if (r.ok && j.token) {
       // Sozlanayotgan klinika — to'g'ri ulash ustasiga (src/lib/telegramLaunch.ts: kalitdan keyin #/ulash)
-      if (tab) tab.location.href = '/c/' + c.id + '/#kirish=' + encodeURIComponent(j.token) + (setup ? '&ulash' : '');
+      if (tab) tab.location.href = '/c/' + c.id + '/#kirish=' + encodeURIComponent(j.token) + (setup ? '&ulash' : sahifa ? '&sahifa=' + encodeURIComponent(sahifa) : '');
       return say('');
     }
     if (tab) tab.close();
     if (r.status === 401) return load();
-    if (r.status === 409 && Array.isArray(j.businesses)) return choose(c, box, btn, j.businesses);
+    if (r.status === 409 && Array.isArray(j.businesses)) return choose(c, box, btn, j.businesses, sahifa);
     say(j.error || 'Xato: ' + r.status);
   } catch {
     if (tab) tab.close();
@@ -329,13 +375,13 @@ async function enter(c, box, btn, business, setup) {
   }
 }
 
-function choose(c, box, btn, list) {
+function choose(c, box, btn, list, sahifa) {
   box.querySelector('.pick')?.remove();
   const pick = el('div', 'pick');
   for (const b of list) {
     const x = el('button', 'btn ghost sm', b.name);
     x.type = 'button';
-    x.onclick = () => { pick.remove(); enter(c, box, btn, b.id); };
+    x.onclick = () => { pick.remove(); enter(c, box, btn, b.id, false, sahifa); };
     pick.append(x);
   }
   box.append(pick);

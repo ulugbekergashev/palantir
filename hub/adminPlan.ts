@@ -46,7 +46,7 @@ function planSect(c) {
     cb.type = 'checkbox';
     cb.checked = !plan.modules || plan.modules.includes(id);
     cb.disabled = !founder();
-    cb.onchange = () => { $('drawer').dataset.dirty = '1'; };
+    cb.onchange = () => { page().dataset.dirty = '1'; };
     boxes[id] = cb;
     lbl.append(cb, el('span', 'name', name), el('small', 'meta', about));
     li.append(lbl);
@@ -66,7 +66,7 @@ function planSect(c) {
   };
   const all = el('button', 'btn sm ghost', 'Hammasini yoqish');
   all.type = 'button';
-  all.onclick = () => { for (const id in boxes) boxes[id].checked = true; $('drawer').dataset.dirty = '1'; };
+  all.onclick = () => { for (const id in boxes) boxes[id].checked = true; page().dataset.dirty = '1'; };
   btns.append(save, all);
   box.append(btns);
   return box;
@@ -79,7 +79,7 @@ function setPlan(c, modules, btn) {
     if (!r.ok) return say(r.j.error || 'Xato: ' + r.status);
     c.access = r.j.access;
     c.plan = { modules: r.j.access.modules, set: true, inherited: false };
-    $('drawer').dataset.dirty = '0';
+    page().dataset.dirty = '0';
     say('Tarif saqlandi' + (r.j.signed ? ' — klinika 5 daqiqagacha oladi' : " — Hub'da imzo kaliti yo'q, klinikaga yetmaydi"));
     render();
     drawClient(false);

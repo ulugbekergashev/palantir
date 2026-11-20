@@ -1,6 +1,6 @@
 /**
  * Boshqaruv markazi (/admin) — asosiy qism: kirish, holat, «Umumiy» (ko'rsatkichlar, grafik, diqqat ro'yxati, turlar, nashrlar, to'lovlar)
- * va «Mijozlar» jadvali. Mijoz oynasi, yordam, jamoa va jurnal — adminDrawer.ts. Ikkalasi admin.ts da bitta <script> ga qo'shiladi.
+ * va «Mijozlar» jadvali. Mijoz sahifasi, yordam, jamoa va jurnal — adminDrawer.ts, tezkor oyna — adminQuick.ts. Ikkalasi admin.ts da bitta <script> ga qo'shiladi.
  * Ma'lumot faqat textContent bilan chiqadi (klinika nomi va holati — klinikadan kelgan, ishonib bo'lmaydi). Kalit faqat o'zgaruvchida.
  */
 export const ADMIN_APP_JS = String.raw`
@@ -109,12 +109,18 @@ function render() {
   if (view === 'overview') renderOverview();
   if (view === 'clients') renderClients();
   if (view === 'help' && !busyWithHelp()) renderHelp();
-  refreshDrawer();
+  if (view === 'client') refreshClient();
 }
 
+/** Mijoz sahifasi (client) menyuda «Mijozlar» ostida; boshqa bo'limga o'tilsa — manzildagi #/mijoz/<id> ham olinadi */
 function show(next) {
   view = next;
-  for (const b of document.querySelectorAll('nav button')) b.setAttribute('aria-current', b.dataset.view === next ? 'page' : 'false');
+  if (next !== 'client') {
+    openId = null;
+    if (/^#\/mijoz\//.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  }
+  const tab = next === 'client' ? 'clients' : next;
+  for (const b of document.querySelectorAll('nav button')) b.setAttribute('aria-current', b.dataset.view === tab ? 'page' : 'false');
   for (const s of document.querySelectorAll('main > section')) s.hidden = s.id !== 'v-' + next;
   if (next === 'team') members();
   else if (next === 'audit') audit();
@@ -328,6 +334,16 @@ function clientRow(c) {
   const seen = el('span', '', c.online ? 'aloqada' : ago(c.seenAt));
   tr.append(cellOf('', dot), cellOf('', name), cellOf('Turi', el('span', '', KIND[kindOf(c)] || '—')), cellOf('Shahar', el('span', '', card.city || '—')),
     cellOf('Aloqa', seen), cellOf('Nashr', ver), cellOf('Litsenziya', licPill), cellOf("To'lov", paid), cellOf('Diqqat', issue));
+  // «⋯» — tezkor oyna (adminQuick.ts): qatorni bosish sahifani ochadi, bu tugma esa — faqat oynani
+  const more = el('button', 'more-btn', '⋯');
+  more.type = 'button';
+  more.title = 'Tezkor amallar';
+  more.setAttribute('aria-label', 'Tezkor amallar: ' + c.name);
+  more.onclick = e => { e.stopPropagation(); quick(c.id); };
+  more.onkeydown = e => e.stopPropagation();
+  const tools = cellOf('', more);
+  tools.className = 'tools-cell';
+  tr.append(tools);
   tr.onclick = () => openClient(c.id);
   tr.onkeydown = e => { if (e.key === 'Enter') openClient(c.id); };
   return tr;
@@ -344,7 +360,10 @@ function signedOut() {
   me = null;
   data = { clinics: [], latest: null, history: [] };
   helpRows = [];
-  closeClient();
+  // Manzildagi #/mijoz/<id> qoladi: kirish tugagan bo'lsa, qayta kirgach o'sha mijoz sahifasi ochiladi
+  openId = null;
+  view = 'overview';
+  if ($('quick').open) $('quick').close();
   $('app').hidden = true;
   $('login').hidden = false;
 }
@@ -374,8 +393,10 @@ $('key').onsubmit = async e => {
     $('login').hidden = true;
     $('app').hidden = false;
     say('');
+    const wanted = clientInHash();
     show('overview');
-    load();
+    await load();
+    if (wanted && clientById(wanted)) openClient(wanted);
   } catch {
     say("Hub bilan aloqa yo'q");
   } finally {

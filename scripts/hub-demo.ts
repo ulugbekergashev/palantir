@@ -90,14 +90,29 @@ try {
     await page.click('nav button[data-view=clients]');
     await page.waitForSelector('#rows tr');
     await page.screenshot({ path: `${OUT}/${label}-2-mijozlar.png`, fullPage: true });
-    await page.click('#rows tr:nth-child(1)');
-    await page.waitForSelector('#drawer:not([hidden]) #dBody .sect');
-    await sleep(300);
-    await page.screenshot({ path: `${OUT}/${label}-3-karta.png` });
+    // Qatordagi «⋯» — tezkor oyna (sahifa ochilmaydi)
+    await page.click('#rows tr:has-text("Denta Smile") .more-btn');
+    await page.waitForSelector('#quick[open] .qpart');
+    if (!(await page.locator('#v-client').isHidden())) errors.push("«⋯» bosilganda mijoz sahifasi ham ochildi");
+    await sleep(200);
+    await page.screenshot({ path: `${OUT}/${label}-8-tezkor-toxtatilgan.png` });
     await page.keyboard.press('Escape');
-    await page.click('#rows tr:has-text("Tabassum Dental")');
-    await page.waitForSelector('#drawer:not([hidden]) #dBody .sect');
+    await page.click('#rows tr:has-text("Mebel Uyi") .more-btn');
+    await page.waitForSelector('#quick[open] .qpart');
+    await page.screenshot({ path: `${OUT}/${label}-9-tezkor-ishlayapti.png` });
+    await page.keyboard.press('Escape');
+    // Qatorni bosish — mijozning o'z sahifasi (#/mijoz/<id>)
+    await page.click('#rows tr:nth-child(1)');
+    await page.waitForSelector('#v-client:not([hidden]) #dBody .sect');
+    if (!/^#\/mijoz\/[0-9a-f]{10}$/.test(await page.evaluate(() => location.hash))) errors.push("Mijoz sahifasi manzilda yo'q (#/mijoz/<id>)");
     await sleep(300);
+    await page.screenshot({ path: `${OUT}/${label}-3-karta.png`, fullPage: true });
+    await page.goBack();
+    await page.waitForSelector('#v-clients:not([hidden]) #rows tr');
+    await page.click('#rows tr:has-text("Tabassum Dental")');
+    await page.waitForSelector('#v-client:not([hidden]) #dBody .sect');
+    await sleep(300);
+    if (!(await page.locator('#dBody .sect:has(h3:text("Klinika sozlamalari")) .link').count())) errors.push("Tabassum sahifasida «Klinika sozlamalari» yo'q");
     const tarif = page.locator('#dBody .sect:has(h3:text("Tarif"))');
     if (await tarif.count()) await tarif.scrollIntoViewIfNeeded();
     else errors.push("Tabassum oynasida «Tarif» bo'limi yo'q: " + (await page.locator('#dBody .sect h3').allTextContents()).join(' | '));
@@ -109,16 +124,50 @@ try {
       await sleep(400);
       await boshqar.screenshot({ path: `${OUT}/${label}-7-boshqarish.png` });
     } else errors.push("Tabassum oynasida «Masofadan boshqarish» bo'limi yo'q");
-    await page.keyboard.press('Escape');
+    await page.click('#clientBack');
     await page.click('#rows tr:has-text("Denta Smile")');
-    await page.waitForSelector('#drawer:not([hidden]) #dBody .sect');
+    await page.waitForSelector('#v-client:not([hidden]) #dBody .sect');
     await sleep(300);
-    await page.screenshot({ path: `${OUT}/${label}-5-tolov.png` });
-    await page.keyboard.press('Escape');
+    await page.screenshot({ path: `${OUT}/${label}-5-tolov.png`, fullPage: true });
     await page.click('nav button[data-view=help]');
     await sleep(300);
     await page.screenshot({ path: `${OUT}/${label}-4-yordam.png`, fullPage: true });
     console.log(label, errors.length ? 'XATOLAR: ' + errors.join(' | ') : "xato yo'q");
+    await page.close();
+  }
+  // Tezkor oyna amallari (ma'lumotni o'zgartiradi — rasmlardan keyin): to'xtatish, to'lagach yoqish, o'chirish
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const errors: string[] = [];
+    page.on('pageerror', e => errors.push(e.message));
+    page.on('dialog', d => d.accept());
+    const list = async () => ((await (await fetch(`${HUB}/admin/clinics`, { headers: admin })).json()) as { clinics: { id: string; name: string; access?: { state: string }; card?: { paidUntil: string | null } }[] }).clinics;
+    const find = async (name: string) => (await list()).find(c => c.name === name);
+    await page.goto(`${HUB}/admin`);
+    await page.fill('#k', KEY);
+    await page.click('#key button');
+    await page.click('nav button[data-view=clients]');
+    await page.waitForSelector('#rows tr');
+    const step = async (row: string, button: string, fill?: string) => {
+      await page.click(`#rows tr:has-text("${row}") .more-btn`);
+      await page.waitForSelector('#quick[open] .qpart');
+      if (fill) await page.fill('#quick .danger-zone input', fill);
+      await page.click(`#quick button:has-text("${button}")`);
+      await sleep(600);
+      if (await page.locator('#quick[open]').count()) await page.keyboard.press('Escape');
+    };
+    await step('Mebel Uyi', "To'xtatish");
+    if ((await find('Mebel Uyi'))?.access?.state !== 'blocked') errors.push("Mebel Uyi to'xtamadi");
+    const before = (await find('Denta Smile'))?.card?.paidUntil;
+    await step('Denta Smile', "To'ladi — yoqish");
+    const ds = await find('Denta Smile');
+    if (ds?.access?.state !== 'active') errors.push('Denta Smile yoqilmadi');
+    if (!ds?.card?.paidUntil || !before || ds.card.paidUntil <= before) errors.push(`Denta Smile to'langan sanasi surilmadi: ${before} → ${ds?.card?.paidUntil}`);
+    await step('DESKTOP-NEW', "O'chirish");
+    if (await find('DESKTOP-NEW')) errors.push("Tasdiqlanmagan DESKTOP-NEW o'chmadi");
+    await step('Avto Servis 77', "O'chirish", 'Avto Servis 77');
+    if (await find('Avto Servis 77')) errors.push("Avto Servis 77 nomi yozilganda ham o'chmadi");
+    console.log('tezkor amallar', errors.length ? 'XATOLAR: ' + errors.join(' | ') : `o'tdi (Denta Smile: ${before} → ${ds?.card?.paidUntil})`);
     await page.close();
   }
   await browser.close();

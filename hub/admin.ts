@@ -2,9 +2,11 @@
  * Palantir Hub — boshqaruv markazi (/admin): sotuvchining hamma mijozlari (klinikalar va boshqa bizneslar) bitta joyda.
  *   Umumiy — ko'rsatkichlar (mijozlar, aloqada, diqqat kerak, yordam, litsenziya, nashr), 14 kunlik grafik, «Diqqat talab qiladi»
  *   ro'yxati, biznes turlari, nashrlar va to'lovlar (mijoz kartasidagi tarif va sana bo'yicha — hub pul olmaydi).
- *   Mijozlar — qidiruv, tur va holat filtri, jadval; qatorni bosish — mijoz oynasi: holat, muammolar, karta (egasi, telefon, shahar,
- *   tur, tarif, to'langan sana, izoh — clients.ts) va amallar (panel, tasdiqlash, litsenziya, kompyuter almashdi, kirishni tiklash).
- *   Yordam, Jamoa, Jurnal — avvalgidek. Ko'rinish — adminStyle.ts, ish — adminApp.ts va adminDrawer.ts.
+ *   Mijozlar — qidiruv, tur va holat filtri, jadval; qatorni bosish — mijozning o'z sahifasi (#/mijoz/<id>, adminDrawer.ts): holat,
+ *   muammolar, karta (egasi, telefon, shahar, tur, tarif, to'langan sana, izoh — clients.ts), amallar (panel, tasdiqlash, litsenziya,
+ *   kompyuter almashdi, kirishni tiklash) va klinika sozlamalari (SIP, kalitlar — panel kerakli sahifasida ochiladi).
+ *   Qatordagi «⋯» — tezkor oyna (adminQuick.ts): to'xtatish, to'lagach yoqish, butunlay o'chirish.
+ *   Yordam, Jamoa, Jurnal — avvalgidek. Ko'rinish — adminStyle.ts.
  *
  * Klinika panellari (/c/…) shu manzilda turadi va ularni klinika kompyuteri beradi — buzilgan klinika o'z sahifasidan admin kalitini
  * o'qishga urinishi mumkin. Shuning uchun: kalit faqat sahifa xotirasida (o'zgaruvchida, brauzer xotirasida emas — yangi oynaga
@@ -22,6 +24,7 @@ import { ADMIN_APP_JS } from './adminApp.ts';
 import { ADMIN_DRAWER_JS } from './adminDrawer.ts';
 import { ADMIN_PLAN_JS } from './adminPlan.ts';
 import { ADMIN_COMMANDS_JS } from './adminCommands.ts';
+import { ADMIN_QUICK_JS } from './adminQuick.ts';
 import { ADMIN_CSS } from './adminStyle.ts';
 
 const MARKUP = `
@@ -97,11 +100,21 @@ const MARKUP = `
       <div class="chips" id="kindChips"></div>
       <div class="card table">
         <table>
-          <thead><tr><th></th><th>Mijoz</th><th>Turi</th><th>Shahar</th><th>Aloqa</th><th>Nashr</th><th>Litsenziya</th><th>To'lov</th><th>Diqqat</th></tr></thead>
+          <thead><tr><th></th><th>Mijoz</th><th>Turi</th><th>Shahar</th><th>Aloqa</th><th>Nashr</th><th>Litsenziya</th><th>To'lov</th><th>Diqqat</th><th><span class="sr">Amallar</span></th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
         <div id="noRows" class="empty" hidden></div>
       </div>
+    </section>
+
+    <section id="v-client" hidden>
+      <button class="back" id="clientBack" type="button">← Mijozlar</button>
+      <div class="head">
+        <div><h1 id="dTitle"></h1><p id="dSub"></p></div>
+        <div class="row" id="dActions"></div>
+      </div>
+      <div id="dSecret" class="secret" hidden></div>
+      <div class="client" id="dBody"></div>
     </section>
 
     <section id="v-help" hidden>
@@ -128,16 +141,11 @@ const MARKUP = `
   </main>
 </div>
 
-<div id="scrim" class="scrim" hidden></div>
-<aside id="drawer" class="drawer" hidden aria-labelledby="dTitle" role="dialog">
-  <header><div><h2 id="dTitle"></h2><p id="dSub"></p></div><button class="x" id="drawerClose" aria-label="Yopish">×</button></header>
-  <div class="body" id="dBody"></div>
-  <div id="dSecret" class="secret" hidden style="margin:0 20px 20px"></div>
-</aside>
+<dialog id="quick" class="quick" aria-labelledby="qTitle"></dialog>
 <div id="toast" class="toast" role="status" hidden></div>
 `;
 
 export function adminPage(): string {
   return `<!doctype html><html lang="uz"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Palantir Hub</title><link rel="icon" href="data:,"><style>${ADMIN_CSS}</style>${MARKUP}<script>${ADMIN_APP_JS}${ADMIN_DRAWER_JS}${ADMIN_PLAN_JS}${ADMIN_COMMANDS_JS}</script>`;
+<title>Palantir Hub</title><link rel="icon" href="data:,"><style>${ADMIN_CSS}</style>${MARKUP}<script>${ADMIN_APP_JS}${ADMIN_DRAWER_JS}${ADMIN_PLAN_JS}${ADMIN_COMMANDS_JS}${ADMIN_QUICK_JS}</script>`;
 }

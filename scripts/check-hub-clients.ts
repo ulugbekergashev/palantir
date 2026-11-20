@@ -109,5 +109,14 @@ console.log("\n# Ko'rsatkichlar");
   ok("30 kundan eskisi o'chadi, 14 kundan eskisi grafikka tushmaydi", clients.history(14).length === 1 && (db.prepare('SELECT COUNT(*) AS n FROM client_stats').get() as { n: number }).n === 1);
 }
 
+console.log("\n# Hub'dan klinika sozlamasiga o'tish (#kirish=…&sahifa=…)");
+{
+  const { launchTarget } = await import('../src/lib/launchTarget.ts');
+  const t = (hash: string) => launchTarget(new URLSearchParams(hash));
+  ok('sahifa=sozlamalar/telefon → #/sozlamalar/telefon', t('kirish=k&sahifa=sozlamalar%2Ftelefon') === '#/sozlamalar/telefon');
+  ok('ulash ustasi sahifadan ustun', t('kirish=k&ulash&sahifa=sozlamalar') === '#/ulash');
+  ok("begona manzil — bosh sahifa (tashqi havola, ../, // o'tmaydi)", ['https://x.uz', '//x.uz', '../admin', 'sozlamalar/../x', 'a/b/c', 'Sozlamalar', ''].every(p => t('kirish=k&sahifa=' + encodeURIComponent(p)) === '#/'));
+}
+
 console.log(failed ? `\n✗ ${failed} ta tekshiruv o'tmadi` : "\n✓ hammasi o'tdi");
 process.exit(failed ? 1 : 0);

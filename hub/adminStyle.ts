@@ -124,17 +124,43 @@ td{display:inline-flex;align-items:center;gap:5px;padding:0;border:0;font-size:1
 td:nth-child(2){flex:1 1 calc(100% - 30px)}
 td[data-l]:not([data-l=""])::before{content:attr(data-l);color:var(--faint);font-size:12px}}
 
-/* Mijoz oynasi */
-.scrim{position:fixed;inset:0;z-index:40;background:rgba(5,6,8,.45);backdrop-filter:blur(2px)}
-.drawer{position:fixed;top:0;right:0;bottom:0;z-index:41;width:min(560px,100%);display:flex;flex-direction:column;background:var(--bg);border-left:1px solid var(--line);
-box-shadow:-12px 0 40px rgba(0,0,0,.25);animation:slide .18s ease-out}
-@keyframes slide{from{transform:translateX(24px);opacity:0}}
-@media (prefers-reduced-motion:reduce){.drawer{animation:none}}
-.drawer>header{display:flex;gap:12px;align-items:flex-start;padding:18px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
-.drawer>header h2{margin:0;font-size:18px;letter-spacing:-.01em;overflow-wrap:anywhere}
-.drawer>header p{margin:2px 0 0;color:var(--muted)}
-.drawer .x{margin-left:auto;flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:18px;line-height:1}
-.drawer .body{flex:1;overflow:auto;padding:16px 20px 32px;display:grid;gap:14px;align-content:start}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+td.tools-cell{width:1%;padding:6px 10px;text-align:right}
+.more-btn{width:34px;height:30px;border:1px solid transparent;border-radius:8px;background:none;color:var(--muted);font-size:18px;line-height:1}
+.more-btn:hover,.more-btn:focus-visible{border-color:var(--line);background:var(--panel);color:var(--ink)}
+@media (max-width:820px){td.tools-cell{width:auto;margin-left:auto;padding:0}}
+
+/* Mijoz sahifasi (#/mijoz/<id>) */
+.back{display:inline-flex;align-items:center;gap:6px;margin:0 0 10px;padding:4px 0;border:0;background:none;color:var(--muted);font-weight:600}
+.back:hover{color:var(--accent)}
+#v-client .head h1{overflow-wrap:anywhere;outline:none}
+#v-client .head p{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+.client{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;align-items:start}
+.client .col{display:grid;gap:14px;align-content:start;min-width:0}
+@media (max-width:900px){.client{grid-template-columns:1fr}}
+.links{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:10px}
+.links .pick{grid-column:1/-1}
+.link{display:grid;gap:2px;padding:10px 12px;text-align:left;border:1px solid var(--line);border-radius:12px;background:var(--panel2);transition:border-color .15s}
+.link:hover:not(:disabled){border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.link:disabled{opacity:.5;cursor:default}
+.link b{font-weight:600}.link small{color:var(--faint);font-size:12px}
+
+/* Tezkor oyna («⋯») */
+.quick{width:min(480px,calc(100% - 32px));max-height:calc(100% - 48px);padding:0;border:1px solid var(--line);border-radius:18px;background:var(--bg);color:var(--ink);box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.quick::backdrop{background:rgba(5,6,8,.5);backdrop-filter:blur(2px)}
+.qwrap{display:grid;gap:12px;padding:18px 20px 20px}
+.qwrap>header{display:flex;gap:12px;align-items:flex-start}
+.qwrap>header h2{margin:0;font-size:18px;letter-spacing:-.01em;overflow-wrap:anywhere}
+.qwrap>header p{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 0;color:var(--muted);font-size:13px}
+.x{margin-left:auto;flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:18px;line-height:1}
+.qpart{display:grid;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.qpart h3{margin:0;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.qpart p{margin:0}
+.qpart .f.wide textarea{margin-top:4px}
+.qpart .chk{flex-wrap:nowrap;align-items:flex-start}
+.qpart .chk input{flex:none;margin-top:2px}
+.danger-zone{border-color:color-mix(in srgb,var(--bad) 30%,var(--line))}
+.danger-zone .actions input{flex:1 1 200px;width:auto}
 .sect{padding:14px 16px}
 .sect h3{margin:0 0 10px;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0}
