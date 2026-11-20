@@ -7,7 +7,7 @@
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
-import { chromium, type Browser, type BrowserContext, type Dialog, type ElementHandle, type Page, type Request } from 'playwright-core';
+import { chromium, type Browser, type BrowserContext, type Dialog, type ElementHandle, type FileChooser, type Page, type Request } from 'playwright-core';
 import { installedBrowser } from '../browserPath';
 import { PolicyError, allowedRequest, checkUrl, riskyClick, riskyKey, type ElementInfo, type SitePolicy } from './policy';
 import { MONEY_ZONE, cardLike, moneyControl } from './money';
@@ -299,7 +299,7 @@ export class BrowserSession {
   private shared = false;
   private watch: DownloadWatch | null = null;
   /** Ochiq brauzer oynalari (alert/confirm/prompt) — vkladka bo'yicha; ochilganda kutayotgan a'zo darhol javob oladi */
-  private readonly dialogs = new Map<Page, { d: Dialog; o: OpenDialog }>();
+  private readonly dialogs = new Map<Page, { d?: Dialog; fc?: FileChooser; o: OpenDialog }>();
   private readonly dialogWaiters = new Set<() => void>();
   /** Egasidan ruxsat kutilyapti (bu vaqt a'zo vaqtiga kirmaydi) va oxirgi so'rov tugagan payt */
   private asking = false;
@@ -318,6 +318,15 @@ export class BrowserSession {
     p.on('dialog', d => {
       if (d.type() === 'beforeunload') { void d.accept().catch(() => {}); return; }
       this.dialogs.set(p, { d, o: fromDialog(d) });
+      for (const w of this.dialogWaiters) w();
+    });
+    // Fayl tanlash: tinglovchi bor — egasining ekranida Windows oynasi ochilmaydi. Faqat shu ishda yuklab olingan fayllar taklif qilinadi
+    p.on('filechooser', fc => {
+      const names = this.downloads.map(f => basename(f));
+      const message = names.length
+        ? `Sayt fayl so'rayapti${fc.isMultiple() ? ' (bir nechta)' : ''}. Bu ishda yuklab olingan fayllar: ${names.join(', ')}`
+        : "Sayt fayl so'rayapti, lekin bu ishda yuklab olingan fayl yo'q — kompyuterdagi boshqa fayllarni AI tanlamaydi. Escape bilan yoping va hisobotda ayting";
+      this.dialogs.set(p, { fc, o: { kind: 'file', message, defaultValue: '', typed: null } });
       for (const w of this.dialogWaiters) w();
     });
     p.on('download', d => {
@@ -490,6 +499,7 @@ export class BrowserSession {
       return text(this.dialogs.has(p) ? describeDialog(entry.o) : 'OK');
     }
     if (step.do === 'typed') {
+      if (entry.fc && !this.downloads.some(f => basename(f) === step.text)) return fail(`«${step.text.slice(0, 80)}» — bu ishda yuklab olingan fayl emas. ${describeDialog(entry.o)}`);
       entry.o = { ...entry.o, typed: step.text };
       return text(`Oynaga yozildi: «${step.text}» — hali yuborilmadi. Yuborish: key "Enter"`);
     }
@@ -499,7 +509,13 @@ export class BrowserSession {
     }
     this.dialogs.delete(p);
     // Oyna boshqa yo'l bilan yopilgan bo'lsa (sayt o'zi, egasi) — xato emas
-    await (step.do === 'accept' ? entry.d.accept(step.text) : entry.d.dismiss()).catch(() => {});
+    if (entry.fc) {
+      const file = step.do === 'accept' ? this.downloads.find(f => basename(f) === step.text) : undefined;
+      if (file) await entry.fc.setFiles(file);
+      await sleep(300);
+      return this.untilDialog(this.withState(file ? `Fayl tanlandi: ${basename(file)}` : 'Fayl tanlanmadi (oyna yopildi)'));
+    }
+    await (step.do === 'accept' ? entry.d?.accept(step.text) : entry.d?.dismiss())?.catch(() => {});
     await sleep(300);
     return this.untilDialog(this.withState(step.do === 'accept' ? 'Oynada OK bosildi' : 'Oyna bekor qilindi (Cancel)'));
   }
@@ -730,7 +746,7 @@ export class BrowserSession {
 
   async close(): Promise<void> {
     // Ochiq qolgan oyna — bekor (egasining vkladkasi to'xtab qolmasin)
-    await Promise.all([...this.dialogs.values()].map(({ d }) => d.dismiss().catch(() => {})));
+    await Promise.all([...this.dialogs.values()].map(({ d }) => d?.dismiss().catch(() => {})));
     this.dialogs.clear();
     if (!this.shared) {
       await this.ctx.close().catch(() => {});

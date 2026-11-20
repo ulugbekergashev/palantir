@@ -9,7 +9,7 @@
 import { createServer } from 'node:http';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { WebSocket } from 'ws';
 import { chromePath } from './chrome';
@@ -44,6 +44,7 @@ const site = createServer((req, res) => {
     <button onclick="document.getElementById('r').textContent='pul:'+confirm('Kartangizdan 500 000 so\\'m to\\'lansinmi?')">Davom</button>`);
   // Sahifa ichidagi sahifa (iframe) va Shadow DOM: muharrirlar, vidjetlar, Reddit/YouTube tugmalari shular ichida
   if (req.url === '/ramka') return res.end(`<title>Ramka</title><h1>tashqi</h1><iframe style="margin-top:200px;width:400px;height:200px" srcdoc="<input aria-label='Ichki maydon'><button onclick=&quot;document.body.insertAdjacentHTML('beforeend','<p>ichki:'+document.querySelector('input').value+'</p>')&quot;>Ichki tugma</button>"></iframe>`);
+  if (req.url === '/fayl-tanla') return res.end('<title>Fayl tanlash</title><h1 id="f">fayl:yoq</h1><input type="file" aria-label="Hujjat" onchange="document.getElementById(\'f\').textContent=\'fayl:\'+this.files[0].name">');
   if (req.url === '/soya') return res.end(`<title>Soya</title><h1>soya</h1><x-k></x-k><script>customElements.define('x-k', class extends HTMLElement { connectedCallback() { const r = this.attachShadow({ mode: 'open' }); r.innerHTML = '<p>Ichidagi matn</p><button>Soya tugma</button>'; r.querySelector('button').onclick = () => r.querySelector('p').textContent = 'soya:bosildi'; } });</script>`);
   res.end(`<title>Sinov sahifasi</title><h1 id="h">${req.url}</h1><input id="ism" aria-label="Ism"><button onclick="document.getElementById('h').textContent='bosildi:'+document.getElementById('ism').value">Tekshirish</button><a href="/popup" target="_blank">Oyna</a>${DEEP}`);
 });
@@ -93,11 +94,12 @@ try {
 
   console.log('\n# Ish');
   let asked = 0;
+  let allow = false;
   const b = await connectOwnChrome(() => { asked++; }, 15_000);
   ok("ulandi, «Allow?» so'ralmadi", !!b && asked === 0, `so'rovlar: ${asked}`);
   const s = await BrowserSession.open({
     profileDir: '', downloadsDir: join(dir, 'yuklama'), headless: true, attach: b, ownerDownloads: join(dir, 'egasi-yuklamalar'),
-    approve: async () => false, policy: { allowedSites: [], allowHosts: [`127.0.0.1:${sitePort}`] },
+    approve: async () => allow, policy: { allowedSites: [], allowHosts: [`127.0.0.1:${sitePort}`] },
   });
   const text = (r: { content: unknown[] }) => JSON.stringify(r.content);
   const listed = text(await s.run('list_tabs', {}));
@@ -191,6 +193,26 @@ try {
   const afterPay = await within(s.run('get_page_text', {}));
   ok("to'lov so'ragan oynada OK bosilmaydi (pul zonasi), bekor qilish mumkin", !!payOk && payOk.isError === true && !!payNo && !payNo.isError && !!afterPay && text(afterPay).includes('pul:false'),
     [payOk, payNo, afterPay].map(r => (r ? text(r).slice(0, 90) : 'OSILDI')).join(' | '));
+  // Fayl tanlash: egasining ekranida Windows oynasi ochilmaydi; faqat shu ishda yuklangan fayl, egasining ruxsati bilan
+  await s.run('navigate', { url: `${SITE}/fayl-tanla` });
+  const fileInput = text(await s.run('find', { query: 'Hujjat file' })).match(/ref_\d+/)?.[0] ?? '';
+  const chooser = await within(s.run('left_click', { target: { type: 'ref', ref: fileInput } }));
+  const strange = await within(s.run('type', { text: 'C:\\Windows\\win.ini' }));
+  const ownFile = file ? basename(file) : '';
+  await within(s.run('type', { text: ownFile }));
+  const upload = await within(s.run('key', { text: 'Enter' }));
+  await within(s.run('key', { text: 'Escape' }));
+  const afterUpload = await within(s.run('get_page_text', {}));
+  ok("fayl tanlash: oyna aytiladi, begona fayl rad, yuklash egasidan so'raladi (rad etdi — fayl qo'yilmadi)",
+    !!chooser && /fayl so'rayapti/.test(text(chooser)) && !!strange && strange.isError === true && !!upload && upload.isError === true && /ruxsat bermadi/.test(text(upload))
+    && !!afterUpload && text(afterUpload).includes('fayl:yoq'), [chooser, strange, upload, afterUpload].map(r => (r ? text(r).slice(0, 110) : 'OSILDI')).join(' | '));
+  allow = true;
+  await within(s.run('left_click', { target: { type: 'ref', ref: fileInput } }));
+  await within(s.run('type', { text: ownFile }));
+  const uploaded = await within(s.run('key', { text: 'Enter' }));
+  allow = false;
+  const afterOk = await within(s.run('get_page_text', {}));
+  ok("egasi rozi — fayl saytga qo'yildi (kengaytma orqali)", !!uploaded && !uploaded.isError && !!afterOk && text(afterOk).includes('fayl:' + ownFile), [uploaded, afterOk].map(r => (r ? text(r).slice(0, 110) : 'OSILDI')).join(' | '));
   // Sahifa ichidagi sahifa (iframe) va Shadow DOM — ko'rinadi, bosiladi, yoziladi
   await s.run('navigate', { url: `${SITE}/ramka` });
   const framed = text(await s.run('read_page', {}));
