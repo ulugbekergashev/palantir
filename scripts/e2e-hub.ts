@@ -57,7 +57,18 @@ const start = (script: string, env: Record<string, string>) => {
   procs.push(p);
   return p;
 };
-const up = async (url: string) => { for (let i = 0; i < 80; i++) { try { if ((await fetch(url)).ok) return true; } catch { /* hali */ } await sleep(250); } return false; };
+/**
+ * Server javob berguncha kutadi. 60 s: yangi ma'lumot papkasi bilan birinchi ishga tushish GitHub'ning Windows mashinasida
+ * 20 s dan oshib ketardi (2026-11-20, CI jurnalida server yiqilmagan — shunchaki kech yongan)
+ */
+const UP_MS = 60_000;
+const up = async (url: string) => {
+  for (const end = Date.now() + UP_MS; Date.now() < end; await sleep(250)) {
+    try { if ((await fetch(url, { signal: AbortSignal.timeout(5000) })).ok) return true; } catch { /* hali */ }
+  }
+  ghAnnotate('warning', 'test:hub kutish', `${url} — ${UP_MS} ms da javob bermadi`);
+  return false;
+};
 const adminList = async () => (await (await fetch(`${HUB}/admin/clinics`, { headers: { authorization: 'Bearer hub-admin-sinov-kaliti-0123456789' } })).json() as { clinics: { id: string; name: string; online: boolean; seenAt: string | null; status: { version: string; schema: number; diskFreeMb: number; businesses: number; problems: unknown[] } | null }[] }).clinics;
 /** waitFor'ning so'rov yuboradigan (async) ko'rinishi */
 async function until<T>(what: string, fn: () => Promise<T | undefined>, ms: number): Promise<T | undefined> {
@@ -523,7 +534,8 @@ try {
   const newcomerAlert = await waitFor('yangi kompyuter xabari', () => toVendor(mark, 'Yangi kompyuter')[0], 10_000);
   ok("sotuvchiga Telegram'da: yangi kompyuter yozildi — kompyuter kodi xabarda yo'q (tasdiqlash o'rnatuvchi aytgan kod bilan)",
     !!newcomerAlert && String(newcomerAlert.params.text).includes('Tasdiqlash va aktivlashtirish') && !String(newcomerAlert.params.text).includes(NEW_MACHINE), String(newcomerAlert?.params.text ?? ''));
-  const N = `${HUB}/c/${joined!.id}`;
+  if (!joined) throw new Error("yangi kompyuter Hub'ga ulanmadi — keyingi tekshiruvlar unga bog'liq");
+  const N = `${HUB}/c/${joined.id}`;
   const quarantined = [await fetch(`${N}/`, { headers: { accept: 'text/html' } }), await fetch(`${N}/api/health`)];
   const qPage = await quarantined[0].text();
   ok("karantin: tasdiqlanmagan kompyuter /c/ orqali hech narsa bermaydi (sahifa ham, API ham) — 403", quarantined.every(r => r.status === 403) && qPage.includes('tasdiqlanmagan') && !qPage.includes('./assets/'),
