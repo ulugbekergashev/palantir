@@ -17,9 +17,21 @@ CREATE TABLE IF NOT EXISTS ads_campaigns (
   impressions INTEGER NOT NULL DEFAULT 0, error TEXT, stop_reason TEXT, created_at TEXT NOT NULL, launched_at TEXT, ends_at TEXT, checked_at TEXT
 );
 CREATE INDEX IF NOT EXISTS ads_campaigns_biz ON ads_campaigns (business_id, created_at);
+-- Meta MCP orqali: pul sarflaydigan amal egasining tugmasini kutadi (mcp.ts)
+CREATE TABLE IF NOT EXISTS ads_mcp_actions (
+  id TEXT PRIMARY KEY, business_id TEXT NOT NULL, tool TEXT NOT NULL, action TEXT NOT NULL, input TEXT NOT NULL, status TEXT NOT NULL,
+  result TEXT, created_at TEXT NOT NULL, done_at TEXT
+);
+-- Egasi tasdiqlab yoqilgan (MCP orqali yaratilgan) kampaniyalar: kuzatuv ularni ham limitda to'xtatadi
+CREATE TABLE IF NOT EXISTS ads_tracked (
+  business_id TEXT NOT NULL, campaign_id TEXT NOT NULL, name TEXT NOT NULL, daily REAL, lifetime REAL, ends_at TEXT, status TEXT NOT NULL,
+  stop_reason TEXT, approved_at TEXT NOT NULL, PRIMARY KEY (business_id, campaign_id)
+);
 `);
 // Server yaratish paytida to'xtagan: Meta'da qisman yaratilgan bo'lishi mumkin (pauzada — pul ketmaydi), egasi kabinetda ko'radi
 sql.run("UPDATE ads_campaigns SET status = 'failed', error = 'Yaratilayotganda server to''xtadi — Meta kabinetida pauzadagi qoralama qolgan bo''lishi mumkin' WHERE status = 'launching'");
+// Bajarilayotganda server to'xtagan: Meta'da bajarilgan-bajarilmagani noma'lum — egasi Ads Manager'da ko'radi
+sql.run("UPDATE ads_mcp_actions SET status = 'failed', result = 'Bajarilayotganda server to''xtadi — Ads Manager''da tekshiring' WHERE status = 'running'");
 
 export class TargetError extends Error {}
 
@@ -84,4 +96,51 @@ export const adsStore = {
     sql.run('UPDATE ads_campaigns SET spent = ?, results = ?, clicks = ?, impressions = ?, checked_at = ? WHERE business_id = ? AND id = ?',
       s.spent, s.results, s.clicks, s.impressions, sql.nowIso(), bizId, id),
   waiting: (bizId: string) => sql.one("SELECT COUNT(*) AS n FROM ads_campaigns WHERE business_id = ? AND status = 'proposed'", r => Number(r.n), bizId) ?? 0,
+};
+
+// ─── Meta MCP: tasdiq kutayotgan amallar va kuzatuvdagi kampaniyalar ──────────
+
+export type McpAction = 'activate' | 'boost' | 'update';
+export interface McpActionRow { id: string; tool: string; action: McpAction; input: unknown; status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled'; result: string | null; createdAt: string }
+/** Kuzatuvdagi kampaniya: summalar kabinet valyutasida; daily yoki lifetime — Meta'dan o'qilgan */
+export interface Tracked { campaignId: string; name: string; daily: number | null; lifetime: number | null; endsAt: string | null; status: 'active' | 'paused' | 'finished'; stopReason: string | null }
+
+const toAction = (r: Row): McpActionRow => ({
+  id: String(r.id), tool: String(r.tool), action: String(r.action) as McpAction, input: JSON.parse(String(r.input)) as unknown,
+  status: String(r.status) as McpActionRow['status'], result: sql.str(r.result), createdAt: String(r.created_at),
+});
+const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+const toTracked = (r: Row): Tracked => ({
+  campaignId: String(r.campaign_id), name: String(r.name), daily: num(r.daily), lifetime: num(r.lifetime), endsAt: sql.str(r.ends_at),
+  status: String(r.status) as Tracked['status'], stopReason: sql.str(r.stop_reason),
+});
+
+export const mcpStore = {
+  add(bizId: string, tool: string, action: McpAction, input: unknown): McpActionRow {
+    const id = newId(12);
+    sql.run("INSERT INTO ads_mcp_actions (id, business_id, tool, action, input, status, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?)",
+      id, bizId, tool, action, JSON.stringify(input ?? {}).slice(0, 20_000), sql.nowIso());
+    return mcpStore.get(bizId, id)!;
+  },
+  get: (bizId: string, id: string) => sql.one('SELECT * FROM ads_mcp_actions WHERE business_id = ? AND id = ?', toAction, bizId, id),
+  /** Holat faqat kutilganidan o'zgaradi: ikki bosish ikki marta bajarmaydi */
+  move: (bizId: string, id: string, from: McpActionRow['status'], to: McpActionRow['status'], result: string | null = null) =>
+    Number(sql.run('UPDATE ads_mcp_actions SET status = ?, result = COALESCE(?, result), done_at = ? WHERE business_id = ? AND id = ? AND status = ?',
+      to, result, sql.nowIso(), bizId, id, from).changes) > 0,
+
+  track(bizId: string, t: Omit<Tracked, 'status' | 'stopReason'>): void {
+    sql.run(`INSERT INTO ads_tracked (business_id, campaign_id, name, daily, lifetime, ends_at, status, approved_at) VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
+      ON CONFLICT (business_id, campaign_id) DO UPDATE SET name = excluded.name, daily = excluded.daily, lifetime = excluded.lifetime,
+        ends_at = excluded.ends_at, status = 'active', stop_reason = NULL, approved_at = excluded.approved_at`,
+      bizId, t.campaignId, t.name.slice(0, 200), t.daily, t.lifetime, t.endsAt, sql.nowIso());
+  },
+  /** Meta'dan qayta o'qilgan byudjet va muddat (holat va tasdiq vaqti o'zgarmaydi) */
+  refresh: (bizId: string, t: Omit<Tracked, 'status' | 'stopReason'>) =>
+    sql.run('UPDATE ads_tracked SET name = ?, daily = ?, lifetime = ?, ends_at = ? WHERE business_id = ? AND campaign_id = ?',
+      t.name.slice(0, 200), t.daily, t.lifetime, t.endsAt, bizId, t.campaignId),
+  tracked: (bizId: string, campaignId: string) => sql.one('SELECT * FROM ads_tracked WHERE business_id = ? AND campaign_id = ?', toTracked, bizId, campaignId),
+  active: (bizId: string) => sql.many("SELECT * FROM ads_tracked WHERE business_id = ? AND status = 'active' ORDER BY approved_at", toTracked, bizId),
+  stop: (bizId: string, campaignId: string, to: 'paused' | 'finished', why: string) =>
+    sql.run("UPDATE ads_tracked SET status = ?, stop_reason = ? WHERE business_id = ? AND campaign_id = ? AND status = 'active'", to, why, bizId, campaignId),
+  bizWithActive: () => sql.many("SELECT DISTINCT business_id AS b FROM ads_tracked WHERE status = 'active'", r => String(r.b)),
 };

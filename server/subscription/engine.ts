@@ -11,7 +11,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
-import { query, type EffortLevel, type McpSdkServerConfigWithInstance, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query, type EffortLevel, type HookCallbackMatcher, type McpSdkServerConfigWithInstance, type McpServerConfig, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { env } from '../env';
 import { APP_VERSION } from '../version';
 import { notePressure, type Lane } from './pressure';
@@ -134,6 +134,35 @@ export function collectResult(msgs: readonly SDKMessage[]): TurnResult {
 
 // ─── So'rov ───────────────────────────────────────────────────────────────────
 
+/**
+ * Tashqi MCP server (Meta reklama — ads/mcp.ts). Har bir chaqiruvdan oldin guard: null — ruxsat, matn — bajarilmaydi, model shu
+ * sababni o'qiydi. Guard yiqilsa ham — bajarilmaydi
+ */
+export interface ExternalMcp {
+  name: string;
+  url: string;
+  headers: Record<string, string>;
+  timeoutMs?: number;
+  guard: (tool: string, input: unknown) => Promise<string | null>;
+}
+
+const GUARD_FAILED = 'Not run: Palantir could not check this call. Tell the owner.';
+const HOOK_TIMEOUT_S = 120;
+
+/** PreToolUse: shu serverning har bir asbobi guard'dan o'tadi */
+function guardHook(e: ExternalMcp): HookCallbackMatcher {
+  return {
+    matcher: `mcp__${e.name}__.*`,
+    // Guard ichida karta yuboriladi (o'zi ~15 s bilan cheklangan): hook vaqti undan ancha uzun — vaqt tugab asbob tekshiruvsiz o'tmasin
+    timeout: HOOK_TIMEOUT_S,
+    hooks: [async input => {
+      if (input.hook_event_name !== 'PreToolUse') return { continue: true };
+      const why = await e.guard(input.tool_name, input.tool_input).catch(err => { console.error(`[obuna] ${e.name} tekshiruvi:`, (err as Error).message); return GUARD_FAILED; });
+      return why === null ? { continue: true } : { hookSpecificOutput: { hookEventName: 'PreToolUse' as const, permissionDecision: 'deny' as const, permissionDecisionReason: why } };
+    }],
+  };
+}
+
 export interface QueryOptions {
   system: string;
   model: string;
@@ -143,6 +172,8 @@ export interface QueryOptions {
   resume?: string;
   /** Palantir asboblari (subscription/tools.ts) */
   mcp?: McpSdkServerConfigWithInstance;
+  /** Tashqi serverlar (Meta reklama): faqat shular, har chaqiruv guard bilan */
+  external?: readonly ExternalMcp[];
   /** Internetdan qidirish yoqilsin (Claude Code'ning o'z WebSearch asbobi) */
   webSearch?: boolean;
   /** Qidiruv natijasi begona matn: chaqirilganda belgi qo'yiladi (toolkit.ts readStrangers) */
@@ -160,9 +191,18 @@ function sessionDir(): string {
   return dir;
 }
 
-function optionsFor(o: QueryOptions, abort: AbortController): Options {
+export function optionsFor(o: QueryOptions, abort: AbortController): Options {
   const builtins = o.webSearch ? ['WebSearch'] : [];
   const onSearch = o.onWebSearch;
+  const external = o.external ?? [];
+  const servers: Record<string, McpServerConfig> = {
+    ...(o.mcp ? { palantir: o.mcp } : {}),
+    ...Object.fromEntries(external.map(e => [e.name, { type: 'http' as const, url: e.url, headers: e.headers, ...(e.timeoutMs ? { timeout: e.timeoutMs } : {}) }])),
+  };
+  const preToolUse: HookCallbackMatcher[] = [
+    ...(onSearch ? [{ matcher: 'WebSearch', hooks: [async () => { onSearch(); return { continue: true }; }] }] : []),
+    ...external.map(guardHook),
+  ];
   return {
     model: o.model,
     ...(o.effort ? { effort: o.effort } : {}),
@@ -171,19 +211,19 @@ function optionsFor(o: QueryOptions, abort: AbortController): Options {
     abortController: abort,
     systemPrompt: o.system,
     settingSources: [],
-    // Egasining o'z MCP serverlari va claude.ai ulagichlari ham yuklanmaydi: faqat Palantir asboblari
+    // Egasining o'z MCP serverlari va claude.ai ulagichlari ham yuklanmaydi: faqat Palantir asboblari va Palantir bergan tashqi serverlar
     strictMcpConfig: true,
     settings: { disableClaudeAiConnectors: true, autoMemoryEnabled: false },
     persistSession: o.persist,
     tools: builtins,
-    mcpServers: o.mcp ? { palantir: o.mcp } : {},
-    allowedTools: [...builtins, ...(o.mcp ? ['mcp__palantir'] : [])],
+    mcpServers: servers,
+    allowedTools: [...builtins, ...(o.mcp ? ['mcp__palantir'] : []), ...external.map(e => `mcp__${e.name}`)],
     // Ruxsat berilmagan narsa so'ralmaydi — darhol rad etiladi (kuzatuvchi yo'q)
     permissionMode: 'dontAsk',
     cwd: sessionDir(),
     env: childEnv(process.env),
     ...(o.resume ? { resume: o.resume } : {}),
-    ...(onSearch ? { hooks: { PreToolUse: [{ matcher: 'WebSearch', hooks: [async () => { onSearch(); return { continue: true }; }] }] } } : {}),
+    ...(preToolUse.length ? { hooks: { PreToolUse: preToolUse } } : {}),
   };
 }
 

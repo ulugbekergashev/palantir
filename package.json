@@ -63,6 +63,7 @@
     "test:video": "tsx scripts/check-video.ts",
     "live:content": "tsx scripts/live-content.ts",
     "test:ads": "tsx scripts/check-ads.ts",
+    "test:ads-mcp": "tsx scripts/check-ads-mcp.ts",
     "live:ads-plan": "tsx scripts/live-ads-plan.ts",
     "test:dashboard": "vite build && tsx scripts/e2e-dashboard.ts",
     "hub": "tsx hub/server.ts",

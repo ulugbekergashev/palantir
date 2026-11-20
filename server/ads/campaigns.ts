@@ -18,9 +18,10 @@ import { env } from '../env';
 import { notifyOwner } from '../inbox/core';
 import { posts } from '../marketing/posts';
 import { videoMp4 } from '../content/render';
+import { campaignOf } from './entity';
 import { AdsError, graph, graphUpload } from './graph';
 import { CURRENCIES, adParams, adsetParams, campaignParams, creativeParams, money, planProblems, planSummary, toMinor, type Plan, type Spend } from './plan';
-import { TargetError, adsStore, type AdsConnection, type MetaIds } from './store';
+import { TargetError, adsStore, mcpStore, type AdsConnection, type MetaIds, type Tracked } from './store';
 
 export { TargetError } from './store';
 
@@ -54,7 +55,7 @@ export function videoFile(ref: string, bizId: string): string | null {
 /** Meta videoni qayta ishlashini kutish (yuklangach «processing» → «ready») */
 const VIDEO_READY_MS = Number(process.env.ADS_VIDEO_WAIT_MS) || 5 * 60_000;
 const VIDEO_POLL_MS = Number(process.env.ADS_VIDEO_POLL_MS) || 5_000;
-async function uploadVideo(c: AdsConnection, act: string, file: string, name: string): Promise<string> {
+export async function uploadVideo(c: AdsConnection, act: string, file: string, name: string): Promise<string> {
   const up = await graphUpload<{ id?: string }>(c.token, `${act}/advideos`, { name, type: 'video/mp4', data: readFileSync(file) }, { name });
   if (!up.id) throw new TargetError("Meta video raqamini qaytarmadi");
   const until = Date.now() + VIDEO_READY_MS;
@@ -74,7 +75,7 @@ export const ensureUploadDir = (bizId: string) => { mkdirSync(uploadDir(bizId), 
 interface AccountInfo { name?: string; currency?: string; account_status?: number; timezone_name?: string }
 
 /** Ishga tushgan yoki ishga tushirilayotgan kampaniyalar bor-yo'qligi (kabinetni almashtirish/uzishda) */
-const tracked = (bizId: string) => adsStore.campaigns(bizId).some(x => x.status === 'launching' || x.status === 'active' || x.status === 'paused');
+const tracked = (bizId: string) => adsStore.campaigns(bizId).some(x => x.status === 'launching' || x.status === 'active' || x.status === 'paused') || mcpStore.active(bizId).length > 0;
 
 export async function connect(biz: BusinessRow, input: { token: string; adAccountId: string; pageId: string; igActorId?: string | null }): Promise<AdsConnection> {
   const token = input.token.trim();
@@ -118,20 +119,36 @@ const spendOf = (r: { data?: { spend?: string }[] }) => Number.parseFloat(r.data
 const remaining = (x: AdCampaign) => Math.max(0, (x.plan.budget ?? 0) - x.spent);
 const daysLeft = (x: AdCampaign, now = Date.now()) => Math.max(1, Math.ceil(((x.endsAt ? Date.parse(x.endsAt) : now + x.plan.days * DAY_MS) - now) / DAY_MS));
 
+/** Oy oxirigacha qolgan kunlar (bugun ham) */
+export const monthDaysLeft = (now = new Date()): number => new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate() + 1;
+/** Kampaniya tugashigacha qolgan kunlar; muddatsiz — null */
+const trackedDays = (t: Pick<Tracked, 'endsAt'>, now: number): number | null => (t.endsAt ? Math.max(1, Math.ceil((Date.parse(t.endsAt) - now) / DAY_MS)) : null);
+/** MCP orqali yoqilgan kampaniyaning kunlik tezligi: kunlik byudjet yoki umumiy / qolgan kunlar; byudjeti o'qilmagan — null */
+export function trackedRate(t: Pick<Tracked, 'daily' | 'lifetime' | 'endsAt'>, now = Date.now()): number | null {
+  if (t.daily !== null) return t.daily;
+  return t.lifetime !== null ? t.lifetime / (trackedDays(t, now) ?? 1) : null;
+}
+/** Shu oyda yana sarflanishi mumkin bo'lgani (qolgan kunlar va oy oxiri — qaysi biri oldin) */
+export function trackedCommit(t: Pick<Tracked, 'daily' | 'lifetime' | 'endsAt'>, now = new Date()): number {
+  const rate = trackedRate(t, now.getTime()) ?? 0;
+  return rate * Math.min(trackedDays(t, now.getTime()) ?? Infinity, monthDaysLeft(now));
+}
+
 /**
  * Akkaunt bo'yicha bugun va shu oy (Palantir'dan tashqari reklamalar ham — ehtiyot uchun); ishlayotgan va ishga tushirilayotganlarga
- * band qolgan byudjet va ularning kunlik tezligi
+ * band qolgan byudjet va ularning kunlik tezligi. MCP orqali egasi yoqqanlari ham (exceptTracked — hozir tekshirilayotganlari)
  */
-export async function spendNow(biz: BusinessRow, c: AdsConnection, except?: string): Promise<Spend> {
+export async function spendNow(biz: BusinessRow, c: AdsConnection, except?: string, exceptTracked: readonly string[] = []): Promise<Spend> {
   const [today, month] = await Promise.all([
     graph<{ data?: { spend?: string }[] }>(c.token, 'GET', `act_${c.adAccountId}/insights`, { fields: 'spend', date_preset: 'today' }),
     graph<{ data?: { spend?: string }[] }>(c.token, 'GET', `act_${c.adAccountId}/insights`, { fields: 'spend', date_preset: 'this_month' }),
   ]).catch(wrap);
   const running = adsStore.campaigns(biz.id).filter(x => (x.status === 'active' || x.status === 'launching') && x.id !== except);
+  const tracked = mcpStore.active(biz.id).filter(t => !exceptTracked.includes(t.campaignId));
   return {
     today: spendOf(today), month: spendOf(month),
-    committed: running.reduce((n, x) => n + remaining(x), 0),
-    dailyRate: running.reduce((n, x) => n + remaining(x) / daysLeft(x), 0),
+    committed: running.reduce((n, x) => n + remaining(x), 0) + tracked.reduce((n, t) => n + trackedCommit(t), 0),
+    dailyRate: running.reduce((n, x) => n + remaining(x) / daysLeft(x), 0) + tracked.reduce((n, t) => n + (trackedRate(t) ?? 0), 0),
   };
 }
 
@@ -357,10 +374,47 @@ const warnOnce = async (biz: BusinessRow, key: string, html: string, now: Date) 
 const misses = new Map<string, number>();
 const MISS_ALERT = 3;
 
+/** MCP orqali yoqilgan kampaniyani to'xtatish (limit, egasi tugmasi) */
+export async function pauseTracked(biz: BusinessRow, campaignId: string, why: string): Promise<void> {
+  await graph(need(biz).token, 'POST', campaignId, { status: 'PAUSED' }).catch(wrap);
+  mcpStore.stop(biz.id, campaignId, 'paused', why);
+}
+
+const STOPPED_STATES = new Set(['PAUSED', 'CAMPAIGN_PAUSED', 'ARCHIVED', 'DELETED']);
+
+/** Muddat o'tgandan keyin shuncha kutiladi: Meta'da muddat uzaytirilgan bo'lsa, qayta o'qishda ko'rinadi */
+const ENDED_GRACE_MS = DAY_MS;
+
+/**
+ * MCP kampaniyalari: byudjet va muddat Meta'dan qayta o'qiladi (Ads Manager'da yoki tahrirda o'zgargan bo'lishi mumkin); Meta'da
+ * to'xtatilgani va muddati bir kundan ko'proq oldin tugagani kuzatuvdan chiqadi; bitta kampaniya sarfi limitga yetsa — to'xtatiladi
+ */
+async function refreshTracked(biz: BusinessRow, c: AdsConnection, now: Date): Promise<void> {
+  const per = adsStore.limits(biz.id).perCampaign;
+  for (const t of mcpStore.active(biz.id)) {
+    const r = await graph<{ effective_status?: string }>(c.token, 'GET', t.campaignId, { fields: 'effective_status' }).catch(() => null);
+    if (!r) continue;
+    const st = (r.effective_status ?? '').toUpperCase();
+    if (STOPPED_STATES.has(st)) { mcpStore.stop(biz.id, t.campaignId, 'paused', `Meta'da: ${st}`); continue; }
+    const fresh = await campaignOf(c, t.campaignId).catch(() => null);
+    if (fresh) mcpStore.refresh(biz.id, fresh);
+    const ends = fresh ? fresh.endsAt : t.endsAt;
+    if (ends && Date.parse(ends) + ENDED_GRACE_MS <= now.getTime()) { mcpStore.stop(biz.id, t.campaignId, 'finished', 'Muddati tugadi'); continue; }
+    if (!(per > 0)) continue;
+    const i = await graph<{ data?: { spend?: string }[] }>(c.token, 'GET', `${t.campaignId}/insights`, { fields: 'spend', date_preset: 'maximum' }).catch(() => null);
+    const spent = spendOf(i ?? {});
+    if (i && spent >= per) {
+      await pauseTracked(biz, t.campaignId, `Limit: bir kampaniya ${money(per, c.currency)}`).then(
+        () => warnOnce(biz, `per:${t.campaignId}`, `⛔️ <b>Targetolog</b>: «${esc(t.name)}» ${money(spent, c.currency)} sarfladi — bir kampaniya limiti (${money(per, c.currency)}). To'xtatildi.`, now),
+        () => warnOnce(biz, `perstuck:${t.campaignId}`, `🚨 <b>Targetolog</b>: «${esc(t.name)}» bir kampaniya limitiga yetdi, lekin to'xtatib bo'lmadi. Darhol Ads Manager'da to'xtating!`, now));
+    }
+  }
+}
+
 /** Bitta biznes: sarf va natijani yangilaydi; muddati tugaganini yopadi; limitga yetsa yoki limit olib tashlansa — hammasini to'xtatadi */
 export async function watch(biz: BusinessRow, now = new Date()): Promise<void> {
   const live = adsStore.live(biz.id).filter(x => x.status === 'active');
-  if (!live.length) return;
+  if (!live.length && !mcpStore.active(biz.id).length) return;
   const c = adsStore.connection(biz.id);
   if (!c) {
     await warnOnce(biz, 'nocon', '⚠️ <b>Targetolog</b>: kampaniyalar ishlayapti, lekin reklama kabineti uzilgan — sarfni kuzatib bo\'lmayapti. Ads Manager\'da tekshiring.', now);
@@ -373,6 +427,7 @@ export async function watch(biz: BusinessRow, now = new Date()): Promise<void> {
     if (i) adsStore.setStats(biz.id, camp.id, { spent: Number.parseFloat(i.spend ?? '0') || 0, results: resultsOf(i, camp.plan.destination), clicks: Number(i.clicks) || 0, impressions: Number(i.impressions) || 0 });
     if (camp.endsAt && Date.parse(camp.endsAt) <= now.getTime()) adsStore.move(biz.id, camp.id, ['active'], 'finished', { stopReason: 'Muddati tugadi' });
   }
+  await refreshTracked(biz, c, now);
   const l = adsStore.limits(biz.id);
   const s = await spendNow(biz, c).catch(() => null);
   if (!s) {
@@ -392,13 +447,16 @@ export async function watch(biz: BusinessRow, now = new Date()): Promise<void> {
   for (const camp of adsStore.live(biz.id).filter(x => x.status === 'active')) {
     try { await pause(biz, camp.id, `Limit: ${over}`); stopped.push(camp.plan.name); } catch (e) { stuck.push(camp.plan.name); console.error("[targetolog] limitda to'xtatilmadi:", (e as Error).message); }
   }
+  for (const t of mcpStore.active(biz.id)) {
+    try { await pauseTracked(biz, t.campaignId, `Limit: ${over}`); stopped.push(t.name); } catch (e) { stuck.push(t.name); console.error("[targetolog] limitda to'xtatilmadi (MCP):", (e as Error).message); }
+  }
   if (stopped.length) await warnOnce(biz, 'limit', `⛔️ <b>Targetolog</b>: limitga yetildi (${esc(over)}). To'xtatildi: ${esc(stopped.join(', '))}. Davom ettirish — panelda.`, now);
   if (stuck.length) await warnOnce(biz, 'stuck', `🚨 <b>Targetolog</b>: limitga yetildi (${esc(over)}), lekin to'xtatib bo'lmadi: ${esc(stuck.join(', '))}. Darhol Ads Manager'da to'xtating!`, now);
 }
 
 /** Hamma bizneslar: jadval chaqiradi (bot ulanmagan bo'lsa ham) */
 export async function watchAll(getBiz: (id: string) => BusinessRow | undefined, now = new Date()): Promise<void> {
-  for (const bizId of adsStore.bizWithActive()) {
+  for (const bizId of new Set([...adsStore.bizWithActive(), ...mcpStore.bizWithActive()])) {
     const biz = getBiz(bizId);
     if (biz?.active) await watch(biz, now).catch(e => console.error(`[targetolog] kuzatuv (${biz.profile.name}):`, (e as Error).message));
   }

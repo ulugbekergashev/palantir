@@ -20,6 +20,7 @@ import { OFFER_CODE } from './inbox/autonomy';
 import { cancelPost, posts, publishPost } from './marketing/posts';
 import { ContentError, cancelDraft, publishDraft } from './content/factory';
 import { TargetError, cancel as cancelCampaign, launch as launchCampaign, pause as pauseCampaign } from './ads/campaigns';
+import { approveAction as approveMcpAction, cancelAction as cancelMcpAction, pauseTrackedByOwner } from './ads/mcp';
 import { askOutcome, DAY_OUTCOME, dropOutcome, wantsOutcome } from './outcome';
 import { actorOf } from './requests/index';
 import { requestButton } from './requests/telegram';
@@ -268,6 +269,29 @@ export function registerButtons(bot: Telegraf, d: ButtonDeps): void {
         try { await launchCampaign(biz, id, { mark: data.split('|')[2] }); } catch (e) {
           if (!(e instanceof TargetError)) console.error('[targetolog] ishga tushirish:', e);
           await tg.sendMessage(biz.ownerChatId!, `⚠️ Reklama ishga tushmadi: ${e instanceof TargetError ? e.message : 'ichki xato'}`).catch(() => {});
+        }
+      });
+      return;
+    }
+
+    // Targetolog Meta MCP orqali: pul sarflaydigan amalni egasi tasdiqlaydi (fonda — Meta bir necha so'rov), bekor qiladi; yoqilganini to'xtatadi
+    if (code === 'ta' || code === 'tz' || code === 'tq') {
+      if (code === 'tz' || code === 'tq') {
+        try {
+          if (code === 'tz') cancelMcpAction(biz, id);
+          else await pauseTrackedByOwner(biz, id);
+        } catch (e) {
+          if (!(e instanceof TargetError)) console.error('[targetolog] tugma:', e);
+          return toast(ctx, e instanceof TargetError ? e.message : 'Ichki xato', { show_alert: true });
+        }
+        await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+        return toast(ctx, code === 'tz' ? 'Bekor qilindi' : "To'xtatildi ⏸");
+      }
+      await toast(ctx, 'Meta’da bajarilmoqda…');
+      await ctx.editMessageReplyMarkup(undefined).catch(() => {});
+      detach('reklama amali', async () => {
+        try { await approveMcpAction(biz, id); } catch (e) {
+          await tg.sendMessage(biz.ownerChatId!, `⚠️ Bajarilmadi: ${e instanceof TargetError ? e.message : 'ichki xato'}`).catch(() => {});
         }
       });
       return;

@@ -520,7 +520,8 @@ export interface AdPlan {
   autoAudience: boolean; welcome?: string | null; ads: { text: string; headline?: string | null; image: string }[]; notes: string[];
 }
 export interface AdsView {
-  account: { adAccountId: string; accountName: string; pageId: string; pageName: string; igActorId: string | null; currency: string; tokenSet: boolean } | null;
+  /** mcp — token Meta'ning rasmiy reklama MCP serverini ochadi (Targetolog o'zi tahlil qiladi va yaratadi; yoqish — egasi tugmasi) */
+  account: { adAccountId: string; accountName: string; pageId: string; pageName: string; igActorId: string | null; currency: string; tokenSet: boolean; mcp: boolean } | null;
   limits: { perCampaign: number; daily: number; monthly: number };
   spend: { today: number; month: number; committed: number } | null;
   campaigns: (AdCampaign & { problems: string[]; summary: string[] })[];

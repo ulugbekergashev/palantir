@@ -26,6 +26,9 @@ export class ToolGate {
 
   get calls(): number { return this.count; }
 
+  /** Tashqi server asbobi chaqirildi (Meta reklama): u ham ish — qayta urinish xavfsiz emas */
+  note(): void { this.count++; }
+
   async run<T>(fn: () => Promise<T>, refused: T): Promise<T> {
     if (this.closed) return refused;
     this.count++;
@@ -46,12 +49,14 @@ export class ToolGate {
 
 const LATE = { content: 'Bu gap tugagan — asbob ishlamadi', isError: true };
 
-export function palantirTools(ctx: ToolCtx, crm: boolean, groups: ToolGroup[], gate: ToolGate): SdkMcpToolDefinition<z.ZodRawShape>[] {
-  return ownerToolDefs(crm, groups, computerEnabled(businesses.byId(ctx.biz.id) ?? ctx.biz)).map(([name, d]) => tool(name, d.description, shapeOf(name, d.input), async args => {
+/** hide — shu gapda berilmaydigan asboblar (masalan, Meta MCP ulanganda eski ads_plan: bir ishga ikki yo'l bo'lmasin) */
+export function palantirTools(ctx: ToolCtx, crm: boolean, groups: ToolGroup[], gate: ToolGate, hide: readonly string[] = []): SdkMcpToolDefinition<z.ZodRawShape>[] {
+  const defs = ownerToolDefs(crm, groups, computerEnabled(businesses.byId(ctx.biz.id) ?? ctx.biz)).filter(([name]) => !hide.includes(name));
+  return defs.map(([name, d]) => tool(name, d.description, shapeOf(name, d.input), async args => {
     const out = await gate.run(() => runTool(name, args, ctx), LATE);
     return { content: [{ type: 'text' as const, text: out.content }], isError: out.isError };
   }));
 }
 
-export const palantirServer = (ctx: ToolCtx, crm: boolean, groups: ToolGroup[], gate: ToolGate): McpSdkServerConfigWithInstance =>
-  createSdkMcpServer({ name: 'palantir', version: APP_VERSION, tools: palantirTools(ctx, crm, groups, gate) });
+export const palantirServer = (ctx: ToolCtx, crm: boolean, groups: ToolGroup[], gate: ToolGate, hide: readonly string[] = []): McpSdkServerConfigWithInstance =>
+  createSdkMcpServer({ name: 'palantir', version: APP_VERSION, tools: palantirTools(ctx, crm, groups, gate, hide) });

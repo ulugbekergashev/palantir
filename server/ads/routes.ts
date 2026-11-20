@@ -11,6 +11,7 @@ import { newId, type BusinessRow } from '../db';
 import { ImageError, toPostJpeg } from '../marketing/image';
 import { AdsError } from './graph';
 import { cancel, card, connect, disconnect, ensureUploadDir, imagePath, launch, pause, problemsOf, propose, resolveCities, resume, spendNow, uploadDir } from './campaigns';
+import { mcpReady } from './mcp';
 import { PlanSchema, planSummary, type Spend } from './plan';
 import { availableImages, planFromTask } from './planner';
 import { TargetError, adsStore } from './store';
@@ -57,7 +58,7 @@ export async function adsView(biz: BusinessRow): Promise<AdsView> {
     summary: planSummary(x.plan, x.currency),
   })));
   return {
-    account: c ? { adAccountId: c.adAccountId, accountName: c.accountName, pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId, currency: c.currency, tokenSet: !!c.token } : null,
+    account: c ? { adAccountId: c.adAccountId, accountName: c.accountName, pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId, currency: c.currency, tokenSet: !!c.token, mcp: await mcpReady(biz.id, c).catch(() => false) } : null,
     limits: adsStore.limits(biz.id), spend, campaigns, images: availableImages(biz.id),
   };
 }

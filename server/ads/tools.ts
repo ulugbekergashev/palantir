@@ -2,14 +2,16 @@
  * Yordamchi asboblari (Targetolog): reja tuzish, holat, to'xtatish. ISHGA TUSHIRISH ASBOBI YO'Q — pul faqat egasi Telegram kartasidagi
  * yoki paneldagi tugmani bosganda sarflanadi (yordamchi o'zi boshlay olmaydi)
  */
+import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { ToolError, def } from '../toolkit';
-import { pause, propose } from './campaigns';
+import { imagePath, pause, propose, uploadVideo, videoFile } from './campaigns';
+import { AdsError, graph } from './graph';
 import { money, planSummary } from './plan';
-import { ownerBudget, planFromTask } from './planner';
+import { availableImages, ownerBudget, planFromTask } from './planner';
 import { TargetError, adsStore } from './store';
 
-const asTool = (e: unknown): never => { throw e instanceof TargetError ? new ToolError(e.message) : e; };
+const asTool = (e: unknown): never => { throw e instanceof TargetError || e instanceof AdsError ? new ToolError(e.message) : e; };
 
 export const ADS_DEFS = {
   ads_plan: def({
@@ -36,7 +38,26 @@ export const ADS_DEFS = {
           results: c.results, ends: c.endsAt?.slice(0, 10) ?? null, ...(c.stopReason ? { stopped: c.stopReason } : {}), ...(c.error ? { error: c.error } : {}),
         })),
         limits: l, connected: !!adsStore.connection(ctx.biz.id),
+        images: availableImages(ctx.biz.id),
       };
+    },
+  }),
+  ads_upload_media: def({
+    description: "Upload one of the business's own pictures or videos to the Meta ad account for a creative (Meta's ads tools). ref comes from ads_status images (post:…, file:…, video:…). Returns image_hash for a picture, or video_id for a video. A video takes up to a few minutes.",
+    input: z.object({ ref: z.string().trim().regex(/^(?:post|file|video):[A-Za-z0-9_.-]{6,40}$/) }),
+    run: async (i, ctx) => {
+      const c = adsStore.connection(ctx.biz.id);
+      if (!c) throw new ToolError('Meta reklama kabineti ulanmagan (Marketing → Targetolog → Ulash)');
+      const act = `act_${c.adAccountId}`;
+      const video = videoFile(i.ref, ctx.biz.id);
+      if (video) return { video_id: await uploadVideo(c, act, video, `palantir-${i.ref.replace(/\W/g, '-')}.mp4`).catch(asTool) };
+      const path = imagePath(i.ref, ctx.biz.id);
+      if (!path) throw new ToolError('Bunday rasm yo\'q — ads_status images ro\'yxatidan tanlang');
+      const r = await graph<{ images?: Record<string, { hash?: string }> }>(c.token, 'POST', `${act}/adimages`, { bytes: readFileSync(path).toString('base64'), name: `palantir-${i.ref.replace(/\W/g, '-')}.jpg` })
+        .catch(asTool);
+      const hash = Object.values(r.images ?? {}).find(x => x?.hash)?.hash;
+      if (!hash) throw new ToolError('Meta rasmni qabul qildi, lekin kodini qaytarmadi');
+      return { image_hash: hash };
     },
   }),
   ads_pause: def({
