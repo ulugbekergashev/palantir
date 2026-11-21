@@ -1,5 +1,10 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.41 da yangi
+
+- **Reklama kabinetini Pipeboard orqali ulash:** o'z Meta ilovangiz bo'lmasa ham bo'ladi. pipeboard.co'da Facebook bilan kiring, kabinetingizni ulang, u yerdagi tokenni Targetolog → Kabinet'ga qo'ying. Targetolog kabinetni o'qiydi, tahlil qiladi, kampaniyani pauzada yig'adi; yoqish va byudjet — faqat sizning Telegram tugmangiz bilan, limitlar ichida.
+- **«Facebook orqali ulash» tugmasi (Palantir Hub):** token va ID kiritmasdan — Facebook oynasida ruxsat berasiz, qolganini Palantir o'zi topadi. Palantir Hub'da Meta ilovasi sozlangandan keyin ishlaydi.
+
 ## 0.4.40 da yangi
 
 - **SMM-menejer (sobiq Kontent-meyker):** kunlar bo'yicha kontent kalendari — post, karusel va storis, vaqti va kanali bilan. Har biriga matn yozadi va brendingiz shablonida rasm tayyorlaydi (yozuvlar tiniq, shriftingiz va ranglaringizda). Siz Telegram'da tasdiqlagan post vaqti kelganda o'zi chiqadi. Panel → Marketing → SMM-menejer → Kalendar.
