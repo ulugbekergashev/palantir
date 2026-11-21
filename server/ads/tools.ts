@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { ToolError, def } from '../toolkit';
 import { imagePath, pause, propose, uploadVideo, videoFile } from './campaigns';
+import { pipeboardJson } from './backend';
 import { AdsError, graph } from './graph';
 import { money, planSummary } from './plan';
 import { availableImages, ownerBudget, planFromTask } from './planner';
@@ -50,9 +51,16 @@ export const ADS_DEFS = {
       if (!c) throw new ToolError('Meta reklama kabineti ulanmagan (Marketing → Targetolog → Ulash)');
       const act = `act_${c.adAccountId}`;
       const video = videoFile(i.ref, ctx.biz.id);
+      if (video && c.via === 'pipeboard') throw new ToolError("Pipeboard orqali video yuklanmaydi — videoni egasi Ads Manager'da yuklasin yoki rasm tanlang");
       if (video) return { video_id: await uploadVideo(c, act, video, `palantir-${i.ref.replace(/\W/g, '-')}.mp4`).catch(asTool) };
       const path = imagePath(i.ref, ctx.biz.id);
       if (!path) throw new ToolError('Bunday rasm yo\'q — ads_status images ro\'yxatidan tanlang');
+      if (c.via === 'pipeboard') {
+        const up = await pipeboardJson<{ image_hash?: string }>(c.token, 'upload_ad_image', { account_id: act, file: `data:image/jpeg;base64,${readFileSync(path).toString('base64')}`, name: `palantir-${i.ref.replace(/\W/g, '-')}.jpg` })
+          .catch(asTool);
+        if (!up.image_hash) throw new ToolError('Pipeboard rasmni qabul qildi, lekin kodini qaytarmadi');
+        return { image_hash: up.image_hash };
+      }
       const r = await graph<{ images?: Record<string, { hash?: string }> }>(c.token, 'POST', `${act}/adimages`, { bytes: readFileSync(path).toString('base64'), name: `palantir-${i.ref.replace(/\W/g, '-')}.jpg` })
         .catch(asTool);
       const hash = Object.values(r.images ?? {}).find(x => x?.hash)?.hash;

@@ -5,6 +5,7 @@
 import type { AdCampaign } from '../../src/types';
 import { connections, newId, sql, type Row } from '../db';
 import { open, seal } from '../secret';
+import type { AdsVia } from './mcpClient';
 import { PlanSchema, type AdsAccount, type AdsLimits, type Plan } from './plan';
 
 sql.exec(`
@@ -38,8 +39,11 @@ export class TargetError extends Error {}
 /** Meta'dagi qismlar: o'chirish va kuzatish uchun */
 export interface MetaIds { campaignId?: string; adsetId?: string; creativeIds?: string[]; adIds?: string[]; imageHashes?: string[]; videoIds?: string[] }
 
-/** expiresAt — token muddati (Facebook orqali ulanganda 60 kun; qo'lda kiritilgan tizim foydalanuvchisi tokeni — null) */
-export interface AdsConnection extends AdsAccount { token: string; accountName: string; pageName: string; timezone: string; expiresAt?: string | null }
+/**
+ * expiresAt — token muddati (Facebook orqali ulanganda 60 kun; qo'lda kiritilgan tizim foydalanuvchisi tokeni — null).
+ * via — kabinetga yo'l: 'meta' (token — Facebook tokeni, Graph va Meta MCP) yoki 'pipeboard' (token — Pipeboard tokeni, faqat ularning MCP'si)
+ */
+export interface AdsConnection extends AdsAccount { token: string; accountName: string; pageName: string; timezone: string; expiresAt?: string | null; via?: AdsVia }
 
 const PAGE = 50;
 
@@ -58,12 +62,12 @@ export const adsStore = {
     return {
       token: open(c.secret), adAccountId: c.account.id, accountName: c.account.name ?? '', currency: c.account.currency ?? 'USD',
       pageId: c.meta.pageId ?? '', pageName: c.meta.pageName ?? '', igActorId: c.meta.igActorId || null, timezone: c.meta.timezone ?? '',
-      expiresAt: c.meta.expiresAt || null,
+      expiresAt: c.meta.expiresAt || null, via: c.meta.via === 'pipeboard' ? 'pipeboard' : 'meta',
     };
   },
   saveConnection(bizId: string, c: AdsConnection): void {
     connections.save(bizId, 'meta_ads', seal(c.token), { id: c.adAccountId, name: c.accountName, currency: c.currency },
-      { pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId ?? '', timezone: c.timezone, ...(c.expiresAt ? { expiresAt: c.expiresAt } : {}) });
+      { pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId ?? '', timezone: c.timezone, ...(c.expiresAt ? { expiresAt: c.expiresAt } : {}), ...(c.via === 'pipeboard' ? { via: 'pipeboard' } : {}) });
   },
   removeConnection: (bizId: string) => sql.run("DELETE FROM connections WHERE business_id = ? AND kind = 'meta_ads'", bizId),
 

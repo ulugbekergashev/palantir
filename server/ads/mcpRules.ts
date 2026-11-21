@@ -6,7 +6,13 @@
  * Nomlar Meta hujjatidan (Ads MCP server → tools, 2026-11-20); kirish maydonlari hujjatda yozilmagan. Shuning uchun hammasi «ruxsat
  * ro'yxati»: noma'lum asbob — yopiq; tahrirlash kartasiz faqat aniq «to'xtatish» yoki «nomini o'zgartirish» bo'lsa — boshqa har qanday
  * shakl (tushunarsiz maydon, chuqur ichma-ich, holat matn emas) — egasining tugmasiga. Meta yangi asbob qo'shsa, avval shu yerga yoziladi.
+ *
+ * Pipeboard (o'z Meta ilovasi bo'lmaganda, mcpClient.ts) — xuddi shu qoida, ularning asbob nomlari bilan (manba kodi:
+ * github.com/pipeboard-co/meta-ads-mcp, 2026-11-21): o'qish — get_/search_/estimate_/validate_; yaratish — faqat PAUSED;
+ * update_campaign/adset/ad — faqat to'xtatish yoki nom kartasiz, «ACTIVE» — yoqish kartasi, qolgani (byudjet, stavka…) — tahrir kartasi;
+ * byudjet jadvali — karta; nusxa ko'chirish, hisobot va noma'lum asboblar — yopiq.
  */
+import type { AdsVia } from './mcpClient';
 import type { McpAction } from './store';
 
 export type Verdict = { kind: 'allow'; strangers: boolean } | { kind: 'money'; action: McpAction } | { kind: 'deny'; why: string };
@@ -67,15 +73,60 @@ function safeEdit(input: unknown): boolean {
   return states.every(l => isPaused(l.value)) && (states.length > 0 || ls.some(l => /^name$/i.test(l.key)));
 }
 
-export function classify(tool: string, input: unknown): Verdict {
+/** Hamma maydon xavfsiz va holat bor-u, hammasi «ACTIVE»: faqat yoqish */
+function onlyActivate(input: unknown): boolean {
+  const ls = leaves(input);
+  if (!ls?.length || !ls.every(l => SAFE_EDIT_KEY.test(l.key))) return false;
+  const states = ls.filter(l => /status/i.test(l.key));
+  return states.length > 0 && states.every(l => typeof l.value === 'string' && l.value.trim().toUpperCase() === 'ACTIVE');
+}
+
+/** Yaratish: holat berilsa — faqat PAUSED */
+const pausedOnly = (input: unknown): Verdict => {
+  const ls = leaves(input);
+  return ls && ls.filter(l => STATE_KEY.test(l.key)).every(l => isPaused(l.value)) ? { kind: 'allow', strangers: false } : { kind: 'deny', why: CREATE_PAUSED };
+};
+
+// ─── Pipeboard ────────────────────────────────────────────────────────────────
+
+const PB_READ = /^(?:get|search|estimate|validate|bulk_get)_[a-z_]+$/;
+/** Boshqalarning reklamalari va sahifalari — begona matn */
+const PB_STRANGERS = /archive|library|search_pages/;
+const PB_MAKE = new Set(['create_campaign', 'create_adset', 'create_ad', 'create_ad_creative', 'upload_ad_image', 'update_ad_creative', 'compute_image_crops']);
+const PB_EDIT = new Set(['update_campaign', 'update_adset', 'update_ad']);
+const PB_MONEY: Record<string, McpAction> = { create_budget_schedule: 'update' };
+export const PB_CREATE_PAUSED = "Not run: create it paused (status PAUSED, or leave the status out). Turning it on is the owner's decision — call update_campaign with status ACTIVE afterwards and Palantir sends the owner an approval card.";
+
+/**
+ * Pipeboard tahririda kartasiz/«faqat yoqish» bo'lishi uchun yuqori darajada faqat shu maydonlar: ichma-ich «targeting» (barglari id/name)
+ * yoki creative_id xavfsiz nomlarga o'xshasa ham — auditoriya va kreativni egasi ko'rmay almashtirmasin
+ */
+const PB_EDIT_TOP = new Set(['campaign_id', 'adset_id', 'ad_id', 'name', 'status']);
+const topOnly = (input: unknown): boolean =>
+  !!input && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).every(k => PB_EDIT_TOP.has(k));
+
+function classifyPipeboard(tool: string, input: unknown): Verdict {
+  if (PB_READ.test(tool)) return { kind: 'allow', strangers: PB_STRANGERS.test(tool) };
+  const action = PB_MONEY[tool];
+  if (action) return { kind: 'money', action };
+  if (PB_EDIT.has(tool)) {
+    if (topOnly(input) && safeEdit(input)) return { kind: 'allow', strangers: false };
+    return { kind: 'money', action: topOnly(input) && onlyActivate(input) ? 'activate' : 'update' };
+  }
+  if (PB_MAKE.has(tool)) {
+    const v = pausedOnly(input);
+    return v.kind === 'deny' ? { kind: 'deny', why: PB_CREATE_PAUSED } : v;
+  }
+  return { kind: 'deny', why: BLOCKED };
+}
+
+export function classify(tool: string, input: unknown, via: AdsVia = 'meta'): Verdict {
+  if (via === 'pipeboard') return classifyPipeboard(tool, input);
   if (READ.has(tool)) return { kind: 'allow', strangers: STRANGERS.has(tool) };
   const action = MONEY[tool];
   if (action) return { kind: 'money', action };
   if (tool === 'ads_update_entity') return safeEdit(input) ? { kind: 'allow', strangers: false } : { kind: 'money', action: 'update' };
-  if (MAKE.has(tool)) {
-    const ls = leaves(input);
-    return ls && ls.filter(l => STATE_KEY.test(l.key)).every(l => isPaused(l.value)) ? { kind: 'allow', strangers: false } : { kind: 'deny', why: CREATE_PAUSED };
-  }
+  if (MAKE.has(tool)) return pausedOnly(input);
   if (AUDIENCE.has(tool)) {
     const ls = leaves(input);
     const people = !ls || ls.some(l => PERSONAL_KEY.test(l.key) || (typeof l.value === 'string' && !/id$/i.test(l.key) && PERSONAL_VALUE.test(l.value.trim())));

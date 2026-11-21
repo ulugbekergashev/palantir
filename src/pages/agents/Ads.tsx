@@ -238,17 +238,44 @@ function HubPicker({ pending, setView, notify }: { pending: NonNullable<AdsView[
   );
   return (
     <div className="space-y-3">
-      <p className="text-[13.5px] text-[#c9cbd2]">Facebook ulandi. Qaysi kabinet va sahifa bilan ishlaymiz?</p>
+      <p className="text-[13.5px] text-[#c9cbd2]">{pending.via === 'pipeboard' ? 'Pipeboard ulandi' : 'Facebook ulandi'}. Qaysi kabinet va sahifa bilan ishlaymiz?</p>
       <div className="grid gap-3 sm:grid-cols-2">
         {select(acc, setAcc, 'Reklama kabineti', pending.accounts.map(x => ({ id: x.id, text: `${x.name || `act_${x.id}`} · ${x.currency}${x.active ? '' : ' (faol emas)'}`, off: !x.active })))}
         {select(page, setPage, 'Facebook sahifa', pending.pages.map(p => ({ id: p.id, text: `${p.name || p.id}${p.igName ? ` · @${p.igName}` : ''}` })))}
       </div>
-      {pg && !pg.igId && <p className="text-[12.5px] text-[#fde2b0]">Bu sahifaga Instagram ulanmagan — Instagram Direct reklamasi ishlamaydi.</p>}
+      {pg && !pg.igId && pending.via !== 'pipeboard' && <p className="text-[12.5px] text-[#fde2b0]">Bu sahifaga Instagram ulanmagan — Instagram Direct reklamasi ishlamaydi.</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={!acc || !page || !!busy} onClick={() => void run('pick', () => api.adsConnectHub({ adAccountId: acc, pageId: page, igActorId: pg?.igId ?? null }), 'Kabinet ulandi')} className={`${button} text-[#07080b]`} style={{ background: ACCENT }}>{busy === 'pick' && spin} Ulash</button>
         <button type="button" disabled={!!busy} onClick={() => void run('drop', () => api.adsDropHub())} className={ghost}>Bekor qilish</button>
       </div>
     </div>
+  );
+}
+
+/** Pipeboard (Meta Business Partner) orqali: o'z Meta ilovasi kerak emas — egasi pipeboard.co'da Facebook bilan kiradi va tokenni qo'yadi */
+function PipeboardConnect({ setView, notify, again }: { setView: (v: AdsView) => void; notify: Notify; again?: boolean }) {
+  const [token, setToken] = useState('');
+  const [busy, run] = useRun(notify, setView);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    void run('pb', () => api.adsConnectPipeboard(token), 'Pipeboard tekshirildi').then(ok => { if (ok) setToken(''); });
+  };
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      {!again && (
+        <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-[#c9cbd2]">
+          <li><a href="https://pipeboard.co" target="_blank" rel="noopener noreferrer" className="underline">pipeboard.co</a> ga kiring — <b>Facebook bilan kirish</b> (oddiy kirish, dasturchi akkaunti kerak emas).</li>
+          <li>U yerda reklama kabinetingiz va Facebook sahifangizni ulang.</li>
+          <li><a href="https://pipeboard.co/api-tokens" target="_blank" rel="noopener noreferrer" className="underline">pipeboard.co/api-tokens</a> sahifasida token yarating va shu yerga qo'ying.</li>
+        </ol>
+      )}
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="block min-w-[16rem] flex-1"><span className="mb-1 block text-[12.5px] font-semibold text-[#a3a9b5]">Pipeboard tokeni</span>
+          <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="pk_…" autoComplete="off" className={field} /></label>
+        <button type="submit" disabled={token.trim().length < 16 || !!busy} className={`${button} text-[#07080b]`} style={{ background: ACCENT }}>{busy === 'pb' && spin} {again ? 'Yangilash' : 'Pipeboard orqali ulash'}</button>
+      </div>
+      <p className="text-[12.5px] text-[#7d838f]">Kabinetingizga Pipeboard xizmati ham kiradi (Meta'ning rasmiy hamkori). Pul baribir faqat sizning tugmangiz bilan sarflanadi. Token shifrlab saqlanadi.</p>
+    </form>
   );
 }
 
@@ -281,10 +308,13 @@ export function AdsCabinet({ view, setView, notify }: { view: AdsView | null; se
           <div className="flex flex-wrap items-center gap-3">
             <div className="text-[14px] text-[#e4e3de]">
               <p><b>{a.accountName || `act_${a.adAccountId}`}</b> · {a.currency}</p>
-              <p className="text-[13px] text-[#8a909c]">Sahifa: {a.pageName || a.pageId}{a.igActorId ? ` · Instagram: ${a.igActorId}` : ' · Instagram ID yo‘q (Direct reklamasi ishlamaydi)'}</p>
+              <p className="text-[13px] text-[#8a909c]">Sahifa: {a.pageName || a.pageId}{a.via === 'pipeboard' ? ' · Pipeboard orqali' : a.igActorId ? ` · Instagram: ${a.igActorId}` : ' · Instagram ID yo‘q (Direct reklamasi ishlamaydi)'}</p>
               <p className="text-[13px] text-[#8a909c]">{a.mcp
-                ? '✅ Meta reklama asboblari ulangan: Targetolog o‘zi tahlil qiladi va kampaniya yaratadi, yoqish — sizning tugmangiz bilan.'
-                : 'Meta reklama asboblari (MCP) ochilmadi — tokenga ads_mcp_management ruxsatini qo‘shib, qayta ulang. Hozircha oddiy reja yo‘li ishlaydi.'}</p>
+                ? '✅ Reklama asboblari ulangan: Targetolog o‘zi tahlil qiladi va kampaniya yaratadi, yoqish — sizning tugmangiz bilan.'
+                : a.via === 'pipeboard'
+                  ? 'Pipeboard tokeni ishlamayapti — pipeboard.co/api-tokens’dan yangisini oling va quyida yangilang.'
+                  : 'Meta reklama asboblari (MCP) ochilmadi — tokenga ads_mcp_management ruxsatini qo‘shib, qayta ulang. Hozircha oddiy reja yo‘li ishlaydi.'}</p>
+              {a.via === 'pipeboard' && !a.mcp && <div className="mt-2"><PipeboardConnect setView={setView} notify={notify} again /></div>}
               {expiry && <p className={`text-[13px] ${soon ? 'text-[#fde2b0]' : 'text-[#8a909c]'}`}>Facebook ruxsati {expiry.toLocaleDateString('uz')} gacha{soon ? ' — tez orada tugaydi, qayta ulang' : ''}.</p>}
             </div>
             <div className="ml-auto flex flex-wrap gap-2">
@@ -296,6 +326,10 @@ export function AdsCabinet({ view, setView, notify }: { view: AdsView | null; se
           <HubPicker pending={view.pending} setView={setView} notify={notify} />
         ) : (
           <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-[13.5px] font-semibold text-[#e4e3de]">Pipeboard orqali (o‘z Meta ilovasiz)</p>
+              <PipeboardConnect setView={setView} notify={notify} />
+            </div>
             {view.hub && (
               <div className="space-y-2">
                 <p className="text-[13.5px] leading-relaxed text-[#c9cbd2]">Bosing — Facebook oynasi ochiladi. Kiring, reklama kabineti va sahifani belgilab ruxsat bering. Palantir qolganini o‘zi topadi: kabinet, sahifa, Instagram va Meta’ning reklama asboblari (MCP).</p>

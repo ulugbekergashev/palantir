@@ -4,12 +4,17 @@
  * shu yerga (ads_token). Bu yerda: tokenga ochiq reklama kabinetlari va sahifalar o'qiladi; bittadan bo'lsa (yoki avval ulangan
  * kabinet ro'yxatda bo'lsa — token yangilash) o'zi ulanadi, aks holda panelda tanlash uchun 1 soat kutadi (faqat xotirada; token
  * hech qayerga yozilmaydi va panelga chiqmaydi). Ulash — oddiy connect() orqali: kabinet holati, valyuta, sahifa tekshiriladi.
+ *
+ * Pipeboard orqali (o'z Meta ilovasi bo'lmaganda): egasi pipeboard.co'da Facebook bilan kirib kabinetini ulaydi, u yerdan API tokenini
+ * panelga qo'yadi → shu yerda token tekshiriladi, kabinetlar va sahifalar Pipeboard asboblari bilan o'qiladi, keyin xuddi yuqoridagidek.
  */
 import { businesses, type BusinessRow } from '../db';
 import { env } from '../env';
 import { notifyOwner } from '../inbox/core';
+import { pipeboardJson } from './backend';
 import { connect } from './campaigns';
 import { graph } from './graph';
+import { endpointOf, mcpWorks, type AdsVia } from './mcpClient';
 import { TargetError, adsStore } from './store';
 
 const PENDING_MS = 3_600_000;
@@ -21,18 +26,18 @@ const LIST_LIMIT = 50;
 
 export interface HubAccount { id: string; name: string; currency: string; active: boolean }
 export interface HubPage { id: string; name: string; igId: string | null; igName: string | null }
-interface Pending { token: string; expiresAt: string | null; accounts: HubAccount[]; pages: HubPage[]; until: number }
+interface Pending { token: string; expiresAt: string | null; accounts: HubAccount[]; pages: HubPage[]; until: number; via: AdsVia }
 
 const pending = new Map<string, Pending>();
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /** Panel: tanlash kutayotgan ro'yxat (token chiqmaydi) */
-export function hubPending(bizId: string, now = Date.now()): { accounts: HubAccount[]; pages: HubPage[] } | null {
+export function hubPending(bizId: string, now = Date.now()): { accounts: HubAccount[]; pages: HubPage[]; via: AdsVia } | null {
   const p = pending.get(bizId);
   if (!p) return null;
   if (p.until < now) { pending.delete(bizId); return null; }
-  return { accounts: p.accounts, pages: p.pages };
+  return { accounts: p.accounts, pages: p.pages, via: p.via };
 }
 
 export const dropHubPending = (bizId: string): void => { pending.delete(bizId); };
@@ -57,15 +62,17 @@ export async function adsHubUrl(biz: BusinessRow): Promise<string> {
 interface RawAccount { account_id?: string; id?: string; name?: string; currency?: string; account_status?: number }
 interface RawPage { id?: string; name?: string; instagram_business_account?: { id?: string; username?: string } }
 
-/** Tokenga ochiq kabinetlar va sahifalar */
-export async function listAssets(token: string): Promise<{ accounts: HubAccount[]; pages: HubPage[] }> {
-  const [acc, pg] = await Promise.all([
-    graph<{ data?: RawAccount[] }>(token, 'GET', 'me/adaccounts', { fields: 'account_id,name,currency,account_status', limit: LIST_LIMIT }),
-    graph<{ data?: RawPage[] }>(token, 'GET', 'me/accounts', { fields: 'name,instagram_business_account{id,username}', limit: LIST_LIMIT }),
-  ]);
-  const accounts = (acc.data ?? []).map(a => ({ id: String(a.account_id ?? a.id ?? '').replace(/^act_/, ''), name: String(a.name ?? ''), currency: String(a.currency ?? '').toUpperCase(), active: a.account_status === 1 }))
+/** Tokenga ochiq kabinetlar va sahifalar (Pipeboard'da sahifaning Instagram akkaunti ko'rinmaydi — igId null) */
+export async function listAssets(token: string, via: AdsVia = 'meta'): Promise<{ accounts: HubAccount[]; pages: HubPage[] }> {
+  const [acc, pg] = await Promise.all(via === 'pipeboard'
+    ? [pipeboardJson<{ data?: RawAccount[] }>(token, 'get_ad_accounts', { limit: LIST_LIMIT }), pipeboardJson<{ data?: RawPage[] }>(token, 'get_account_pages', { account_id: 'me' })]
+    : [
+      graph<{ data?: RawAccount[] }>(token, 'GET', 'me/adaccounts', { fields: 'account_id,name,currency,account_status', limit: LIST_LIMIT }),
+      graph<{ data?: RawPage[] }>(token, 'GET', 'me/accounts', { fields: 'name,instagram_business_account{id,username}', limit: LIST_LIMIT }),
+    ]);
+  const accounts = (Array.isArray(acc.data) ? acc.data : []).slice(0, LIST_LIMIT).map(a => ({ id: String(a.account_id ?? a.id ?? '').replace(/^act_/, ''), name: String(a.name ?? ''), currency: String(a.currency ?? '').toUpperCase(), active: a.account_status === 1 }))
     .filter(a => /^\d{5,20}$/.test(a.id));
-  const pages = (pg.data ?? []).map(p => ({ id: String(p.id ?? ''), name: String(p.name ?? ''), igId: p.instagram_business_account?.id ? String(p.instagram_business_account.id) : null, igName: p.instagram_business_account?.username ? String(p.instagram_business_account.username) : null }))
+  const pages = (Array.isArray(pg.data) ? pg.data : []).slice(0, LIST_LIMIT).map(p => ({ id: String(p.id ?? ''), name: String(p.name ?? ''), igId: p.instagram_business_account?.id ? String(p.instagram_business_account.id) : null, igName: p.instagram_business_account?.username ? String(p.instagram_business_account.username) : null }))
     .filter(p => /^\d{5,20}$/.test(p.id));
   return { accounts, pages };
 }
@@ -119,26 +126,60 @@ export async function onAdsToken(payload: unknown, now = Date.now()): Promise<vo
       return;
     } catch (e) {
       // Kabinet faol emas yoki valyuta mos emas — egasi boshqasini tanlasin
-      pending.set(biz.id, { token, expiresAt, ...assets, until: now + PENDING_MS });
+      pending.set(biz.id, { token, expiresAt, ...assets, until: now + PENDING_MS, via: 'meta' });
       await notifyOwner(biz, `⚠️ <b>Targetolog</b>: kabinet ulanmadi — ${esc((e as Error).message)}. Panel → Targetolog → Kabinet'da boshqasini tanlang.`).catch(() => null);
       return;
     }
   }
-  pending.set(biz.id, { token, expiresAt, ...assets, until: now + PENDING_MS });
+  pending.set(biz.id, { token, expiresAt, ...assets, until: now + PENDING_MS, via: 'meta' });
   await notifyOwner(biz, `🔗 <b>Targetolog</b>: Facebook ulandi — ${assets.accounts.length} ta kabinet, ${assets.pages.length} ta sahifa. Panel → Targetolog → Kabinet'da qaysi biri ekanini tanlang (1 soat ichida).`).catch(() => null);
 }
 
 /** Egasi panelda tanladi */
 export async function connectPicked(biz: BusinessRow, pick: { adAccountId: string; pageId: string; igActorId?: string | null }, now = Date.now()): Promise<void> {
   const p = pending.get(biz.id);
-  if (!p || p.until < now) { pending.delete(biz.id); throw new TargetError('Facebook ruxsati eskirgan — «Facebook orqali ulash»ni qayta bosing'); }
+  if (!p || p.until < now) { pending.delete(biz.id); throw new TargetError('Tanlash vaqti o‘tdi — ulashni qaytadan boshlang'); }
   const id = pick.adAccountId.replace(/^act_/, '');
   const page = p.pages.find(x => x.id === pick.pageId);
   if (!p.accounts.some(x => x.id === id) || !page) throw new TargetError('Bu kabinet yoki sahifa Facebook ruxsatida yo‘q — ro‘yxatdan tanlang');
   // Instagram — tanlangan sahifaga bog'langan akkaunt (boshqasi bo'lsa reklama Direct'ga ishlamaydi)
   const ig = pick.igActorId === undefined ? page.igId : pick.igActorId;
-  await connect(biz, { token: p.token, adAccountId: id, pageId: page.id, igActorId: ig, expiresAt: p.expiresAt });
+  await connect(biz, { token: p.token, adAccountId: id, pageId: page.id, igActorId: ig, expiresAt: p.expiresAt, via: p.via });
   pending.delete(biz.id);
+}
+
+/** Pipeboard API tokeni: harf, raqam va bir nechta belgi (manzilga qo'shiladi) */
+const PIPEBOARD_TOKEN = /^[A-Za-z0-9_\-.:]{16,300}$/;
+
+/**
+ * Egasi Pipeboard tokenini qo'ydi: token ishlaydimi → kabinetlar va sahifalar → bittadan bo'lsa (yoki avval ulangani ro'yxatda) —
+ * o'zi ulanadi; aks holda panelda tanlash (1 soat). connected — o'zi ulandimi
+ */
+export async function connectPipeboard(biz: BusinessRow, raw: string, now = Date.now()): Promise<{ connected: boolean }> {
+  const token = raw.trim();
+  if (!PIPEBOARD_TOKEN.test(token)) throw new TargetError("Bu Pipeboard tokeniga o'xshamaydi — pipeboard.co/api-tokens sahifasidagi tokenni to'liq nusxalang");
+  if (!(await mcpWorks(endpointOf({ token, via: 'pipeboard' })))) throw new TargetError("Pipeboard tokeni ishlamadi — pipeboard.co/api-tokens'dan yangisini oling va qayta qo'ying");
+  let assets: { accounts: HubAccount[]; pages: HubPage[] };
+  try {
+    assets = await listAssets(token, 'pipeboard');
+  } catch (e) {
+    throw new TargetError(`Pipeboard'dan kabinetlar o'qilmadi: ${(e as Error).message}`);
+  }
+  if (!assets.accounts.length) throw new TargetError("Pipeboard'ga hali reklama kabineti ulanmagan — pipeboard.co'da Facebook bilan kirib, kabinetni ulang, keyin qayta urining");
+  if (!assets.pages.length) throw new TargetError("Pipeboard'dagi Facebook akkauntida sahifa ko'rinmadi — pipeboard.co'da sahifaga ham ruxsat bering");
+  const pick = autoPick(adsStore.connection(biz.id), assets);
+  if (pick) {
+    try {
+      await connect(biz, { token, ...pick, igActorId: pick.igActorId, expiresAt: null, via: 'pipeboard' });
+      pending.delete(biz.id);
+      return { connected: true };
+    } catch (e) {
+      if (!(e instanceof TargetError)) throw e;
+      // Kabinet faol emas yoki valyuta mos emas — egasi boshqasini tanlasin
+    }
+  }
+  pending.set(biz.id, { token, expiresAt: null, ...assets, until: now + PENDING_MS, via: 'pipeboard' });
+  return { connected: false };
 }
 
 /** Kanallar nazorati: token muddati yaqin (Facebook orqali ulanganda 60 kun; uzaytirib bo'lmaydi — egasi qayta kiradi) */

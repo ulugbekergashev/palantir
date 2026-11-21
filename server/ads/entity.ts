@@ -1,32 +1,31 @@
 /**
- * Meta obyekti (kampaniya, guruh yoki reklama) → uning kampaniyasi, byudjeti va muddati — Graph'dan (kuzatuv va tasdiq uchun).
- * Byudjet kampaniyada bo'lmasa — jonli guruhlar yig'indisi; bitta guruh muddatsiz bo'lsa — kampaniya ham muddatsiz
+ * Meta obyekti (kampaniya, guruh yoki reklama) → uning kampaniyasi, byudjeti va muddati (kuzatuv va tasdiq uchun) — kabinet yo'li
+ * orqali (Graph yoki Pipeboard, backend.ts). Byudjet kampaniyada bo'lmasa — jonli guruhlar yig'indisi; bitta guruh muddatsiz bo'lsa —
+ * kampaniya ham muddatsiz
  */
-import { graph } from './graph';
+import { apiOf } from './backend';
 import { fromMinor } from './plan';
 import type { AdsConnection, Tracked } from './store';
 
 export type Entity = Omit<Tracked, 'status' | 'stopReason'>;
-interface CampNode { name?: string; daily_budget?: string; lifetime_budget?: string; stop_time?: string; objective?: string }
-interface SetNode { daily_budget?: string; lifetime_budget?: string; end_time?: string; effective_status?: string }
 
 /** Bir martada shuncha obyekt: ko'prog'i tasdiqlanmaydi (kartada hammasi ko'rinmaydi) */
 export const MAX_ENTITIES = 10;
 
-const amount = (v: string | undefined, cur: string): number | null => (v && Number(v) > 0 ? fromMinor(Number(v), cur) : null);
+const amount = (v: string | number | undefined, cur: string): number | null => (v !== undefined && Number(v) > 0 ? fromMinor(Number(v), cur) : null);
 
 export async function campaignOf(c: AdsConnection, id: string, depth = 0): Promise<Entity | null> {
-  // «objective» faqat kampaniyada bor: guruh va reklamada so'rov xato qaytaradi
-  const camp = await graph<CampNode>(c.token, 'GET', id, { fields: 'name,daily_budget,lifetime_budget,stop_time,objective' }).catch(() => null);
-  if (!camp?.objective) {
+  const api = apiOf(c);
+  const camp = await api.campaign(id);
+  if (!camp) {
     if (depth) return null;
-    const parent = await graph<{ campaign_id?: string }>(c.token, 'GET', id, { fields: 'campaign_id' }).catch(() => null);
-    return parent?.campaign_id ? campaignOf(c, parent.campaign_id, 1) : null;
+    const parent = await api.parentCampaign(id);
+    return parent ? campaignOf(c, parent, 1) : null;
   }
   let daily = amount(camp.daily_budget, c.currency), lifetime = amount(camp.lifetime_budget, c.currency), endsAt = camp.stop_time ?? null;
   if (daily === null && lifetime === null) {
-    const sets = await graph<{ data?: SetNode[] }>(c.token, 'GET', `${id}/adsets`, { fields: 'daily_budget,lifetime_budget,end_time,effective_status', limit: 100 }).catch(() => null);
-    const live = (sets?.data ?? []).filter(s => !['DELETED', 'ARCHIVED'].includes((s.effective_status ?? '').toUpperCase()));
+    const sets = await api.adsets(id);
+    const live = (sets ?? []).filter(s => !['DELETED', 'ARCHIVED'].includes((s.effective_status ?? '').toUpperCase()));
     const sum = (k: 'daily_budget' | 'lifetime_budget') => live.reduce((n, s) => n + (amount(s[k], c.currency) ?? 0), 0) || null;
     daily = sum('daily_budget');
     lifetime = sum('lifetime_budget');
@@ -48,8 +47,7 @@ export async function campaignsOf(c: AdsConnection, ids: readonly string[]): Pro
 
 /** Hisobdagi shu vaqtdan keyin yaratilgan ishlayotgan kampaniyalar (boost javobida raqam topilmasa) */
 export async function createdSince(c: AdsConnection, sinceMs: number): Promise<string[]> {
-  const r = await graph<{ data?: { id?: string; created_time?: string; effective_status?: string }[] }>(c.token, 'GET', `act_${c.adAccountId}/campaigns`,
-    { fields: 'id,created_time,effective_status', limit: 25 }).catch(() => null);
-  return (r?.data ?? []).filter(x => x.id && x.created_time && Date.parse(x.created_time) >= sinceMs - 60_000 && !['PAUSED', 'DELETED', 'ARCHIVED'].includes((x.effective_status ?? '').toUpperCase()))
+  const list = await apiOf(c).recentCampaigns().catch(() => []);
+  return list.filter(x => x.id && x.created_time && Date.parse(x.created_time) >= sinceMs - 60_000 && !['PAUSED', 'DELETED', 'ARCHIVED'].includes((x.effective_status ?? '').toUpperCase()))
     .map(x => x.id!);
 }

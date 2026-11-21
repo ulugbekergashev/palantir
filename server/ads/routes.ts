@@ -11,7 +11,7 @@ import { newId, type BusinessRow } from '../db';
 import { ImageError, toPostJpeg } from '../marketing/image';
 import { AdsError } from './graph';
 import { cancel, card, connect, disconnect, ensureUploadDir, imagePath, launch, pause, problemsOf, propose, resolveCities, resume, spendNow, uploadDir } from './campaigns';
-import { adsHubUrl, connectPicked, dropHubPending, hubPending } from './hubConnect';
+import { adsHubUrl, connectPicked, connectPipeboard, dropHubPending, hubPending } from './hubConnect';
 import { mcpReady } from './mcp';
 import { env } from '../env';
 import { PlanSchema, planSummary, type Spend } from './plan';
@@ -60,7 +60,7 @@ export async function adsView(biz: BusinessRow): Promise<AdsView> {
     summary: planSummary(x.plan, x.currency),
   })));
   return {
-    account: c ? { adAccountId: c.adAccountId, accountName: c.accountName, pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId, currency: c.currency, tokenSet: !!c.token, mcp: await mcpReady(biz.id, c).catch(() => false), expiresAt: c.expiresAt ?? null } : null,
+    account: c ? { adAccountId: c.adAccountId, accountName: c.accountName, pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId, currency: c.currency, tokenSet: !!c.token, mcp: await mcpReady(biz.id, c).catch(() => false), expiresAt: c.expiresAt ?? null, via: c.via ?? 'meta' } : null,
     hub: !!env.hub, pending: hubPending(biz.id),
     limits: adsStore.limits(biz.id), spend, campaigns, images: availableImages(biz.id),
   };
@@ -89,6 +89,13 @@ export function mountAds(app: Express, { asBiz, asOwner, bad }: Deps): void {
   }));
   app.delete('/api/ads/connect-hub', asOwner(async (_req, res, biz) => { dropHubPending(biz.id); await reply(res, biz); }));
 
+  // Pipeboard orqali (o'z Meta ilovasi bo'lmaganda): egasi pipeboard.co'dagi API tokenini qo'yadi. Token panelga qaytmaydi
+  app.post('/api/ads/connect-pipeboard', asOwner(async (req, res, biz) => {
+    const p = z.object({ token: z.string().trim().min(16).max(300) }).safeParse(req.body);
+    if (!p.success) return bad(res, p.error);
+    try { await connectPipeboard(biz, p.data.token); await reply(res, biz, true); } catch (e) { failed(res, e); }
+  }));
+
   app.delete('/api/ads/connect', asOwner(async (_req, res, biz) => {
     try { disconnect(biz); await reply(res, biz, true); } catch (e) { failed(res, e); }
   }));
@@ -105,6 +112,8 @@ export function mountAds(app: Express, { asBiz, asOwner, bad }: Deps): void {
   app.post('/api/ads/plan', asBiz(async (req, res, biz) => {
     const p = z.object({ task: z.string().trim().min(10).max(2000) }).safeParse(req.body);
     if (!p.success) return bad(res, p.error);
+    // Pipeboard'da tayyor reja yo'li yo'q (u Facebook tokeni bilan yaratadi) — AI behuda ishlamasin
+    if (adsStore.connection(biz.id)?.via === 'pipeboard') return res.status(409).json({ error: "Kabinet Pipeboard orqali ulangan — vazifani Targetologga Telegram'da yozing, u reklama asboblari bilan quradi" });
     try { await propose(biz, p.data.task, await planFromTask(biz, p.data.task)); await reply(res, biz); } catch (e) { failed(res, e); }
   }));
 
