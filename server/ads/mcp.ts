@@ -18,10 +18,10 @@ import { markStrangers, type ToolCtx } from '../toolkit';
 import { STOPPED_STATES, apiOf } from './backend';
 import { monthDaysLeft, pauseTracked, spendNow, trackedRate } from './campaigns';
 import { caiOne, connector, hiddenFor } from './claudeai';
-import { MAX_ENTITIES, campaignsOf, createdSince, type Entity } from './entity';
+import { MAX_ENTITIES, campaignsOf, campaignsResolved, createdSince, type Entity } from './entity';
 import { AdsError } from './graph';
 import { McpCallError, endpointOf, mcpCall, mcpEnabled, mcpWorks, type AdsVia } from './mcpClient';
-import { BLOCKED, classify, entityIds, idsInText } from './mcpRules';
+import { BLOCKED, accountIds, classify, entityIds, idsInText } from './mcpRules';
 import { money, type AdsLimits, type Spend } from './plan';
 import { TargetError, adsStore, mcpStore, type AdsConnection, type McpAction, type McpActionRow } from './store';
 
@@ -149,12 +149,17 @@ const NOT_NOW = {
   strangers: "Not run: other people's text was read in this reply (web search, the Ad Library or customers' messages). Ask the owner to confirm turning it on in their next message.",
 };
 
+const otherAccount = (own: string) => `Not run: work only in the connected ad account ${own} (act_${own}). Other ad accounts are not under Palantir's spending limits.`;
+
 /** Bitta gapdagi Meta asboblari: ruxsat (null) yoki modelga rad sababi. Pul amali — egasiga karta */
 export function metaGuard(ctx: ToolCtx, via: AdsVia = 'meta', server = META_SERVER): (tool: string, input: unknown) => Promise<string | null> {
   let cards = 0;
   const prefix = `mcp__${server}__`;
   return async (full, input) => {
     const tool = full.startsWith(prefix) ? full.slice(prefix.length) : full;
+    // Faqat ulangan kabinet: egasining Facebook'ida boshqa kabinetlar bo'lsa ham — ularga limit va kuzatuv yetmaydi
+    const own = adsStore.connection(ctx.biz.id)?.adAccountId;
+    if (own && accountIds(input).some(x => x !== own)) return otherAccount(own);
     const v = classify(tool, input, via);
     if (v.kind === 'allow') {
       if (v.strangers) markStrangers(ctx, 'meta_ad_library');
@@ -264,8 +269,11 @@ async function runApproved(biz: BusinessRow, c: AdsConnection, a: McpActionRow):
   const l = adsStore.limits(biz.id), cur = c.currency;
   const ids = entityIds(a.input);
   if (ids.length > MAX_ENTITIES) throw new TargetError(`Bir martada ${MAX_ENTITIES} tadan ko'p obyekt — Targetologdan bo'lib so'rang`);
-  const before = a.action === 'boost' ? [] : await campaignsOf(c, ids);
-  if (a.action !== 'boost' && !before.length) throw new TargetError("Qaysi kampaniya ekani aniqlanmadi — Ads Manager'da o'zingiz tekshiring");
+  if (accountIds(a.input).some(x => x !== c.adAccountId)) throw new TargetError('Bu amal boshqa reklama kabinetiga — faqat ulangan kabinetda bajariladi');
+  // Har bir obyekt kampaniyasi aniqlansin: bittasi o'qilmasa — o'sha limit va kuzatuvdan tashqarida yoqilib ketardi
+  const resolved = a.action === 'boost' ? { entities: [], missing: [] } : await campaignsResolved(c, ids);
+  const before = resolved.entities;
+  if (a.action !== 'boost' && (!before.length || resolved.missing.length)) throw new TargetError("Qaysi kampaniya ekani aniqlanmadi — Ads Manager'da o'zingiz tekshiring");
   const s = await spendNow(biz, c, undefined, before.map(e => e.campaignId));
   // Yoqishda byudjet oldindan ma'lum; byudjet o'zgarishi va boost — keyin Meta'dagi haqiqiy summa bilan
   const problems = a.action === 'activate' ? overLimits(l, s, before, cur) : exhausted(l, s, cur);

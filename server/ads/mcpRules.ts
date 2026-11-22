@@ -43,9 +43,10 @@ const STRANGERS = new Set(['ads_library_search']);
 
 /**
  * Kartasiz tahrirlashda bo'lishi mumkin bo'lgan maydonlar: raqam, tur, nom va holat — boshqa har qanday maydon egasiga ketadi.
- * advertiser_job/advertiser_request — Meta serveri har chaqiruvda so'raydigan xizmat maydonlari (qanday ish), pulga aloqasi yo'q
+ * advertiser_job — Meta serveri har chaqiruvda so'raydigan xizmat maydoni (qanday ish, ro'yxatdan). advertiser_request — erkin matn:
+ * kartasiz tahrirda yo'q (Meta uni buyruq deb o'qisa ham, egasi ko'rmagan narsa bajarilmasin)
  */
-const SAFE_EDIT_KEY = /^(?:(?:\w+_)?ids?|entity_type|type|level|name|(?:configured_)?status|advertiser_job|advertiser_request)$/i;
+const SAFE_EDIT_KEY = /^(?:(?:\w+_)?ids?|entity_type|type|level|name|(?:configured_)?status|advertiser_job)$/i;
 /** Holatga o'xshash maydonlar (yaratishda faqat PAUSED) */
 const STATE_KEY = /status|paused|enabled|active|state/i;
 /** Odamlarning shaxsiy ma'lumoti (auditoriyaga yuklash) */
@@ -151,6 +152,20 @@ const META_ID = /^\d{6,25}$/;
 const ID_KEY = /(?:^|_)ids?$/i;
 /** Kabinet raqami — obyekt emas (u bo'yicha kampaniya qidirilmaydi) */
 const ACCOUNT_KEY = /account/i;
+
+/** Reklama kabineti raqami maydoni (Meta — ad_account_id, Pipeboard — account_id); Instagram akkaunti va boshqalar emas */
+const AD_ACCOUNT_KEY = /^(?:ad_)?account_ids?$/i;
+
+/** Kirishdagi kabinet raqamlari («act_…» ham) — guard ulangan kabinet bilan solishtiradi */
+export function accountIds(v: unknown): string[] {
+  const out = new Set<string>();
+  for (const l of leaves(v) ?? []) {
+    if (!AD_ACCOUNT_KEY.test(l.key) || (typeof l.value !== 'string' && typeof l.value !== 'number')) continue;
+    const id = String(l.value).trim().replace(/^act_/, '');
+    if (id && id !== 'me') out.add(id);
+  }
+  return [...out];
+}
 
 /** Kirishdagi Meta obyektlari raqamlari (id, campaign_id, entity_ids…): qaysi kampaniya yoqilayotganini aniqlash uchun */
 export function entityIds(v: unknown): string[] {

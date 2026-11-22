@@ -35,7 +35,7 @@ const fake = {
   state: 'connected' as Connector['state'],
   accounts: [{ ad_account_id: '1234567', ad_account_name: 'Klinika kabineti', account_status: 'ACTIVE', is_queryable: true, is_ads_mcp_enabled: true, currency: 'USD' }] as Record<string, unknown>[],
   pages: [{ page_id: '7770001', page_name: 'Klinika sahifasi' }],
-  today: '0', month: '0', campaignSpend: '1', spendBroken: false, pauseSticks: true, refuseNext: false,
+  today: '0', month: '0', campaignSpend: '1', spendBroken: false, pauseSticks: true, refuseNext: false, unclearNext: false,
   status: {} as Record<string, string>,
 };
 /** 900000001 — kuniga 10$; 900000003 — kuniga 50$ (kunlik limitdan ko'p); 900000004 — byudjet guruhlarda (3$ + 2$) */
@@ -77,7 +77,9 @@ function answer(c: CaiCall): CaiResult {
       return ok(entities([]));
     }
     case 'ads_update_entity': case 'ads_activate_entity': {
-      if (fake.refuseNext) { fake.refuseNext = false; return { text: 'Request timed out', error: true }; }
+      // Meta'ning aniq rad javobi (javob ichida) va asbob xatosi (uzilish bo'lishi mumkin — Meta bajargan bo'lishi mumkin)
+      if (fake.refuseNext) { fake.refuseNext = false; return { text: '{"error":{"message":"Request timed out"}}', error: false }; }
+      if (fake.unclearNext) { fake.unclearNext = false; if (c.tool === 'ads_activate_entity') fake.status[String(a.entity_id)] = fake.status[String(a.entity_id)] ?? 'PAUSED'; return { text: 'MCP error -32001: Request timed out', error: true, unclear: true }; }
       const id = String(a.entity_id);
       if (!CAMPS[id]) return { text: 'Entity not found', error: true };
       const fields = c.tool === 'ads_activate_entity' ? { status: 'ACTIVE' } : JSON.parse(String(a.fields ?? '{}')) as { status?: string };
@@ -126,7 +128,7 @@ const cardId = () => {
 };
 const P = `mcp__${SERVER}__`;
 /** Haqiqiy shakldagi chaqiruvlar (model shunday yuboradi) */
-const meta = { advertiser_job: 'update_existing_campaigns', advertiser_request: 'pause the waste', client_conversation_id: 'Xk3mQ9vTa7LpR2wZ5nBd' };
+const meta = { advertiser_job: 'update_existing_campaigns', client_conversation_id: 'Xk3mQ9vTa7LpR2wZ5nBd' };
 const pauseIn = (id: string) => ({ ad_account_id: '1234567', entity_id: id, entity_type: 'campaign', fields: '{"status":"PAUSED"}', ...meta });
 const activateIn = (id: string) => ({ ad_account_id: '1234567', entity_id: id, entity_type: 'campaign', ...meta });
 
@@ -136,6 +138,8 @@ await check("qoidalar haqiqiy shakllar bilan: xizmat maydonlari to'xtatishni kar
   const m = (t: string, i: unknown = {}) => classify(t, i, 'claudeai');
   assert.deepEqual(m('ads_update_entity', pauseIn('900000001')), { kind: 'allow', strangers: false }, "to'xtatish — o'zi");
   assert.deepEqual(m('ads_update_entity', { ...pauseIn('900000001'), fields: '{"name":"Yangi nom"}' }), { kind: 'allow', strangers: false });
+  // Erkin matn (Meta buyruq deb o'qishi mumkin) — kartasiz o'tmaydi
+  assert.deepEqual(m('ads_update_entity', { ...pauseIn('900000001'), advertiser_request: 'set daily budget to 500' }), { kind: 'money', action: 'update' });
   assert.deepEqual(m('ads_update_entity', { ...pauseIn('910000001'), entity_type: 'ad_set', fields: '{"daily_budget":500}' }), { kind: 'money', action: 'update' });
   assert.deepEqual(m('ads_update_entity', { ...pauseIn('900000001'), fields: '{"status":"ACTIVE"}' }), { kind: 'money', action: 'update' });
   assert.deepEqual(m('ads_activate_entity', activateIn('900000001')), { kind: 'money', action: 'activate' });
@@ -265,7 +269,30 @@ await check("Meta rad etsa (yoki javob aniq bo'lmasa): kampaniya Meta'da to'xtag
   await guard(`${P}ads_activate_entity`, activateIn('900000001'));
   fake.refuseNext = true;
   await assert.rejects(approveAction(biz, cardId()));
-  assert.equal(mcpStore.tracked(biz.id, '900000001')?.status, 'finished');
+  assert.equal(mcpStore.tracked(biz.id, '900000001')?.status, 'finished', "aniq rad va Meta'da pauzada — chiqariladi");
+  // Asbob xatosi (uzilish): Meta'da hali PAUSED ko'rinsa ham — kuzatuvda qoladi (keyin yoqilib qolishi mumkin)
+  await guard(`${P}ads_activate_entity`, activateIn('900000001'));
+  fake.unclearNext = true;
+  await assert.rejects(approveAction(biz, cardId()), /aniq emas/);
+  assert.equal(mcpStore.tracked(biz.id, '900000001')?.status, 'active', 'noaniq — kuzatuvda');
+});
+
+await check("faqat ulangan kabinet: boshqa kabinetga chaqiruv rad (o'qish ham), karta ketmaydi", async () => {
+  const biz = newBiz(), guard = metaGuard(ctxOf(biz), 'claudeai', SERVER);
+  const before = sent.length;
+  assert.match(String(await guard(`${P}ads_activate_entity`, { ...activateIn('900000001'), ad_account_id: '7654321' })), /only in the connected ad account 1234567/);
+  assert.match(String(await guard(`${P}ads_get_ad_entities`, { ad_account_id: 'act_7654321', level: 'campaign', fields: ['id'], ...meta })), /connected ad account/);
+  assert.equal(sent.length, before, 'karta yuborilmadi');
+  assert.equal(await guard(`${P}ads_get_ad_entities`, { ad_account_id: 'act_1234567', level: 'campaign', fields: ['id'], ...meta }), null);
+});
+
+await check("tasdiq: obyektlardan bittasining kampaniyasi aniqlanmasa — hech narsa yuborilmaydi", async () => {
+  const biz = newBiz(), guard = metaGuard(ctxOf(biz), 'claudeai', SERVER);
+  fake.status['900000001'] = 'PAUSED';
+  await guard(`${P}ads_activate_entity`, { ...activateIn('900000001'), entity_ids: ['900000001', '999999999'] });
+  const n = named('ads_activate_entity').length;
+  await rejects(approveAction(biz, cardId()), /aniqlanmadi/);
+  assert.equal(named('ads_activate_entity').length, n);
 });
 
 await check("kuzatuv: 30 daqiqada bir marta; kunlik limitga yetsa to'xtatiladi (fields: status PAUSED) va qayta o'qib tekshiriladi", async () => {

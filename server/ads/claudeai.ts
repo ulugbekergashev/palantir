@@ -99,8 +99,11 @@ async function probeConnector(): Promise<Connector> {
 // ─── Ijrochi ──────────────────────────────────────────────────────────────────
 
 export interface CaiCall { tool: string; args: Record<string, unknown> }
-/** Bitta chaqiruv natijasi: Meta javobi matni yoki xato (error — Meta rad etdi) */
-export interface CaiResult { text: string; error: boolean }
+/**
+ * Bitta chaqiruv natijasi: Meta javobi matni yoki xato. error — xato; unclear — xato asbob ishga tushgandan keyin keldi (uzilish, vaqt
+ * tugashi, shlyuz yoki Meta'ning o'zi — ajratib bo'lmaydi): Meta bajargan bo'lishi mumkin, «aniq rad etildi» deb olinmaydi
+ */
+export interface CaiResult { text: string; error: boolean; unclear?: boolean }
 /** server — ulagich nomi (mcpServerStatus'dagi); natijalar chaqiruvlar tartibida. Chaqiruv bajarilmasa — McpCallError */
 /** hide — ijrochiga ko'rinmaydigan asboblar va ulagichlar (to'liq nomlar: mcp__server yoki mcp__server__tool): kontekst to'lib, obuna yeyilmasin */
 export type CaiRunner = (server: string, calls: readonly CaiCall[], hide: readonly string[]) => Promise<CaiResult[]>;
@@ -147,17 +150,18 @@ async function sdkRunner(server: string, calls: readonly CaiCall[], hide: readon
       return { hookSpecificOutput: { hookEventName: 'PreToolUse' as const, permissionDecision: 'deny' as const, permissionDecisionReason: why } };
     }],
   };
-  const record = (text: string, error: boolean) => {
-    if (next < calls.length && inFlight) { results[next] = { text, error }; next++; inFlight = false; }
+  const record = (r: CaiResult) => {
+    if (next < calls.length && inFlight) { results[next] = r; next++; inFlight = false; }
   };
   const post: HookCallbackMatcher = {
     matcher: `${prefix}.*`,
     hooks: [async input => {
       if (input.hook_event_name === 'PostToolUse') {
-        record(responseText(input.tool_response), false);
+        record({ text: responseText(input.tool_response), error: false });
         return { hookSpecificOutput: { hookEventName: 'PostToolUse' as const, updatedToolOutput: 'ok' } };
       }
-      if (input.hook_event_name === 'PostToolUseFailure') record(input.error, true);
+      // Asbob xatosi: Meta'ning o'z rad javobimi yoki uzilishmi — ajratib bo'lmaydi: «noaniq» (bajarilgan bo'lishi mumkin)
+      if (input.hook_event_name === 'PostToolUseFailure') record({ text: input.error, error: true, unclear: true });
       return { continue: true };
     }],
   };
@@ -182,6 +186,8 @@ async function sdkRunner(server: string, calls: readonly CaiCall[], hide: readon
         cwd: runDir(), env: childEnv(process.env), hooks: { PreToolUse: [guard], PostToolUse: [post], PostToolUseFailure: [post] },
       },
     });
+    // Ish tugaguncha kutiladi (natijani hook'lar yozadi); vaqt tugasa — abort
+    for await (const m of q) if (m.type === 'result') break;
   } catch (e) {
     if (e instanceof McpCallError) throw e;
     if (!notReady && next === 0 && !inFlight) throw new McpCallError(`Meta ulagichi bilan ish bajarilmadi: ${(e as Error).message}`, true);
@@ -240,9 +246,12 @@ export async function caiCall(calls: readonly CaiCall[]): Promise<CaiResult[]> {
   return runner(c.name, calls, hiddenFor(c, new Set(calls.map(x => x.tool))));
 }
 
-/** Bitta chaqiruv: matn; Meta rad etsa — McpCallError(refused) */
+/**
+ * Bitta chaqiruv: matn. Javob ichidagi {"error": …} — Meta'ning aniq rad javobi (refused); asbob xatosi (uzilish bo'lishi mumkin) —
+ * noaniq (refused=false: chaqiruvchi «bajarilgan bo'lishi mumkin» deb oladi)
+ */
 export async function caiOne(tool: string, args: Record<string, unknown>): Promise<string> {
   const [r] = await caiCall([{ tool, args }]);
-  if (r.error || /^\s*\{\s*"error"/.test(r.text)) throw new McpCallError(r.text.slice(0, 400) || `Meta ${tool} amalini bajarmadi`, true);
+  if (r.error || /^\s*\{\s*"error"/.test(r.text)) throw new McpCallError(r.text.slice(0, 400) || `Meta ${tool} amalini bajarmadi`, !r.unclear);
   return r.text;
 }

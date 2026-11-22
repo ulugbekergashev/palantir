@@ -36,13 +36,19 @@ export async function campaignOf(c: AdsConnection, id: string, depth = 0): Promi
   return { campaignId: id, name: camp.name ?? id, daily, lifetime, endsAt };
 }
 
-export async function campaignsOf(c: AdsConnection, ids: readonly string[]): Promise<Entity[]> {
-  const found = new Map<string, Entity>();
+/** Obyektlar → kampaniyalari (takrorsiz); missing — kampaniyasi aniqlanmagan raqamlar (tasdiqda bittasi bo'lsa ham — rad) */
+export async function campaignsResolved(c: AdsConnection, ids: readonly string[]): Promise<{ entities: Entity[]; missing: string[] }> {
+  const found = new Map<string, Entity>(), missing: string[] = [];
   for (const id of ids.slice(0, MAX_ENTITIES)) {
-    const e = await campaignOf(c, id);
+    const e = await campaignOf(c, id).catch(() => null);
     if (e) found.set(e.campaignId, e);
+    else missing.push(id);
   }
-  return [...found.values()];
+  return { entities: [...found.values()], missing };
+}
+
+export async function campaignsOf(c: AdsConnection, ids: readonly string[]): Promise<Entity[]> {
+  return (await campaignsResolved(c, ids)).entities;
 }
 
 /** Hisobdagi shu vaqtdan keyin yaratilgan ishlayotgan kampaniyalar (boost javobida raqam topilmasa) */
