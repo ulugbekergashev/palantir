@@ -7,11 +7,15 @@
  *
  * Pipeboard orqali (o'z Meta ilovasi bo'lmaganda): egasi pipeboard.co'da Facebook bilan kirib kabinetini ulaydi, u yerdan API tokenini
  * panelga qo'yadi → shu yerda token tekshiriladi, kabinetlar va sahifalar Pipeboard asboblari bilan o'qiladi, keyin xuddi yuqoridagidek.
+ *
+ * claude.ai ulagichi orqali (token ham, ilova ham yo'q): egasi claude.ai'da Meta Ads ulagichini qo'shgan — panelda «Claude orqali ulash»
+ * → ulagich topiladi, kabinetlar va sahifalar Meta asboblari bilan (ijrochi orqali, claudeai.ts) o'qiladi, keyin xuddi yuqoridagidek.
  */
 import { businesses, type BusinessRow } from '../db';
 import { env } from '../env';
 import { notifyOwner } from '../inbox/core';
 import { pipeboardJson } from './backend';
+import { caiOne, callMeta, connector, stateText } from './claudeai';
 import { connect } from './campaigns';
 import { graph } from './graph';
 import { endpointOf, mcpWorks, type AdsVia } from './mcpClient';
@@ -62,8 +66,39 @@ export async function adsHubUrl(biz: BusinessRow): Promise<string> {
 interface RawAccount { account_id?: string; id?: string; name?: string; currency?: string; account_status?: number }
 interface RawPage { id?: string; name?: string; instagram_business_account?: { id?: string; username?: string } }
 
-/** Tokenga ochiq kabinetlar va sahifalar (Pipeboard'da sahifaning Instagram akkaunti ko'rinmaydi — igId null) */
+/** Meta MCP javobi (claude.ai ulagichi) → JSON; o'qilmasa — xato */
+const metaJson = async (tool: string, args: Record<string, unknown>): Promise<unknown> => {
+  const text = await caiOne(tool, args);
+  try { return JSON.parse(text) as unknown; } catch { throw new TargetError(`Meta javobi o'qilmadi (${tool})`); }
+};
+
+/** Javob ichidagi sahifalar: {page_id, page_name} yoki «pages» ro'yxatidagi {id, name} */
+function pagesIn(v: unknown, out: HubPage[] = [], depth = 0, inPages = false): HubPage[] {
+  if (!v || typeof v !== 'object' || depth > 5 || out.length >= LIST_LIMIT) return out;
+  const r = v as Record<string, unknown>;
+  const id = String(r.page_id ?? (inPages ? r.id ?? '' : ''));
+  if (!Array.isArray(v) && /^\d{5,20}$/.test(id)) {
+    if (!out.some(p => p.id === id)) out.push({ id, name: String(r.page_name ?? r.name ?? ''), igId: null, igName: null });
+    return out;
+  }
+  for (const [k, x] of Object.entries(v)) pagesIn(x, out, depth + 1, Array.isArray(v) ? inPages : /page/i.test(k));
+  return out;
+}
+
+/** claude.ai ulagichi: egasining Facebook akkauntiga ochiq kabinetlar (faol va Meta MCP'ga ochiqlari — faol) va sahifalar */
+async function claudeaiAssets(): Promise<{ accounts: HubAccount[]; pages: HubPage[] }> {
+  const acc = await metaJson('ads_get_ad_accounts', callMeta('report_measure_or_look_up')) as { ad_accounts?: unknown };
+  if (!Array.isArray(acc.ad_accounts)) throw new TargetError("Meta kabinetlar ro'yxatini bermadi");
+  const accounts = (acc.ad_accounts as Record<string, unknown>[]).filter(a => a && typeof a === 'object').slice(0, LIST_LIMIT)
+    .map(a => ({ id: String(a.ad_account_id ?? ''), name: String(a.ad_account_name ?? ''), currency: String(a.currency ?? '').toUpperCase(), active: a.account_status === 'ACTIVE' && a.is_queryable !== false && a.is_ads_mcp_enabled !== false }))
+    .filter(a => /^\d{5,20}$/.test(a.id));
+  const pages = pagesIn(await metaJson('ads_get_user_pages', callMeta('report_measure_or_look_up')).catch(() => null));
+  return { accounts, pages };
+}
+
+/** Tokenga ochiq kabinetlar va sahifalar (Pipeboard va claude.ai ulagichida sahifaning Instagram akkaunti ko'rinmaydi — igId null) */
 export async function listAssets(token: string, via: AdsVia = 'meta'): Promise<{ accounts: HubAccount[]; pages: HubPage[] }> {
+  if (via === 'claudeai') return claudeaiAssets();
   const [acc, pg] = await Promise.all(via === 'pipeboard'
     ? [pipeboardJson<{ data?: RawAccount[] }>(token, 'get_ad_accounts', { limit: LIST_LIMIT }), pipeboardJson<{ data?: RawPage[] }>(token, 'get_account_pages', { account_id: 'me' })]
     : [
@@ -179,6 +214,36 @@ export async function connectPipeboard(biz: BusinessRow, raw: string, now = Date
     }
   }
   pending.set(biz.id, { token, expiresAt: null, ...assets, until: now + PENDING_MS, via: 'pipeboard' });
+  return { connected: false };
+}
+
+/**
+ * Egasi claude.ai'da Meta Ads ulagichini qo'shgan: ulagich bormi va ulanganmi → kabinetlar va sahifalar → bittadan bo'lsa (yoki avval
+ * ulangani ro'yxatda) — o'zi ulanadi; aks holda panelda tanlash (1 soat). connected — o'zi ulandimi
+ */
+export async function connectClaudeAi(biz: BusinessRow, now = Date.now()): Promise<{ connected: boolean }> {
+  const k = await connector(true);
+  if (k.state !== 'connected') throw new TargetError(stateText(k.state));
+  let assets: { accounts: HubAccount[]; pages: HubPage[] };
+  try {
+    assets = await listAssets('', 'claudeai');
+  } catch (e) {
+    throw new TargetError(`claude.ai ulagichidan kabinetlar o'qilmadi: ${(e as Error).message}`);
+  }
+  if (!assets.accounts.some(a => a.active)) throw new TargetError("claude.ai'dagi Meta ulagichida faol reklama kabineti ko'rinmadi — ulagichga ruxsat berishda kabinetni belgilang");
+  if (!assets.pages.length) throw new TargetError("claude.ai'dagi Meta ulagichida Facebook sahifa ko'rinmadi — ulagichga ruxsat berishda sahifani ham belgilang");
+  const pick = autoPick(adsStore.connection(biz.id), assets);
+  if (pick) {
+    try {
+      await connect(biz, { token: '', ...pick, igActorId: pick.igActorId, expiresAt: null, via: 'claudeai' });
+      pending.delete(biz.id);
+      return { connected: true };
+    } catch (e) {
+      if (!(e instanceof TargetError)) throw e;
+      // Kabinet faol emas yoki valyuta mos emas — egasi boshqasini tanlasin
+    }
+  }
+  pending.set(biz.id, { token: '', expiresAt: null, ...assets, until: now + PENDING_MS, via: 'claudeai' });
   return { connected: false };
 }
 

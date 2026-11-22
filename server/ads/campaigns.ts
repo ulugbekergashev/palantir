@@ -88,8 +88,9 @@ export async function connect(biz: BusinessRow, input: { token: string; adAccoun
   // Kuzatuvdagi kampaniyalar eski kabinetda: boshqa kabinetga o'tsa, ularni to'xtatib ham, kuzatib ham bo'lmay qoladi (token yangilash — mumkin)
   const prev = adsStore.connection(biz.id);
   if (prev && prev.adAccountId !== id && tracked(biz.id)) throw new TargetError("Avval eski kabinetdagi kampaniyalarni tugating — keyin boshqa kabinetga o'ting");
-  const via: AdsVia = input.via === 'pipeboard' ? 'pipeboard' : 'meta';
+  const via: AdsVia = input.via === 'pipeboard' || input.via === 'claudeai' ? input.via : 'meta';
   const api = apiOf({ token, adAccountId: id, via });
+  if (via === 'claudeai' && token) throw new TargetError("claude.ai ulagichi orqali ulashda token kerak emas");
   const acc = await api.account().catch(wrap);
   if (acc.account_status !== 1) throw new TargetError(`Reklama kabineti faol emas (holati: ${acc.account_status ?? "noma'lum"}) — Ads Manager'da tekshiring`);
   const currency = (acc.currency ?? '').toUpperCase();
@@ -115,9 +116,9 @@ const need = (biz: BusinessRow): AdsConnection => {
   if (!c) throw new TargetError('Meta reklama kabineti ulanmagan (Marketing → Targetolog → Ulash)');
   return c;
 };
-/** Reja yo'li (Palantir o'zi yaratadi va yoqadi) — faqat Facebook tokeni bilan: Pipeboard'da Targetolog Meta asboblari orqali ishlaydi */
+/** Reja yo'li (Palantir o'zi yaratadi va yoqadi) — faqat Facebook tokeni bilan: Pipeboard va claude.ai ulagichida Targetolog Meta asboblari orqali ishlaydi */
 export function graphOnly(c: AdsConnection, what = 'Bu amal'): void {
-  if (c.via === 'pipeboard') throw new TargetError(`${what} Pipeboard orqali ulangan kabinetda ishlamaydi — Targetologga yozing, u reklama asboblari bilan qiladi (pulni baribir siz tasdiqlaysiz)`);
+  if (c.via === 'pipeboard' || c.via === 'claudeai') throw new TargetError(`${what} ${c.via === 'pipeboard' ? 'Pipeboard' : 'claude.ai ulagichi'} orqali ulangan kabinetda ishlamaydi — Targetologga yozing, u reklama asboblari bilan qiladi (pulni baribir siz tasdiqlaysiz)`);
 }
 
 // ─── Sarf ─────────────────────────────────────────────────────────────────────
@@ -162,7 +163,7 @@ interface GeoHit { key?: string; name?: string; country_code?: string; type?: st
 
 /** Shahar nomlari → Meta joy kodi (topilmasa — key bo'sh qoladi, reja ishga tushmaydi) */
 export async function resolveCities(c: AdsConnection, plan: Plan): Promise<Plan> {
-  if (c.via === 'pipeboard') return plan;
+  if (c.via === 'pipeboard' || c.via === 'claudeai') return plan;
   const cities = await Promise.all(plan.cities.map(async city => {
     if (city.key) return city;
     const r = await graph<{ data?: GeoHit[] }>(c.token, 'GET', 'search', { type: 'adgeolocation', location_types: ['city'], q: city.name, limit: 10 }).catch(() => ({ data: [] }));
@@ -382,6 +383,12 @@ const warnOnce = async (biz: BusinessRow, key: string, html: string, now: Date) 
 /** Ketma-ket muvaffaqiyatsiz kuzatuvlar: limit nazorati ishlamay qolsa egasi bilsin */
 const misses = new Map<string, number>();
 const MISS_ALERT = 3;
+/**
+ * claude.ai ulagichi orqali har o'qish — obunadagi kichik so'rov (claudeai.ts): kuzatuv har 10 daqiqada emas, shuncha vaqtda bir marta.
+ * Kunlik byudjetni Meta'ning o'zi ushlab turadi; bu — kunlik, oylik va bitta kampaniya limiti uchun qo'shimcha nazorat
+ */
+export const CLAUDEAI_WATCH_MS = 30 * 60_000;
+const lastWatch = new Map<string, number>();
 
 /** MCP orqali yoqilgan kampaniyani to'xtatish (limit, egasi tugmasi) */
 export async function pauseTracked(biz: BusinessRow, campaignId: string, why: string): Promise<void> {
@@ -427,9 +434,13 @@ export async function watch(biz: BusinessRow, now = new Date()): Promise<void> {
     await warnOnce(biz, 'nocon', '⚠️ <b>Targetolog</b>: kampaniyalar ishlayapti, lekin reklama kabineti uzilgan — sarfni kuzatib bo\'lmayapti. Ads Manager\'da tekshiring.', now);
     return;
   }
+  if (c.via === 'claudeai') {
+    if (now.getTime() - (lastWatch.get(biz.id) ?? 0) < CLAUDEAI_WATCH_MS) return;
+    lastWatch.set(biz.id, now.getTime());
+  }
   for (const camp of live) {
-    // Reja kampaniyalari statistikasi — Graph'dan (Pipeboard'ga o'tilgan bo'lsa: limit nazorati baribir ishlaydi, statistika yangilanmaydi)
-    if (!camp.meta.campaignId || c.via === 'pipeboard') continue;
+    // Reja kampaniyalari statistikasi — Graph'dan (Pipeboard yoki claude.ai ulagichiga o'tilgan bo'lsa: limit nazorati baribir ishlaydi, statistika yangilanmaydi)
+    if (!camp.meta.campaignId || c.via === 'pipeboard' || c.via === 'claudeai') continue;
     const r = await graph<{ data?: Insight[] }>(c.token, 'GET', `${camp.meta.campaignId}/insights`, { fields: 'spend,impressions,clicks,actions', date_preset: 'maximum' }).catch(() => null);
     const i = r?.data?.[0];
     if (i) adsStore.setStats(biz.id, camp.id, { spent: Number.parseFloat(i.spend ?? '0') || 0, results: resultsOf(i, camp.plan.destination), clicks: Number(i.clicks) || 0, impressions: Number(i.impressions) || 0 });

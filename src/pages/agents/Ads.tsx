@@ -238,16 +238,34 @@ function HubPicker({ pending, setView, notify }: { pending: NonNullable<AdsView[
   );
   return (
     <div className="space-y-3">
-      <p className="text-[13.5px] text-[#c9cbd2]">{pending.via === 'pipeboard' ? 'Pipeboard ulandi' : 'Facebook ulandi'}. Qaysi kabinet va sahifa bilan ishlaymiz?</p>
+      <p className="text-[13.5px] text-[#c9cbd2]">{pending.via === 'pipeboard' ? 'Pipeboard ulandi' : pending.via === 'claudeai' ? 'claude.ai ulagichi topildi' : 'Facebook ulandi'}. Qaysi kabinet va sahifa bilan ishlaymiz?</p>
       <div className="grid gap-3 sm:grid-cols-2">
         {select(acc, setAcc, 'Reklama kabineti', pending.accounts.map(x => ({ id: x.id, text: `${x.name || `act_${x.id}`} · ${x.currency}${x.active ? '' : ' (faol emas)'}`, off: !x.active })))}
         {select(page, setPage, 'Facebook sahifa', pending.pages.map(p => ({ id: p.id, text: `${p.name || p.id}${p.igName ? ` · @${p.igName}` : ''}` })))}
       </div>
-      {pg && !pg.igId && pending.via !== 'pipeboard' && <p className="text-[12.5px] text-[#fde2b0]">Bu sahifaga Instagram ulanmagan — Instagram Direct reklamasi ishlamaydi.</p>}
+      {pg && !pg.igId && pending.via === 'meta' && <p className="text-[12.5px] text-[#fde2b0]">Bu sahifaga Instagram ulanmagan — Instagram Direct reklamasi ishlamaydi.</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={!acc || !page || !!busy} onClick={() => void run('pick', () => api.adsConnectHub({ adAccountId: acc, pageId: page, igActorId: pg?.igId ?? null }), 'Kabinet ulandi')} className={`${button} text-[#07080b]`} style={{ background: ACCENT }}>{busy === 'pick' && spin} Ulash</button>
         <button type="button" disabled={!!busy} onClick={() => void run('drop', () => api.adsDropHub())} className={ghost}>Bekor qilish</button>
       </div>
+    </div>
+  );
+}
+
+/** Egasining claude.ai'dagi Meta Ads ulagichi orqali: token ham, ilova ham kerak emas — Palantir shu obunadagi ulagichni o'zi topadi */
+function ClaudeConnect({ setView, notify, again }: { setView: (v: AdsView) => void; notify: Notify; again?: boolean }) {
+  const [busy, run] = useRun(notify, setView);
+  return (
+    <div className="space-y-3">
+      {!again && (
+        <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-[#c9cbd2]">
+          <li><a href="https://claude.ai/settings/connectors" target="_blank" rel="noopener noreferrer" className="underline">claude.ai → Settings → Connectors</a> → <b>Add custom connector</b>.</li>
+          <li>Nomi: <b>Meta Ads</b>, manzil: <code className="text-[12.5px]">https://mcp.facebook.com/ads</code> → <b>Connect</b> → Facebook'da kabinet va sahifani belgilab ruxsat bering.</li>
+          <li>Shu yerda tugmani bosing — Palantir ulagichni o'zi topadi (shu kompyuterdagi Claude obunasi bilan bir akkaunt bo'lishi kerak).</li>
+        </ol>
+      )}
+      <button type="button" disabled={!!busy} onClick={() => void run('cai', () => api.adsConnectClaude(), 'claude.ai ulagichi tekshirildi')} className={`${button} text-[#07080b]`} style={{ background: ACCENT }}>{busy === 'cai' && spin} {busy === 'cai' ? 'Ulagich tekshirilmoqda…' : again ? 'Qayta tekshirish' : 'Claude orqali ulash'}</button>
+      {!again && <p className="text-[12.5px] text-[#7d838f]">Meta Claude'ni o'z ro'yxatidagi ishonchli dastur sifatida taniydi — o'z Meta ilovangiz kerak emas. Pul baribir faqat sizning tugmangiz bilan sarflanadi.</p>}
     </div>
   );
 }
@@ -308,13 +326,16 @@ export function AdsCabinet({ view, setView, notify }: { view: AdsView | null; se
           <div className="flex flex-wrap items-center gap-3">
             <div className="text-[14px] text-[#e4e3de]">
               <p><b>{a.accountName || `act_${a.adAccountId}`}</b> · {a.currency}</p>
-              <p className="text-[13px] text-[#8a909c]">Sahifa: {a.pageName || a.pageId}{a.via === 'pipeboard' ? ' · Pipeboard orqali' : a.igActorId ? ` · Instagram: ${a.igActorId}` : ' · Instagram ID yo‘q (Direct reklamasi ishlamaydi)'}</p>
+              <p className="text-[13px] text-[#8a909c]">Sahifa: {a.pageName || a.pageId}{a.via === 'pipeboard' ? ' · Pipeboard orqali' : a.via === 'claudeai' ? ' · claude.ai ulagichi orqali' : a.igActorId ? ` · Instagram: ${a.igActorId}` : ' · Instagram ID yo‘q (Direct reklamasi ishlamaydi)'}</p>
               <p className="text-[13px] text-[#8a909c]">{a.mcp
                 ? '✅ Reklama asboblari ulangan: Targetolog o‘zi tahlil qiladi va kampaniya yaratadi, yoqish — sizning tugmangiz bilan.'
                 : a.via === 'pipeboard'
                   ? 'Pipeboard tokeni ishlamayapti — pipeboard.co/api-tokens’dan yangisini oling va quyida yangilang.'
-                  : 'Meta reklama asboblari (MCP) ochilmadi — tokenga ads_mcp_management ruxsatini qo‘shib, qayta ulang. Hozircha oddiy reja yo‘li ishlaydi.'}</p>
+                  : a.via === 'claudeai'
+                    ? 'claude.ai’dagi Meta Ads ulagichi ishlamayapti — claude.ai → Settings → Connectors’da Meta Ads’ga qayta kiring va quyida tekshiring.'
+                    : 'Meta reklama asboblari (MCP) ochilmadi — tokenga ads_mcp_management ruxsatini qo‘shib, qayta ulang. Hozircha oddiy reja yo‘li ishlaydi.'}</p>
               {a.via === 'pipeboard' && !a.mcp && <div className="mt-2"><PipeboardConnect setView={setView} notify={notify} again /></div>}
+              {a.via === 'claudeai' && !a.mcp && <div className="mt-2"><ClaudeConnect setView={setView} notify={notify} again /></div>}
               {expiry && <p className={`text-[13px] ${soon ? 'text-[#fde2b0]' : 'text-[#8a909c]'}`}>Facebook ruxsati {expiry.toLocaleDateString('uz')} gacha{soon ? ' — tez orada tugaydi, qayta ulang' : ''}.</p>}
             </div>
             <div className="ml-auto flex flex-wrap gap-2">
@@ -327,9 +348,13 @@ export function AdsCabinet({ view, setView, notify }: { view: AdsView | null; se
         ) : (
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-[13.5px] font-semibold text-[#e4e3de]">Pipeboard orqali (o‘z Meta ilovasiz)</p>
-              <PipeboardConnect setView={setView} notify={notify} />
+              <p className="text-[13.5px] font-semibold text-[#e4e3de]">Claude orqali (tavsiya — ilova ham, token ham kerak emas)</p>
+              <ClaudeConnect setView={setView} notify={notify} />
             </div>
+            <details className="group">
+              <summary className="cursor-pointer text-[13px] font-semibold text-[#a3a9b5]">Pipeboard orqali (pullik xizmat; bepulida haftasiga 30 ta amal)</summary>
+              <div className="mt-3"><PipeboardConnect setView={setView} notify={notify} /></div>
+            </details>
             {view.hub && (
               <div className="space-y-2">
                 <p className="text-[13.5px] leading-relaxed text-[#c9cbd2]">Bosing — Facebook oynasi ochiladi. Kiring, reklama kabineti va sahifani belgilab ruxsat bering. Palantir qolganini o‘zi topadi: kabinet, sahifa, Instagram va Meta’ning reklama asboblari (MCP).</p>

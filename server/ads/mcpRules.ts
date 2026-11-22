@@ -24,17 +24,28 @@ const READ = new Set([
   'ads_library_search', 'ads_get_ig_accounts', 'ads_get_ig_media', 'ads_get_ad_account_custom_audiences', 'ads_get_custom_audience',
   'ads_get_custom_audience_adsets', 'ads_get_opportunity_score', 'ads_insights_advertiser_context', 'ads_insights_anomaly_signal',
   'ads_insights_auction_ranking_benchmarks', 'ads_insights_industry_benchmark', 'ads_insights_performance_trend', 'ads_account_get_activity_logs',
+  // Haqiqiy server ro'yxatidan (claude.ai ulagichi orqali o'qilgan, 2026-11-22)
+  'ads_insights_performance_vs_peers', 'ads_get_ad_preview_screenshot', 'ads_get_async_result', 'ads_get_errors', 'ads_get_help_article',
+  'ads_get_customconversions', 'ads_get_datasets', 'ads_get_dataset_details', 'ads_get_dataset_quality', 'ads_get_dataset_stats',
+  'ads_experiment_list_tests', 'ads_experiment_abtest_get_test', 'ads_experiment_lift_get_test', 'ads_experiment_check_eligibility',
 ]);
 /** Yaratish — pul ketmaydi (Meta pauzada yaratadi); holat berilsa — faqat PAUSED */
-const MAKE = new Set(['ads_create_campaign', 'ads_create_ad_set', 'ads_create_ad', 'ads_create_creative']);
+const MAKE = new Set([
+  'ads_create_campaign', 'ads_create_ad_set', 'ads_create_ad', 'ads_create_creative',
+  // Rasm yuklash va rasm variantlari — kabinetga fayl qo'shadi, pul ketmaydi (yuklash manzili — yopiq: modelda faylni jo'natadigan vosita yo'q)
+  'ads_creative_upload_media', 'ads_creative_create_image_variations',
+]);
 /** Auditoriya: Instagram/sahifa bilan ishlaganlardan — mumkin; odamlarning telefoni, emaili yoki xeshi — yopiq */
 const AUDIENCE = new Set(['ads_create_custom_audience', 'ads_update_custom_audience']);
 const MONEY: Record<string, McpAction> = { ads_activate_entity: 'activate', ads_boost_ig_post: 'boost' };
 /** Boshqalarning reklamalari — begona matn (bilim va xotiraga yozuvchi asboblar shu gapda yopiladi) */
 const STRANGERS = new Set(['ads_library_search']);
 
-/** Kartasiz tahrirlashda bo'lishi mumkin bo'lgan maydonlar: raqam, tur, nom va holat — boshqa har qanday maydon egasiga ketadi */
-const SAFE_EDIT_KEY = /^(?:(?:\w+_)?ids?|entity_type|type|level|name|(?:configured_)?status)$/i;
+/**
+ * Kartasiz tahrirlashda bo'lishi mumkin bo'lgan maydonlar: raqam, tur, nom va holat — boshqa har qanday maydon egasiga ketadi.
+ * advertiser_job/advertiser_request — Meta serveri har chaqiruvda so'raydigan xizmat maydonlari (qanday ish), pulga aloqasi yo'q
+ */
+const SAFE_EDIT_KEY = /^(?:(?:\w+_)?ids?|entity_type|type|level|name|(?:configured_)?status|advertiser_job|advertiser_request)$/i;
 /** Holatga o'xshash maydonlar (yaratishda faqat PAUSED) */
 const STATE_KEY = /status|paused|enabled|active|state/i;
 /** Odamlarning shaxsiy ma'lumoti (auditoriyaga yuklash) */
@@ -120,6 +131,7 @@ function classifyPipeboard(tool: string, input: unknown): Verdict {
   return { kind: 'deny', why: BLOCKED };
 }
 
+/** claudeai — Meta'ning o'z serveri (claude.ai ulagichi orqali): Meta qoidalari */
 export function classify(tool: string, input: unknown, via: AdsVia = 'meta'): Verdict {
   if (via === 'pipeboard') return classifyPipeboard(tool, input);
   if (READ.has(tool)) return { kind: 'allow', strangers: STRANGERS.has(tool) };
@@ -137,11 +149,13 @@ export function classify(tool: string, input: unknown, via: AdsVia = 'meta'): Ve
 
 const META_ID = /^\d{6,25}$/;
 const ID_KEY = /(?:^|_)ids?$/i;
+/** Kabinet raqami — obyekt emas (u bo'yicha kampaniya qidirilmaydi) */
+const ACCOUNT_KEY = /account/i;
 
 /** Kirishdagi Meta obyektlari raqamlari (id, campaign_id, entity_ids…): qaysi kampaniya yoqilayotganini aniqlash uchun */
 export function entityIds(v: unknown): string[] {
   const out = new Set<string>();
-  for (const l of leaves(v) ?? []) if (ID_KEY.test(l.key) && (typeof l.value === 'string' || typeof l.value === 'number') && META_ID.test(String(l.value))) out.add(String(l.value));
+  for (const l of leaves(v) ?? []) if (ID_KEY.test(l.key) && !ACCOUNT_KEY.test(l.key) && (typeof l.value === 'string' || typeof l.value === 'number') && META_ID.test(String(l.value))) out.add(String(l.value));
   return [...out];
 }
 

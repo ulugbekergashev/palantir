@@ -529,10 +529,10 @@ export interface SmmView { posts: SmmPostView[]; preparing: boolean; picture: bo
 
 export interface AdsView {
   /** mcp — token reklama MCP serverini ochadi (Targetolog o'zi tahlil qiladi va yaratadi; yoqish — egasi tugmasi); via — Meta tokeni yoki Pipeboard */
-  account: { adAccountId: string; accountName: string; pageId: string; pageName: string; igActorId: string | null; currency: string; tokenSet: boolean; mcp: boolean; expiresAt: string | null; via: 'meta' | 'pipeboard' } | null;
+  account: { adAccountId: string; accountName: string; pageId: string; pageName: string; igActorId: string | null; currency: string; tokenSet: boolean; mcp: boolean; expiresAt: string | null; via: 'meta' | 'pipeboard' | 'claudeai' } | null;
   /** hub — «Facebook orqali ulash» mumkin (Palantir Hub kodi bor); pending — Facebook ruxsati keldi, kabinet va sahifani egasi tanlaydi */
   hub: boolean;
-  pending: { accounts: { id: string; name: string; currency: string; active: boolean }[]; pages: { id: string; name: string; igId: string | null; igName: string | null }[]; via: 'meta' | 'pipeboard' } | null;
+  pending: { accounts: { id: string; name: string; currency: string; active: boolean }[]; pages: { id: string; name: string; igId: string | null; igName: string | null }[]; via: 'meta' | 'pipeboard' | 'claudeai' } | null;
   limits: { perCampaign: number; daily: number; monthly: number };
   spend: { today: number; month: number; committed: number } | null;
   campaigns: (AdCampaign & { problems: string[]; summary: string[] })[];

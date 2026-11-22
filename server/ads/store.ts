@@ -41,7 +41,8 @@ export interface MetaIds { campaignId?: string; adsetId?: string; creativeIds?: 
 
 /**
  * expiresAt — token muddati (Facebook orqali ulanganda 60 kun; qo'lda kiritilgan tizim foydalanuvchisi tokeni — null).
- * via — kabinetga yo'l: 'meta' (token — Facebook tokeni, Graph va Meta MCP) yoki 'pipeboard' (token — Pipeboard tokeni, faqat ularning MCP'si)
+ * via — kabinetga yo'l: 'meta' (token — Facebook tokeni, Graph va Meta MCP), 'pipeboard' (token — Pipeboard tokeni, faqat ularning MCP'si)
+ * yoki 'claudeai' (token yo'q — egasining claude.ai'dagi Meta Ads ulagichi, ads/claudeai.ts)
  */
 export interface AdsConnection extends AdsAccount { token: string; accountName: string; pageName: string; timezone: string; expiresAt?: string | null; via?: AdsVia }
 
@@ -62,12 +63,12 @@ export const adsStore = {
     return {
       token: open(c.secret), adAccountId: c.account.id, accountName: c.account.name ?? '', currency: c.account.currency ?? 'USD',
       pageId: c.meta.pageId ?? '', pageName: c.meta.pageName ?? '', igActorId: c.meta.igActorId || null, timezone: c.meta.timezone ?? '',
-      expiresAt: c.meta.expiresAt || null, via: c.meta.via === 'pipeboard' ? 'pipeboard' : 'meta',
+      expiresAt: c.meta.expiresAt || null, via: c.meta.via === 'pipeboard' || c.meta.via === 'claudeai' ? c.meta.via : 'meta',
     };
   },
   saveConnection(bizId: string, c: AdsConnection): void {
     connections.save(bizId, 'meta_ads', seal(c.token), { id: c.adAccountId, name: c.accountName, currency: c.currency },
-      { pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId ?? '', timezone: c.timezone, ...(c.expiresAt ? { expiresAt: c.expiresAt } : {}), ...(c.via === 'pipeboard' ? { via: 'pipeboard' } : {}) });
+      { pageId: c.pageId, pageName: c.pageName, igActorId: c.igActorId ?? '', timezone: c.timezone, ...(c.expiresAt ? { expiresAt: c.expiresAt } : {}), ...(c.via === 'pipeboard' || c.via === 'claudeai' ? { via: c.via } : {}) });
   },
   removeConnection: (bizId: string) => sql.run("DELETE FROM connections WHERE business_id = ? AND kind = 'meta_ads'", bizId),
 

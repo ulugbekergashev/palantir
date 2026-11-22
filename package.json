@@ -67,6 +67,7 @@
     "test:ads-mcp": "tsx scripts/check-ads-mcp.ts",
     "test:ads-hub": "tsx scripts/e2e-ads-hub.ts",
     "test:ads-pipeboard": "tsx scripts/check-ads-pipeboard.ts",
+    "test:ads-claudeai": "tsx scripts/check-ads-claudeai.ts",
     "test:smm": "tsx scripts/check-smm.ts",
     "live:ads-plan": "tsx scripts/live-ads-plan.ts",
     "test:dashboard": "vite build && tsx scripts/e2e-dashboard.ts",

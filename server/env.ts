@@ -112,6 +112,8 @@ export const env = {
   aiEffortCustomer: effort(process.env.AI_EFFORT_CUSTOMER, 'low'),
   /** Internetdan qidirish (Claude web search). 0 — o'chiq */
   webSearch: process.env.WEB_SEARCH !== '0',
+  /** Reklama kabineti claude.ai ulagichi orqali: pul qo'riqchisining chaqiruvlarini bajaradigan kichik model (ads/claudeai.ts) */
+  adsRunnerModel: process.env.ADS_RUNNER_MODEL || 'haiku',
   /** Ovozli xabar → matn: Gemini (o'zbekchani yaxshi taniydi), zaxira — Groq Whisper */
   /** VoiceLab (Aisha, voicelab.uz → Dasturchi → API kalit) — o'zbek nutqiga ixtisoslashgan, zanjirda birinchi */
   voicelabKey: process.env.VOICELAB_API_KEY || '',

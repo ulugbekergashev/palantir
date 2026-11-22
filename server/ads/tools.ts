@@ -49,6 +49,7 @@ export const ADS_DEFS = {
     run: async (i, ctx) => {
       const c = adsStore.connection(ctx.biz.id);
       if (!c) throw new ToolError('Meta reklama kabineti ulanmagan (Marketing → Targetolog → Ulash)');
+      if (c.via === 'claudeai') throw new ToolError("claude.ai ulagichi orqali ulangan kabinetga Palantir rasm yubora olmaydi — kabinetdagi rasmlardan foydalaning (ads_get_ad_images) yoki egasi Ads Manager'da qo'shsin");
       const act = `act_${c.adAccountId}`;
       const video = videoFile(i.ref, ctx.biz.id);
       if (video && c.via === 'pipeboard') throw new ToolError("Pipeboard orqali video yuklanmaydi — videoni egasi Ads Manager'da yuklasin yoki rasm tanlang");

@@ -11,7 +11,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { APP_VERSION } from '../version';
 
-export type AdsVia = 'meta' | 'pipeboard';
+/** claudeai — egasining claude.ai'dagi Meta Ads ulagichi (token yo'q, chaqiruvlar obuna orqali: claudeai.ts) */
+export type AdsVia = 'meta' | 'pipeboard' | 'claudeai';
 
 export const mcpUrl = (): string => process.env.META_ADS_MCP_URL || 'https://mcp.facebook.com/ads';
 const pipeboardBase = (): string => process.env.PIPEBOARD_MCP_URL || 'https://meta-ads.mcp.pipeboard.co/';
@@ -22,6 +23,7 @@ export const authHeaders = (token: string): Record<string, string> => ({ Authori
 export interface McpEndpoint { url: string; headers: Record<string, string>; via: AdsVia; secret: string }
 
 export function endpointOf(c: { token: string; via?: AdsVia }): McpEndpoint {
+  if (c.via === 'claudeai') throw new Error("claude.ai ulagichi orqali ulangan kabinetda MCP manzili yo'q (chaqiruvlar — claudeai.ts)");
   if (c.via === 'pipeboard') {
     const u = new URL(pipeboardBase());
     u.searchParams.set('token', c.token);
@@ -71,7 +73,7 @@ export async function mcpWorks(ep: McpEndpoint): Promise<boolean> {
   }
 }
 
-const SERVER_NAME: Record<AdsVia, string> = { meta: 'Meta', pipeboard: 'Pipeboard' };
+const SERVER_NAME: Record<AdsVia, string> = { meta: 'Meta', pipeboard: 'Pipeboard', claudeai: 'Meta' };
 
 /** Bitta asbob: natija matni. Server xatosi (isError) — McpCallError (egasiga matni ko'rsatiladi) */
 export async function mcpCall(ep: McpEndpoint, name: string, args: Record<string, unknown>): Promise<string> {

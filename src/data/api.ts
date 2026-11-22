@@ -459,6 +459,7 @@ export const api = {
   adsConnectHub: (v: { adAccountId: string; pageId: string; igActorId: string | null }) => call<AdsView>('/ads/connect-hub', { body: v }),
   adsDropHub: () => call<AdsView>('/ads/connect-hub', { method: 'DELETE' }),
   adsConnectPipeboard: (token: string) => call<AdsView>('/ads/connect-pipeboard', { body: { token } }),
+  adsConnectClaude: () => call<AdsView>('/ads/connect-claude', { body: {} }),
   adsLimits: (l: { perCampaign: number; daily: number; monthly: number }) => call<AdsView>('/ads/limits', { method: 'PUT', body: l }),
   adsPlan: (task: string) => call<AdsView>('/ads/plan', { body: { task } }),
   adsEdit: (id: string, patch: Partial<AdPlan>) => call<AdsView>(`/ads/campaigns/${id}`, { method: 'PATCH', body: patch }),

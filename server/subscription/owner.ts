@@ -58,7 +58,7 @@ function liveSession(p: OwnerTurnInput): Session | null {
 export async function ownerTurn(input: OwnerTurnInput): Promise<string> {
   // Meta MCP ulangan-ulanmagani sessiya kalitida: o'zgarsa — yangi ko'rsatma va asboblar bilan yangi sessiya
   const meta = input.groups.includes('target') ? await metaAdsServer(input.ctx) : null;
-  const p = meta ? { ...input, setKey: `${input.setKey}+meta${meta.via === 'pipeboard' ? ':pb' : ''}` } : input;
+  const p = meta ? { ...input, setKey: `${input.setKey}+meta${meta.via === 'pipeboard' ? ':pb' : meta.via === 'claudeai' ? ':cai' : ''}` } : input;
   const session = p.ephemeral ? null : liveSession(p);
   const gate = new ToolGate();
   try {
@@ -87,7 +87,7 @@ async function turn(p: OwnerTurnInput, session: Session | null, gate: ToolGate, 
       effort: p.phone ? 'low' : env.aiEffortOwner,
       maxTurns: MAX_TURNS,
       ...(session ? { resume: session.resume } : {}),
-      mcp: palantirServer(p.ctx, p.crm, p.groups, gate, meta ? META_HIDE : []),
+      mcp: palantirServer(p.ctx, p.crm, p.groups, gate, meta ? (meta.via === 'claudeai' ? [...META_HIDE, 'ads_upload_media'] : META_HIDE) : []),
       ...(meta ? { external: [counted(meta, gate)] } : {}),
       webSearch: env.webSearch,
       // Internetdan qidiruv natijasi — begona matn: shu gapda bilim va xotiraga yozuvchi asboblar yopiladi

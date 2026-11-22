@@ -11,7 +11,7 @@ import { newId, type BusinessRow } from '../db';
 import { ImageError, toPostJpeg } from '../marketing/image';
 import { AdsError } from './graph';
 import { cancel, card, connect, disconnect, ensureUploadDir, imagePath, launch, pause, problemsOf, propose, resolveCities, resume, spendNow, uploadDir } from './campaigns';
-import { adsHubUrl, connectPicked, connectPipeboard, dropHubPending, hubPending } from './hubConnect';
+import { adsHubUrl, connectClaudeAi, connectPicked, connectPipeboard, dropHubPending, hubPending } from './hubConnect';
 import { mcpReady } from './mcp';
 import { env } from '../env';
 import { PlanSchema, planSummary, type Spend } from './plan';
@@ -96,6 +96,11 @@ export function mountAds(app: Express, { asBiz, asOwner, bad }: Deps): void {
     try { await connectPipeboard(biz, p.data.token); await reply(res, biz, true); } catch (e) { failed(res, e); }
   }));
 
+  // Egasining claude.ai'dagi Meta Ads ulagichi orqali (token ham, ilova ham yo'q): ulagich topiladi, kabinet va sahifa o'qiladi
+  app.post('/api/ads/connect-claude', asOwner(async (_req, res, biz) => {
+    try { await connectClaudeAi(biz); await reply(res, biz, true); } catch (e) { failed(res, e); }
+  }));
+
   app.delete('/api/ads/connect', asOwner(async (_req, res, biz) => {
     try { disconnect(biz); await reply(res, biz, true); } catch (e) { failed(res, e); }
   }));
@@ -112,8 +117,9 @@ export function mountAds(app: Express, { asBiz, asOwner, bad }: Deps): void {
   app.post('/api/ads/plan', asBiz(async (req, res, biz) => {
     const p = z.object({ task: z.string().trim().min(10).max(2000) }).safeParse(req.body);
     if (!p.success) return bad(res, p.error);
-    // Pipeboard'da tayyor reja yo'li yo'q (u Facebook tokeni bilan yaratadi) — AI behuda ishlamasin
-    if (adsStore.connection(biz.id)?.via === 'pipeboard') return res.status(409).json({ error: "Kabinet Pipeboard orqali ulangan — vazifani Targetologga Telegram'da yozing, u reklama asboblari bilan quradi" });
+    // Pipeboard va claude.ai ulagichida tayyor reja yo'li yo'q (u Facebook tokeni bilan yaratadi) — AI behuda ishlamasin
+    const via = adsStore.connection(biz.id)?.via;
+    if (via === 'pipeboard' || via === 'claudeai') return res.status(409).json({ error: `Kabinet ${via === 'pipeboard' ? 'Pipeboard' : 'claude.ai ulagichi'} orqali ulangan — vazifani Targetologga Telegram'da yozing, u reklama asboblari bilan quradi` });
     try { await propose(biz, p.data.task, await planFromTask(biz, p.data.task)); await reply(res, biz); } catch (e) { failed(res, e); }
   }));
 

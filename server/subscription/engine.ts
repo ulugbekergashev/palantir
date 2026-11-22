@@ -11,7 +11,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
-import { query, type EffortLevel, type HookCallbackMatcher, type McpSdkServerConfigWithInstance, type McpServerConfig, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query, type EffortLevel, type HookCallbackMatcher, type McpSdkServerConfigWithInstance, type McpServerConfig, type Options, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { env } from '../env';
 import { APP_VERSION } from '../version';
 import { notePressure, type Lane } from './pressure';
@@ -139,12 +139,23 @@ export function collectResult(msgs: readonly SDKMessage[]): TurnResult {
  * sababni o'qiydi. Guard yiqilsa ham — bajarilmaydi
  */
 export interface ExternalMcp {
+  /** Asbob nomidagi server qismi (mcp__<name>__…) */
   name: string;
   url: string;
   headers: Record<string, string>;
   timeoutMs?: number;
   guard: (tool: string, input: unknown) => Promise<string | null>;
+  /**
+   * Egasining claude.ai ulagichi (ads/claudeai.ts): url/headers ishlatilmaydi — SDK uni obunadan o'zi yuklaydi. hide — bu suhbatda
+   * ko'rinmaydiganlar, to'liq nomlar: egasining boshqa ulagichlari (mcp__server) va ulagichning keraksiz asboblari (mcp__server__tool)
+   */
+  claudeAi?: { hide: readonly string[] };
 }
+
+/** claude.ai ulagichi nomi → asbob nomidagi server qismi («claude.ai Meta Ads» → «claude_ai_Meta_Ads») */
+export const toolServer = (name: string): string => name.replace(/[^A-Za-z0-9_-]/g, '_');
+/** claude.ai ulagichlari ulanishini shuncha kutamiz (odatda ~5 s) */
+const CONNECTOR_WAIT_MS = 30_000;
 
 const GUARD_FAILED = 'Not run: Palantir could not check this call. Tell the owner.';
 const HOOK_TIMEOUT_S = 120;
@@ -195,10 +206,12 @@ export function optionsFor(o: QueryOptions, abort: AbortController): Options {
   const builtins = o.webSearch ? ['WebSearch'] : [];
   const onSearch = o.onWebSearch;
   const external = o.external ?? [];
+  const connectors = external.filter(e => e.claudeAi);
   const servers: Record<string, McpServerConfig> = {
     ...(o.mcp ? { palantir: o.mcp } : {}),
-    ...Object.fromEntries(external.map(e => [e.name, { type: 'http' as const, url: e.url, headers: e.headers, ...(e.timeoutMs ? { timeout: e.timeoutMs } : {}) }])),
+    ...Object.fromEntries(external.filter(e => !e.claudeAi).map(e => [e.name, { type: 'http' as const, url: e.url, headers: e.headers, ...(e.timeoutMs ? { timeout: e.timeoutMs } : {}) }])),
   };
+  const hidden = [...new Set(connectors.flatMap(e => e.claudeAi!.hide))].filter(n => !external.some(e => n === `mcp__${e.name}`));
   const preToolUse: HookCallbackMatcher[] = [
     ...(onSearch ? [{ matcher: 'WebSearch', hooks: [async () => { onSearch(); return { continue: true }; }] }] : []),
     ...external.map(guardHook),
@@ -211,13 +224,16 @@ export function optionsFor(o: QueryOptions, abort: AbortController): Options {
     abortController: abort,
     systemPrompt: o.system,
     settingSources: [],
-    // Egasining o'z MCP serverlari va claude.ai ulagichlari ham yuklanmaydi: faqat Palantir asboblari va Palantir bergan tashqi serverlar
-    strictMcpConfig: true,
-    settings: { disableClaudeAiConnectors: true, autoMemoryEnabled: false },
+    // Egasining o'z MCP serverlari va claude.ai ulagichlari ham yuklanmaydi: faqat Palantir asboblari va Palantir bergan tashqi serverlar.
+    // Palantir claude.ai ulagichini bergan bo'lsa (Meta reklama) — ulagichlar yuklanadi, lekin faqat o'shanga ruxsat (dontAsk), qolganlari
+    // yashiriladi (disallowedTools)
+    strictMcpConfig: !connectors.length,
+    settings: { disableClaudeAiConnectors: !connectors.length, autoMemoryEnabled: false },
     persistSession: o.persist,
     tools: builtins,
     mcpServers: servers,
     allowedTools: [...builtins, ...(o.mcp ? ['mcp__palantir'] : []), ...external.map(e => `mcp__${e.name}`)],
+    ...(hidden.length ? { disallowedTools: hidden } : {}),
     // Ruxsat berilmagan narsa so'ralmaydi — darhol rad etiladi (kuzatuvchi yo'q)
     permissionMode: 'dontAsk',
     cwd: sessionDir(),
@@ -227,12 +243,36 @@ export function optionsFor(o: QueryOptions, abort: AbortController): Options {
   };
 }
 
+/** Shu claude.ai ulagichlari ulanguncha kutadi (ro'yxat ham kechikib keladi); vaqt tugasa — baribir davom etadi (asboblar bo'lmasa model aytadi) */
+export async function waitConnectors(q: Pick<Query, 'mcpServerStatus'>, names: readonly string[], waitMs = CONNECTOR_WAIT_MS): Promise<void> {
+  const until = Date.now() + waitMs;
+  while (Date.now() < until) {
+    const list = await q.mcpServerStatus().catch(() => []);
+    const mine = list.filter(s => names.includes(toolServer(s.name)));
+    if (mine.length === names.length && mine.every(s => s.status !== 'pending')) return;
+    await new Promise(r => setTimeout(r, 1_000));
+  }
+}
+
+/** So'rov modelga ulagichlar ulangandan keyin ketadi (aks holda birinchi qadamda ularning asboblari hali yo'q) */
+async function* afterConnectors(q: () => Query | null, names: readonly string[], prompt: string | AsyncIterable<SDKUserMessage>): AsyncGenerator<SDKUserMessage> {
+  // SDK kirishni query() qaytmasdan o'qiy boshlaydi — so'rov obyekti tayyor bo'lguncha
+  let live = q();
+  while (!live) { await new Promise(r => setTimeout(r, 20)); live = q(); }
+  await waitConnectors(live, names);
+  if (typeof prompt === 'string') yield { type: 'user', parent_tool_use_id: null, message: { role: 'user', content: prompt } };
+  else yield* prompt;
+}
+
 export async function runQuery(prompt: string | AsyncIterable<SDKUserMessage>, o: QueryOptions): Promise<TurnResult> {
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
   const msgs: SDKMessage[] = [];
+  const connectors = (o.external ?? []).filter(e => e.claudeAi).map(e => e.name);
   try {
-    for await (const m of query({ prompt, options: optionsFor(o, abort) })) msgs.push(m);
+    let q: Query | null = null;
+    q = query({ prompt: connectors.length ? afterConnectors(() => q, connectors, prompt) : prompt, options: optionsFor(o, abort) });
+    for await (const m of q) msgs.push(m);
   } catch (e) {
     const sessionId = msgs.find(m => 'session_id' in m && m.session_id)?.session_id ?? null;
     if (abort.signal.aborted) throw new SubscriptionError('timeout', 'Obuna javobi juda uzoq kutildi', sessionId);
