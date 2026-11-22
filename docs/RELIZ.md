@@ -1,5 +1,9 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.42 da yangi
+
+- **Reklama kabineti Claude orqali (ilova ham, token ham kerak emas):** claude.ai → Settings → Connectors'da «Meta Ads» ulagichini qo'shasiz (`https://mcp.facebook.com/ads`, Facebook bilan ruxsat). Keyin Palantir → Targetolog → Kabinet → «Claude orqali ulash». Targetolog kabinetni o'qiydi, tahlil qiladi, kampaniyani pauzada yig'adi va keraksizini to'xtatadi. Yoqish va byudjet — faqat sizning Telegram tugmangiz bilan, limitlar ichida. Sarf har 30 daqiqada tekshiriladi.
+
 ## 0.4.41 da yangi
 
 - **Reklama kabinetini Pipeboard orqali ulash:** o'z Meta ilovangiz bo'lmasa ham bo'ladi. pipeboard.co'da Facebook bilan kiring, kabinetingizni ulang, u yerdagi tokenni Targetolog → Kabinet'ga qo'ying. Targetolog kabinetni o'qiydi, tahlil qiladi, kampaniyani pauzada yig'adi; yoqish va byudjet — faqat sizning Telegram tugmangiz bilan, limitlar ichida.
