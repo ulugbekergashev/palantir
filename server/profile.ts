@@ -61,10 +61,14 @@ export function createBlocked(): string | null {
   return "Bu kompyuterda profil bor — bitta kompyuter, bitta ish. Boshqa klinikaga alohida kompyuter va litsenziya kerak";
 }
 
-/** Shu kompyuterning profili (bitta-profil rejimida) */
+/**
+ * Shu kompyuterning profili (bitta-profil rejimida). Qoidadan oldingi kompyuterda bir nechta qolgan bo'lsa — egasining Telegram'i
+ * ulangani (parol tiklash o'shanga borsin; eng eskisi bo'sh sinov profili bo'lib chiqdi, 2026-11-23), bo'lmasa — eng eskisi.
+ * Ortiqchalarini o'chirish: scripts/remove-extra-profiles.ts
+ */
 export function theProfile(): BusinessRow | undefined {
   const all = businesses.all().filter(b => b.active);
-  return all[all.length - 1];
+  return all.find(b => b.ownerChatId) ?? all[all.length - 1];
 }
 
 const LOGIN_RE = /^[a-z0-9._-]{3,32}$/;
