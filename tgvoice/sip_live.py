@@ -31,7 +31,8 @@ if '--stend' in sys.argv:
     os.environ['PALANTIR_URL'] = 'http://127.0.0.1:3220'
     os.environ['VOICE_AGENT_KEY'] = (Path(__file__).resolve().parent.parent / '.stend-data' / 'ovozli-agent-kaliti.txt').read_text().strip()
 
-from call_live import PALANTIR, LIVE_VOICE, UZ_TZ, Bridge, down_48_to_16, log, up_24_to_48
+from call_live import PALANTIR, LIVE_VOICE, UZ_TZ, Bridge, log, up_24_to_48
+from resample import Downsampler
 from common import env
 from reception import MISSED_AI, Desk, missed_call
 from web_live import WEB_PORT, WebVoice
@@ -202,6 +203,7 @@ class PhoneBridge(Bridge):
         self.desk = Desk(caller, missed=mode == MISSED, can_transfer=mode == CUSTOMER) if mode in CUSTOMERS else None
         self.live = None                        # Gemini Live seansi (o'tkazib bo'lmasa AI'ga aytish uchun)
         self.voice_at = 0.0                     # AI ovozi liniyaga oxirgi marta ketgan payt
+        self.to_line = Downsampler()            # AI ovozi liniya chastotasiga: har qo'ng'iroqqa o'z filtri
         self.echo = {'cut': 0, 'cut_max': 0, 'pass': 0, 'pass_max': 0}   # aks-sado filtri hisobi (jurnalga, sozlash uchun)
         self.call_limit_s = CUSTOMER_LIMIT_S if mode in CUSTOMERS else OWNER_LIMIT_S
         self.palantir.http.headers['Authorization'] = f'Bearer {token}'
@@ -215,7 +217,7 @@ class PhoneBridge(Bridge):
         """Kalit allaqachon bor (Token)"""
 
     def from_live(self, pcm24: bytes) -> bytes:
-        return down_48_to_16(pcm24)   # 24 → 8 kHz: o'sha 3:1
+        return self.to_line(pcm24)    # 24 → 8 kHz: filtr bilan, aks holda «s», «sh» xirillaydi (resample.py)
 
     async def uplink(self, s):
         """Liniya → Live: 8 kHz dan 16 kHz ga, 40 ms dan. Salomlashuv tugaguncha yuborilmaydi (Telegram'dagidek).
