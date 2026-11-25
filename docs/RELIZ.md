@@ -1,5 +1,11 @@
 Klinikalar shu kechasi o'zi yangilanadi. Yangilanishdan keyin biror narsa ishlamasa — Palantir o'zi oldingi nashrga qaytadi.
 
+## 0.4.43 da yangi
+
+- **Telefondagi AI ovozi tozaroq:** telefon liniyasida «s», «sh», «ch» tovushlari xirillab chiqardi — endi ovoz liniyaga to'g'ri siqiladi.
+- **Raqamlarni odamdek aytadi:** vaqtni «soat o'n to'rt o'ttiz» emas — «soat ikki yarim», ish vaqtini «ertalab to'qqizdan kechki yettigacha» deydi; telefon raqamini «+998»siz, bo'lib-bo'lib aytadi. Gapi yengil og'zaki, lekin hurmat bilan («siz»).
+- **Parolni tiklash:** bitta kompyuterda bir nechta profil qolib ketgan bo'lsa, tiklash kodi Telegram ulangan profilga boradi.
+
 ## 0.4.42 da yangi
 
 - **Reklama kabineti Claude orqali (ilova ham, token ham kerak emas):** claude.ai → Settings → Connectors'da «Meta Ads» ulagichini qo'shasiz (`https://mcp.facebook.com/ads`, Facebook bilan ruxsat). Keyin Palantir → Targetolog → Kabinet → «Claude orqali ulash». Targetolog kabinetni o'qiydi, tahlil qiladi, kampaniyani pauzada yig'adi va keraksizini to'xtatadi. Yoqish va byudjet — faqat sizning Telegram tugmangiz bilan, limitlar ichida. Sarf har 30 daqiqada tekshiriladi.
